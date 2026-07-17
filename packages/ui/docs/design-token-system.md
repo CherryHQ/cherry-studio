@@ -1,0 +1,368 @@
+# Cherry Studio Shadcn Variable System
+
+> Status: normative v2 contract. This PR introduces the complete contract without bulk-replacing existing
+> component usage or deleting compatibility variables.
+
+This document defines the new variable system for Cherry Studio. It is intentionally focused on the Shadcn
+semantic contract and its migration boundary. The existing palette, spacing, typography, and legacy variables
+continue to exist while consumers are migrated.
+
+The visual guidance in the repository root `DESIGN.md` describes how the product should look. This document
+defines which variables product and shared UI code should use.
+
+## 1. Current systems and target
+
+The repository currently contains multiple variable families with different responsibilities:
+
+| Family | Current role | Target role |
+| --- | --- | --- |
+| `--cs-{palette}-{step}` | Primitive palette | Temporary value provider; unchanged in this PR |
+| existing semantic `--cs-*` | Partially standardized shared semantics | Temporary value provider for the new contract |
+| generated `--color-*` | Tailwind theme variables and some accidental public API | Tailwind adapter output only |
+| renderer `--app-*` | App-shell values plus duplicated Shadcn roles | App-only concepts; duplicated roles migrate later |
+| `legacy-vars.css` | Historical aliases and live literals | Compatibility-only layer, removed after migration |
+| canonical Shadcn variables | Incomplete or missing | The single target semantic API |
+
+The new system does not create another independent palette. It creates a canonical semantic layer over the
+values already shipped by Cherry Studio:
+
+```text
+existing --cs-* values
+        │ temporary provider
+        ▼
+canonical Shadcn variables
+(--background, --primary, --muted-foreground, ...)
+        │
+        ▼
+Tailwind @theme inline adapter
+(--color-background, --color-primary, ...)
+        │
+        ▼
+bg-background / text-muted-foreground / border-border / ...
+```
+
+During migration, compatibility variables may point toward this flow. The canonical layer must never point to
+`--color-*`, `--app-*`, or legacy variables.
+
+## 2. Scope of the v2 contract
+
+This contract includes:
+
+1. the complete Shadcn color contract for light and dark modes;
+2. a small set of Cherry Studio semantic extensions;
+3. a canonical `--radius` input and Tailwind radius mappings;
+4. an explicit Tailwind CSS v4 `@theme inline` adapter;
+5. a machine-readable registry for later automated migration;
+6. compatibility rules that allow old and new systems to coexist temporarily.
+
+This contract does not include:
+
+- bulk replacement of component variables or Tailwind classes;
+- deletion of existing `--cs-*`, `--app-*`, or legacy variables;
+- renaming every primitive to a new reference-token namespace;
+- redesigning spacing, typography, shadow, or motion scales;
+- adopting DTCG JSON as a required build input;
+- changing the current visual palette merely to resemble a Shadcn demo theme.
+
+DTCG may become a future source format. It is not a prerequisite for having a correct Shadcn variable system.
+
+## 3. Layer rules
+
+### 3.1 Existing value layer
+
+The current `--cs-*` variables remain the authored value source during this PR. They may contain primitive values
+or the existing light/dark semantic mappings.
+
+New shared components must not start consuming additional `--cs-*` semantics directly. They should consume the
+canonical variable or its Tailwind utility. This prevents the temporary provider from becoming a second public
+contract.
+
+### 3.2 Canonical semantic layer
+
+Unprefixed Shadcn variables are the target public theme API:
+
+```css
+--background
+--foreground
+--primary
+--primary-foreground
+--muted
+--muted-foreground
+```
+
+Rules:
+
+- names express UI intent, never a palette or a component implementation;
+- surface roles use a matching `*-foreground` when content can be placed on the surface;
+- light and dark modes override the same names, never `*-light` or `*-dark` variants;
+- `muted-foreground` is canonical; `foreground-muted` must not be added;
+- canonical variables may temporarily alias `--cs-*` values;
+- canonical variables must not reference Tailwind `--color-*` output;
+- runtime customization enters through an approved input and resolves into canonical output.
+
+### 3.3 Tailwind adapter
+
+Tailwind theme variables are generated adapter output:
+
+```css
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+}
+```
+
+`inline` is required because the theme variables reference other CSS variables. Components consume the resulting
+semantic utilities:
+
+```text
+bg-background
+text-foreground
+bg-primary
+text-primary-foreground
+text-muted-foreground
+border-border
+ring-ring
+```
+
+`--color-*` is not a design source and runtime code must not write to it. Existing non-semantic palette utilities
+remain available as compatibility API in this PR, but new shared UI should prefer semantic utilities.
+
+### 3.4 Application layer
+
+Product-only concepts use `--app-*`, for example:
+
+```css
+--app-sidebar-glow-color
+--app-selection-toolbar-height
+--app-window-background
+```
+
+An `--app-*` variable must represent an application concept. Names such as `--app-card-foreground` and
+`--app-muted-foreground` duplicate the shared contract and are migration targets, not permanent architecture.
+
+### 3.5 Legacy layer
+
+Legacy files may contain aliases while old consumers still exist:
+
+```css
+--color-text-1: var(--foreground);
+```
+
+No new product code may consume a legacy variable. A legacy alias is removed only after repository-wide usage
+reaches zero.
+
+## 4. Canonical Shadcn contract
+
+Every variable in this section must resolve in both light and dark modes.
+
+### 4.1 Core colors
+
+| Group | Variables | Meaning |
+| --- | --- | --- |
+| Page | `background`, `foreground` | Default page surface and readable content |
+| Card | `card`, `card-foreground` | Grouped or elevated content |
+| Popover | `popover`, `popover-foreground` | Floating content |
+| Primary | `primary`, `primary-foreground` | Highest-emphasis action or selection |
+| Secondary | `secondary`, `secondary-foreground` | Supporting filled action |
+| Muted | `muted`, `muted-foreground` | Quiet surface and secondary readable content |
+| Accent | `accent`, `accent-foreground` | Hovered or selected interactive content |
+| Destructive | `destructive`, `destructive-foreground` | Dangerous user action |
+| Controls | `border`, `input`, `ring` | Structure, control outline, and focus indication |
+| Charts | `chart-1` through `chart-5` | Default categorical data series |
+
+The complete sidebar group is:
+
+```text
+sidebar
+sidebar-foreground
+sidebar-primary
+sidebar-primary-foreground
+sidebar-accent
+sidebar-accent-foreground
+sidebar-border
+sidebar-ring
+```
+
+### 4.2 Initial value bridge
+
+The first implementation preserves current design decisions by using the existing semantic layer as a provider:
+
+| Canonical variable | Initial provider |
+| --- | --- |
+| `background` | `--cs-background` |
+| `foreground` | `--cs-foreground` |
+| `card` / `card-foreground` | `--cs-card` / `--cs-card-foreground` |
+| `popover` / `popover-foreground` | `--cs-popover` / `--cs-popover-foreground` |
+| `primary` / `primary-foreground` | runtime primary input / `--cs-primary-foreground` |
+| `secondary` / `secondary-foreground` | `--cs-secondary` / `--cs-secondary-foreground` |
+| `muted` / `muted-foreground` | `--cs-muted` / `--cs-foreground-secondary` |
+| `accent` / `accent-foreground` | `--cs-accent` / `--cs-accent-foreground` |
+| `destructive` / `destructive-foreground` | `--cs-destructive` / `--cs-destructive-foreground` |
+| `border` / `input` / `ring` | `--cs-border` / `--cs-input` / runtime ring input |
+| sidebar group | matching existing `--cs-sidebar-*` values |
+
+Charts are additive because the shared layer currently has no complete chart contract. They use an explicit,
+mode-aware five-color sequence and do not change existing component rendering until consumed.
+
+### 4.3 Cherry Studio color extensions
+
+Only repeated product-wide intent that Shadcn does not express belongs in the shared extension set:
+
+```text
+background-subtle
+border-subtle
+border-strong
+```
+
+The feedback intents are:
+
+```text
+success
+warning
+info
+error
+```
+
+Each intent has the same shape:
+
+```text
+{intent}
+{intent}-foreground
+{intent}-subtle
+{intent}-subtle-foreground
+{intent}-border
+```
+
+`destructive` and `error` are distinct. `destructive` styles a dangerous action; `error` communicates system
+feedback. They may share palette values without sharing semantics.
+
+Hover and active colors are component-state decisions. The shared contract does not multiply every intent into
+global `hover` and `active` variables.
+
+## 5. Radius contract
+
+Shadcn uses one canonical input:
+
+```css
+:root {
+  --radius: var(--cs-radius-lg);
+}
+```
+
+Tailwind radius variables derive from that input while preserving the current 6/8/10/14/18/22 px scale:
+
+```css
+@theme inline {
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+  --radius-2xl: calc(var(--radius) + 0.5rem);
+  --radius-3xl: calc(var(--radius) + 0.75rem);
+  --radius-full: 9999px;
+}
+```
+
+Existing extended radius names remain available for compatibility. New code uses `rounded-full` instead of
+`rounded-round`.
+
+Spacing, typography, shadow, and motion keep their current behavior in this PR. They require separate design
+decisions and must not block the color contract.
+
+## 6. Modes and runtime customization
+
+Initial supported modes are `:root` and `.dark`.
+
+The current runtime primary input remains supported:
+
+```css
+--cs-theme-primary
+```
+
+It feeds `--primary`; `--ring` derives from the same runtime color. This preserves user-selected primary colors
+without allowing runtime code to mutate `--color-primary` or component variables directly.
+
+Rules:
+
+- every canonical token resolves in every supported mode;
+- a mode cannot define only half of a surface/foreground pair;
+- runtime inputs always have an authored fallback;
+- component code should not add `dark:*` palette substitutions when a semantic token can express the mode;
+- Electron window transparency remains an application-shell concern, not the shared `background` default.
+
+## 7. Migration registry
+
+Bulk migration uses a versioned machine-readable registry. A rule distinguishes safe renames from cases that
+need UI context.
+
+| Strategy | Meaning | Default action |
+| --- | --- | --- |
+| `exact` | Same semantic and rendering role | Automatic replacement allowed |
+| `contextual` | Target depends on property, component, or state | AST rule plus validation required |
+| `review` | Old variable mixes multiple roles | Report only |
+| `preserve` | App-only, brand, vendor, generated, or user-authored value | Never replace automatically |
+
+Examples:
+
+| Current family | Target | Strategy |
+| --- | --- | --- |
+| `--cs-background` | `--background` | `exact` |
+| `--cs-foreground` | `--foreground` | `exact` |
+| `--color-background` | Tailwind adapter output | `preserve` |
+| `--color-text-1` | `--foreground` | `exact` |
+| `--color-text-2` | `--muted-foreground` | `contextual` |
+| `--color-text-3` | no universal target | `review` |
+| `--cs-foreground-muted` | muted content or disabled component state | `contextual` |
+| duplicated `--app-{shadcn-role}` | matching canonical variable | `exact` after value parity |
+| chat, navbar, window, and glow variables | matching `--app-*` concept | `preserve` or `contextual` |
+
+A future migration plugin must parse CSS and TS/TSX syntax, be idempotent, provide a dry run, skip generated and
+vendor files, change only approved `exact`/`contextual` rules, and report ambiguous or unmapped usage. Regex-only
+mutation is not sufficient.
+
+## 8. Governance
+
+Adding or changing a canonical variable is a shared API change.
+
+A proposal must state:
+
+1. the missing semantic role;
+2. its light and dark providers;
+3. the matching foreground when it is a surface;
+4. intended consumers;
+5. the Tailwind mapping;
+6. migration classification;
+7. contract-test and documentation changes.
+
+Do not add a token for one use site, a speculative theme, or a role already represented by the contract. Icons
+normally inherit `currentColor`; component hover/active states normally stay in component variants.
+
+The generated contract must validate that:
+
+- all required Shadcn variables exist;
+- every Tailwind semantic color maps to its canonical variable with `@theme inline`;
+- aliases resolve without cycles;
+- no source addition silently expands the canonical API;
+- generated CSS matches committed output;
+- migration records use a known strategy and do not contain duplicate sources.
+
+## 9. Delivery in this PR
+
+The contract is delivered as independent commits:
+
+1. document the architecture and exact public contract;
+2. add the canonical variables and mode-aware Cherry extensions;
+3. update the generated Tailwind adapter to `@theme inline` and explicit semantic mappings;
+4. add the migration registry and contract validation.
+
+Existing components, renderer overrides, and legacy aliases remain untouched unless a small change is required to
+keep the new contract valid. Their bulk migration belongs to a later automated pass.
+
+## 10. References
+
+- [shadcn/ui theming](https://ui.shadcn.com/docs/theming)
+- [Tailwind CSS theme variables](https://tailwindcss.com/docs/theme)
+- [Design Tokens Format Module 2025.10](https://www.designtokens.org/TR/2025.10/format/) (optional future
+  interchange format)

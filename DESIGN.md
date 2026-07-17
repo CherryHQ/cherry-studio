@@ -1,5 +1,10 @@
 # Cherry Studio Design System
 
+> **Token architecture:** The normative v2 contract for variable layers, Shadcn/Tailwind mappings, compatibility,
+> and migration metadata is
+> [`packages/ui/docs/design-token-system.md`](./packages/ui/docs/design-token-system.md). Existing `--cs-*` values
+> remain the temporary value provider while consumers move to the canonical Shadcn variables.
+
 ## 1. Visual Theme & Atmosphere
 
 > **Source of truth:** token sources live in `packages/ui/src/styles/tokens/` and Tailwind-facing aliases are generated in `packages/ui/src/styles/theme.css`. Renderer-only bridge aliases live in `src/renderer/assets/styles/tailwind.css`. This document references public aliases only when they are actually exported; for actual values open the relevant token source or generated theme alias.

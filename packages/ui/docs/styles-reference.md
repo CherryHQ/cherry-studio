@@ -2,6 +2,10 @@
 
 This document is a lightweight index for the active style sources used by `@cherrystudio/ui`.
 
+The v2 architecture and migration contract are defined in
+[design-token-system.md](./design-token-system.md). Existing `--cs-*` files remain the temporary value provider;
+new shared UI targets the canonical Shadcn variables exposed by the full theme entry.
+
 ## Source Files
 
 Runtime styles and design tokens live under `src/styles`:

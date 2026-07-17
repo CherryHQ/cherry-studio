@@ -77,7 +77,7 @@ Import only the design tokens and decide which theme mappings your app wants to 
 @import '@cherrystudio/ui/styles/tokens.css';
 
 /* Re-export only the parts you need */
-@theme {
+@theme inline {
   --color-primary: var(--cs-primary); /* Use the Cherry Studio primary color */
   --color-red-500: oklch(...); /* Keep your own red scale */
   --radius-lg: 1rem; /* Keep your own radius */
@@ -115,6 +115,10 @@ Import only the design tokens and decide which theme mappings your app wants to 
 ```
 
 ### CSS Variable Rules
+
+The normative v2 architecture, Shadcn contract, and migration boundary are defined in
+[Design Token System](./docs/design-token-system.md). Existing `--cs-*` variables remain supported as the value
+provider while consumers migrate to the canonical semantic contract.
 
 To avoid mixing tokens, theme mappings, and runtime overrides, use the following rules:
 
