@@ -13,15 +13,18 @@ import { useChatMarkdownComponents } from './useChatMarkdownComponents'
 
 interface Props {
   block: MarkdownSource
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   /** Pre-process the markdown content (e.g. citation tag injection). */
   postProcess?: (text: string) => string
   className?: string
   components?: Partial<Components>
 }
 
+export type InlineHtmlPreviewMode = 'generating' | 'ready'
+
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
 
-const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) => {
+const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, className, components }) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
   const isStreaming = block.status === 'streaming'
@@ -40,7 +43,12 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
   }, [block.status, block.content, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
-  const chatComponents = useChatMarkdownComponents({ blockId: block.id, hasStyleElement, isStreaming })
+  const chatComponents = useChatMarkdownComponents({
+    blockId: block.id,
+    inlineHtmlPreviewMode,
+    hasStyleElement,
+    isStreaming
+  })
   const mergedComponents = useMemo(
     () => (components ? { ...chatComponents, ...components } : chatComponents),
     [chatComponents, components]
