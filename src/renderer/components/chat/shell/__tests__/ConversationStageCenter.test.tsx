@@ -12,17 +12,15 @@ interface MockStageProps {
   placement: string
   main: ReactNode
   composer: ReactNode
-  homeWelcomeText?: string
   composerElevated?: boolean
   mainVisible?: boolean
 }
 
 vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
-  default: ({ placement, main, composer, homeWelcomeText, composerElevated, mainVisible }: MockStageProps) => (
+  default: ({ placement, main, composer, composerElevated, mainVisible }: MockStageProps) => (
     <div
       data-testid="conversation-stage"
       data-placement={placement}
-      data-welcome={homeWelcomeText}
       data-composer-elevated={String(Boolean(composerElevated))}
       data-main-visible={String(Boolean(mainVisible))}>
       <div data-testid="stage-main">{main}</div>
@@ -42,17 +40,11 @@ describe('ConversationStageCenter', () => {
 
   it('provides the shared full-height center frame around the composer stage', () => {
     const { container } = render(
-      <ConversationStageCenter
-        placement="home"
-        main={<div>messages</div>}
-        composer={<div>composer</div>}
-        homeWelcomeText="Welcome"
-      />
+      <ConversationStageCenter placement="home" main={<div>messages</div>} composer={<div>composer</div>} />
     )
 
     expect(container.firstElementChild).toHaveClass('h-full', 'min-h-0', 'flex-1')
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-placement', 'home')
-    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-welcome', 'Welcome')
   })
 
   it('elevates the composer when an optional right pane shell is maximized', () => {
