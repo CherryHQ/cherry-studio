@@ -41,6 +41,20 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it('reports whether any message still references a runtime resume token', async () => {
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d020',
+      sessionId: SESSION_ID,
+      role: 'assistant',
+      data: { parts: [] },
+      status: 'success',
+      runtimeResumeToken: 'token-live'
+    })
+
+    expect(agentSessionMessageService.hasRuntimeResumeToken('token-live')).toBe(true)
+    expect(agentSessionMessageService.hasRuntimeResumeToken('token-gone')).toBe(false)
+  })
+
   describe('findPendingAssistantMessageIds + markMessagesError (boot reconcile)', () => {
     it('finds only pending assistant rows and resolves them to error', async () => {
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'

@@ -110,6 +110,19 @@ export interface AgentRuntimeConnection {
   close(): void | Promise<void>
 }
 
+/**
+ * What still exists, for sweeping external session stores: anything a driver persisted for a
+ * session/token NOT in this index is orphaned (deleted session, or messages edited away) and may
+ * be removed. Sweepers must still skip recently-written files — in-flight state (a first turn, a
+ * prewarmed query) can hold ids the index doesn't know yet.
+ */
+export interface AgentSessionLiveIndex {
+  /** Cherry session id still exists (DB row or live runtime). */
+  isSessionLive(sessionId: string): boolean
+  /** External runtime session id (resume token) still referenced (a message row or live runtime). */
+  isResumeTokenLive(token: string): boolean
+}
+
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
   /**
    * Per-driver session prerequisite check: throws if the session can't be
@@ -126,4 +139,12 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * query) without the host reaching into driver internals. Optional.
    */
   onSessionIdle?(sessionId: string): void
+  /**
+   * Garbage-collect whatever the runtime persisted outside Cherry's DB
+   * (transcripts, per-session caches, …) for sessions/tokens absent from the
+   * live index. Invoked by the host on its own schedule (boot + interval), not
+   * per deletion; best-effort — failures log, never throw. Omit when the
+   * runtime keeps no external session store.
+   */
+  sweepSessionFiles?(live: AgentSessionLiveIndex): Promise<void>
 }

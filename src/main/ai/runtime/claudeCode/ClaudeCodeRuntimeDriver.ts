@@ -45,6 +45,7 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
+  AgentSessionLiveIndex,
   AgentSessionRuntimeDriver
 } from '../types'
 import {
@@ -53,6 +54,7 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
+import { sweepClaudeSessionFiles } from './sessionFileSweep'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -757,5 +759,9 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     // `prewarmAgentSession` already no-ops in trace mode (it closes any warm
     // queries and returns), so no driver-side trace guard is needed here.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
+  }
+
+  async sweepSessionFiles(live: AgentSessionLiveIndex): Promise<void> {
+    await sweepClaudeSessionFiles(live)
   }
 }

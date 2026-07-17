@@ -290,6 +290,18 @@ export class AgentSessionMessageService {
     }
   }
 
+  /** Whether any message still references this external runtime session id. */
+  hasRuntimeResumeToken(token: string): boolean {
+    const database = application.get('DbService').getDb()
+    const [row] = database
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.runtimeResumeToken, token))
+      .limit(1)
+      .all()
+    return !!row
+  }
+
   // ── Persistence methods ──────────────────────────────────────────
 
   private findExistingMessageRow(db: DbOrTx, sessionId: string, messageId: string): SessionMessageRow | null {
