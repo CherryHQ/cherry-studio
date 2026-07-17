@@ -29,7 +29,8 @@ to undo it afterwards.
 
 ## Notes for release manager
 
-- On a machine that still has v1 data on disk, a factory reset behaves like a
-  fresh install: the v1→v2 migration prompt will appear again on next start and
-  can re-import the old v1 data. This mirrors fresh-install semantics (#17131).
-- Log files are kept for diagnostics; they are not user content.
+- v1 data does NOT come back after a factory reset: the wipe erases the v1
+  artifacts stored inside the data directory and the legacy
+  `~/.cherrystudio/config` state, so the v1→v2 migration prompt will not
+  reappear. Users who want their old data must restore from a backup.
+- Log files and crash dumps are kept for diagnostics; they are not user content.
