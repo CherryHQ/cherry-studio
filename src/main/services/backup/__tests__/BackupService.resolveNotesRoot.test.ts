@@ -47,7 +47,7 @@ describe('BackupService.resolveNotesRoot errno classification', () => {
     expect(result).toBeUndefined()
   })
 
-  it('EACCES on managed default rethrows (fail-loud, not silent omit)', () => {
+  it('EACCES on managed default rethrows — invariant: resolveNotesRoot never silently omits on permission errors', () => {
     const realStat = fs.statSync
     vi.spyOn(fs, 'statSync').mockImplementation(((p: fs.PathLike, opts?: fs.StatSyncOptions) => {
       if (String(p) === defaultRoot) {
