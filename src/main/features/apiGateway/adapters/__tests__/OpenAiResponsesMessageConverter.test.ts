@@ -86,6 +86,59 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
     })
   })
 
+  it('relocates input_file outputs (file_data and file_url) into user file parts, preserving filename', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'function_call', call_id: 'c1', name: 'export_report', arguments: '{}' },
+          {
+            type: 'function_call_output',
+            call_id: 'c1',
+            output: [
+              { type: 'input_file', file_data: 'JVBERI', filename: 'report.pdf' },
+              { type: 'input_file', file_url: 'https://files.example/doc.pdf' }
+            ]
+          }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain('[file 1 (application/pdf, report.pdf)')
+    expect(output).toContain('[file 2 (application/pdf)')
+    expect(output).not.toContain('JVBERI')
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [
+        {
+          type: 'file',
+          mediaType: 'application/pdf',
+          url: 'data:application/pdf;base64,JVBERI',
+          filename: 'report.pdf'
+        },
+        { type: 'file', mediaType: 'application/pdf', url: 'https://files.example/doc.pdf' }
+      ]
+    })
+  })
+
+  it('downgrades file_id-only input_file outputs to a placeholder (not resolvable cross-vendor)', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'function_call', call_id: 'c1', name: 'export_report', arguments: '{}' },
+          {
+            type: 'function_call_output',
+            call_id: 'c1',
+            output: [{ type: 'input_file', file_id: 'file-abc' }]
+          }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    expect((msgs[0].parts[0] as { output?: unknown }).output).toContain(
+      '[unsupported input_file tool output item omitted]'
+    )
+    expect(msgs).toHaveLength(1)
+  })
+
   it('emits an input-available part when a function_call has no output, and tolerates bad JSON args', () => {
     const msgs = converter.toUIMessages(
       params({

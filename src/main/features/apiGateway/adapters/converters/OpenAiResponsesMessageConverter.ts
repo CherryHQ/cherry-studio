@@ -12,6 +12,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
+import mime from 'mime'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
@@ -28,38 +29,49 @@ type ResponseCreateParams = OpenAI.Responses.ResponseCreateParams
 type EasyInputMessage = OpenAI.Responses.EasyInputMessage
 type FunctionCallOutput = OpenAI.Responses.ResponseInputItem.FunctionCallOutput
 
-/** A function_call_output split into the model-visible string output and relocated images. */
+/** A function_call_output split into the model-visible string output and relocated files. */
 interface FunctionOutputConversion {
   output: string
-  images: FileUIPart[]
+  files: FileUIPart[]
 }
 
 /**
  * Convert a function_call_output payload for the `dynamic-tool` UI part.
  *
- * Image items cannot ride inside the tool output: `convertToModelMessages` only
- * supports string/JSON tool outputs there, and OpenAI-style protocols have no
- * image tool content downstream — inlining base64 blows up the prompt (#17078).
- * Instead each image becomes a `file` part relocated into a user message right
- * after the tool call, and the output keeps a placeholder pointing at it.
+ * Image/file items cannot ride inside the tool output: `convertToModelMessages`
+ * only supports string/JSON tool outputs there, and OpenAI-style protocols have
+ * no media tool content downstream — inlining base64 blows up the prompt
+ * (#17078). Instead each media item becomes a `file` part relocated into a user
+ * message right after the tool call, and the output keeps a placeholder
+ * pointing at it. Only provider-bound `file_id`-only items (not resolvable
+ * cross-vendor) are downgraded to a placeholder alone.
  */
 function functionOutputToConversion(output: FunctionCallOutput['output']): FunctionOutputConversion {
-  if (typeof output === 'string') return { output, images: [] }
+  if (typeof output === 'string') return { output, files: [] }
   const lines: string[] = []
-  const images: FileUIPart[] = []
+  const files: FileUIPart[] = []
+  const attach = (kind: string, file: FileUIPart) => {
+    files.push(file)
+    const name = file.filename ? `, ${file.filename}` : ''
+    lines.push(`[${kind} ${files.length} (${file.mediaType}${name}): attached in the following user message]`)
+  }
   for (const item of output) {
     if (item.type === 'input_text') {
       lines.push(item.text)
     } else if (item.type === 'input_image' && item.image_url) {
       const mediaType = parseDataUrl(item.image_url)?.mediaType ?? 'image/*'
-      images.push({ type: 'file', mediaType, url: item.image_url })
-      lines.push(`[image ${images.length} (${mediaType}): attached in the following user message]`)
+      attach('image', { type: 'file', mediaType, url: item.image_url })
+    } else if (item.type === 'input_file' && (item.file_data || item.file_url)) {
+      const dataUrlType = item.file_data ? parseDataUrl(item.file_data)?.mediaType : undefined
+      const mediaType = dataUrlType ?? mime.getType(item.filename ?? item.file_url ?? '') ?? 'application/octet-stream'
+      const url = item.file_url ?? (dataUrlType ? item.file_data! : `data:${mediaType};base64,${item.file_data}`)
+      attach('file', { type: 'file', mediaType, url, ...(item.filename ? { filename: item.filename } : {}) })
     } else {
-      // input_file / file_id-only images have no inline payload to forward.
+      // file_id-only items reference provider-hosted files we can't resolve.
       lines.push(`[unsupported ${item.type} tool output item omitted]`)
     }
   }
-  return { output: lines.join('\n'), images }
+  return { output: lines.join('\n'), files }
 }
 
 /**
@@ -135,11 +147,11 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         continue
       }
       // function_call_output: the string output is folded into its function_call
-      // above; relocated tool-output images surface here as a user message.
+      // above; relocated tool-output media surface here as a user message.
       if ('type' in item && item.type === 'function_call_output') {
-        const images = functionOutputs.get(item.call_id)?.images
-        if (images?.length) {
-          messages.push({ id: nextUIMessageId(), role: 'user', parts: [...images] })
+        const files = functionOutputs.get(item.call_id)?.files
+        if (files?.length) {
+          messages.push({ id: nextUIMessageId(), role: 'user', parts: [...files] })
         }
       }
     }
