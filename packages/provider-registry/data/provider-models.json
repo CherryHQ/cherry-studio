@@ -18528,7 +18528,7 @@
             "maxInputImages": 4,
             "supports": {
               "background": {
-                "options": ["auto", "transparent", "opaque"],
+                "options": ["auto", "opaque"],
                 "type": "enum"
               },
               "numImages": {
@@ -18550,7 +18550,7 @@
           "generate": {
             "supports": {
               "background": {
-                "options": ["auto", "transparent", "opaque"],
+                "options": ["auto", "opaque"],
                 "type": "enum"
               },
               "numImages": {
@@ -22283,5 +22283,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "88d0dea367be4b34"
+  "version": "d377116a5efd650c"
 }

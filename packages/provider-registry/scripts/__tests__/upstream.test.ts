@@ -105,6 +105,34 @@ describe('parseOrImageGeneration', () => {
     })
   })
 
+  it('removes transparent background when a model only supports JPEG output', () => {
+    expect(
+      parseOrImageGeneration({
+        supported_parameters: {
+          background: { type: 'enum', values: ['auto', 'transparent', 'opaque'] },
+          output_format: { type: 'enum', values: ['jpeg'] },
+          input_references: { type: 'range', min: 0, max: 4 }
+        }
+      })
+    ).toEqual({
+      modes: {
+        generate: {
+          supports: {
+            background: { type: 'enum', options: ['auto', 'opaque'] },
+            outputFormat: { type: 'enum', options: ['jpeg'] }
+          }
+        },
+        edit: {
+          maxInputImages: 4,
+          supports: {
+            background: { type: 'enum', options: ['auto', 'opaque'] },
+            outputFormat: { type: 'enum', options: ['jpeg'] }
+          }
+        }
+      }
+    })
+  })
+
   it('keeps an empty generate mode for image models that advertise no optional parameters', () => {
     expect(parseOrImageGeneration({ supported_parameters: {} })).toEqual({
       modes: { generate: { supports: {} } }

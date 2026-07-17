@@ -232,6 +232,18 @@ export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | n
   ) {
     delete supports.outputCompression
   }
+  // Transparent output requires an alpha-capable format. If a model explicitly limits output to
+  // non-alpha formats, do not expose an option that OpenRouter will reject when both are selected.
+  const background = supports.background
+  if (
+    background?.type === 'enum' &&
+    outputFormat?.type === 'enum' &&
+    !outputFormat.options.some((value) => value === 'png' || value === 'webp')
+  ) {
+    const options = background.options.filter((value) => value !== 'transparent')
+    if (options.length) supports.background = { ...background, options }
+    else delete supports.background
+  }
 
   const inputReferences = OrParamDescriptor.safeParse(p.data.supported_parameters.input_references)
   const maxInputImages =
