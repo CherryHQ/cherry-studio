@@ -416,6 +416,13 @@ export class CacheService {
   /**
    * Pure physical read of a shared cache entry, for external-store snapshots.
    *
+   * @internal Hook-layer primitive, not a consumer API. Its only legitimate
+   * caller is `useCache.ts` (the external-store snapshots behind
+   * `useSharedCacheValue` / `useSharedCacheSelector` / `useSharedCache`).
+   * Business code observing a shared value uses those hooks; an imperative
+   * one-shot read uses the TTL-aware `getShared` — calling this instead is a
+   * TTL-blind read and a smell.
+   *
    * Unlike `getShared`, this reader never evaluates TTL and never mutates the
    * store (no lazy deletion, no subscriber notification, no broadcast).
    * `useSyncExternalStore` requires `getSnapshot` to return the same result
