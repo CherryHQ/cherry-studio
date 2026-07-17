@@ -272,11 +272,12 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
-  it('shows a remove control for an applied tool', async () => {
+  it('shows an uninstall control for an applied fixed tool', async () => {
     setSnapshots({ gh: miseSnapshot('gh', 'gh', '2.0.0', true) })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
-    expect(within(card).getByLabelText('settings.dependencies.remove')).toBeInTheDocument()
+    expect(within(card).getByLabelText('settings.dependencies.uninstall')).toBeInTheDocument()
+    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
   it('renders custom tools alongside presets', async () => {
@@ -349,7 +350,7 @@ describe('EnvironmentDependencies', () => {
     })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
-    expect(await within(card).findByLabelText('settings.dependencies.remove')).toBeDisabled()
+    expect(await within(card).findByLabelText('settings.dependencies.uninstall')).toBeDisabled()
     expect(within(card).queryByText('settings.dependencies.installing')).not.toBeInTheDocument()
   })
 
@@ -758,15 +759,15 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByText('settings.dependencies.installingHint')).toBeInTheDocument()
   })
 
-  it('offers removal for an applied preset', async () => {
+  it('offers uninstall for an applied fixed preset', async () => {
     setSnapshots({ uv: miseSnapshot('uv') })
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
 
-    fireEvent.click(within(card).getByLabelText('settings.dependencies.remove'))
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('settings.dependencies.removeConfirmMessage')
-    // Confirm/cancel buttons must be localized, not the component's English defaults.
-    expect(screen.getByTestId('confirm-dialog-confirm')).toHaveTextContent('common.delete')
+    fireEvent.click(within(card).getByLabelText('settings.dependencies.uninstall'))
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('settings.dependencies.uninstallConfirmMessage')
+    // Fixed tools say Uninstall; custom tools keep the distinct Remove flow.
+    expect(screen.getByTestId('confirm-dialog-confirm')).toHaveTextContent('settings.dependencies.uninstall')
     expect(screen.getByTestId('confirm-dialog-cancel')).toHaveTextContent('common.cancel')
   })
 
@@ -808,7 +809,7 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
     const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
 
-    fireEvent.click(within(card).getByLabelText('settings.dependencies.remove'))
+    fireEvent.click(within(card).getByLabelText('settings.dependencies.uninstall'))
     fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
 
     await screen.findByText('gh resolves to a conflicting installation and cannot be safely removed')

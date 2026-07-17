@@ -68,7 +68,7 @@ describe('useBinaryActions', () => {
 
     expect(ipcRequestMock).toHaveBeenCalledWith('binary.remove_tool', { name: 'claude' })
     expect(removed).toBe(true)
-    expect(toast.success).toHaveBeenCalledWith('common.delete_success')
+    expect(toast.success).toHaveBeenCalledWith('settings.dependencies.uninstallSuccess')
   })
 
   it('surfaces a fixed-tool cleanup_blocked as an error with no definition fallback', async () => {

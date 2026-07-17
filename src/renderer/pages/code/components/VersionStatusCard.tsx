@@ -133,8 +133,8 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               className="text-muted-foreground/30 hover:text-destructive"
               onClick={onRemove}
               disabled={busy}
-              aria-label={t('settings.dependencies.remove')}
-              title={t('settings.dependencies.remove')}>
+              aria-label={t('settings.dependencies.uninstall')}
+              title={t('settings.dependencies.uninstall')}>
               {removing ? (
                 <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
               ) : (

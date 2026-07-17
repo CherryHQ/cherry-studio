@@ -401,14 +401,20 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title={t('settings.dependencies.removeConfirmTitle')}
+        title={t(
+          deleteTargetRef.current.custom
+            ? 'settings.dependencies.removeConfirmTitle'
+            : 'settings.dependencies.uninstallConfirmTitle'
+        )}
         description={t(
           deleteTargetRef.current.runtime
             ? 'settings.dependencies.removeRuntimeConfirmMessage'
-            : 'settings.dependencies.removeConfirmMessage',
+            : deleteTargetRef.current.custom
+              ? 'settings.dependencies.removeConfirmMessage'
+              : 'settings.dependencies.uninstallConfirmMessage',
           { name: deleteTargetRef.current.name }
         )}
-        confirmText={t('common.delete')}
+        confirmText={t(deleteTargetRef.current.custom ? 'common.delete' : 'settings.dependencies.uninstall')}
         cancelText={t('common.cancel')}
         destructive
         onConfirm={async () => {
@@ -547,8 +553,8 @@ const BinaryToolPresetCard: FC<{
               className="text-foreground-muted hover:text-destructive"
               onClick={onRemove}
               disabled={busy}
-              aria-label={t('settings.dependencies.remove')}
-              title={t('settings.dependencies.remove')}>
+              aria-label={t('settings.dependencies.uninstall')}
+              title={t('settings.dependencies.uninstall')}>
               {removing ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : <Trash2 className="size-3.5" />}
             </Button>
           </div>

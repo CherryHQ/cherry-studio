@@ -46,9 +46,9 @@ describe('VersionStatusCard', () => {
     )
 
     expect(screen.getByText('settings.dependencies.source.system')).toHaveAttribute('title', '/usr/local/bin/claude')
-    // Cherry uses the system binary in place — never a remove, never a shadow copy.
+    // Cherry uses the system binary in place — never an uninstall, never a shadow copy.
     expect(screen.queryByRole('button', { name: 'settings.dependencies.installManagedCopy' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeEnabled()
   })
 
@@ -66,7 +66,7 @@ describe('VersionStatusCard', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'settings.dependencies.installManagedCopy' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
   })
 
   it('renders a disabled launch action when launch requirements are missing', () => {
@@ -205,7 +205,7 @@ describe('VersionStatusCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
     expect(onInstall).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
   })
 
   it('offers repair for a broken fixed copy even when an external CLI remains runnable', () => {
@@ -229,7 +229,7 @@ describe('VersionStatusCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
     expect(onInstall).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('button', { name: 'settings.dependencies.remove' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.dependencies.uninstall' })).toBeInTheDocument()
   })
 
   it('offers a probe retry for an unknown application without exposing uninstall', () => {
@@ -253,10 +253,10 @@ describe('VersionStatusCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
     expect(onInstall).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('button', { name: 'settings.dependencies.remove' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.uninstall' })).not.toBeInTheDocument()
   })
 
-  it('keeps removal available for a broken unavailable tool and never offers install retry after removal fails', () => {
+  it('keeps uninstall available for a broken unavailable tool and never offers install retry after uninstall fails', () => {
     render(
       <VersionStatusCard
         toolId="openclaw"
@@ -273,12 +273,12 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'settings.dependencies.remove' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'settings.dependencies.uninstall' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
   })
 
-  it('disables conflicting actions and renders only a removal spinner while removing', () => {
+  it('disables conflicting actions and renders only an uninstall spinner while removing', () => {
     render(
       <VersionStatusCard
         toolId="openclaw"
@@ -297,7 +297,7 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'settings.dependencies.remove' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.dependencies.uninstall' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'code.upgrade' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
     expect(screen.queryByText('code.installing')).not.toBeInTheDocument()

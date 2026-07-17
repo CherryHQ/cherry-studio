@@ -6191,6 +6191,11 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "Uninstall",
+      "uninstallConfirmMessage": "Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "Uninstall Tool",
+      "uninstallFailed": "Failed to uninstall tool",
+      "uninstallSuccess": "Tool uninstalled",
       "update": "Update to latest version",
       "updateCheckFailed": "Failed to check for updates",
       "updateCheckSuccess": "Version check complete",

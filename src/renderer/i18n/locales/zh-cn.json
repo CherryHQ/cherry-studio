@@ -6191,6 +6191,11 @@
         "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
+      "uninstall": "卸载",
+      "uninstallConfirmMessage": "确定要卸载 \"{{name}}\" 吗？Cherry Studio 管理的后端副本将被删除。",
+      "uninstallConfirmTitle": "卸载工具",
+      "uninstallFailed": "工具卸载失败",
+      "uninstallSuccess": "工具已卸载",
       "update": "更新到最新版本",
       "updateCheckFailed": "检查更新失败",
       "updateCheckSuccess": "版本检查完成",
