@@ -7,7 +7,7 @@
  * via the shared `observeExternalAccess` wrapper.
  */
 
-import { read as fsRead, stat as fsStat } from '@main/utils/file'
+import { read as fsRead, readChunk as fsReadChunk, stat as fsStat } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
@@ -52,6 +52,17 @@ export async function readByPath(
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
 ): Promise<ReadResult<string | Uint8Array>> {
   return readResolved(target, options)
+}
+
+export async function readChunk(
+  deps: FileManagerDeps,
+  id: FileEntryId,
+  offset: number,
+  length: number
+): Promise<Uint8Array<ArrayBuffer>> {
+  const entry = deps.fileEntryService.getById(id)
+  const physicalPath = resolvePhysicalPath(entry)
+  return observeExternalAccess(deps, entry, physicalPath, () => fsReadChunk(physicalPath, offset, length))
 }
 
 async function readResolved(

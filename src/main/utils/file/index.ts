@@ -67,6 +67,7 @@ export {
   type PathVersion,
   probeReadable,
   read,
+  readChunk,
   remove,
   removeDir,
   shouldSilenceFsyncDirError,

@@ -1,13 +1,17 @@
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
-  getMetadataByPathMock: vi.fn(),
-  safeOpenMock: vi.fn(),
-  showPathInFolderMock: vi.fn()
-}))
+const { appGetMock, getMetadataByPathMock, readChunkByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(
+  () => ({
+    appGetMock: vi.fn(),
+    getMetadataByPathMock: vi.fn(),
+    readChunkByPathMock: vi.fn(),
+    safeOpenMock: vi.fn(),
+    showPathInFolderMock: vi.fn()
+  })
+)
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@main/utils/file', () => ({ readChunk: readChunkByPathMock }))
 vi.mock('@main/services/file', async () => {
   // The handler now reaches dispatchHandle / getMetadataByPath through the file
   // facade (previously deep-imported). dispatchHandle is exercised for real —
@@ -46,6 +50,7 @@ const fileManager = {
   batchPermanentDelete: vi.fn(),
   emptyTrash: vi.fn(),
   rename: vi.fn(),
+  readChunk: vi.fn(),
   open: vi.fn(),
   showInFolder: vi.fn(),
   batchCreateInternalEntries: vi.fn()
@@ -137,6 +142,23 @@ describe('fileHandlers', () => {
     expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(fileManager.open).not.toHaveBeenCalled()
     expect(fileManager.showInFolder).not.toHaveBeenCalled()
+  })
+
+  it('dispatches chunk reads for entry and path handles', async () => {
+    const entryChunk = new Uint8Array([1, 2, 3])
+    const pathChunk = new Uint8Array([4, 5])
+    fileManager.readChunk.mockResolvedValueOnce(entryChunk)
+    readChunkByPathMock.mockResolvedValueOnce(pathChunk)
+
+    await expect(
+      fileHandlers['file.read_chunk']({ handle: { kind: 'entry', entryId: ids[0] }, offset: 10, length: 3 }, ctx)
+    ).resolves.toBe(entryChunk)
+    await expect(
+      fileHandlers['file.read_chunk']({ handle: { kind: 'path', path: '/tmp/report.pdf' }, offset: 20, length: 2 }, ctx)
+    ).resolves.toBe(pathChunk)
+
+    expect(fileManager.readChunk).toHaveBeenCalledWith(ids[0], 10, 3)
+    expect(readChunkByPathMock).toHaveBeenCalledWith('/tmp/report.pdf', 20, 2)
   })
 
   it('delegates internal-entry batch create items to FileManager', async () => {

@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { dispatchHandle, getMetadataByPath, safeOpen, showInFolder as showPathInFolder } from '@main/services/file'
+import { readChunk as readFileChunk } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
@@ -49,6 +50,14 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
   'file.empty_trash': async () => application.get('FileManager').emptyTrash(),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
+  'file.read_chunk': async ({ handle, offset, length }) => {
+    const fileManager = application.get('FileManager')
+    return dispatchHandle(
+      handle as FileHandle,
+      (entryId) => fileManager.readChunk(entryId, offset, length),
+      (path) => readFileChunk(path, offset, length)
+    )
+  },
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.open(entryId), safeOpen)
