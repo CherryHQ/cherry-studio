@@ -8,6 +8,7 @@ export interface UiNodeDescriptor {
   element: string
   fingerprintHash: string
   kind: 'html' | 'jsx'
+  previousAnchorHash?: string
   semanticId: string
   semanticSource: 'explicit' | 'inferred'
   sourceFile: string

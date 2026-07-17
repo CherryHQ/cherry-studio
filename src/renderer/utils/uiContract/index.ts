@@ -1,4 +1,3 @@
-export { type CompiledUiThemeCss, compileUiThemeCss, CUSTOM_THEME_SCOPE_SELECTOR } from './themeCss'
 export {
   type ParsedUiTokens,
   parseUiTokens,
