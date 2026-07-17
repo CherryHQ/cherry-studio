@@ -56,13 +56,13 @@ vi.mock('@renderer/utils/style', () => ({
   cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
 }))
 
-vi.mock('../../../layout/ChatViewportInsetContext', () => ({
-  useChatMaximizedOverlayBottomInset: () => 0
-}))
-
 vi.mock('../../../shell/RightPaneHost', () => ({
-  PersistentRightPaneHost: ({ children, open }: PropsWithChildren<{ open: boolean }>) => (
-    <div data-testid="right-pane-host" data-open={String(open)}>
+  PersistentRightPaneHost: ({
+    children,
+    maximized,
+    open
+  }: PropsWithChildren<{ maximized?: boolean; open: boolean }>) => (
+    <div data-testid="right-pane-host" data-maximized={String(Boolean(maximized))} data-open={String(open)}>
       {children}
     </div>
   )
@@ -94,7 +94,8 @@ const capabilities = [
       id: 'first',
       instanceKey: scope.firstKey,
       title: 'First',
-      readiness: scope.firstReadiness
+      readiness: scope.firstReadiness,
+      canMaximize: true
     })
   },
   {
@@ -287,6 +288,27 @@ describe('RightPanel', () => {
     expect(commandMock.handler).toBeDefined()
     act(() => commandMock.handler?.())
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('offers maximize only for capable panels and keeps the minimize control while maximized', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'false')
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
   })
 
   it('rejects duplicate panel ids', () => {

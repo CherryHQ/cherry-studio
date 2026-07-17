@@ -10,7 +10,6 @@ import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react
 import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useChatMaximizedOverlayBottomInset } from '../../layout/ChatViewportInsetContext'
 import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
@@ -35,6 +34,8 @@ export interface RightPanelInstance {
   instanceKey: string
   title: ReactNode
   readiness: RightPanelReadiness
+  /** Whether this panel may enter maximized presentation. */
+  canMaximize?: boolean
 }
 
 /** Resolves one panel slot from domain-owned scope; null means the slot has no identity. */
@@ -357,7 +358,7 @@ export function useOptionalRightPanelActions(): RightPanelActions | undefined {
   return use(RightPanelActionsContext) ?? undefined
 }
 
-function RightPanelHeader({ title }: { title?: ReactNode }) {
+function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolean; title?: ReactNode }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
   const { t } = useTranslation()
@@ -365,26 +366,34 @@ function RightPanelHeader({ title }: { title?: ReactNode }) {
   const MaximizeIcon = state.presentationMaximized ? Minimize2 : Maximize2
   const closeLabel = t('common.close_sidebar')
 
+  const maximizeButton =
+    canMaximize || state.presentationMaximized ? (
+      <Tooltip content={maximizeLabel} delay={800}>
+        <NavbarIcon
+          tone="conversation"
+          className="[&_svg]:!size-3.5 shrink-0"
+          aria-label={maximizeLabel}
+          aria-pressed={state.presentationMaximized}
+          onClick={actions.toggleMaximized}>
+          <MaximizeIcon />
+        </NavbarIcon>
+      </Tooltip>
+    ) : null
+
   return (
     <div
       data-testid="shell-tab-list"
-      className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]">
+      className={cn(
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]',
+        state.presentationMaximized && 'bg-card'
+      )}>
       <div
         data-testid="shell-tab-title"
         className="min-w-0 flex-1 select-none truncate px-1 font-medium text-foreground text-sm">
         {title}
       </div>
       <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
-        <Tooltip content={maximizeLabel} delay={800}>
-          <NavbarIcon
-            tone="conversation"
-            className="[&_svg]:!size-3.5 shrink-0"
-            aria-label={maximizeLabel}
-            aria-pressed={state.presentationMaximized}
-            onClick={actions.toggleMaximized}>
-            <MaximizeIcon />
-          </NavbarIcon>
-        </Tooltip>
+        {maximizeButton}
         <Tooltip content={closeLabel} delay={800}>
           <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={actions.close}>
             <RightSidebarCollapseIcon />
@@ -411,7 +420,7 @@ export function RightPanel() {
 
   return (
     <div className="flex h-full flex-col gap-0 overflow-hidden text-card-foreground">
-      <RightPanelHeader title={activeEntry?.title} />
+      <RightPanelHeader canMaximize={activeEntry?.canMaximize} title={activeEntry?.title} />
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {mountedEntries.map((entry) => {
           const Panel = entry.component
@@ -452,7 +461,6 @@ function RightPanelKeyboardShortcut() {
 export function RightPanelViewport({ children }: { children: ReactNode }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
-  const bottomInset = useChatMaximizedOverlayBottomInset()
 
   return (
     <>
@@ -460,7 +468,6 @@ export function RightPanelViewport({ children }: { children: ReactNode }) {
       <PersistentRightPaneHost
         open={state.presentationOpen}
         maximized={state.presentationMaximized}
-        maximizedBottomInset={bottomInset}
         width={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
         resizable
         minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}

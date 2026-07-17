@@ -210,7 +210,13 @@ export function ChatAppShell({
               id={centerId}
               layout
               transition={centerTransition}
-              className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
+              className={cn(
+                'relative flex min-w-0 flex-1 flex-col overflow-hidden',
+                centerClassName,
+                // Let the elevated composer escape the center stacking context and paint
+                // above the full-height maximized panel without replacing its editor DOM.
+                rightPanelState?.presentationMaximized && '!transform-none !will-change-auto'
+              )}>
               {topBar && (
                 <div className="relative z-10 shrink-0 bg-background">
                   <ErrorBoundary>{topBar}</ErrorBoundary>

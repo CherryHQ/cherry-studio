@@ -348,7 +348,7 @@ describe('TopicRightPane', () => {
     expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('keeps visited capabilities mounted across switches and maximize transitions', () => {
+  it('keeps visited capabilities mounted across switches without offering maximize', () => {
     render(
       <TopicRightPane
         topicId="topic-a"
@@ -362,30 +362,24 @@ describe('TopicRightPane', () => {
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
     const branchPane = screen.getByTestId('branch-pane')
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
 
     expect(screen.getByTestId('branch-pane')).toBe(branchPane)
     expect(branchPane).toHaveAttribute('data-open', 'false')
     expect(branchPane).not.toBeVisible()
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
-    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
-
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'true')
     expect(screen.getByTestId('branch-pane')).toBe(branchPane)
     expect(branchPane).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.message.flow.title')
-    expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).toBeNull()
-    expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'chat.topics.title 3' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
-
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'false')
-    expect(screen.getByTestId('branch-pane')).toBe(branchPane)
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.topics.title 3' }))
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
   })
 
   it('keeps the resource count entry visible while docked open and lets it close the active resource view', () => {

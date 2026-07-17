@@ -39,7 +39,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
 const rightPanelCapabilities = [
   {
     component: () => <div>resource panel</div>,
-    resolve: () => ({ id: 'resources', instanceKey: 'resources', title: '对话', readiness: 'ready' as const })
+    resolve: () => ({
+      id: 'files',
+      instanceKey: 'files',
+      title: '对话',
+      readiness: 'ready' as const,
+      canMaximize: true
+    })
   }
 ] satisfies readonly RightPanelCapability<null>[]
 
@@ -192,11 +198,11 @@ describe('ConversationShell', () => {
 
   it('keeps the top-right tool visible while the docked right pane is open when requested', () => {
     const { container } = render(
-      <RightPanelProvider capabilities={rightPanelCapabilities} scope={null} defaultPanelId="resources">
+      <RightPanelProvider capabilities={rightPanelCapabilities} scope={null} defaultPanelId="files">
         <ConversationShell
           topBar={<div data-testid="top-bar" />}
           topRightTool={
-            <RightPanelShortcut tab="resources" label="对话" icon={<span data-testid="resource-shortcut-icon" />} />
+            <RightPanelShortcut tab="files" label="对话" icon={<span data-testid="resource-shortcut-icon" />} />
           }
           showTopRightToolWhenPaneOpen
           center={<div />}
@@ -210,7 +216,7 @@ describe('ConversationShell', () => {
     expect(topBarWrapper).toContainElement(topRightTool)
     expect(topBarWrapper).not.toHaveClass('pr-11')
 
-    fireEvent.click(container.querySelector('[data-shell-tab-shortcut="resources"]') as HTMLElement)
+    fireEvent.click(container.querySelector('[data-shell-tab-shortcut="files"]') as HTMLElement)
 
     expect(screen.getByRole('button', { name: '对话' })).toBeInTheDocument()
     expect(container.querySelector('[data-conversation-shell-topbar-right]')).toBeInTheDocument()

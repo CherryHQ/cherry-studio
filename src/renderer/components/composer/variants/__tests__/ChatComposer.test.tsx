@@ -3541,7 +3541,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.tokens).toEqual([])
   })
 
-  it('clears selected knowledge bases after sending a draft', async () => {
+  it('keeps selected knowledge bases after sending a draft', async () => {
     const knowledgeBase = {
       id: 'kb-1',
       name: 'Knowledge One',
@@ -3573,7 +3573,7 @@ describe('ChatComposer', () => {
         userMessageParts: [expect.objectContaining({ type: 'text', text: 'hello' })]
       })
     )
-    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
   })
 
   it('does not render stale knowledge tokens during same-topic assistant switches', () => {

@@ -669,7 +669,8 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       id: 'files',
       instanceKey: `workspace:${scope.meta.workspaceId ?? ''}\0${scope.meta.workspacePath ?? ''}`,
       title: scope.filesTitle,
-      readiness: resolveAgentFilesReadiness(scope)
+      readiness: resolveAgentFilesReadiness(scope),
+      canMaximize: true
     })
   },
   {

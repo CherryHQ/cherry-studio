@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,8 +38,6 @@ const menuActions: FileContextMenuActions = {
 function fileGridProps(files: FileItem[]): ComponentProps<typeof FileGrid> {
   return {
     files,
-    selectedIds: new Set(),
-    onSelect: vi.fn(),
     onOpen: vi.fn(),
     onDelete: vi.fn(),
     isTrash: false,
@@ -79,5 +77,28 @@ describe('FileGrid placeholder gradients', () => {
 
     expect(firstGradient).toBeTruthy()
     expect(secondGradient).toBe(firstGradient)
+  })
+})
+
+describe('FileGrid image preview', () => {
+  const imageWithPreview: FileItem = { ...imageFile, previewUrl: 'safe-file:///tmp/photo.png' }
+
+  it('renders the thumbnail and opens the file on a single click', () => {
+    const props = fileGridProps([imageWithPreview])
+    render(<FileGrid {...props} />)
+
+    const thumbnail = screen.getByAltText('photo.png')
+    expect(thumbnail).toHaveAttribute('src', 'safe-file:///tmp/photo.png')
+
+    fireEvent.click(thumbnail)
+    expect(props.onOpen).toHaveBeenCalledWith(imageWithPreview)
+  })
+
+  it('does not open a missing image on click', () => {
+    const props = fileGridProps([{ ...imageFile, isMissing: true }])
+    render(<FileGrid {...props} />)
+
+    fireEvent.click(screen.getByText('photo.png'))
+    expect(props.onOpen).not.toHaveBeenCalled()
   })
 })

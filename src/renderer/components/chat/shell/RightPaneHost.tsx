@@ -55,7 +55,6 @@ export interface RightPaneHostProps extends RightPaneFrameProps {
 export interface PersistentRightPaneHostProps extends ResizableRightPaneProps {
   open: boolean
   maximized?: boolean
-  maximizedBottomInset?: number
   onLayoutAnimationComplete?: (mode: RightPaneLayoutMode) => void
 }
 
@@ -242,7 +241,6 @@ export function PersistentRightPaneHost({
   children,
   open,
   maximized = false,
-  maximizedBottomInset = 0,
   width = CHAT_SHELL_PANE_WIDTH,
   className,
   style,
@@ -378,8 +376,6 @@ export function PersistentRightPaneHost({
   const closed = isClosedRightPanePhase(phase)
   const interactionHidden = targetMode === 'closed'
   const spacerTransition = isResizing || fullWidthLayout ? { duration: 0 } : CHAT_SHELL_TRANSITION
-  const surfaceHeight =
-    fullWidthLayout && maximizedBottomInset > 0 ? `max(0px, calc(100% - ${maximizedBottomInset}px))` : undefined
 
   return (
     <>
@@ -419,8 +415,7 @@ export function PersistentRightPaneHost({
             !interactionHidden && 'pointer-events-auto',
             fullWidthLayout && 'bg-background',
             resizable && !fullWidthLayout && '[border-left:0.5px_solid_var(--color-border)]'
-          )}
-          style={surfaceHeight ? { height: surfaceHeight } : undefined}>
+          )}>
           <RightPaneContents
             paneWidth={paneWidth}
             minWidth={minWidth}
