@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "現在のモデルは調整可能な推論をサポートしていません"
       },
+      "toolbar": {
+        "customize": "[to be translated]:Customize toolbar",
+        "drag": {
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
+        },
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
+      },
       "tools": {
         "collapse": "折りたたむ",
         "collapse_in": "折りたたむ",
@@ -1743,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}}トークン",
     "topics": {
       "auto_rename": "自動リネーム",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "メッセージをクリア"
       },
@@ -5343,7 +5356,7 @@
         "icon": {
           "error": "無効なアイコン名です",
           "label": "アイコン",
-          "placeholder": "Lucideアイコン名を入力",
+          "placeholder": "アイコン名",
           "random": "ランダム選択",
           "tooltip": "例: arrow-right（小文字で入力）",
           "view_all": "全アイコンを表示"
@@ -6088,7 +6101,8 @@
           "downloading": "ダウンロード中…",
           "ready": "準備完了"
         },
-        "title": "ローカルモデル"
+        "title": "ローカルモデル",
+        "unsupported": "このプラットフォームではローカルモデルはサポートされていません。"
       },
       "notInstalled": "インストールされていません",
       "openBinariesDir": "Open binaries directory",
@@ -6562,10 +6576,10 @@
       "user": "ユーザー"
     },
     "menuGroups": {
-      "automation": "自動化",
-      "capabilities": "機能とツール",
+      "automation": "効率",
+      "capabilities": "ツール",
       "models": "モデル",
-      "personal": "個人",
+      "personal": "環境設定",
       "quickAccess": "クイックアクセス",
       "system": "システム"
     },

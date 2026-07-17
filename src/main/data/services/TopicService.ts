@@ -60,10 +60,6 @@ function rowToTopic(row: TopicRow): Topic {
   }
 }
 
-function topicScopePredicate(groupId: string | null): SQL {
-  return groupId === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupId)
-}
-
 function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: ReadonlyMap<string, string>): void {
   if (sourceIdMap.size === 0) return
   const sourceIds = [...sourceIdMap.keys()]
@@ -183,7 +179,6 @@ export class TopicService {
   create(dto: CreateTopicDto): Topic {
     const dbService = application.get('DbService')
     const messageService = getDataService('MessageService')
-    const groupId = dto.groupId ?? null
 
     const row = dbService.withWriteTx((tx) => {
       const topicRow = insertWithOrderKey(
@@ -192,13 +187,12 @@ export class TopicService {
         {
           name: dto.name,
           assistantId: dto.assistantId,
-          groupId,
           activeNodeId: null
         },
         {
           pkColumn: topicTable.id,
           position: 'first',
-          scope: topicScopePredicate(groupId)
+          scope: isNull(topicTable.deletedAt)
         }
       ) as TopicRow
       messageService.createRootMessageTx(tx, topicRow.id)
@@ -232,14 +226,13 @@ export class TopicService {
           name: dto.name ?? sourceTopic.name,
           isNameManuallyEdited: dto.name !== undefined ? true : sourceTopic.isNameManuallyEdited,
           assistantId: sourceTopic.assistantId,
-          groupId: sourceTopic.groupId,
           activeNodeId: null
         },
         {
           pkColumn: topicTable.id,
           // Keep duplicated conversations aligned with newly created agent sessions: newest active work appears first.
           position: 'first',
-          scope: topicScopePredicate(sourceTopic.groupId ?? null)
+          scope: isNull(topicTable.deletedAt)
         }
       ) as TopicRow
 
@@ -303,7 +296,6 @@ export class TopicService {
         }
         updates.assistantId = dto.assistantId
       }
-      if (dto.groupId !== undefined) updates.groupId = dto.groupId
 
       const [row] = tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning().all()
       if (!row) throw DataApiErrorFactory.notFound('Topic', id)
@@ -559,51 +551,21 @@ export class TopicService {
   reorder(id: string, anchor: OrderRequest): void {
     const db = application.get('DbService').getDb()
     db.transaction((tx) => {
-      const [target] = tx
-        .select({ groupId: topicTable.groupId })
-        .from(topicTable)
-        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!target) throw DataApiErrorFactory.notFound('Topic', id)
-
       applyMoves(tx, topicTable, [{ id, anchor }], {
         pkColumn: topicTable.id,
-        scope: topicScopePredicate(target.groupId)
+        scope: isNull(topicTable.deletedAt)
       })
     })
   }
 
-  /** Cross-scope (mixed `groupId`) batches are rejected with VALIDATION_ERROR. */
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
 
     const db = application.get('DbService').getDb()
     db.transaction((tx) => {
-      const ids = moves.map((m) => m.id)
-      const targets = tx
-        .select({ id: topicTable.id, groupId: topicTable.groupId })
-        .from(topicTable)
-        .where(and(inArray(topicTable.id, ids), isNull(topicTable.deletedAt)))
-        .all()
-
-      if (targets.length !== ids.length) {
-        const found = new Set(targets.map((t) => t.id))
-        const missing = ids.find((id) => !found.has(id)) ?? ids[0]
-        throw DataApiErrorFactory.notFound('Topic', missing)
-      }
-
-      const scopeValues = new Set(targets.map((t) => t.groupId))
-      if (scopeValues.size > 1) {
-        const scopeList = [...scopeValues].map((s) => (s === null ? '<null>' : s)).join(', ')
-        const message = `reorderBatch: batch spans multiple groupId scopes (${scopeList})`
-        throw DataApiErrorFactory.validation({ _root: [message] }, message)
-      }
-
-      const [scopeValue] = [...scopeValues]
       applyMoves(tx, topicTable, moves, {
         pkColumn: topicTable.id,
-        scope: topicScopePredicate(scopeValue ?? null)
+        scope: isNull(topicTable.deletedAt)
       })
     })
   }
