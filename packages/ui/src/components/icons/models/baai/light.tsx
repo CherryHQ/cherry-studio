@@ -1,0 +1,26 @@
+import { type SVGProps, useId } from 'react'
+
+import type { IconComponent } from '../../types'
+const BaaiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
+  const iconId = useId()
+
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 12 12" {...props}>
+      <g clipPath={`url(#${iconId}-baailight__a)`}>
+        <path
+          fill="#000"
+          fillRule="evenodd"
+          d="M0 2.34L4.305 0L6.0965 1.002L7.6465 0.1345L12 2.57V6.9205L10.209 7.9225V9.657L6.019 12L1.778 9.74V7.8165L0 6.95V2.34ZM0.642 3.076V4.543L4.61 6.592L4.594 7.3015L0.642 5.2615V6.5905L5.6635 9.242V5.885L0.642 3.076ZM6.0125 5.342L10.908 2.677L9.593 1.942L5.894 4.0105L5.2685 3.6425L8.9515 1.5825L7.6465 0.8525L2.7435 3.5225L6.0125 5.3425V5.342ZM2.1 3.164L5.4545 1.361L4.305 0.718L0.948 2.523L2.1 3.164ZM7.62 10.386L6.311 11.1185V5.97L9.567 4.149V9.298L8.262 10.028V5.9075L7.6205 6.2485V10.387L7.62 10.386ZM2.42 8.176L5.6635 9.96V11.075L2.42 9.3815V8.1765V8.176ZM11.358 6.561V3.146L10.209 3.79V7.2045L11.358 6.5615V6.561Z"
+          clipRule="evenodd"
+        />
+      </g>
+      <defs>
+        <clipPath id={`${iconId}-baailight__a`}>
+          <path fill="#fff" d="M0 0H12V12H0z" />
+        </clipPath>
+      </defs>
+    </svg>
+  )
+}
+export { BaaiLight }
+export default BaaiLight

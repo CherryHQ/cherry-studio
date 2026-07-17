@@ -1,0 +1,29 @@
+import { type SVGProps, useId } from 'react'
+
+import type { IconComponent } from '../../types'
+const UpstageLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
+  const iconId = useId()
+
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 12 12" {...props}>
+      <path
+        fill={`url(#${iconId}-upstagelight__a)`}
+        d="M10.1315 0L9.945 0.6485H11.242L11.427 0H10.1315ZM8.346 1.135L8.158 1.784H10.918L11.103 1.135H8.346ZM6.6985 2.27L6.5105 2.919H10.5935L10.7785 2.27H6.6985ZM1.675 3.405L1.4865 4.054H10.269L10.454 3.4055H1.674L1.675 3.405ZM2.192 4.5405L2.004 5.189H9.945L10.13 4.5405H2.191H2.192ZM2.294 12L2.482 11.3515H1.183L1 12H2.294ZM4.081 10.865L4.269 10.2165H1.5075L1.325 10.865H4.081ZM5.7285 9.7295L5.9165 9.081H1.8315L1.6485 9.7295H5.7285ZM10.7525 8.5945L10.9405 7.946H2.156L1.973 8.5945H10.7525ZM10.2335 7.4595L10.4215 6.811H2.4805L2.2975 7.4595H10.2335ZM9.643 6.3245L9.831 5.676H2.38L2.197 6.3245H9.6435H9.643Z"
+      />
+      <defs>
+        <linearGradient
+          id={`${iconId}-upstagelight__a`}
+          x1={6.213}
+          x2={6.213}
+          y1={0}
+          y2={12}
+          gradientUnits="userSpaceOnUse">
+          <stop stopColor="#AEBCFE" />
+          <stop offset={1} stopColor="#805DFA" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+export { UpstageLight }
+export default UpstageLight

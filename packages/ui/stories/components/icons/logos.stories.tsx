@@ -27,12 +27,38 @@ interface ShowcaseProps {
   fontSize?: number
 }
 
-const IconGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: number }) => (
+type LogoKind = 'model' | 'provider'
+const MODEL_LOGO_SCALE = 2 / 3
+
+interface LogoMarkProps {
+  Component: CompoundIcon
+  fontSize: number
+  kind: LogoKind
+  name: string
+  variant?: 'dark' | 'light'
+}
+
+export const LogoMark = ({ Component, fontSize, kind, name, variant }: LogoMarkProps) => {
+  const shouldInset = kind === 'model' && !name.startsWith('Gpt') && name !== 'Aionlabs'
+  const iconSize = shouldInset ? fontSize * MODEL_LOGO_SCALE : fontSize
+
+  return (
+    <span
+      className="flex items-center justify-center"
+      data-logo-kind={kind}
+      data-logo-name={name}
+      style={{ height: fontSize, width: fontSize }}>
+      <Component style={{ fontSize: iconSize }} variant={variant} />
+    </span>
+  )
+}
+
+const IconGrid = ({ icons, fontSize, kind }: { icons: IconEntry[]; fontSize: number; kind: LogoKind }) => (
   <div className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-8">
     {icons.map(({ Component, name }) => (
       <div key={name} className="flex min-w-0 flex-col items-center justify-center">
-        <div className="w-min overflow-hidden rounded-md border border-gray-200" style={{ fontSize }}>
-          <Component />
+        <div className="w-min overflow-hidden rounded-md border border-gray-200">
+          <LogoMark Component={Component} fontSize={fontSize} kind={kind} name={name} />
         </div>
         <p className="mt-2 w-full break-words text-center text-sm">{name}</p>
       </div>
@@ -45,11 +71,11 @@ const AllIconsShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
     <div className="flex flex-col gap-8 p-4">
       <div>
         <h2 className="text-lg font-semibold mb-4">Providers ({providerIcons.length})</h2>
-        <IconGrid icons={providerIcons} fontSize={fontSize} />
+        <IconGrid icons={providerIcons} fontSize={fontSize} kind="provider" />
       </div>
       <div>
         <h2 className="text-lg font-semibold mb-4">Models ({modelIcons.length})</h2>
-        <IconGrid icons={modelIcons} fontSize={fontSize} />
+        <IconGrid icons={modelIcons} fontSize={fontSize} kind="model" />
       </div>
     </div>
   )
@@ -58,18 +84,19 @@ const AllIconsShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
 interface LightVsDarkGridProps {
   icons: IconEntry[]
   fontSize: number
+  kind: LogoKind
 }
 
-const LightVsDarkGrid = ({ icons, fontSize }: LightVsDarkGridProps) => (
+const LightVsDarkGrid = ({ icons, fontSize, kind }: LightVsDarkGridProps) => (
   <div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-6">
     {icons.map(({ Component, name }) => (
       <div key={name} className="flex min-w-0 flex-col items-center gap-1">
-        <div className="grid grid-cols-2 gap-2" style={{ fontSize }}>
+        <div className="grid grid-cols-2 gap-2">
           <div className="overflow-hidden rounded-md bg-white ring-1 ring-inset ring-gray-200">
-            <Component className="block" variant="light" />
+            <LogoMark Component={Component} fontSize={fontSize} kind={kind} name={name} variant="light" />
           </div>
           <div className="overflow-hidden rounded-md bg-neutral-900">
-            <Component className="block" variant="dark" />
+            <LogoMark Component={Component} fontSize={fontSize} kind={kind} name={name} variant="dark" />
           </div>
           <span className="text-center text-xs text-gray-400">Light</span>
           <span className="text-center text-xs text-gray-400">Dark</span>
@@ -119,11 +146,11 @@ const LightVsDarkShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
     <div className="flex flex-col gap-8 p-4">
       <div>
         <h2 className="text-lg font-semibold mb-4">Providers</h2>
-        <LightVsDarkGrid icons={providerIcons} fontSize={fontSize} />
+        <LightVsDarkGrid icons={providerIcons} fontSize={fontSize} kind="provider" />
       </div>
       <div>
         <h2 className="text-lg font-semibold mb-4">Models</h2>
-        <LightVsDarkGrid icons={modelIcons} fontSize={fontSize} />
+        <LightVsDarkGrid icons={modelIcons} fontSize={fontSize} kind="model" />
       </div>
     </div>
   )
