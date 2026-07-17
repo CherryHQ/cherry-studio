@@ -587,6 +587,9 @@ importers:
       '@types/unist':
         specifier: 3.0.3
         version: 3.0.3
+      '@types/use-sync-external-store':
+        specifier: ^0.0.6
+        version: 0.0.6
       '@types/uuid':
         specifier: ^10.0.0
         version: 10.0.0
@@ -1061,6 +1064,9 @@ importers:
       unist-util-visit:
         specifier: 5.0.0
         version: 5.0.0
+      use-sync-external-store:
+        specifier: ^1.6.0
+        version: 1.6.0(react@19.2.3)
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
