@@ -1,7 +1,15 @@
-import { Button, Switch } from '@cherrystudio/ui'
+import {
+  Button,
+  ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Switch
+} from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import { Download, Search, Sparkles } from 'lucide-react'
+import { ChevronDown, Download, FolderSearch, Plus, Search, Sparkles, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
 import { ImportSkillDialog } from './ImportSkillDialog'
 import { SkillMarketplaceDialog } from './SkillMarketplaceDialog'
+import { SystemSkillDialog } from './SystemSkillDialog'
 
 type SkillCatalogPickerProps = {
   mode: 'create' | 'edit'
@@ -18,6 +27,7 @@ type SkillCatalogPickerProps = {
   onSelectedIdsChange: (ids: string[]) => void
   emptyLabel: ReactNode
   portalContainer: HTMLElement | null
+  onRemoveSkill?: (skillId: string) => Promise<boolean | void>
   disabled?: boolean
 }
 
@@ -30,12 +40,16 @@ export function SkillCatalogPicker({
   onSelectedIdsChange,
   emptyLabel,
   portalContainer,
+  onRemoveSkill,
   disabled = false
 }: SkillCatalogPickerProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [systemSkillOpen, setSystemSkillOpen] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<InstalledSkill | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   const builtinIds = useMemo(
     () => (mode === 'create' ? skills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id) : []),
@@ -62,20 +76,48 @@ export function SkillCatalogPicker({
           }
         }
 
+        const canRemove = mode === 'create' && ['marketplace', 'system'].includes(skill.source) && onRemoveSkill
+
         return {
           id: skill.id,
           name: skill.name,
           description: mode === 'edit' ? skill.description : undefined,
-          icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" /> : undefined
+          icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" /> : undefined,
+          action: canRemove ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('library.action.uninstall')}
+              disabled={disabled || removing}
+              onClick={() => setRemoveTarget(skill)}
+              className="shrink-0 text-foreground-muted hover:text-destructive">
+              <Trash2 size={14} />
+            </Button>
+          ) : undefined
         }
       })
-  }, [mode, query, skills, t])
+  }, [disabled, mode, onRemoveSkill, query, removing, skills, t])
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id))
 
   const setSelected = (id: string, enabled: boolean) => {
     onSelectedIdsChange(
       enabled ? Array.from(new Set([...selectedIds, id])) : selectedIds.filter((selectedId) => selectedId !== id)
     )
+  }
+
+  const handleRemoveSkill = async () => {
+    if (!removeTarget || !onRemoveSkill) return
+
+    setRemoving(true)
+    try {
+      const removed = await onRemoveSkill(removeTarget.id)
+      if (removed === false) return
+      onSelectedIdsChange(selectedIds.filter((selectedId) => selectedId !== removeTarget.id))
+      setRemoveTarget(null)
+    } finally {
+      setRemoving(false)
+    }
   }
 
   return (
@@ -87,14 +129,29 @@ export function SkillCatalogPicker({
           placeholder={t('library.config.dialogs.create.capability.search')}
           className="min-w-0 flex-1"
         />
-        <Button type="button" size="sm" className="shrink-0" onClick={() => setMarketplaceOpen(true)}>
-          <Search size={13} />
-          {t('library.skill_add.online_search')}
-        </Button>
-        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setImportOpen(true)}>
-          <Download size={13} />
-          {t('library.config.dialogs.create.capability.import')}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" size="sm" className="shrink-0" disabled={disabled}>
+              <Plus size={13} />
+              {t('library.skill_add.add')}
+              <ChevronDown size={13} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44" portalContainer={portalContainer}>
+            <DropdownMenuItem onSelect={() => setMarketplaceOpen(true)}>
+              <Search />
+              {t('library.skill_add.online_search')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+              <Download />
+              {t('library.skill_add.local_import')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setSystemSkillOpen(true)}>
+              <FolderSearch />
+              {t('library.skill_add.system_search')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="flex items-center justify-between gap-3">
@@ -123,6 +180,26 @@ export function SkillCatalogPicker({
 
       <SkillMarketplaceDialog open={marketplaceOpen} onOpenChange={setMarketplaceOpen} />
       <ImportSkillDialog open={importOpen} onOpenChange={setImportOpen} />
+      <SystemSkillDialog
+        mode="agent-create"
+        open={systemSkillOpen}
+        onOpenChange={setSystemSkillOpen}
+        selectedSkillIds={selectedIds}
+        onEnabled={(skillId) => onSelectedIdsChange(Array.from(new Set([...selectedIds, skillId])))}
+      />
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        onOpenChange={(open) => {
+          if (!open && !removing) setRemoveTarget(null)
+        }}
+        title={t('library.delete.skill.title')}
+        description={t('library.delete.skill.content')}
+        confirmText={t('library.action.uninstall')}
+        cancelText={t('common.cancel')}
+        destructive
+        confirmLoading={removing}
+        onConfirm={handleRemoveSkill}
+      />
     </div>
   )
 }

@@ -223,6 +223,24 @@ export const mockUseSharedCacheValue = vi.fn(
 )
 
 /**
+ * Mock useSharedCacheSelector hook (multi-key read-only selector)
+ *
+ * Mirrors production semantics statically: projects the current mock shared
+ * cache values for `keys` (undefined on physical miss, no default) into a
+ * tuple and returns `selector(values)`. Like the other hook mocks it is not
+ * reactive — it re-evaluates per render, not on store change.
+ */
+export const mockUseSharedCacheSelector = vi.fn(
+  <Selection>(
+    keys: readonly SharedCacheKey[],
+    selector: (values: readonly any[]) => Selection,
+    _isEqual?: (a: Selection, b: Selection) => boolean
+  ): Selection => {
+    return selector(keys.map((key) => mockSharedCache.get(key)))
+  }
+)
+
+/**
  * Mock usePersistCache hook (persistent cache)
  */
 export const mockUsePersistCache = vi.fn(
@@ -261,6 +279,7 @@ export const MockUseCache = {
   useCache: mockUseCache,
   useSharedCache: mockUseSharedCache,
   useSharedCacheValue: mockUseSharedCacheValue,
+  useSharedCacheSelector: mockUseSharedCacheSelector,
   usePersistCache: mockUsePersistCache
 }
 
@@ -275,6 +294,7 @@ export const MockUseCacheUtils = {
     mockUseCache.mockClear()
     mockUseSharedCache.mockClear()
     mockUseSharedCacheValue.mockClear()
+    mockUseSharedCacheSelector.mockClear()
     mockUsePersistCache.mockClear()
 
     // Reset caches to defaults (shared stays physically empty — see the

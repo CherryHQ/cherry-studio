@@ -303,7 +303,8 @@ export async function findAllSkillDirectories(
 export async function parseSkillMetadata(
   skillFolderPath: string,
   sourcePath: string,
-  category: string
+  category: string,
+  options: { calculateSize?: boolean } = {}
 ): Promise<PluginMetadata> {
   // Input validation
   if (!skillFolderPath || !path.isAbsolute(skillFolderPath)) {
@@ -366,13 +367,13 @@ export async function parseSkillMetadata(
   const folderName = path.basename(skillFolderPath)
 
   // Get total folder size
-  let folderSize: number
-  try {
-    folderSize = await getDirectorySize(skillFolderPath)
-  } catch (error: any) {
-    logger.error('Failed to calculate skill folder size', { skillFolderPath, error })
-    // Use 0 as fallback instead of failing completely
-    folderSize = 0
+  let folderSize = 0
+  if (options.calculateSize !== false) {
+    try {
+      folderSize = await getDirectorySize(skillFolderPath)
+    } catch (error: any) {
+      logger.error('Failed to calculate skill folder size', { skillFolderPath, error })
+    }
   }
 
   // Parse tools (skills use 'tools', not 'allowed_tools')
