@@ -39,6 +39,7 @@ The color system follows one consistent rule:
 When you reach for a value:
 1. If the role is "tint of the surface" (text, divider, soft fill, hover), use the existing semantic neutral token (`--color-foreground*`, `--color-border*`, `--color-secondary`, `--color-accent`, `--color-ghost-*`). Do not invent `oklch(0 0 0 / 0.x)` literals — the token already encodes the intent.
 2. If the role is "this exact color regardless of surface" (brand, error, success), use the corresponding solid token from the `--color-{primary,destructive,success,warning,info,*-base,*-text,*-bg}` set or a primitive scale.
+3. A stable cross-component semantic role may own an exact solid literal when that value has no reusable palette identity. Do not add a one-off primitive merely to hide a literal; add one only when the color is reusable independently of the role or belongs to a deliberate scale. Values owned by one component remain internal component slots instead.
 
 ### Primary
 - **Primary**: `var(--color-primary)` — neutral strong action and selected-state color. It does not follow the user accent; links and chromatic interaction states use Control Accent instead. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
