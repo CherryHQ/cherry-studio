@@ -18,45 +18,18 @@ Use this skill when the user:
 - Wants to search for tools, templates, or workflows
 - Mentions they wish they had help with a specific domain (design, testing, deployment, etc.)
 
-## What is the Skills CLI?
+## The skill tools
 
-The Skills CLI (`npx skills`) is the package manager for the open agent skills ecosystem. Skills are modular packages that extend agent capabilities with specialized knowledge, workflows, and tools.
+Cherry gives you two built-in tools for skills — use them, and do NOT shell out to
+`npx skills`, `git`, or any package manager:
 
-**Key commands:**
-
-- `npx skills find [query] [--owner <owner>]` - Search for skills interactively or by keyword, optionally scoped to a GitHub owner
-- `npx skills check` - Check for skill updates
-- `npx skills update` - Update all installed skills
-
-Use the CLI only for **discovery** (`find`). For installing inside Cherry, do **not** use
-`npx skills add` — it writes to a home-level directory Cherry doesn't manage. Install by
-cloning the skill straight into `$CHERRY_STUDIO_SKILLS_DIR` instead (see Step 6).
+- **`search_skills(query)`** — search the marketplace by keyword. Returns matches, each with an
+  `identifier` in `owner/repo/skill-name` format.
+- **`install_skill(identifier)`** — install ONE skill by its identifier into Cherry's managed
+  library and enable it for this agent. Cherry clones the repo, installs just that one skill,
+  and registers it in a single deterministic step. Requires the user's confirmation first (Step 6).
 
 **Browse skills at:** https://skills.sh/
-
-## Runtime Detection
-
-Before running any `npx skills` command, check if `npx` is available:
-
-```bash
-which npx
-```
-
-If `npx` is **not found**, fall back to the bundled bun shipped with Cherry Studio.
-Cherry Studio sets the `CHERRY_STUDIO_BUN_PATH` environment variable pointing to its
-bundled bun binary. Use it as follows:
-
-```bash
-if [ -n "$CHERRY_STUDIO_BUN_PATH" ] && [ -x "$CHERRY_STUDIO_BUN_PATH" ]; then
-  "$CHERRY_STUDIO_BUN_PATH" x skills <subcommand> [args]
-else
-  echo "Error: Neither npx nor bundled bun found. Install Node.js or run Cherry Studio's bun installer."
-fi
-```
-
-For example, `npx skills find react` becomes `"$CHERRY_STUDIO_BUN_PATH" x skills find react`.
-
-Always try `npx` first. Only use the bun fallback when npx is unavailable.
 
 ## How to Help Users Find Skills
 
@@ -78,17 +51,14 @@ For example, top skills for web development include:
 
 ### Step 3: Search for Skills
 
-If the leaderboard doesn't cover the user's need, run the find command:
+If the leaderboard doesn't cover the user's need, call the `search_skills` tool:
 
-```bash
-npx skills find [query] [--owner <owner>]
-```
+- User asks "how do I make my React app faster?" → `search_skills("react performance")`
+- User asks "can you help me with PR reviews?" → `search_skills("pr review")`
+- User asks "I need to create a changelog" → `search_skills("changelog")`
 
-For example:
-
-- User asks "how do I make my React app faster?" → `npx skills find react performance`
-- User asks "can you help me with PR reviews?" → `npx skills find pr review`
-- User asks "I need to create a changelog" → `npx skills find changelog`
+Each result includes an `identifier` (`owner/repo/skill-name`) — that is what you pass to
+`install_skill`.
 
 ### Step 4: Verify Quality Before Recommending
 
@@ -104,7 +74,7 @@ When you find relevant skills, present them to the user with:
 
 1. The skill name and what it does
 2. The install count and source
-3. The install command they can run
+3. That you can install it for them into Cherry (with their confirmation)
 4. A link to learn more at skills.sh
 
 Example response:
@@ -134,30 +104,16 @@ Before installing any skill you **MUST**:
 3. **Ask the user for explicit confirmation** — do NOT install the skill until the
    user says "yes" or equivalent. Never install silently.
 
-Only after the user confirms, fetch the skill **directly into Cherry's managed skills
-directory** (`$CHERRY_STUDIO_SKILLS_DIR`) so it actually takes effect. Do **not** use
-`npx skills add` for the install: that CLI writes into a home-level directory Cherry
-does not scan, so the skill would sit there inert — a skill only loads once its files
-live under `$CHERRY_STUDIO_SKILLS_DIR`.
+Only after the user confirms, call the `install_skill` tool with the `identifier` from the
+search result:
 
-The search result gives you `owner/repo/skill`. Clone that repo into a throwaway dir and
-copy just the one skill folder in:
+- `install_skill("vercel-labs/agent-skills/react-best-practices")`
 
-```bash
-TMP="$(mktemp -d)"
-git clone --depth 1 "https://github.com/<owner>/<repo>" "$TMP"
-
-# Locate the skill's directory — the folder containing the SKILL.md for <skill-name>.
-# If the repo bundles several skills, pick the matching one (e.g. `find "$TMP" -iname SKILL.md`).
-mkdir -p "$CHERRY_STUDIO_SKILLS_DIR"
-cp -r "$TMP/<path-to-skill-dir>" "$CHERRY_STUDIO_SKILLS_DIR/<skill-name>"
-rm -rf "$TMP"
-```
-
-Copy only that one skill's folder, never the whole repo. The user-confirmation step above
-ensures the install was actually reviewed and approved, so it must happen first. Once the
-folder is under `$CHERRY_STUDIO_SKILLS_DIR`, Cherry's skill sync detects it, registers it
-in its managed library, and lists it in the app — nothing is left in your home directory.
+Do **not** run `npx skills add`, `git clone`, or any shell command to install — that would
+install the whole repo (dozens of skills), scatter symlinks across other tools, and land
+outside Cherry's library. `install_skill` installs **only that one skill** into Cherry's
+managed library, in one deterministic step, and Cherry prompts the user to approve it before
+it runs. Once done it is registered and listed in the app — nothing is left elsewhere.
 
 ## Common Skill Categories
 
@@ -185,7 +141,7 @@ If no relevant skills exist:
 
 1. Acknowledge that no existing skill was found
 2. Offer to help with the task directly using your general capabilities
-3. Suggest the user could create their own skill with `npx skills init`
+3. Offer to author a custom skill for the task (the skill-creator skill handles this)
 
 Example:
 
