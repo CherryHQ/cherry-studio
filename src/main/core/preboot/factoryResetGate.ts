@@ -55,7 +55,8 @@ export const USER_DATA_KEEP = new Set(['logs', 'Crashpad', 'Runtime', 'Toolchain
  * rewritten by the BootConfig reset below rather than deleted here.
  * The one user-authored file inside the kept `ovms/` tree (the model
  * registry, 'feature.ovms.model_registry_file') is removed separately in
- * {@link wipeNonCriticalExtras}.
+ * the gate's wipe pass — as a critical target, so a failed removal keeps
+ * the marker pending like any other user-state entry.
  */
 export const CHERRY_HOME_WIPE = ['config', 'mcp', 'trace']
 
@@ -243,6 +244,12 @@ export function runFactoryResetGate(): void {
       wipeDirectoryEntries(userData, (entry) => manifest.includes(entry), failures)
     }
     wipeDirectoryEntries(CHERRY_HOME, (entry) => CHERRY_HOME_WIPE.includes(entry), failures)
+    // The OVMS model registry is user-authored configuration living inside
+    // the kept ovms/ machine-artifact tree (see CHERRY_HOME_WIPE). Its
+    // removal is as critical as the wipe lists above: clearing the marker
+    // over a locked registry would declare a reset complete while the next
+    // boot still loads the user's model setup (#17138 review).
+    removeEntry(application.getPath('feature.ovms.model_registry_file'), failures)
     wipeNonCriticalExtras()
 
     if (failures.length > 0) {
@@ -354,37 +361,32 @@ function wipeDirectoryEntries(dir: string, shouldWipe: (entry: string) => boolea
 
   for (const entry of entries) {
     if (!shouldWipe(entry)) continue
-    const target = path.join(dir, entry)
-    try {
-      fs.rmSync(target, RM_OPTIONS)
-    } catch (error) {
-      logger.warn('Failed to remove entry during factory reset', { target, error: String(error) })
-      failures.push(target)
-    }
+    removeEntry(path.join(dir, entry), failures)
+  }
+}
+
+/** rm with failure accounting — a recorded failure keeps the marker pending. */
+function removeEntry(target: string, failures: string[]): void {
+  try {
+    fs.rmSync(target, RM_OPTIONS)
+  } catch (error) {
+    logger.warn('Failed to remove entry during factory reset', { target, error: String(error) })
+    failures.push(target)
   }
 }
 
 /**
- * Cleanup targets whose failure must not block the reset (nothing here
- * holds user data that survives a reboot in a meaningful way):
- *
- * - `app.temp` ({os.tmpdir}/CherryStudio) — the "Clear cache" feature
- *   clears it, and a factory reset must be a superset of Clear cache.
- * - The OVMS model registry (`ovms/ovms/models/config.json`) — the one
- *   user-authored file inside the kept `ovms/` machine-artifact tree;
- *   OvmsManager recreates a default registry when it is absent. Downloaded
- *   model payloads stay (same carve-out as tool binaries), they just lose
- *   their registration.
+ * Best-effort cleanup whose failure must not block the reset: `app.temp`
+ * ({os.tmpdir}/CherryStudio) holds no user data that survives a reboot in
+ * a meaningful way — the "Clear cache" feature clears it, and a factory
+ * reset must be a superset of Clear cache.
  */
 function wipeNonCriticalExtras(): void {
   const tempDir = application.getPath('app.temp')
-  const targets = [tempDir, application.getPath('feature.ovms.model_registry_file')]
-  for (const target of targets) {
-    try {
-      fs.rmSync(target, RM_OPTIONS)
-    } catch (error) {
-      logger.warn('Failed to remove non-critical entry during factory reset', { target, error: String(error) })
-    }
+  try {
+    fs.rmSync(tempDir, RM_OPTIONS)
+  } catch (error) {
+    logger.warn('Failed to remove non-critical entry during factory reset', { target: tempDir, error: String(error) })
   }
   // getPath('app.temp') above auto-ensured the directory and cached the key
   // (Application#ensuredKeys caches even on failure), so nothing else in this

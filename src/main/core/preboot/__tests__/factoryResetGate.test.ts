@@ -263,6 +263,23 @@ describe('runFactoryResetGate', () => {
     expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
   })
 
+  it('treats a failed OVMS registry removal as critical — the marker stays pending', async () => {
+    const store = stubBootConfig(pendingMarker())
+    stubFs(FULL_LISTINGS)
+    rmSyncMock.mockImplementation((target: string) => {
+      if (target === `${OVMS_DIR}/models/config.json`) throw new Error('EBUSY: resource busy or locked')
+    })
+
+    const run = await importGate()
+    run()
+
+    // The registry is user-authored model configuration: clearing the marker
+    // over a locked registry would declare the reset complete while the next
+    // boot still loads the user's model setup (#17138 review).
+    expect(store['temp.factory_reset']).toEqual(pendingMarker({ attempts: 1, mode: 'tree' }))
+    expect(store['app.disable_hardware_acceleration']).toBe(true)
+  })
+
   it('skips the destructive pass entirely when the attempt count cannot be durably recorded', async () => {
     stubBootConfig(pendingMarker())
     stubFs(FULL_LISTINGS)
