@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { deriveChipLabel } from '../SizeChipsField'
+import { deriveChipLabel } from '../sizeLabel'
 
 /**
  * Locks the single-label contract: every chip shows exactly one concise
