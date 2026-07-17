@@ -14,7 +14,8 @@ But some setup must happen even earlier — synchronously, with no lifecycle
 services available — because `application.bootstrap()` itself depends on it.
 Most importantly: `application.initPathRegistry()` is called from preboot
 in `main/main.ts` after userData resolution, the single-instance lock,
-Chromium flag setup, and crash telemetry setup. It calls
+and crash telemetry setup (Chromium flag setup runs later, at the top of
+`startApp()` after the factory-reset gate). It calls
 `buildPathRegistry()` to build a frozen snapshot of the path registry by
 reading `app.getPath('userData')` and other Electron paths. So all
 `app.setPath('userData', …)` calls must complete **before**
@@ -120,7 +121,10 @@ preboot/
 │                        migration path selector reuses for one identical bar
 ├── chromiumFlags.ts     Chromium startup flags (command-line switches and
 │                        hardware-acceleration toggles) that must run
-│                        before app.whenReady()
+│                        before app.whenReady(). Invoked at the top of
+│                        startApp() after factoryResetGate — it reads
+│                        BootConfig values the gate may have just reset, so
+│                        a reset session boots on the post-reset values
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
 │                        webContents hardening (Document-Policy response
 │                        header and unresponsive renderer call-stack

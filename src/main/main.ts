@@ -25,7 +25,6 @@ import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
 requireSingleInstance()
-configureChromiumFlags()
 initCrashTelemetry()
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()
@@ -46,6 +45,14 @@ const startApp = async () => {
   // app when a completed wipe cannot durably clear its marker (booting on
   // would re-wipe freshly created data on the next start).
   runFactoryResetGate()
+
+  // Chromium startup flags — after the factory-reset gate, because this
+  // reads BootConfig values (app.disable_hardware_acceleration) the gate
+  // may have just reset; applying pre-reset flags would leave the reset
+  // session running with stale behavior while the UI shows defaults. Still
+  // synchronously before the first await, so every switch lands before
+  // app.whenReady() fires.
+  configureChromiumFlags()
 
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
   // migration gate reads the DB. Never throws; on any failure the old DB
