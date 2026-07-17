@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d11e9680-937d-40fc-a459-d0fe7b59e5a1",
+  "id": "75e32df0-2df6-4bf6-81c6-e7507b645003",
   "prevId": "fb46843d-760a-443b-b30c-d09fd8d68a5c",
   "tables": {
     "agent": {
@@ -112,23 +112,17 @@
       "indexes": {
         "agent_name_idx": {
           "name": "agent_name_idx",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": false
         },
         "agent_type_idx": {
           "name": "agent_type_idx",
-          "columns": [
-            "type"
-          ],
+          "columns": ["type"],
           "isUnique": false
         },
         "agent_order_key_idx": {
           "name": "agent_order_key_idx",
-          "columns": [
-            "order_key"
-          ],
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -137,12 +131,8 @@
           "name": "agent_model_user_model_id_fk",
           "tableFrom": "agent",
           "tableTo": "user_model",
-          "columnsFrom": [
-            "model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["model"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -150,12 +140,8 @@
           "name": "agent_plan_model_user_model_id_fk",
           "tableFrom": "agent",
           "tableTo": "user_model",
-          "columnsFrom": [
-            "plan_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["plan_model"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -163,12 +149,8 @@
           "name": "agent_small_model_user_model_id_fk",
           "tableFrom": "agent",
           "tableTo": "user_model",
-          "columnsFrom": [
-            "small_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["small_model"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -270,23 +252,17 @@
       "indexes": {
         "agent_channel_agent_id_idx": {
           "name": "agent_channel_agent_id_idx",
-          "columns": [
-            "agent_id"
-          ],
+          "columns": ["agent_id"],
           "isUnique": false
         },
         "agent_channel_type_idx": {
           "name": "agent_channel_type_idx",
-          "columns": [
-            "type"
-          ],
+          "columns": ["type"],
           "isUnique": false
         },
         "agent_channel_session_id_idx": {
           "name": "agent_channel_session_id_idx",
-          "columns": [
-            "session_id"
-          ],
+          "columns": ["session_id"],
           "isUnique": false
         }
       },
@@ -295,12 +271,8 @@
           "name": "agent_channel_agent_id_agent_id_fk",
           "tableFrom": "agent_channel",
           "tableTo": "agent",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -308,12 +280,8 @@
           "name": "agent_channel_session_id_agent_session_id_fk",
           "tableFrom": "agent_channel",
           "tableTo": "agent_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -352,16 +320,12 @@
       "indexes": {
         "agent_channel_task_channel_id_idx": {
           "name": "agent_channel_task_channel_id_idx",
-          "columns": [
-            "channel_id"
-          ],
+          "columns": ["channel_id"],
           "isUnique": false
         },
         "agent_channel_task_task_id_idx": {
           "name": "agent_channel_task_task_id_idx",
-          "columns": [
-            "task_id"
-          ],
+          "columns": ["task_id"],
           "isUnique": false
         }
       },
@@ -370,12 +334,8 @@
           "name": "agent_channel_task_channel_id_agent_channel_id_fk",
           "tableFrom": "agent_channel_task",
           "tableTo": "agent_channel",
-          "columnsFrom": [
-            "channel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["channel_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -383,22 +343,15 @@
           "name": "agent_channel_task_task_id_job_schedule_id_fk",
           "tableFrom": "agent_channel_task",
           "tableTo": "job_schedule",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "agent_channel_task_channel_id_task_id_pk": {
-          "columns": [
-            "channel_id",
-            "task_id"
-          ],
+          "columns": ["channel_id", "task_id"],
           "name": "agent_channel_task_channel_id_task_id_pk"
         }
       },
@@ -505,23 +458,17 @@
       "indexes": {
         "agent_global_skill_folder_name_unique": {
           "name": "agent_global_skill_folder_name_unique",
-          "columns": [
-            "folder_name"
-          ],
+          "columns": ["folder_name"],
           "isUnique": true
         },
         "agent_global_skill_source_idx": {
           "name": "agent_global_skill_source_idx",
-          "columns": [
-            "source"
-          ],
+          "columns": ["source"],
           "isUnique": false
         },
         "agent_global_skill_is_enabled_idx": {
           "name": "agent_global_skill_is_enabled_idx",
-          "columns": [
-            "is_enabled"
-          ],
+          "columns": ["is_enabled"],
           "isUnique": false
         }
       },
@@ -591,6 +538,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "last_activity_at": {
+          "name": "last_activity_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -609,25 +563,22 @@
       "indexes": {
         "agent_session_created_at_id_idx": {
           "name": "agent_session_created_at_id_idx",
-          "columns": [
-            "\"created_at\" desc",
-            "id"
-          ],
+          "columns": ["\"created_at\" desc", "id"],
+          "isUnique": false
+        },
+        "agent_session_last_activity_at_id_idx": {
+          "name": "agent_session_last_activity_at_id_idx",
+          "columns": ["\"last_activity_at\" desc", "id"],
           "isUnique": false
         },
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
-          "columns": [
-            "order_key"
-          ],
+          "columns": ["order_key"],
           "isUnique": false
         },
         "agent_session_updated_at_id_idx": {
           "name": "agent_session_updated_at_id_idx",
-          "columns": [
-            "\"updated_at\" desc",
-            "id"
-          ],
+          "columns": ["\"updated_at\" desc", "id"],
           "isUnique": false
         }
       },
@@ -636,12 +587,8 @@
           "name": "agent_session_agent_id_agent_id_fk",
           "tableFrom": "agent_session",
           "tableTo": "agent",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -649,12 +596,8 @@
           "name": "agent_session_workspace_id_agent_workspace_id_fk",
           "tableFrom": "agent_session",
           "tableTo": "agent_workspace",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -707,6 +650,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "terminal_at": {
+          "name": "terminal_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "model_id": {
@@ -762,25 +712,17 @@
       "indexes": {
         "agent_session_message_session_created_id_idx": {
           "name": "agent_session_message_session_created_id_idx",
-          "columns": [
-            "session_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["session_id", "created_at", "id"],
           "isUnique": false
         },
         "agent_session_message_status_idx": {
           "name": "agent_session_message_status_idx",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         },
         "agent_session_message_fts_rowid_uniq": {
           "name": "agent_session_message_fts_rowid_uniq",
-          "columns": [
-            "fts_rowid"
-          ],
+          "columns": ["fts_rowid"],
           "isUnique": true
         }
       },
@@ -789,12 +731,8 @@
           "name": "agent_session_message_session_id_agent_session_id_fk",
           "tableFrom": "agent_session_message",
           "tableTo": "agent_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -802,12 +740,8 @@
           "name": "agent_session_message_model_id_user_model_id_fk",
           "tableFrom": "agent_session_message",
           "tableTo": "user_model",
-          "columnsFrom": [
-            "model_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -868,16 +802,12 @@
       "indexes": {
         "agent_skill_agent_id_idx": {
           "name": "agent_skill_agent_id_idx",
-          "columns": [
-            "agent_id"
-          ],
+          "columns": ["agent_id"],
           "isUnique": false
         },
         "agent_skill_skill_id_idx": {
           "name": "agent_skill_skill_id_idx",
-          "columns": [
-            "skill_id"
-          ],
+          "columns": ["skill_id"],
           "isUnique": false
         }
       },
@@ -886,12 +816,8 @@
           "name": "agent_skill_agent_id_agent_id_fk",
           "tableFrom": "agent_skill",
           "tableTo": "agent",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -899,22 +825,15 @@
           "name": "agent_skill_skill_id_agent_global_skill_id_fk",
           "tableFrom": "agent_skill",
           "tableTo": "agent_global_skill",
-          "columnsFrom": [
-            "skill_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["skill_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "agent_skill_agent_id_skill_id_pk": {
-          "columns": [
-            "agent_id",
-            "skill_id"
-          ],
+          "columns": ["agent_id", "skill_id"],
           "name": "agent_skill_agent_id_skill_id_pk"
         }
       },
@@ -978,16 +897,12 @@
       "indexes": {
         "agent_workspace_path_unique_idx": {
           "name": "agent_workspace_path_unique_idx",
-          "columns": [
-            "path"
-          ],
+          "columns": ["path"],
           "isUnique": true
         },
         "agent_workspace_order_key_idx": {
           "name": "agent_workspace_order_key_idx",
-          "columns": [
-            "order_key"
-          ],
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -1132,16 +1047,12 @@
       "indexes": {
         "assistant_created_at_idx": {
           "name": "assistant_created_at_idx",
-          "columns": [
-            "created_at"
-          ],
+          "columns": ["created_at"],
           "isUnique": false
         },
         "assistant_order_key_idx": {
           "name": "assistant_order_key_idx",
-          "columns": [
-            "order_key"
-          ],
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -1150,12 +1061,8 @@
           "name": "assistant_model_id_user_model_id_fk",
           "tableFrom": "assistant",
           "tableTo": "user_model",
-          "columnsFrom": [
-            "model_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1202,12 +1109,8 @@
           "name": "agent_mcp_server_agent_id_agent_id_fk",
           "tableFrom": "agent_mcp_server",
           "tableTo": "agent",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1215,22 +1118,15 @@
           "name": "agent_mcp_server_mcp_server_id_mcp_server_id_fk",
           "tableFrom": "agent_mcp_server",
           "tableTo": "mcp_server",
-          "columnsFrom": [
-            "mcp_server_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mcp_server_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "agent_mcp_server_agent_id_mcp_server_id_pk": {
-          "columns": [
-            "agent_id",
-            "mcp_server_id"
-          ],
+          "columns": ["agent_id", "mcp_server_id"],
           "name": "agent_mcp_server_agent_id_mcp_server_id_pk"
         }
       },
@@ -1275,12 +1171,8 @@
           "name": "assistant_knowledge_base_assistant_id_assistant_id_fk",
           "tableFrom": "assistant_knowledge_base",
           "tableTo": "assistant",
-          "columnsFrom": [
-            "assistant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1288,22 +1180,15 @@
           "name": "assistant_knowledge_base_knowledge_base_id_knowledge_base_id_fk",
           "tableFrom": "assistant_knowledge_base",
           "tableTo": "knowledge_base",
-          "columnsFrom": [
-            "knowledge_base_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["knowledge_base_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "assistant_knowledge_base_assistant_id_knowledge_base_id_pk": {
-          "columns": [
-            "assistant_id",
-            "knowledge_base_id"
-          ],
+          "columns": ["assistant_id", "knowledge_base_id"],
           "name": "assistant_knowledge_base_assistant_id_knowledge_base_id_pk"
         }
       },
@@ -1348,12 +1233,8 @@
           "name": "assistant_mcp_server_assistant_id_assistant_id_fk",
           "tableFrom": "assistant_mcp_server",
           "tableTo": "assistant",
-          "columnsFrom": [
-            "assistant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1361,22 +1242,15 @@
           "name": "assistant_mcp_server_mcp_server_id_mcp_server_id_fk",
           "tableFrom": "assistant_mcp_server",
           "tableTo": "mcp_server",
-          "columnsFrom": [
-            "mcp_server_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mcp_server_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "assistant_mcp_server_assistant_id_mcp_server_id_pk": {
-          "columns": [
-            "assistant_id",
-            "mcp_server_id"
-          ],
+          "columns": ["assistant_id", "mcp_server_id"],
           "name": "assistant_mcp_server_assistant_id_mcp_server_id_pk"
         }
       },
@@ -1453,30 +1327,22 @@
       "indexes": {
         "fe_deleted_at_idx": {
           "name": "fe_deleted_at_idx",
-          "columns": [
-            "deleted_at"
-          ],
+          "columns": ["deleted_at"],
           "isUnique": false
         },
         "fe_created_at_idx": {
           "name": "fe_created_at_idx",
-          "columns": [
-            "created_at"
-          ],
+          "columns": ["created_at"],
           "isUnique": false
         },
         "fe_external_path_lower_unique_idx": {
           "name": "fe_external_path_lower_unique_idx",
-          "columns": [
-            "lower(\"external_path\")"
-          ],
+          "columns": ["lower(\"external_path\")"],
           "isUnique": true
         },
         "fe_external_path_idx": {
           "name": "fe_external_path_idx",
-          "columns": [
-            "external_path"
-          ],
+          "columns": ["external_path"],
           "isUnique": false
         }
       },
@@ -1551,25 +1417,17 @@
       "indexes": {
         "cmfr_entry_id_idx": {
           "name": "cmfr_entry_id_idx",
-          "columns": [
-            "file_entry_id"
-          ],
+          "columns": ["file_entry_id"],
           "isUnique": false
         },
         "cmfr_source_id_idx": {
           "name": "cmfr_source_id_idx",
-          "columns": [
-            "source_id"
-          ],
+          "columns": ["source_id"],
           "isUnique": false
         },
         "cmfr_unique_idx": {
           "name": "cmfr_unique_idx",
-          "columns": [
-            "file_entry_id",
-            "source_id",
-            "role"
-          ],
+          "columns": ["file_entry_id", "source_id", "role"],
           "isUnique": true
         }
       },
@@ -1578,12 +1436,8 @@
           "name": "chat_message_file_ref_file_entry_id_file_entry_id_fk",
           "tableFrom": "chat_message_file_ref",
           "tableTo": "file_entry",
-          "columnsFrom": [
-            "file_entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1591,12 +1445,8 @@
           "name": "chat_message_file_ref_source_id_message_id_fk",
           "tableFrom": "chat_message_file_ref",
           "tableTo": "message",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1652,16 +1502,12 @@
       "indexes": {
         "malfr_entry_id_idx": {
           "name": "malfr_entry_id_idx",
-          "columns": [
-            "file_entry_id"
-          ],
+          "columns": ["file_entry_id"],
           "isUnique": false
         },
         "malfr_source_id_idx": {
           "name": "malfr_source_id_idx",
-          "columns": [
-            "source_id"
-          ],
+          "columns": ["source_id"],
           "isUnique": true
         }
       },
@@ -1670,12 +1516,8 @@
           "name": "mini_app_logo_file_ref_file_entry_id_file_entry_id_fk",
           "tableFrom": "mini_app_logo_file_ref",
           "tableTo": "file_entry",
-          "columnsFrom": [
-            "file_entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1683,12 +1525,8 @@
           "name": "mini_app_logo_file_ref_source_id_mini_app_app_id_fk",
           "tableFrom": "mini_app_logo_file_ref",
           "tableTo": "mini_app",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "app_id"
-          ],
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["app_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1746,25 +1584,17 @@
       "indexes": {
         "pfr_entry_id_idx": {
           "name": "pfr_entry_id_idx",
-          "columns": [
-            "file_entry_id"
-          ],
+          "columns": ["file_entry_id"],
           "isUnique": false
         },
         "pfr_source_id_idx": {
           "name": "pfr_source_id_idx",
-          "columns": [
-            "source_id"
-          ],
+          "columns": ["source_id"],
           "isUnique": false
         },
         "pfr_unique_idx": {
           "name": "pfr_unique_idx",
-          "columns": [
-            "file_entry_id",
-            "source_id",
-            "role"
-          ],
+          "columns": ["file_entry_id", "source_id", "role"],
           "isUnique": true
         }
       },
@@ -1773,12 +1603,8 @@
           "name": "painting_file_ref_file_entry_id_file_entry_id_fk",
           "tableFrom": "painting_file_ref",
           "tableTo": "file_entry",
-          "columnsFrom": [
-            "file_entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1786,12 +1612,8 @@
           "name": "painting_file_ref_source_id_painting_id_fk",
           "tableFrom": "painting_file_ref",
           "tableTo": "painting",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1847,16 +1669,12 @@
       "indexes": {
         "plfr_entry_id_idx": {
           "name": "plfr_entry_id_idx",
-          "columns": [
-            "file_entry_id"
-          ],
+          "columns": ["file_entry_id"],
           "isUnique": false
         },
         "plfr_source_id_idx": {
           "name": "plfr_source_id_idx",
-          "columns": [
-            "source_id"
-          ],
+          "columns": ["source_id"],
           "isUnique": true
         }
       },
@@ -1865,12 +1683,8 @@
           "name": "provider_logo_file_ref_file_entry_id_file_entry_id_fk",
           "tableFrom": "provider_logo_file_ref",
           "tableTo": "file_entry",
-          "columnsFrom": [
-            "file_entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1878,12 +1692,8 @@
           "name": "provider_logo_file_ref_source_id_user_provider_provider_id_fk",
           "tableFrom": "provider_logo_file_ref",
           "tableTo": "user_provider",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "provider_id"
-          ],
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["provider_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1941,10 +1751,7 @@
       "indexes": {
         "group_entity_type_order_key_idx": {
           "name": "group_entity_type_order_key_idx",
-          "columns": [
-            "entity_type",
-            "order_key"
-          ],
+          "columns": ["entity_type", "order_key"],
           "isUnique": false
         }
       },
@@ -2047,25 +1854,17 @@
       "indexes": {
         "job_schedule_type_name_uq": {
           "name": "job_schedule_type_name_uq",
-          "columns": [
-            "type",
-            "name"
-          ],
+          "columns": ["type", "name"],
           "isUnique": true
         },
         "job_schedule_enabled_next_run_idx": {
           "name": "job_schedule_enabled_next_run_idx",
-          "columns": [
-            "enabled",
-            "next_run"
-          ],
+          "columns": ["enabled", "next_run"],
           "isUnique": false
         },
         "job_schedule_type_idx": {
           "name": "job_schedule_type_idx",
-          "columns": [
-            "type"
-          ],
+          "columns": ["type"],
           "isUnique": false
         }
       },
@@ -2233,40 +2032,27 @@
       "indexes": {
         "job_queue_status_scheduled_at_idx": {
           "name": "job_queue_status_scheduled_at_idx",
-          "columns": [
-            "queue",
-            "status",
-            "scheduled_at"
-          ],
+          "columns": ["queue", "status", "scheduled_at"],
           "isUnique": false
         },
         "job_status_idx": {
           "name": "job_status_idx",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         },
         "job_schedule_id_finished_at_idx": {
           "name": "job_schedule_id_finished_at_idx",
-          "columns": [
-            "schedule_id",
-            "finished_at"
-          ],
+          "columns": ["schedule_id", "finished_at"],
           "isUnique": false
         },
         "job_parent_id_idx": {
           "name": "job_parent_id_idx",
-          "columns": [
-            "parent_id"
-          ],
+          "columns": ["parent_id"],
           "isUnique": false
         },
         "job_idempotency_key_partial_uq": {
           "name": "job_idempotency_key_partial_uq",
-          "columns": [
-            "idempotency_key"
-          ],
+          "columns": ["idempotency_key"],
           "isUnique": true,
           "where": "\"job\".\"idempotency_key\" IS NOT NULL AND \"job\".\"status\" NOT IN ('completed','failed','cancelled')"
         }
@@ -2276,12 +2062,8 @@
           "name": "job_schedule_id_job_schedule_id_fk",
           "tableFrom": "job",
           "tableTo": "job_schedule",
-          "columnsFrom": [
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["schedule_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2289,12 +2071,8 @@
           "name": "job_parent_id_job_id_fk",
           "tableFrom": "job",
           "tableTo": "job",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2439,12 +2217,8 @@
           "name": "knowledge_base_group_id_group_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "group",
-          "columnsFrom": [
-            "group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2452,12 +2226,8 @@
           "name": "knowledge_base_embedding_model_id_user_model_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "user_model",
-          "columnsFrom": [
-            "embedding_model_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["embedding_model_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2465,12 +2235,8 @@
           "name": "knowledge_base_rerank_model_id_user_model_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "user_model",
-          "columnsFrom": [
-            "rerank_model_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rerank_model_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2562,28 +2328,17 @@
       "indexes": {
         "knowledge_item_base_type_created_idx": {
           "name": "knowledge_item_base_type_created_idx",
-          "columns": [
-            "base_id",
-            "type",
-            "created_at"
-          ],
+          "columns": ["base_id", "type", "created_at"],
           "isUnique": false
         },
         "knowledge_item_base_group_created_idx": {
           "name": "knowledge_item_base_group_created_idx",
-          "columns": [
-            "base_id",
-            "group_id",
-            "created_at"
-          ],
+          "columns": ["base_id", "group_id", "created_at"],
           "isUnique": false
         },
         "knowledge_item_baseId_id_unique": {
           "name": "knowledge_item_baseId_id_unique",
-          "columns": [
-            "base_id",
-            "id"
-          ],
+          "columns": ["base_id", "id"],
           "isUnique": true
         }
       },
@@ -2592,12 +2347,8 @@
           "name": "knowledge_item_base_id_knowledge_base_id_fk",
           "tableFrom": "knowledge_item",
           "tableTo": "knowledge_base",
-          "columnsFrom": [
-            "base_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["base_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2605,14 +2356,8 @@
           "name": "knowledge_item_base_id_group_id_knowledge_item_base_id_id_fk",
           "tableFrom": "knowledge_item",
           "tableTo": "knowledge_item",
-          "columnsFrom": [
-            "base_id",
-            "group_id"
-          ],
-          "columnsTo": [
-            "base_id",
-            "id"
-          ],
+          "columnsFrom": ["base_id", "group_id"],
+          "columnsTo": ["base_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2871,23 +2616,17 @@
       "indexes": {
         "mcp_server_name_idx": {
           "name": "mcp_server_name_idx",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": false
         },
         "mcp_server_is_active_idx": {
           "name": "mcp_server_is_active_idx",
-          "columns": [
-            "is_active"
-          ],
+          "columns": ["is_active"],
           "isUnique": false
         },
         "mcp_server_sort_order_idx": {
           "name": "mcp_server_sort_order_idx",
-          "columns": [
-            "sort_order"
-          ],
+          "columns": ["sort_order"],
           "isUnique": false
         }
       },
@@ -2958,6 +2697,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "terminal_at": {
+          "name": "terminal_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "siblings_group_id": {
           "name": "siblings_group_id",
           "type": "integer",
@@ -3019,39 +2765,28 @@
       "indexes": {
         "message_parent_id_idx": {
           "name": "message_parent_id_idx",
-          "columns": [
-            "parent_id"
-          ],
+          "columns": ["parent_id"],
           "isUnique": false
         },
         "message_topic_created_idx": {
           "name": "message_topic_created_idx",
-          "columns": [
-            "topic_id",
-            "created_at"
-          ],
+          "columns": ["topic_id", "created_at"],
           "isUnique": false
         },
         "message_status_idx": {
           "name": "message_status_idx",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         },
         "message_topic_root_uniq": {
           "name": "message_topic_root_uniq",
-          "columns": [
-            "topic_id"
-          ],
+          "columns": ["topic_id"],
           "isUnique": true,
           "where": "\"message\".\"parent_id\" is null and \"message\".\"deleted_at\" is null"
         },
         "message_fts_rowid_uniq": {
           "name": "message_fts_rowid_uniq",
-          "columns": [
-            "fts_rowid"
-          ],
+          "columns": ["fts_rowid"],
           "isUnique": true
         }
       },
@@ -3060,12 +2795,8 @@
           "name": "message_topic_id_topic_id_fk",
           "tableFrom": "message",
           "tableTo": "topic",
-          "columnsFrom": [
-            "topic_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["topic_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3073,12 +2804,8 @@
           "name": "message_model_id_user_model_id_fk",
           "tableFrom": "message",
           "tableTo": "user_model",
-          "columnsFrom": [
-            "model_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3086,12 +2813,8 @@
           "name": "message_parent_id_message_id_fk",
           "tableFrom": "message",
           "tableTo": "message",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3220,17 +2943,12 @@
       "indexes": {
         "mini_app_status_order_key_idx": {
           "name": "mini_app_status_order_key_idx",
-          "columns": [
-            "status",
-            "order_key"
-          ],
+          "columns": ["status", "order_key"],
           "isUnique": false
         },
         "mini_app_preset_mini_app_id_idx": {
           "name": "mini_app_preset_mini_app_id_idx",
-          "columns": [
-            "preset_mini_app_id"
-          ],
+          "columns": ["preset_mini_app_id"],
           "isUnique": false
         }
       },
@@ -3302,10 +3020,7 @@
       "indexes": {
         "note_root_path_path_unique_idx": {
           "name": "note_root_path_path_unique_idx",
-          "columns": [
-            "root_path",
-            "path"
-          ],
+          "columns": ["root_path", "path"],
           "isUnique": true
         }
       },
@@ -3375,9 +3090,7 @@
       "indexes": {
         "painting_order_key_idx": {
           "name": "painting_order_key_idx",
-          "columns": [
-            "order_key"
-          ],
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -3435,18 +3148,12 @@
       "indexes": {
         "pin_entity_type_entity_id_unique_idx": {
           "name": "pin_entity_type_entity_id_unique_idx",
-          "columns": [
-            "entity_type",
-            "entity_id"
-          ],
+          "columns": ["entity_type", "entity_id"],
           "isUnique": true
         },
         "pin_entity_type_order_key_idx": {
           "name": "pin_entity_type_order_key_idx",
-          "columns": [
-            "entity_type",
-            "order_key"
-          ],
+          "columns": ["entity_type", "order_key"],
           "isUnique": false
         }
       },
@@ -3499,10 +3206,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "preference_scope_key_pk": {
-          "columns": [
-            "scope",
-            "key"
-          ],
+          "columns": ["scope", "key"],
           "name": "preference_scope_key_pk"
         }
       },
@@ -3558,9 +3262,7 @@
       "indexes": {
         "prompt_order_key_idx": {
           "name": "prompt_order_key_idx",
-          "columns": [
-            "order_key"
-          ],
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -3611,9 +3313,7 @@
       "indexes": {
         "entity_tag_tag_id_idx": {
           "name": "entity_tag_tag_id_idx",
-          "columns": [
-            "tag_id"
-          ],
+          "columns": ["tag_id"],
           "isUnique": false
         }
       },
@@ -3622,23 +3322,15 @@
           "name": "entity_tag_tag_id_tag_id_fk",
           "tableFrom": "entity_tag",
           "tableTo": "tag",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "entity_tag_entity_type_entity_id_tag_id_pk": {
-          "columns": [
-            "entity_type",
-            "entity_id",
-            "tag_id"
-          ],
+          "columns": ["entity_type", "entity_id", "tag_id"],
           "name": "entity_tag_entity_type_entity_id_tag_id_pk"
         }
       },
@@ -3687,9 +3379,7 @@
       "indexes": {
         "tag_name_unique": {
           "name": "tag_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         }
       },
@@ -3752,6 +3442,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "last_activity_at": {
+          "name": "last_activity_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -3777,41 +3474,27 @@
       "indexes": {
         "topic_created_at_id_idx": {
           "name": "topic_created_at_id_idx",
-          "columns": [
-            "\"created_at\" desc",
-            "id"
-          ],
+          "columns": ["\"created_at\" desc", "id"],
+          "isUnique": false
+        },
+        "topic_last_activity_at_id_idx": {
+          "name": "topic_last_activity_at_id_idx",
+          "columns": ["\"last_activity_at\" desc", "id"],
           "isUnique": false
         },
         "topic_updated_at_id_idx": {
           "name": "topic_updated_at_id_idx",
-          "columns": [
-            "\"updated_at\" desc",
-            "id"
-          ],
+          "columns": ["\"updated_at\" desc", "id"],
           "isUnique": false
         },
         "topic_order_key_idx": {
           "name": "topic_order_key_idx",
-          "columns": [
-            "order_key"
-          ],
+          "columns": ["order_key"],
           "isUnique": false
         },
         "topic_assistant_id_idx": {
           "name": "topic_assistant_id_idx",
-          "columns": [
-            "assistant_id"
-          ],
-          "isUnique": false
-        },
-        "topic_assistant_id_created_at_id_idx": {
-          "name": "topic_assistant_id_created_at_id_idx",
-          "columns": [
-            "assistant_id",
-            "\"created_at\" desc",
-            "id"
-          ],
+          "columns": ["assistant_id"],
           "isUnique": false
         }
       },
@@ -3820,12 +3503,8 @@
           "name": "topic_assistant_id_assistant_id_fk",
           "tableFrom": "topic",
           "tableTo": "assistant",
-          "columnsFrom": [
-            "assistant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -3898,17 +3577,12 @@
       "indexes": {
         "translate_history_created_at_idx": {
           "name": "translate_history_created_at_idx",
-          "columns": [
-            "created_at"
-          ],
+          "columns": ["created_at"],
           "isUnique": false
         },
         "translate_history_star_created_at_idx": {
           "name": "translate_history_star_created_at_idx",
-          "columns": [
-            "star",
-            "created_at"
-          ],
+          "columns": ["star", "created_at"],
           "isUnique": false
         }
       },
@@ -3917,12 +3591,8 @@
           "name": "translate_history_source_language_translate_language_lang_code_fk",
           "tableFrom": "translate_history",
           "tableTo": "translate_language",
-          "columnsFrom": [
-            "source_language"
-          ],
-          "columnsTo": [
-            "lang_code"
-          ],
+          "columnsFrom": ["source_language"],
+          "columnsTo": ["lang_code"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3930,12 +3600,8 @@
           "name": "translate_history_target_language_translate_language_lang_code_fk",
           "tableFrom": "translate_history",
           "tableTo": "translate_language",
-          "columnsFrom": [
-            "target_language"
-          ],
-          "columnsTo": [
-            "lang_code"
-          ],
+          "columnsFrom": ["target_language"],
+          "columnsTo": ["lang_code"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -4189,33 +3855,22 @@
       "indexes": {
         "user_model_preset_idx": {
           "name": "user_model_preset_idx",
-          "columns": [
-            "preset_model_id"
-          ],
+          "columns": ["preset_model_id"],
           "isUnique": false
         },
         "user_model_provider_enabled_idx": {
           "name": "user_model_provider_enabled_idx",
-          "columns": [
-            "provider_id",
-            "is_enabled"
-          ],
+          "columns": ["provider_id", "is_enabled"],
           "isUnique": false
         },
         "user_model_provider_id_order_key_idx": {
           "name": "user_model_provider_id_order_key_idx",
-          "columns": [
-            "provider_id",
-            "order_key"
-          ],
+          "columns": ["provider_id", "order_key"],
           "isUnique": false
         },
         "user_model_provider_model_unique": {
           "name": "user_model_provider_model_unique",
-          "columns": [
-            "provider_id",
-            "model_id"
-          ],
+          "columns": ["provider_id", "model_id"],
           "isUnique": true
         }
       },
@@ -4224,12 +3879,8 @@
           "name": "user_model_provider_id_user_provider_provider_id_fk",
           "tableFrom": "user_model",
           "tableTo": "user_provider",
-          "columnsFrom": [
-            "provider_id"
-          ],
-          "columnsTo": [
-            "provider_id"
-          ],
+          "columnsFrom": ["provider_id"],
+          "columnsTo": ["provider_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4345,23 +3996,17 @@
       "indexes": {
         "user_provider_preset_idx": {
           "name": "user_provider_preset_idx",
-          "columns": [
-            "preset_provider_id"
-          ],
+          "columns": ["preset_provider_id"],
           "isUnique": false
         },
         "user_provider_enabled_idx": {
           "name": "user_provider_enabled_idx",
-          "columns": [
-            "is_enabled"
-          ],
+          "columns": ["is_enabled"],
           "isUnique": false
         },
         "user_provider_order_key_idx": {
           "name": "user_provider_order_key_idx",
-          "columns": [
-            "order_key"
-          ],
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -4387,6 +4032,13 @@
           }
         }
       },
+      "agent_session_last_activity_at_id_idx": {
+        "columns": {
+          "\"last_activity_at\" desc": {
+            "isExpression": true
+          }
+        }
+      },
       "agent_session_updated_at_id_idx": {
         "columns": {
           "\"updated_at\" desc": {
@@ -4408,16 +4060,16 @@
           }
         }
       },
-      "topic_updated_at_id_idx": {
+      "topic_last_activity_at_id_idx": {
         "columns": {
-          "\"updated_at\" desc": {
+          "\"last_activity_at\" desc": {
             "isExpression": true
           }
         }
       },
-      "topic_assistant_id_created_at_id_idx": {
+      "topic_updated_at_id_idx": {
         "columns": {
-          "\"created_at\" desc": {
+          "\"updated_at\" desc": {
             "isExpression": true
           }
         }

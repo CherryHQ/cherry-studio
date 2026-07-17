@@ -773,6 +773,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
       assistantId: null,
       activeNodeId: null,
       orderKey: '', // Stamped by phase 1 of insertStagedTopics
+      lastActivityAt: updatedAt,
       createdAt: updatedAt,
       updatedAt
     }
@@ -883,6 +884,7 @@ describe('ChatMigrator model reference sanitization', () => {
         data: { parts: [] },
         searchableText: '',
         status: 'success',
+        terminalAt: 1,
         siblingsGroupId: 0,
         modelId: 'cherryai::qwen',
         messageSnapshot: null,
@@ -927,6 +929,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       assistantId: null,
       activeNodeId: null,
       orderKey: '',
+      lastActivityAt: updatedAt,
       createdAt: updatedAt,
       updatedAt
     }
@@ -958,6 +961,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       },
       searchableText: '',
       status: 'success',
+      terminalAt: null,
       siblingsGroupId: 0,
       modelId: null,
       messageSnapshot: null,

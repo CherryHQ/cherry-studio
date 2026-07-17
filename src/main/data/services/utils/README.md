@@ -6,6 +6,18 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
+### `activityTime.ts` — Topic / Agent Session activity invariants
+
+Shared bounded-phase helpers for Topic and Agent Session content persistence:
+
+- `resolveResponseTerminalAt` records the first assistant-response terminal
+  transition and preserves it across later row updates.
+- `getMessageActivityTimestamp` maps user/assistant rows to their activity
+  contribution while excluding structural and system rows.
+
+The helpers do not write either parent table. Message services call the owning
+Topic or Agent Session service for parent updates and deletion recomputation.
+
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.

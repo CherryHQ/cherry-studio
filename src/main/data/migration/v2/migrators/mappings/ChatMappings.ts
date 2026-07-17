@@ -411,6 +411,7 @@ export interface NewTopic {
   assistantId: string | null
   activeNodeId: string | null
   orderKey: string
+  lastActivityAt: number
   createdAt: number // timestamp
   updatedAt: number // timestamp
 }
@@ -427,6 +428,7 @@ export interface NewMessage {
   data: MessageData
   searchableText: string
   status: 'success' | 'error' | 'paused'
+  terminalAt: number | null
   siblingsGroupId: number
   modelId: string | null
   messageSnapshot: MessageSnapshot | null
@@ -465,6 +467,7 @@ export interface NewMessage {
  *   reads `oldTopic.pinned` separately and emits a `pin` row for it.
  */
 export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
+  const createdAt = parseTimestamp(oldTopic.createdAt)
   return {
     id: oldTopic.id,
     name: oldTopic.name || '',
@@ -472,7 +475,8 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
     orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
-    createdAt: parseTimestamp(oldTopic.createdAt),
+    lastActivityAt: createdAt,
+    createdAt,
     updatedAt: parseTimestamp(oldTopic.updatedAt)
   }
 }
@@ -553,6 +557,8 @@ export async function transformMessage(
     }
   }
 
+  const createdAt = parseTimestamp(oldMessage.createdAt)
+  const updatedAt = parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
   return {
     id: oldMessage.id,
     parentId,
@@ -561,6 +567,7 @@ export async function transformMessage(
     data: { parts },
     searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
+    terminalAt: oldMessage.role === 'assistant' ? Math.max(createdAt, updatedAt) : null,
     siblingsGroupId,
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
     // Author snapshot (model nested) for historical display. The assistant is attached only to
@@ -570,8 +577,8 @@ export async function transformMessage(
       oldMessage.role === 'assistant' ? assistantSnapshot : undefined
     ),
     stats: mergeStats(oldMessage.usage, oldMessage.metrics),
-    createdAt: parseTimestamp(oldMessage.createdAt),
-    updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
+    createdAt,
+    updatedAt
   }
 }
 
