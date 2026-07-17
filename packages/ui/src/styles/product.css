@@ -61,6 +61,7 @@
   --cs-system-gray-2: #aeaeb2;
   --cs-system-gray-3: #c7c7cc;
   --cs-icon-contrast: var(--cs-black);
+  --cs-primary-soft: color-mix(in srgb, var(--primary) 60%, transparent);
   --cs-primary-subtle: var(--cs-brand-50);
 
   /* Application shell */

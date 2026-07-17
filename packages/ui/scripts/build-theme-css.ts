@@ -114,6 +114,7 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'system-gray-2',
   'system-gray-3',
   'icon-contrast',
+  'primary-soft',
   'primary-subtle'
 ] as const
 

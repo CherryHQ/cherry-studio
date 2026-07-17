@@ -22,20 +22,31 @@
  *
  */
 
-/* Renderer-only sidebar state tokens: light mode */
+/* App shell compatibility aliases */
 :root {
-  --app-sidebar-active-bg: rgba(16, 185, 129, 0.08);
-  --app-sidebar-active-border: rgba(16, 185, 129, 0.15);
-  --app-sidebar-glow-bg: rgba(16, 185, 129, 0.25);
-  --app-sidebar-glow-line: rgba(16, 185, 129, 0.5);
-}
+  --app-icon: var(--cs-icon);
 
-/* Renderer-only sidebar state tokens: dark mode */
-.dark {
-  --app-sidebar-active-bg: rgba(114, 255, 121, 0.05);
-  --app-sidebar-active-border: rgba(114, 255, 121, 0.08);
-  --app-sidebar-glow-bg: rgba(114, 255, 121, 0.15);
-  --app-sidebar-glow-line: rgba(114, 255, 121, 0.35);
+  --app-sidebar: var(--sidebar);
+  --app-sidebar-accent: var(--sidebar-accent);
+  --app-sidebar-foreground: var(--sidebar-foreground);
+  --app-sidebar-active-bg: var(--cs-sidebar-active-bg);
+  --app-sidebar-active-border: var(--cs-sidebar-active-border);
+  --app-sidebar-glow-bg: var(--cs-sidebar-glow-bg);
+  --app-sidebar-glow-line: var(--cs-sidebar-glow-line);
+  --app-sidebar-primary: var(--sidebar-primary);
+  --app-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --app-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --app-sidebar-border: var(--sidebar-border);
+  --app-sidebar-ring: var(--sidebar-ring);
+
+  --app-primary-foreground: var(--primary-foreground);
+  --app-card-foreground: var(--card-foreground);
+  --app-popover-foreground: var(--popover-foreground);
+  --app-secondary-foreground: var(--secondary-foreground);
+  --app-muted-foreground: var(--muted-foreground);
+  --app-accent-foreground: var(--accent-foreground);
+  --app-destructive-foreground: var(--destructive-foreground);
+  --app-input: var(--input);
 }
 
 /*
