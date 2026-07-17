@@ -106,6 +106,7 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral/i, 'mistral'],
   [/minimax|abab/i, 'minimax'],
   [/jamba|j2-/i, 'ai21'],
+  [/aya/i, 'aya'],
   [/command-r|command-a|c4ai-|cohere|north-/i, 'cohere'],
   [/nemotron|nvidia/i, 'nvidia'],
   [/voyage/i, 'voyage'],
@@ -148,7 +149,6 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/mimo/i, 'mimo'],
   [/palm|bison/i, 'palm'],
   [/ibm/i, 'ibm'],
-  [/aya/i, 'aya'],
   [/trinity/i, 'trinity'],
   // sensenova before nova: `sensenova-*` must not be preempted by the broader `nova`
   [/sensenova/i, 'sensenova'],

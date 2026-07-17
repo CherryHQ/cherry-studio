@@ -114,6 +114,7 @@ describe('resolveModelIconRef — dedicated model marks', () => {
     ['mistral/mixtral-8x22b', 'mistral'],
     ['minimax-m2.1', 'minimax'],
     ['ai21-labs/jamba-1.5-large', 'ai21'],
+    ['c4ai-aya-expanse-32b', 'aya'],
     ['cohere/command-r-plus', 'cohere'],
     ['nvidia/nemotron-3-super', 'nvidia'],
     ['voyage-3.5', 'voyage'],
