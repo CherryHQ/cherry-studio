@@ -1,4 +1,4 @@
-import { useOptionalShellState } from '@renderer/components/chat/panes/Shell'
+import { useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
@@ -42,8 +42,10 @@ function AgentComposerSlot({
   canChangeModel,
   composerContext
 }: AgentComposerSlotProps) {
-  const shellState = useOptionalShellState()
-  const compactWhenSingleLine = Boolean(shellState?.open && shellState.maximized && shellState.activeTab === 'files')
+  const rightPanelState = useOptionalRightPanelState()
+  const compactWhenSingleLine = Boolean(
+    rightPanelState?.presentationMaximized && rightPanelState.activePanelId === 'files'
+  )
   const fallback =
     agentId && !isMultiSelectMode ? (
       <AgentComposer
