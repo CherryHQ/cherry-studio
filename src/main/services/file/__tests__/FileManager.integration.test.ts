@@ -111,6 +111,32 @@ describe('FileManager (integration)', () => {
     expect(url).toContain(encodeURIComponent(`${id}.txt`).replace(/%2F/g, '/'))
   })
 
+  it('INT-1b: copyContentTo copies bytes without creating a new FileEntry', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff1b' as FileEntryId
+    const physicalPath = path.join(internalRoot, `${id}.txt`)
+    await writeFile(physicalPath, 'copy-me', 'utf-8')
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: 'note',
+      ext: 'txt',
+      size: 'copy-me'.length,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const dest = path.join(tmp, 'staged-blob')
+    const beforeCount = (await dbh.db.select().from(fileEntryTable)).length
+    const { size } = await fm.copyContentTo(id, dest)
+    expect(size).toBe('copy-me'.length)
+    const { readFile: readDest } = await import('node:fs/promises')
+    expect(await readDest(dest, 'utf-8')).toBe('copy-me')
+    expect((await dbh.db.select().from(fileEntryTable)).length).toBe(beforeCount)
+  })
+
   it('INT-2: external entry canonicalization end-to-end (case-sensitive byte match)', async () => {
     const id = '019606a0-0000-7000-8000-00000000ff02' as FileEntryId
     const file = path.join(tmp, 'doc.pdf')

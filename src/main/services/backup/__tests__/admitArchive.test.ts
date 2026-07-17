@@ -11,7 +11,7 @@ import Database from 'better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { admitArchive, assertWithin } from '../admitArchive'
+import { admitArchive, assertWithin, MAX_ARCHIVE_ENTRIES, validateArchiveLimits } from '../admitArchive'
 import { assembleArchive } from '../archive'
 import { BackupArchiveCorruptError, NewerOrDivergedBackupError, UnsupportedBackupFormatError } from '../errors'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
@@ -220,5 +220,60 @@ describe('admitArchive', () => {
     expect(() => assertWithin(workDir, '../outside')).toThrow(BackupArchiveCorruptError)
     expect(() => assertWithin(workDir, '../../outside')).toThrow(BackupArchiveCorruptError)
     expect(() => assertWithin(workDir, '/outside')).toThrow(BackupArchiveCorruptError)
+  })
+})
+
+describe('validateArchiveLimits', () => {
+  const okManifest = {
+    name: 'manifest.json',
+    size: 100,
+    compressedSize: 50,
+    isDirectory: false
+  }
+
+  it('rejects excessive entry counts before extraction', () => {
+    const entries: Record<string, typeof okManifest> = { 'manifest.json': okManifest }
+    for (let i = 0; i < MAX_ARCHIVE_ENTRIES; i++) {
+      entries[`pad-${i}`] = { name: `pad-${i}`, size: 1, compressedSize: 1, isDirectory: false }
+    }
+    expect(() => validateArchiveLimits(entries)).toThrow(BackupArchiveCorruptError)
+    expect(() => validateArchiveLimits(entries)).toThrow(/entry count exceeds limit/)
+  })
+
+  it('rejects an oversized manifest.json declaration', () => {
+    expect(() =>
+      validateArchiveLimits({
+        'manifest.json': {
+          name: 'manifest.json',
+          size: 17 * 1024 * 1024,
+          compressedSize: 100,
+          isDirectory: false
+        }
+      })
+    ).toThrow(/manifest\.json uncompressed size exceeds limit/)
+  })
+
+  it('rejects an exaggerated compression ratio (zip bomb)', () => {
+    expect(() =>
+      validateArchiveLimits({
+        'manifest.json': okManifest,
+        'files/bomb': {
+          name: 'files/bomb',
+          size: 10_000_000,
+          compressedSize: 100,
+          isDirectory: false
+        }
+      })
+    ).toThrow(/compression ratio exceeds limit/)
+  })
+
+  it('accepts a normal small archive inventory', () => {
+    expect(() =>
+      validateArchiveLimits({
+        'manifest.json': okManifest,
+        'backup.sqlite': { name: 'backup.sqlite', size: 1024, compressedSize: 512, isDirectory: false },
+        'files/': { name: 'files/', size: 0, compressedSize: 0, isDirectory: true }
+      })
+    ).not.toThrow()
   })
 })

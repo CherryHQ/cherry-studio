@@ -15,7 +15,7 @@ import { dirname, join, resolve } from 'node:path'
 import { loggerService } from '@logger'
 import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { fileEntryTable } from '@main/data/db/schemas/file'
-import { isPathInside } from '@main/utils/legacyFile'
+import { isPathInside } from '@main/utils/file'
 import { and, inArray, isNull } from 'drizzle-orm'
 
 const logger = loggerService.withContext('backup/FileStager')
@@ -102,15 +102,19 @@ export interface FileStager {
 
 /**
  * Resolves each id against file_entry (only non-deleted rows), copies the blob
- * to <destDir>/<id>, and sums actual on-disk sizes. Internal blobs are read from
- * <filesRoot>/<id>.<ext>; external blobs from the row's absolute externalPath.
+ * to <destDir>/<id> via FileManager's read-only `copyContentTo` (same physical
+ * path resolution as createReadStream), and sums actual on-disk sizes.
  * Ids whose file_entry was soft-deleted or whose source file is unreadable land
  * in `missing` instead of throwing.
  */
 export class SqliteFileStager implements FileStager {
   constructor(
     private readonly liveDb: BackupReadonlyDb,
-    private readonly filesRoot: string,
+    /** Read-only blob copy port (production: FileManager). */
+    private readonly fileBlobs: {
+      copyContentTo(id: string, destPath: string): Promise<{ size: number }>
+      getMetadata(id: string): Promise<{ size: number }>
+    },
     private readonly knowledgeRoot: string,
     private readonly skillsRoot: string
   ) {}
@@ -145,67 +149,34 @@ export class SqliteFileStager implements FileStager {
     for (const id of ids) if (!foundIds.has(id)) missing.push(id)
 
     for (const row of rows) {
-      // Internal blobs live at <filesRoot>/<id>.<ext>; extensionless internals use <id>.
-      // External blobs live at the row's absolute externalPath (may be outside userData).
-      const src =
-        row.origin === 'internal' ? join(this.filesRoot, row.ext ? `${row.id}.${row.ext}` : row.id) : row.externalPath
-      if (!src) {
-        // external row with NULL externalPath violates fe_origin_consistency; treat as missing.
-        missing.push(row.id)
-        continue
-      }
-      let size: number
-      try {
-        const s = await stat(src)
-        // A non-file entry at the source path (e.g. a directory where a blob is
-        // expected) is treated as missing — the row is valid but the blob isn't.
-        if (!s.isFile()) {
-          missing.push(row.id)
-          continue
-        }
-        size = s.size
-      } catch (e) {
-        // Only a definitively-absent source (ENOENT/ENOTDIR) is missing; EACCES/
-        // EPERM/EIO mean the path may exist but be unreadable — abort instead of
-        // silently dropping a blob the DB references (pruneMissingRows would
-        // otherwise delete the row → never delete local data, #16683 P1).
-        if (isMissingPath(e)) {
-          missing.push(row.id)
-          continue
-        }
-        throw e
-      }
-      // stat succeeded → the source existed at check time. A copyFile failure now
-      // is usually a DESTINATION write error (disk-full / permission) and MUST
-      // abort (the archive would otherwise omit a blob its DB references). But an
-      // ENOENT here means the source disappeared between stat and copy (external
-      // file moved/deleted) → treat as missing, not a write error.
       const dest = join(destDir, row.id)
       try {
-        await copyFile(src, dest)
+        const { size } = await this.fileBlobs.copyContentTo(row.id, dest)
+        total += 1
+        totalBytes += size
       } catch (e) {
-        // ENOENT = source gone (stat→copy race) → missing. EACCES/EPERM is
-        // ambiguous — unreadable source (mode 000) OR a dest write-permission
-        // failure — so re-stat the source to disambiguate: source gone → missing;
-        // source still present → dest write error, MUST abort (the archive would
-        // otherwise omit a blob its DB references). ENOSPC / other system errors
-        // always abort.
-        if (isErrnoCode(e, 'ENOENT')) {
-          // A failed copy may have written partial bytes to dest — remove it so the
-          // archive never holds an unmanifested blob (codex review).
+        // ENOENT/ENOTDIR = source gone → missing. EACCES/EPERM is ambiguous —
+        // unreadable source OR dest write-permission — so probe getMetadata:
+        // source gone → missing; source still present → dest write error, MUST abort.
+        if (isErrnoCode(e, 'ENOENT') || isErrnoCode(e, 'ENOTDIR')) {
           await rm(dest, { force: true }).catch(() => {})
           missing.push(row.id)
           continue
         }
-        if ((isErrnoCode(e, 'EACCES') || isErrnoCode(e, 'EPERM')) && (await isSourceGone(src))) {
-          await rm(dest, { force: true }).catch(() => {})
-          missing.push(row.id)
-          continue
+        if (isErrnoCode(e, 'EACCES') || isErrnoCode(e, 'EPERM')) {
+          try {
+            await this.fileBlobs.getMetadata(row.id)
+          } catch (metaErr) {
+            if (isMissingPath(metaErr) || isErrnoCode(metaErr, 'ENOENT') || isErrnoCode(metaErr, 'ENOTDIR')) {
+              await rm(dest, { force: true }).catch(() => {})
+              missing.push(row.id)
+              continue
+            }
+          }
+          throw e
         }
         throw e
       }
-      total += 1
-      totalBytes += size
     }
 
     return { total, totalBytes, missing }

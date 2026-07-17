@@ -99,8 +99,11 @@ export interface ExportOrchestratorDeps {
   readonly registry: ReadonlyBackupRegistry
   /** Temp dir for the DB-copy + blob staging; the orchestrator removes them after archiving. */
   readonly tempDir: string
-  /** Live filesystem root for internal file blobs (<id>.<ext>). */
-  readonly filesRoot: string
+  /** Read-only file blob copy (production: FileManager.copyContentTo). */
+  readonly fileBlobs: {
+    copyContentTo(id: string, destPath: string): Promise<{ size: number }>
+    getMetadata(id: string): Promise<{ size: number }>
+  }
   /** Live filesystem root for knowledge base dirs (<baseId>/). */
   readonly knowledgeRoot: string
   /** Live filesystem root for installed skill dirs (<folderName>/, full preset only). */
@@ -174,7 +177,7 @@ export class ExportOrchestrator {
       )
     }
 
-    const { copier, registry, tempDir, filesRoot, knowledgeRoot, skillsRoot, stripper } = this.deps
+    const { copier, registry, tempDir, fileBlobs, knowledgeRoot, skillsRoot, stripper } = this.deps
     // Notes root is only needed for full-preset PREFERENCES file resources.
     // Resolve lazily below — calling notesRoot() here would abort lite exports when
     // feature.notes.path is set but unavailable, even though lite never stages notes.
@@ -229,7 +232,7 @@ export class ExportOrchestrator {
       // and collect cannot desync the archived DB from its blobs.
       snapshotDb = new Database(backupDbPath, { readonly: true })
       const snapshotReadonly = new BackupReadonlyDb(drizzle({ client: snapshotDb, casing: 'snake_case' }))
-      const fileStager = new SqliteFileStager(snapshotReadonly, filesRoot, knowledgeRoot, skillsRoot)
+      const fileStager = new SqliteFileStager(snapshotReadonly, fileBlobs, knowledgeRoot, skillsRoot)
 
       // 4. collectFileResources per domain (transaction-free, spec §flow step 4).
       //    KNOWLEDGE ids are baseIds (directory-shaped → knowledge/<baseId>/);

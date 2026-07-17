@@ -5,8 +5,9 @@
 // staging directory on independent SQLite connections.
 
 import { createWriteStream, mkdirSync } from 'node:fs'
-import { rm, writeFile } from 'node:fs/promises'
+import { rm, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
+import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { applyMigrations } from '@main/data/db/applyMigrations'
@@ -29,6 +30,21 @@ import { BACKUP_FORMAT_VERSION, type BackupManifest, readManifest } from './mani
 const RECOGNIZED_TOP_LEVEL = new Set(['backup.sqlite'])
 /** Resource trees copied only after the manifest format gate succeeds. */
 const RECOGNIZED_DIR_PREFIXES = ['files/', 'knowledge/', 'skills/', 'notes/'] as const
+
+/** Zip-bomb / staging-disk gates (central-directory metadata). */
+export const MAX_ARCHIVE_ENTRIES = 100_000
+export const MAX_MANIFEST_UNCOMPRESSED_BYTES = 16 * 1024 * 1024
+/** Conservative staging cap — fail closed before filling the disk. */
+export const MAX_TOTAL_UNCOMPRESSED_BYTES = 16 * 1024 * 1024 * 1024
+export const MAX_COMPRESSION_RATIO = 100
+
+/** Minimal entry shape used by validateArchiveLimits (matches ZipEntry fields we read). */
+export type ArchiveZipEntryLike = {
+  readonly name: string
+  readonly size: number
+  readonly compressedSize: number
+  readonly isDirectory?: boolean
+}
 
 /** Validated archive metadata passed to detached restore operations. */
 export interface ArchiveContext {
@@ -64,12 +80,14 @@ export async function admitArchive(
   let succeeded = false
   try {
     zip = new StreamZip.async({ file: archivePath })
+    const entries = await zip.entries()
+    validateArchiveLimits(entries)
     const manifest = await extractAndReadManifest(zip, workDir)
     if (manifest.backupFormatVersion !== BACKUP_FORMAT_VERSION) {
       throw new UnsupportedBackupFormatError(manifest.backupFormatVersion, BACKUP_FORMAT_VERSION)
     }
 
-    await unpackRecognized(zip, workDir)
+    await unpackRecognized(zip, workDir, entries)
     const backupDbPath = join(workDir, 'backup.sqlite')
     classifyAndMigrateChain(backupDbPath, migrationsFolder, manifest.producerAppVersion)
     assertIntegrity(backupDbPath)
@@ -121,6 +139,11 @@ async function extractAndReadManifest(zip: StreamZip.StreamZipAsync, workDir: st
       `missing or unreadable manifest.json: ${error instanceof Error ? error.message : String(error)}`
     )
   }
+  if (data.byteLength > MAX_MANIFEST_UNCOMPRESSED_BYTES) {
+    throw new BackupArchiveCorruptError(
+      `manifest.json extracted size exceeds limit (${data.byteLength} > ${MAX_MANIFEST_UNCOMPRESSED_BYTES})`
+    )
+  }
 
   await writeFile(join(workDir, manifestName), data)
   try {
@@ -132,21 +155,73 @@ async function extractAndReadManifest(zip: StreamZip.StreamZipAsync, workDir: st
   }
 }
 
+/**
+ * Reject zip-bomb / staging-disk attacks using central-directory metadata before any
+ * entryData()/stream() work. Directory entries are skipped for size/ratio totals.
+ */
+export function validateArchiveLimits(entries: Record<string, ArchiveZipEntryLike>): void {
+  const names = Object.keys(entries)
+  if (names.length > MAX_ARCHIVE_ENTRIES) {
+    throw new BackupArchiveCorruptError(
+      `archive entry count exceeds limit (${names.length} > ${MAX_ARCHIVE_ENTRIES})`
+    )
+  }
+
+  const manifest = entries['manifest.json']
+  if (!manifest || manifest.isDirectory || manifest.name.endsWith('/')) {
+    throw new BackupArchiveCorruptError('missing or unreadable manifest.json')
+  }
+  if (manifest.size > MAX_MANIFEST_UNCOMPRESSED_BYTES) {
+    throw new BackupArchiveCorruptError(
+      `manifest.json uncompressed size exceeds limit (${manifest.size} > ${MAX_MANIFEST_UNCOMPRESSED_BYTES})`
+    )
+  }
+
+  let totalUncompressed = 0
+  for (const entry of Object.values(entries)) {
+    if (entry.isDirectory || entry.name.endsWith('/')) continue
+    totalUncompressed += entry.size
+    if (totalUncompressed > MAX_TOTAL_UNCOMPRESSED_BYTES) {
+      throw new BackupArchiveCorruptError(
+        `archive total uncompressed size exceeds limit (${totalUncompressed} > ${MAX_TOTAL_UNCOMPRESSED_BYTES})`
+      )
+    }
+    if (entry.compressedSize > 0) {
+      const ratio = entry.size / entry.compressedSize
+      if (ratio > MAX_COMPRESSION_RATIO) {
+        throw new BackupArchiveCorruptError(
+          `archive entry compression ratio exceeds limit (${entry.name}: ${ratio.toFixed(1)} > ${MAX_COMPRESSION_RATIO})`
+        )
+      }
+    }
+  }
+}
+
 /** Extract recognized archive entries after validating every entry path for zip-slip. */
-async function unpackRecognized(zip: StreamZip.StreamZipAsync, workDir: string): Promise<void> {
-  const entries = await zip.entries()
+async function unpackRecognized(
+  zip: StreamZip.StreamZipAsync,
+  workDir: string,
+  entries: Record<string, StreamZip.ZipEntry>
+): Promise<void> {
+  const budget = { remaining: MAX_TOTAL_UNCOMPRESSED_BYTES }
   for (const name of Object.keys(entries)) {
     assertWithin(workDir, name)
     if (name === 'manifest.json' || name.endsWith('/') || !isRecognized(name)) continue
 
     const destination = join(workDir, name)
     mkdirSync(dirname(destination), { recursive: true })
-    await extractEntry(zip, name, destination)
+    await extractEntry(zip, name, destination, entries[name].size, budget)
   }
 }
 
 /** Stream an archive entry so large databases and resources are never buffered in memory. */
-async function extractEntry(zip: StreamZip.StreamZipAsync, name: string, destination: string): Promise<void> {
+async function extractEntry(
+  zip: StreamZip.StreamZipAsync,
+  name: string,
+  destination: string,
+  declaredSize: number,
+  budget: { remaining: number }
+): Promise<void> {
   let source: NodeJS.ReadableStream
   try {
     source = await zip.stream(name)
@@ -155,7 +230,38 @@ async function extractEntry(zip: StreamZip.StreamZipAsync, name: string, destina
       `failed to open archive entry: ${error instanceof Error ? error.message : String(error)}`
     )
   }
-  await pipeline(source, createWriteStream(destination))
+
+  let written = 0
+  const limiter = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      written += chunk.length
+      if (written > declaredSize) {
+        callback(
+          new BackupArchiveCorruptError(
+            `archive entry exceeded declared size (${name}: ${written} > ${declaredSize})`
+          )
+        )
+        return
+      }
+      if (written > budget.remaining) {
+        callback(
+          new BackupArchiveCorruptError(
+            `archive extraction exceeded total uncompressed budget (${name}: wrote ${written}, remaining ${budget.remaining})`
+          )
+        )
+        return
+      }
+      callback(null, chunk)
+    }
+  })
+
+  try {
+    await pipeline(source, limiter, createWriteStream(destination))
+    budget.remaining -= written
+  } catch (error) {
+    await unlink(destination).catch(() => {})
+    throw error
+  }
 }
 
 /** Return whether an entry is one of the known archive payload paths. */

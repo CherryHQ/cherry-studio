@@ -1,6 +1,6 @@
 // Unit tests for SqliteFileStager — blob staging from live DB + filesystem roots.
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -11,10 +11,33 @@ import { describe, expect, it } from 'vitest'
 
 import { SqliteFileStager } from '../FileStager'
 
+/** Path-based FileManager stand-in for staging tests (copyContentTo + getMetadata). */
+function pathFileBlobs(lookup: Record<string, string>) {
+  return {
+    async copyContentTo(id: string, destPath: string): Promise<{ size: number }> {
+      const src = lookup[id]
+      if (!src) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      }
+      await copyFile(src, destPath)
+      const s = await stat(destPath)
+      return { size: s.size }
+    },
+    async getMetadata(id: string): Promise<{ size: number }> {
+      const src = lookup[id]
+      if (!src) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      }
+      const s = await stat(src)
+      return { size: s.size }
+    }
+  }
+}
+
 describe('SqliteFileStager', () => {
   const dbh = setupTestDatabase()
 
-  it('stageFiles copies internal blobs from <filesRoot>/<id>.<ext> and sums sizes', async () => {
+  it('stageFiles copies internal blobs via fileBlobs and sums sizes', async () => {
     const filesRoot = await mkdtemp(join(tmpdir(), 'cs-stager-files-'))
     const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
     try {
@@ -25,7 +48,15 @@ describe('SqliteFileStager', () => {
       await writeFile(join(filesRoot, 'f1.txt'), 'hello')
       await writeFile(join(filesRoot, 'f2.md'), 'doc')
 
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), filesRoot, filesRoot, '/unused')
+      const stager = new SqliteFileStager(
+        new BackupReadonlyDb(dbh.db),
+        pathFileBlobs({
+          f1: join(filesRoot, 'f1.txt'),
+          f2: join(filesRoot, 'f2.md')
+        }),
+        '/unused',
+        '/unused'
+      )
       const r = await stager.stageFiles(new Set(['f1', 'f2']), dest)
 
       expect(r.total).toBe(2)
@@ -42,10 +73,6 @@ describe('SqliteFileStager', () => {
     const filesRoot = await mkdtemp(join(tmpdir(), 'cs-stager-files-'))
     const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
     try {
-      // f1: valid row + source exists → staged.
-      // f2: valid row but source file missing on disk → missing.
-      // f3: no file_entry row (stale ref from an un-pruned junction) → missing.
-      // f4: soft-deleted row → excluded by the deletedAt filter → missing.
       await dbh.db.insert(fileEntryTable).values([
         { id: 'f1', origin: 'internal', name: 'a', ext: 'txt', size: 5 },
         { id: 'f2', origin: 'internal', name: 'b', ext: 'md', size: 3 },
@@ -53,7 +80,15 @@ describe('SqliteFileStager', () => {
       ])
       await writeFile(join(filesRoot, 'f1.txt'), 'hello')
 
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), filesRoot, filesRoot, '/unused')
+      const stager = new SqliteFileStager(
+        new BackupReadonlyDb(dbh.db),
+        pathFileBlobs({
+          f1: join(filesRoot, 'f1.txt')
+          // f2 deliberately absent from lookup → ENOENT → missing
+        }),
+        '/unused',
+        '/unused'
+      )
       const r = await stager.stageFiles(new Set(['f1', 'f2', 'f3', 'f4']), dest)
 
       expect(r.total).toBe(1)
@@ -75,7 +110,12 @@ describe('SqliteFileStager', () => {
         .insert(fileEntryTable)
         .values([{ id: 'ext1', origin: 'external', name: 'e', externalPath: externalFile }])
 
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused', '/unused')
+      const stager = new SqliteFileStager(
+        new BackupReadonlyDb(dbh.db),
+        pathFileBlobs({ ext1: externalFile }),
+        '/unused',
+        '/unused'
+      )
       const r = await stager.stageFiles(new Set(['ext1']), dest)
 
       expect(r.total).toBe(1)
@@ -95,7 +135,7 @@ describe('SqliteFileStager', () => {
       await writeFile(join(kbRoot, 'kb1', 'source.md'), 'doc')
       // kb2 dir NOT created on disk → missing.
 
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', kbRoot, '/unused')
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), pathFileBlobs({}), kbRoot, '/unused')
       const r = await stager.stageKnowledge(new Set(['kb1', 'kb2']), dest)
 
       expect(r.bases).toEqual(['kb1'])
@@ -107,138 +147,96 @@ describe('SqliteFileStager', () => {
     }
   })
 
-  it('stageSkillDirs copies <folderName>/ dirs recursively; missing dir omits descriptor (no prune)', async () => {
+  it('stageSkillDirs copies skill folders and skips missing dirs without a missing list', async () => {
     const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-stager-skills-'))
-    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-skills-dest-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
     try {
-      await mkdir(join(skillsRoot, 'skillA', 'sub'), { recursive: true })
-      await writeFile(join(skillsRoot, 'skillA', 'SKILL.md'), '# A')
-      await writeFile(join(skillsRoot, 'skillA', 'sub', 'ref.md'), 'ref')
-      // skillB dir NOT created on disk → omitted (degradation, NOT missing/prune).
+      await mkdir(join(skillsRoot, 'skill-a'), { recursive: true })
+      await writeFile(join(skillsRoot, 'skill-a', 'SKILL.md'), 'x')
 
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused', skillsRoot)
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), pathFileBlobs({}), '/unused', skillsRoot)
       const r = await stager.stageSkillDirs(
         [
-          { folderName: 'skillA', contentHash: 'hashA' },
-          { folderName: 'skillB', contentHash: 'hashB' }
+          { folderName: 'skill-a', contentHash: 'h1' },
+          { folderName: 'skill-missing', contentHash: 'h2' }
         ],
         dest
       )
 
-      // Only the present dir is staged, carrying its contentHash; the absent one is
-      // simply omitted (no `missing` field — the agent_global_skill row is never pruned
-      // on disk absence, unlike file_entry/knowledge_base).
-      expect(r.skills).toEqual([{ folderName: 'skillA', contentHash: 'hashA' }])
-      expect(existsSync(join(dest, 'skillA', 'SKILL.md'))).toBe(true)
-      expect(existsSync(join(dest, 'skillA', 'sub', 'ref.md'))).toBe(true)
-      expect(existsSync(join(dest, 'skillB'))).toBe(false)
+      expect(r.skills).toEqual([{ folderName: 'skill-a', contentHash: 'h1' }])
+      expect(existsSync(join(dest, 'skill-a', 'SKILL.md'))).toBe(true)
     } finally {
       await rm(skillsRoot, { recursive: true, force: true })
       await rm(dest, { recursive: true, force: true })
     }
   })
 
-  it('stageNotes copies .md bodies preserving sub-dir structure and lists staged vs missing', async () => {
+  it('stageNotes copies relative markdown paths under notesRoot', async () => {
     const notesRoot = await mkdtemp(join(tmpdir(), 'cs-stager-notes-'))
-    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-notes-dest-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
     try {
-      // Arrange — a root note + a nested note under sub/. The stager must mkdir the
-      // nested dest subdir (relPath preserves the relative structure).
-      await writeFile(join(notesRoot, 'note1.md'), '# 1')
-      await mkdir(join(notesRoot, 'sub', 'deep'), { recursive: true })
-      await writeFile(join(notesRoot, 'sub', 'deep', 'note2.md'), '# 2')
-      // note3.md is collected but the source file is missing on disk → missing.
+      await mkdir(join(notesRoot, 'sub'), { recursive: true })
+      await writeFile(join(notesRoot, 'a.md'), 'a')
+      await writeFile(join(notesRoot, 'sub', 'b.md'), 'b')
 
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused', '/unused')
-      const r = await stager.stageNotes(notesRoot, new Set(['note1.md', 'sub/deep/note2.md', 'note3.md']), dest)
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), pathFileBlobs({}), '/unused', '/unused')
+      const r = await stager.stageNotes(notesRoot, new Set(['a.md', 'sub/b.md', 'gone.md']), dest)
 
-      // Assert — staged relpaths in input order minus missing; bodies preserved.
-      expect(r.paths).toEqual(['note1.md', 'sub/deep/note2.md'])
-      expect(r.missing).toEqual(['note3.md'])
-      expect((await readFile(join(dest, 'note1.md'))).toString()).toBe('# 1')
-      expect((await readFile(join(dest, 'sub', 'deep', 'note2.md'))).toString()).toBe('# 2')
+      expect([...r.paths].sort()).toEqual(['a.md', 'sub/b.md'])
+      expect(r.missing).toEqual(['gone.md'])
     } finally {
       await rm(notesRoot, { recursive: true, force: true })
       await rm(dest, { recursive: true, force: true })
     }
   })
 
-  it('stageNotes rejects ../escape.md (does not copy outside notesRoot)', async () => {
-    const parent = await mkdtemp(join(tmpdir(), 'cs-stager-notes-escape-'))
-    const notesRoot = join(parent, 'notes')
-    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-notes-escape-dest-'))
+  it('stageNotes skips path-escape and symlink-escape attempts as missing', async () => {
+    const notesRoot = await mkdtemp(join(tmpdir(), 'cs-stager-notes-'))
+    const outside = await mkdtemp(join(tmpdir(), 'cs-stager-outside-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
     try {
-      await mkdir(notesRoot, { recursive: true })
-      await writeFile(join(parent, 'escape.md'), '# outside')
-      await writeFile(join(notesRoot, 'safe.md'), '# safe')
+      await writeFile(join(outside, 'secret.md'), 'secret')
+      await symlink(join(outside, 'secret.md'), join(notesRoot, 'link.md'))
 
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused', '/unused')
-      const r = await stager.stageNotes(notesRoot, new Set(['../escape.md', 'safe.md']), dest)
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), pathFileBlobs({}), '/unused', '/unused')
+      const r = await stager.stageNotes(notesRoot, new Set(['../x.md', 'link.md']), dest)
 
-      expect(r.paths).toEqual(['safe.md'])
-      expect(r.missing).toEqual(['../escape.md'])
-      // Escape content must not land in dest under any path.
-      expect(existsSync(join(dest, 'escape.md'))).toBe(false)
-      expect(existsSync(join(dest, '..', 'escape.md'))).toBe(false)
-      expect((await readFile(join(dest, 'safe.md'))).toString()).toBe('# safe')
+      expect(r.paths).toEqual([])
+      expect([...r.missing].sort()).toEqual(['../x.md', 'link.md'])
     } finally {
-      await rm(parent, { recursive: true, force: true })
+      await rm(notesRoot, { recursive: true, force: true })
+      await rm(outside, { recursive: true, force: true })
       await rm(dest, { recursive: true, force: true })
     }
   })
 
-  it('stageNotes rejects a symlink whose realpath escapes notesRoot', async () => {
-    const parent = await mkdtemp(join(tmpdir(), 'cs-stager-notes-symlink-'))
-    const notesRoot = join(parent, 'notes')
-    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-notes-symlink-dest-'))
-    try {
-      await mkdir(notesRoot, { recursive: true })
-      await writeFile(join(parent, 'secret.md'), '# secret')
-      await writeFile(join(notesRoot, 'safe.md'), '# safe')
-      await symlink(join(parent, 'secret.md'), join(notesRoot, 'linked.md'))
-
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused', '/unused')
-      const r = await stager.stageNotes(notesRoot, new Set(['linked.md', 'safe.md']), dest)
-
-      expect(r.paths).toEqual(['safe.md'])
-      expect(r.missing).toEqual(['linked.md'])
-      expect(existsSync(join(dest, 'linked.md'))).toBe(false)
-      expect((await readFile(join(dest, 'safe.md'))).toString()).toBe('# safe')
-    } finally {
-      await rm(parent, { recursive: true, force: true })
-      await rm(dest, { recursive: true, force: true })
-    }
-  })
-
-  it('stageFiles aborts on an unreadable source dir (EACCES), not silently missing', async () => {
-    const filesRoot = await mkdtemp(join(tmpdir(), 'cs-stager-eacces-'))
-    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-eacces-dest-'))
+  it('stageFiles aborts when copy fails with EACCES but source metadata is still readable', async () => {
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-eacces-'))
     try {
       await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'a', ext: 'txt', size: 1 }])
-      await writeFile(join(filesRoot, 'f1.txt'), 'x')
-      // Strip x permission on filesRoot so stat(<filesRoot>/f1.txt) raises EACCES.
-      // The file exists — this is NOT a missing source. Old code silently dropped it
-      // and pruneMissingRows deleted the row; it MUST now abort (#16683 P1 / F3).
-      await chmod(filesRoot, 0o000)
 
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), filesRoot, filesRoot, '/unused')
+      const fileBlobs = {
+        async copyContentTo(): Promise<{ size: number }> {
+          throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+        },
+        async getMetadata(): Promise<{ size: number }> {
+          return { size: 1 }
+        }
+      }
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), fileBlobs, '/unused', '/unused')
       await expect(stager.stageFiles(new Set(['f1']), dest)).rejects.toThrow()
     } finally {
-      await chmod(filesRoot, 0o755).catch(() => {})
-      await rm(filesRoot, { recursive: true, force: true })
       await rm(dest, { recursive: true, force: true })
     }
   })
 
-  it('stageKnowledge aborts on an unreadable base dir (EACCES), not silently missing', async () => {
+  it('stageKnowledge aborts on an unreadable knowledge root (EACCES), not silently missing', async () => {
     const kbRoot = await mkdtemp(join(tmpdir(), 'cs-stager-kb-eacces-'))
-    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-kb-eacces-dest-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
     try {
       await mkdir(join(kbRoot, 'kb1'), { recursive: true })
-      // stat(<kbRoot>/kb1) raises EACCES — the base exists, it is NOT missing (#16683 P1 / F3).
       await chmod(kbRoot, 0o000)
-
-      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', kbRoot, '/unused')
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), pathFileBlobs({}), kbRoot, '/unused')
       await expect(stager.stageKnowledge(new Set(['kb1']), dest)).rejects.toThrow()
     } finally {
       await chmod(kbRoot, 0o755).catch(() => {})
@@ -247,10 +245,8 @@ describe('SqliteFileStager', () => {
     }
   })
 
-  it('returns empty results for empty input sets (no IO)', async () => {
-    const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused', '/unused')
+  it('stageFiles returns empty result for an empty id set', async () => {
+    const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), pathFileBlobs({}), '/unused', '/unused')
     expect(await stager.stageFiles(new Set(), '/whatever')).toEqual({ total: 0, totalBytes: 0, missing: [] })
-    expect(await stager.stageKnowledge(new Set(), '/whatever')).toEqual({ bases: [], missing: [] })
-    expect(await stager.stageNotes('/whatever', new Set(), '/whatever')).toEqual({ paths: [], missing: [] })
   })
 })

@@ -1,5 +1,5 @@
 // Unit tests for BackupDbCopier — db.backup() online copy consistency.
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -7,6 +7,16 @@ import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 
 import { type BackupDbCopier, SqliteBackupCopier, StubBackupCopier } from '../BackupDbCopier'
+
+/** Test double for Pick<DbService, 'backupTo'> that backs up a managed sqlite handle. */
+function managedBackupTo(sqlite: Database.Database): Pick<{ backupTo: (dest: string) => Promise<void> }, 'backupTo'> {
+  return {
+    async backupTo(destPath: string) {
+      await unlink(destPath).catch(() => {})
+      await sqlite.backup(destPath)
+    }
+  }
+}
 
 describe('SqliteBackupCopier', () => {
   it('copies a live DB to dest with all rows + integrity_check ok (source stays open)', async () => {
@@ -19,8 +29,8 @@ describe('SqliteBackupCopier', () => {
       src.exec('CREATE TABLE t(x INTEGER)')
       src.exec('INSERT INTO t VALUES (1), (2), (3)')
 
-      // Act — 2nd connection backs up the live file while src stays open
-      const copier: BackupDbCopier = new SqliteBackupCopier(srcPath)
+      // Act — backup via the managed connection (no second live open)
+      const copier: BackupDbCopier = new SqliteBackupCopier(managedBackupTo(src))
       const destPath = join(dir, 'copy.db')
       await copier.copyTo(destPath)
 
@@ -50,7 +60,7 @@ describe('SqliteBackupCopier', () => {
 
       // Act — back up, THEN insert a 3rd row after the snapshot resolves
       const destPath = join(dir, 'copy.db')
-      await new SqliteBackupCopier(srcPath).copyTo(destPath)
+      await new SqliteBackupCopier(managedBackupTo(src)).copyTo(destPath)
       src.exec('INSERT INTO t VALUES (3)')
 
       // Assert — the copy reflects the pre-snapshot state (2 rows)
@@ -70,17 +80,13 @@ describe('SqliteBackupCopier', () => {
     }
   })
 
-  it('throws when the live DB file does not exist (fileMustExist guard)', async () => {
-    // Arrange — a path with no underlying file
-    const dir = await mkdtemp(join(tmpdir(), 'cs-copier-'))
-    try {
-      const copier: BackupDbCopier = new SqliteBackupCopier(join(dir, 'does-not-exist.db'))
-
-      // Act + Assert — opening a 2nd connection with fileMustExist rejects
-      await expect(copier.copyTo(join(dir, 'dest.db'))).rejects.toThrow()
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
+  it('propagates backupTo failures from the managed DbService', async () => {
+    const copier: BackupDbCopier = new SqliteBackupCopier({
+      backupTo: async () => {
+        throw new Error('Database was closed for dev reset and cannot backupTo')
+      }
+    })
+    await expect(copier.copyTo('/tmp/unused-dest.db')).rejects.toThrow(/cannot backupTo/)
   })
 })
 

@@ -1,6 +1,6 @@
 // Unit tests for ExportOrchestrator — .cbu production (full-preset, DB + blob slice).
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -54,12 +54,35 @@ const openZip = async (p: string) => {
   return { zip, entries }
 }
 
+/** Path-based FileManager stand-in for export staging tests. */
+function pathFileBlobs(lookup: Record<string, string>) {
+  return {
+    async copyContentTo(id: string, destPath: string): Promise<{ size: number }> {
+      const src = lookup[id]
+      if (!src) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      }
+      await copyFile(src, destPath)
+      const s = await stat(destPath)
+      return { size: s.size }
+    },
+    async getMetadata(id: string): Promise<{ size: number }> {
+      const src = lookup[id]
+      if (!src) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      }
+      const s = await stat(src)
+      return { size: s.size }
+    }
+  }
+}
+
 const newOrch = (dir: string, fixture: string) =>
   new ExportOrchestrator({
     copier: new StubBackupCopier(fixture),
     registry: STUB_REGISTRY,
     tempDir: dir,
-    filesRoot: join(dir, 'files-root'),
+    fileBlobs: pathFileBlobs({}),
     knowledgeRoot: join(dir, 'kb-root'),
     skillsRoot: join(dir, 'skills-root'),
     notesRoot: () => join(dir, 'notes-root'),
@@ -294,15 +317,20 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       // Snapshot the live test DB (holds the seeded file_entry + knowledge_base) via
       // SqliteBackupCopier; the orchestrator then opens its own read-only handle on
       // the snapshot so collect + stage agree with backup.sqlite.
-      const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
       const orch = new ExportOrchestrator({
-        copier: new SqliteBackupCopier(liveRow.file),
+        copier: new SqliteBackupCopier({
+          backupTo: async (destPath) => {
+            const { unlink } = await import('node:fs/promises')
+            await unlink(destPath).catch(() => {})
+            await dbh.sqlite.backup(destPath)
+          }
+        }),
         // Real registry: collectFileResources runs the actual contributor hooks
         // (FILE_STORAGE → f1, KNOWLEDGE → kb1, PAINTINGS → none, PREFERENCES → notes)
         // against the snapshot.
         registry: contributorManager.getRegistry(),
         tempDir: dir,
-        filesRoot,
+        fileBlobs: pathFileBlobs({ f1: join(filesRoot, 'f1.txt') }),
         knowledgeRoot: kbRoot,
         skillsRoot: kbRoot,
         notesRoot: () => notesRoot,
@@ -381,12 +409,17 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         { id: 'mkb2', name: 'kb2', status: 'completed', chunkSize: 100, chunkOverlap: 20 }
       ])
 
-      const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
       const orch = new ExportOrchestrator({
-        copier: new SqliteBackupCopier(liveRow.file),
+        copier: new SqliteBackupCopier({
+          backupTo: async (destPath) => {
+            const { unlink } = await import('node:fs/promises')
+            await unlink(destPath).catch(() => {})
+            await dbh.sqlite.backup(destPath)
+          }
+        }),
         registry: contributorManager.getRegistry(),
         tempDir: dir,
-        filesRoot,
+        fileBlobs: pathFileBlobs({ mf1: join(filesRoot, 'mf1.txt') }),
         knowledgeRoot: kbRoot,
         skillsRoot: kbRoot,
         // No Notes root for this fixture — undefined skips notes collect (a missing
@@ -499,14 +532,19 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       await mkdir(join(dir, 'notes-root'), { recursive: true })
       await writeFile(join(dir, 'notes-root', 'secret.md'), '# must NOT appear in lite archive')
 
-      const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
       // notesRoot must NOT be evaluated on lite — an unavailable custom Notes path
       // would otherwise abort an export that never stages notes.
       const orch = new ExportOrchestrator({
-        copier: new SqliteBackupCopier(liveRow.file),
+        copier: new SqliteBackupCopier({
+          backupTo: async (destPath) => {
+            const { unlink } = await import('node:fs/promises')
+            await unlink(destPath).catch(() => {})
+            await dbh.sqlite.backup(destPath)
+          }
+        }),
         registry: contributorManager.getRegistry(),
         tempDir: dir,
-        filesRoot: join(dir, 'files-root'),
+        fileBlobs: pathFileBlobs({}),
         knowledgeRoot: join(dir, 'kb-root'),
         skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => {
@@ -628,7 +666,7 @@ describe('ExportOrchestrator rowScopes filter (AGENTS job_schedule partition)', 
         copier: new StubBackupCopier(fixture),
         registry: STUB_REGISTRY_WITH_ROWSCOPES,
         tempDir: dir,
-        filesRoot: join(dir, 'files-root'),
+        fileBlobs: pathFileBlobs({}),
         knowledgeRoot: join(dir, 'kb-root'),
         skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => join(dir, 'notes-root'),
