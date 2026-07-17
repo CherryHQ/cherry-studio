@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import type { InferenceProgress } from '@main/ai/inference/InferenceServiceBase'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import { currentModelSource } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
-import type { LocalModelKind } from '@shared/data/presets/localModel'
+import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
 
 import { registerLocalEmbeddingModel, unregisterLocalEmbeddingModelIfUnused } from './localEmbeddingRegistration'
 import { LocalModelDownloadService } from './LocalModelDownloadService'
@@ -65,6 +65,18 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
 
   protected isReady(): boolean {
     return onnxRuntimeBinaryService.isReady() && containsFile(this.modelDir(), MODEL_FILE)
+  }
+
+  override async checkStatus(): Promise<LocalModelStatus> {
+    const status = this.getStatus()
+    // The download/remove paths keep "weights on disk ⟺ user_model row" in
+    // sync, but the DB can be reset underneath the weights (a factory reset
+    // keeps Runtime/Toolchain, a restored backup may predate the download).
+    // Re-registering is idempotent and cheap, and it runs before `ready` is
+    // reported — so a consumer acting on `ready` (the KB dialog inserts the
+    // fixed model id as an embeddingModelId FK) always finds the row.
+    if (status === 'ready') await registerLocalEmbeddingModel()
+    return status
   }
 
   protected async performDownload(signal: AbortSignal): Promise<void> {

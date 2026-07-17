@@ -67,6 +67,20 @@ export abstract class LocalModelDownloadService {
     return this.isReady() ? 'ready' : 'not_downloaded'
   }
 
+  /**
+   * Status probe for consumers about to act on `ready` (the
+   * `local_model.get_status` route). Subclasses that derive extra state from
+   * the weights repair it here before reporting `ready` — the DB can be reset
+   * underneath the files (a factory reset keeps the model artifacts, a
+   * restored backup may predate the download), so `ready` must not promise
+   * more than the disk alone can. A repair failure rejects rather than
+   * reporting an unusable `ready`; callers already treat the probe as
+   * best-effort. Base implementation: the plain {@link getStatus} probe.
+   */
+  async checkStatus(): Promise<LocalModelStatus> {
+    return this.getStatus()
+  }
+
   async download(): Promise<void> {
     // Guard here too, not just in getStatus(): the settings/KB cards hide on
     // Intel Mac, but OCR's performDownload is a plain file fetch that never

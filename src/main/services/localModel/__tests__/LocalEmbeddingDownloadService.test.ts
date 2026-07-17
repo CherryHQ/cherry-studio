@@ -103,6 +103,36 @@ describe('LocalEmbeddingDownloadService', () => {
     })
   })
 
+  describe('checkStatus (registration self-heal)', () => {
+    it('re-registers the provider/model rows before reporting ready', async () => {
+      readdirSync.mockReturnValue([fileEntry(READY_FILE)])
+
+      // The DB can be reset underneath the weights (factory reset keeps the
+      // model artifacts; a restored backup may predate the download) — a
+      // consumer acting on `ready` must always find the user_model row.
+      await expect(localEmbeddingDownloadService.checkStatus()).resolves.toBe('ready')
+      expect(registerLocalEmbeddingModel).toHaveBeenCalledOnce()
+    })
+
+    it('does not touch the DB when the weights are absent', async () => {
+      readdirSync.mockImplementation(() => {
+        throw new Error('ENOENT')
+      })
+
+      await expect(localEmbeddingDownloadService.checkStatus()).resolves.toBe('not_downloaded')
+      expect(registerLocalEmbeddingModel).not.toHaveBeenCalled()
+    })
+
+    it('rejects instead of reporting an unusable ready when the repair fails', async () => {
+      readdirSync.mockReturnValue([fileEntry(READY_FILE)])
+      registerLocalEmbeddingModel.mockRejectedValue(new Error('db locked'))
+
+      // Callers treat the probe as best-effort (KB creation falls back to
+      // BM25-only) — an unregistered `ready` would trip the embeddingModelId FK.
+      await expect(localEmbeddingDownloadService.checkStatus()).rejects.toThrow('db locked')
+    })
+  })
+
   it('drives the progress bar off the .onnx weights only, then registers and reports ready', async () => {
     loadEmbedding.mockImplementation(async (_source, _repo, _dtype, onProgress) => {
       // The tiny sidecar files each sweep 0→100 before the weights start — they must
