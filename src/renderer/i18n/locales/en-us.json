@@ -645,6 +645,15 @@
         "title": "Manage skills"
       }
     },
+    "speed": {
+      "effort": "Effort",
+      "fast": "Fast",
+      "faster": "Faster",
+      "label": "Speed",
+      "reasoning": "Reasoning effort",
+      "smarter": "Smarter",
+      "title": "Response settings"
+    },
     "tasks": {
       "add": "Add Task",
       "cancel": "Cancel",
@@ -1222,12 +1231,14 @@
         "label": "Reasoning effort",
         "low": "Low",
         "low_description": "Low level reasoning",
+        "max": "Max",
         "medium": "Medium",
         "medium_description": "Medium level reasoning",
         "minimal": "Minimal",
         "minimal_description": "Minimal reasoning",
         "off": "Off",
         "off_description": "Disable reasoning",
+        "ultra": "Ultra",
         "xhigh": "Extra High",
         "xhigh_description": "Extra high level reasoning"
       },

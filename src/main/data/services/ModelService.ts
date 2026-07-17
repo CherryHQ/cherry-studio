@@ -14,7 +14,11 @@ import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/user
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
-import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
+import {
+  mergePresetModel,
+  providerRegistryService,
+  type ReasoningConfigCache
+} from '@data/services/ProviderRegistryService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -473,11 +477,12 @@ class ModelService {
       .all()
 
     let models = rows.map(rowToRuntimeModel)
+    const rowsById = new Map(rows.map((row) => [row.id, row]))
     const capabilityOverrideModelIds = new Set(
       rows.filter((row) => row.userOverrides?.includes('capabilities')).map((row) => row.id)
     )
 
-    // Enrich with `imageGeneration` AND `capabilities` from the registry preset.
+    // Refresh preset-backed reasoning/Fast metadata and enrich image/capability metadata from the registry.
     // imageGeneration is preset-only metadata (not stored on user_model).
     // capabilities are unioned in unless the user explicitly overrode them: if registry says a model is `image-generation`
     // but the provider's /models endpoint didn't tag it (cherryin returning
@@ -488,21 +493,27 @@ class ModelService {
     // Memoize the per-provider reasoning config so a list of N models in the
     // same provider resolves it once instead of issuing N identical
     // `getByProviderId` reads (the painting model picker lists one provider).
-    const reasoningConfigCache = new Map<
-      string,
-      { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
-    >()
+    const reasoningConfigCache: ReasoningConfigCache = new Map()
     models = models.map((model) => {
       const presetId = model.presetModelId ?? model.apiModelId
       if (!presetId) return model
       try {
-        const { presetModel, registryOverride } = providerRegistryService.lookupModel(
-          model.providerId,
-          presetId,
-          reasoningConfigCache
-        )
+        const registryData = providerRegistryService.lookupModel(model.providerId, presetId, reasoningConfigCache)
+        const { presetModel, registryOverride } = registryData
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const updates: Partial<Model> = {}
+        const row = rowsById.get(model.id)
+        if (row?.presetModelId && presetModel) {
+          const currentPreset = mergePresetModel(
+            presetModel,
+            registryOverride,
+            model.providerId,
+            registryData.reasoningFormatTypes,
+            registryData.defaultChatEndpoint
+          )
+          updates.reasoning = row.userOverrides?.includes('reasoning') ? model.reasoning : currentPreset.reasoning
+          updates.supportsFastMode = currentPreset.supportsFastMode
+        }
         if (imageGeneration) updates.imageGeneration = imageGeneration
         if (!capabilityOverrideModelIds.has(model.id)) {
           const capabilities = resolveCapabilities(
@@ -588,7 +599,7 @@ class ModelService {
   /**
    * Get a model by composite key (providerId + modelId)
    */
-  getByKey(providerId: string, modelId: string): Model {
+  getByKey(providerId: string, modelId: string, reasoningConfigCache?: ReasoningConfigCache): Model {
     const db = application.get('DbService').getDb()
 
     const [row] = db
@@ -602,7 +613,33 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    return rowToRuntimeModel(row)
+    const model = rowToRuntimeModel(row)
+    if (!row.presetModelId) return model
+
+    try {
+      const registryData = providerRegistryService.lookupModel(providerId, row.presetModelId, reasoningConfigCache)
+      if (!registryData.presetModel) return model
+
+      const currentPreset = mergePresetModel(
+        registryData.presetModel,
+        registryData.registryOverride,
+        providerId,
+        registryData.reasoningFormatTypes,
+        registryData.defaultChatEndpoint
+      )
+      return {
+        ...model,
+        reasoning: row.userOverrides?.includes('reasoning') ? model.reasoning : currentPreset.reasoning,
+        supportsFastMode: currentPreset.supportsFastMode
+      }
+    } catch (error) {
+      logger.warn('Registry agent capability enrichment failed; serving persisted model data', {
+        providerId,
+        modelId,
+        error
+      })
+      return model
+    }
   }
 
   /**

@@ -49,6 +49,14 @@ export interface ListProviderRegistryModelsOptions {
   disabled?: boolean
 }
 
+export type ReasoningConfigCache = Map<
+  string,
+  {
+    defaultChatEndpoint?: EndpointType
+    reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+  }
+>
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Registry → Runtime Model merge functions
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -215,6 +223,7 @@ export function mergePresetModel(
     endpointTypes,
     supportsStreaming: true,
     reasoning,
+    supportsFastMode: catalogOverride?.supportsFastMode,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,
@@ -375,6 +384,7 @@ function extractRuntimeReasoning(
   return {
     type,
     supportedEfforts,
+    defaultEffort: reasoning.defaultEffort,
     thinkingTokenLimits: reasoning.thinkingTokenLimits
   }
 }
@@ -528,10 +538,7 @@ class ProviderRegistryService {
   lookupModel(
     providerId: string,
     modelId: string,
-    reasoningConfigCache?: Map<
-      string,
-      { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
-    >
+    reasoningConfigCache?: ReasoningConfigCache
   ): {
     presetModel: ProtoModelConfig | null
     registryOverride: ProtoProviderModelOverride | null
@@ -619,13 +626,7 @@ class ProviderRegistryService {
       ? loader.getOverridesForProvider(options.providerId)
       : loader.loadProviderModels()
     const includeDisabled = options.disabled ?? false
-    const reasoningConfigByProvider = new Map<
-      string,
-      {
-        defaultChatEndpoint?: EndpointType
-        reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-      }
-    >()
+    const reasoningConfigByProvider: ReasoningConfigCache = new Map()
     const results: Model[] = []
 
     for (const override of overrides) {

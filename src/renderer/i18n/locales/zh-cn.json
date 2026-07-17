@@ -645,6 +645,15 @@
         "title": "管理技能"
       }
     },
+    "speed": {
+      "effort": "强度",
+      "fast": "快速",
+      "faster": "更快",
+      "label": "速度",
+      "reasoning": "推理强度",
+      "smarter": "更智能",
+      "title": "响应设置"
+    },
     "tasks": {
       "add": "添加任务",
       "cancel": "取消",
@@ -1217,18 +1226,20 @@
         "auto_description": "灵活决定推理力度",
         "default": "默认",
         "default_description": "依赖模型默认行为，不作任何配置",
-        "high": "沉思",
+        "high": "高",
         "high_description": "高强度推理",
-        "label": "思维链长度",
-        "low": "浮想",
+        "label": "思考深度",
+        "low": "低",
         "low_description": "低强度推理",
-        "medium": "斟酌",
+        "max": "极高",
+        "medium": "中",
         "medium_description": "中强度推理",
-        "minimal": "微念",
+        "minimal": "最低",
         "minimal_description": "最小程度的推理",
         "off": "关闭",
         "off_description": "禁用推理",
-        "xhigh": "穷究",
+        "ultra": "最高",
+        "xhigh": "超高",
         "xhigh_description": "超高强度推理"
       },
       "regular_phrases": {

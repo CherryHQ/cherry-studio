@@ -32,7 +32,8 @@ const { lookupModelMock } = vi.hoisted(() => ({
   lookupModelMock: vi.fn<
     (
       providerId: string,
-      modelId: string
+      modelId: string,
+      reasoningConfigCache?: unknown
     ) => {
       presetModel: { id?: string; capabilities?: string[]; imageGeneration?: unknown } | null
       registryOverride: {
@@ -837,6 +838,34 @@ describe('ModelService.list — registry enrichment', () => {
     expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
     expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
   })
+
+  it('returns the same current reasoning and Fast capabilities as getByKey', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai-codex', 'OpenAI Codex'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai-codex', 'gpt-5-6-sol', {
+        presetModelId: 'gpt-5-6-sol',
+        reasoning: { type: 'openai-responses', supportedEfforts: ['low', 'medium', 'high'] }
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-5-6-sol', capabilities: [MODEL_CAPABILITY.REASONING] },
+      registryOverride: {
+        supportsFastMode: true,
+        reasoning: {
+          supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+          defaultEffort: 'low'
+        }
+      },
+      reasoningFormatTypes: { 'openai-responses': 'openai-responses' },
+      defaultChatEndpoint: 'openai-responses'
+    } as never)
+
+    const [listedModel] = modelService.list({ providerId: 'openai-codex' })
+    const keyedModel = modelService.getByKey('openai-codex', 'gpt-5-6-sol')
+
+    expect(listedModel.reasoning).toEqual(keyedModel.reasoning)
+    expect(listedModel.supportsFastMode).toBe(keyedModel.supportsFastMode)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -845,6 +874,11 @@ describe('ModelService.list — registry enrichment', () => {
 
 describe('ModelService.getByKey', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    lookupModelMock.mockReset()
+    lookupModelMock.mockReturnValue({ presetModel: null, registryOverride: null })
+  })
 
   it('returns model for valid composite key', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
@@ -855,6 +889,73 @@ describe('ModelService.getByKey', () => {
     expect(model.providerId).toBe('openai')
     expect(model.apiModelId).toBe('gpt-4o')
     expect(model.name).toBe('GPT-4o')
+  })
+
+  it('uses current registry reasoning for a preset-backed model', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai-codex', 'OpenAI Codex'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai-codex', 'gpt-5-6-sol', {
+        presetModelId: 'gpt-5-6-sol',
+        reasoning: { type: 'openai-responses', supportedEfforts: ['low', 'medium', 'high'] }
+      })
+    )
+    lookupModelMock.mockReturnValueOnce({
+      presetModel: {
+        id: 'gpt-5-6-sol',
+        capabilities: [MODEL_CAPABILITY.REASONING]
+      },
+      registryOverride: {
+        supportsFastMode: true,
+        reasoning: {
+          supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+          defaultEffort: 'low'
+        }
+      },
+      reasoningFormatTypes: { 'openai-responses': 'openai-responses' },
+      defaultChatEndpoint: 'openai-responses'
+    } as never)
+
+    const model = modelService.getByKey('openai-codex', 'gpt-5-6-sol')
+
+    expect(model.reasoning).toEqual({
+      type: 'openai-responses',
+      supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+      defaultEffort: 'low',
+      thinkingTokenLimits: undefined
+    })
+    expect(model.supportsFastMode).toBe(true)
+  })
+
+  it('forwards a shared reasoning config cache to registry lookups', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai-codex', 'OpenAI Codex'))
+    await dbh.db
+      .insert(userModelTable)
+      .values(modelRow('openai-codex', 'gpt-5-6-sol', { presetModelId: 'gpt-5-6-sol' }))
+    const reasoningConfigCache = new Map()
+
+    modelService.getByKey('openai-codex', 'gpt-5-6-sol', reasoningConfigCache)
+
+    expect(lookupModelMock).toHaveBeenCalledWith('openai-codex', 'gpt-5-6-sol', reasoningConfigCache)
+  })
+
+  it('preserves a user reasoning override', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai-codex', 'OpenAI Codex'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai-codex', 'gpt-5-6-sol', {
+        presetModelId: 'gpt-5-6-sol',
+        reasoning: { type: 'openai-responses', supportedEfforts: ['high'] },
+        userOverrides: ['reasoning']
+      })
+    )
+    lookupModelMock.mockReturnValueOnce({
+      presetModel: { id: 'gpt-5-6-sol' },
+      registryOverride: { supportsFastMode: true }
+    } as never)
+
+    const model = modelService.getByKey('openai-codex', 'gpt-5-6-sol')
+
+    expect(model.reasoning?.supportedEfforts).toEqual(['high'])
+    expect(model.supportsFastMode).toBe(true)
   })
 
   it('throws NOT_FOUND for non-existent model', async () => {

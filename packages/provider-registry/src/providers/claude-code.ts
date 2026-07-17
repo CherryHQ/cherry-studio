@@ -22,14 +22,31 @@ export default defineProvider({
     }
   },
   overrides: [
-    { modelId: 'claude-fable-5' },
-    { modelId: 'claude-opus-4-8' },
-    { modelId: 'claude-opus-4-7' },
-    { modelId: 'claude-opus-4-6' },
-    { modelId: 'claude-opus-4-5' },
-    { modelId: 'claude-opus-4-1' },
-    { modelId: 'claude-sonnet-4-6' },
-    { modelId: 'claude-sonnet-4-5' },
-    { modelId: 'claude-haiku-4-5' }
+    {
+      modelId: 'claude-fable-5',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'high' }
+    },
+    {
+      modelId: 'claude-opus-4-8',
+      supportsFastMode: true,
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'high' }
+    },
+    {
+      modelId: 'claude-opus-4-7',
+      supportsFastMode: true,
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'xhigh' }
+    },
+    {
+      modelId: 'claude-opus-4-6',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'max'], defaultEffort: 'high' }
+    },
+    { modelId: 'claude-opus-4-5', reasoning: { supportedEfforts: [] } },
+    { modelId: 'claude-opus-4-1', reasoning: { supportedEfforts: [] } },
+    {
+      modelId: 'claude-sonnet-4-6',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'max'], defaultEffort: 'high' }
+    },
+    { modelId: 'claude-sonnet-4-5', reasoning: { supportedEfforts: [] } },
+    { modelId: 'claude-haiku-4-5', reasoning: { supportedEfforts: [] } }
   ]
 })

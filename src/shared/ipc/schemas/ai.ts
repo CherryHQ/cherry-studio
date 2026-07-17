@@ -1,6 +1,8 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { AgentRuntimeOptionsSchema } from '@shared/ai/agentRuntimeOptions'
 import type {
   AiStreamAttachResponse,
+  AiStreamOpenRequest,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   StreamChunkPayload,
@@ -129,14 +131,15 @@ export const aiRequestSchemas = {
         z.object({
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
-          userMessageParts: z.array(z.custom<CherryMessagePart>())
+          userMessageParts: z.array(z.custom<CherryMessagePart>()),
+          agentRuntimeOptions: AgentRuntimeOptionsSchema.optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
           parentAnchorId: z.string().min(1)
         })
       ])
-    ),
+    ) satisfies z.ZodType<AiStreamOpenRequest>,
     output: z.custom<AiStreamOpenResponse>()
   }),
   'ai.stream_attach': defineRoute({

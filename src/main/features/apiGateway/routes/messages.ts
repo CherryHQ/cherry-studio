@@ -1,4 +1,11 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import {
+  AGENT_FAST_MODE_HEADER,
+  AGENT_REASONING_EFFORT_HEADER,
+  AGENT_REASONING_EFFORTS,
+  type AgentReasoningEffort,
+  type AgentRuntimeOptions
+} from '@shared/ai/agentRuntimeOptions'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
@@ -77,6 +84,17 @@ const invalidRequest = (message: string) => ({
   error: { type: 'invalid_request_error', message }
 })
 
+const agentReasoningEfforts = new Set<AgentReasoningEffort>(AGENT_REASONING_EFFORTS)
+
+function parseAgentRuntimeOptions(headers: Headers): Partial<AgentRuntimeOptions> | undefined {
+  const reasoningEffort = headers.get(AGENT_REASONING_EFFORT_HEADER) as AgentReasoningEffort | null
+  const fastMode = headers.get(AGENT_FAST_MODE_HEADER)
+  const options: Partial<AgentRuntimeOptions> = {}
+  if (reasoningEffort && agentReasoningEfforts.has(reasoningEffort)) options.reasoningEffort = reasoningEffort
+  if (fastMode === 'true' || fastMode === 'false') options.fastMode = fastMode === 'true'
+  return Object.keys(options).length > 0 ? options : undefined
+}
+
 /**
  * `/v1/messages` routes (mounted under `/v1`). The body is validated declaratively
  * by `MessagesBodySchema`; validation and provider errors are shaped into the
@@ -92,6 +110,7 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
         params: body,
         inputFormat: 'anthropic',
         outputFormat: 'anthropic',
+        agentRuntimeOptions: parseAgentRuntimeOptions(request.headers),
         signal: request.signal
       }),
     {

@@ -219,12 +219,13 @@ function buildAssistantContext(): string {
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  fastMode?: boolean
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
   linkedChannelSnapshot?: LinkedChannelSnapshot
   thinkingOptions?: {
-    effort?: 'low' | 'medium' | 'high' | 'max'
+    effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
   }
 }
@@ -357,7 +358,7 @@ export async function buildClaudeCodeSessionSettings(
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
     settingSources: getSettingSources(agent, provider),
-    settings: { autoCompactEnabled: true },
+    settings: { autoCompactEnabled: true, ...(options?.fastMode !== undefined ? { fastMode: options.fastMode } : {}) },
     includePartialMessages: true,
     permissionMode: agentConfig?.permission_mode,
     maxTurns: agentConfig?.max_turns,

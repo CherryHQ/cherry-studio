@@ -80,7 +80,17 @@ vi.mock('../settingsBuilder', () => ({
   buildSkillWhitelist: mocks.buildSkillWhitelist
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig, toClaudeCodeThinkingOptions } =
+  await import('../agentSessionWarmup')
+
+describe('toClaudeCodeThinkingOptions', () => {
+  it('maps toggle and out-of-range model modes onto Claude Agent SDK options', () => {
+    expect(toClaudeCodeThinkingOptions('none')).toEqual({ thinking: { type: 'disabled' } })
+    expect(toClaudeCodeThinkingOptions('auto')).toEqual({ thinking: { type: 'adaptive' } })
+    expect(toClaudeCodeThinkingOptions('minimal')).toEqual({ effort: 'low' })
+    expect(toClaudeCodeThinkingOptions('ultra')).toEqual({ effort: 'max' })
+  })
+})
 
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
@@ -471,6 +481,133 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+  })
+
+  it('maps Work reasoning and Fast settings into a Claude Code session', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::opus' })
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'claude-code', authMethods: ['external-cli'] })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'opus',
+      apiModelId: 'claude-opus-4-8',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'high' },
+      supportsFastMode: true
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'xhigh',
+      fastMode: true
+    })
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ fastMode: true, thinkingOptions: { effort: 'xhigh' } }),
+      expect.anything()
+    )
+  })
+
+  it('maps ultra Work reasoning to the highest Claude Agent SDK effort', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::opus' })
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'claude-code', authMethods: ['external-cli'] })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'opus',
+      apiModelId: 'claude-opus-4-8',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high', 'max'], defaultEffort: 'max' }
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'ultra',
+      fastMode: false
+    })
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ thinkingOptions: { effort: 'max' } }),
+      expect.anything()
+    )
+  })
+
+  it('rejects Fast mode when the resolved Claude Code model does not support it', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::fable' })
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'claude-code', authMethods: ['external-cli'] })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'fable',
+      apiModelId: 'claude-fable-5',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+      supportsFastMode: false
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'high',
+      fastMode: true
+    })
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ fastMode: undefined, thinkingOptions: { effort: 'high' } }),
+      expect.anything()
+    )
+  })
+
+  it('forwards Work settings through internal headers for Codex gateway calls', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai-codex',
+      defaultChatEndpoint: 'openai-responses'
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'gpt-5-4',
+      apiModelId: 'gpt-5.4',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+      supportsFastMode: true
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'high',
+      fastMode: true
+    })
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('x-cherry-agent-reasoning-effort: high')
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('x-cherry-agent-fast-mode: true')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ fastMode: undefined, thinkingOptions: { effort: 'high' } }),
+      expect.anything()
+    )
+  })
+
+  it('forwards automatic thinking through internal headers for any gateway model', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::reasoning-model' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      defaultChatEndpoint: 'openai-responses'
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'reasoning-model',
+      apiModelId: 'reasoning-model',
+      reasoning: { supportedEfforts: ['none', 'auto'], defaultEffort: 'auto' }
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, {
+      reasoningEffort: 'auto',
+      fastMode: false
+    })
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('x-cherry-agent-reasoning-effort: auto')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ thinkingOptions: { thinking: { type: 'adaptive' } } }),
+      expect.anything()
+    )
   })
 
   it('routes Gemini provider models through the local API gateway', async () => {

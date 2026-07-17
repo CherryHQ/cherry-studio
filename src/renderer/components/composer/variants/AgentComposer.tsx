@@ -44,13 +44,13 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
-import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { cn } from '@renderer/utils/style'
+import { type AgentReasoningEffort, normalizeAgentRuntimeOptions } from '@shared/ai/agentRuntimeOptions'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -79,6 +79,13 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { AgentLabel } from './agent/AgentLabel'
+import {
+  AgentSpeedControl,
+  getAgentReasoningEfforts,
+  getDefaultAgentReasoningEffort,
+  supportsAgentFastMode,
+  supportsAgentSpeedControl
+} from './agent/AgentSpeedControl'
 import { useAgentResourceSearchProvider } from './agent/useAgentResourceSearchProvider'
 import {
   agentComposerTokenId,
@@ -892,7 +899,47 @@ const AgentComposerInner = ({
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
   }
 
-  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
+  const [speedControlSelection, setSpeedControlSelection] = useState<{
+    modelId?: string
+    effort: AgentReasoningEffort
+    fastMode: boolean
+  }>(() => ({ modelId: model?.id, effort: getDefaultAgentReasoningEffort(model), fastMode: false }))
+  if (speedControlSelection.modelId !== model?.id) {
+    setSpeedControlSelection({
+      modelId: model?.id,
+      effort: getDefaultAgentReasoningEffort(model),
+      fastMode: false
+    })
+  }
+  const modelReasoningEfforts = model ? getAgentReasoningEfforts(model) : []
+  const agentReasoningEffort =
+    model && speedControlSelection.modelId === model.id && modelReasoningEfforts.includes(speedControlSelection.effort)
+      ? speedControlSelection.effort
+      : getDefaultAgentReasoningEffort(model)
+  const fastMode = Boolean(
+    model &&
+      speedControlSelection.modelId === model.id &&
+      speedControlSelection.fastMode &&
+      supportsAgentFastMode(model)
+  )
+  const setAgentReasoningEffort = useCallback(
+    (effort: AgentReasoningEffort) =>
+      setSpeedControlSelection((current) => ({
+        modelId: model?.id,
+        effort,
+        fastMode: current.modelId === model?.id ? current.fastMode : false
+      })),
+    [model?.id]
+  )
+  const setFastMode = useCallback(
+    (enabled: boolean) =>
+      setSpeedControlSelection((current) => ({
+        modelId: model?.id,
+        effort: current.modelId === model?.id ? current.effort : getDefaultAgentReasoningEffort(model),
+        fastMode: enabled
+      })),
+    [model]
+  )
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     initialDraftRef.current ? initialDraftRef.current.tokens.map(getSkillFromCachedToken) : []
   )
@@ -1108,15 +1155,10 @@ const AgentComposerInner = ({
     ]
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
-  const toolsSession = useMemo(() => {
-    if (!sessionData) return undefined
-    return { ...sessionData, reasoningEffort, onReasoningEffortChange: setReasoningEffort }
-  }, [sessionData, reasoningEffort])
-
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
   // cache snapshot, which is variant state.
-  const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
+  const reconcileTokens = useComposerTokenReconcile({ scope, model, session: sessionData })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
       const nextDraftTokens = getCachedSkillTokens(draftTokens)
@@ -1159,8 +1201,18 @@ const AgentComposerInner = ({
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>
-      buildComposerQueuedPayload(draft, { files, fileTokenId: agentComposerTokenId.file }),
-    [files]
+      buildComposerQueuedPayload(draft, {
+        files,
+        fileTokenId: agentComposerTokenId.file,
+        extra: () =>
+          model && supportsAgentSpeedControl(model)
+            ? {
+                agentRuntimeModelId: model.id,
+                agentRuntimeOptions: { reasoningEffort: agentReasoningEffort, fastMode }
+              }
+            : {}
+      }),
+    [agentReasoningEffort, fastMode, files, model]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1168,9 +1220,23 @@ const AgentComposerInner = ({
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
+        const agentRuntimeOptions =
+          payload.agentRuntimeOptions && model && supportsAgentSpeedControl(model)
+            ? normalizeAgentRuntimeOptions(
+                model,
+                payload.agentRuntimeModelId === model.id ? payload.agentRuntimeOptions : {}
+              )
+            : undefined
         await chatSendMessage(
           { text: payload.text },
-          { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
+          {
+            body: {
+              agentId,
+              sessionId,
+              userMessageParts: [...payload.userMessageParts, ...fileParts],
+              ...(agentRuntimeOptions ? { agentRuntimeOptions } : {})
+            }
+          }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         saveHistory(payload.text)
@@ -1180,7 +1246,7 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, saveHistory, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, model, saveHistory, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1403,12 +1469,24 @@ const AgentComposerInner = ({
   })
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
-    <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    <>
+      {model ? (
+        <AgentSpeedControl
+          key={model.id}
+          model={model}
+          reasoningEffort={agentReasoningEffort}
+          fastMode={fastMode}
+          onReasoningEffortChange={setAgentReasoningEffort}
+          onFastModeChange={setFastMode}
+        />
+      ) : null}
+      <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    </>
   )
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
-      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
+      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={sessionData} />}
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           text={text}

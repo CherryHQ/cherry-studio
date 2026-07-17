@@ -5109,56 +5109,6 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 163840,
-      "family": "deepseek",
-      "id": "deepseek-v3-1-maas",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "DeepSeek V3.1",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.6
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.7
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 163840,
-      "family": "deepseek",
-      "id": "deepseek-v3-2-maas",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 65536,
-      "metadata": {},
-      "name": "DeepSeek V3.2",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.056
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.56
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.68
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-v4-flash",
@@ -5215,6 +5165,56 @@
       },
       "reasoning": {
         "supportedEfforts": ["none", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 163840,
+      "family": "deepseek",
+      "id": "deepseek-v3-1-maas",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "DeepSeek V3.1",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.7
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 163840,
+      "family": "deepseek",
+      "id": "deepseek-v3-2-maas",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "DeepSeek V3.2",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.056
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.56
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.68
+        }
       }
     },
     {
@@ -17542,5 +17542,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "aebd9a8b27762c96"
+  "version": "7b94a6c9b80841b2"
 }

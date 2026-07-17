@@ -1,3 +1,4 @@
+import type { AgentRuntimeOptions } from '@shared/ai/agentRuntimeOptions'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -26,6 +27,7 @@ export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
   modelId: UniqueModelId
+  options?: AgentRuntimeOptions
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
 }

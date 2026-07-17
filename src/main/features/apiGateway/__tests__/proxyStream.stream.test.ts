@@ -133,6 +133,116 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBeTypeOf('string')
   })
 
+  it.each([
+    [true, 'priority'],
+    [false, 'default']
+  ] as const)('maps the Work Fast=%s setting to Codex %s processing', async (fastMode, serviceTier) => {
+    mockGetProvider.mockReturnValue({ id: 'openai-codex', name: 'OpenAI Codex', isEnabled: true, settings: {} })
+    mockListModels.mockReturnValue([
+      {
+        id: createUniqueModelId('openai-codex', 'gpt-5.4'),
+        providerId: 'openai-codex',
+        apiModelId: 'gpt-5.4',
+        capabilities: ['reasoning'],
+        reasoning: { supportedEfforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+        supportsFastMode: true
+      }
+    ])
+
+    const res = await processMessage({
+      params: { model: 'openai-codex:gpt-5.4', stream: true, messages: [] } as any,
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      agentRuntimeOptions: { reasoningEffort: 'high', fastMode }
+    })
+
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides.providerOptions).toMatchObject({
+      openai: { reasoningEffort: 'high', serviceTier }
+    })
+    expect(mockListModels).toHaveBeenCalledOnce()
+
+    await captured.listener!.onDone({} as any)
+    await readAll(res.body)
+  })
+
+  it('normalizes unsupported Codex runtime options against the resolved model', async () => {
+    mockGetProvider.mockReturnValue({ id: 'openai-codex', name: 'OpenAI Codex', isEnabled: true, settings: {} })
+    mockListModels.mockReturnValue([
+      {
+        id: createUniqueModelId('openai-codex', 'gpt-5.4'),
+        providerId: 'openai-codex',
+        apiModelId: 'gpt-5.4',
+        capabilities: ['reasoning'],
+        reasoning: { supportedEfforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+        supportsFastMode: false
+      }
+    ])
+
+    const res = await processMessage({
+      params: { model: 'openai-codex:gpt-5.4', stream: true, messages: [] } as any,
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      agentRuntimeOptions: { reasoningEffort: 'max', fastMode: true }
+    })
+
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides.providerOptions).toMatchObject({
+      openai: { reasoningEffort: 'medium', serviceTier: 'default' }
+    })
+
+    await captured.listener!.onDone({} as any)
+    await readAll(res.body)
+  })
+
+  it('maps an explicit off effort through model metadata for non-Codex providers', async () => {
+    mockListModels.mockReturnValue([
+      {
+        id: 'openai::gpt-5',
+        providerId: 'openai',
+        apiModelId: 'gpt-5',
+        name: 'gpt-5',
+        capabilities: ['reasoning'],
+        reasoning: {
+          type: 'openai-responses',
+          supportedEfforts: ['none', 'low', 'medium', 'high']
+        }
+      }
+    ])
+
+    const res = await processMessage({
+      provider: {
+        id: 'openai',
+        name: 'OpenAI',
+        apiFeatures: {
+          arrayContent: true,
+          streamOptions: true,
+          developerRole: false,
+          serviceTier: false,
+          verbosity: false,
+          enableThinking: true
+        },
+        apiKeys: [],
+        authType: 'api-key',
+        defaultChatEndpoint: 'openai-responses',
+        endpointConfigs: {
+          'openai-responses': { adapterFamily: 'openai' }
+        },
+        settings: {},
+        isEnabled: true
+      } as any,
+      params: { model: 'openai:gpt-5', stream: true, messages: [] } as any,
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      agentRuntimeOptions: { reasoningEffort: 'none', fastMode: false }
+    })
+
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides.providerOptions).toMatchObject({
+      openai: { reasoningEffort: 'none' }
+    })
+
+    await captured.listener!.onDone({} as any)
+    await readAll(res.body)
+  })
+
   it('returns JSON (not a stream) for non-streaming requests', async () => {
     const resPromise = processMessage({
       params: { model: 'openai:gpt-4', messages: [] } as any,

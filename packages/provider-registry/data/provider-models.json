@@ -2673,39 +2673,73 @@
     },
     {
       "modelId": "claude-fable-5",
-      "providerId": "claude-code"
+      "providerId": "claude-code",
+      "reasoning": {
+        "defaultEffort": "high",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      }
     },
     {
       "modelId": "claude-haiku-4-5",
-      "providerId": "claude-code"
+      "providerId": "claude-code",
+      "reasoning": {
+        "supportedEfforts": []
+      }
     },
     {
       "modelId": "claude-opus-4-1",
-      "providerId": "claude-code"
+      "providerId": "claude-code",
+      "reasoning": {
+        "supportedEfforts": []
+      }
     },
     {
       "modelId": "claude-opus-4-5",
-      "providerId": "claude-code"
+      "providerId": "claude-code",
+      "reasoning": {
+        "supportedEfforts": []
+      }
     },
     {
       "modelId": "claude-opus-4-6",
-      "providerId": "claude-code"
+      "providerId": "claude-code",
+      "reasoning": {
+        "defaultEffort": "high",
+        "supportedEfforts": ["low", "medium", "high", "max"]
+      }
     },
     {
       "modelId": "claude-opus-4-7",
-      "providerId": "claude-code"
+      "providerId": "claude-code",
+      "reasoning": {
+        "defaultEffort": "xhigh",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      },
+      "supportsFastMode": true
     },
     {
       "modelId": "claude-opus-4-8",
-      "providerId": "claude-code"
+      "providerId": "claude-code",
+      "reasoning": {
+        "defaultEffort": "high",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      },
+      "supportsFastMode": true
     },
     {
       "modelId": "claude-sonnet-4-5",
-      "providerId": "claude-code"
+      "providerId": "claude-code",
+      "reasoning": {
+        "supportedEfforts": []
+      }
     },
     {
       "modelId": "claude-sonnet-4-6",
-      "providerId": "claude-code"
+      "providerId": "claude-code",
+      "reasoning": {
+        "defaultEffort": "high",
+        "supportedEfforts": ["low", "medium", "high", "max"]
+      }
     },
     {
       "apiModelId": "claude-fable-5",
@@ -11955,19 +11989,33 @@
       "apiModelId": "gpt-5.4",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-4",
-      "providerId": "openai-codex"
+      "providerId": "openai-codex",
+      "reasoning": {
+        "defaultEffort": "medium",
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "gpt-5.4-mini",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-4-mini",
-      "providerId": "openai-codex"
+      "providerId": "openai-codex",
+      "reasoning": {
+        "defaultEffort": "medium",
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
+      }
     },
     {
       "apiModelId": "gpt-5.5",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-5",
-      "providerId": "openai-codex"
+      "providerId": "openai-codex",
+      "reasoning": {
+        "defaultEffort": "medium",
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "gpt-5.6-luna",
@@ -11976,7 +12024,12 @@
         "contextWindow": 372000
       },
       "modelId": "gpt-5-6-luna",
-      "providerId": "openai-codex"
+      "providerId": "openai-codex",
+      "reasoning": {
+        "defaultEffort": "medium",
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "gpt-5.6-sol",
@@ -11985,7 +12038,12 @@
         "contextWindow": 372000
       },
       "modelId": "gpt-5-6-sol",
-      "providerId": "openai-codex"
+      "providerId": "openai-codex",
+      "reasoning": {
+        "defaultEffort": "low",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "gpt-5.6-terra",
@@ -11994,7 +12052,12 @@
         "contextWindow": 372000
       },
       "modelId": "gpt-5-6-terra",
-      "providerId": "openai-codex"
+      "providerId": "openai-codex",
+      "reasoning": {
+        "defaultEffort": "medium",
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "aion-labs/aion-2.0",
@@ -20504,5 +20567,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "1e735a0f97744566"
+  "version": "3aa8762050703f97"
 }

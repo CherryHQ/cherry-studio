@@ -17,6 +17,7 @@ import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@rendere
 import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import type { AgentRuntimeOptions } from '@shared/ai/agentRuntimeOptions'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -31,7 +32,12 @@ type AskUserQuestionApprovalPart = CherryMessagePart & {
   output?: unknown
 }
 
-export type AgentSendOptions = { body?: Record<string, unknown> }
+export type AgentSendOptions = {
+  body?: Record<string, unknown> & {
+    userMessageParts?: CherryMessagePart[]
+    agentRuntimeOptions?: AgentRuntimeOptions
+  }
+}
 
 export interface AgentTurnInput {
   text: string
@@ -39,7 +45,7 @@ export interface AgentTurnInput {
 }
 
 export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
-  const parts = input.options?.body?.userMessageParts as CherryMessagePart[] | undefined
+  const parts = input.options?.body?.userMessageParts
   return parts ?? (input.text ? [{ type: 'text', text: input.text }] : [])
 }
 
@@ -158,7 +164,8 @@ export function useAgentChatRuntimeState({
     (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => ({
       trigger: 'submit-message',
       topicId: conversation.topicId,
-      userMessageParts: getAgentTurnParts(input)
+      userMessageParts: getAgentTurnParts(input),
+      agentRuntimeOptions: input.options?.body?.agentRuntimeOptions
     }),
     []
   )

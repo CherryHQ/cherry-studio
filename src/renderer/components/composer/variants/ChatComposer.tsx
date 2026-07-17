@@ -25,6 +25,7 @@ import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
+import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -42,9 +43,14 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
+import {
+  canModelUseAssistantWebSearch,
+  isGPT5SeriesReasoningModel,
+  isOpenAIWebSearchModel
+} from '@renderer/utils/model'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
+import type { AgentReasoningEffort } from '@shared/ai/agentRuntimeOptions'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -61,6 +67,7 @@ import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
+import { AgentSpeedControl, getAgentReasoningEfforts, getDefaultAgentReasoningEffort } from './agent/AgentSpeedControl'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
 import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
@@ -524,7 +531,8 @@ const ChatComposerInner = ({
     model,
     isModelPending,
     isModelMissing,
-    setModel
+    setModel,
+    updateAssistantSettings
   } = useAssistant(assistantId)
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
@@ -622,6 +630,35 @@ const ChatComposerInner = ({
   const runtimeModel = assistant || !assistantId ? model : undefined
   const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
+  const chatReasoningEffort = useMemo<AgentReasoningEffort | 'default'>(() => {
+    if (!runtimeModel) return 'none'
+    const supportedEfforts = getAgentReasoningEfforts(runtimeModel)
+    const configuredEffort = assistant?.settings.reasoning_effort as AgentReasoningEffort | 'default' | undefined
+    if (configuredEffort === 'default') return 'default'
+    if (configuredEffort && supportedEfforts.includes(configuredEffort)) {
+      return configuredEffort
+    }
+    return getDefaultAgentReasoningEffort(runtimeModel)
+  }, [assistant?.settings.reasoning_effort, runtimeModel])
+
+  const handleReasoningEffortChange = useCallback(
+    (effort: AgentReasoningEffort) => {
+      if (!assistant || !runtimeModel) return
+      if (
+        effort === 'minimal' &&
+        assistant.settings.enableWebSearch &&
+        isOpenAIWebSearchModel(runtimeModel) &&
+        isGPT5SeriesReasoningModel(runtimeModel)
+      ) {
+        toast.warning(t('chat.web_search.warning.openai'))
+        return
+      }
+
+      cacheService.set(`assistant.reasoning_effort_cache.${assistant.id}`, effort)
+      updateAssistantSettings({ reasoning_effort: effort })
+    },
+    [assistant, runtimeModel, t, updateAssistantSettings]
+  )
 
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
@@ -1253,6 +1290,16 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] =
+    displayAssistant && runtimeModel ? (
+      <AgentSpeedControl
+        key={runtimeModel.id}
+        model={runtimeModel}
+        reasoningEffort={chatReasoningEffort}
+        onReasoningEffortChange={handleReasoningEffortChange}
+      />
+    ) : null
+
   return (
     <ComposerToolDerivedStateProvider
       couldAddImageFile={canAddImageFile}
@@ -1344,6 +1391,7 @@ const ChatComposerInner = ({
           rootPanelLeadingItems={rootPanelLeadingItems}
           rootPanelAdditionalItems={rootPanelCustomizeItems}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+          sendAccessory={sendAccessory}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>

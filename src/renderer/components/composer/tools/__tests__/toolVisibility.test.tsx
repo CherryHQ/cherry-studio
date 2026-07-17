@@ -21,10 +21,6 @@ vi.mock('@renderer/components/composer/tools/components/KnowledgeBaseButton', ()
   KnowledgeBaseToolRuntime: () => null
 }))
 
-vi.mock('@renderer/components/composer/tools/components/ThinkingButton', () => ({
-  ThinkingToolRuntime: () => null
-}))
-
 vi.mock('@renderer/components/composer/tools/components/QuickPhrasesButton', () => ({
   QuickPhrasesToolRuntime: () => null
 }))
@@ -65,9 +61,8 @@ describe('composer tool visibility', () => {
       } as any
     })
 
-    expect(tools.map((tool) => tool.key)).toEqual(
-      expect.arrayContaining(['generate_image', 'knowledge_base', 'thinking'])
-    )
+    expect(tools.map((tool) => tool.key)).toEqual(expect.arrayContaining(['generate_image', 'knowledge_base']))
+    expect(tools.map((tool) => tool.key)).not.toContain('thinking')
   })
 
   it('shows MCP status in chat and agent session scopes only', () => {
@@ -80,5 +75,12 @@ describe('composer tool visibility', () => {
     expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
+  })
+
+  it('removes the thinking effort item from every slash panel', () => {
+    const context = { model: { id: 'model', providerId: 'provider-1', name: 'Model' } as any }
+
+    expect(getToolsForScope(TopicType.Chat, context).map((tool) => tool.key)).not.toContain('thinking')
+    expect(getToolsForScope(TopicType.Session, context).map((tool) => tool.key)).not.toContain('thinking')
   })
 })

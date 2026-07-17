@@ -340,6 +340,8 @@ export const ModelSchema = z.object({
   reasoning: RuntimeReasoningSchema.optional(),
   /** Parameter support */
   parameterSupport: RuntimeParameterSupportSchema.optional(),
+  /** Whether the agent runtime exposes its Fast mode for this provider-model pair */
+  supportsFastMode: z.boolean().optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
 

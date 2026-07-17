@@ -4,7 +4,8 @@ import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
-import type { Assistant } from '@shared/data/types/assistant'
+import type { AgentReasoningEffort } from '@shared/ai/agentRuntimeOptions'
+import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import {
   type GroqServiceTier,
@@ -210,6 +211,22 @@ export function buildCapabilityProviderOptions(
     providerSpecificOptions
   })
   return providerSpecificOptions
+}
+
+export function buildReasoningProviderOptions(
+  reasoningEffort: AgentReasoningEffort,
+  model: Model,
+  provider: Provider
+): Record<string, Record<string, JSONValue>> {
+  const assistant = {
+    settings: { ...DEFAULT_ASSISTANT_SETTINGS, reasoning_effort: reasoningEffort }
+  } as Assistant
+
+  return buildCapabilityProviderOptions(assistant, model, provider, {
+    enableReasoning: true,
+    enableWebSearch: false,
+    enableGenerateImage: false
+  })
 }
 
 /**

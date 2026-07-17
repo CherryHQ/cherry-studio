@@ -8,8 +8,15 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import {
+  AGENT_FAST_MODE_HEADER,
+  AGENT_REASONING_EFFORT_HEADER,
+  type AgentRuntimeOptions,
+  normalizeAgentRuntimeOptions
+} from '@shared/ai/agentRuntimeOptions'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
@@ -22,7 +29,12 @@ import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
-import { buildClaudeCodeSessionSettings, buildSkillWhitelist, type McpServerSnapshotMap } from './settingsBuilder'
+import {
+  buildClaudeCodeSessionSettings,
+  buildSkillWhitelist,
+  type ClaudeCodeSessionOptions,
+  type McpServerSnapshotMap
+} from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
@@ -244,7 +256,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Connection-scoped model override: a live turn runs on the model captured at its creation,
    *  which may differ from the agent's latest model after a mid-window edit. Defaults to the
    *  agent's current model (prewarm and turn-less connections). */
-  connectionModelId?: UniqueModelId
+  connectionModelId?: UniqueModelId,
+  runtimeOptions?: AgentRuntimeOptions
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -258,6 +271,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  const normalizedRuntimeOptions = normalizeAgentRuntimeOptions(model, runtimeOptions)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
   // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
@@ -279,11 +293,19 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       {
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
-        linkedChannelSnapshot
+        linkedChannelSnapshot,
+        fastMode:
+          isClaudeCodeProviderId(providerId) && model.supportsFastMode === true
+            ? normalizedRuntimeOptions?.fastMode
+            : undefined,
+        thinkingOptions: normalizedRuntimeOptions
+          ? toClaudeCodeThinkingOptions(normalizedRuntimeOptions.reasoningEffort)
+          : undefined
       },
       agent
     ),
-    route
+    route,
+    normalizedRuntimeOptions
   )
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
@@ -519,7 +541,18 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
   return rawBaseUrl ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false)) : undefined
 }
 
-function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRuntimeRoute): ClaudeCodeSettings {
+function mergeRuntimeSettings(
+  settings: ClaudeCodeSettings,
+  route: ClaudeCodeRuntimeRoute,
+  runtimeOptions?: AgentRuntimeOptions
+): ClaudeCodeSettings {
+  const agentHeaders =
+    route.branch === 'gateway' && runtimeOptions
+      ? [
+          `${AGENT_REASONING_EFFORT_HEADER}: ${runtimeOptions.reasoningEffort}`,
+          `${AGENT_FAST_MODE_HEADER}: ${runtimeOptions.fastMode}`
+        ].join('\n')
+      : undefined
   return {
     ...settings,
     env: {
@@ -529,8 +562,30 @@ function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRun
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
       ANTHROPIC_DEFAULT_HAIKU_MODEL: route.modelIds.haiku,
       ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
-      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {})
+      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
+      ...(agentHeaders
+        ? {
+            ANTHROPIC_CUSTOM_HEADERS: [settings.env?.ANTHROPIC_CUSTOM_HEADERS, agentHeaders].filter(Boolean).join('\n')
+          }
+        : {})
     }
+  }
+}
+
+export function toClaudeCodeThinkingOptions(
+  reasoningEffort: AgentRuntimeOptions['reasoningEffort']
+): NonNullable<ClaudeCodeSessionOptions['thinkingOptions']> {
+  switch (reasoningEffort) {
+    case 'none':
+      return { thinking: { type: 'disabled' } }
+    case 'auto':
+      return { thinking: { type: 'adaptive' } }
+    case 'minimal':
+      return { effort: 'low' }
+    case 'ultra':
+      return { effort: 'max' }
+    default:
+      return { effort: reasoningEffort }
   }
 }
 

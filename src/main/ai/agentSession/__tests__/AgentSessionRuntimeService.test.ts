@@ -954,6 +954,29 @@ describe('AgentSessionRuntimeService', () => {
     expect(entry.steerMessageIds?.has('user-2')).toBe(true)
   })
 
+  it('queues follow-ups whose runtime options differ from the live connection', () => {
+    const service = new AgentSessionRuntimeService()
+    const currentOptions = { reasoningEffort: 'high', fastMode: false } as const
+    const nextOptions = { reasoningEffort: 'low', fastMode: true } as const
+    service.beginTurn({ ...baseTurnInput, runtimeOptions: currentOptions })
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      redirect: vi.fn().mockReturnValue(true)
+    }
+    entry.connection = connection
+    entry.connectionModelId = baseTurnInput.modelId
+    entry.connectionRuntimeOptions = currentOptions
+
+    service.enqueueUserMessage('session-1', userMessage('user-2'), { runtimeOptions: nextOptions })
+
+    expect(connection.redirect).not.toHaveBeenCalled()
+    expect(entry.pendingTurns).toEqual([userMessage('user-2')])
+    expect(entry.runtimeOptionsByMessageId?.get('user-2')).toEqual(nextOptions)
+  })
+
   it('fails closed and logs when a push reconcile throws', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
@@ -1827,6 +1850,7 @@ describe('AgentSessionRuntimeService', () => {
     const handle = service.beginTurn({
       ...baseTurnInput,
       userMessage: userMessage('user-1'),
+      runtimeOptions: { reasoningEffort: 'high', fastMode: true },
       traceId: 'a'.repeat(32)
     })
     const stream = service.openTurnStream({
@@ -1842,6 +1866,7 @@ describe('AgentSessionRuntimeService', () => {
         sessionId: 'session-1',
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
+        options: { reasoningEffort: 'high', fastMode: true },
         resumeToken: undefined,
         trace: {
           topicId: 'agent-session:session-1',
@@ -1894,6 +1919,7 @@ describe('AgentSessionRuntimeService', () => {
         sessionId: 'session-1',
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
+        options: undefined,
         resumeToken: 'resume-db',
         trace: {
           topicId: 'agent-session:session-1',
@@ -2048,6 +2074,72 @@ describe('AgentSessionRuntimeService', () => {
       service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
       await reader2.cancel().catch(() => undefined)
+    })
+
+    it('rebuilds the next queued turn connection when its runtime options changed', async () => {
+      const firstEvents = createAsyncQueue<any>()
+      const secondEvents = createAsyncQueue<any>()
+      const firstConnection = {
+        events: firstEvents.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const secondConnection = {
+        events: secondEvents.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const currentOptions = { reasoningEffort: 'high', fastMode: false } as const
+      const nextOptions = { reasoningEffort: 'low', fastMode: true } as const
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-1'),
+        runtimeOptions: currentOptions
+      })
+      const firstReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+
+      await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(firstConnection.send).toHaveBeenCalledOnce())
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { runtimeOptions: nextOptions })
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(getEntry(service).currentTurn?.userMessage.id).toBe('user-2'))
+
+      const nextTurnId = getEntry(service).currentTurn.turnId
+      const secondReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: nextTurnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await secondReader.read()
+
+      await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(connect).toHaveBeenLastCalledWith(expect.objectContaining({ options: nextOptions }))
+      await vi.waitFor(() => expect(secondConnection.send).toHaveBeenCalledOnce())
+
+      service.closeSession('session-1')
+      await firstReader.cancel().catch(() => undefined)
+      await secondReader.cancel().catch(() => undefined)
     })
   })
 

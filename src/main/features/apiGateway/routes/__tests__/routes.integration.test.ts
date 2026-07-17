@@ -1,3 +1,4 @@
+import { AGENT_FAST_MODE_HEADER, AGENT_REASONING_EFFORT_HEADER } from '@shared/ai/agentRuntimeOptions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -162,6 +163,62 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.ok).toBe(true)
       expect(mockProcessMessage).toHaveBeenCalledOnce()
+    })
+
+    it.each([
+      ['true', true],
+      ['false', false]
+    ])('messages parses valid agent runtime headers with Fast=%s', async (fastHeader, fastMode) => {
+      await post(
+        app,
+        '/v1/messages',
+        { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+        {
+          ...AUTH,
+          [AGENT_REASONING_EFFORT_HEADER]: 'xhigh',
+          [AGENT_FAST_MODE_HEADER]: fastHeader
+        }
+      )
+
+      expect(mockProcessMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ agentRuntimeOptions: { reasoningEffort: 'xhigh', fastMode } })
+      )
+    })
+
+    it.each([
+      [
+        'an unknown effort',
+        { [AGENT_REASONING_EFFORT_HEADER]: 'extreme', [AGENT_FAST_MODE_HEADER]: 'true' },
+        { fastMode: true }
+      ],
+      ['a missing Fast header', { [AGENT_REASONING_EFFORT_HEADER]: 'high' }, { reasoningEffort: 'high' }]
+    ])(
+      'messages preserves the valid independent agent runtime header with %s',
+      async (_scenario, agentHeaders, expected) => {
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          { ...AUTH, ...agentHeaders }
+        )
+
+        expect(mockProcessMessage).toHaveBeenCalledWith(expect.objectContaining({ agentRuntimeOptions: expected }))
+      }
+    )
+
+    it('messages ignores agent runtime options when neither header is valid', async () => {
+      await post(
+        app,
+        '/v1/messages',
+        { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+        {
+          ...AUTH,
+          [AGENT_REASONING_EFFORT_HEADER]: 'extreme',
+          [AGENT_FAST_MODE_HEADER]: 'sometimes'
+        }
+      )
+
+      expect(mockProcessMessage).toHaveBeenCalledWith(expect.objectContaining({ agentRuntimeOptions: undefined }))
     })
 
     it('GET /v1/models returns the model list', async () => {

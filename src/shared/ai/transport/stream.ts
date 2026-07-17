@@ -3,6 +3,7 @@ import type { UIMessageChunk } from 'ai'
 import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { UniqueModelId } from '../../data/types/model'
 import type { SerializedError } from '../../types/error'
+import type { AgentRuntimeOptions } from '../agentRuntimeOptions'
 
 export interface AiChatRequestBody {
   /** Topic ID for message routing and persistence. */
@@ -69,6 +70,10 @@ export interface ComposerQueuedMessagePayload {
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
   knowledgeBaseIds?: string[]
+  /** Model whose Work-agent runtime settings were captured with this queued draft. */
+  agentRuntimeModelId?: UniqueModelId
+  /** Work-agent runtime settings captured with this queued draft. */
+  agentRuntimeOptions?: AgentRuntimeOptions
 }
 
 /**
@@ -153,6 +158,8 @@ export type AiStreamOpenRequest = {
       parentAnchorId?: string
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]
+      /** Work-agent runtime settings for this turn. */
+      agentRuntimeOptions?: AgentRuntimeOptions
     }
   | {
       /** Re-run the assistant under an existing user msg. */
