@@ -122,6 +122,11 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
     <section data-testid="agent-right-pane" data-open={String(Boolean(open))}>
       {open ? children : null}
     </section>
+  ),
+  PersistentRightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <section data-testid="agent-right-pane" data-open={String(Boolean(open))}>
+      {children}
+    </section>
   )
 }))
 
@@ -456,8 +461,7 @@ describe('AgentChat locate pending message', () => {
       />
     )
 
-    // No reveal request: the persistent branch must seed `open` directly from sessionPaneOpen
-    // (AgentChatSessionFrame's defaultOpen). Dropping that defaultOpen would render this closed.
+    // No reveal request: the stable AgentChat shell seeds `open` directly from sessionPaneOpen.
     expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
   })
 
@@ -479,11 +483,11 @@ describe('AgentChat locate pending message', () => {
       />
     )
 
-    // The missing-agent selection branch seeds the pane open from the persisted sessionPaneOpen.
-    expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
+    // The stable shell is seeded once and survives the capability readiness handoff.
+    const rightPane = screen.getByTestId('agent-right-pane')
+    expect(rightPane).toHaveAttribute('data-open', 'true')
 
-    // Hand off to the persisted session: the AgentRightPane/Shell remounts under a different
-    // branch, so it must re-seed `open` from sessionPaneOpen rather than slamming shut.
+    // Hand off to the persisted session without replacing the Shell/Viewport owner.
     rerender(
       <AgentChat
         {...activeSessionProps()}
@@ -497,5 +501,6 @@ describe('AgentChat locate pending message', () => {
     )
 
     await waitFor(() => expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true'))
+    expect(screen.getByTestId('agent-right-pane')).toBe(rightPane)
   })
 })

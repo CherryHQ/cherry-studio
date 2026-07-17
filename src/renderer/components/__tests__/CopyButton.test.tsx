@@ -94,6 +94,17 @@ describe('CopyButton', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it('should show a check icon without a success toast in icon feedback mode', async () => {
+    mockWriteText.mockResolvedValue(undefined)
+
+    render(<CopyButton textToCopy="test text" successFeedback="icon" />)
+
+    await userEvent.click(screen.getByRole('button'))
+
+    expect(document.querySelector('.lucide-check')).toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('should show error message when copy fails', async () => {
     mockWriteText.mockRejectedValue(new Error('Clipboard access denied'))
 
