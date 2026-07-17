@@ -34,38 +34,58 @@ function allocateId(descriptor: UiNodeDescriptor, usedIds: Set<string>): string 
 
 export function reconcileRegistry(previous: UiContractRegistry, descriptors: UiNodeDescriptor[]): UiContractRegistry {
   const oldByAnchor = new Map(previous.nodes.map((node) => [node[0], node]))
+  const sorted = [...descriptors].sort((left, right) => left.anchorHash.localeCompare(right.anchorHash))
 
   const usedOldIds = new Set<string>()
-  const usedIds = new Set([...previous.retiredIds, ...previous.nodes.map((node) => node[2])])
-  const nodes = [...descriptors]
-    .sort((left, right) => left.anchorHash.localeCompare(right.anchorHash))
-    .map((descriptor): UiRegistryNode => {
-      const exact = oldByAnchor.get(descriptor.anchorHash)
-      if (exact && !usedOldIds.has(exact[2])) {
-        usedOldIds.add(exact[2])
-        return [
-          descriptor.anchorHash,
-          descriptor.fingerprintHash,
-          exact[2],
-          descriptor.semanticSource === 'explicit' ? descriptor.semanticId : exact[3]
-        ]
-      }
-
-      const movable = descriptor.previousAnchorHash ? oldByAnchor.get(descriptor.previousAnchorHash) : undefined
-      if (movable && !usedOldIds.has(movable[2])) {
-        usedOldIds.add(movable[2])
-        return [
-          descriptor.anchorHash,
-          descriptor.fingerprintHash,
-          movable[2],
-          descriptor.semanticSource === 'explicit' ? descriptor.semanticId : movable[3]
-        ]
-      }
-
-      const id = allocateId(descriptor, usedIds)
-      usedIds.add(id)
-      return [descriptor.anchorHash, descriptor.fingerprintHash, id, descriptor.semanticId]
+  const matches = new Map<UiNodeDescriptor, { id: string; semanticId: string }>()
+  for (const descriptor of sorted) {
+    const candidates = [
+      oldByAnchor.get(descriptor.anchorHash),
+      descriptor.previousAnchorHash ? oldByAnchor.get(descriptor.previousAnchorHash) : undefined
+    ]
+    const matched = candidates.find((node) => node && !usedOldIds.has(node[2]))
+    if (!matched) continue
+    usedOldIds.add(matched[2])
+    matches.set(descriptor, {
+      id: matched[2],
+      semanticId: descriptor.semanticSource === 'explicit' ? descriptor.semanticId : matched[3]
     })
+  }
+
+  // Fingerprint fallback: an ID follows a structural twin only when the pairing is
+  // unambiguous — exactly one departed and one arrived node share the fingerprint —
+  // and an explicit semantic does not contradict the previous identity. Unlike a
+  // Git-confirmed move, this match is presumed, so the node re-presents its current
+  // semantic instead of inheriting a possibly stale one.
+  const departedByFingerprint = new Map<string, UiRegistryNode[]>()
+  for (const node of previous.nodes) {
+    if (usedOldIds.has(node[2])) continue
+    departedByFingerprint.set(node[1], [...(departedByFingerprint.get(node[1]) ?? []), node])
+  }
+  const arrivedByFingerprint = new Map<string, UiNodeDescriptor[]>()
+  for (const descriptor of sorted) {
+    if (matches.has(descriptor)) continue
+    const arrived = arrivedByFingerprint.get(descriptor.fingerprintHash) ?? []
+    arrivedByFingerprint.set(descriptor.fingerprintHash, [...arrived, descriptor])
+  }
+  for (const [fingerprint, arrived] of arrivedByFingerprint) {
+    const departed = departedByFingerprint.get(fingerprint)
+    if (arrived.length !== 1 || departed?.length !== 1) continue
+    const [descriptor] = arrived
+    const [node] = departed
+    if (descriptor.semanticSource === 'explicit' && descriptor.semanticId !== node[3]) continue
+    usedOldIds.add(node[2])
+    matches.set(descriptor, { id: node[2], semanticId: descriptor.semanticId })
+  }
+
+  const usedIds = new Set([...previous.retiredIds, ...previous.nodes.map((node) => node[2])])
+  const nodes = sorted.map((descriptor): UiRegistryNode => {
+    const matched = matches.get(descriptor)
+    if (matched) return [descriptor.anchorHash, descriptor.fingerprintHash, matched.id, matched.semanticId]
+    const id = allocateId(descriptor, usedIds)
+    usedIds.add(id)
+    return [descriptor.anchorHash, descriptor.fingerprintHash, id, descriptor.semanticId]
+  })
 
   const retiredIds = new Set(previous.retiredIds)
   for (const node of previous.nodes) {
