@@ -5,8 +5,11 @@
   "exclude": [
     "packages/ui/src/styles/theme.css",
     "packages/ui/src/styles/shadcn.css",
+    "packages/ui/src/styles/product.css",
     "packages/ui/src/styles/tokens/**",
     "packages/ui/src/styles/migrations/**",
+    "src/renderer/assets/styles/legacy-vars.css",
+    "src/renderer/assets/styles/tailwind.css",
     "**/dist/**",
     "**/node_modules/**",
     "**/*.snap"
@@ -28,7 +31,8 @@
     { "source": "--cs-secondary", "target": "--secondary", "strategy": "exact" },
     { "source": "--cs-secondary-foreground", "target": "--secondary-foreground", "strategy": "exact" },
     { "source": "--cs-muted", "target": "--muted", "strategy": "exact" },
-    { "source": "--cs-foreground-secondary", "target": "--muted-foreground", "strategy": "exact" },
+    { "source": "--cs-foreground-secondary", "target": "--cs-text-secondary", "strategy": "exact" },
+    { "source": "--cs-muted-foreground", "target": "--muted-foreground", "strategy": "exact" },
     { "source": "--cs-accent", "target": "--accent", "strategy": "exact" },
     { "source": "--cs-accent-foreground", "target": "--accent-foreground", "strategy": "exact" },
     { "source": "--cs-destructive", "target": "--destructive", "strategy": "exact" },
@@ -89,103 +93,141 @@
     { "source": "--cs-warning-bg", "target": "--cs-warning-subtle", "strategy": "exact" },
     { "source": "--cs-info-base", "target": "--cs-info", "strategy": "exact" },
     { "source": "--cs-info-bg", "target": "--cs-info-subtle", "strategy": "exact" },
-    { "source": "--color-text-1", "target": "--foreground", "strategy": "exact" },
-    { "source": "--color-text", "target": "--foreground", "strategy": "exact" },
+    { "source": "--color-text-1", "target": "--cs-text-primary", "strategy": "exact" },
+    { "source": "--color-text-2", "target": "--cs-text-secondary", "strategy": "exact" },
+    { "source": "--color-text-3", "target": "--cs-text-tertiary", "strategy": "exact" },
+    { "source": "--color-text", "target": "--cs-text-primary", "strategy": "exact" },
+    { "source": "--color-text-secondary", "target": "--cs-text-secondary", "strategy": "exact" },
+    { "source": "--color-text-soft", "target": "--cs-text-secondary", "strategy": "exact" },
+    { "source": "--color-text-light", "target": "--cs-text-light", "strategy": "exact" },
+    { "source": "--color-background-soft", "target": "--cs-background-soft", "strategy": "exact" },
+    { "source": "--color-background-mute", "target": "--cs-background-muted", "strategy": "exact" },
     {
-      "source": "--color-text-2",
-      "target": "--muted-foreground",
-      "strategy": "contextual",
-      "contexts": ["color", "fill", "stroke"],
-      "reason": "Confirm that the consumer is secondary readable content, not disabled content."
+      "source": "--color-background-opacity",
+      "target": "--cs-background-translucent",
+      "strategy": "exact"
     },
-    {
-      "source": "--color-text-secondary",
-      "target": "--muted-foreground",
-      "strategy": "contextual",
-      "contexts": ["color", "fill", "stroke"],
-      "reason": "Confirm the resolved contrast on the consumer surface."
-    },
-    {
-      "source": "--color-text-3",
-      "target": null,
-      "strategy": "review",
-      "contexts": ["color", "fill", "stroke"],
-      "reason": "There is no universal canonical target for tertiary and disabled content."
-    },
-    {
-      "source": "--color-background-soft",
-      "target": "--cs-background-subtle",
-      "strategy": "contextual",
-      "contexts": ["background", "background-color"],
-      "reason": "The legacy color-mix value is not identical to the canonical subtle surface."
-    },
-    {
-      "source": "--color-border-soft",
-      "target": "--cs-border-subtle",
-      "strategy": "contextual",
-      "contexts": ["border", "border-color"],
-      "reason": "Confirm the resolved alpha and underlying surface."
-    },
-    {
-      "source": "--color-border-mute",
-      "target": "--cs-border-subtle",
-      "strategy": "contextual",
-      "contexts": ["border", "border-color"],
-      "reason": "Confirm the resolved alpha and underlying surface."
-    },
+    { "source": "--color-border-soft", "target": "--cs-border-soft", "strategy": "exact" },
+    { "source": "--color-border-mute", "target": "--cs-border-faint", "strategy": "exact" },
     { "source": "--color-error", "target": "--cs-error", "strategy": "exact" },
+    { "source": "--color-link", "target": "--cs-link", "strategy": "exact" },
+    { "source": "--color-primary-bg", "target": "--cs-primary-soft", "strategy": "exact" },
+    { "source": "--color-fill-secondary", "target": "--cs-fill-secondary", "strategy": "exact" },
+    { "source": "--color-fill-2", "target": "--cs-fill-secondary", "strategy": "exact" },
     { "source": "--color-bg-base", "target": "--background", "strategy": "exact" },
-    { "source": "--modal-background", "target": "--card", "strategy": "exact" },
+    { "source": "--color-bg-1", "target": "--cs-background-soft", "strategy": "exact" },
+    { "source": "--color-code-background", "target": "--cs-code-block", "strategy": "exact" },
+    {
+      "source": "--color-inline-code-background",
+      "target": "--cs-inline-code",
+      "strategy": "exact"
+    },
+    {
+      "source": "--color-inline-code-text",
+      "target": "--cs-inline-code-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--color-hover", "target": "--cs-interactive-hover", "strategy": "exact" },
+    { "source": "--color-active", "target": "--cs-interactive-active", "strategy": "exact" },
+    { "source": "--color-frame-border", "target": "--cs-frame-border", "strategy": "exact" },
+    {
+      "source": "--color-group-background",
+      "target": "--cs-group-background",
+      "strategy": "exact"
+    },
+    { "source": "--color-reference", "target": "--cs-reference", "strategy": "exact" },
+    {
+      "source": "--color-reference-text",
+      "target": "--cs-reference-foreground",
+      "strategy": "exact"
+    },
+    {
+      "source": "--color-reference-background",
+      "target": "--cs-reference-subtle",
+      "strategy": "exact"
+    },
+    { "source": "--color-list-item", "target": "--cs-list-item", "strategy": "exact" },
+    { "source": "--color-list-item-hover", "target": "--cs-list-item-hover", "strategy": "exact" },
+    { "source": "--color-highlight", "target": "--cs-highlight-foreground", "strategy": "exact" },
+    {
+      "source": "--color-background-highlight",
+      "target": "--cs-highlight",
+      "strategy": "exact"
+    },
+    {
+      "source": "--color-background-highlight-accent",
+      "target": "--cs-highlight-accent",
+      "strategy": "exact"
+    },
+    {
+      "source": "--navbar-background-mac",
+      "target": "--cs-navbar-translucent",
+      "strategy": "exact"
+    },
+    { "source": "--navbar-background", "target": "--cs-navbar", "strategy": "exact" },
+    { "source": "--modal-background", "target": "--cs-modal", "strategy": "exact" },
+    { "source": "--chat-background", "target": "--cs-chat", "strategy": "exact" },
+    { "source": "--chat-background-user", "target": "--cs-chat-user", "strategy": "exact" },
+    {
+      "source": "--chat-background-assistant",
+      "target": "--cs-chat-assistant",
+      "strategy": "exact"
+    },
+    { "source": "--chat-text-user", "target": "--cs-chat-user-foreground", "strategy": "exact" },
+    { "source": "--list-item-border-radius", "target": "--cs-list-item-radius", "strategy": "exact" },
+    { "source": "--color-gray-1", "target": "--cs-system-gray-1", "strategy": "exact" },
+    { "source": "--color-gray-2", "target": "--cs-system-gray-2", "strategy": "exact" },
+    { "source": "--color-gray-3", "target": "--cs-system-gray-3", "strategy": "exact" },
+    { "source": "--color-icon-white", "target": "--cs-icon-contrast", "strategy": "exact" },
+    { "source": "--color-primary-1", "target": "--cs-primary-subtle", "strategy": "exact" },
+    { "source": "--color-primary-6", "target": "--primary", "strategy": "exact" },
     { "source": "--color-status-success", "target": "--cs-success", "strategy": "exact" },
     { "source": "--color-status-error", "target": "--cs-error", "strategy": "exact" },
     { "source": "--color-status-warning", "target": "--cs-warning", "strategy": "exact" },
+    { "source": "--app-icon", "target": "--cs-icon", "strategy": "exact" },
+    { "source": "--app-sidebar", "target": "--sidebar", "strategy": "exact" },
+    { "source": "--app-sidebar-accent", "target": "--sidebar-accent", "strategy": "exact" },
+    { "source": "--app-sidebar-foreground", "target": "--sidebar-foreground", "strategy": "exact" },
+    { "source": "--app-sidebar-active-bg", "target": "--cs-sidebar-active-bg", "strategy": "exact" },
     {
-      "source": "--app-muted-foreground",
-      "target": "--muted-foreground",
-      "strategy": "contextual",
-      "reason": "Remove the renderer override only after shared and renderer values have visual parity."
+      "source": "--app-sidebar-active-border",
+      "target": "--cs-sidebar-active-border",
+      "strategy": "exact"
+    },
+    { "source": "--app-sidebar-glow-bg", "target": "--cs-sidebar-glow-bg", "strategy": "exact" },
+    {
+      "source": "--app-sidebar-glow-line",
+      "target": "--cs-sidebar-glow-line",
+      "strategy": "exact"
+    },
+    { "source": "--app-sidebar-primary", "target": "--sidebar-primary", "strategy": "exact" },
+    {
+      "source": "--app-sidebar-primary-foreground",
+      "target": "--sidebar-primary-foreground",
+      "strategy": "exact"
     },
     {
-      "source": "--app-card-foreground",
-      "target": "--card-foreground",
-      "strategy": "contextual",
-      "reason": "Remove the renderer override only after shared and renderer values have visual parity."
+      "source": "--app-sidebar-accent-foreground",
+      "target": "--sidebar-accent-foreground",
+      "strategy": "exact"
     },
+    { "source": "--app-sidebar-border", "target": "--sidebar-border", "strategy": "exact" },
+    { "source": "--app-sidebar-ring", "target": "--sidebar-ring", "strategy": "exact" },
+    { "source": "--app-primary-foreground", "target": "--primary-foreground", "strategy": "exact" },
+    { "source": "--app-card-foreground", "target": "--card-foreground", "strategy": "exact" },
+    { "source": "--app-popover-foreground", "target": "--popover-foreground", "strategy": "exact" },
     {
-      "source": "--app-popover-foreground",
-      "target": "--popover-foreground",
-      "strategy": "contextual",
-      "reason": "Remove the renderer override only after shared and renderer values have visual parity."
+      "source": "--app-secondary-foreground",
+      "target": "--secondary-foreground",
+      "strategy": "exact"
     },
+    { "source": "--app-muted-foreground", "target": "--muted-foreground", "strategy": "exact" },
+    { "source": "--app-accent-foreground", "target": "--accent-foreground", "strategy": "exact" },
     {
-      "source": "--app-sidebar",
-      "target": "--sidebar",
-      "strategy": "contextual",
-      "reason": "Preserve renderer shell appearance before deleting the duplicate theme role."
+      "source": "--app-destructive-foreground",
+      "target": "--destructive-foreground",
+      "strategy": "exact"
     },
-    {
-      "source": "--app-sidebar-foreground",
-      "target": "--sidebar-foreground",
-      "strategy": "contextual",
-      "reason": "Preserve renderer shell appearance before deleting the duplicate theme role."
-    },
-    {
-      "source": "--app-sidebar-primary",
-      "target": "--sidebar-primary",
-      "strategy": "contextual",
-      "reason": "Preserve renderer shell appearance before deleting the duplicate theme role."
-    },
-    {
-      "source": "--app-sidebar-accent",
-      "target": "--sidebar-accent",
-      "strategy": "contextual",
-      "reason": "Preserve renderer shell appearance before deleting the duplicate theme role."
-    },
-    {
-      "source": "--app-sidebar-glow-bg",
-      "target": null,
-      "strategy": "preserve",
-      "reason": "This is a renderer shell effect, not a shared Shadcn semantic role."
-    }
+    { "source": "--app-input", "target": "--input", "strategy": "exact" }
   ]
 }

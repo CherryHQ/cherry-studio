@@ -1,7 +1,7 @@
 # Cherry Studio Shadcn Variable System
 
-> Status: normative v2 contract. This PR introduces the complete contract without bulk-replacing existing
-> component usage or deleting compatibility variables.
+> Status: normative v2 contract with a visual-parity bridge. This PR introduces the complete contract without
+> bulk-replacing existing component usage or deleting compatibility variable names.
 
 This document defines the new variable system for Cherry Studio. It is intentionally focused on the Shadcn
 semantic contract and its migration boundary. The existing palette, spacing, typography, and legacy variables
@@ -18,11 +18,11 @@ The repository currently contains multiple variable families with different resp
 | --- | --- | --- |
 | `--cs-{palette}-{step}` | Primitive palette | Internal value provider; unchanged in this PR |
 | existing semantic `--cs-*` | Partially standardized and historically mixed semantics | Classified as approved product token or migration source |
-| approved product `--cs-*` | Incomplete | Canonical Cherry Studio product API |
+| approved product `--cs-*` | Core semantics plus visual-parity coverage | Canonical product API and temporary exact migration targets |
 | generated `--color-*` | Tailwind theme variables and some accidental public API | Tailwind adapter output only |
-| renderer `--app-*` | App-shell values plus duplicated Shadcn roles | Compatibility layer; product concepts migrate to `--cs-*` |
-| `legacy-vars.css` | Historical aliases and live literals | Compatibility-only layer, removed after migration |
-| official Shadcn variables | Incomplete or missing | Canonical ecosystem-compatible API |
+| renderer `--app-*` | Pure aliases to Shadcn and `--cs-*` roles | Compatibility-only layer, removed after migration |
+| `legacy-vars.css` | Pure aliases to Shadcn and `--cs-*` roles | Compatibility-only layer, removed after migration |
+| official Shadcn variables | Complete shared contract | Canonical ecosystem-compatible API |
 
 The new system does not create another independent palette. It creates two explicit semantic APIs over the
 values already shipped by Cherry Studio:
@@ -38,7 +38,7 @@ existing values
                                          bg-background / bg-success / ...
 ```
 
-During migration, compatibility variables may point toward this flow. Official and product semantic variables
+During migration, compatibility variables point toward this flow. Official and product semantic variables
 must never point to `--color-*`, `--app-*`, or legacy variables.
 
 ## 2. Scope of the v2 contract
@@ -50,12 +50,13 @@ This contract includes:
 3. a canonical `--radius` input and Tailwind radius mappings;
 4. an explicit Tailwind CSS v4 `@theme inline` adapter;
 5. a machine-readable registry for later automated migration;
-6. compatibility rules that allow old and new systems to coexist temporarily.
+6. product variables that preserve every value previously owned by renderer compatibility layers;
+7. compatibility rules that allow old and new names to coexist temporarily.
 
 This contract does not include:
 
 - bulk replacement of component variables or Tailwind classes;
-- deletion of existing `--cs-*`, `--app-*`, or legacy variables;
+- deletion of existing `--cs-*`, `--app-*`, or legacy variable names;
 - renaming every primitive to a new reference-token namespace;
 - redesigning spacing, typography, shadow, or motion scales;
 - adopting DTCG JSON as a required build input;
@@ -73,6 +74,12 @@ approved product semantics, or historical light/dark mappings.
 The prefix alone does not make an existing variable public. New code may consume only an approved product token
 listed by the generated contract. Primitive and unclassified `--cs-*` variables remain internal migration
 sources.
+
+`product.css` is the authored Cherry Studio product layer. Some entries intentionally duplicate nearby roles so
+that every historical renderer value has an exact destination before automated replacement starts. These parity
+tokens are valid migration targets, but new feature code should still prefer an existing Shadcn or stable product
+role. Redundant parity roles may be consolidated only after their old consumers have been migrated and visually
+verified.
 
 ### 3.2 Official Shadcn semantic layer
 
@@ -129,12 +136,13 @@ Rules:
 Example:
 
 ```css
---cs-chat-user: var(--primary);
---cs-chat-user-foreground: var(--primary-foreground);
+--cs-product-selection: var(--primary);
+--cs-product-selection-foreground: var(--primary-foreground);
 ```
 
-TweakCN can change `--primary` without knowing the Cherry-specific variable, and the product role follows it
-automatically.
+This is a pattern example rather than a variable added by this PR. TweakCN can change `--primary` without knowing
+the Cherry-specific variable, and a product role authored this way follows it automatically. Product roles that
+must preserve a Cherry-specific appearance may intentionally own mode-aware values instead.
 
 ### 3.4 Tailwind adapter
 
@@ -173,7 +181,8 @@ remain available as compatibility API in this PR, but new shared UI should prefe
 Application-only concepts use a Cherry Studio domain rather than a second ownership prefix:
 
 ```css
---cs-sidebar-glow-color
+--cs-sidebar-glow-bg
+--cs-sidebar-glow-line
 --cs-selection-toolbar-height
 --cs-window-background
 ```
@@ -187,11 +196,15 @@ Existing `--app-*` variables are compatibility sources. Names such as `--app-car
 Legacy files may contain aliases while old consumers still exist:
 
 ```css
---color-text-1: var(--foreground);
+--color-text-1: var(--cs-text-primary);
 ```
 
 No new product code may consume a legacy variable. A legacy alias is removed only after repository-wide usage
 reaches zero.
+
+Compatibility files must contain only single `var()` aliases to an official Shadcn variable or an approved
+`--cs-*` product variable. They must not contain literals, `color-mix()`, mode branches, or references to another
+compatibility family.
 
 ## 4. Canonical Shadcn contract
 
@@ -237,7 +250,7 @@ The first implementation preserves current design decisions by using the existin
 | `popover` / `popover-foreground` | `--cs-popover` / `--cs-popover-foreground` |
 | `primary` / `primary-foreground` | runtime primary input / `--cs-primary-foreground` |
 | `secondary` / `secondary-foreground` | `--cs-secondary` / `--cs-secondary-foreground` |
-| `muted` / `muted-foreground` | `--cs-muted` / `--cs-foreground-secondary` |
+| `muted` / `muted-foreground` | `--cs-muted` / `--cs-muted-foreground` |
 | `accent` / `accent-foreground` | `--cs-accent` / `--cs-accent-foreground` |
 | `destructive` / `destructive-foreground` | `--cs-destructive` / `--cs-destructive-foreground` |
 | `border` / `input` / `ring` | `--cs-border` / `--cs-input` / runtime ring input |
@@ -248,7 +261,8 @@ mode-aware five-color sequence and do not change existing component rendering un
 
 ### 4.3 Cherry Studio product color extensions
 
-Only repeated product-wide intent that Shadcn does not express belongs in the shared extension set:
+Only product-wide intent that Shadcn does not express belongs in the shared extension set. The stable core starts
+with:
 
 ```text
 --cs-background-subtle
@@ -280,6 +294,24 @@ feedback. They may share palette values without sharing semantics.
 
 Hover and active colors are component-state decisions. The shared contract does not multiply every intent into
 global `hover` and `active` variables.
+
+The initial parity layer additionally covers existing renderer behavior by domain:
+
+| Domain | Product roles |
+| --- | --- |
+| Content hierarchy | `text-primary`, `text-secondary`, `text-tertiary`, `text-light` |
+| Layered surfaces | `background-soft`, `background-muted`, `background-translucent`, `border-soft`, `border-faint`, `fill-secondary`, `frame-border`, `group-background`, `modal` |
+| Rich content | `link`, `code-block`, `inline-code`, `inline-code-foreground` |
+| Interaction | `interactive-hover`, `interactive-active` |
+| References and highlights | `reference`, `reference-foreground`, `reference-subtle`, `highlight`, `highlight-foreground`, `highlight-accent` |
+| Product surfaces | `list-item`, `navbar`, `chat`, plus their documented variants and foregrounds |
+| Application shell | `icon`, `sidebar-active-*`, `sidebar-glow-*` |
+| Platform compatibility | `system-gray-*`, `icon-contrast`, `primary-soft`, `primary-subtle` |
+
+Every name in this table is prefixed with `--cs-`. The explicit
+`CHERRY_PRODUCT_VARIABLE_TOKENS` allowlist is the machine-readable source of the complete set; only the smaller
+`CHERRY_PRODUCT_COLOR_TOKENS` subset is exported as Tailwind color utilities. This avoids generating utilities for
+roles currently consumed only by custom CSS.
 
 ## 5. Radius contract
 
@@ -351,12 +383,12 @@ Examples:
 | `--cs-background` | `--background` | `exact` |
 | `--cs-foreground` | `--foreground` | `exact` |
 | `--color-background` | Tailwind adapter output | `preserve` |
-| `--color-text-1` | `--foreground` | `exact` |
-| `--color-text-2` | `--muted-foreground` | `contextual` |
-| `--color-text-3` | no universal target | `review` |
+| `--color-text-1` | `--cs-text-primary` | `exact` |
+| `--color-text-2` | `--cs-text-secondary` | `exact` |
+| `--color-text-3` | `--cs-text-tertiary` | `exact` |
 | `--cs-foreground-muted` | muted content or disabled component state | `contextual` |
-| duplicated `--app-{shadcn-role}` | matching official Shadcn variable | `exact` after value parity |
-| product chat, navbar, window, and glow variables | approved `--cs-{domain}-*` concept | `preserve` or `contextual` |
+| duplicated `--app-{shadcn-role}` | matching official Shadcn variable | `exact` |
+| product chat, navbar, window, and glow variables | approved `--cs-{domain}-*` concept | `exact` |
 
 A future migration plugin must parse CSS and TS/TSX syntax, be idempotent, provide a dry run, skip generated and
 vendor files, change only approved `exact`/`contextual` rules, and report ambiguous or unmapped usage. Regex-only
@@ -376,8 +408,9 @@ A proposal must state:
 6. migration classification;
 7. contract-test and documentation changes.
 
-Do not add a token for one use site, a speculative theme, or a role already represented by the contract. Icons
-normally inherit `currentColor`; component hover/active states normally stay in component variants.
+Do not add a token for one use site, a speculative theme, or a role already represented by the contract. The
+visual-parity layer is a temporary exception: it exists only where an exact migration destination is required.
+Icons normally inherit `currentColor`; component hover/active states normally stay in component variants.
 
 The generated contract must validate that:
 
@@ -390,15 +423,18 @@ The generated contract must validate that:
 
 ## 9. Delivery in this PR
 
-The contract is delivered as independent commits:
+The contract is delivered as independent commits. In addition to the initial architecture, Shadcn variables,
+Tailwind adapter, migration registry, and product namespace, the visual-parity phase:
 
-1. document the architecture and exact public contract;
-2. add the official variables and mode-aware `--cs-*` Cherry product extensions;
-3. update the generated Tailwind adapter to `@theme inline` and explicit semantic mappings;
-4. add the migration registry and contract validation.
+1. adds an authored `product.css` layer with exact light/dark destinations for historical behavior;
+2. aligns shared Shadcn providers with the values previously overridden by the renderer;
+3. converts all legacy and `--app-*` declarations to canonical aliases;
+4. records every compatibility alias as an `exact` migration rule;
+5. validates that compatibility layers cannot regain independent values.
 
-Existing components, renderer overrides, and legacy aliases remain untouched unless a small change is required to
-keep the new contract valid. Their bulk migration belongs to a later automated pass.
+Existing component references remain untouched. Their bulk migration belongs to a later automated pass. A
+compatibility alias may be deleted only when its usage is zero; a parity product token may be redesigned or merged
+only after all of its migrated consumers have passed visual verification in both light and dark modes.
 
 ## 10. References
 

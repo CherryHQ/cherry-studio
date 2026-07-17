@@ -12,6 +12,7 @@ Runtime styles and design tokens live under `src/styles`:
 
 - [theme.css](../src/styles/theme.css)
 - [shadcn.css](../src/styles/shadcn.css)
+- [product.css](../src/styles/product.css)
 - [tokens.css](../src/styles/tokens.css)
 - [tokens/colors/primitive.css](../src/styles/tokens/colors/primitive.css)
 - [tokens/colors/semantic.css](../src/styles/tokens/colors/semantic.css)
