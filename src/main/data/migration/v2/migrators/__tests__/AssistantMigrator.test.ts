@@ -637,7 +637,7 @@ describe('AssistantMigrator', () => {
       const prepareResult = await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
 
-      expect(prepareResult.warnings).toEqual([])
+      expect(prepareResult.warnings).toBeUndefined()
       expect(result.success).toBe(true)
 
       const groupRows = insertedByTable.get(groupTable) ?? []
