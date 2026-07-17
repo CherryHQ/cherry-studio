@@ -8,7 +8,7 @@ date: 2026-07-16
 
 ## What changed
 
-In the classic Chat and Agent layouts, placing conversations or tasks on the right now opens both the left owner rail and the right list by default. The minimum widths are now 200 px for the left rail and 240 px for the right pane.
+In the classic Chat and Agent layouts, placing conversations or tasks on the right now opens both the left owner rail and the right list by default. The minimum widths are now 200 px for the left rail and 255 px for the right pane.
 
 ## Why this matters to the user
 
@@ -16,7 +16,7 @@ The initial right-pane state now follows the configured list position. Manual op
 
 ## What the user should do
 
-Nothing - this is automatic. Close either right pane again if it should remain closed on later visits.
+Nothing — automatic. Close either right pane again if it should remain closed on later visits.
 
 ## Notes for release manager
 
