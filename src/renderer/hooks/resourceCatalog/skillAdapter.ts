@@ -2,7 +2,7 @@ import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
@@ -21,12 +21,32 @@ const logger = loggerService.withContext('SkillAdapter')
  * `search` is forwarded to `GET /skills` and evaluated server-side.
  */
 function useSkillList(query?: ResourceListQuery): ResourceListResult<InstalledSkill> {
+  const enabled = query?.enabled !== false
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
-    enabled: query?.enabled !== false,
+    enabled,
     query: {
       ...(query?.search ? { search: query.search } : {})
     }
   })
+  const invalidate = useInvalidateCache()
+
+  // Reconcile the on-disk skill library into the catalog once each time the skill
+  // view opens, then refresh the list. This is how skills an agent authored via
+  // native file tools (which never hit an install route) surface without an app
+  // restart. Best-effort: a reconcile failure must not blank the list.
+  const reconciledForOpen = useRef(false)
+  useEffect(() => {
+    if (!enabled) {
+      reconciledForOpen.current = false
+      return
+    }
+    if (reconciledForOpen.current) return
+    reconciledForOpen.current = true
+    ipcApi
+      .request('skill.reconcile', {})
+      .then(() => invalidate('/skills'))
+      .catch((error) => logger.warn('Failed to reconcile skills on open', { error }))
+  }, [enabled, invalidate])
 
   const items = Array.isArray(data) ? data : []
   const stableRefetch = useCallback(() => refetch(), [refetch])

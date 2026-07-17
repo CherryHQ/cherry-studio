@@ -746,8 +746,28 @@ describe('SkillService', () => {
       expect(unlinkSpy).toHaveBeenCalledWith('skill-one')
     })
 
-    it('reconcileSkills heals mirrors, prunes managed orphans, leaves user-dropped skills untouched', async () => {
-      // DB skill with files → mirrored. DB skill without files → warned, not mirrored.
+    function skillMeta(folderName: string, overrides: Record<string, unknown> = {}) {
+      return {
+        sourcePath: folderName,
+        filename: folderName,
+        name: folderName,
+        description: undefined,
+        tools: undefined,
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'x',
+        ...overrides
+      } as unknown as Awaited<ReturnType<typeof parseSkillMetadata>>
+    }
+
+    it('reconcileSkills heals mirrors, prunes non-builtin skills whose files are gone, keeps builtins', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      // skill-one: files present → mirrored, kept. gone: no files, marketplace → pruned.
+      // builtin-gone: no files but builtin → kept (installBuiltinSkills owns builtins).
       await writeLibrarySkill('skill-one')
       await dbh.db.insert(agentGlobalSkillTable).values([
         {
@@ -758,44 +778,95 @@ describe('SkillService', () => {
           contentHash: 'a',
           isEnabled: false
         },
-        { id: SKILL_ID_2, name: 'gone', folderName: 'gone', source: 'marketplace', contentHash: 'b', isEnabled: false }
+        { id: SKILL_ID_2, name: 'gone', folderName: 'gone', source: 'marketplace', contentHash: 'b', isEnabled: false },
+        {
+          id: SKILL_ID_BUILTIN,
+          name: 'builtin-gone',
+          folderName: 'builtin-gone',
+          source: 'builtin',
+          contentHash: 'c',
+          isEnabled: false
+        }
       ])
 
-      // Managed-orphan: a mirror symlink into Data/Skills with no DB row → pruned.
-      await writeLibrarySkill('orphan')
-      await fs.promises.symlink(path.join(dataSkillsRoot, 'orphan'), path.join(mirrorRoot, 'orphan'), 'dir')
+      await skillService.reconcileSkills()
 
-      // User-dropped real skill (has SKILL.md) → left untouched, never adopted.
+      // plugin bridge manifest written
+      await expect(
+        fs.promises.readFile(path.join(path.dirname(mirrorRoot), '.claude-plugin', 'plugin.json'), 'utf-8')
+      ).resolves.toBe('{\n  "name": "cherry-studio-skills"\n}\n')
+      // heal: skill-one mirrored
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+      // prune: non-builtin 'gone' removed
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'gone'))
+      ).toHaveLength(0)
+      // builtin kept despite missing files
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'builtin-gone'))
+      ).toHaveLength(1)
+    })
+
+    it('reconcileSkills adopts an untracked library skill into the catalog', async () => {
+      vi.mocked(parseSkillMetadata).mockResolvedValue(
+        skillMeta('new-skill', { name: 'New Skill', description: 'freshly authored' })
+      )
+      await writeLibrarySkill('new-skill')
+
+      await skillService.reconcileSkills()
+
+      const rows = await dbh.db
+        .select()
+        .from(agentGlobalSkillTable)
+        .where(eq(agentGlobalSkillTable.folderName, 'new-skill'))
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.source).toBe('local')
+      expect(rows[0]?.name).toBe('New Skill')
+      expect(rows[0]?.isEnabled).toBe(false)
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(true)
+    })
+
+    it('reconcileSkills absorbs an agent-dropped mirror skill into the managed library', async () => {
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('dropped', { name: 'Dropped' }))
+      // Agent authored a skill in place under CLAUDE_CONFIG_DIR/skills (a real dir).
       const dropped = path.join(mirrorRoot, 'dropped')
       await fs.promises.mkdir(dropped, { recursive: true })
       await fs.promises.writeFile(path.join(dropped, 'SKILL.md'), '# dropped')
 
-      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
+      await skillService.reconcileSkills()
 
+      // relocated into the managed library
+      await expect(fs.promises.access(path.join(dataSkillsRoot, 'dropped', 'SKILL.md'))).resolves.toBeUndefined()
+      // mirror entry is now a managed symlink, not the original real dir
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'dropped'))).isSymbolicLink()).toBe(true)
+      // registered in the catalog
+      const rows = await dbh.db
+        .select()
+        .from(agentGlobalSkillTable)
+        .where(eq(agentGlobalSkillTable.folderName, 'dropped'))
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.source).toBe('local')
+    })
+
+    it('reconcileSkills does not prune the catalog when the library root is unreadable', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'ghost',
+        folderName: 'ghost',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false
+      })
+      // Simulate a transient read failure of the library root.
+      await fs.promises.rm(dataSkillsRoot, { recursive: true, force: true })
+
+      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
       try {
         await skillService.reconcileSkills()
-
-        await expect(
-          fs.promises.readFile(path.join(path.dirname(mirrorRoot), '.claude-plugin', 'plugin.json'), 'utf-8')
-        ).resolves.toBe('{\n  "name": "cherry-studio-skills"\n}\n')
-
-        // heal: DB skill with files is mirrored
-        await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
-        // warn: DB skill whose source files are missing
-        expect(warnSpy).toHaveBeenCalledWith(
-          'Skill source files missing; skipping mirror',
-          expect.objectContaining({ folderName: 'gone' })
-        )
-        // user-dropped: no DB row created, files left in place
-        const droppedRow = await dbh.db
-          .select()
-          .from(agentGlobalSkillTable)
-          .where(eq(agentGlobalSkillTable.folderName, 'dropped'))
-        expect(droppedRow).toHaveLength(0)
-        await expect(fs.promises.access(path.join(mirrorRoot, 'dropped', 'SKILL.md'))).resolves.toBeUndefined()
-        await expect(fs.promises.access(path.join(dataSkillsRoot, 'dropped'))).rejects.toThrow()
-        // prune: managed-orphan mirror entry removed
-        await expect(fs.promises.access(path.join(mirrorRoot, 'orphan'))).rejects.toThrow()
+        expect(
+          await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'ghost'))
+        ).toHaveLength(1)
       } finally {
         warnSpy.mockRestore()
       }

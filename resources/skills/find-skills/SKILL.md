@@ -132,15 +132,24 @@ Before installing any skill you **MUST**:
 3. **Ask the user for explicit confirmation** — do NOT run `npx skills add`
    until the user says "yes" or equivalent. Never install silently.
 
-Only after the user confirms, run:
+Only after the user confirms, install the skill **into Cherry's skills directory**
+so it shows up in the app. Do NOT use `-g` — the global flag installs into a shared,
+user-level CLI directory that Cherry does not manage, so the skill would never appear.
 
 ```bash
-npx skills add <owner/repo@skill> -g -y
+# 1) fetch the skill (project-local, NOT global); -y skips the CLI's own prompt
+npx skills add <owner/repo@skill> -y
+
+# 2) move the installed skill folder into Cherry's managed skills directory.
+#    The CLI prints where it installed the skill — use that path as <install-path>.
+mkdir -p "$CLAUDE_CONFIG_DIR/skills"
+cp -r <install-path> "$CLAUDE_CONFIG_DIR/skills/"
 ```
 
-The `-g` flag installs globally (user-level) and `-y` skips the CLI's own
-interactive prompt — the user confirmation step above is what ensures the
-install was actually reviewed and approved, so it must happen first.
+The user-confirmation step above is what ensures the install was actually reviewed
+and approved, so it must happen first. Once the folder is under
+`$CLAUDE_CONFIG_DIR/skills`, Cherry's skill sync detects it, absorbs it into its
+managed library, and lists it in the app — no registration step.
 
 ## Common Skill Categories
 
@@ -176,6 +185,6 @@ Example:
 I searched for skills related to "xyz" but didn't find any matches.
 I can still help you with this task directly! Would you like me to proceed?
 
-If this is something you do often, you could create your own skill:
-npx skills init my-xyz-skill
+If this is something you do often, I can author a custom skill for you — just ask
+me to "create a skill for <task>" and I'll write one into Cherry's skills directory.
 ```
