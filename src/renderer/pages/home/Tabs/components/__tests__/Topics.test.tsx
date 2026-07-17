@@ -1,3 +1,4 @@
+import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
@@ -198,7 +199,10 @@ const cacheHookMocks = vi.hoisted(() => ({
   values: new Map<string, unknown>()
 }))
 
-vi.mock('@data/hooks/useCache', () => ({
+vi.mock('@data/hooks/useCache', async (importOriginal) => ({
+  // Real hook over the globally mocked cacheService: the stream-status tests
+  // seed that store via setShared and spy on its subscribe.
+  useSharedCacheSelector: (await importOriginal<typeof UseCacheModule>()).useSharedCacheSelector,
   useCache: (key: string) => {
     if (!cacheHookMocks.setters.has(key)) {
       cacheHookMocks.setters.set(key, (value: unknown) => {
