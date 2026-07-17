@@ -2,7 +2,12 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase, KnowledgeItemOf, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
+import type {
+  KnowledgeBase,
+  KnowledgeItem,
+  KnowledgeItemOf,
+  RestoreKnowledgeBaseResult
+} from '@shared/data/types/knowledge'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,7 +39,7 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useDeleteKnowledgeItem: (baseId: string) => mockUseDeleteKnowledgeItem(baseId),
-  useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId),
+  useKnowledgeItems: (baseId: string, groupId?: string | null) => mockUseKnowledgeItems(baseId, groupId),
   useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
 }))
 
@@ -235,24 +240,35 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onAdd,
     onItemClick,
     onPreviewFile,
+    onDrillIntoDirectory,
+    currentDirectory,
     onDelete,
     onReindex
   }: {
-    items: Array<{ id: string }>
+    items: KnowledgeItem[]
     isLoading: boolean
     onAdd: () => void
     onItemClick: (itemId: string) => void
     onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
+    onDrillIntoDirectory?: (item: KnowledgeItemOf<'directory'>) => void
+    currentDirectory?: KnowledgeItemOf<'directory'> | null
     onDelete: (item: { id: string }) => void | Promise<void>
     onReindex: (item: { id: string }) => void | Promise<void>
   }) => (
     <div>
-      <div data-testid="data-source-panel">{`${items.length}:${isLoading ? 'loading' : 'idle'}`}</div>
+      <div data-testid="data-source-panel" data-current-directory={currentDirectory?.id ?? 'root'}>
+        {`${items.length}:${isLoading ? 'loading' : 'idle'}`}
+      </div>
       <button type="button" onClick={onAdd}>
         Open Add Source
       </button>
       {items.map((item) => (
         <div key={item.id}>
+          {item.type === 'directory' ? (
+            <button type="button" onClick={() => onDrillIntoDirectory?.(item)}>
+              DrillDirectory {item.id}
+            </button>
+          ) : null}
           <button type="button" onClick={() => onItemClick(item.id)}>
             OpenChunks {item.id}
           </button>
@@ -535,6 +551,21 @@ const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> =>
   data: {
     source: id,
     content: 'Example note'
+  },
+  status: 'completed',
+  error: null,
+  createdAt: '2026-04-21T10:00:00+08:00',
+  updatedAt: '2026-04-21T10:00:00+08:00'
+})
+
+const createKnowledgeDirectoryItem = ({ id }: { id: string }): KnowledgeItemOf<'directory'> => ({
+  baseId: 'base-1',
+  groupId: null,
+  id,
+  type: 'directory',
+  data: {
+    source: `/knowledge/${id}`,
+    relativePath: id
   },
   status: 'completed',
   error: null,
@@ -865,6 +896,35 @@ describe('KnowledgePage', () => {
 
     expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+  })
+
+  it('returns from an embedded preview to the current directory', async () => {
+    const directory = createKnowledgeDirectoryItem({ id: 'directory-1' })
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockImplementation((_baseId: string, groupId: string | null) => ({
+      items: groupId === directory.id ? [createKnowledgeItem({ id: 'item-1' })] : [directory],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    render(<KnowledgePage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'DrillDirectory directory-1' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveAttribute('data-current-directory', 'directory-1')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'PreviewFile item-1' }))
+    fireEvent.click(screen.getByRole('button', { name: '返回' }))
+
+    expect(screen.getByTestId('data-source-panel')).toHaveAttribute('data-current-directory', 'directory-1')
+    expect(mockUseKnowledgeItems).toHaveBeenLastCalledWith('base-1', 'directory-1')
   })
 
   it('clears the embedded file preview when switching knowledge bases', async () => {

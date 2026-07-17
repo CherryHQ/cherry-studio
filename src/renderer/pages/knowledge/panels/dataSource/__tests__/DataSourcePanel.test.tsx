@@ -613,7 +613,7 @@ describe('DataSourcePanel', () => {
     expect(onDelete).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'file-2' }))
   })
 
-  it('opens the source with the system tool on a file row click instead of viewing chunks', () => {
+  it('dispatches a file row click to source preview instead of viewing chunks', () => {
     const onItemClick = vi.fn()
     const item = createFileItem({ id: 'file-1', originName: '季度报告.pdf' })
 

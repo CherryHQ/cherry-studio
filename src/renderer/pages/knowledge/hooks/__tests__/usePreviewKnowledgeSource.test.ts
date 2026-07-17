@@ -5,6 +5,8 @@ import {
   createUrlItem
 } from '@renderer/pages/knowledge/panels/dataSource/__tests__/testUtils'
 import { toast } from '@renderer/services/toast'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -205,8 +207,11 @@ describe('usePreviewKnowledgeSource', () => {
     })
   })
 
-  it('does not fall back to the live URL when captured snapshot resolution fails', async () => {
-    const previewError = new Error('snapshot path unavailable')
+  it('shows a localized warning without falling back when a captured snapshot path is unavailable', async () => {
+    const previewError = new IpcError(
+      knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE,
+      'Knowledge source path is unavailable'
+    )
     mockIpcRequest.mockRejectedValueOnce(previewError)
     const { result } = renderHook(() => usePreviewKnowledgeSource(previewFileMock))
 
@@ -222,7 +227,8 @@ describe('usePreviewKnowledgeSource', () => {
 
     expect(mockOpenExternal).not.toHaveBeenCalled()
     expect(previewFileMock).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledWith('预览原文失败: snapshot path unavailable')
+    expect(toast.warning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
+    expect(toast.error).not.toHaveBeenCalled()
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to preview knowledge source', previewError, {
       itemId: 'url-1',
       itemType: 'url',

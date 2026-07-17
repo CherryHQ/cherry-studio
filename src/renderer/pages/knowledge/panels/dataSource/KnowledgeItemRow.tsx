@@ -95,9 +95,9 @@ const KnowledgeItemRow = ({
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
-  // Left-click activates the row: file/url open with the system tool and a directory drills into
-  // its children — all status-independent (the source exists regardless of index state). A note
-  // has no external target, so it only activates once its in-app chunk view is ready (`completed`).
+  // Files and URLs delegate preview/fallback/error handling to `previewSource`, while directories
+  // drill into their children; all three remain status-independent. Notes activate only once their
+  // in-app chunk view is ready (`completed`).
   const canActivate = item.type === 'note' ? canViewChunks : true
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)

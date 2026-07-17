@@ -106,8 +106,8 @@ const DataSourcePanel = ({
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
-  // Left-click dispatch by item type: a directory drills in, files and captured URLs open in the
-  // embedded preview, uncaptured URLs open in the system browser, and notes show their chunks.
+  // A directory drills in; files and captured URLs preview inline; uncaptured valid HTTP URLs open
+  // in the system browser; notes show chunks. `previewSource` owns warnings and error toasts.
   const handleActivateItem = useCallback(
     (item: KnowledgeItem) => {
       if (item.type === 'directory') {

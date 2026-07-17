@@ -38,7 +38,7 @@ const KnowledgePageDetailSection = () => {
   const [filePreview, setFilePreview] = useState<KnowledgeFilePreviewTarget | null>(null)
   const currentDirectory = directoryStack.at(-1) ?? null
 
-  // A different base has its own tree, so start each base back at its root.
+  // A different base has its own tree and preview context, so return to its root source list.
   useEffect(() => {
     setDirectoryStack([])
     setFilePreview(null)

@@ -9,8 +9,8 @@ export interface KnowledgeSelectOption {
 }
 
 export interface KnowledgeFilePreviewTarget {
-  fileName: string
-  filePath: FilePath
+  readonly fileName: string
+  readonly filePath: FilePath
 }
 
 export interface KnowledgeRagConfigFormValues {

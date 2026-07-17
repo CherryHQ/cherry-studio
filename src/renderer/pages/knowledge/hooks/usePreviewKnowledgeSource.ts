@@ -4,6 +4,8 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { getKnowledgeItemDisplayTitle, type KnowledgeItem } from '@shared/data/types/knowledge'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeUrl } from 'strict-url-sanitise'
@@ -66,6 +68,10 @@ export const usePreviewKnowledgeSource = (onPreviewFile: (target: KnowledgeFileP
           itemType: item.type,
           source
         })
+        if (error instanceof IpcError && error.code === knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE) {
+          toast.warning(t('knowledge.data_source.preview.unavailable'))
+          return
+        }
         toast.error(formatErrorMessageWithPrefix(previewError, t('knowledge.data_source.preview.failed')))
       }
     },

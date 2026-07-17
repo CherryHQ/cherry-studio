@@ -75,6 +75,8 @@ export const knowledgeRequestSchemas = {
     input: z.strictObject({ baseId: baseIdSchema, query: z.string().trim().min(1).max(1000) }),
     output: z.array(KnowledgeSearchResultSchema)
   }),
+  // Resolve only the knowledge-managed raw copy or captured URL snapshot. `itemId` is the ownership
+  // authority; accepting a separate baseId would make mismatched item/base pairs representable.
   'knowledge.get_file_path': defineRoute({
     input: z.strictObject({ itemId: z.string().trim().min(1) }),
     output: AbsolutePathSchema

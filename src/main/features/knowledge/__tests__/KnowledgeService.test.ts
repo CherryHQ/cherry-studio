@@ -1848,6 +1848,19 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('rejects preview path resolution for expanded directories with a relative path', () => {
+    const service = new KnowledgeService()
+    const directory = createDirectoryItem('directory-1', null, 'completed')
+    knowledgeItemGetByIdMock.mockReturnValue({
+      ...directory,
+      data: { ...directory.data, relativePath: 'stored-directory' }
+    })
+
+    expect(() => service.getFilePath('directory-1')).toThrow(
+      "Knowledge item 'directory-1' must be a file or URL to preview its source"
+    )
+  })
+
   it('searches embedding-backed bases with hybrid retrieval and keeps ranking scores', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())
