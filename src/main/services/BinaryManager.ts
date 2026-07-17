@@ -25,6 +25,7 @@ import {
 } from '@shared/data/presets/binaryTools'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type {
+  BinaryApplication,
   BinaryAvailability,
   BinaryInstallRequest,
   BinaryOperation,
@@ -305,11 +306,28 @@ export class BinaryManager extends BaseService {
     for (const name of requestedNames) addCandidate(name, name)
 
     const installed: Record<string, Array<{ version?: string; active?: boolean }>> = {}
+    // Backend state is derived once and drives the independent application fact:
+    // a missing backend is `backend_unavailable`, a failed/malformed query is
+    // `query_failed`. Neither may ever collapse a tool to `absent`.
+    let queryFailed = false
     if (this.miseBin) {
       try {
         const { stdout } = await this.runMise(['ls', '--json'])
-        Object.assign(installed, JSON.parse(stdout) as typeof installed)
+        const parsed: unknown = JSON.parse(stdout)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('mise ls --json returned a non-object shape')
+        }
+        for (const [spec, entries] of Object.entries(parsed)) {
+          if (!Array.isArray(entries)) throw new Error(`mise ls --json returned invalid entries for ${spec}`)
+          for (const entry of entries) {
+            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+              throw new Error(`mise ls --json returned an invalid install for ${spec}`)
+            }
+          }
+        }
+        Object.assign(installed, parsed as typeof installed)
       } catch (err) {
+        queryFailed = true
         logger.warn('Failed to query installed versions via mise ls', {
           error: err instanceof Error ? err.message : String(err)
         })
@@ -339,28 +357,75 @@ export class BinaryManager extends BaseService {
     }
     const bundled = this.probeBundled()
     const shimsDir = getBinarySearchDirs()[0]
-    const miseEntries = await Promise.all(
-      [...names].map(async (name): Promise<[string, { path: string; version?: string }] | null> => {
-        const tool = candidates.get(name)
-        const entries = tool ? installedFor(tool) : undefined
-        if (!entries?.length) return null
-        const shimPath = path.join(shimsDir, getBinaryName(name))
+
+    // The exact-application fact is independent of runnable availability. When the
+    // backend cannot answer, every name is `unknown` with the reason — never a
+    // misleading `absent` inferred from an empty query.
+    const backendUnknown: BinaryApplication | null = !this.miseBin
+      ? { status: 'unknown', reason: 'backend_unavailable' }
+      : queryFailed
+        ? { status: 'unknown', reason: 'query_failed' }
+        : null
+
+    type DerivedTool = { application?: BinaryApplication; mise?: { path: string; version?: string } }
+
+    const hasExecutableCandidateShim = async (shimPath: string): Promise<boolean> => {
+      if (!fs.existsSync(shimPath)) return false
+      try {
+        await fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    // `mise which` is reserved for ambiguous paths (unknown/conflict); the
+    // common exact-applied path remains one batched listing plus a shim check.
+    const derive = async (name: string): Promise<DerivedTool> => {
+      const tool = candidates.get(name)
+      if (!tool) return {}
+
+      const shimPath = path.join(shimsDir, getBinaryName(name))
+      if (backendUnknown) {
+        if (
+          this.miseBin &&
+          (await hasExecutableCandidateShim(shimPath)) &&
+          (await this.resolveManagedBinaryPath(name))
+        ) {
+          return { application: backendUnknown, mise: { path: shimPath } }
+        }
+        return { application: backendUnknown }
+      }
+
+      const entries = installedFor(tool)
+      if (entries?.length) {
+        const version = entries.find((entry) => entry.active)?.version ?? entries.at(-1)?.version
         try {
           await fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
         } catch {
-          return null
+          return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
-        const version = entries.find((entry) => entry.active)?.version ?? entries.at(-1)?.version
-        return [name, { path: shimPath, ...(version ? { version } : {}) }]
-      })
-    )
-    const misePaths = new Map(
-      miseEntries.filter((entry): entry is [string, { path: string; version?: string }] => !!entry)
-    )
-    const system = await this.probeSystem([...names].filter((name) => !misePaths.has(name) && !(name in bundled)))
+        return {
+          application: { status: 'applied', ...(version ? { version } : {}) },
+          mise: { path: shimPath, ...(version ? { version } : {}) }
+        }
+      }
+
+      if (!(await hasExecutableCandidateShim(shimPath))) return { application: { status: 'absent' } }
+      if (await this.resolveManagedBinaryPath(name)) {
+        return { application: { status: 'conflict' }, mise: { path: shimPath } }
+      }
+
+      logger.warn('Ignoring stale mise shim with no resolvable install', { name, shimPath })
+      return { application: { status: 'absent' } }
+    }
+
+    const derived = new Map(await Promise.all([...names].map(async (name) => [name, await derive(name)] as const)))
+    const system = await this.probeSystem([...names].filter((name) => !derived.get(name)?.mise && !(name in bundled)))
     const snapshots: Record<string, BinaryToolSnapshot> = {}
     for (const name of names) {
-      const mise = misePaths.get(name)
+      const derivedTool = derived.get(name)!
+      const mise = derivedTool.mise
       const availability: BinaryAvailability = mise
         ? {
             source: 'mise',
@@ -393,6 +458,7 @@ export class BinaryManager extends BaseService {
         name,
         ...(intentsByName.has(name) ? { intent: intentsByName.get(name)! } : {}),
         availability,
+        ...(derivedTool.application ? { application: derivedTool.application } : {}),
         ...(operation && !staleFailedInstall ? { operation } : {})
       }
     }

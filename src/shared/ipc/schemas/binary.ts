@@ -1,6 +1,7 @@
 import type { BinaryManifestEntry } from '@shared/data/preference/preferenceTypes'
 import { TOOL_NAME_RE } from '@shared/data/presets/binaryTools'
 import type {
+  BinaryApplication,
   BinaryAvailability,
   BinaryInstallRequest,
   BinaryOperation,
@@ -50,6 +51,14 @@ const binaryAvailabilitySchema: z.ZodType<BinaryAvailability> = z.discriminatedU
   z.object({ source: z.literal('none') })
 ])
 
+const binaryApplicationSchema: z.ZodType<BinaryApplication> = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('applied'), version: z.string().optional() }),
+  z.object({ status: z.literal('broken'), version: z.string().optional() }),
+  z.object({ status: z.literal('absent') }),
+  z.object({ status: z.literal('conflict') }),
+  z.object({ status: z.literal('unknown'), reason: z.enum(['backend_unavailable', 'query_failed']) })
+])
+
 const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('status', [
   z.object({ status: z.literal('installing') }),
   z.object({ status: z.literal('removing') }),
@@ -65,6 +74,7 @@ const binaryToolSnapshotSchema: z.ZodType<BinaryToolSnapshot> = z.object({
   name: z.string(),
   intent: binaryManifestEntrySchema.optional(),
   availability: binaryAvailabilitySchema,
+  application: binaryApplicationSchema.optional(),
   operation: binaryOperationSchema.optional()
 })
 

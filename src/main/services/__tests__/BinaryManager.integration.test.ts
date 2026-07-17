@@ -97,7 +97,8 @@ if (command === 'use') {
       fd: {
         name: 'fd',
         intent: { name: 'fd', tool: 'fd' },
-        availability: { source: 'mise', tool: 'fd', path: path.join(tempDir, 'shims', 'fd'), version: '1.2.3' }
+        availability: { source: 'mise', tool: 'fd', path: path.join(tempDir, 'shims', 'fd'), version: '1.2.3' },
+        application: { status: 'applied', version: '1.2.3' }
       }
     })
 

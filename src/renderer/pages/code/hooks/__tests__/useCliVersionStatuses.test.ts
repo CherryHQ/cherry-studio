@@ -16,7 +16,8 @@ const setSnapshots = (records: Record<string, BinaryToolSnapshot>) => {
 const miseSnapshot = (name: string, tool = name, version = '1.0.0', owned = true): BinaryToolSnapshot => ({
   name,
   ...(owned ? { intent: { name, tool } } : {}),
-  availability: { source: 'mise', tool, path: `/mise/${name}`, version }
+  availability: { source: 'mise', tool, path: `/mise/${name}`, version },
+  application: { status: 'applied', version }
 })
 
 vi.mock('@renderer/ipc', () => ({

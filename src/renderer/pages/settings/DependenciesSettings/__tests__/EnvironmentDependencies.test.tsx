@@ -35,6 +35,7 @@ const miseSnapshot = (
   name,
   ...(owned ? { intent: { name, tool } } : {}),
   availability: { source: 'mise', tool, path: `/mise/${name}`, version },
+  application: { status: 'applied', version },
   ...(operation ? { operation } : {})
 })
 
@@ -390,11 +391,11 @@ describe('EnvironmentDependencies', () => {
     expect(screen.queryByText('claude')).not.toBeInTheDocument()
   })
 
-  it('uses latest versions only for owned tools', async () => {
+  it('uses latest versions for exactly applied tools independently of ownership', async () => {
     setSnapshots({ uv: miseSnapshot('uv', 'uv', '1.0.0'), fd: miseSnapshot('fd', 'fd', '1.0.0', false) })
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0', fd: '2.0.0' })
     render(<EnvironmentDependencies />)
-    await waitFor(() => expect(screen.getByText('v2.0.0')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('v2.0.0')).toHaveLength(2))
   })
 
   it('hides remove controls for bundled-only presets', async () => {

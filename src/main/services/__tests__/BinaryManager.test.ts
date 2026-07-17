@@ -280,12 +280,21 @@ describe('BinaryManager', () => {
       })
 
       await expect(service.getToolSnapshots(['bun', 'missing'])).resolves.toEqual({
-        bun: { name: 'bun', availability: { source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' } },
-        missing: { name: 'missing', availability: { source: 'system', path: '/usr/local/bin/missing' } },
+        bun: {
+          name: 'bun',
+          availability: { source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' },
+          application: { status: 'absent' }
+        },
+        missing: {
+          name: 'missing',
+          availability: { source: 'system', path: '/usr/local/bin/missing' },
+          application: { status: 'absent' }
+        },
         fd: {
           name: 'fd',
           intent: { name: 'fd', tool: 'fd', requestedVersion: '10.0.0' },
-          availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' }
+          availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
+          application: { status: 'applied', version: '10.0.0' }
         },
         node: {
           name: 'node',
@@ -294,11 +303,13 @@ describe('BinaryManager', () => {
             tool: 'node',
             path: '/mock/feature.binary.data/shims/node',
             version: '22.0.0'
-          }
+          },
+          application: { status: 'applied', version: '22.0.0' }
         },
         later: {
           name: 'later',
           availability: { source: 'none' },
+          application: { status: 'absent' },
           operation: {
             status: 'failed',
             action: 'install',
@@ -325,13 +336,14 @@ describe('BinaryManager', () => {
 
       expect(snapshots.fd).toEqual({
         name: 'fd',
-        availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' }
+        availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
+        application: { status: 'applied', version: '10.0.0' }
       })
       expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
       expect(mockFsp.access).toHaveBeenCalledWith('/mock/feature.binary.data/shims/fd', mockFs.constants.X_OK)
     })
 
-    it('falls back when a matching mise shim is not executable', async () => {
+    it('reports broken and falls back externally when a matching mise shim is not executable', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
@@ -342,8 +354,13 @@ describe('BinaryManager', () => {
       mockFsp.access.mockRejectedValue(new Error('EACCES'))
       vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
 
+      // Exact recipe installed but shim not executable → broken with version, and
+      // availability independently falls back to the external system source.
       await expect(service.getToolSnapshots(['fd'])).resolves.toMatchObject({
-        fd: { availability: { source: 'system', path: '/usr/local/bin/fd' } }
+        fd: {
+          availability: { source: 'system', path: '/usr/local/bin/fd' },
+          application: { status: 'broken', version: '10.0.0' }
+        }
       })
     })
 
@@ -456,6 +473,262 @@ describe('BinaryManager', () => {
       })
       release()
       await expect(pending).rejects.toThrow('mise did not report an installed version')
+    })
+
+    describe('application fact', () => {
+      it('reports absent with no shim and an external fallback for an unbacked recipe', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+        vi.mocked(findCommandInShellEnv).mockResolvedValue(null)
+
+        const snapshots = await service.getToolSnapshots(['fd'])
+
+        expect(snapshots.fd).toEqual({
+          name: 'fd',
+          availability: { source: 'none' },
+          application: { status: 'absent' }
+        })
+        // No shim on disk → no `mise which` conflict probe runs.
+        expect(mockExecFileAsync.mock.calls.some((call: any[]) => call[1][0] === 'which')).toBe(false)
+      })
+
+      it('reports a verified conflict with runnable mise availability when a foreign shim resolves without an exact recipe', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        ;(mockFs.existsSync as any).mockImplementation(
+          (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
+        )
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') return { stdout: '{}', stderr: '' }
+          if (args[0] === 'which') return { stdout: '/opt/other/bin/fd\n', stderr: '' }
+          return { stdout: '', stderr: '' }
+        })
+
+        const snapshots = await service.getToolSnapshots(['fd'])
+
+        // No exact entries, but the shim resolves to a runnable target owned
+        // elsewhere: runnable (availability=mise, no trusted version) yet not applied.
+        expect(snapshots.fd).toEqual({
+          name: 'fd',
+          availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd' },
+          application: { status: 'conflict' }
+        })
+      })
+
+      it('ignores a stale shim as absent and falls back externally when `mise which` fails', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        ;(mockFs.existsSync as any).mockImplementation(
+          (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
+        )
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') return { stdout: '{}', stderr: '' }
+          if (args[0] === 'which') throw new Error('tool fd not found')
+          return { stdout: '', stderr: '' }
+        })
+        vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
+
+        const snapshots = await service.getToolSnapshots(['fd'])
+
+        expect(snapshots.fd).toEqual({
+          name: 'fd',
+          availability: { source: 'system', path: '/usr/local/bin/fd' },
+          application: { status: 'absent' }
+        })
+      })
+
+      it('ignores a stale shim whose which target is inaccessible (absent, none fallback)', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        ;(mockFs.existsSync as any).mockImplementation(
+          (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
+        )
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') return { stdout: '{}', stderr: '' }
+          if (args[0] === 'which') return { stdout: '/opt/gone/fd\n', stderr: '' }
+          return { stdout: '', stderr: '' }
+        })
+        // The shim is executable, but the target returned by `mise which` is gone.
+        ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+          if (candidate === '/opt/gone/fd') throw new Error('ENOENT')
+        })
+        vi.mocked(findCommandInShellEnv).mockResolvedValue(null)
+
+        const snapshots = await service.getToolSnapshots(['fd'])
+
+        expect(snapshots.fd).toEqual({
+          name: 'fd',
+          availability: { source: 'none' },
+          application: { status: 'absent' }
+        })
+      })
+
+      it('reports unknown/backend_unavailable for every name and never runs mise when mise is missing', async () => {
+        const service = new BinaryManager()
+        // miseBin stays null.
+        ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
+        mockFs.readFileSync.mockImplementation((candidate: string) =>
+          candidate === '/mock/cherry.bin/.bun-version'
+            ? '1.2.3'
+            : (() => {
+                throw new Error('ENOENT')
+              })()
+        )
+        vi.mocked(findCommandInShellEnv).mockResolvedValue(null)
+
+        const snapshots = await service.getToolSnapshots(['bun', 'fd'])
+
+        expect(mockExecFileAsync).not.toHaveBeenCalled()
+        // Bundled/system availability is still resolved independently of the fact.
+        expect(snapshots.bun).toEqual({
+          name: 'bun',
+          availability: { source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' },
+          application: { status: 'unknown', reason: 'backend_unavailable' }
+        })
+        expect(snapshots.fd).toEqual({
+          name: 'fd',
+          availability: { source: 'none' },
+          application: { status: 'unknown', reason: 'backend_unavailable' }
+        })
+      })
+
+      it('reports unknown/query_failed while bundled and system availability stay resolvable when mise ls rejects', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
+        mockFs.readFileSync.mockImplementation((candidate: string) =>
+          candidate === '/mock/cherry.bin/.bun-version'
+            ? '1.2.3'
+            : (() => {
+                throw new Error('ENOENT')
+              })()
+        )
+        vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
+          name === 'fd' ? '/usr/local/bin/fd' : null
+        )
+        mockExecFileAsync.mockRejectedValue(new Error('mise ls boom'))
+
+        const snapshots = await service.getToolSnapshots(['bun', 'fd'])
+
+        expect(snapshots.bun).toEqual({
+          name: 'bun',
+          availability: { source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' },
+          application: { status: 'unknown', reason: 'query_failed' }
+        })
+        expect(snapshots.fd).toEqual({
+          name: 'fd',
+          availability: { source: 'system', path: '/usr/local/bin/fd' },
+          application: { status: 'unknown', reason: 'query_failed' }
+        })
+      })
+
+      it('keeps verified mise availability independent when the full listing fails', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        ;(mockFs.existsSync as any).mockImplementation(
+          (candidate: string) => candidate === '/mock/feature.binary.data/shims/fd'
+        )
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') throw new Error('mise ls boom')
+          if (args[0] === 'which') return { stdout: '/opt/other/bin/fd\n', stderr: '' }
+          return { stdout: '', stderr: '' }
+        })
+
+        const snapshots = await service.getToolSnapshots(['fd'])
+
+        expect(snapshots.fd).toEqual({
+          name: 'fd',
+          availability: { source: 'mise', tool: 'fd', path: '/mock/feature.binary.data/shims/fd' },
+          application: { status: 'unknown', reason: 'query_failed' }
+        })
+      })
+
+      it.each([
+        ['a non-object', JSON.stringify(['not', 'an', 'object'])],
+        ['invalid spec entries', JSON.stringify({ fd: {} })]
+      ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        mockExecFileAsync.mockResolvedValue({ stdout, stderr: '' })
+        vi.mocked(findCommandInShellEnv).mockResolvedValue(null)
+
+        const snapshots = await service.getToolSnapshots(['fd'])
+
+        expect(snapshots.fd).toEqual({
+          name: 'fd',
+          availability: { source: 'none' },
+          application: { status: 'unknown', reason: 'query_failed' }
+        })
+      })
+
+      it('preserves a non-semver active version in the applied fact', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        mockExecFileAsync.mockResolvedValue({
+          stdout: JSON.stringify({ fd: [{ version: 'nightly-2026', active: true }] }),
+          stderr: ''
+        })
+
+        const snapshots = await service.getToolSnapshots(['fd'])
+
+        expect(snapshots.fd.application).toEqual({ status: 'applied', version: 'nightly-2026' })
+        expect(snapshots.fd.availability).toEqual({
+          source: 'mise',
+          tool: 'fd',
+          path: '/mock/feature.binary.data/shims/fd',
+          version: 'nightly-2026'
+        })
+      })
+
+      it('normalizes a core: runtime spec to its interpreter name for the applied fact', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: '22.0.0' }]
+        mockExecFileAsync.mockResolvedValue({
+          stdout: JSON.stringify({ 'core:node': [{ version: '22.0.0', active: true }] }),
+          stderr: ''
+        })
+
+        const snapshots = await service.getToolSnapshots([])
+
+        expect(snapshots.node).toEqual({
+          name: 'node',
+          intent: { name: 'node', tool: 'core:node', requestedVersion: '22.0.0' },
+          availability: {
+            source: 'mise',
+            tool: 'core:node',
+            path: '/mock/feature.binary.data/shims/node',
+            version: '22.0.0'
+          },
+          application: { status: 'applied', version: '22.0.0' }
+        })
+      })
+
+      it('checks the mise shim with F_OK on Windows for the applied fact', async () => {
+        platformMock.isWin = true
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = {}
+        mockExecFileAsync.mockResolvedValue({
+          stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }),
+          stderr: ''
+        })
+
+        const snapshots = await service.getToolSnapshots(['fd'])
+
+        expect(snapshots.fd.application).toEqual({ status: 'applied', version: '10.0.0' })
+        expect(mockFsp.access).toHaveBeenCalledWith('/mock/feature.binary.data/shims/fd.exe', mockFs.constants.F_OK)
+      })
     })
   })
 
