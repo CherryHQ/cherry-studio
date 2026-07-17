@@ -1,8 +1,7 @@
 import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
-import SkillIcon from '@renderer/components/icons/SkillIcon'
 import type { InstalledSkill } from '@shared/types/skill'
 import type { TFunction } from 'i18next'
-import { Clock } from 'lucide-react'
+import { Clock, ToolCase } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,7 +46,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
         <DialogHeader className="pr-8">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning-bg text-warning-text">
-              <SkillIcon size={22} strokeWidth={1.5} />
+              <ToolCase size={22} strokeWidth={1.5} />
             </div>
             <div className="min-w-0 pt-0.5">
               <DialogTitle className="truncate">{skill.name}</DialogTitle>

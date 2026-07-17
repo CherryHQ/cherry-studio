@@ -24,7 +24,6 @@ import type { ComposerToolLauncher } from '@renderer/components/composer/toolLau
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
-import SkillIcon from '@renderer/components/icons/SkillIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import {
   type QuickPanelInputAdapter,
@@ -78,6 +77,7 @@ import {
   Settings2,
   Sparkles,
   Terminal,
+  ToolCase,
   TriangleAlert,
   X
 } from 'lucide-react'
@@ -243,7 +243,7 @@ const createSkillQuickPanelItems = (
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
-    icon: <SkillIcon size={16} />,
+    icon: <ToolCase size={16} />,
     suffix: options.skillLabel,
     // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
     filterText: skill.name,
@@ -1093,7 +1093,7 @@ const AgentComposerInner = ({
       rootPanelPlacement: 'trailing',
       order: 60,
       label: skillLabel,
-      icon: <SkillIcon />,
+      icon: <ToolCase />,
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
       action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
@@ -1412,7 +1412,7 @@ const AgentComposerInner = ({
       {
         id: 'skills',
         label: skillLabel,
-        icon: <SkillIcon size={18} aria-hidden />,
+        icon: <ToolCase size={18} aria-hidden />,
         onSelect: ({ unifiedPanelControl }) =>
           unifiedPanelControl?.open({ launcherId: AGENT_SKILLS_LAUNCHER_ID, searchText: skillLabel })
       },

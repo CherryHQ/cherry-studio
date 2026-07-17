@@ -921,7 +921,7 @@ describe('AgentComposer', () => {
     expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(skillButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
-    expect(skillButton.querySelector('.skill-icon')).toBeInTheDocument()
+    expect(skillButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
 
     fireEvent.click(reasoningButton)
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
@@ -1686,7 +1686,7 @@ describe('AgentComposer', () => {
     })
 
     render(<div data-testid="skill-panel-icon">{skillItem?.icon}</div>)
-    expect(screen.getByTestId('skill-panel-icon').querySelector('.skill-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('skill-panel-icon').querySelector('.lucide-tool-case')).toBeInTheDocument()
     expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
 
     mocks.availableSkillsRefresh.mockClear()
