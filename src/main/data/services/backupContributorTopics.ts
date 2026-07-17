@@ -81,9 +81,8 @@ export const TOPICS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         kind: 'junction'
       },
       // topic.assistantId → assistant (ASSISTANTS): optional (onDelete set null). #25-required.
+      // topic.groupId was removed from the topic schema; no TAGS_GROUPS ref (finalize #24).
       { table: table('topic'), column: column('assistantId'), referencedDomain: 'ASSISTANTS', kind: 'optional' }
-      // topic.groupId was removed from the topic schema (groups live on other
-      // entities); do not declare a TAGS_GROUPS ref here — finalize #24 would fail.
     ],
     primaryKeys: [mirrorPk('topic'), mirrorPk('message'), mirrorPk('chat_message_file_ref')],
     aggregates: [
