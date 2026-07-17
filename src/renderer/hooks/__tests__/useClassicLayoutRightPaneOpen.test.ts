@@ -15,7 +15,7 @@ describe('useClassicLayoutRightPaneOpen', () => {
   })
 
   it('uses the page default when chat has no explicit override', () => {
-    MockUseCacheUtils.setPersistCacheValue('ui.chat.right_pane_open_override', null)
+    MockUseCacheUtils.setPersistCacheValue('ui.chat.right_pane_open', null)
 
     const right = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: true }))
     const left = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: false }))
@@ -29,7 +29,7 @@ describe('useClassicLayoutRightPaneOpen', () => {
 
     const setFirstOpen = first.result.current[1]
     act(() => setFirstOpen(false))
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open_override')).toBe(false)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open')).toBe(false)
     first.unmount()
 
     const second = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: true }))
@@ -37,7 +37,7 @@ describe('useClassicLayoutRightPaneOpen', () => {
   })
 
   it('lets an explicit true override a left-side default', () => {
-    MockUseCacheUtils.setPersistCacheValue('ui.chat.right_pane_open_override', true)
+    MockUseCacheUtils.setPersistCacheValue('ui.chat.right_pane_open', true)
 
     const { result } = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: true, defaultOpen: false }))
 
@@ -45,13 +45,13 @@ describe('useClassicLayoutRightPaneOpen', () => {
   })
 
   it('stays closed and ignores normal writes outside classic layout', () => {
-    MockUseCacheUtils.setPersistCacheValue('ui.chat.right_pane_open_override', true)
+    MockUseCacheUtils.setPersistCacheValue('ui.chat.right_pane_open', true)
     const { result } = renderHook(() => useClassicLayoutRightPaneOpen('chat', { enabled: false, defaultOpen: true }))
 
     expect(result.current[0]).toBe(false)
     const setOpen = result.current[1]
     act(() => setOpen(false))
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open_override')).toBe(true)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open')).toBe(true)
   })
 
   it('allows a forced write while the layout preference is changing', () => {
@@ -60,7 +60,7 @@ describe('useClassicLayoutRightPaneOpen', () => {
     const setOpen = result.current[1]
     act(() => setOpen(true, { force: true }))
 
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open_override')).toBe(true)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open')).toBe(true)
   })
 
   it('keeps chat and agent overrides independent', () => {
@@ -72,7 +72,7 @@ describe('useClassicLayoutRightPaneOpen', () => {
     act(() => setChatOpen(false))
     act(() => setAgentOpen(true))
 
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open_override')).toBe(false)
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.agent.right_pane_open_override')).toBe(true)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open')).toBe(false)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.agent.right_pane_open')).toBe(true)
   })
 })

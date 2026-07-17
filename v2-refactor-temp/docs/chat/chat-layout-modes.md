@@ -24,8 +24,8 @@ preference. The layout is derived from the resource-list display mode.
 - `topic.tab.show` controls whether the left resource list is expanded.
 - Classic-layout right-pane state is persisted independently per surface via
   `useClassicLayoutRightPaneOpen(surface, { enabled, defaultOpen })`:
-  `ui.chat.right_pane_open_override` for Home and
-  `ui.agent.right_pane_open_override` for Agent. A `null` override delegates to
+  `ui.chat.right_pane_open` for Home and
+  `ui.agent.right_pane_open` for Agent. A `null` value delegates to
   the page default: the pane opens when the topic/session list is positioned on
   the right in a main window. Explicit open/closed choices persist across page
   re-entry.

@@ -191,7 +191,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
             return agentPageMocks.lastUsedSessionId
           case 'ui.agent.last_used_workspace_id':
             return agentPageMocks.lastUsedWorkspaceId
-          case 'ui.agent.right_pane_open_override':
+          case 'ui.agent.right_pane_open':
             return agentPageMocks.classicLayoutRightPaneOpenOverride
           case 'ui.agent.session.expansion.agent':
             return agentPageMocks.sessionExpansionAgent
@@ -204,7 +204,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         key !== 'ui.agent.last_used_agent_id' &&
         key !== 'ui.agent.last_used_session_id' &&
         key !== 'ui.agent.last_used_workspace_id' &&
-        key !== 'ui.agent.right_pane_open_override' &&
+        key !== 'ui.agent.right_pane_open' &&
         key !== 'ui.agent.session.expansion.agent'
       ) {
         return [undefined, vi.fn()]
@@ -217,7 +217,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         } else if (key === 'ui.agent.last_used_session_id') {
           agentPageMocks.lastUsedSessionId = nextValue as string | null
           agentPageMocks.setLastUsedSessionId(nextValue)
-        } else if (key === 'ui.agent.right_pane_open_override') {
+        } else if (key === 'ui.agent.right_pane_open') {
           agentPageMocks.classicLayoutRightPaneOpenOverride = nextValue as boolean | null
           agentPageMocks.setClassicLayoutRightPaneOpenOverride(nextValue)
         } else if (key === 'ui.agent.session.expansion.agent') {

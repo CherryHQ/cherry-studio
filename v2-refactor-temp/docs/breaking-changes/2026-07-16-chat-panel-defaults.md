@@ -2,7 +2,7 @@
 title: Right-side conversation lists now open by default
 category: changed
 severity: notice
-introduced_in_pr: 6f1e852b1d
+introduced_in_pr: "#17132"
 date: 2026-07-16
 ---
 
@@ -12,7 +12,7 @@ In the classic Chat and Agent layouts, placing conversations or tasks on the rig
 
 ## Why this matters to the user
 
-Existing v2 environments will have their cached right-pane open/closed choice reset once because the previous cache could not distinguish the old system default from an explicit manual close. After that reset, new manual open/closed choices continue to persist independently for Chat and Agent.
+The initial right-pane state now follows the configured list position. Manual open/closed choices continue to persist independently for Chat and Agent after the user changes them.
 
 ## What the user should do
 
@@ -20,4 +20,4 @@ Nothing - this is automatic. Close either right pane again if it should remain c
 
 ## Notes for release manager
 
-The `introduced_in_pr` value records the implementation commit while no PR number is available; replace it with the PR number when the pull request is created.
+The v1 branch does not persist these v2-only pane keys, so no user-state migration is required.
