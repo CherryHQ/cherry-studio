@@ -42,6 +42,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
+import { ComposerToolMenu } from './ComposerToolRuntime'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
@@ -76,6 +77,7 @@ import {
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { FileComposerToken } from './tokenView'
 import type { ComposerToolLauncher } from './toolLauncher'
+import { useCompactComposerPresentation } from './useCompactComposerPresentation'
 import {
   COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
   COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS,
@@ -167,6 +169,11 @@ export interface ComposerSurfaceProps {
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
   renderBelowControls?: (
+    inputAdapter?: QuickPanelInputAdapter,
+    unifiedPanelControl?: ComposerUnifiedPanelControl
+  ) => React.ReactNode
+  compactWhenSingleLine?: boolean
+  renderCompactControls?: (
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
@@ -545,6 +552,8 @@ export default function ComposerSurface({
   onToolLauncherSelect,
   renderLeftControls,
   renderBelowControls,
+  compactWhenSingleLine = false,
+  renderCompactControls,
   sendAccessory
 }: ComposerSurfaceProps) {
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -693,10 +702,13 @@ export default function ComposerSurface({
   const focusEditor = useCallback((position?: 'start' | 'end' | 'all' | number | boolean | null) => {
     editorRef.current?.commands.focus(position)
   }, [])
+  const isEditorComposing = useCallback(() => editorRef.current?.view.composing ?? false, [])
 
   const {
+    compactEditorContentStyle,
+    compactFrameStyle,
     editorContentStyle,
-    editorStyle,
+    editorElementStyle,
     frameRef,
     frameStyle,
     handleResizeKeyDown,
@@ -716,6 +728,40 @@ export default function ComposerSurface({
     focusEditor,
     setTimeoutTimer
   })
+  const { isCompact, requestMeasurement: requestCompactMeasurement } = useCompactComposerPresentation({
+    enabled: compactWhenSingleLine && !hasCustomHeight,
+    frameRef,
+    isComposing: isEditorComposing
+  })
+  const compactMeasurementInputsRef = useRef({
+    draftTokens,
+    fontSize,
+    renderCompactControls,
+    sendAccessory,
+    text,
+    tokens
+  })
+
+  useEffect(() => {
+    const previousInputs = compactMeasurementInputsRef.current
+    const inputsChanged =
+      previousInputs.draftTokens !== draftTokens ||
+      previousInputs.fontSize !== fontSize ||
+      previousInputs.renderCompactControls !== renderCompactControls ||
+      previousInputs.sendAccessory !== sendAccessory ||
+      previousInputs.text !== text ||
+      previousInputs.tokens !== tokens
+
+    compactMeasurementInputsRef.current = {
+      draftTokens,
+      fontSize,
+      renderCompactControls,
+      sendAccessory,
+      text,
+      tokens
+    }
+    if (inputsChanged) requestCompactMeasurement()
+  }, [draftTokens, fontSize, renderCompactControls, requestCompactMeasurement, sendAccessory, text, tokens])
   const toggleEditorExpandedRef = useRef(toggleEditorExpanded)
 
   useLayoutEffect(() => {
@@ -1326,7 +1372,7 @@ export default function ComposerSurface({
           hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
           hasCustomHeight && 'h-full'
         ),
-        style: editorStyle
+        style: editorElementStyle
       },
       handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
         const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
@@ -1517,7 +1563,7 @@ export default function ComposerSurface({
         }
       }
     }),
-    [editorStyle, focusEditor, hasCustomHeight, showBlockedSendReason]
+    [editorElementStyle, focusEditor, hasCustomHeight, showBlockedSendReason]
   )
 
   const memoizedHandlePaste = useCallback(
@@ -1618,6 +1664,7 @@ export default function ComposerSurface({
     editorProps: memoizedEditorProps,
     handlePaste: memoizedHandlePaste,
     onUpdate: ({ editor: updatedEditor }) => {
+      requestCompactMeasurement()
       if (tokenizePromptVariablesInEditor(updatedEditor)) return
 
       const draft = serializeComposerDocument(updatedEditor)
@@ -1920,7 +1967,21 @@ export default function ComposerSurface({
   const belowControls = renderBelowControls?.(inputAdapter, unifiedPanelControl)
   const sendAccessoryElement =
     typeof sendAccessory === 'function' ? sendAccessory(inputAdapter, unifiedPanelControl) : sendAccessory
+  const compactControls = renderCompactControls?.(inputAdapter, unifiedPanelControl)
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
+  const sendAction = showPauseButton ? (
+    <Tooltip content={t('chat.input.pause')} placement="top">
+      <button
+        type="button"
+        className="flex size-7.5 items-center justify-center rounded-full text-error-base hover:bg-accent"
+        aria-label={t('chat.input.pause')}
+        onClick={() => void onPause()}>
+        <CirclePause size={20} />
+      </button>
+    </Tooltip>
+  ) : (
+    <SendMessageButton sendMessage={sendDraft} disabled={sendDisabled} onDisabledClick={showBlockedSendReason} />
+  )
   const editingModeHeader = editingState ? (
     <div
       role="status"
@@ -1964,93 +2025,96 @@ export default function ComposerSurface({
     <div
       id="inputbar"
       data-composer-inputbar=""
+      data-composer-presentation={isCompact ? 'compact' : 'regular'}
       className={cn(
         'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-[0_1px_5px_rgba(15,23,42,0.05)] transition-all duration-200 ease-in-out dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]',
-        editingState ? 'pt-0' : 'pt-2',
+        isCompact || editingState ? 'pt-0' : 'pt-2',
         belowControls ? 'mb-0.5' : 'mb-3',
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'
       )}>
-      <div
-        data-composer-resize-handle=""
-        data-resizing={isEditorResizing || undefined}
-        role="separator"
-        aria-orientation="horizontal"
-        aria-valuemin={editorMinHeight}
-        aria-valuemax={editorMaxHeight}
-        aria-valuenow={resizeHandleValue}
-        aria-label={t('chat.input.resize_height')}
-        tabIndex={0}
-        onMouseDown={startEditorResize}
-        onKeyDown={handleResizeKeyDown}
-        className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-        <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
-      </div>
-      {!editingState ? (
-        <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
-          <span
-            aria-hidden="true"
-            data-composer-expand-corner-line=""
-            className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60"
-          />
-          <Button
-            type="button"
-            onClick={handleExpandControlClick}
-            variant="ghost"
-            size="icon-sm"
-            className="-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100"
-            aria-pressed={hasCustomHeight}
-            aria-label={hasCustomHeight ? t('chat.input.restore') : t('chat.input.expand')}>
-            <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
-          </Button>
-        </div>
+      {!isCompact ? (
+        <>
+          <div
+            data-composer-resize-handle=""
+            data-resizing={isEditorResizing || undefined}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-valuemin={editorMinHeight}
+            aria-valuemax={editorMaxHeight}
+            aria-valuenow={resizeHandleValue}
+            aria-label={t('chat.input.resize_height')}
+            tabIndex={0}
+            onMouseDown={startEditorResize}
+            onKeyDown={handleResizeKeyDown}
+            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
+          </div>
+          {!editingState ? (
+            <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
+              <span
+                aria-hidden="true"
+                data-composer-expand-corner-line=""
+                className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60"
+              />
+              <Button
+                type="button"
+                onClick={handleExpandControlClick}
+                variant="ghost"
+                size="icon-sm"
+                className="-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100"
+                aria-pressed={hasCustomHeight}
+                aria-label={hasCustomHeight ? t('chat.input.restore') : t('chat.input.expand')}>
+                <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
+              </Button>
+            </div>
+          ) : null}
+        </>
       ) : null}
       {editingModeHeader}
       <div
-        ref={frameRef}
-        data-composer-editor-frame=""
-        className={cn('overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
-        onTransitionEnd={handleTransitionEnd}
-        style={frameStyle}>
-        <EditorContent
-          editor={editor}
-          style={editorContentStyle}
-          onFocus={() => {
-            onFocus?.()
-            pasteHandling.setLastFocusedComponent('inputbar')
-          }}
-        />
+        data-composer-compact-row={isCompact ? '' : undefined}
+        className={isCompact ? 'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 px-2 py-1' : 'contents'}>
+        {isCompact ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
+        <div
+          ref={frameRef}
+          data-composer-editor-frame=""
+          className={cn('min-w-0 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
+          onTransitionEnd={handleTransitionEnd}
+          style={isCompact ? compactFrameStyle : frameStyle}>
+          <EditorContent
+            editor={editor}
+            style={isCompact ? compactEditorContentStyle : editorContentStyle}
+            onFocus={() => {
+              onFocus?.()
+              pasteHandling.setLastFocusedComponent('inputbar')
+            }}
+          />
+        </div>
+        {isCompact ? (
+          <div className="flex shrink-0 flex-row items-center gap-1.5">
+            {compactControls}
+            {sendAccessoryElement}
+            {sendAction}
+          </div>
+        ) : null}
       </div>
 
-      <div
-        data-composer-toolbar=""
-        className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
-        <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          {renderLeftControls?.(inputAdapter, unifiedPanelControl)}
+      {!isCompact ? (
+        <div
+          data-composer-toolbar=""
+          className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
+          <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+            {renderLeftControls?.(inputAdapter, unifiedPanelControl)}
+          </div>
+          <div className="flex flex-row items-center gap-1.5">
+            {sendAccessoryElement}
+            {sendAction}
+          </div>
         </div>
-        <div className="flex flex-row items-center gap-1.5">
-          {sendAccessoryElement}
-          {showPauseButton ? (
-            <Tooltip content={t('chat.input.pause')} placement="top">
-              <button
-                type="button"
-                className="flex size-7.5 items-center justify-center rounded-full text-error-base hover:bg-accent"
-                aria-label={t('chat.input.pause')}
-                onClick={() => void onPause()}>
-                <CirclePause size={20} />
-              </button>
-            </Tooltip>
-          ) : (
-            <SendMessageButton
-              sendMessage={sendDraft}
-              disabled={sendDisabled}
-              onDisabledClick={showBlockedSendReason}
-            />
-          )}
-        </div>
-      </div>
+      ) : null}
     </div>
   )
   const inputbarStack = (

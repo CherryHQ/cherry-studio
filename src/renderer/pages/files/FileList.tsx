@@ -145,13 +145,13 @@ export const FileList = memo(function FileList({
         return (
           <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
             <div
-              onDoubleClick={() => {
+              onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
               }}
-              className={`group flex cursor-default items-center gap-2 border-border/15 border-b px-4 py-[6px] transition-colors ${
+              className={`group flex cursor-pointer items-center gap-2 border-border/15 border-b px-4 py-[6px] transition-colors ${
                 selected ? 'bg-accent/50' : 'hover:bg-accent/50'
               }`}>
-              <div className="flex w-5 shrink-0 items-center justify-center">
+              <div className="flex w-5 shrink-0 items-center justify-center" onClick={(e) => e.stopPropagation()}>
                 <Checkbox
                   size="sm"
                   checked={selected}

@@ -7,7 +7,8 @@ import {
   MessageCircle,
   MousePointerClick,
   NotepadText,
-  Rocket
+  Rocket,
+  ScanSearch
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
@@ -35,6 +36,7 @@ describe('getTabIcon', () => {
   it.each([
     ['/app/agents', MousePointerClick],
     ['/app/knowledge', FileSearch],
+    ['/app/file-preview?path=%2Ftmp%2Freport.pdf', ScanSearch],
     ['/app/files', Folder],
     ['/app/notes', NotepadText],
     ['/app/mini-app', LayoutGrid],
