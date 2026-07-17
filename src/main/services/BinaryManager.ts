@@ -29,6 +29,7 @@ import type {
   BinaryAvailability,
   BinaryInstallByNameRequest,
   BinaryOperation,
+  BinaryOperations,
   BinaryRemoveRequest,
   BinaryRemoveResult,
   BinaryToolSnapshot
@@ -85,6 +86,11 @@ const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
 // so lookups stay off the boot path and run with a small concurrency bound.
 const LATEST_VERSIONS_CONCURRENCY = 4
+
+// Main-owned session state. Renderer windows receive operations only through
+// snapshots, so this belongs to CacheService's internal tier rather than its
+// cross-window shared mirror.
+const BINARY_OPERATIONS_CACHE_KEY = 'feature.binary.install_states'
 
 function parseInstallUrl(value: string, setting: string): string | undefined {
   const trimmed = value.trim()
@@ -204,8 +210,12 @@ export class BinaryManager extends BaseService {
   // initial-bootstrap onInit (before onAllReady) from a post-restart onInit
   // (after onAllReady already fired) — see registerPreferenceInvalidation.
   private hasReachedAllReady = false
+  private isShuttingDown = false
+  private normalizationPromise: Promise<void> | null = null
 
   protected async onInit() {
+    this.isShuttingDown = false
+    this.normalizationPromise = null
     // Install-env invalidation subscription: this Background service depends on
     // PreferenceService, a BeforeReady service. A Background onInit is fire-and-forget
     // and races BeforeReady/WhenReady (Application.bootstrap sets isBootstrapped only
@@ -230,13 +240,28 @@ export class BinaryManager extends BaseService {
     // region lookup that nothing in the init path consumes.
   }
 
-  protected override async onAllReady() {
+  protected override onAllReady(): void {
     // System-wide readiness: every phase (incl. BeforeReady's PreferenceService) is
     // initialized, so this is the safe first registration for a Background service,
     // and the first point at which reading/writing Preference is safe.
     this.hasReachedAllReady = true
     this.registerPreferenceInvalidation()
-    await this.normalizeCustomDefinitions()
+
+    // onAllReady is fire-and-forget. Own this deferred hygiene pass explicitly so
+    // service stop can cancel it before start or join it once in flight.
+    const handle = setTimeout(() => {
+      if (this.isShuttingDown) return
+      this.normalizationPromise = this.normalizeCustomDefinitions().catch((err) => {
+        logger.warn('Failed to normalize binary custom registry', { error: this.errorMessage(err) })
+      })
+    }, 0)
+    this.registerDisposable(() => clearTimeout(handle))
+  }
+
+  protected override async onStop(): Promise<void> {
+    this.isShuttingDown = true
+    if (this.normalizationPromise) await this.normalizationPromise
+    this.normalizationPromise = null
   }
 
   /**
@@ -321,7 +346,7 @@ export class BinaryManager extends BaseService {
   public async getToolSnapshots(requestedNames: string[]): Promise<Record<string, BinaryToolSnapshot>> {
     const definitions = this.getCustomDefinitions()
     const customDefinitions = definitions.filter((definition) => !FIXED_CATALOG.has(definition.name))
-    const operations = application.get('CacheService').getShared('feature.binary.install_states') ?? {}
+    const operations = application.get('CacheService').get<BinaryOperations>(BINARY_OPERATIONS_CACHE_KEY) ?? {}
     const definitionsByName = new Map(customDefinitions.map((definition) => [definition.name, definition]))
     const candidates = new Map<string, string>()
     const addCandidate = (name: string, tool: string) => {
@@ -880,16 +905,16 @@ export class BinaryManager extends BaseService {
     }
   }
 
-  /** Session-only operation state; every transition triggers a renderer refresh. */
+  /** Main-owned session operation state; every transition triggers a renderer refresh. */
   private setOperation(name: string, operation: BinaryOperation | null) {
     const cacheService = application.get('CacheService')
-    const operations = { ...cacheService.getShared('feature.binary.install_states') }
+    const operations = { ...cacheService.get<BinaryOperations>(BINARY_OPERATIONS_CACHE_KEY) }
     if (operation) {
       operations[name] = operation
     } else {
       delete operations[name]
     }
-    cacheService.setShared('feature.binary.install_states', operations)
+    cacheService.set(BINARY_OPERATIONS_CACHE_KEY, operations)
     this.broadcastAvailabilityChanged()
   }
 
@@ -1554,7 +1579,17 @@ export class BinaryManager extends BaseService {
    * mutex so it cannot interleave with a concurrent add/install/remove.
    */
   private async normalizeCustomDefinitions(): Promise<void> {
+    if (this.isShuttingDown) return
+    // Hygiene must never queue behind a user mutation and hold shutdown open for
+    // that mutation's install timeout. Skipping is safe: mutations validate the
+    // definitions they consume, and the one-time pass retries next launch.
+    if (this.mutationMutex.isLocked()) {
+      logger.info('Skipped binary custom registry normalization while a mutation is active')
+      return
+    }
+
     await this.mutationMutex.runExclusive(async () => {
+      if (this.isShuttingDown) return
       let raw: unknown
       try {
         raw = application.get('PreferenceService').get('feature.binary.tools')

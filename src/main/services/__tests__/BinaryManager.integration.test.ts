@@ -137,7 +137,7 @@ if (command === 'use') {
       { name: 'node', tool: 'core:node' },
       { name: 'mytool', tool: 'mytool' }
     ])
-    expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toMatchObject({
+    expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toMatchObject({
       mytool: { status: 'failed', action: 'install' }
     })
 

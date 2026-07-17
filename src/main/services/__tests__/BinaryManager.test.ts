@@ -168,6 +168,14 @@ describe('BinaryManager', () => {
     })
   })
 
+  const runAllReadyTasks = async (service: InstanceType<typeof BinaryManager>) => {
+    expect((service as any).onAllReady()).toBeUndefined()
+    // onAllReady owns deferred business work rather than returning its Promise.
+    // This later zero-delay timer runs after BinaryManager's scheduled callback.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    await (service as any).normalizationPromise
+  }
+
   describe('decorators', () => {
     it('is registered as Background phase', () => {
       expect(getPhase(BinaryManager)).toBe(Phase.Background)
@@ -186,10 +194,10 @@ describe('BinaryManager', () => {
       'app.proxy.bypass_rules'
     ]
 
-    it('registers the invalidation for every atomic install preference at system-wide readiness', () => {
+    it('registers the invalidation for every atomic install preference at system-wide readiness', async () => {
       const service = new BinaryManager()
 
-      ;(service as any).onAllReady()
+      await runAllReadyTasks(service)
 
       expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledWith(EXPECTED_KEYS, expect.any(Function))
     })
@@ -209,7 +217,7 @@ describe('BinaryManager', () => {
       expect(mockPreferenceService.subscribeMultipleChanges).not.toHaveBeenCalled()
 
       // System-wide readiness → safe first registration.
-      ;(service as any).onAllReady()
+      await runAllReadyTasks(service)
       expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledTimes(1)
     })
 
@@ -222,7 +230,7 @@ describe('BinaryManager', () => {
 
       // Initial bootstrap: onInit (no subscription yet) then onAllReady (first registration).
       await (service as any).onInit()
-      ;(service as any).onAllReady()
+      await runAllReadyTasks(service)
       expect(mockPreferenceService.subscribeMultipleChanges).toHaveBeenCalledTimes(1)
 
       // Framework stop(): dispose every tracked disposable, then reset the array.
@@ -254,7 +262,7 @@ describe('BinaryManager', () => {
       setRegistry([{ name: 'mytool', tool: 'npm:mytool', version: '1.2.3' }])
       const service = new BinaryManager()
 
-      await (service as any).onAllReady()
+      await runAllReadyTasks(service)
 
       expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [
         { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.2.3' }
@@ -265,7 +273,7 @@ describe('BinaryManager', () => {
       setRegistry([{ name: 'gh', tool: 'gh' }])
       const service = new BinaryManager()
 
-      await (service as any).onAllReady()
+      await runAllReadyTasks(service)
 
       expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
     })
@@ -274,7 +282,7 @@ describe('BinaryManager', () => {
       setRegistry([{ name: 'myuv', tool: 'core:uv' }])
       const service = new BinaryManager()
 
-      await (service as any).onAllReady()
+      await runAllReadyTasks(service)
 
       expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
     })
@@ -286,7 +294,7 @@ describe('BinaryManager', () => {
       ])
       const service = new BinaryManager()
 
-      await (service as any).onAllReady()
+      await runAllReadyTasks(service)
 
       expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [
         { name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }
@@ -301,7 +309,7 @@ describe('BinaryManager', () => {
       ])
       const service = new BinaryManager()
 
-      await (service as any).onAllReady()
+      await runAllReadyTasks(service)
 
       expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [{ name: 'a', tool: 'foo' }])
     })
@@ -310,7 +318,7 @@ describe('BinaryManager', () => {
       setRegistry([{ name: 'mytool', tool: 'npm:mytool', requestedVersion: '1.0.0' }])
       const service = new BinaryManager()
 
-      await (service as any).onAllReady()
+      await runAllReadyTasks(service)
 
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
@@ -319,7 +327,7 @@ describe('BinaryManager', () => {
       setRegistry([{ name: 'mytool', tool: 'npm:mytool', version: '1.0.0' }])
       const service = new BinaryManager()
 
-      await (service as any).onAllReady()
+      await runAllReadyTasks(service)
 
       // Pure schema hygiene: it rewrites Preference but never shells out to mise
       // or touches binary files.
@@ -337,7 +345,63 @@ describe('BinaryManager', () => {
       mockPreferenceService.set.mockRejectedValue(new Error('preference write failed'))
       const service = new BinaryManager()
 
-      await expect((service as any).onAllReady()).resolves.toBeUndefined()
+      await expect(runAllReadyTasks(service)).resolves.toBeUndefined()
+    })
+
+    it('skips scheduled normalization when the service stops before it starts', async () => {
+      vi.useFakeTimers()
+      try {
+        setRegistry([{ name: 'mytool', tool: 'npm:mytool', version: '1.0.0' }])
+        const service = new BinaryManager()
+
+        expect((service as any).onAllReady()).toBeUndefined()
+        await (service as any).onStop()
+        await vi.runAllTimersAsync()
+
+        expect(mockPreferenceService.set).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not queue normalization behind an active user mutation', async () => {
+      setRegistry([{ name: 'mytool', tool: 'npm:mytool', version: '1.0.0' }])
+      const service = new BinaryManager()
+      const releaseMutation = await (service as any).mutationMutex.acquire()
+
+      try {
+        await runAllReadyTasks(service)
+        expect(mockPreferenceService.set).not.toHaveBeenCalled()
+        await expect((service as any).onStop()).resolves.toBeUndefined()
+      } finally {
+        releaseMutation()
+      }
+    })
+
+    it('waits for in-flight normalization during service stop', async () => {
+      setRegistry([{ name: 'mytool', tool: 'npm:mytool', version: '1.0.0' }])
+      let finishWrite!: () => void
+      mockPreferenceService.set.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishWrite = resolve
+          })
+      )
+      const service = new BinaryManager()
+
+      expect((service as any).onAllReady()).toBeUndefined()
+      await vi.waitFor(() => expect(mockPreferenceService.set).toHaveBeenCalled())
+
+      let stopped = false
+      const stop = (service as any).onStop().then(() => {
+        stopped = true
+      })
+      await Promise.resolve()
+      expect(stopped).toBe(false)
+
+      finishWrite()
+      await stop
+      expect(stopped).toBe(true)
     })
   })
 
@@ -347,7 +411,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       manifestRef.value = [{ name: 'myfd', tool: 'github:sharkdp/fd', requestedVersion: '10.0.0' }]
-      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
         later: {
           status: 'failed',
           action: 'install',
@@ -489,7 +553,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
-      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
         fd: { status: 'failed', action: 'install', error: 'offline' }
       })
       mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
@@ -506,7 +570,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
-      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
         fd: { status: 'failed', action: 'install', error: 'manifest write failed' }
       })
       mockExecFileAsync.mockResolvedValue({
@@ -525,7 +589,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
-      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.install_states', {
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
         bun: { status: 'failed', action: 'install', error: 'offline' }
       })
       ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
@@ -905,7 +969,7 @@ describe('BinaryManager', () => {
       return service
     }
     const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
-    const operations = () => MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')
+    const operations = () => MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')
 
     it('rejects an unknown tool name that is neither fixed nor custom', async () => {
       await expect(makeService().removeTool({ name: 'nope' })).rejects.toThrow('Unknown tool')
@@ -1730,7 +1794,7 @@ describe('BinaryManager', () => {
       return service
     }
     const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
-    const operations = () => MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')
+    const operations = () => MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')
 
     it('rejects a definition that reuses a built-in tool name', async () => {
       // Even with the built-in's own canonical recipe, a fixed name is reserved.
@@ -2201,14 +2265,14 @@ describe('BinaryManager', () => {
       // installByName dedupes by target version, so two name-only installs coalesce.
       const first = service.installByName({ name: 'fd' })
       const second = service.installByName({ name: 'fd' })
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
         fd: { status: 'installing' }
       })
       releaseInstall()
 
       await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined])
       expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')).toHaveLength(1)
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
     })
 
     it('rejects a remove while the same tool install is queued without replacing its operation', async () => {
@@ -2219,7 +2283,7 @@ describe('BinaryManager', () => {
       const install = service.installByName({ name: 'fd' })
 
       await expect(service.removeTool({ name: 'fd' })).rejects.toThrow('already installing')
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
         fd: { status: 'installing' }
       })
 
@@ -2234,7 +2298,7 @@ describe('BinaryManager', () => {
       const removal = service.removeTool({ name: 'fd' })
 
       await expect(service.installByName({ name: 'fd' })).rejects.toThrow('already removing')
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
         fd: { status: 'removing' }
       })
 
@@ -2246,7 +2310,7 @@ describe('BinaryManager', () => {
         reason: 'backend_unavailable',
         message: expect.stringContaining('fd')
       })
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
     })
 
     it('rejects a second same-name install with a different target without changing the in-flight state', async () => {
@@ -2267,7 +2331,7 @@ describe('BinaryManager', () => {
 
       const first = service.installByName({ name: 'fd' })
       await expect(service.installByName({ name: 'fd', targetVersion: '2.0.0' })).rejects.toThrow('already installing')
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
         fd: { status: 'installing' }
       })
       releaseInstall()
@@ -2287,19 +2351,23 @@ describe('BinaryManager', () => {
       })
     }
 
-    it('publishes installing to the shared cache, then clears the entry on success', async () => {
+    it('publishes installing to main internal cache without mirroring it, then clears on success', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       mockSuccessfulInstall('fd', 'fd')
 
       const pending = service.installByName({ name: 'fd' })
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
         fd: { status: 'installing' }
       })
+      expect(application.get('CacheService').setShared).not.toHaveBeenCalledWith(
+        'feature.binary.install_states',
+        expect.anything()
+      )
       await pending
 
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
     })
 
     it('keeps a failed entry with the error message until retried', async () => {
@@ -2314,7 +2382,7 @@ describe('BinaryManager', () => {
 
       // installByName's failed operation carries no intent — just action + error.
       await expect(service.installByName({ name: 'fd' })).rejects.toThrow('timed out')
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
         fd: {
           status: 'failed',
           action: 'install',
@@ -2325,14 +2393,14 @@ describe('BinaryManager', () => {
       // A retry replaces failed with installing before the mutex work starts.
       mockSuccessfulInstall('fd', 'fd')
       await service.installByName({ name: 'fd' })
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
     })
 
     it('publishes a failed entry when the mise backend is unavailable', async () => {
       const service = new BinaryManager()
 
       await expect(service.installByName({ name: 'fd' })).rejects.toThrow('Binary backend not available')
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
         fd: {
           status: 'failed',
           action: 'install',
@@ -2349,7 +2417,7 @@ describe('BinaryManager', () => {
         'Invalid tool version'
       )
       // Validation rejects before any state is published — the cache key is never written.
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toBeUndefined()
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toBeUndefined()
     })
 
     it('removeTool clears a lingering failed entry', async () => {
@@ -2367,7 +2435,7 @@ describe('BinaryManager', () => {
       mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
       await expect(service.removeTool({ name: 'fd' })).resolves.toEqual({ status: 'removed' })
 
-      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.install_states')).toEqual({})
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
     })
   })
 

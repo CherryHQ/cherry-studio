@@ -1,6 +1,5 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
-import type { BinaryOperations } from '@shared/types/binary'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -264,8 +263,6 @@ export type SharedCacheSchema = {
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
   'feature.binary.latest_versions': Record<string, string>
-  // Live BinaryManager operations, main-owned and session-only.
-  'feature.binary.install_states': BinaryOperations
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
@@ -290,7 +287,6 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.openclaw.gateway_status': 'stopped',
   'feature.api_gateway.running': false,
   'feature.binary.latest_versions': {},
-  'feature.binary.install_states': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
   // Template defaults are placeholders never consumed at runtime — concrete
@@ -332,7 +328,6 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
-  'feature.mcp.is_uv_installed': boolean
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
@@ -362,7 +357,6 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
-  'feature.mcp.is_uv_installed': false,
   'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []
