@@ -7,14 +7,17 @@
 // which resets completed → processing then scheduleIndexing) for restored bases.
 
 import { existsSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { RestoreJournal } from '@main/data/db/restore/restoreJournal'
-import type { KnowledgeIndexDocumentsPayload } from '@main/features/knowledge/tasks/jobTypes'
-import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '@main/features/knowledge/utils/items'
-import { getKnowledgeVectorStoreFilePathSync } from '@main/features/knowledge/utils/storage/pathStorage'
+import {
+  getKnowledgeVectorStoreFilePathSync,
+  isContainerKnowledgeItem,
+  isIndexableKnowledgeItem,
+  type KnowledgeIndexDocumentsPayload
+} from '@main/features/knowledge'
 
 const logger = loggerService.withContext('backup/enqueueKnowledgeReindexAfterRestore')
 
@@ -70,10 +73,7 @@ export function restoredKnowledgeBaseNeedsReindex(baseId: string): boolean {
 export function listCompletedRootsForRestoreReindex(baseId: string): string[] {
   const items = knowledgeItemService.getItemsByBaseId(baseId)
   const completedIds = items
-    .filter(
-      (item) =>
-        item.status === 'completed' && (isIndexableKnowledgeItem(item) || isContainerKnowledgeItem(item))
-    )
+    .filter((item) => item.status === 'completed' && (isIndexableKnowledgeItem(item) || isContainerKnowledgeItem(item)))
     .map((item) => item.id)
   if (completedIds.length === 0) return []
   return knowledgeItemService.getOutermostSelectedItemIds(baseId, completedIds)

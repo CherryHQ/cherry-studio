@@ -4,8 +4,10 @@
 // journal candidates. Does NOT open packaged startRestore.
 
 import {
+  closeSync,
   copyFileSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
   mkdtempSync,
   openSync,
@@ -13,9 +15,7 @@ import {
   renameSync,
   rmSync,
   unlinkSync,
-  writeFileSync,
-  fsyncSync,
-  closeSync
+  writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -26,10 +26,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   buildFileResourcesFromAdmit,
   candidatesToFileResources,
-  RestoreStagingPathEscapeError,
-  type RestorePathRoots
+  type RestorePathRoots,
+  RestoreStagingPathEscapeError
 } from '../buildFileResourcesFromAdmit'
-import { sealFileResource, type ResourceSealFs } from '../restoreResourceSeal'
+import { type ResourceSealFs, sealFileResource } from '../restoreResourceSeal'
 
 describe('buildFileResourcesFromAdmit', () => {
   let tmpDir: string

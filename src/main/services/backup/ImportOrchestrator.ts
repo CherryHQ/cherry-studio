@@ -33,9 +33,9 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import type { ArchiveContext } from './admitArchive'
 import {
-  type PreMergeFileStaging,
   candidatesToFileResources,
-  fileEntryRewritesFromStaging
+  fileEntryRewritesFromStaging,
+  type PreMergeFileStaging
 } from './buildFileResourcesFromAdmit'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'

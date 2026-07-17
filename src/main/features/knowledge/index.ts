@@ -6,13 +6,16 @@ export { KnowledgeVectorStoreService } from './vectorstore/KnowledgeVectorStoreS
 // v1→v2 migrators (data/migration/v2) build a base's materials + vector index from. The index
 // engine internals (driver / schema / meta / vector index) stay private behind
 // createKnowledgeIndexStoreAtPath; the snapshot derivation stays private behind build*SnapshotFile.
+export type { KnowledgeIndexDocumentsPayload } from './tasks/jobTypes'
 export { DOCUMENT_SEPARATOR } from './utils/indexing/chunk'
 export { type MaterialFieldSource, toMaterialRelativePath } from './utils/indexing/materialFields'
+export { isContainerKnowledgeItem, isIndexableKnowledgeItem } from './utils/items'
 export { buildNoteSnapshotFile } from './utils/sources/noteSnapshot'
 export { buildUrlSnapshotFile } from './utils/sources/urlSnapshot'
 export {
   assertSafeKnowledgeRelativePath,
   collectKnowledgeReservedRelativePaths,
+  getKnowledgeVectorStoreFilePathSync,
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from './utils/storage/pathStorage'

@@ -47,13 +47,12 @@ vi.mock('../merge', () => ({
   MergeEngine: vi.fn()
 }))
 
-import { app } from 'electron'
-
 import { BaseService } from '@main/core/lifecycle'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { app } from 'electron'
 
-import { RestoreStagingPathEscapeError } from '../buildFileResourcesFromAdmit'
 import { BackupService } from '../BackupService'
+import { RestoreStagingPathEscapeError } from '../buildFileResourcesFromAdmit'
 import { ExportOrchestrator } from '../ExportOrchestrator'
 
 describe('BackupService packaged export path', () => {
@@ -103,9 +102,9 @@ describe('BackupService packaged export path', () => {
 
   it('maps RestoreStagingPathEscapeError to BACKUP_RESTORE_STAGING_PATH_ESCAPE (not INTERNAL)', () => {
     const service = new BackupService()
-    const mapped = (
-      service as unknown as { toIpcError: (e: unknown) => unknown }
-    ).toIpcError(new RestoreStagingPathEscapeError('note live path escapes notes root: ../x'))
+    const mapped = (service as unknown as { toIpcError: (e: unknown) => unknown }).toIpcError(
+      new RestoreStagingPathEscapeError('note live path escapes notes root: ../x')
+    )
     expect(mapped).toBeInstanceOf(IpcError)
     expect((mapped as IpcError).code).toBe('BACKUP_RESTORE_STAGING_PATH_ESCAPE')
   })

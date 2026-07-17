@@ -12,7 +12,7 @@ const gateSpies = vi.hoisted(() => ({
 }))
 
 vi.mock('../V2BackupActionGate', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../V2BackupActionGate')>()
+  const actual = await importOriginal<typeof V2BackupActionGateModule>()
   return {
     ...actual,
     isV2BackupExportReady: () => gateSpies.isV2BackupExportReady(),
@@ -20,14 +20,15 @@ vi.mock('../V2BackupActionGate', async (importOriginal) => {
   }
 })
 
+import { BackupUnavailableGate } from '../BackupUnavailableGate'
+import { LegacyLocalBackupGate } from '../LegacyLocalBackupGate'
+import type * as V2BackupActionGateModule from '../V2BackupActionGate'
 import {
   isV2BackupExportReady,
   isV2BackupRestoreReady,
   V2BackupExportGate,
   V2BackupRestoreGate
 } from '../V2BackupActionGate'
-import { BackupUnavailableGate } from '../BackupUnavailableGate'
-import { LegacyLocalBackupGate } from '../LegacyLocalBackupGate'
 
 /** Mirrors Basic/Local Backup action row — separate enablement, no shared wrapper. */
 function MigratedBackupActionRow() {

@@ -16,9 +16,9 @@ describe('TOPICS contributor', () => {
     expect(TOPICS_CONTRIBUTOR.schema.tables).toEqual([table('topic'), table('message'), table('chat_message_file_ref')])
   })
 
-  it('declares 7 references: topicId/parentId owning + sourceId owning + modelId/assistantId/groupId optional + fileEntryId junction', () => {
+  it('declares 6 references: topicId/parentId/sourceId owning + modelId/assistantId optional + fileEntryId junction', () => {
     const refs = TOPICS_CONTRIBUTOR.schema.references
-    expect(refs).toHaveLength(7)
+    expect(refs).toHaveLength(6)
     // message.topicId → topic: same-domain owning, drives aggregate membership.
     expect(refs).toContainEqual(
       expect.objectContaining({
@@ -73,15 +73,8 @@ describe('TOPICS contributor', () => {
         kind: 'optional'
       })
     )
-    // topic.groupId → group (TAGS_GROUPS): optional.
-    expect(refs).toContainEqual(
-      expect.objectContaining({
-        table: table('topic'),
-        column: 'groupId',
-        referencedDomain: 'TAGS_GROUPS',
-        kind: 'optional'
-      })
-    )
+    // topic.groupId was removed from schema — no TAGS_GROUPS ref.
+    expect(refs.some((r) => r.table === table('topic') && r.column === 'groupId')).toBe(false)
   })
 
   it('topic aggregate is renamable with message(topicId) + chat_message_file_ref(sourceId→message) include members', () => {

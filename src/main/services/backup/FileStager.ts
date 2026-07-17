@@ -25,11 +25,7 @@ const logger = loggerService.withContext('backup/FileStager')
  * concurrent WAL write cannot tear the archive; restore rebuilds via explicit
  * `knowledge.index-documents` enqueue (empty index does not auto-rebuild).
  */
-export const KNOWLEDGE_INDEX_SQLITE_BASENAMES = new Set([
-  'index.sqlite',
-  'index.sqlite-wal',
-  'index.sqlite-shm'
-])
+export const KNOWLEDGE_INDEX_SQLITE_BASENAMES = new Set(['index.sqlite', 'index.sqlite-wal', 'index.sqlite-shm'])
 
 /** True when `sourcePath`'s basename is an excluded knowledge index file. */
 export function isExcludedKnowledgeIndexBasename(sourcePath: string): boolean {

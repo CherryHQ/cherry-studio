@@ -20,12 +20,12 @@ describe('BackupService.resolveNotesRoot errno classification', () => {
       if (key === 'feature.notes.data') return defaultRoot
       return `/mock/${key}`
     })
-    vi.spyOn(application, 'get').mockImplementation((name: string) => {
+    vi.spyOn(application, 'get').mockImplementation(((name: string) => {
       if (name === 'PreferenceService') {
         return { get: () => '' } // no custom path → managed default branch
       }
       throw new Error(`unexpected application.get(${name})`)
-    })
+    }) as typeof application.get)
   })
 
   afterEach(async () => {

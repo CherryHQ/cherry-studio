@@ -48,9 +48,9 @@ describe('e2e-export full roundtrip', () => {
         .insert(knowledgeBaseTable)
         .values([{ id: 'kb1', name: 'kb', status: 'completed', chunkSize: 100, chunkOverlap: 20 }])
       await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
-      await dbh.db.insert(agentGlobalSkillTable).values([
-        { id: 's1', folderName: 'zipSkill', name: 'z', source: 'zip', contentHash: 'hz', isEnabled: true }
-      ])
+      await dbh.db
+        .insert(agentGlobalSkillTable)
+        .values([{ id: 's1', folderName: 'zipSkill', name: 'z', source: 'zip', contentHash: 'hz', isEnabled: true }])
 
       const filesRoot = await mkdtemp(join(tmpdir(), 'cs-e2e-files-'))
       const kbRoot = await mkdtemp(join(tmpdir(), 'cs-e2e-kb-'))

@@ -80,7 +80,7 @@ describe('PREFERENCES collectFileResources errno classification', () => {
   it('EIO on note realpathSync warns and skips', async () => {
     await withNotesRoot(async (dir) => {
       const realRealpath = fs.realpathSync
-      vi.spyOn(fs, 'realpathSync').mockImplementation(((p: fs.PathLike, opts?: fs.RealpathSyncOptions) => {
+      vi.spyOn(fs, 'realpathSync').mockImplementation(((p: fs.PathLike, opts?: unknown) => {
         if (String(p).endsWith('ok.md')) {
           throw Object.assign(new Error('io'), { code: 'EIO' })
         }
@@ -100,7 +100,7 @@ describe('PREFERENCES collectFileResources errno classification', () => {
       await mkdir(join(dir, 'sub'), { recursive: true })
       await writeFile(join(dir, 'sub', 'nested.md'), '# n')
       const realRealpath = fs.realpathSync
-      vi.spyOn(fs, 'realpathSync').mockImplementation(((p: fs.PathLike, opts?: fs.RealpathSyncOptions) => {
+      vi.spyOn(fs, 'realpathSync').mockImplementation(((p: fs.PathLike, opts?: unknown) => {
         const s = String(p)
         if (s.endsWith(`${join('', 'sub')}`) || /(^|[/\\])sub$/.test(s)) {
           throw Object.assign(new Error('notdir'), { code: 'ENOTDIR' })

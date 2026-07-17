@@ -44,10 +44,7 @@ import { app } from 'electron'
 
 import { admitArchive } from './admitArchive'
 import { BackupRestoreJobQuiesce } from './BackupRestoreJobQuiesce'
-import {
-  buildFileResourcesFromAdmit,
-  RestoreStagingPathEscapeError
-} from './buildFileResourcesFromAdmit'
+import { buildFileResourcesFromAdmit, RestoreStagingPathEscapeError } from './buildFileResourcesFromAdmit'
 import { contributorManager } from './contributors'
 import {
   collectRestoredKnowledgeBaseIds,

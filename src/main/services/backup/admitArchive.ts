@@ -162,9 +162,7 @@ async function extractAndReadManifest(zip: StreamZip.StreamZipAsync, workDir: st
 export function validateArchiveLimits(entries: Record<string, ArchiveZipEntryLike>): void {
   const names = Object.keys(entries)
   if (names.length > MAX_ARCHIVE_ENTRIES) {
-    throw new BackupArchiveCorruptError(
-      `archive entry count exceeds limit (${names.length} > ${MAX_ARCHIVE_ENTRIES})`
-    )
+    throw new BackupArchiveCorruptError(`archive entry count exceeds limit (${names.length} > ${MAX_ARCHIVE_ENTRIES})`)
   }
 
   const manifest = entries['manifest.json']
@@ -237,9 +235,7 @@ async function extractEntry(
       written += chunk.length
       if (written > declaredSize) {
         callback(
-          new BackupArchiveCorruptError(
-            `archive entry exceeded declared size (${name}: ${written} > ${declaredSize})`
-          )
+          new BackupArchiveCorruptError(`archive entry exceeded declared size (${name}: ${written} > ${declaredSize})`)
         )
         return
       }
