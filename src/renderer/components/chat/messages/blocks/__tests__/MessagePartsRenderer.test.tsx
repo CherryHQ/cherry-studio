@@ -670,6 +670,36 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'doc.pdf')
     })
 
+    it('renders a composer file token when it is the only user message content', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:license', kind: 'file', label: 'LICENSE', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/LICENSE',
+            mediaType: 'text/plain',
+            filename: 'LICENSE',
+            providerMetadata: { cherry: { fileTokenSourceId: 'license' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('LICENSE')
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
     it('hides a duplicate attachment when its composer file token is visible', () => {
       renderParts(
         [
