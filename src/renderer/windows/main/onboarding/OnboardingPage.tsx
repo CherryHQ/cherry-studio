@@ -93,7 +93,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-sidebar text-foreground">
-      <div className="drag flex h-10 shrink-0 items-stretch justify-end">
+      <div className="drag flex h-[var(--app-top-chrome-height)] shrink-0 items-stretch justify-end">
         <div className="nodrag mr-2 flex items-center">
           <Button
             type="button"

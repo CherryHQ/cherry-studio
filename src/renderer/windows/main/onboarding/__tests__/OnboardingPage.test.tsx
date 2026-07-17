@@ -166,10 +166,11 @@ describe('OnboardingPage', () => {
   })
 
   it('renders window controls beside the skip action for frameless Windows', () => {
-    render(<OnboardingPage onComplete={vi.fn()} />)
+    const { container } = render(<OnboardingPage onComplete={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: 'onboarding.skip' })).toBeInTheDocument()
     expect(screen.getByTestId('window-controls')).toBeInTheDocument()
+    expect(container.querySelector('.drag')).toHaveClass('h-[var(--app-top-chrome-height)]')
   })
 
   it('stores CherryIN OAuth keys, enables the provider, and moves to model selection', async () => {
