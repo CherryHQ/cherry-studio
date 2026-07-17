@@ -331,15 +331,19 @@ export function runFactoryResetGate(): void {
  * decision derives from, so re-deriving after a crash mid-wipe would
  * silently downgrade a tree wipe to a manifest wipe — skipping the
  * entries the crashed pass never reached — and then declare success.
+ *
+ * All checks run on canonicalized paths ({@link canonicalize}): the wipe
+ * follows symlinks/junctions to their target, so the safety judgment must
+ * be made on that target, not on the lexical alias (#17138 review).
  */
 function decideWipeMode(userData: string): WipeMode {
-  const normalized = path.resolve(userData)
-  const home = path.resolve(os.homedir())
+  const normalized = canonicalize(userData)
+  const home = canonicalize(os.homedir())
   // Home and its ancestors never get the owned manifest either, sentinel or
   // not: entries like 'Data' or '.claude' in a home directory are
   // overwhelmingly the user's own.
-  if (normalized === home) return 'manifest'
-  if (home.startsWith(normalized + path.sep)) return 'manifest'
+  if (isSamePath(normalized, home)) return 'manifest'
+  if (isPathInside(home, normalized)) return 'manifest'
   if (!fs.existsSync(path.join(normalized, OWNERSHIP_SENTINEL))) return 'manifest'
   // Near-root paths (e.g. '/', 'C:\\', '/Users', 'D:\\data') are never
   // tree-wiped even if the app ran there — the blast radius of a mistake
@@ -350,8 +354,48 @@ function decideWipeMode(userData: string): WipeMode {
   // userData pointed at ~/.cherrystudio itself: a tree pass would take the
   // kept machine artifacts (bin/, binary-manager/, ovms/, install/) and
   // boot-config.json — the marker included — down with it.
-  if (normalized === path.resolve(CHERRY_HOME)) return 'owned-manifest'
+  if (isSamePath(normalized, canonicalize(CHERRY_HOME))) return 'owned-manifest'
   return 'tree'
+}
+
+/**
+ * Filesystem identity for the safety checks above: resolve symlinks and
+ * junctions so an alias of the home directory cannot pass the lexical
+ * checks while rmSync follows the link into home itself. `.native` also
+ * restores the on-disk casing on Windows. A path realpath cannot resolve
+ * either does not exist (cannot be an alias; the sentinel check fails it
+ * into 'manifest' anyway) or is unreadable (the wipe itself then fails
+ * loudly into the retry/give-up path) — lexical resolve is enough there.
+ */
+function canonicalize(p: string): string {
+  const resolved = path.resolve(p)
+  try {
+    return fs.realpathSync.native(resolved)
+  } catch {
+    return resolved
+  }
+}
+
+/**
+ * Windows and macOS default filesystems are case-insensitive: 'c:\users'
+ * and 'C:\Users' are the same directory, and a string comparison must not
+ * treat them as different. Folding case can only misjudge two genuinely
+ * distinct paths as equal (case-sensitive volumes on those platforms),
+ * which degrades the decision toward a safer mode — never toward 'tree'.
+ */
+const FOLD_CASE = process.platform === 'win32' || process.platform === 'darwin'
+
+function foldCase(p: string): string {
+  return FOLD_CASE ? p.toLowerCase() : p
+}
+
+function isSamePath(a: string, b: string): boolean {
+  return foldCase(a) === foldCase(b)
+}
+
+/** Is `child` strictly inside `dir`? Both must already be canonicalized. */
+function isPathInside(child: string, dir: string): boolean {
+  return foldCase(child).startsWith(foldCase(dir) + path.sep)
 }
 
 /**

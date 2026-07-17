@@ -25,6 +25,7 @@ const rmSyncMock = vi.fn()
 const mkdirSyncMock = vi.fn()
 const readdirSyncMock = vi.fn()
 const existsSyncMock = vi.fn()
+const realpathNativeMock = vi.fn()
 const bootConfigGetMock = vi.fn()
 const bootConfigSetMock = vi.fn()
 const bootConfigFlushMock = vi.fn()
@@ -121,12 +122,15 @@ function stubFs(listings: Record<string, string[] | Error>, opts: { sentinel?: b
     if (p.endsWith('cherrystudio.sqlite')) return opts.sentinel ?? true
     return false
   })
+  // Identity by default — individual tests override to simulate symlinks.
+  realpathNativeMock.mockImplementation((p: string) => p)
   vi.doMock('node:fs', () => {
     const fsMock = {
       readdirSync: readdirSyncMock,
       rmSync: rmSyncMock,
       mkdirSync: mkdirSyncMock,
-      existsSync: existsSyncMock
+      existsSync: existsSyncMock,
+      realpathSync: Object.assign((p: string) => realpathNativeMock(p), { native: realpathNativeMock })
     }
     return { __esModule: true, default: fsMock, ...fsMock }
   })
@@ -498,6 +502,51 @@ describe('runFactoryResetGate', () => {
     expect(targets).not.toContain(`${HOME}/Documents`)
     expect(targets).toContain(`${HOME}/cherrystudio.sqlite`)
     expect(store['temp.factory_reset']).toBeNull()
+  })
+
+  it('resolves a symlink alias of the home directory before deciding — no tree wipe through the link', async () => {
+    const ALIAS = '/mock/aliases/home-link'
+    stubElectron(ALIAS)
+    stubApplication(ALIAS)
+    const store = stubBootConfig(pendingMarker({ userDataPath: ALIAS }))
+    stubFs({ [ALIAS]: ['Documents', 'cherrystudio.sqlite', 'Data'], [CHERRY_HOME]: ['config'] }, { sentinel: true })
+    realpathNativeMock.mockImplementation((p: string) => (p === ALIAS ? HOME : p))
+
+    const run = await importGate()
+    run()
+
+    // Lexical checks alone would pick 'tree' (deep path, sentinel visible
+    // through the link) while rmSync follows the link into home itself
+    // (#17138 review). The canonical target is home → strict manifest.
+    expect(rmTargets()).not.toContain(`${ALIAS}/Documents`)
+    expect(rmTargets()).toContain(`${ALIAS}/cherrystudio.sqlite`)
+    expect(bootConfigSetMock).toHaveBeenCalledWith('temp.factory_reset', expect.objectContaining({ mode: 'manifest' }))
+    expect(store['temp.factory_reset']).toBeNull()
+  })
+
+  it('compares paths case-insensitively on Windows — a case-different home spelling never gets a tree wipe', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    try {
+      const UPPER_HOME = '/MOCK/HOME'
+      stubElectron(UPPER_HOME)
+      stubApplication(UPPER_HOME)
+      stubBootConfig(pendingMarker({ userDataPath: UPPER_HOME }))
+      stubFs({ [UPPER_HOME]: ['Documents', 'cherrystudio.sqlite'], [CHERRY_HOME]: ['config'] }, { sentinel: true })
+
+      const run = await importGate()
+      run()
+
+      // NTFS treats '/MOCK/HOME' and '/mock/home' as the same directory; a
+      // case-sensitive string compare would wave the alias through to 'tree'.
+      expect(rmTargets()).not.toContain(`${UPPER_HOME}/Documents`)
+      expect(bootConfigSetMock).toHaveBeenCalledWith(
+        'temp.factory_reset',
+        expect.objectContaining({ mode: 'manifest' })
+      )
+    } finally {
+      Object.defineProperty(process, 'platform', descriptor)
+    }
   })
 
   it('still completes when CHERRY_HOME does not exist', async () => {
