@@ -60,7 +60,7 @@
   --cs-secondary-foreground: oklch(0.205 0 0);
   --cs-accent-foreground: oklch(0.205 0 0);
 
-  /* Foregrounds on solid colored fills */
+  /* Foregrounds used on solid colored fills */
   --cs-primary-foreground: oklch(0.985 0 0);
   --cs-destructive-foreground: oklch(0.577 0.245 27.325);
 
@@ -96,8 +96,6 @@
   /* Card & Popover */
   --cs-card: var(--cs-neutral-900);
   --cs-popover: var(--cs-black);
-  --cs-card-foreground: oklch(0.985 0 0);
-  --cs-popover-foreground: oklch(0.985 0 0);
 
   /* Border */
   --cs-border: oklch(1 0 0 / 0.1);
@@ -118,15 +116,25 @@
   --cs-accent: oklch(1 0 0 / 0.1); /* Accent Background */
   --cs-ghost-hover: oklch(1 0 0 / 0.1); /* Ghost Button Hover */
   --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
-  --cs-secondary-foreground: oklch(0.985 0 0);
-  --cs-accent-foreground: oklch(0.985 0 0);
-  --cs-primary-foreground: oklch(0.205 0 0);
-  --cs-destructive-foreground: oklch(0.637 0.237 25.331);
-  --cs-input: oklch(0.269 0 0);
 
   /* Sidebar */
   --cs-sidebar: oklch(0.2393 0 0);
   --cs-sidebar-accent: oklch(0.269 0 0);
+
+  /* Surface-paired foregrounds */
+  --cs-card-foreground: oklch(0.985 0 0);
+  --cs-popover-foreground: oklch(0.985 0 0);
+  --cs-secondary-foreground: oklch(0.985 0 0);
+  --cs-accent-foreground: oklch(0.985 0 0);
+
+  /* Foregrounds used on solid colored fills */
+  --cs-primary-foreground: oklch(0.205 0 0);
+  --cs-destructive-foreground: oklch(0.637 0.237 25.331);
+
+  /* Input border */
+  --cs-input: oklch(0.269 0 0);
+
+  /* Sidebar sub-palette */
   --cs-sidebar-foreground: oklch(0.985 0 0);
   --cs-sidebar-primary: oklch(0.488 0.243 264.376);
   --cs-sidebar-primary-foreground: oklch(0.985 0 0);

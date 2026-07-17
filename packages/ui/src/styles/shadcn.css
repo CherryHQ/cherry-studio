@@ -23,7 +23,7 @@
   --secondary: var(--cs-secondary);
   --secondary-foreground: var(--cs-secondary-foreground);
   --muted: var(--cs-muted);
-  --muted-foreground: var(--cs-foreground-secondary);
+  --muted-foreground: var(--cs-muted-foreground);
   --accent: var(--cs-accent);
   --accent-foreground: var(--cs-accent-foreground);
   --destructive: var(--cs-destructive);
