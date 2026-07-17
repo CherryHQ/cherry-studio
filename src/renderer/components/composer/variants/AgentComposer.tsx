@@ -26,7 +26,11 @@ import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import SkillIcon from '@renderer/components/icons/SkillIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import {
+  type QuickPanelInputAdapter,
+  type QuickPanelListItem,
+  useOptionalQuickPanel
+} from '@renderer/components/QuickPanel'
 import {
   openResourceEditDialog,
   ResourceEditDialogEventHost,
@@ -1112,6 +1116,17 @@ const AgentComposerInner = ({
     () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
     [skillsLauncher, toolsRegistry]
   )
+
+  // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
+  // it with the current (possibly stale) closure, so an externally installed/removed skill would
+  // otherwise only appear on the next open (mirrors the MCP status panel).
+  const quickPanel = useOptionalQuickPanel()
+  const skillsPanelVisible = quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID
+  const updateQuickPanelList = quickPanel?.updateList
+  useEffect(() => {
+    if (!skillsPanelVisible || !updateQuickPanelList) return
+    updateQuickPanelList(skillPanelItems)
+  }, [skillsPanelVisible, skillPanelItems, updateQuickPanelList])
 
   const rootPanelTrailingItems = useMemo(() => [customizePanelItem], [customizePanelItem])
 

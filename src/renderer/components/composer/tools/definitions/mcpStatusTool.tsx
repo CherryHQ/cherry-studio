@@ -182,27 +182,25 @@ export function createMcpStatusLauncher(
     sources: ['root-panel'],
     order: 50,
     label: 'MCP',
+    // The panel stays reachable even when MCP is disabled — it surfaces the disabled state alongside
+    // the "Configure MCP servers" footer, which is exactly the moment the user needs to open config.
     description:
       isDisabled && modeLabel
         ? modeLabel
         : t('settings.quickPanel.mcp.description', 'View configured MCP server status'),
-    disabledReason: isDisabled ? modeLabel : undefined,
-    disabled: isDisabled,
     icon: <Cable />,
-    action: isDisabled
-      ? undefined
-      : ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
-          clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
-          quickPanel.open({
-            title: mode ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
-            list: items,
-            symbol: ComposerPanelSymbol.McpStatus,
-            parentPanel,
-            queryAnchor,
-            triggerInfo: triggerInfo ?? { type: 'button' },
-            readOnly: true
-          })
-        }
+    action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
+      quickPanel.open({
+        title: mode ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
+        list: items,
+        symbol: ComposerPanelSymbol.McpStatus,
+        parentPanel,
+        queryAnchor,
+        triggerInfo: triggerInfo ?? { type: 'button' },
+        readOnly: true
+      })
+    }
   }
 }
 

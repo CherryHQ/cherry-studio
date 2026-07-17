@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   availableSkillsRefresh: vi.fn(),
   openResourceEditDialog: vi.fn(),
   registeredLaunchers: new Map<string, ComposerToolLauncher[]>(),
+  optionalQuickPanel: null as { isVisible: boolean; symbol: string; updateList: (items: unknown) => void } | null,
   contextUsagePercentage: null as number | null,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   getDraft: vi.fn(),
@@ -505,6 +506,12 @@ vi.mock('@renderer/components/composer/composerDraft', async (importOriginal) =>
   serializeComposerDocument: vi.fn(() => ({ text: '', tokens: [] }))
 }))
 
+// AgentComposer reads the quick panel to refresh an open skills submenu; drive it from the mock.
+vi.mock('@renderer/components/QuickPanel/useQuickPanel', () => ({
+  useOptionalQuickPanel: () => mocks.optionalQuickPanel,
+  useQuickPanel: () => mocks.optionalQuickPanel
+}))
+
 function buildComposerEditorMock() {
   const chain = {
     focus: vi.fn(() => chain),
@@ -532,6 +539,7 @@ describe('AgentComposer', () => {
   beforeEach(() => {
     mocks.openResourceEditDialog.mockReset()
     mocks.registeredLaunchers.clear()
+    mocks.optionalQuickPanel = null
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
       const instance: ResizeObserverMockInstance = {
@@ -1702,6 +1710,40 @@ describe('AgentComposer', () => {
     expect(inputAdapter.insertText).not.toHaveBeenCalled()
     expect(inputAdapter.insertToken).toHaveBeenCalledWith(pdfSkillToken)
     expect(inputAdapter.focus).toHaveBeenCalled()
+  })
+
+  it('refreshes an already-open skills submenu when the skill list changes', () => {
+    const updateList = vi.fn()
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList }
+    mocks.availableSkills = [pdfSkill]
+
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(updateList).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'skill:pdf' })]))
+
+    updateList.mockClear()
+    mocks.availableSkills = [pdfSkill, reviewSkill]
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(updateList).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: 'skill:review-fast' })])
+    )
   })
 
   it('does not fall back to plain prompt text without token support', () => {

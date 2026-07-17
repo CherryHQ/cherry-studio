@@ -552,6 +552,35 @@ describe('QuickPanelView', () => {
       expect(footerAction).toHaveBeenCalledTimes(1)
     })
 
+    it('lets keyboard reach the pinned footer action in a read-only panel', () => {
+      const statusAction = vi.fn()
+      const footerAction = vi.fn()
+      const list: QuickPanelListItem[] = [
+        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction },
+        { id: 'footer', label: 'Configure', icon: 'x', fixedToBottom: true, action: footerAction }
+      ]
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={createInputAdapter().adapter} />
+            <OpenPanelOnMount
+              list={list}
+              panelOptions={{ readOnly: true }}
+              triggerInfo={{ type: 'button', position: 0 }}
+            />
+          </>
+        )
+      )
+
+      const body = screen.getByTestId('quick-panel-body')
+      fireEvent.keyDown(body, { key: 'ArrowDown' }) // highlights the footer (status rows stay inert)
+      fireEvent.keyDown(body, { key: 'Enter' })
+
+      expect(footerAction).toHaveBeenCalledTimes(1)
+      expect(statusAction).not.toHaveBeenCalled()
+    })
+
     it('keeps the root input panel when slash follows whitespace', () => {
       const input = createInputAdapter('hello /', 7)
 

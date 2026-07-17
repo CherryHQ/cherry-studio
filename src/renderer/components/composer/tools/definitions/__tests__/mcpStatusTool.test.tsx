@@ -234,17 +234,17 @@ describe('mcpStatusTool', () => {
     )
   })
 
-  it('marks the root panel MCP launcher as disabled and non-actionable when assistant MCP mode is disabled', () => {
-    const launcher = createMcpStatusLauncher([], t, 'disabled')
+  it('keeps the MCP launcher openable when disabled so the config entry stays reachable', () => {
+    const footer = buildMcpConfigFooterItem({ kind: 'assistant', id: 'a1', initialTab: 'tools.mcp' }, t)!
+    const launcher = createMcpStatusLauncher([footer], t, 'disabled')
 
-    expect(launcher).toMatchObject({
-      id: 'mcp-status',
-      description: 'Disabled',
-      disabled: true,
-      disabledReason: 'Disabled'
-    })
-    expect(launcher.action).toBeUndefined()
-    expect(launcher.suffix).toBeUndefined()
+    expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled' })
+    expect(launcher.disabled).toBeFalsy()
+    expect(launcher.action).toEqual(expect.any(Function))
+
+    const quickPanel = { open: vi.fn() }
+    launcher.action?.({ quickPanel } as any)
+    expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [footer] }))
   })
 
   it('resolves the MCP config target from the conversation scope', () => {

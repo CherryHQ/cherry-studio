@@ -16,6 +16,7 @@ import {
   isGlobalSearchSelectionForTab
 } from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
 import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
+import SkillIcon from '@renderer/components/icons/SkillIcon'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -51,7 +52,7 @@ import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useSearch } from '@tanstack/react-router'
-import { Bot, Zap } from 'lucide-react'
+import { Bot } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -265,7 +266,7 @@ const AgentPage = () => {
         label: t('chat.resource_view.menu.agent')
       },
       {
-        icon: <Zap />,
+        icon: <SkillIcon />,
         id: 'skill-resource-view',
         kind: 'skill',
         label: t('chat.resource_view.menu.skill')

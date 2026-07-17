@@ -163,9 +163,9 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
       className={cn(
         'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
         isReadOnlyLocked ? 'cursor-default' : item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
-        !readOnly && selected && 'bg-muted',
-        !readOnly && selected && active && 'bg-accent',
-        !readOnly && !selected && active && 'bg-accent',
+        !isReadOnlyLocked && selected && 'bg-muted',
+        !isReadOnlyLocked && selected && active && 'bg-accent',
+        !isReadOnlyLocked && !selected && active && 'bg-accent',
         canHover && 'hover:bg-accent',
         className
       )}

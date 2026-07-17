@@ -603,20 +603,42 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         e.stopPropagation()
         setIsMouseOver(false)
       }
-      if (
-        ctx.readOnly &&
-        ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter'].includes(e.key)
-      ) {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsMouseOver(false)
-        return true
-      }
-      if (ctx.readOnly && e.key === 'ArrowRight' && assistivePressed) {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsMouseOver(false)
-        return true
+      if (ctx.readOnly) {
+        // Read-only panels are non-interactive except for pinned footer actions (e.g. "Configure
+        // MCP"), which stay keyboard-selectable: ▲▼ moves onto them and Enter/Tab activates the
+        // highlighted one. Everything else is swallowed so the status list stays inert.
+        const footerNavItems = list.map((item) => ({
+          disabled: !(item.fixedToBottom && !!item.action && !item.disabled)
+        }))
+        const hasFooterAction = footerNavItems.some((item) => !item.disabled)
+        if (hasFooterAction && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          const dir = e.key === 'ArrowUp' || e.key === 'PageUp' ? -1 : 1
+          setActiveIndex((prev) => moveQuickPanelSelectableIndex(footerNavItems, prev, dir, { wrap: true }))
+          return true
+        }
+        if (hasFooterAction && !e.shiftKey && ['Enter', 'NumpadEnter', 'Tab'].includes(e.key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          const activeItem = list?.[activeIndex]
+          if (activeItem?.fixedToBottom && activeItem.action) handleItemAction(activeItem, 'enter')
+          return true
+        }
+        if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter'].includes(e.key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          return true
+        }
+        if (e.key === 'ArrowRight' && assistivePressed) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          return true
+        }
       }
 
       switch (e.key) {
@@ -895,11 +917,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return (
         <QuickPanelRow
           className={classNames({
-            focused: !ctx.readOnly && itemIndex === activeIndex,
+            // In read-only panels only the pinned footer action can be highlighted (via keyboard).
+            focused: (!ctx.readOnly || item.fixedToBottom) && itemIndex === activeIndex,
             selected: !ctx.readOnly && item.isSelected,
             disabled: item.disabled
           })}
-          active={!ctx.readOnly && itemIndex === activeIndex}
+          active={(!ctx.readOnly || !!item.fixedToBottom) && itemIndex === activeIndex}
           contentClassName="max-w-[60%]"
           dataId={item.id}
           hoverEnabled={isMouseOver}

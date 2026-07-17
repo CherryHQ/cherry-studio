@@ -5,12 +5,13 @@ import {
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/composer/quoteToken'
+import SkillIcon from '@renderer/components/icons/SkillIcon'
 import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { Boxes, Braces, FileText, Folder, TextQuote, X, Zap } from 'lucide-react'
+import { Boxes, Braces, FileText, Folder, TextQuote, X } from 'lucide-react'
 import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
@@ -38,7 +39,7 @@ const tokenPreviewHeaderClassName =
 const pastedTextPreviewCache = new Map<string, Promise<string>>()
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
-  skill: <Zap className={tokenIconClassName} />,
+  skill: <SkillIcon className={tokenIconClassName} />,
   file: <FileText className={tokenIconClassName} />,
   folder: <Folder className={tokenIconClassName} />,
   knowledge: <Boxes className={tokenIconClassName} />,
