@@ -627,7 +627,8 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
         magicString.overwrite(start, start + attribute[0].length, ` data-ui=${JSON.stringify(value)}`)
       }
     } else {
-      const insertAt = tag.source.endsWith('/>') ? tag.end - 2 : tag.end - 1
+      let insertAt = tag.source.endsWith('/>') ? tag.end - 2 : tag.end - 1
+      while (/\s/.test(source[insertAt - 1])) insertAt -= 1
       magicString.appendLeft(insertAt, ` data-ui=${JSON.stringify(value)}`)
     }
   }
