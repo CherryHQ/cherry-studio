@@ -45,6 +45,7 @@ export interface TranslationPartData {
   targetLanguage: string
   sourceLanguage?: string
   sourceBlockId?: string
+  isStreaming?: boolean
 }
 
 /** Video data — replaces VideoBlock */

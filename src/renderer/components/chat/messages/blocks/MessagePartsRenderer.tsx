@@ -1346,7 +1346,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
     isActiveTurnProcessing &&
     (topicStreamStatus === undefined ? message.status === 'pending' : topicTurnState.isStreamLive)
   const isTranslationOverlayActive = messageParts.some(
-    (part) => part.type === 'data-translation' && (part.data as { isStreaming?: boolean }).isStreaming === true
+    (part) => part.type === 'data-translation' && part.data.isStreaming === true
   )
   const { collapseCompletedToolHistory } = useMessageRenderConfig()
 

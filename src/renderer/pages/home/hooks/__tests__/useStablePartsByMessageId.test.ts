@@ -170,7 +170,8 @@ describe('useStablePartsByMessageId', () => {
     expect(withOverlay.length).toBe(2)
     expect(withOverlay[0]).toBe(partsBase[0])
     expect(withOverlay[1].type).toBe('data-translation')
-    expect((withOverlay[1] as { data: { isStreaming?: boolean } }).data.isStreaming).toBe(true)
+    if (withOverlay[1].type !== 'data-translation') throw new Error('Expected translation part')
+    expect(withOverlay[1].data.isStreaming).toBe(true)
 
     // Remove overlay — back to baseParts ref
     rerender({ tov: {} })

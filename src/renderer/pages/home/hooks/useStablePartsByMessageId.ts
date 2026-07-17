@@ -66,8 +66,7 @@ function partsContentEqual(a: CherryMessagePart[], b: CherryMessagePart[]): bool
       previousPart.data.targetLanguage !== nextPart.data.targetLanguage ||
       previousPart.data.sourceLanguage !== nextPart.data.sourceLanguage ||
       previousPart.data.sourceBlockId !== nextPart.data.sourceBlockId ||
-      (previousPart.data as { isStreaming?: boolean }).isStreaming !==
-        (nextPart.data as { isStreaming?: boolean }).isStreaming
+      previousPart.data.isStreaming !== nextPart.data.isStreaming
     ) {
       return false
     }
