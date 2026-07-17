@@ -1119,6 +1119,9 @@ describe('KnowledgePage', () => {
 
     expect(screen.getByText('与 AI 一起积累知识')).toBeInTheDocument()
     expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
+    // The two-pane shell stays mounted: the navigator (with its create entry)
+    // must not disappear when there are zero bases.
+    expect(screen.getByTestId('navigator-width')).toBeInTheDocument()
   })
 
   it('opens the create-group dialog and wires submission to the group mutation hook', async () => {

@@ -66,6 +66,32 @@ describe('EmptyState', () => {
     expect(wrapper.className).toContain('py-8')
   })
 
+  it('renders the inbox illustration by default', () => {
+    const { container } = render(<EmptyState title="Empty" />)
+    expect(container.querySelector('svg')).toBeInTheDocument()
+    // the sparkle path is unique to the book variant
+    expect(container.querySelector('path[fill-opacity="0.35"]')).not.toBeInTheDocument()
+  })
+
+  it('renders the book illustration variant', () => {
+    const { container } = render(<EmptyState illustration="book" title="Empty" />)
+    expect(container.querySelector('path[fill-opacity="0.35"]')).toBeInTheDocument()
+  })
+
+  it('prefers an explicit icon over the illustration', () => {
+    const Icon = ({ className }: { className?: string }) => (
+      <svg data-testid="custom-icon" className={className} aria-hidden="true" />
+    )
+    const { container } = render(<EmptyState icon={Icon} title="Empty" />)
+    expect(screen.getByTestId('custom-icon')).toBeInTheDocument()
+    expect(container.querySelectorAll('svg')).toHaveLength(1)
+  })
+
+  it('keeps spacing between the title and actions when no description is present', () => {
+    render(<EmptyState title="Empty" actionLabel="Create" onAction={vi.fn()} />)
+    expect(screen.getByText('Empty').className).toContain('mb-5')
+  })
+
   it('applies custom className', () => {
     const { container } = render(<EmptyState className="custom-class" title="Test" />)
     const wrapper = container.firstElementChild as HTMLElement
