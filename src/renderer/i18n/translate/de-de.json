@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} Tokens",
     "topics": {
       "auto_rename": "Themenname generieren",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Nachrichten leeren"
       },
@@ -5355,7 +5356,7 @@
         "icon": {
           "error": "Ungültiger Symbolname, bitte Eingabe prüfen",
           "label": "Symbol",
-          "placeholder": "Lucide-Symbolnamen eingeben",
+          "placeholder": "Symbolname",
           "random": "Zufälliges Symbol",
           "tooltip": "Lucide-Symbolnamen sind kleingeschrieben, z. B. arrow-right",
           "view_all": "Alle Symbole anzeigen"
@@ -6100,7 +6101,8 @@
           "downloading": "Herunterladen…",
           "ready": "Bereit"
         },
-        "title": "Lokale Modelle"
+        "title": "Lokale Modelle",
+        "unsupported": "Lokale Modelle werden auf dieser Plattform nicht unterstützt."
       },
       "notInstalled": "Nicht installiert",
       "openBinariesDir": "Open binaries directory",
@@ -6574,10 +6576,10 @@
       "user": "Benutzer"
     },
     "menuGroups": {
-      "automation": "Automatisierung",
-      "capabilities": "Fähigkeiten & Tools",
+      "automation": "Effizienz",
+      "capabilities": "Tools",
       "models": "Modelle",
-      "personal": "Persönlich",
+      "personal": "Präferenzen",
       "quickAccess": "Schneller Zugriff",
       "system": "System"
     },

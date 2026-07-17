@@ -320,7 +320,7 @@ const AssistantItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'
 )
 
 const AssistantName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 flex-1 truncate', className)} {...props} />
+  <span className={cn('min-w-0 flex-1 truncate text-left', className)} {...props} />
 )
 
 const CurrentTag = ({

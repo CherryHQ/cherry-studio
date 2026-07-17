@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useAnimationControls } from 'motion/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -7,17 +9,7 @@ import {
   ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH
 } from '../paneLayout'
-import { RightPaneHost } from '../RightPaneHost'
-
-const originalResizeObserver = globalThis.ResizeObserver
-
-interface ResizeObserverMockInstance {
-  callback: ResizeObserverCallback
-  observe: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
-}
-
-const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
+import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
 
 const persistCacheMock = vi.hoisted(() => {
   const state = { width: 280 }
@@ -29,6 +21,15 @@ const persistCacheMock = vi.hoisted(() => {
     })
   }
 })
+
+const motionTestState = vi.hoisted(() => ({
+  controls: {
+    set: vi.fn(),
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn()
+  },
+  reducedMotion: true
+}))
 
 vi.mock('@renderer/utils/style', () => ({
   cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
@@ -66,25 +67,28 @@ vi.mock('motion/react', () => ({
         </div>
       )
     }
-  }
+  },
+  // Real motion returns one stable controls instance per component; a fresh object
+  // per render would re-run the host's cleanup effect and cancel in-flight phases.
+  useAnimationControls: () => motionTestState.controls,
+  useReducedMotion: () => motionTestState.reducedMotion
 }))
+
+function createDeferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
+}
 
 describe('RightPaneHost', () => {
   beforeEach(() => {
-    resizeObserverMockInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
-      const instance = {
-        callback,
-        observe: vi.fn(),
-        disconnect: vi.fn()
-      }
-      resizeObserverMockInstances.push(instance)
-
-      return {
-        observe: instance.observe,
-        disconnect: instance.disconnect
-      } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+    motionTestState.controls.set.mockReset()
+    motionTestState.controls.start.mockReset()
+    motionTestState.controls.start.mockImplementation(() => Promise.resolve())
+    motionTestState.controls.stop.mockReset()
+    motionTestState.reducedMotion = true
   })
 
   afterEach(() => {
@@ -93,7 +97,6 @@ describe('RightPaneHost', () => {
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     vi.restoreAllMocks()
-    globalThis.ResizeObserver = originalResizeObserver
   })
 
   it('constrains the right pane to the chat shell height while preserving width', () => {
@@ -118,9 +121,9 @@ describe('RightPaneHost', () => {
     // the pointer-events-none toggle (driven by the data-resizing group state) so
     // pointer events keep reaching the document-level listeners for the whole drag.
     render(
-      <RightPaneHost open resizable width={460}>
+      <PersistentRightPaneHost open resizable width={460}>
         <div>artifact pane</div>
-      </RightPaneHost>
+      </PersistentRightPaneHost>
     )
 
     const contentWrapper = screen.getByText('artifact pane').parentElement
@@ -130,9 +133,9 @@ describe('RightPaneHost', () => {
 
   it('does not render a resize handle by default', () => {
     const { container } = render(
-      <RightPaneHost open width={460}>
+      <PersistentRightPaneHost open width={460}>
         <div>artifact pane</div>
-      </RightPaneHost>
+      </PersistentRightPaneHost>
     )
 
     expect(container.querySelector('[data-right-pane-resize-handle]')).not.toBeInTheDocument()
@@ -145,9 +148,9 @@ describe('RightPaneHost', () => {
 
   it('caps its width when reserving space for the conversation center', () => {
     const { container } = render(
-      <RightPaneHost open width={460} reservedCenterWidth={360}>
+      <PersistentRightPaneHost open width={460} reservedCenterWidth={360}>
         <div>artifact pane</div>
-      </RightPaneHost>
+      </PersistentRightPaneHost>
     )
 
     const host = container.querySelector('[data-right-pane]')
@@ -155,32 +158,11 @@ describe('RightPaneHost', () => {
     expect(host).toHaveStyle({ maxWidth: 'max(0px, calc(100% - 360px))' })
   })
 
-  it('notifies when reserved center space leaves less than the pane minimum width', async () => {
-    const onReservedSpaceUnavailable = vi.fn()
-
-    render(
-      <RightPaneHost
-        open
-        resizable
-        width={460}
-        reservedCenterWidth={360}
-        onReservedSpaceUnavailable={onReservedSpaceUnavailable}>
-        <div>artifact pane</div>
-      </RightPaneHost>
-    )
-
-    notifyObservedContainerWidth(ARTIFACT_RIGHT_PANE_MIN_WIDTH + 360 - 1)
-
-    await waitFor(() => {
-      expect(onReservedSpaceUnavailable).toHaveBeenCalledTimes(1)
-    })
-  })
-
   it('renders a left-edge resize handle when resizable', () => {
     const { container } = render(
-      <RightPaneHost open resizable width={460}>
+      <PersistentRightPaneHost open resizable width={460}>
         <div>artifact pane</div>
-      </RightPaneHost>
+      </PersistentRightPaneHost>
     )
 
     const handle = container.querySelector('[data-right-pane-resize-handle]')
@@ -191,9 +173,9 @@ describe('RightPaneHost', () => {
 
   it('keeps the resize handle above pane content overlays', () => {
     const { container } = render(
-      <RightPaneHost open resizable width={460}>
+      <PersistentRightPaneHost open resizable width={460}>
         <div className="absolute inset-0 z-20">preview overlay</div>
-      </RightPaneHost>
+      </PersistentRightPaneHost>
     )
 
     const handle = container.querySelector('[data-right-pane-resize-handle]')
@@ -202,32 +184,193 @@ describe('RightPaneHost', () => {
     expect(handle).toHaveClass('z-30')
   })
 
-  it('notifies when the open animation completes', () => {
-    const onOpenAnimationComplete = vi.fn()
+  it('keeps one child instance across closed, docked, and maximized layouts', async () => {
+    const lifecycle: string[] = []
 
-    render(
-      <RightPaneHost open width={460} onOpenAnimationComplete={onOpenAnimationComplete}>
-        <div>artifact pane</div>
-      </RightPaneHost>
-    )
+    function StatefulPane() {
+      const [count, setCount] = useState(0)
 
-    const pane = screen.getByText('artifact pane').parentElement
+      useEffect(() => {
+        lifecycle.push('mount')
+        return () => {
+          lifecycle.push('unmount')
+        }
+      }, [])
 
-    if (!pane) {
-      throw new Error('Expected right pane')
+      return (
+        <button type="button" onClick={() => setCount((current) => current + 1)}>
+          pane state {count}
+        </button>
+      )
     }
 
-    fireEvent.animationEnd(pane)
+    const { container, rerender } = render(
+      <div className="relative">
+        <PersistentRightPaneHost open width={460}>
+          <StatefulPane />
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const pane = screen.getByRole('button', { name: 'pane state 0' })
+    fireEvent.click(pane)
 
-    expect(onOpenAnimationComplete).toHaveBeenCalledTimes(1)
+    rerender(
+      <div className="relative">
+        <PersistentRightPaneHost open={false} width={460}>
+          <StatefulPane />
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    await waitFor(() => expect(container.querySelector('[data-right-pane]')).toHaveAttribute('inert'))
+    // The fully closed pane is visibility:hidden, which strips accessible names —
+    // query by text (visibility-agnostic) to assert the same instance survived.
+    expect(screen.getByText('pane state 1', { selector: 'button' })).toBe(pane)
+
+    rerender(
+      <div className="relative">
+        <PersistentRightPaneHost open maximized width={460}>
+          <StatefulPane />
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
+    )
+    expect(screen.getByRole('button', { name: 'pane state 1' })).toBe(pane)
+    expect(lifecycle).toEqual(['mount'])
+  })
+
+  it('wipes between the docked strip and full width without blanking the pane', async () => {
+    const controls = useAnimationControls() as unknown as {
+      set: ReturnType<typeof vi.fn>
+      start: ReturnType<typeof vi.fn>
+    }
+    const dockedStripClip = 'inset(0% 0% 0% calc(100% - 460px))'
+    const { container, rerender } = render(
+      <div className="relative">
+        <PersistentRightPaneHost open width={460}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    controls.set.mockClear()
+    controls.start.mockClear()
+
+    rerender(
+      <div className="relative">
+        <PersistentRightPaneHost open maximized width={460}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
+    )
+    // Maximize from docked starts the wipe at the strip the pane already occupies.
+    expect(controls.set).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
+    expect(controls.set).not.toHaveBeenCalledWith(expect.objectContaining({ clipPath: 'inset(0% 0% 0% 100%)' }))
+
+    controls.set.mockClear()
+    controls.start.mockClear()
+
+    rerender(
+      <div className="relative">
+        <PersistentRightPaneHost open width={460}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')
+    )
+    // Minimize wipes down to that same strip instead of collapsing to nothing.
+    expect(controls.start).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
+  })
+
+  it('starts the maximize wipe from the constrained docked width', async () => {
+    const { rerender } = render(
+      <div className="relative">
+        <PersistentRightPaneHost open width={460} reservedCenterWidth={360}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    motionTestState.controls.set.mockClear()
+
+    rerender(
+      <div className="relative">
+        <PersistentRightPaneHost open maximized width={460} reservedCenterWidth={360}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    await waitFor(() =>
+      expect(motionTestState.controls.set).toHaveBeenCalledWith({
+        clipPath: 'inset(0% 0% 0% calc(100% - min(460px, max(0px, calc(100% - 360px)))))',
+        opacity: 1
+      })
+    )
+  })
+
+  it('ignores a stale maximize completion when minimizing before it finishes', async () => {
+    const firstAnimation = createDeferred()
+    const secondAnimation = createDeferred()
+    const onLayoutAnimationComplete = vi.fn()
+    motionTestState.controls.start
+      .mockImplementationOnce(() => firstAnimation.promise)
+      .mockImplementationOnce(() => secondAnimation.promise)
+
+    const { container, rerender } = render(
+      <div className="relative">
+        <PersistentRightPaneHost open width={460} onLayoutAnimationComplete={onLayoutAnimationComplete}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    rerender(
+      <div className="relative">
+        <PersistentRightPaneHost open maximized width={460} onLayoutAnimationComplete={onLayoutAnimationComplete}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximizing')
+
+    rerender(
+      <div className="relative">
+        <PersistentRightPaneHost open width={460} onLayoutAnimationComplete={onLayoutAnimationComplete}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    expect(motionTestState.controls.stop).toHaveBeenCalled()
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
+
+    await act(async () => firstAnimation.resolve())
+
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
+    expect(onLayoutAnimationComplete).not.toHaveBeenCalled()
+
+    await act(async () => secondAnimation.resolve())
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')
+    )
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+    expect(onLayoutAnimationComplete).toHaveBeenCalledWith('docked')
   })
 
   it('commits the final drag width once on mouse up and cleans document resize styles', () => {
-    const onOpenAnimationComplete = vi.fn()
     const { container } = render(
-      <RightPaneHost open resizable width={460} onOpenAnimationComplete={onOpenAnimationComplete}>
+      <PersistentRightPaneHost open resizable width={460}>
         <div>artifact pane</div>
-      </RightPaneHost>
+      </PersistentRightPaneHost>
     )
     const pane = container.querySelector('[data-right-pane]')
     const handle = container.querySelector('[data-right-pane-resize-handle]')
@@ -242,9 +385,6 @@ describe('RightPaneHost', () => {
     expect(document.body.style.cursor).toBe('col-resize')
     expect(document.body.style.userSelect).toBe('none')
     expect(pane).toHaveAttribute('data-resizing', 'true')
-
-    fireEvent.animationEnd(pane)
-    expect(onOpenAnimationComplete).not.toHaveBeenCalled()
 
     fireEvent.mouseMove(document, { clientX: 300 })
     fireEvent.mouseMove(document, { clientX: 600 })
@@ -267,9 +407,9 @@ describe('RightPaneHost', () => {
 
   it('does not commit to the persisted cache before window blur ends the drag', () => {
     const { container } = render(
-      <RightPaneHost open resizable width={460}>
+      <PersistentRightPaneHost open resizable width={460}>
         <div>artifact pane</div>
-      </RightPaneHost>
+      </PersistentRightPaneHost>
     )
     const pane = container.querySelector('[data-right-pane]')
     const handle = container.querySelector('[data-right-pane-resize-handle]')
@@ -332,9 +472,9 @@ describe('RightPaneHost', () => {
 
     it('schedules at most one rAF-driven width update per animation frame', () => {
       const { container } = render(
-        <RightPaneHost open resizable width={460}>
+        <PersistentRightPaneHost open resizable width={460}>
           <div>artifact pane</div>
-        </RightPaneHost>
+        </PersistentRightPaneHost>
       )
       const pane = container.querySelector('[data-right-pane]')
       const handle = container.querySelector('[data-right-pane-resize-handle]')
@@ -366,9 +506,9 @@ describe('RightPaneHost', () => {
 
     it('commits immediately via the keyboard/a11y path, bypassing rAF', () => {
       const { container } = render(
-        <RightPaneHost open resizable width={460}>
+        <PersistentRightPaneHost open resizable width={460}>
           <div>artifact pane</div>
-        </RightPaneHost>
+        </PersistentRightPaneHost>
       )
       const handle = container.querySelector('[data-right-pane-resize-handle]')
 
@@ -386,9 +526,9 @@ describe('RightPaneHost', () => {
     it('cancels a pending rAF and does not update state after unmount', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
       const { container, unmount } = render(
-        <RightPaneHost open resizable width={460}>
+        <PersistentRightPaneHost open resizable width={460}>
           <div>artifact pane</div>
-        </RightPaneHost>
+        </PersistentRightPaneHost>
       )
       const pane = container.querySelector('[data-right-pane]')
       const handle = container.querySelector('[data-right-pane-resize-handle]')
@@ -418,23 +558,3 @@ describe('RightPaneHost', () => {
     })
   })
 })
-
-function notifyObservedContainerWidth(width: number) {
-  const observedTarget = resizeObserverMockInstances
-    .flatMap((instance) => instance.observe.mock.calls.map(([target]) => ({ instance, target })))
-    .find(({ target }) => target instanceof Element && target.querySelector('[data-right-pane]'))
-  if (!observedTarget || !(observedTarget.target instanceof Element)) {
-    throw new Error('Expected RightPaneHost container to be observed')
-  }
-  const { instance, target } = observedTarget
-
-  instance.callback(
-    [
-      {
-        target,
-        contentRect: new DOMRect(0, 0, width, 0)
-      } as ResizeObserverEntry
-    ],
-    {} as ResizeObserver
-  )
-}

@@ -116,6 +116,48 @@ describe('FileList', () => {
     expect(onSelect).toHaveBeenCalledWith(file.id)
   })
 
+  it('opens files through the existing action', () => {
+    const onOpen = vi.fn()
+
+    render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
+
+    expect(onOpen).toHaveBeenCalledWith(file)
+  })
+
+  it('opens a file on a single row click', () => {
+    const onOpen = vi.fn()
+
+    render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
+
+    fireEvent.click(screen.getByText(file.name))
+
+    expect(onOpen).toHaveBeenCalledWith(file)
+  })
+
+  it('does not open when clicking the checkbox column', () => {
+    const onOpen = vi.fn()
+
+    render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
+
+    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
+    fireEvent.click(checkbox.parentElement as HTMLElement)
+
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('does not open a missing file on a row click', () => {
+    const onOpen = vi.fn()
+    const missingFile: FileItem = { ...file, id: 'missing-file', isMissing: true }
+
+    render(<FileList {...fileListProps(null)} files={[missingFile]} onOpen={onOpen} />)
+
+    fireEvent.click(screen.getByText(missingFile.name))
+
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
   it('shows the row show-in-folder action for active files', () => {
     const externalFile: FileItem = {
       ...file,
