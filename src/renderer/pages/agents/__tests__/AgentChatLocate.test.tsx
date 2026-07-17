@@ -184,6 +184,7 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false],
   useSharedCache: () => [null, vi.fn()],
+  useSharedCacheValue: () => undefined,
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
