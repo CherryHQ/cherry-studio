@@ -135,6 +135,22 @@ const BUNDLED_TOOLS: Array<{ name: string; binaries: string[]; versionFile: stri
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
 ]
 
+// Code-owned catalog of the fixed tools Cherry ships: every Dependencies preset
+// executable and every Code CLI executable mapped to its canonical mise recipe.
+// Derived from the two preset sources so their names and recipes stay the single
+// source of truth. Fixed definitions carry no requestedVersion — a version pin is
+// a per-install / runtime-claim fact, never part of the canonical identity.
+const FIXED_CATALOG: ReadonlyMap<string, BinaryManifestEntry> = new Map<string, BinaryManifestEntry>([
+  ...PRESETS_BINARY_TOOLS.map((preset): [string, BinaryManifestEntry] => [
+    preset.name,
+    { name: preset.name, tool: preset.tool }
+  ]),
+  ...CODE_CLI_TOOL_PRESETS.map((preset): [string, BinaryManifestEntry] => [
+    preset.executable,
+    { name: preset.executable, tool: preset.miseTool }
+  ])
+])
+
 // Re-exported for main-process callers and tests.
 export { validateBinaryManifestEntry }
 
@@ -296,8 +312,7 @@ export class BinaryManager extends BaseService {
     }
 
     for (const intent of manifest) addCandidate(intent.name, intent.tool)
-    for (const preset of PRESETS_BINARY_TOOLS) addCandidate(preset.name, preset.tool)
-    for (const preset of CODE_CLI_TOOL_PRESETS) addCandidate(preset.executable, preset.miseTool)
+    for (const [name, definition] of FIXED_CATALOG) addCandidate(name, definition.tool)
     for (const [name, operation] of Object.entries(operations)) {
       if (operation.status === 'failed' && operation.action === 'install' && operation.intent) {
         addCandidate(name, operation.intent.tool)
@@ -817,12 +832,8 @@ export class BinaryManager extends BaseService {
    */
   private validateIntentSpec(intent: BinaryManifestEntry) {
     validateBinaryManifestEntry(intent)
-    const canonicalTools = new Map([
-      ...PRESETS_BINARY_TOOLS.map((tool) => [tool.name, tool.tool] as const),
-      ...CODE_CLI_TOOL_PRESETS.map((tool) => [tool.executable, tool.miseTool] as const)
-    ])
-    const canonicalTool = canonicalTools.get(intent.name)
-    if (canonicalTool && canonicalTool !== intent.tool) {
+    const fixed = this.resolveFixedDefinition(intent.name)
+    if (fixed && fixed.tool !== intent.tool) {
       throw new Error(`Tool ${intent.name} must use its canonical specification`)
     }
 
@@ -852,6 +863,11 @@ export class BinaryManager extends BaseService {
     }
     cacheService.setShared('feature.binary.install_states', operations)
     application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
+  }
+
+  /** Resolve the code-owned fixed definition for a name, if the app ships one. */
+  private resolveFixedDefinition(name: string): BinaryManifestEntry | undefined {
+    return FIXED_CATALOG.get(name)
   }
 
   installTool(request: BinaryInstallRequest): Promise<{ version: string }> {
@@ -898,6 +914,51 @@ export class BinaryManager extends BaseService {
     return promise
   }
 
+  /**
+   * Run the mise backend for a definition and return the resolved version plus
+   * the concrete definition to persist. Adopts a ready runtime at its live
+   * version when it satisfies the request (runtime live-version claim), otherwise
+   * installs via mise honoring the one-shot target, verifies runnability, and
+   * pins a freshly installed unpinned runtime to its resolved version. Pure
+   * backend work: it neither writes Preference nor publishes operation state, so
+   * the caller owns persistence and the concrete pin it hands back.
+   */
+  private async applyDefinition(
+    definition: BinaryManifestEntry,
+    targetVersion: string | undefined,
+    manifest: BinaryManifestEntry[]
+  ): Promise<{ version: string; definition: BinaryManifestEntry }> {
+    const isRuntime = isRuntimeDependency(definition.tool)
+    const runtimeReady = isRuntime && (await this.isManagedBinaryReady(definition.name))
+    const currentRuntimeVersion = runtimeReady ? await this.getInstalledVersion(definition.tool) : undefined
+    const desiredRuntimeVersion = targetVersion ?? definition.requestedVersion
+    const normalizedDesiredRuntimeVersion = desiredRuntimeVersion ? semverValid(desiredRuntimeVersion) : null
+    const canClaimRuntime =
+      currentRuntimeVersion !== undefined &&
+      (!desiredRuntimeVersion ||
+        (normalizedDesiredRuntimeVersion !== null &&
+          semverValid(currentRuntimeVersion) === normalizedDesiredRuntimeVersion))
+
+    if (canClaimRuntime) {
+      return {
+        version: currentRuntimeVersion,
+        definition: definition.requestedVersion
+          ? definition
+          : { ...definition, requestedVersion: currentRuntimeVersion }
+      }
+    }
+
+    const version = await this.installWithMise(definition, targetVersion, manifest)
+    if (!(await this.isManagedBinaryReady(definition.name))) {
+      throw new Error(`Tool installed but not runnable: ${definition.name}`)
+    }
+    if (isRuntime && !definition.requestedVersion) {
+      if (!version) throw new Error(`Runtime installed but its version could not be determined: ${definition.name}`)
+      return { version, definition: { ...definition, requestedVersion: version } }
+    }
+    return { version, definition }
+  }
+
   private async installToolImpl(request: BinaryInstallRequest): Promise<{ version: string }> {
     const { intent, targetVersion } = request
     try {
@@ -912,34 +973,8 @@ export class BinaryManager extends BaseService {
           throw new Error(`Tool specification ${intent.tool} is already owned as ${conflictingOwner.name}`)
         }
 
-        let persistedIntent = intent
-        let version: string
-        const isRuntime = isRuntimeDependency(intent.tool)
-        const runtimeReady = isRuntime && (await this.isManagedBinaryReady(intent.name))
-        const currentRuntimeVersion = runtimeReady ? await this.getInstalledVersion(intent.tool) : undefined
-        const desiredRuntimeVersion = targetVersion ?? intent.requestedVersion
-        const normalizedDesiredRuntimeVersion = desiredRuntimeVersion ? semverValid(desiredRuntimeVersion) : null
-        const canClaimRuntime =
-          currentRuntimeVersion !== undefined &&
-          (!desiredRuntimeVersion ||
-            (normalizedDesiredRuntimeVersion !== null &&
-              semverValid(currentRuntimeVersion) === normalizedDesiredRuntimeVersion))
-
-        if (canClaimRuntime) {
-          version = currentRuntimeVersion
-          persistedIntent = intent.requestedVersion ? intent : { ...intent, requestedVersion: version }
-        } else {
-          version = await this.installWithMise(intent, targetVersion, manifest)
-          if (!(await this.isManagedBinaryReady(intent.name))) {
-            throw new Error(`Tool installed but not runnable: ${intent.name}`)
-          }
-          if (isRuntime && !intent.requestedVersion) {
-            if (!version) throw new Error(`Runtime installed but its version could not be determined: ${intent.name}`)
-            persistedIntent = { ...intent, requestedVersion: version }
-          }
-        }
-
-        await this.upsertManifest(persistedIntent)
+        const { version, definition } = await this.applyDefinition(intent, targetVersion, manifest)
+        await this.upsertManifest(definition)
         return { version }
       })
       this.setOperation(intent.name, null)

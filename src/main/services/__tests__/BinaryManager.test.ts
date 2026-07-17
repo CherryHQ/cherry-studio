@@ -1567,6 +1567,80 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('fixed definition resolution', () => {
+    it('resolves preset and Code CLI definitions from the code-owned catalog', () => {
+      const service = new BinaryManager()
+
+      expect((service as any).resolveFixedDefinition('uv')).toEqual({ name: 'uv', tool: 'uv' })
+      expect((service as any).resolveFixedDefinition('claude')).toEqual({ name: 'claude', tool: 'claude' })
+      expect((service as any).resolveFixedDefinition('gemini')).toEqual({
+        name: 'gemini',
+        tool: 'npm:@google/gemini-cli'
+      })
+    })
+
+    it('returns undefined for a non-fixed name', () => {
+      expect((new BinaryManager() as any).resolveFixedDefinition('mytool')).toBeUndefined()
+    })
+  })
+
+  describe('applyDefinition (extracted install/claim primitive)', () => {
+    it('claims a ready runtime at its live version without persisting', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/node\n', stderr: '' }
+        if (args[0] === 'ls') return { stdout: JSON.stringify({ node: [{ version: '22.23.1' }] }), stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const result = await (service as any).applyDefinition({ name: 'node', tool: 'core:node' }, undefined, [])
+
+      // Runtime live-version claim pins the observed version in the returned definition.
+      expect(result).toEqual({
+        version: '22.23.1',
+        definition: { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
+      })
+      // The primitive performs no persistence of its own — the caller owns upsert.
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).not.toContainEqual(['use', '-g', 'core:node@latest'])
+    })
+
+    it('installs via mise honoring the one-shot target and returns the intent unchanged', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const result = await (service as any).applyDefinition({ name: 'fd', tool: 'fd' }, '10.0.0', [])
+
+      expect(result).toEqual({ version: '10.0.0', definition: { name: 'fd', tool: 'fd' } })
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual(['use', '-g', 'fd@10.0.0'])
+      expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
+    it('rejects when the installed tool is not runnable', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect((service as any).applyDefinition({ name: 'fd', tool: 'fd' }, undefined, [])).rejects.toThrow(
+        'not runnable'
+      )
+    })
+  })
+
   describe('buildIsolatedEnv', () => {
     it('filters out non-whitelisted environment variables', async () => {
       const original = { ...process.env }
