@@ -7,6 +7,7 @@ import MainApp from '../MainApp'
 // every route module); the wiring under test is the boundary around the providers.
 vi.mock('@renderer/components/layout/AppShell', () => ({ AppShell: () => null }))
 vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMonitorNotification: () => {} }))
+vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingErrorNotification: () => {} }))
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
 
 // The outermost provider explodes during render — only a boundary that is an

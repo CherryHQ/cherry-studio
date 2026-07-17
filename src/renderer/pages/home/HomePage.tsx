@@ -1,13 +1,10 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { type ResourcePaneConfig, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
-import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
-import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
-import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
@@ -55,7 +52,7 @@ import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useLocation, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
-import type { FC, HTMLAttributes, ReactNode } from 'react'
+import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -862,7 +859,7 @@ const HomePage: FC = () => {
         panePosition="left"
       />
     )
-  // In classic layout the topic list moves into the chat's right pane as a tab; the single page-level
+  // In classic layout the topic list moves into the chat's right pane as a capability; the single page-level
   // provider owns the Shell for both views so the rail and the right panel share its open/maximize
   // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
   const resourcePane: ResourcePaneConfig | null =
@@ -885,15 +882,6 @@ const HomePage: FC = () => {
           )
         }
       : null
-  const renderWithRightPane = (content: ReactNode) => (
-    <TopicRightPane
-      resourcePane={resourcePane}
-      defaultOpen={topicPaneOpen}
-      onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
-      revealRequest={topicRevealRequest}>
-      {content}
-    </TopicRightPane>
-  )
   const assistantPickerDialog = isClassicTopicLayout ? (
     <AssistantConversationPickerDialog
       open={assistantPickerOpen}
@@ -906,69 +894,42 @@ const HomePage: FC = () => {
 
   const centerSurface = historyRecordsCenter ?? resourceCenter
 
-  if (centerSurface) {
-    return (
+  // The provider, conversation shell, and viewport stay at one React ownership path while the center
+  // switches between loading, chat, history, and resource surfaces. Capability identity alone now
+  // decides whether a visited right-panel subtree survives.
+  return (
+    <TopicRightPane
+      resourcePane={resourcePane}
+      topicId={visibleTopic?.id}
+      topicName={visibleTopic?.name}
+      traceId={visibleTopic?.traceId}
+      present={!centerSurface}
+      defaultOpen={topicPaneOpen}
+      onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
+      revealRequest={topicRevealRequest}>
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
-          <ConversationPageShell
-            id="chat"
-            center={centerSurface}
+          <Chat
+            activeTopic={visibleTopic}
+            centerSurface={centerSurface}
             pane={pane}
             paneOpen={effectiveShowSidebar}
             panePosition={shellPanePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
             onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+            onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+            onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+            showResourceListControls={!isMessageOnlyView}
+            sidebarOpen={effectiveShowSidebar}
+            onSidebarToggle={toggleResourceListOpen}
+            locateMessageId={pendingLocateMessageId}
+            onLocateMessageHandled={handleLocateMessageHandled}
+            resourcePaneCount={topicResourcePaneCount}
           />
         </ContentContainer>
         {assistantPickerDialog}
       </Container>
-    )
-  }
-
-  const chatTopic = visibleTopic
-  if (!chatTopic) {
-    // First-entry has not resolved a topic yet (waiting on `/latest`). Mirror AgentChat's
-    // `isInitializing` branch: keep the rail + shell and show a loading center rather than a blank frame.
-    return renderWithRightPane(
-      <Container id="home-page">
-        <ContentContainer $detached={isWindowFrame}>
-          <ConversationShell
-            id="chat"
-            pane={pane}
-            paneOpen={effectiveShowSidebar}
-            panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
-            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-            center={<ConversationCenterState state="loading" />}
-          />
-        </ContentContainer>
-        {assistantPickerDialog}
-      </Container>
-    )
-  }
-
-  return renderWithRightPane(
-    <Container id="home-page">
-      <ContentContainer $detached={isWindowFrame}>
-        <Chat
-          activeTopic={chatTopic}
-          pane={pane}
-          paneOpen={effectiveShowSidebar}
-          panePosition={shellPanePosition}
-          onPaneCollapse={() => setResourceListOpen(false)}
-          onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-          onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-          onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-          showResourceListControls={!isMessageOnlyView}
-          sidebarOpen={effectiveShowSidebar}
-          onSidebarToggle={toggleResourceListOpen}
-          locateMessageId={pendingLocateMessageId}
-          onLocateMessageHandled={handleLocateMessageHandled}
-          resourcePaneCount={topicResourcePaneCount}
-        />
-      </ContentContainer>
-      {assistantPickerDialog}
-    </Container>
+    </TopicRightPane>
   )
 }
 

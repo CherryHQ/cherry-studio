@@ -193,7 +193,7 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "home": {
-      "welcome_title": "What shall we talk about today?"
+      "welcome_title": "What should we work on today?"
     },
     "icon": {
       "type": "Agent Icon"
@@ -1369,7 +1369,7 @@
       "view_full_content": "View Full Content"
     },
     "home": {
-      "welcome_title": "What shall we talk about today?"
+      "welcome_title": "What should we talk about today?"
     },
     "input": {
       "auto_resize": "Auto resize height",
@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Generate conversation name",
+      "auto_rename_failed": "Failed to auto-generate conversation name",
       "clear": {
         "title": "Clear Messages"
       },
@@ -2496,6 +2497,14 @@
       },
       "too_large": {
         "description": "Markdown files larger than {{limit}} MiB cannot be previewed.",
+        "title": "File is too large"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Open with default app",
+        "description": "PDF files larger than {{limit}} MiB cannot be previewed.",
+        "open_error": "Couldn't open this file",
         "title": "File is too large"
       }
     },
@@ -4779,6 +4788,7 @@
     "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
     "req_error_token": "Please check the validity of the token",
     "required_field": "Required field",
+    "revealing": "Revealing generated image",
     "safety_tolerance": "Safety Tolerance",
     "safety_tolerance_tip": "Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
@@ -5436,7 +5446,7 @@
         "icon": {
           "error": "Invalid icon name, please check your input",
           "label": "Icon",
-          "placeholder": "Enter Lucide icon name",
+          "placeholder": "Icon name",
           "random": "Random Icon",
           "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
           "view_all": "View All Icons"
