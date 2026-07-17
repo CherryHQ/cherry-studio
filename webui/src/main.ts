@@ -162,6 +162,12 @@ const textPacks = {
     copyMarkdown: 'Copy Markdown',
     copyPlainText: 'Copy plain text',
     copyCode: 'Copy code',
+    copySource: 'Copy source',
+    downloadSource: 'Download source',
+    previewMode: 'Preview',
+    sourceMode: 'Source',
+    wrapLines: 'Wrap lines',
+    unwrapLines: 'Disable line wrap',
     copied: 'Copied',
     openPath: 'Open path',
     pathInputPlaceholder: 'Enter a folder path to browse read-only',
@@ -189,9 +195,18 @@ const textPacks = {
     help: 'Help',
     helpGuide: 'Usage guide',
     helpGuideIntro: 'Use the WebUI to continue desktop Agent sessions from this browser.',
-    helpGuideSessions: 'Sessions: create, rename, generate topic names, or delete records from the left sidebar.',
-    helpGuideFiles: 'Files: preview workspace files from the Files tab when an access key is configured.',
-    helpGuideSpeech: 'Speech: adjust browser speech settings from the Speech tab.',
+    helpGuideSessions:
+      'Sessions: create, switch, rename, generate topic names, or delete records from the left sidebar.',
+    helpGuideStatus:
+      'Status: review context usage, running tasks, tool calls, sub-agents, and generated artifacts from the right panel.',
+    helpGuideFiles:
+      'Files: browse and preview workspace or allowed local files in read-only mode when an access key is configured.',
+    helpGuidePreview:
+      'Preview: Markdown, text, code, and script-like files provide toolbar actions for source/plain-text copy, source view, wrapping, and download.',
+    helpGuideSpeech:
+      'Speech: adjust browser speech settings from the Speech tab; availability depends on the browser and system voices.',
+    helpGuideSecurity:
+      'Security: WebUI keeps file previews read-only and does not directly access IPC, databases, or AI core internals.',
     renameTitle: 'Rename conversation',
     save: 'Save',
     saving: 'Saving...',
@@ -306,6 +321,12 @@ const textPacks = {
     copyMarkdown: '复制 Markdown',
     copyPlainText: '复制纯文本',
     copyCode: '复制代码',
+    copySource: '复制源码',
+    downloadSource: '下载源码',
+    previewMode: '预览',
+    sourceMode: '源码',
+    wrapLines: '自动换行',
+    unwrapLines: '关闭换行',
     copied: '已复制',
     openPath: '打开路径',
     pathInputPlaceholder: '输入文件夹路径进行只读浏览',
@@ -332,9 +353,13 @@ const textPacks = {
     help: '帮助',
     helpGuide: '使用说明',
     helpGuideIntro: '通过 WebUI 在浏览器中继续使用桌面端 Agent 会话。',
-    helpGuideSessions: '会话：可在左侧栏新建、重命名、生成话题名或删除会话记录。',
-    helpGuideFiles: '文件：配置访问密钥后，可在“文件”分组预览工作区文件。',
-    helpGuideSpeech: '朗读：可在“朗读”分组调整浏览器朗读偏好。',
+    helpGuideSessions: '会话：可在左侧栏新建、切换、重命名、生成话题名或删除会话记录。',
+    helpGuideStatus: '状态：可在右侧栏查看上下文用量、运行任务、工具调用、子代理和产物。',
+    helpGuideFiles: '文件：配置访问 KEY 后，可用只读模式浏览并预览工作区或允许访问的本地文件。',
+    helpGuidePreview:
+      '预览：Markdown、文本、代码和脚本类文件可通过工具栏复制源码/纯文本、切换源码视图、自动换行或下载源码。',
+    helpGuideSpeech: '朗读：可在“朗读”分组调整浏览器朗读偏好；可用性取决于浏览器和系统语音。',
+    helpGuideSecurity: '安全：WebUI 文件预览保持只读，不直接访问 IPC、数据库或 AI 核心内部逻辑。',
     renameTitle: '重命名会话',
     save: '保存',
     saving: '保存中...',
@@ -449,6 +474,12 @@ const textPacks = {
     copyMarkdown: '複製 Markdown',
     copyPlainText: '複製純文字',
     copyCode: '複製程式碼',
+    copySource: '複製原始碼',
+    downloadSource: '下載原始碼',
+    previewMode: '預覽',
+    sourceMode: '原始碼',
+    wrapLines: '自動換行',
+    unwrapLines: '關閉換行',
     copied: '已複製',
     openPath: '開啟路徑',
     pathInputPlaceholder: '輸入資料夾路徑進行唯讀瀏覽',
@@ -475,9 +506,13 @@ const textPacks = {
     help: '說明',
     helpGuide: '使用說明',
     helpGuideIntro: '透過 WebUI 在瀏覽器中繼續使用桌面端 Agent 會話。',
-    helpGuideSessions: '會話：可在左側欄新增、重新命名、生成話題名或刪除會話記錄。',
-    helpGuideFiles: '檔案：設定存取金鑰後，可在「檔案」分組預覽工作區檔案。',
-    helpGuideSpeech: '朗讀：可在「朗讀」分組調整瀏覽器朗讀偏好。',
+    helpGuideSessions: '會話：可在左側欄新增、切換、重新命名、生成話題名或刪除會話記錄。',
+    helpGuideStatus: '狀態：可在右側欄查看上下文用量、執行任務、工具調用、子代理和產物。',
+    helpGuideFiles: '檔案：設定存取 KEY 後，可用唯讀模式瀏覽並預覽工作區或允許存取的本機檔案。',
+    helpGuidePreview:
+      '預覽：Markdown、文字、程式碼和腳本類檔案可透過工具列複製原始碼/純文字、切換原始碼視圖、自動換行或下載原始碼。',
+    helpGuideSpeech: '朗讀：可在「朗讀」分組調整瀏覽器朗讀偏好；可用性取決於瀏覽器和系統語音。',
+    helpGuideSecurity: '安全：WebUI 檔案預覽保持唯讀，不直接存取 IPC、資料庫或 AI 核心內部邏輯。',
     renameTitle: '重新命名會話',
     save: '儲存',
     saving: '儲存中...',
@@ -735,6 +770,10 @@ const renderGithubIcon = () =>
   )
 
 type ActionIconName =
+  | 'copy'
+  | 'download'
+  | 'source'
+  | 'wrap'
   | 'send'
   | 'stop'
   | 'menu'
@@ -766,6 +805,24 @@ const renderActionIcon = (name: ActionIconName, restore = false) => {
     'aria-hidden': 'true'
   }
 
+  if (name === 'copy')
+    return h('svg', props, [
+      h('rect', { x: 9, y: 9, width: 11, height: 11, rx: 2 }),
+      h('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' })
+    ])
+  if (name === 'download')
+    return h('svg', props, [
+      h('path', { d: 'M12 3v12' }),
+      h('path', { d: 'm7 10 5 5 5-5' }),
+      h('path', { d: 'M5 21h14' })
+    ])
+  if (name === 'source') return h('svg', props, [h('path', { d: 'm8 18-6-6 6-6' }), h('path', { d: 'm16 6 6 6-6 6' })])
+  if (name === 'wrap')
+    return h('svg', props, [
+      h('path', { d: 'M3 7h14a4 4 0 0 1 0 8H7' }),
+      h('path', { d: 'm10 12-3 3 3 3' }),
+      h('path', { d: 'M3 19h8' })
+    ])
   if (name === 'send') return h('svg', props, [h('path', { d: 'm5 12 7-7 7 7' }), h('path', { d: 'M12 19V5' })])
   if (name === 'stop')
     return h(
@@ -1091,6 +1148,8 @@ const App = defineComponent({
     const workspaceFilesError = ref('')
     const selectedWorkspaceFile = ref('')
     const workspaceFilePreview = ref<WorkspaceFilePreviewState>({ status: 'idle' })
+    const workspacePreviewMode = ref<'preview' | 'source'>('preview')
+    const workspacePreviewWrap = ref(false)
     const slashCommands = ref<readonly WebUiSlashCommand[]>([])
     const modelPickerOpen = ref(false)
     const reasoningPickerOpen = ref(false)
@@ -1637,6 +1696,8 @@ const App = defineComponent({
       if (!apiPath) return
 
       releaseWorkspacePreview()
+      workspacePreviewMode.value = 'preview'
+      workspacePreviewWrap.value = false
       selectedWorkspaceFile.value = requestPath
       workspaceFilePreview.value = { status: 'loading', path: requestPath }
       const requestGeneration = ++workspacePreviewRequestGeneration
@@ -1704,6 +1765,24 @@ const App = defineComponent({
           message: getWorkspaceFileErrorMessage(error)
         }
       }
+    }
+
+    const handleWorkspacePreviewCopy = async (value: string, label: string) => {
+      await copyText(value)
+      showCopiedHint(label)
+    }
+
+    const downloadWorkspacePreviewSource = (preview: Extract<WorkspaceFilePreviewState, { status: 'text' }>) => {
+      const blob = new Blob([preview.content], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = preview.name || getWorkspacePathBasename(preview.path)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      showCopiedHint(text('downloadSource'))
     }
 
     const handleMarkdownContentClick = (event: MouseEvent) => {
@@ -1963,6 +2042,75 @@ const App = defineComponent({
       })
     }
 
+    const renderWorkspacePreviewToolButton = (
+      label: string,
+      onClick: () => void,
+      options: { active?: boolean; icon?: ActionIconName; shortLabel?: string } = {}
+    ) =>
+      h(
+        'button',
+        {
+          class: ['workspace-preview-tool-button', { 'workspace-preview-tool-button-active': options.active }],
+          type: 'button',
+          title: label,
+          'aria-label': label,
+          'aria-pressed': options.active === undefined ? undefined : String(options.active),
+          onClick
+        },
+        options.icon ? renderActionIcon(options.icon) : (options.shortLabel ?? label)
+      )
+
+    const renderWorkspacePreviewToolbar = (preview: WorkspaceFilePreviewState, previewKind: string) => {
+      if (preview.status !== 'text') return undefined
+      const isMarkdown = previewKind === 'markdown'
+      const language = isMarkdown ? 'markdown' : (getWorkspaceCodeLanguage(preview.path) ?? 'text')
+      const languageLabel = language === 'plaintext' ? 'TEXT' : language.toUpperCase()
+      return h('div', { class: 'workspace-file-preview-toolbar' }, [
+        h('span', { class: 'workspace-preview-language' }, languageLabel),
+        isMarkdown
+          ? renderWorkspacePreviewToolButton(
+              text('copyMarkdown'),
+              () => {
+                void handleWorkspacePreviewCopy(preview.content, text('copyMarkdown'))
+              },
+              { shortLabel: 'MD' }
+            )
+          : undefined,
+        renderWorkspacePreviewToolButton(
+          isMarkdown ? text('copyPlainText') : text('copySource'),
+          () => {
+            void handleWorkspacePreviewCopy(
+              isMarkdown ? markdownToPlainText(preview.content) : preview.content,
+              isMarkdown ? text('copyPlainText') : text('copySource')
+            )
+          },
+          { shortLabel: 'TXT' }
+        ),
+        isMarkdown
+          ? renderWorkspacePreviewToolButton(
+              workspacePreviewMode.value === 'preview' ? text('sourceMode') : text('previewMode'),
+              () => {
+                workspacePreviewMode.value = workspacePreviewMode.value === 'preview' ? 'source' : 'preview'
+              },
+              { active: workspacePreviewMode.value === 'source', icon: 'source' }
+            )
+          : undefined,
+        renderWorkspacePreviewToolButton(
+          workspacePreviewWrap.value ? text('unwrapLines') : text('wrapLines'),
+          () => {
+            workspacePreviewWrap.value = !workspacePreviewWrap.value
+          },
+          { active: workspacePreviewWrap.value, icon: 'wrap' }
+        ),
+        renderWorkspacePreviewToolButton(text('downloadSource'), () => downloadWorkspacePreviewSource(preview), {
+          icon: 'download'
+        }),
+        copiedHint.value
+          ? h('span', { class: 'workspace-preview-copy-hint', role: 'status' }, text('copied'))
+          : undefined
+      ])
+    }
+
     const renderWorkspaceFilePreview = () => {
       const preview = workspaceFilePreview.value
       if (preview.status === 'idle') return undefined
@@ -1980,7 +2128,8 @@ const App = defineComponent({
             },
             renderActionIcon('back')
           ),
-          h('span', { class: 'workspace-file-preview-title' }, getWorkspacePathBasename(preview.path))
+          h('span', { class: 'workspace-file-preview-title' }, getWorkspacePathBasename(preview.path)),
+          renderWorkspacePreviewToolbar(preview, previewKind)
         ]),
         h('div', { class: ['workspace-file-preview-content', `workspace-file-preview-${preview.status}`] }, [
           preview.status === 'loading'
@@ -2037,13 +2186,24 @@ const App = defineComponent({
                           })
                         : previewKind === 'markdown'
                           ? h('div', {
-                              class: 'workspace-markdown-preview markdown-content',
+                              class: [
+                                'workspace-markdown-preview markdown-content',
+                                { 'workspace-preview-wrapped': workspacePreviewWrap.value }
+                              ],
                               onClick: handleMarkdownContentClick,
-                              innerHTML: renderMarkdown(preview.content, { copyCodeLabel: text('copyCode') })
+                              innerHTML:
+                                workspacePreviewMode.value === 'source'
+                                  ? `<pre class="workspace-code-preview hljs"><code>${renderCode(preview.content, 'markdown')}</code></pre>`
+                                  : renderMarkdown(preview.content, { copyCodeLabel: text('copyCode') })
                             })
                           : h(
                               'pre',
-                              { class: 'workspace-code-preview hljs' },
+                              {
+                                class: [
+                                  'workspace-code-preview hljs',
+                                  { 'workspace-code-preview-wrapped': workspacePreviewWrap.value }
+                                ]
+                              },
                               h('code', {
                                 innerHTML: renderCode(preview.content, getWorkspaceCodeLanguage(preview.path))
                               })
@@ -2892,30 +3052,15 @@ const App = defineComponent({
           ? h(
               'button',
               {
-                class: 'message-action-chip',
+                class: 'message-action-button',
                 type: 'button',
-                title: text('copyMarkdown'),
-                'aria-label': text('copyMarkdown'),
+                title: text('copy'),
+                'aria-label': text('copy'),
                 onClick: () => {
-                  void copyText(message.content).then(() => showCopiedHint(text('copyMarkdown')))
+                  void copyText(message.content).then(() => showCopiedHint(text('copy')))
                 }
               },
-              'MD'
-            )
-          : undefined,
-        message.content
-          ? h(
-              'button',
-              {
-                class: 'message-action-chip',
-                type: 'button',
-                title: text('copyPlainText'),
-                'aria-label': text('copyPlainText'),
-                onClick: () => {
-                  void copyText(markdownToPlainText(message.content)).then(() => showCopiedHint(text('copyPlainText')))
-                }
-              },
-              'TXT'
+              renderActionIcon('copy')
             )
           : undefined,
         message.content
@@ -4050,23 +4195,50 @@ const App = defineComponent({
                           ? h('div', { class: 'agent-status-panel-scroll' }, [renderSpeechPanel()])
                           : rightPanelTab.value === 'help'
                             ? h('div', { class: 'agent-status-panel-scroll help-panel' }, [
-                                h('details', { class: 'help-guide-tree' }, [
+                                h('details', { class: 'help-guide-tree', open: true }, [
                                   h('summary', [renderActionIcon('help'), h('span', text('helpGuide'))]),
-                                  h('ul', [
-                                    h('li', text('helpGuideIntro')),
-                                    h('li', text('helpGuideSessions')),
-                                    h('li', text('helpGuideFiles')),
-                                    h('li', text('helpGuideSpeech'))
-                                  ])
+                                  h(
+                                    'ul',
+                                    [
+                                      'helpGuideIntro',
+                                      'helpGuideSessions',
+                                      'helpGuideStatus',
+                                      'helpGuideFiles',
+                                      'helpGuidePreview',
+                                      'helpGuideSpeech',
+                                      'helpGuideSecurity'
+                                    ].map((key) => h('li', text(key as TextKey)))
+                                  )
                                 ]),
                                 h('section', { class: 'help-runtime-section' }, [
-                                  h('h3', text('runtimeDetails')),
+                                  h('div', { class: 'help-runtime-header' }, [
+                                    h('h3', text('runtimeDetails')),
+                                    h('span', {
+                                      class: [
+                                        'bridge-indicator',
+                                        {
+                                          'bridge-indicator-connected': bridgeState.value === 'connected',
+                                          'bridge-indicator-offline': bridgeState.value === 'offline'
+                                        }
+                                      ],
+                                      title: bridgeDetail.value,
+                                      'aria-label': bridgeDetail.value,
+                                      role: 'status'
+                                    })
+                                  ]),
                                   h('div', { class: 'status-runtime-body' }, [
-                                    ...statusItems.value.map((item) =>
-                                      h('dl', { class: 'status-row', key: item.label }, [
-                                        h('dt', item.label),
-                                        h('dd', item.value)
-                                      ])
+                                    ...statusItems.value.map((item, index) =>
+                                      h(
+                                        'dl',
+                                        {
+                                          class: [
+                                            'status-row',
+                                            { 'status-row-terminal': index === statusItems.value.length - 1 }
+                                          ],
+                                          key: item.label
+                                        },
+                                        [h('dt', item.label), h('dd', item.value)]
+                                      )
                                     ),
                                     h('div', { class: 'version-block' }, [
                                       ...versionItems.value.map((item) =>
@@ -4650,7 +4822,9 @@ style.textContent = `
     gap: 8px;
     min-height: 0;
     margin-top: 8px;
+    padding-right: 6px;
     overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 
   .conversation-item-wrap {
@@ -4662,7 +4836,7 @@ style.textContent = `
     display: grid;
     width: 100%;
     min-height: 58px;
-    padding: 10px 44px 10px 12px;
+    padding: 10px 12px;
     text-align: left;
     background: #f9fafb;
     border: 1px solid #e5e7eb;
@@ -4798,10 +4972,21 @@ style.textContent = `
   }
 
   .conversation-title {
+    min-width: 0;
+    padding-right: 34px;
     overflow: hidden;
     color: #111827;
     font-size: 14px;
     font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .conversation-meta {
+    min-width: 0;
+    overflow: hidden;
+    color: #64748b;
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -4943,7 +5128,7 @@ style.textContent = `
 
   .agent-status-context-shortcut {
     display: flex;
-    width: 44px;
+    width: 50px;
     height: 36px;
     gap: 2px;
     justify-content: center;
@@ -4988,7 +5173,7 @@ style.textContent = `
 
   .agent-status-context-shortcut .agent-status-shortcut-badge {
     top: -2px;
-    right: -2px;
+    right: -8px;
     z-index: 1;
     box-shadow: 0 0 0 2px #f6f7fb;
   }
@@ -5354,7 +5539,7 @@ style.textContent = `
 
   .workspace-file-preview-header {
     display: flex;
-    height: 44px;
+    min-height: 44px;
     gap: 7px;
     align-items: center;
     padding: 6px 10px;
@@ -5363,11 +5548,68 @@ style.textContent = `
 
   .workspace-file-preview-title {
     min-width: 0;
+    flex: 1;
     overflow: hidden;
     color: #334155;
     font-size: 12px;
     font-weight: 600;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-file-preview-toolbar {
+    display: flex;
+    min-width: 0;
+    flex: 0 1 auto;
+    gap: 4px;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .workspace-preview-language {
+    max-width: 82px;
+    overflow: hidden;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+    letter-spacing: 0.04em;
+  }
+
+  .workspace-preview-tool-button {
+    display: grid;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 7px;
+    place-items: center;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .workspace-preview-tool-button svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .workspace-preview-tool-button:hover,
+  .workspace-preview-tool-button:focus-visible,
+  .workspace-preview-tool-button-active {
+    color: #111827;
+    background: #f1f5f9;
+    border-color: #dbe1ea;
+    outline: 0;
+  }
+
+  .workspace-preview-copy-hint {
+    color: #94a3b8;
+    font-size: 10px;
     white-space: nowrap;
   }
 
@@ -5494,6 +5736,19 @@ style.textContent = `
     background: var(--webui-code-bg);
     white-space: pre;
     tab-size: 2;
+  }
+
+  .workspace-code-preview-wrapped {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .workspace-preview-wrapped {
+    overflow-wrap: anywhere;
+  }
+
+  .workspace-preview-wrapped pre {
+    white-space: pre-wrap;
   }
 
   .workspace-code-preview code {
@@ -5773,6 +6028,23 @@ style.textContent = `
     color: #64748b;
     font-size: 12px;
     line-height: 1.5;
+  }
+
+  .help-runtime-header {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2px;
+  }
+
+  .help-runtime-header h3 {
+    margin: 0;
+  }
+
+  .help-runtime-header .bridge-indicator {
+    flex: 0 0 auto;
+    margin-bottom: 0;
   }
 
   .help-runtime-section {
@@ -6119,9 +6391,13 @@ style.textContent = `
     display: inline-flex;
     max-width: 100%;
     padding: 0;
-    color: #1d4ed8;
+    color: inherit;
     font: inherit;
     text-align: left;
+    text-decoration: underline;
+    text-decoration-color: rgb(100 116 139 / 45%);
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
     overflow-wrap: anywhere;
     background: transparent;
     border: 0;
@@ -6130,7 +6406,9 @@ style.textContent = `
 
   .webui-file-link:hover,
   .webui-file-link:focus-visible {
-    text-decoration: underline;
+    color: inherit;
+    text-decoration-style: solid;
+    text-decoration-color: currentColor;
     outline: 0;
   }
 
@@ -7005,6 +7283,12 @@ style.textContent = `
     margin: 0 0 16px;
     padding-bottom: 14px;
     border-bottom: 1px solid var(--webui-divider);
+  }
+
+  .status-row-terminal {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
   }
 
   .bridge-indicator {

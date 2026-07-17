@@ -10,7 +10,6 @@ const MAX_TEXT_PREVIEW_BYTES = 2 * 1024 * 1024
 const MAX_IMAGE_PREVIEW_BYTES = 10 * 1024 * 1024
 const MAX_DOCUMENT_PREVIEW_BYTES = 25 * 1024 * 1024
 const MAX_SEARCH_ENTRIES = 200
-const BT_ALLOWED_ROOT = 'D:/wwwroot/esaong.eu.org/bonsai'
 
 const previewContentTypes: Readonly<Record<string, string>> = {
   '.avif': 'image/avif',
@@ -157,8 +156,6 @@ const getSystemBlockedRoots = async (options: WebUiWorkspaceFileAccessOptions) =
   return Promise.all(roots.map(async (root) => realpath(root).catch(() => root)))
 }
 
-const isBtPanelPathAllowed = (candidatePath: string) => isSameOrInsidePath(BT_ALLOWED_ROOT, candidatePath)
-
 const isBtPanelPath = (candidatePath: string) =>
   btPanelRootCandidates.some((root) => isSameOrInsidePath(root, candidatePath))
 
@@ -167,7 +164,7 @@ const assertAllowedResolvedPath = async (resolvedPath: string, options: WebUiWor
     throw new WebUiWorkspaceFileError(403, 'WEBUI_WORKSPACE_PATH_BLOCKED', 'Hidden paths are not available in WebUI')
   }
 
-  if (isBtPanelPath(resolvedPath) && !isBtPanelPathAllowed(resolvedPath)) {
+  if (isBtPanelPath(resolvedPath)) {
     throw new WebUiWorkspaceFileError(403, 'WEBUI_WORKSPACE_PATH_BLOCKED', 'BT panel paths are not available in WebUI')
   }
 
