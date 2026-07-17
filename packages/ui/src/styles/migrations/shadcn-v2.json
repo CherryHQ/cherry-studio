@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "contract": "shadcn-v2",
+  "defaultKind": "css-custom-property",
+  "exclude": [
+    "packages/ui/src/styles/theme.css",
+    "packages/ui/src/styles/shadcn.css",
+    "packages/ui/src/styles/tokens/**",
+    "packages/ui/src/styles/migrations/**",
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/*.snap"
+  ],
+  "rules": [
+    { "source": "--cs-background", "target": "--background", "strategy": "exact" },
+    { "source": "--cs-foreground", "target": "--foreground", "strategy": "exact" },
+    { "source": "--cs-card", "target": "--card", "strategy": "exact" },
+    { "source": "--cs-card-foreground", "target": "--card-foreground", "strategy": "exact" },
+    { "source": "--cs-popover", "target": "--popover", "strategy": "exact" },
+    { "source": "--cs-popover-foreground", "target": "--popover-foreground", "strategy": "exact" },
+    {
+      "source": "--cs-primary",
+      "target": "--primary",
+      "strategy": "contextual",
+      "reason": "The canonical variable participates in runtime user-theme overrides while the old value does not."
+    },
+    { "source": "--cs-primary-foreground", "target": "--primary-foreground", "strategy": "exact" },
+    { "source": "--cs-secondary", "target": "--secondary", "strategy": "exact" },
+    { "source": "--cs-secondary-foreground", "target": "--secondary-foreground", "strategy": "exact" },
+    { "source": "--cs-muted", "target": "--muted", "strategy": "exact" },
+    { "source": "--cs-foreground-secondary", "target": "--muted-foreground", "strategy": "exact" },
+    { "source": "--cs-accent", "target": "--accent", "strategy": "exact" },
+    { "source": "--cs-accent-foreground", "target": "--accent-foreground", "strategy": "exact" },
+    { "source": "--cs-destructive", "target": "--destructive", "strategy": "exact" },
+    {
+      "source": "--cs-destructive-foreground",
+      "target": "--destructive-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-border", "target": "--border", "strategy": "exact" },
+    { "source": "--cs-input", "target": "--input", "strategy": "exact" },
+    {
+      "source": "--cs-ring",
+      "target": "--ring",
+      "strategy": "contextual",
+      "reason": "The canonical ring derives from the runtime primary input."
+    },
+    { "source": "--cs-sidebar", "target": "--sidebar", "strategy": "exact" },
+    { "source": "--cs-sidebar-foreground", "target": "--sidebar-foreground", "strategy": "exact" },
+    { "source": "--cs-sidebar-primary", "target": "--sidebar-primary", "strategy": "exact" },
+    {
+      "source": "--cs-sidebar-primary-foreground",
+      "target": "--sidebar-primary-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-sidebar-accent", "target": "--sidebar-accent", "strategy": "exact" },
+    {
+      "source": "--cs-sidebar-accent-foreground",
+      "target": "--sidebar-accent-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-sidebar-border", "target": "--sidebar-border", "strategy": "exact" },
+    { "source": "--cs-sidebar-ring", "target": "--sidebar-ring", "strategy": "exact" },
+    { "source": "--cs-background-subtle", "target": "--background-subtle", "strategy": "exact" },
+    { "source": "--cs-border-subtle", "target": "--border-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-border-hover",
+      "target": "--border-strong",
+      "strategy": "contextual",
+      "contexts": ["border-color"],
+      "reason": "Hover-state usage must remain a component state instead of becoming a static strong border."
+    },
+    {
+      "source": "--cs-foreground-muted",
+      "target": null,
+      "strategy": "review",
+      "contexts": ["color", "fill", "stroke"],
+      "reason": "The old token mixes tertiary content with disabled component state."
+    },
+    { "source": "--cs-error-base", "target": "--error", "strategy": "exact" },
+    { "source": "--cs-error-text", "target": "--error-subtle-foreground", "strategy": "exact" },
+    { "source": "--cs-error-bg", "target": "--error-subtle", "strategy": "exact" },
+    { "source": "--cs-error-border", "target": "--error-border", "strategy": "exact" },
+    { "source": "--cs-success-base", "target": "--success", "strategy": "exact" },
+    { "source": "--cs-success-bg", "target": "--success-subtle", "strategy": "exact" },
+    { "source": "--cs-warning-base", "target": "--warning", "strategy": "exact" },
+    { "source": "--cs-warning-bg", "target": "--warning-subtle", "strategy": "exact" },
+    { "source": "--cs-info-base", "target": "--info", "strategy": "exact" },
+    { "source": "--cs-info-bg", "target": "--info-subtle", "strategy": "exact" },
+    { "source": "--color-text-1", "target": "--foreground", "strategy": "exact" },
+    { "source": "--color-text", "target": "--foreground", "strategy": "exact" },
+    {
+      "source": "--color-text-2",
+      "target": "--muted-foreground",
+      "strategy": "contextual",
+      "contexts": ["color", "fill", "stroke"],
+      "reason": "Confirm that the consumer is secondary readable content, not disabled content."
+    },
+    {
+      "source": "--color-text-secondary",
+      "target": "--muted-foreground",
+      "strategy": "contextual",
+      "contexts": ["color", "fill", "stroke"],
+      "reason": "Confirm the resolved contrast on the consumer surface."
+    },
+    {
+      "source": "--color-text-3",
+      "target": null,
+      "strategy": "review",
+      "contexts": ["color", "fill", "stroke"],
+      "reason": "There is no universal canonical target for tertiary and disabled content."
+    },
+    {
+      "source": "--color-background-soft",
+      "target": "--background-subtle",
+      "strategy": "contextual",
+      "contexts": ["background", "background-color"],
+      "reason": "The legacy color-mix value is not identical to the canonical subtle surface."
+    },
+    {
+      "source": "--color-border-soft",
+      "target": "--border-subtle",
+      "strategy": "contextual",
+      "contexts": ["border", "border-color"],
+      "reason": "Confirm the resolved alpha and underlying surface."
+    },
+    {
+      "source": "--color-border-mute",
+      "target": "--border-subtle",
+      "strategy": "contextual",
+      "contexts": ["border", "border-color"],
+      "reason": "Confirm the resolved alpha and underlying surface."
+    },
+    { "source": "--color-error", "target": "--error", "strategy": "exact" },
+    { "source": "--color-bg-base", "target": "--background", "strategy": "exact" },
+    { "source": "--modal-background", "target": "--card", "strategy": "exact" },
+    { "source": "--color-status-success", "target": "--success", "strategy": "exact" },
+    { "source": "--color-status-error", "target": "--error", "strategy": "exact" },
+    { "source": "--color-status-warning", "target": "--warning", "strategy": "exact" },
+    {
+      "source": "--app-muted-foreground",
+      "target": "--muted-foreground",
+      "strategy": "contextual",
+      "reason": "Remove the renderer override only after shared and renderer values have visual parity."
+    },
+    {
+      "source": "--app-card-foreground",
+      "target": "--card-foreground",
+      "strategy": "contextual",
+      "reason": "Remove the renderer override only after shared and renderer values have visual parity."
+    },
+    {
+      "source": "--app-popover-foreground",
+      "target": "--popover-foreground",
+      "strategy": "contextual",
+      "reason": "Remove the renderer override only after shared and renderer values have visual parity."
+    },
+    {
+      "source": "--app-sidebar",
+      "target": "--sidebar",
+      "strategy": "contextual",
+      "reason": "Preserve renderer shell appearance before deleting the duplicate theme role."
+    },
+    {
+      "source": "--app-sidebar-foreground",
+      "target": "--sidebar-foreground",
+      "strategy": "contextual",
+      "reason": "Preserve renderer shell appearance before deleting the duplicate theme role."
+    },
+    {
+      "source": "--app-sidebar-primary",
+      "target": "--sidebar-primary",
+      "strategy": "contextual",
+      "reason": "Preserve renderer shell appearance before deleting the duplicate theme role."
+    },
+    {
+      "source": "--app-sidebar-accent",
+      "target": "--sidebar-accent",
+      "strategy": "contextual",
+      "reason": "Preserve renderer shell appearance before deleting the duplicate theme role."
+    },
+    {
+      "source": "--app-sidebar-glow-bg",
+      "target": null,
+      "strategy": "preserve",
+      "reason": "This is a renderer shell effect, not a shared Shadcn semantic role."
+    }
+  ]
+}
