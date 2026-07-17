@@ -125,6 +125,14 @@ preboot/
 │                        webContents hardening (Document-Policy response
 │                        header and unresponsive renderer call-stack
 │                        collection)
+├── factoryResetGate.ts  factory-reset gate (#17131); consumes the BootConfig
+│                        `temp.factory_reset` marker at the top of startApp()
+│                        — before backupRestoreGate, after the single-instance
+│                        lock and the frozen path registry — wiping userData
+│                        (except logs/) and CHERRY_HOME user state (config/,
+│                        mcp/, trace/), then resetting BootConfig to defaults
+│                        (keeping app.user_data_path). Idempotent: the marker
+│                        is cleared only after a full pass. Never throws.
 ├── backupRestoreGate.ts
 │                        backup-restore gate; promotes a staged restored DB
 │                        (if any) at the top of startApp(), after the

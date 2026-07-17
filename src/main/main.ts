@@ -17,6 +17,7 @@ import { serviceList } from '@main/core/application/serviceRegistry'
 import { runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
+import { runFactoryResetGate } from '@main/core/preboot/factoryResetGate'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
@@ -39,6 +40,11 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
+  // Factory-reset gate: consume a pending reset marker (wipe user data,
+  // reset BootConfig) before the backup gate or the migration gate read
+  // anything. Never throws; without a marker it is a no-op.
+  runFactoryResetGate()
+
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
   // migration gate reads the DB. Never throws; on any failure the old DB
   // stays live and the app starts normally.
