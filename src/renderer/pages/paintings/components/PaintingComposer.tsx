@@ -29,8 +29,8 @@ import { type FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
-import { deriveChipLabel } from '../form/fields/SizeChipsField'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
+import { SIZE_PREVIEW_KEYS, sizeOptionLabel } from '../form/paintingSize'
 import { resolveOptions } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
@@ -47,9 +47,6 @@ const PAINTING_NO_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = [
 const EMPTY_TOKENS: readonly ComposerDraftToken[] = []
 const PAINTING_IMAGE_EXTS = imageExts.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`))
 const PAINTING_SCOPE = 'painting' as const
-
-/** Size-bearing canonical keys — formatted as chip-style dimensions. */
-const SIZE_PREVIEW_KEYS = ['size', 'imageResolution', 'aspectRatio'] as const
 
 /** Field types worth surfacing in the compact button summary. */
 const SUMMARY_TYPES = new Set<BaseConfigItem['type']>([
@@ -74,7 +71,9 @@ function formatSummaryValue(
       const h = params?.customSize_height
       return w && h ? `${String(w)}×${String(h)}` : undefined
     }
-    return deriveChipLabel(String(value), String(value))
+    // Localize the selected option (e.g. `auto` → `自动`) the same way the chips
+    // and the artboard prompt bar do, instead of formatting the raw enum.
+    return sizeOptionLabel(item, String(value), params, translate)
   }
   if (item.type === 'slider') return String(value)
   // Option-based: show the selected option's localized label.

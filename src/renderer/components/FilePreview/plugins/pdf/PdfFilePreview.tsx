@@ -2,7 +2,12 @@ import 'pdfjs-dist/web/pdf_viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
+import { safeOpen } from '@renderer/utils/file/safeOpen'
+import type { FilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/circle-alert'
+import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import {
   AnnotationMode,
@@ -26,6 +31,8 @@ GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 const logger = loggerService.withContext('PdfFilePreview')
 const DEFAULT_PDF_SCALE = 'page-width'
 const DEFAULT_ZOOM = 1
+const PDF_PREVIEW_MAX_SIZE_MIB = 50
+const PDF_PREVIEW_MAX_SIZE_BYTES = PDF_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
 const ZOOM_DRAWING_DELAY = 400
 const PINCH_WHEEL_MIN_DELTA = 0.08
 const PINCH_WHEEL_MAX_EVENT_DELTA = 0.8
@@ -98,6 +105,27 @@ function destroyLoadingTask(loadingTask: PDFDocumentLoadingTask, filePath: strin
   })
 }
 
+function PdfPreviewTooLarge({ filePath }: { filePath: FilePath }) {
+  const { t } = useTranslation()
+
+  const handleOpenWithDefaultApp = () => {
+    void safeOpen(createFilePathHandle(filePath)).catch(() => toast.error(t('file_preview.pdf.too_large.open_error')))
+  }
+
+  return (
+    <div role="alert" className="h-full">
+      <EmptyState
+        icon={FileWarning}
+        title={t('file_preview.pdf.too_large.title')}
+        description={t('file_preview.pdf.too_large.description', { limit: PDF_PREVIEW_MAX_SIZE_MIB })}
+        actionLabel={t('file_preview.pdf.too_large.action')}
+        onAction={handleOpenWithDefaultApp}
+        className="h-full"
+      />
+    </div>
+  )
+}
+
 export default function PdfFilePreview({ filePath, fileName, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -108,7 +136,7 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
   const backgroundRef = useRef(background)
   backgroundRef.current = background
   const [documentProxy, setDocumentProxy] = useState<PDFDocumentProxy | null>(null)
-  const [status, setStatus] = useState<'error' | 'loading' | 'ready'>('loading')
+  const [status, setStatus] = useState<'error' | 'loading' | 'ready' | 'too_large'>('loading')
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -222,6 +250,15 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
 
     void (async () => {
       try {
+        // Preflight the size via metadata (a stat, not a read) so oversized PDFs are
+        // rejected before we read + IPC-transfer the whole file into pdf.js.
+        const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
+        if (cancelled) return
+        if (metadata.size > PDF_PREVIEW_MAX_SIZE_BYTES) {
+          setStatus('too_large')
+          return
+        }
+
         const pdfData = toUint8Array(await window.api.fs.read(filePath))
         if (cancelled) return
 
@@ -462,6 +499,8 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
                 className="h-full"
               />
             </div>
+          ) : status === 'too_large' ? (
+            <PdfPreviewTooLarge filePath={filePath} />
           ) : (
             <>
               <div
