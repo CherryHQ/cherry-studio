@@ -7,6 +7,9 @@
 //
 // MVP additive kinds: blob-add / dir-add / note-add. External-path rewrite+dedup
 // and notes dir-swap are deferred — external file_entry rows are skipped.
+// Deferred (TODO, follow-up 07-18-backup-v2-staging-rule6-9-11): rule6 work.sqlite
+// reverse lookup + byte-match skip; rule11 liveAbs existsSync+warn; rule9
+// manifest↔DB reverse diff; skip-vs-abort policy. Wait for upstream write-silence.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -96,6 +99,11 @@ export function buildFileResourcesFromAdmit(
     const ext = meta?.ext ?? null
     const size = meta?.size ?? fs.statSync(payloadAbs).size
     const liveAbs = path.join(pathRoots.filesLiveRoot, ext ? `${fileId}.${ext}` : fileId)
+    // TODO(rule6, follow-up 07-18-backup-v2-staging-rule6-9-11): before emit blob-add,
+    // reverse-lookup file_entry on work.sqlite (not only backup.sqlite meta); drop
+    // surviving external/soft-deleted from candidates; byte-match equal live → skip.
+    // TODO(rule11, follow-up 07-18-backup-v2-staging-rule6-9-11): if existsSync(liveAbs),
+    // warn (retry dual-pollution); do not silently overwrite without policy.
     candidates.set(fileId, {
       stagedPath: toUserDataRelative(userData, payloadAbs),
       livePath: toUserDataRelative(userData, liveAbs),
@@ -114,6 +122,7 @@ export function buildFileResourcesFromAdmit(
     }
     sealDirectoryResource(dirAbs, dirAbs, { stopDir: workRoot })
     const liveAbs = path.join(pathRoots.knowledgeLiveRoot, baseId)
+    // TODO(rule11, follow-up 07-18-backup-v2-staging-rule6-9-11): existsSync(liveAbs)+warn
     candidates.set(`knowledge:${baseId}`, {
       stagedPath: toUserDataRelative(userData, dirAbs),
       livePath: toUserDataRelative(userData, liveAbs),
@@ -132,6 +141,7 @@ export function buildFileResourcesFromAdmit(
     }
     sealDirectoryResource(dirAbs, dirAbs, { stopDir: workRoot })
     const liveAbs = path.join(pathRoots.skillsLiveRoot, skill.folderName)
+    // TODO(rule11, follow-up 07-18-backup-v2-staging-rule6-9-11): existsSync(liveAbs)+warn
     candidates.set(`skills:${skill.folderName}`, {
       stagedPath: toUserDataRelative(userData, dirAbs),
       livePath: toUserDataRelative(userData, liveAbs),
@@ -158,6 +168,7 @@ export function buildFileResourcesFromAdmit(
     ) {
       throw new RestoreStagingPathEscapeError(`note live path escapes notes root: ${rel}`)
     }
+    // TODO(rule11, follow-up 07-18-backup-v2-staging-rule6-9-11): existsSync(liveAbs)+warn
     candidates.set(`notes:${rel}`, {
       stagedPath: toUserDataRelative(userData, noteAbs),
       livePath: toUserDataRelative(userData, liveAbs),
@@ -166,6 +177,12 @@ export function buildFileResourcesFromAdmit(
       rewrite: { origin: 'internal', externalPath: null, size: fs.statSync(noteAbs).size }
     })
   }
+
+  // TODO(rule9, follow-up 07-18-backup-v2-staging-rule6-9-11): manifest↔DB reverse diff —
+  // fileIds / knowledge / skills / notes present in one side only must enlarge
+  // skippedFileEntryIds (or abort per skip-vs-abort policy), not silently succeed.
+  // TODO(skip-vs-abort, follow-up 07-18-backup-v2-staging-rule6-9-11): document which
+  // gaps skip vs abort; wire vitest coverage once policy is fixed with upstream.
 
   return { candidates, skippedFileEntryIds }
 }
