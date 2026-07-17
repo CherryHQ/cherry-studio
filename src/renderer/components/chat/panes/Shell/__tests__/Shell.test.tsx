@@ -138,11 +138,6 @@ vi.mock('react-i18next', () => ({
 
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 
-import {
-  ChatMaximizedOverlayInsetProvider,
-  useChatMaximizedOverlayBottomInset,
-  useSetChatMaximizedOverlayBottomInset
-} from '../../../layout/ChatViewportInsetContext'
 import { Shell, useShellActions, useShellState } from '../Shell'
 
 function CloseShellButton() {
@@ -181,22 +176,6 @@ function ToggleMaximizedButton() {
       toggle maximized
     </button>
   )
-}
-
-function SetMaximizedOverlayBottomInset({ value }: { value: number }) {
-  const setBottomInset = useSetChatMaximizedOverlayBottomInset()
-
-  useEffect(() => {
-    setBottomInset(value)
-  }, [setBottomInset, value])
-
-  return null
-}
-
-function MaximizedOverlayBottomInsetSnapshot() {
-  const bottomInset = useChatMaximizedOverlayBottomInset()
-
-  return <div data-testid="maximized-overlay-bottom-inset">{String(bottomInset)}</div>
 }
 
 function ShellStateSnapshot() {
@@ -410,7 +389,7 @@ describe('Shell.Toggle', () => {
       <Shell defaultTab="files">
         <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
         <Shell.Tabs>
-          <Shell.TabList>
+          <Shell.TabList canMaximize>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -432,7 +411,7 @@ describe('Shell.Toggle', () => {
       <Shell defaultTab="files">
         <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
         <Shell.Tabs>
-          <Shell.TabList>
+          <Shell.TabList canMaximize>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -614,11 +593,51 @@ describe('Shell.Host', () => {
 })
 
 describe('Shell.TabList', () => {
+  it('uses a card background only while maximized', () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Tabs>
+          <Shell.TabList canMaximize>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+      </Shell>
+    )
+
+    const tabList = screen.getByTestId('shell-tab-list')
+    expect(tabList).not.toHaveClass('bg-card')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(tabList).toHaveClass('bg-card')
+  })
+
+  it('only offers maximize while the consumer allows it, but keeps minimize available', () => {
+    const renderTabList = (canMaximize: boolean) => (
+      <Shell defaultTab="files">
+        <Shell.Tabs>
+          <Shell.TabList canMaximize={canMaximize}>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+      </Shell>
+    )
+    const { rerender } = render(renderTabList(false))
+
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+
+    rerender(renderTabList(true))
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    rerender(renderTabList(false))
+
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
+  })
+
   it('renders tabs alongside the maximize toggle without reserving navbar overlap padding', () => {
     render(
       <Shell defaultTab="files">
         <Shell.Tabs>
-          <Shell.TabList>
+          <Shell.TabList canMaximize>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -651,7 +670,7 @@ describe('Shell.TabList', () => {
     render(
       <Shell defaultTab="files">
         <Shell.Tabs>
-          <Shell.TabList extraTrailing={<button type="button">extra</button>}>
+          <Shell.TabList canMaximize extraTrailing={<button type="button">extra</button>}>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -670,7 +689,7 @@ describe('Shell.TabList', () => {
     render(
       <Shell defaultTab="files" defaultOpen>
         <Shell.Tabs>
-          <Shell.TabList title="Files" showTabs={false}>
+          <Shell.TabList canMaximize title="Files" showTabs={false}>
             <Shell.Tab value="files">Files</Shell.Tab>
           </Shell.TabList>
         </Shell.Tabs>
@@ -699,7 +718,7 @@ describe('Shell.TabList', () => {
       <WindowFrameProvider value={{ mode: 'window' }}>
         <Shell defaultTab="files">
           <Shell.Tabs>
-            <Shell.TabList>
+            <Shell.TabList canMaximize>
               <Shell.Tab value="files">Files</Shell.Tab>
             </Shell.TabList>
           </Shell.Tabs>
@@ -722,7 +741,7 @@ describe('Shell.TabList', () => {
       <WindowFrameProvider value={{ mode: 'window' }}>
         <Shell defaultTab="files" defaultOpen>
           <Shell.Tabs>
-            <Shell.TabList title="Files" showTabs={false}>
+            <Shell.TabList canMaximize title="Files" showTabs={false}>
               <Shell.Tab value="files">Files</Shell.Tab>
             </Shell.TabList>
           </Shell.Tabs>
@@ -744,51 +763,24 @@ describe('Shell.TabList', () => {
 })
 
 describe('Shell.MaximizedOverlay', () => {
-  it('reserves the measured composer bottom inset while maximized', async () => {
+  it('keeps maximized content full-height instead of reserving composer space', async () => {
     const { container } = render(
-      <ChatMaximizedOverlayInsetProvider>
-        <Shell defaultTab="files">
-          <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
-          <ToggleMaximizedButton />
-          <SetMaximizedOverlayBottomInset value={128} />
-          <Shell.MaximizedOverlay>
-            <div>maximized content</div>
-          </Shell.MaximizedOverlay>
-        </Shell>
-      </ChatMaximizedOverlayInsetProvider>
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <ToggleMaximizedButton />
+        <Shell.MaximizedOverlay>
+          <div>maximized content</div>
+        </Shell.MaximizedOverlay>
+      </Shell>
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
     fireEvent.click(screen.getByRole('button', { name: 'toggle maximized' }))
 
     await waitFor(() => {
-      expect(container.querySelector('[data-shell-maximized-overlay-content]')).toHaveStyle({
-        height: 'max(0px, calc(100% - 128px))'
-      })
+      const content = container.querySelector<HTMLElement>('[data-shell-maximized-overlay-content]')
+      expect(content).toHaveClass('h-full')
+      expect(content?.style.height).toBe('')
     })
-  })
-
-  it('does not rerender setter-only consumers when the measured bottom inset changes', async () => {
-    let setterOnlyRenderCount = 0
-
-    function SetterOnlyProbe() {
-      useSetChatMaximizedOverlayBottomInset()
-      setterOnlyRenderCount += 1
-
-      return null
-    }
-
-    render(
-      <ChatMaximizedOverlayInsetProvider>
-        <SetterOnlyProbe />
-        <SetMaximizedOverlayBottomInset value={128} />
-        <MaximizedOverlayBottomInsetSnapshot />
-      </ChatMaximizedOverlayInsetProvider>
-    )
-
-    await waitFor(() => {
-      expect(screen.getByTestId('maximized-overlay-bottom-inset')).toHaveTextContent('128')
-    })
-    expect(setterOnlyRenderCount).toBe(1)
   })
 })

@@ -1,6 +1,6 @@
-import { Button, ImagePreviewTrigger } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { Trash2 } from 'lucide-react'
-import { memo, useMemo } from 'react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
@@ -35,8 +35,6 @@ function gradientFor(name: string): string {
 
 export const FileGrid = memo(function FileGrid({
   files,
-  selectedIds,
-  onSelect,
   onOpen,
   onDelete,
   isTrash,
@@ -46,8 +44,6 @@ export const FileGrid = memo(function FileGrid({
   onRenameCancel
 }: {
   files: FileItem[]
-  selectedIds: Set<string>
-  onSelect: (id: string) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
   isTrash: boolean
@@ -57,36 +53,10 @@ export const FileGrid = memo(function FileGrid({
   onRenameCancel: () => void
 }) {
   const { t } = useTranslation()
-  const imagePreviewItems = useMemo(
-    () =>
-      files.flatMap((file) =>
-        file.type === 'image' && file.previewUrl
-          ? [{ id: file.id, src: file.previewUrl, alt: file.name, title: file.name }]
-          : []
-      ),
-    [files]
-  )
-  const previewLabels = useMemo(
-    () => ({
-      close: t('preview.close'),
-      dialogTitle: t('preview.label'),
-      flipHorizontal: t('preview.flip_horizontal'),
-      flipVertical: t('preview.flip_vertical'),
-      next: t('preview.next'),
-      previous: t('preview.previous'),
-      reset: t('preview.reset'),
-      rotateLeft: t('preview.rotate_left'),
-      rotateRight: t('preview.rotate_right'),
-      zoomIn: t('preview.zoom_in'),
-      zoomOut: t('preview.zoom_out')
-    }),
-    [t]
-  )
 
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 p-3">
       {files.map((file) => {
-        const selected = selectedIds.has(file.id)
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         const isImage = file.type === 'image'
@@ -97,31 +67,15 @@ export const FileGrid = memo(function FileGrid({
           <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
             <div
               onClick={() => {
-                if (isRenaming) return
-                if (previewUrl) return
-                onSelect(file.id)
+                if (isRenaming || file.isMissing) return
+                onOpen(file)
               }}
-              onDoubleClick={() => {
-                if (!isRenaming && !previewUrl && !file.isMissing) onOpen(file)
-              }}
-              className={`group relative cursor-pointer rounded-lg border transition-all ${
-                selected
-                  ? 'border-border/50 bg-accent/50'
-                  : 'border-border/30 hover:border-border/50 hover:bg-accent/50'
-              }`}>
+              className="group relative cursor-pointer rounded-lg border border-border/30 transition-all hover:border-border/50 hover:bg-accent/50">
               <div
                 className={`${shapeClass} relative flex items-center justify-center overflow-hidden ${bgClass}`}
                 style={isImage ? { backgroundImage: gradientFor(file.name) } : undefined}>
                 {previewUrl ? (
-                  <ImagePreviewTrigger
-                    item={{ id: file.id, src: previewUrl, alt: file.name, title: file.name }}
-                    items={imagePreviewItems}
-                    alt={file.name}
-                    dialogProps={{ labels: previewLabels }}
-                    className="h-full w-full cursor-zoom-in object-cover"
-                    onClick={(e) => e.stopPropagation()}
-                    onDoubleClick={(e) => e.stopPropagation()}
-                  />
+                  <img src={previewUrl} alt={file.name} draggable={false} className="h-full w-full object-cover" />
                 ) : (
                   <Icon size={22} strokeWidth={1.2} className={typeIconColors[file.type]} />
                 )}
