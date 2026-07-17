@@ -41,16 +41,15 @@ vi.mock('@cherrystudio/ui', async () => {
     Button,
     CodeEditor: ({ value, ...props }: any) =>
       React.createElement('textarea', { ...props, value: value ?? '', readOnly: true }),
-    Combobox: ({ options = [], renderOption, value, ...props }: any) => {
+    Combobox: ({ options = [], popoverClassName, renderOption, value, ...props }: any) => {
       const cleanProps = { ...props }
       delete cleanProps.emptyText
-      delete cleanProps.popoverClassName
       delete cleanProps.searchPlacement
       delete cleanProps.triggerStyle
 
       return React.createElement(
         'div',
-        null,
+        { 'data-popover-class-name': popoverClassName },
         React.createElement(
           'select',
           { ...cleanProps, value: value ?? '', readOnly: true },
@@ -271,7 +270,7 @@ describe('AppearanceSettings menu presentation mode', () => {
   })
 })
 
-describe('AppearanceSettings language selector', () => {
+describe('AppearanceSettings selectors', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
     i18nMock.language = 'zh-CN'
@@ -308,5 +307,23 @@ describe('AppearanceSettings language selector', () => {
 
     expect(screen.queryByText('settings.messages.layout.conversation')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.messages.layout.work')).not.toBeInTheDocument()
+  })
+
+  it('matches both font popover widths to their triggers', async () => {
+    const { container } = render(<AppearanceSettings />)
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
+    })
+
+    const fontPopoverClassNames = Array.from(container.querySelectorAll('[data-popover-class-name]')).map((element) =>
+      element.getAttribute('data-popover-class-name')
+    )
+
+    expect(fontPopoverClassNames).toHaveLength(2)
+    expect(fontPopoverClassNames).toEqual([
+      expect.stringContaining('w-(--radix-popover-trigger-width)'),
+      expect.stringContaining('w-(--radix-popover-trigger-width)')
+    ])
   })
 })

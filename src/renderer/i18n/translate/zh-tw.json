@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "目前模型不支援可調整的推理"
       },
+      "toolbar": {
+        "customize": "自訂工具列",
+        "drag": {
+          "cancelled": "已取消對 {{name}} 的重新排序。",
+          "dropped": "已放下 {{name}}。",
+          "instructions": "重新排序：按空白鍵或 Enter 拿起工具，用方向鍵移動，再按空白鍵或 Enter 放下，按 Esc 取消。",
+          "over": "{{name}} 移動到 {{over}} 上方。",
+          "picked_up": "已拿起 {{name}}。"
+        },
+        "drag_handle": "拖曳以重新排序 {{name}}",
+        "restore_default": "還原預設"
+      },
       "tools": {
         "collapse": "折疊",
         "collapse_in": "加入折疊",
@@ -3484,8 +3496,10 @@
       "title": "圖書館"
     },
     "skill_add": {
+      "add": "新增 Skill",
       "local_import": "本機匯入",
-      "online_search": "線上搜尋"
+      "online_search": "線上搜尋",
+      "system_search": "系統搜尋"
     },
     "skill_detail": {
       "created_at": "建立時間",
@@ -3513,6 +3527,19 @@
       "updated": "依更新時間"
     },
     "subtitle": "管理你的助手、智能體與技能",
+    "system_skill": {
+      "conflict": "名稱衝突",
+      "description": "匯入系統中已安裝的 Skill。",
+      "empty_description": "未在這台裝置的其他程式開發工具中找到可匯入的 Skill。",
+      "empty_title": "沒有可匯入的 Skill",
+      "enable_success": "已啟用 {{name}}",
+      "enabled": "已啟用",
+      "import": "匯入",
+      "import_success": "已匯入 {{name}}",
+      "imported": "已匯入",
+      "search_placeholder": "搜尋系統 Skill...",
+      "title": "系統 Skill"
+    },
     "tag_picker": {
       "no_tags": "尚無標籤",
       "placeholder": "新標籤名稱..."

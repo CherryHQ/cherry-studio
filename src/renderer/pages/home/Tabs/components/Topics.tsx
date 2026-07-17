@@ -1,7 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import { useCache, usePersistCache } from '@data/hooks/useCache'
+import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -29,10 +28,7 @@ import {
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import {
-  ResourceEditDialogHost,
-  type ResourceEditDialogTarget
-} from '@renderer/components/resourceCatalog/dialogs/edit'
+import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -74,12 +70,13 @@ import {
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
+import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -97,6 +94,11 @@ import {
 } from './assistantGroupActions'
 
 const logger = loggerService.withContext('Topics')
+const ResourceEditDialogHost = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
+    default: module.ResourceEditDialogHost
+  }))
+)
 // Let the context menu close before mounting the heavier offscreen message list.
 const IMAGE_CAPTURE_START_DELAY_MS = 160
 
@@ -105,6 +107,19 @@ const DEFAULT_TOPIC_GROUP_VISIBLE_COUNT = 5
 const LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT = 50
 const TOPIC_ASSISTANT_TAG_SECTION_PREFIX = 'topic:section:assistant-tag:'
 const TOPIC_ASSISTANT_UNTAGGED_SECTION_ID = `${TOPIC_ASSISTANT_TAG_SECTION_PREFIX}untagged`
+const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
+  docx: 'data.export.menus.docx',
+  image: 'data.export.menus.image',
+  joplin: 'data.export.menus.joplin',
+  markdown: 'data.export.menus.markdown',
+  markdown_reason: 'data.export.menus.markdown_reason',
+  notes: 'data.export.menus.notes',
+  notion: 'data.export.menus.notion',
+  obsidian: 'data.export.menus.obsidian',
+  plain_text: 'data.export.menus.plain_text',
+  siyuan: 'data.export.menus.siyuan',
+  yuque: 'data.export.menus.yuque'
+} as const
 
 interface Props {
   activeTopic?: Topic
@@ -285,19 +300,7 @@ export function Topics({
     delayMs: IMAGE_CAPTURE_START_DELAY_MS,
     rejectPendingActions: rejectPendingTopicImageActions
   })
-  const [exportMenuOptions] = useMultiplePreferences({
-    docx: 'data.export.menus.docx',
-    image: 'data.export.menus.image',
-    joplin: 'data.export.menus.joplin',
-    markdown: 'data.export.menus.markdown',
-    markdown_reason: 'data.export.menus.markdown_reason',
-    notes: 'data.export.menus.notes',
-    notion: 'data.export.menus.notion',
-    obsidian: 'data.export.menus.obsidian',
-    plain_text: 'data.export.menus.plain_text',
-    siyuan: 'data.export.menus.siyuan',
-    yuque: 'data.export.menus.yuque'
-  })
+  const [exportMenuOptions] = useMultiplePreferences(TOPIC_EXPORT_MENU_PREFERENCE_KEYS)
   const displayMode = isRightPanel ? 'time' : (topicDisplayMode ?? 'time')
   const defaultGroupVisibleCount = isRightPanel
     ? Number.POSITIVE_INFINITY
@@ -402,6 +405,7 @@ export function Topics({
   )
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)
+  const activeTopicRef = useRef(activeTopic)
   const activeTopicIdRef = useRef(activeTopic?.id ?? '')
 
   useEffect(() => {
@@ -411,6 +415,10 @@ export function Topics({
   useEffect(() => {
     activeTopicIdRef.current = activeTopic?.id ?? ''
   }, [activeTopic?.id])
+
+  useEffect(() => {
+    activeTopicRef.current = activeTopic
+  }, [activeTopic])
 
   useEffect(() => {
     setOptimisticMove(null)
@@ -538,8 +546,9 @@ export function Topics({
 
       try {
         await patchTopic(topic.id, { assistantId })
-        if (activeTopic?.id === topic.id) {
-          setActiveTopic({ ...activeTopic, assistantId })
+        const currentActiveTopic = activeTopicRef.current
+        if (currentActiveTopic?.id === topic.id) {
+          setActiveTopic({ ...currentActiveTopic, assistantId })
         }
         toast.success(t('chat.topics.manage.move.success', { count: 1 }))
       } catch (err) {
@@ -547,11 +556,15 @@ export function Topics({
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
-    [activeTopic, patchTopic, setActiveTopic, t]
+    [patchTopic, setActiveTopic, t]
   )
 
   const handleDeleteTopicFromMenu = useCallback(
     async (topic: Topic) => {
+      const assistantTopicsBeforeDelete = topicsRef.current.filter(
+        (candidate) => candidate.assistantId === topic.assistantId
+      )
+
       try {
         await removeTopic(topic)
       } catch (err) {
@@ -561,13 +574,12 @@ export function Topics({
         return
       }
 
-      if (topic.id !== activeTopic?.id) return
+      if (topic.id !== activeTopicIdRef.current) return
 
       // Deleting the active topic selects a neighbour within the *same assistant* (both layouts), so
       // we never jump to an unrelated conversation. When that assistant has no other topic left, open
       // a fresh empty one for it instead of leaving the view stranded.
-      const assistantTopics = topics.filter((candidate) => candidate.assistantId === topic.assistantId)
-      const next = pickNeighbourAfterRemoval(assistantTopics, topic.id)
+      const next = pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id)
       if (next) {
         setActiveTopic(next)
         return
@@ -576,7 +588,7 @@ export function Topics({
       // Never let the fresh replacement reuse the topic we just deleted (stale candidate list).
       await onNewTopic?.({ assistantId: topic.assistantId ?? null, excludeReuseTopicId: topic.id })
     },
-    [activeTopic?.id, onNewTopic, removeTopic, setActiveTopic, t, topics]
+    [onNewTopic, removeTopic, setActiveTopic, t]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
@@ -735,11 +747,11 @@ export function Topics({
   const handleGroupHeaderSelectTopic = useCallback(
     (topicId: string) => {
       const topic = filteredTopics.find((candidate) => candidate.id === topicId)
-      if (topic && (historyRecordsActive || topic.id !== activeTopic?.id)) {
+      if (topic && (historyRecordsActive || topic.id !== activeTopicIdRef.current)) {
         setActiveTopic(topic)
       }
     },
-    [activeTopic?.id, filteredTopics, historyRecordsActive, setActiveTopic]
+    [filteredTopics, historyRecordsActive, setActiveTopic]
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: { id: string }) => {
@@ -1331,13 +1343,17 @@ export function Topics({
         />
       </TopicResourceList>
 
-      <ResourceEditDialogHost
-        target={editDialogTarget}
-        onOpenChange={(open) => {
-          if (!open) setEditDialogTarget(null)
-        }}
-        onSaved={refreshAssistants}
-      />
+      {editDialogTarget ? (
+        <Suspense fallback={null}>
+          <ResourceEditDialogHost
+            target={editDialogTarget}
+            onOpenChange={(open) => {
+              if (!open) setEditDialogTarget(null)
+            }}
+            onSaved={refreshAssistants}
+          />
+        </Suspense>
+      ) : null}
       {imageCaptureTargets.map(({ requestId, target: topic }) => (
         <TopicImageCaptureHost key={requestId} topic={topic} />
       ))}
@@ -1351,11 +1367,6 @@ type TopicStreamState = {
   isPending: boolean
 }
 
-type TopicStreamStatusSnapshot = {
-  signature: string
-  value: TopicStreamState
-}
-
 const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
   isFulfilled: false,
   isPending: false
@@ -1366,9 +1377,10 @@ const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses
 const getTopicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as const
 
-const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnapshot => {
-  const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
-  const lastSeenCompletion = cacheService.getShared(getTopicStreamLastSeenCompletionCacheKey(topicId))
+const selectTopicStreamState = (
+  values: readonly [TopicStatusSnapshotEntry | null | undefined, number | null | undefined]
+): TopicStreamState => {
+  const [statusEntry, lastSeenCompletion] = values
   const status = statusEntry?.status
   const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
   const streamStatus = {
@@ -1376,49 +1388,16 @@ const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnaps
     isPending: status === 'pending' || status === 'streaming'
   }
 
-  return {
-    signature: `${topicId}:${status ?? ''}:${lastCompletedAt ?? ''}:${lastSeenCompletion ?? ''}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`,
-    value: streamStatus.isPending || streamStatus.isFulfilled ? streamStatus : EMPTY_TOPIC_STREAM_STATE
-  }
+  // Normalize the idle case to a module constant; the non-idle object is
+  // rebuilt per run and bails out via the default shallowEqual.
+  return streamStatus.isPending || streamStatus.isFulfilled ? streamStatus : EMPTY_TOPIC_STREAM_STATE
 }
 
-const subscribeTopicStreamStatus = (topicId: string, onStoreChange: () => void): (() => void) => {
-  const unsubscribes = [
-    cacheService.subscribe(getTopicStreamStatusCacheKey(topicId), onStoreChange),
-    cacheService.subscribe(getTopicStreamLastSeenCompletionCacheKey(topicId), onStoreChange)
-  ]
-
-  return () => {
-    for (const unsubscribe of unsubscribes) {
-      unsubscribe()
-    }
-  }
-}
-
-const useTopicListStreamStatus = (topicId: string): TopicStreamState => {
-  const snapshotRef = useRef<TopicStreamStatusSnapshot>({
-    signature: '',
-    value: EMPTY_TOPIC_STREAM_STATE
-  })
-
-  const getSnapshot = useCallback(() => {
-    const nextSnapshot = buildTopicStreamStatusSnapshot(topicId)
-
-    if (snapshotRef.current.signature === nextSnapshot.signature) {
-      return snapshotRef.current.value
-    }
-
-    snapshotRef.current = nextSnapshot
-    return nextSnapshot.value
-  }, [topicId])
-
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => subscribeTopicStreamStatus(topicId, onStoreChange),
-    [topicId]
+const useTopicListStreamStatus = (topicId: string): TopicStreamState =>
+  useSharedCacheSelector(
+    [getTopicStreamStatusCacheKey(topicId), getTopicStreamLastSeenCompletionCacheKey(topicId)],
+    selectTopicStreamState
   )
-
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-}
 
 interface TopicListBodyProps {
   activeTopic?: Topic
@@ -1448,7 +1427,7 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'variant'>
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'listRef' | 'variant'>
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
@@ -1482,7 +1461,6 @@ function TopicListBody(props: TopicListBodyProps) {
 
   const rowProps = useMemo<TopicRowSharedProps>(
     () => ({
-      activeTopic,
       assistantMoveTargets,
       deletingTopicId,
       displayMode,
@@ -1507,7 +1485,6 @@ function TopicListBody(props: TopicListBodyProps) {
       topicsLength
     }),
     [
-      activeTopic,
       assistantMoveTargets,
       deletingTopicId,
       displayMode,
@@ -1533,7 +1510,11 @@ function TopicListBody(props: TopicListBodyProps) {
     ]
   )
 
-  const renderItem = useCallback((topic: Topic) => <TopicRow key={topic.id} topic={topic} {...rowProps} />, [rowProps])
+  const activeTopicId = activeTopic?.id
+  const renderItem = useCallback(
+    (topic: Topic) => <TopicRow key={topic.id} topic={topic} isActive={topic.id === activeTopicId} {...rowProps} />,
+    [activeTopicId, rowProps]
+  )
 
   return (
     <ResourceList.Body<Topic>
@@ -1552,17 +1533,18 @@ function TopicListBody(props: TopicListBodyProps) {
 }
 
 interface TopicRowWithStatusProps extends TopicRowSharedProps {
+  isActive: boolean
   topic: Topic
 }
 
 type TopicRowProps = TopicRowWithStatusProps
 
-function TopicRow({
-  activeTopic,
+const TopicRow = memo(function TopicRow({
   assistantMoveTargets,
   deletingTopicId,
   displayMode,
   exportMenuOptions,
+  isActive,
   isNewlyRenamed,
   isRenaming,
   isRightPanel,
@@ -1589,7 +1571,6 @@ function TopicRow({
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(topic.id)
   const streamStatus = useTopicListStreamStatus(topic.id)
-  const isActive = topic.id === activeTopic?.id
   const topicDisplayName = topic.name.trim() ? topic.name : t('chat.conversation.new')
   const topicName = topicDisplayName.replace('`', '')
   const nameAnimationClassName = isRenaming(topic.id)
@@ -1731,7 +1712,7 @@ function TopicRow({
       />
     </>
   )
-}
+})
 
 const TopicStreamIndicator = ({
   detached = false,

@@ -33,8 +33,10 @@ vi.mock('react-i18next', () => ({
           'library.assistant_catalog.title': '助手库',
           'library.assistant_catalog.go_to_chat': '去对话',
           'library.create_menu.create': '新建助手',
+          'library.skill_add.add': '添加 Skill',
           'library.skill_add.local_import': '本地导入',
           'library.skill_add.online_search': '在线搜索',
+          'library.skill_add.system_search': '系统搜索',
           'library.toolbar.all_tags': '全部标签',
           'library.toolbar.tag_button': '标签',
           'library.type.assistant': '助手',
@@ -523,29 +525,48 @@ describe('ResourceGrid assistant add actions', () => {
 })
 
 describe('ResourceGrid skill add actions', () => {
-  it('renders skill actions inline and dispatches online search or local import', async () => {
+  it('renders skill actions inline and dispatches online, system, or local actions', async () => {
     const user = userEvent.setup()
     const onCreate = vi.fn()
     const onOpenSkillMarketplace = vi.fn()
+    const onOpenSystemSkills = vi.fn()
 
     renderResourceGrid({
       activeResourceType: 'skill',
       onCreate,
-      onOpenSkillMarketplace
+      onOpenSkillMarketplace,
+      onOpenSystemSkills
     })
 
-    expect(screen.getByRole('button', { name: '在线搜索' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '本地导入' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加 Skill' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /添加技能/ })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '在线搜索' }))
+    await user.click(screen.getByRole('button', { name: '添加 Skill' }))
+
+    expect(screen.getByRole('menuitem', { name: '在线搜索' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '本地导入' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '系统搜索' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('menuitem', { name: '在线搜索' }))
 
     expect(onOpenSkillMarketplace).toHaveBeenCalledTimes(1)
     expect(onCreate).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: '本地导入' }))
+    await user.click(screen.getByRole('menuitem', { name: '本地导入' }))
 
     expect(onCreate).toHaveBeenCalledWith('skill')
+
+    await user.click(screen.getByRole('menuitem', { name: '系统搜索' }))
+
+    expect(onOpenSystemSkills).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides system search when no current agent is available', () => {
+    renderResourceGrid({ activeResourceType: 'skill' })
+
+    fireEvent.click(screen.getByRole('button', { name: '添加 Skill' }))
+
+    expect(screen.queryByRole('menuitem', { name: '系统搜索' })).not.toBeInTheDocument()
   })
 })
 

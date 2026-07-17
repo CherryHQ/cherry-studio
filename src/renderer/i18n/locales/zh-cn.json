@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "当前模型不支持调整推理强度"
       },
+      "toolbar": {
+        "customize": "自定义工具栏",
+        "drag": {
+          "cancelled": "已取消对 {{name}} 的重新排序。",
+          "dropped": "已放下 {{name}}。",
+          "instructions": "重新排序：按空格或回车拿起工具，用方向键移动，再按空格或回车放下，按 Esc 取消。",
+          "over": "{{name}} 移动到 {{over}} 上方。",
+          "picked_up": "已拿起 {{name}}。"
+        },
+        "drag_handle": "拖动以重新排序 {{name}}",
+        "restore_default": "恢复默认"
+      },
       "tools": {
         "collapse": "折叠",
         "collapse_in": "加入折叠",
@@ -3484,8 +3496,10 @@
       "title": "资源库"
     },
     "skill_add": {
+      "add": "添加 Skill",
       "local_import": "本地导入",
-      "online_search": "在线搜索"
+      "online_search": "在线搜索",
+      "system_search": "系统搜索"
     },
     "skill_detail": {
       "created_at": "创建时间",
@@ -3513,6 +3527,19 @@
       "updated": "按更新时间"
     },
     "subtitle": "管理你的助手、智能体与技能",
+    "system_skill": {
+      "conflict": "名称冲突",
+      "description": "导入系统中已经安装的 skill",
+      "empty_description": "未在这台设备的其他编程工具中找到可导入的 Skill。",
+      "empty_title": "没有可导入的 Skill",
+      "enable_success": "已启用 {{name}}",
+      "enabled": "已启用",
+      "import": "导入",
+      "import_success": "已导入 {{name}}",
+      "imported": "已导入",
+      "search_placeholder": "搜索系统 Skill...",
+      "title": "系统 Skill"
+    },
     "tag_picker": {
       "no_tags": "暂无标签",
       "placeholder": "新标签名..."
@@ -7722,6 +7749,8 @@
   },
   "tab": {
     "close": "关闭标签页",
+    "close_others": "关闭其他标签页",
+    "close_to_right": "关闭右侧标签页",
     "move_to_first": "移到最左侧",
     "new": "新标签页",
     "open_in_new_window": "从新窗口打开",
