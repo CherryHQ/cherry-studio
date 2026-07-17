@@ -866,5 +866,50 @@ describe('SkillService', () => {
         warnSpy.mockRestore()
       }
     })
+
+    it('reconcileSkills keeps a catalog row whose descriptor is present but unreadable', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      // SKILL.md exists but reading it throws a non-ENOENT error (here EISDIR: it is a directory),
+      // standing in for EACCES / EIO / an atomic-replace window. This must NOT be treated as deletion.
+      const dir = path.join(dataSkillsRoot, 'locked')
+      await fs.promises.mkdir(path.join(dir, 'SKILL.md'), { recursive: true })
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'locked',
+        folderName: 'locked',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false
+      })
+
+      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
+      try {
+        await skillService.reconcileSkills()
+        expect(
+          await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'locked'))
+        ).toHaveLength(1)
+      } finally {
+        warnSpy.mockRestore()
+      }
+    })
+
+    it('reconcileSkills normalizes a lowercase skill.md and still mirrors + adopts it', async () => {
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('lower', { name: 'Lower' }))
+      // Author wrote a lowercase descriptor (only distinguishable on case-sensitive filesystems).
+      const dir = path.join(dataSkillsRoot, 'lower')
+      await fs.promises.mkdir(dir, { recursive: true })
+      await fs.promises.writeFile(path.join(dir, 'skill.md'), '# lower')
+
+      await skillService.reconcileSkills()
+
+      // resolves as SKILL.md (renamed on case-sensitive FS, same file on case-insensitive)
+      await expect(fs.promises.access(path.join(dir, 'SKILL.md'))).resolves.toBeUndefined()
+      // adopted into the catalog
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'lower'))
+      ).toHaveLength(1)
+      // mirrored — would be skipped if the mirror only recognized uppercase SKILL.md
+      await expect(fs.promises.access(path.join(mirrorRoot, 'lower', 'SKILL.md'))).resolves.toBeUndefined()
+    })
   })
 })

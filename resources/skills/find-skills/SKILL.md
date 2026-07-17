@@ -137,13 +137,16 @@ so it shows up in the app. Do NOT use `-g` — the global flag installs into a s
 user-level CLI directory that Cherry does not manage, so the skill would never appear.
 
 ```bash
-# 1) fetch the skill (project-local, NOT global); -y skips the CLI's own prompt
-npx skills add <owner/repo@skill> -y
+# 1) fetch into a throwaway staging dir so the user's current project stays clean.
+#    -y skips the CLI's own prompt; do NOT use -g (that installs into a shared, unmanaged dir).
+STAGING="$(mktemp -d)"
+( cd "$STAGING" && npx skills add <owner/repo@skill> -y )
 
 # 2) move the installed skill folder into Cherry's managed skills directory.
-#    The CLI prints where it installed the skill — use that path as <install-path>.
+#    The CLI prints where under $STAGING it installed the skill — use that as <install-path>.
 mkdir -p "$CHERRY_STUDIO_SKILLS_DIR"
 cp -r <install-path> "$CHERRY_STUDIO_SKILLS_DIR/"
+rm -rf "$STAGING"
 ```
 
 The user-confirmation step above is what ensures the install was actually reviewed

@@ -36,6 +36,9 @@ function stubSkillRoutes() {
         return discoverSystemSkillsMock(input)
       case 'skill.import_system':
         return importSystemSkillMock(input)
+      case 'skill.reconcile':
+        // Fired by useReconcileSkillsOnOpen when a skill view mounts; irrelevant to these assertions.
+        return Promise.resolve(undefined)
       default:
         throw new Error(`Unexpected skill route: ${route}`)
     }
@@ -97,6 +100,13 @@ describe('useInstalledSkills', () => {
 
     expect(result.current.skills).toHaveLength(2)
     expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
+  })
+
+  it('reconciles the on-disk library when the agent Skills view opens, then refreshes', async () => {
+    renderHook(() => useInstalledSkills('agent-1'))
+
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {}))
+    await waitFor(() => expect(invalidateMock).toHaveBeenCalledWith('/skills'))
   })
 
   it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
