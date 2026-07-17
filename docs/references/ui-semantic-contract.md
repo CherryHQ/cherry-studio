@@ -73,15 +73,23 @@ Visible text is never an identity input, so localization and copy changes cannot
 timestamps, random values, class names, and build traversal order are also excluded.
 
 The committed `ui-contract.registry.json` reconciles source nodes with their exact IDs. IDs survive formatting, display
-text changes, and normal rebuilds. A file move keeps its IDs only when Git identifies the old and new paths as a rename
-during registry sync. Structural similarity alone is never treated as proof of identity: an unrelated replacement gets a
-new ID, while the removed exact ID moves to a tombstone list and is never allocated again.
+text changes, and normal rebuilds. Registry sync matches nodes in this order: unchanged source anchor, Git-confirmed
+file rename, then an unambiguous structural fallback — an ID follows a moved or edited node only when exactly one
+removed and one added node share the same component, element, semantic attributes, and parent role, and an explicit
+semantic ID does not contradict the previous one. Ambiguous candidates are never guessed: an unrelated replacement gets
+a new ID, while the removed exact ID moves to a tombstone list and is never allocated again. Renaming a component or
+wrapping a node in a new parent still changes its identity, so themes should target semantic and `part:` tokens first
+and reserve `id:` for tests and single-node overrides.
 
 After changing renderer markup, update and commit the registry:
 
 ```bash
 pnpm ui:contract:sync
 ```
+
+When a merge or rebase conflicts on `ui-contract.registry.json`, never resolve it by hand-editing the JSON. Accept
+either side, re-run `pnpm ui:contract:sync` on the merged sources, and commit the regenerated file — reconciliation is
+deterministic, so the rerun converges regardless of which side was kept.
 
 Production builds and CI reject drift through `pnpm ui:contract:check`. Builds emit a deterministic, dictionary-packed
 `ui-contract.json` asset. Its `columns` field describes each node tuple; the `sources`, `semantics`, `elements`, and
@@ -155,7 +163,11 @@ the source contract; its owning renderer must expose a stable boundary or explic
 ## Compatibility rules
 
 - Semantic IDs are lowercase dot-separated roles, not descriptions of current copy or appearance.
-- Existing semantic IDs are public API. Rename them only with a compatibility alias and a breaking-change entry.
+- Explicitly declared semantic IDs are public API. Rename them only with a compatibility alias and a breaking-change
+  entry.
+- Inferred semantic IDs are best-effort: they stay sticky while a node's source anchor is unchanged but are re-derived
+  when the node moves or is renamed. Themes that need a durable name must rely on an explicit semantic ID or a `part:`
+  token.
 - Exact `id:` tokens are immutable and never reused.
 - Runtime state belongs in `state:`, `mode:`, or `variant:`; do not generate a new semantic ID for each state.
 - Tests and automation must query semantic/exact tokens, then use accessible roles for the intended interaction. The
