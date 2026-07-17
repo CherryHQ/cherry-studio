@@ -10,9 +10,10 @@ date: 2026-07-17
 
 Settings → Data → "Data Reset" is now "Factory Reset". It erases all app data on
 the next restart — chats, assistants, knowledge bases, files, and all settings —
-returning the app to a fresh-install state. Two things are deliberately kept:
-the custom data directory location (if one was configured) and downloaded tool
-binaries (uv, bun, etc.). The v1 button silently did almost nothing: it only
+returning the app to a fresh-install state. Three things are deliberately kept:
+the custom data directory location (if one was configured), downloaded tool
+binaries (uv, bun, etc.), and downloaded local models (the embedding / OCR
+weights, which re-register themselves on next use). The v1 button silently did almost nothing: it only
 cleared part of the window state and left the database, files, and settings in
 place while reporting success.
 

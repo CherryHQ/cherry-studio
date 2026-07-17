@@ -130,7 +130,16 @@ function pendingMarker(overrides: Partial<NonNullable<FactoryResetMarker>> = {})
 }
 
 const FULL_LISTINGS = {
-  [USER_DATA]: ['cherrystudio.sqlite', 'Data', 'cache.json', 'Local Storage', 'logs', 'Crashpad'],
+  [USER_DATA]: [
+    'cherrystudio.sqlite',
+    'Data',
+    'cache.json',
+    'Local Storage',
+    'logs',
+    'Crashpad',
+    'Runtime',
+    'Toolchain'
+  ],
   [CHERRY_HOME]: ['bin', 'binary-manager', 'ovms', 'install', 'config', 'mcp', 'trace', 'boot-config.json']
 }
 
@@ -169,7 +178,7 @@ describe('runFactoryResetGate', () => {
     expect(bootConfigSetMock).not.toHaveBeenCalled()
   })
 
-  it('wipes userData (except logs/ and Crashpad/), CHERRY_HOME user state, temp and OVMS registry, then hard-persists the BootConfig reset', async () => {
+  it('wipes userData (keeping diagnostics and model artifacts), CHERRY_HOME user state, temp and OVMS registry, then hard-persists the BootConfig reset', async () => {
     const store = stubBootConfig(pendingMarker())
     stubFs(FULL_LISTINGS)
 
@@ -183,6 +192,11 @@ describe('runFactoryResetGate', () => {
     expect(targets).toContain(`${USER_DATA}/Local Storage`)
     expect(targets).not.toContain(`${USER_DATA}/logs`)
     expect(targets).not.toContain(`${USER_DATA}/Crashpad`)
+    // Local model weights + onnxruntime are re-downloadable machine artifacts;
+    // the fresh DB is safe because the embedding registration self-heals on
+    // the next status probe (LocalEmbeddingDownloadService.checkStatus).
+    expect(targets).not.toContain(`${USER_DATA}/Runtime`)
+    expect(targets).not.toContain(`${USER_DATA}/Toolchain`)
 
     expect(targets).toContain(`${CHERRY_HOME}/config`)
     expect(targets).toContain(`${CHERRY_HOME}/mcp`)

@@ -129,9 +129,10 @@ preboot/
 │                        `temp.factory_reset` marker at the top of startApp()
 │                        — before backupRestoreGate, after the single-instance
 │                        lock and the frozen path registry — wiping userData
-│                        (except the process-held logs/ and Crashpad/; only
-│                        Cherry-named artifacts when the directory fails the
-│                        whole-tree safety check) and CHERRY_HOME user state
+│                        (except the process-held logs/ and Crashpad/ and the
+│                        re-downloadable Runtime/ + Toolchain/ model artifacts;
+│                        only Cherry-named artifacts when the directory fails
+│                        the whole-tree safety check) and CHERRY_HOME user state
 │                        (config/, mcp/, trace/ + the OVMS model registry),
 │                        then resetting BootConfig to defaults (keeping
 │                        app.user_data_path). Bounded retry: attempts are

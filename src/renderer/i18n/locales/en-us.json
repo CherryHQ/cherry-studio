@@ -5593,7 +5593,7 @@
       },
       "factory_reset": {
         "button": "Factory Reset",
-        "confirm_content": "This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location and downloaded tools are kept.",
+        "confirm_content": "This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
         "confirm_title": "Factory reset this app?",
         "double_confirm_content": "This cannot be undone. The app will relaunch immediately and erase all data on startup.",
         "double_confirm_title": "ALL DATA WILL BE LOST!",

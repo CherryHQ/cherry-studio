@@ -21,8 +21,10 @@ const logger = loggerService.withContext('FactoryResetGate')
 const MAX_WIPE_ATTEMPTS = 2
 
 /**
- * userData entries that survive the wipe. Both are diagnostics, not user
- * data, and both are held open by this very process at gate time:
+ * userData entries that survive the wipe, in two classes.
+ *
+ * Process-held diagnostics — not user data, and held open by this very
+ * process at gate time:
  *
  * - `logs` — winston opens its file transport at module load (before
  *   preboot), so on Windows/Linux (where logs live inside userData) the
@@ -30,8 +32,20 @@ const MAX_WIPE_ATTEMPTS = 2
  * - `Crashpad` — crashReporter.start() runs in preboot before this gate
  *   (crashTelemetry.ts must arm handlers as early as possible), so the
  *   Crashpad handler already holds its database here.
+ *
+ * Re-downloadable machine artifacts — the same carve-out as the CHERRY_HOME
+ * tool binaries below:
+ *
+ * - `Runtime` — local model weights (qwen3-embedding ~614MB, pp-ocrv6).
+ * - `Toolchain` — the shared onnxruntime binary those models run on
+ *   (keeping weights without it would only downgrade `ready` to a re-download).
+ *
+ * Keeping models against the freshly-reset DB is safe because the embedding
+ * registration self-heals: `LocalEmbeddingDownloadService.checkStatus()`
+ * re-registers the user_provider/user_model rows before ever reporting
+ * `ready`, and the OCR model has no DB registration at all.
  */
-const USER_DATA_KEEP = new Set(['logs', 'Crashpad'])
+const USER_DATA_KEEP = new Set(['logs', 'Crashpad', 'Runtime', 'Toolchain'])
 
 /**
  * CHERRY_HOME (~/.cherrystudio) entries that ARE wiped. Everything else in
