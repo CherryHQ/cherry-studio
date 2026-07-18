@@ -1,4 +1,4 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { createFileEntryHandle, createFilePathHandle, isFileEntryHandle, isFilePathHandle } from '../handle'
@@ -10,38 +10,23 @@ describe('createFileEntryHandle', () => {
   })
 })
 
-describe('createFilePathHandle — runtime validation', () => {
-  it('accepts POSIX absolute paths', () => {
+describe('createFilePathHandle — trusts the AbsoluteFilePath brand', () => {
+  it('wraps a POSIX absolute path verbatim', () => {
     const h = createFilePathHandle('/Users/me/doc.pdf' as AbsoluteFilePath)
     expect(h).toEqual({ kind: 'path', path: '/Users/me/doc.pdf' })
   })
 
-  it('accepts Windows absolute paths', () => {
+  it('wraps a Windows backslash absolute path verbatim', () => {
     const h = createFilePathHandle('C:\\Users\\me\\doc.pdf' as AbsoluteFilePath)
-    expect(h.kind).toBe('path')
-    expect(h.path).toBe('C:\\Users\\me\\doc.pdf')
+    expect(h).toEqual({ kind: 'path', path: 'C:\\Users\\me\\doc.pdf' })
   })
 
-  it('rejects empty string', () => {
-    expect(() => createFilePathHandle('' as AbsoluteFilePath)).toThrow(TypeError)
-  })
-
-  it('rejects non-string input', () => {
-    expect(() => createFilePathHandle(123 as unknown as AbsoluteFilePath)).toThrow(TypeError)
-  })
-
-  it('rejects relative paths', () => {
-    expect(() => createFilePathHandle('./doc.pdf' as AbsoluteFilePath)).toThrow(TypeError)
-    expect(() => createFilePathHandle('doc.pdf' as AbsoluteFilePath)).toThrow(TypeError)
-    expect(() => createFilePathHandle('../doc.pdf' as AbsoluteFilePath)).toThrow(TypeError)
-  })
-
-  it('rejects file:// URLs (use FileUrlString instead)', () => {
-    expect(() => createFilePathHandle('file:///Users/me/doc.pdf' as AbsoluteFilePath)).toThrow(TypeError)
-  })
-
-  it('rejects null bytes', () => {
-    expect(() => createFilePathHandle('/tmp/doc\0.pdf' as AbsoluteFilePath)).toThrow(TypeError)
+  it('wraps a Windows forward-slash path the schema accepts (no separator re-check)', () => {
+    // Regression for the old hand-rolled `^[A-Za-z]:\\` check that rejected the
+    // `C:/` form AbsoluteFilePathSchema accepts. Feed a real branded value (not a
+    // forged cast) to prove the round-trip: schema in, handle out, no throw.
+    const path = AbsoluteFilePathSchema.parse('C:/Users/me/doc.pdf')
+    expect(createFilePathHandle(path)).toEqual({ kind: 'path', path: 'C:/Users/me/doc.pdf' })
   })
 })
 
