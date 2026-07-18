@@ -58,6 +58,30 @@ describe('knowledge embedding', () => {
     })
   })
 
+  it('wraps the query with the qwen3 instruct prefix for qwen3-embedding models', async () => {
+    const base = createBase({ embeddingModelId: 'provider::qwen3-embedding:0.6b' })
+
+    await expect(embedKnowledgeQuery(base, 'hello')).resolves.toEqual([0.1, 0.2, 0.3])
+
+    expect(mocks.aiEmbedManyMock).toHaveBeenCalledWith({
+      uniqueModelId: 'provider::qwen3-embedding:0.6b',
+      values: ['Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: hello'],
+      requestOptions: undefined
+    })
+  })
+
+  it('embeds document texts plain even for qwen3-embedding models', async () => {
+    const base = createBase({ embeddingModelId: 'provider::qwen3-embedding:0.6b' })
+
+    await embedKnowledgeTexts(base, ['chunk body'])
+
+    expect(mocks.aiEmbedManyMock).toHaveBeenCalledWith({
+      uniqueModelId: 'provider::qwen3-embedding:0.6b',
+      values: ['chunk body'],
+      requestOptions: undefined
+    })
+  })
+
   it('embeds an array of texts in order, forwarding the abort signal', async () => {
     const controller = new AbortController()
 
