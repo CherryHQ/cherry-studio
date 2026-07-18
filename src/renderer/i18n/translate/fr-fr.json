@@ -1470,16 +1470,16 @@
         "unsupported_model": "Le modèle actuel ne prend pas en charge le raisonnement ajustable"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Personnaliser la barre d'outils",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Réorganisation annulée pour {{name}}.",
+          "dropped": "{{name}} a été abandonné.",
+          "instructions": "Pour réorganiser, appuyez sur Espace ou Entrée pour prendre un outil, utilisez les touches fléchées pour le déplacer, puis Espace ou Entrée pour le déposer, ou Échap pour annuler.",
+          "over": "{{name}} a déplacé plus de {{over}}.",
+          "picked_up": "Ramassé {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Glisser pour réorganiser {{name}}",
+        "restore_default": "Restaurer les paramètres par défaut"
       },
       "tools": {
         "collapse": "Réduire",
@@ -1755,7 +1755,7 @@
     "thinking_tokens": "~{{tokens}} jetons",
     "topics": {
       "auto_rename": "Générer un nom de sujet",
-      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
+      "auto_rename_failed": "Échec de la génération automatique du nom de la conversation",
       "clear": {
         "title": "Effacer le message"
       },
@@ -2453,6 +2453,80 @@
       "reasoning_truncated": "La chaîne de pensée ne peut pas être fractionnée, elle a été tronquée."
     },
     "user": "Utilisateur"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Ce fichier HTML n'a pas de contenu.",
+        "title": "Fichier vide"
+      },
+      "mode": {
+        "label": "Mode d'affichage HTML",
+        "preview": "Aperçu",
+        "source": "Source"
+      },
+      "read_error": {
+        "title": "Impossible de lire ce fichier"
+      },
+      "too_large": {
+        "description": "Les fichiers HTML de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "title": "Le fichier est trop volumineux"
+      }
+    },
+    "invalid_path": {
+      "description": "L'aperçu du fichier nécessite un chemin local absolu valide.",
+      "title": "Impossible de prévisualiser ce fichier"
+    },
+    "load_error": {
+      "description": "Le contenu de l'aperçu n'a pas pu être chargé.",
+      "title": "L'aperçu a échoué"
+    },
+    "loading": "Chargement de l'aperçu...",
+    "markdown": {
+      "empty": {
+        "description": "Ce fichier Markdown n'a pas de contenu.",
+        "title": "Fichier vide"
+      },
+      "mode": {
+        "label": "Mode d'affichage Markdown",
+        "preview": "Aperçu",
+        "source": "Source"
+      },
+      "read_error": {
+        "title": "Impossible de lire ce fichier"
+      },
+      "too_large": {
+        "description": "Les fichiers Markdown de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "title": "Le fichier est trop volumineux"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Ouvrir avec l'application par défaut",
+        "description": "Les fichiers PDF de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "open_error": "Impossible d'ouvrir ce fichier",
+        "title": "Le fichier est trop grand"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Ce fichier texte ne contient aucun contenu.",
+        "title": "Fichier vide"
+      },
+      "read_error": {
+        "title": "Impossible de lire ce fichier"
+      },
+      "too_large": {
+        "description": "Les fichiers texte de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "title": "Le fichier est trop volumineux"
+      }
+    },
+    "unsupported": {
+      "action": "Ouvrir avec l'application par défaut",
+      "description": "Ce type de fichier ne peut pas encore être prévisualisé.",
+      "open_error": "Impossible d'ouvrir ce fichier",
+      "title": "Aperçu indisponible"
+    }
   },
   "files": {
     "actions": "Actions",
@@ -3497,8 +3571,10 @@
       "title": "Bibliothèque"
     },
     "skill_add": {
+      "add": "Ajouter une compétence",
       "local_import": "Importation locale",
-      "online_search": "Recherche en ligne"
+      "online_search": "Recherche en ligne",
+      "system_search": "Recherche système"
     },
     "skill_detail": {
       "created_at": "Créé",
@@ -3526,6 +3602,19 @@
       "updated": "Trier par date de mise à jour"
     },
     "subtitle": "Gérez vos assistants, agents et compétences",
+    "system_skill": {
+      "conflict": "Conflit de noms",
+      "description": "Importer les compétences déjà installées sur ce système.",
+      "empty_description": "Aucune compétence importable n'a été trouvée dans d'autres outils de codage sur cet appareil.",
+      "empty_title": "Aucune compétence disponible à importer",
+      "enable_success": "Activé {{name}}",
+      "enabled": "Activé",
+      "import": "Importer",
+      "import_success": "{{name}} importé",
+      "imported": "Importé",
+      "search_placeholder": "Compétences du système de recherche...",
+      "title": "Compétences système"
+    },
     "tag_picker": {
       "no_tags": "Pas encore d'étiquettes",
       "placeholder": "Nouveau nom d'étiquette..."
@@ -4699,6 +4788,7 @@
     "req_error_text": "Le serveur est occupé ou le prompt contient des mots « protégés par droit d'auteur » ou des mots « sensibles », veuillez réessayer.",
     "req_error_token": "Veuillez vérifier la validité du jeton",
     "required_field": "Champ obligatoire",
+    "revealing": "Révélation de l'image générée",
     "safety_tolerance": "Tolérance de sécurité",
     "safety_tolerance_tip": "Plus élevé = filtre plus permissif ; 0 est le plus strict, 6 est le plus permissif",
     "seed": "Graine aléatoire",
@@ -7736,6 +7826,8 @@
   },
   "tab": {
     "close": "Fermer l'onglet",
+    "close_others": "Fermer les autres onglets",
+    "close_to_right": "Fermer les onglets à droite",
     "move_to_first": "Déplacer vers le premier",
     "new": "Nouvel onglet",
     "open_in_new_window": "Ouvrir dans une nouvelle fenêtre",
