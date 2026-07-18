@@ -7,6 +7,9 @@ This document defines the new variable system for Cherry Studio. It is intention
 semantic contract and its migration boundary. The existing palette, spacing, typography, and legacy variables
 continue to exist while consumers are migrated.
 
+The executable selection guide and complete public/migration inventory are maintained in
+[variable-catalog.md](./variable-catalog.md).
+
 The visual guidance in the repository root `DESIGN.md` describes how the product should look. This document
 defines which variables product and shared UI code should use.
 

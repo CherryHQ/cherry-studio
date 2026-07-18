@@ -76,6 +76,20 @@ describe('design token contract', () => {
     }
   })
 
+  it('documents every public and migration variable in the operational catalog', async () => {
+    const catalog = await fs.readFile(path.resolve(STYLES_DIR, '../../docs/variable-catalog.md'), 'utf8')
+
+    for (const token of SHADCN_VARIABLE_TOKENS) {
+      expect(catalog).toContain(`\`--${token}\``)
+    }
+    for (const token of CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS) {
+      expect(catalog).toContain(`\`--cs-${token}\``)
+    }
+    for (const token of CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS) {
+      expect(catalog).toContain(`\`--cs-${token}\``)
+    }
+  })
+
   it('separates official Shadcn colors from Cherry Studio product colors', async () => {
     const [shadcnSource, semanticSource, statusSource, productSource] = await Promise.all([
       fs.readFile(path.join(STYLES_DIR, 'shadcn.css'), 'utf8'),

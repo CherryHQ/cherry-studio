@@ -135,7 +135,8 @@ Import only primitives and existing foundation providers, then decide which valu
 
 The normative v2 architecture, Shadcn contract, and migration boundary are defined in
 [Design Token System](./docs/design-token-system.md). Official Shadcn variables remain unprefixed; approved
-Cherry Studio product variables use `--cs-*`.
+Cherry Studio product variables use `--cs-*`. Use the [Variable Catalog](./docs/variable-catalog.md) to select a
+role and verify whether it is stable or migration-only.
 
 To avoid mixing value sources, semantic variables, theme mappings, and runtime overrides, use these rules:
 

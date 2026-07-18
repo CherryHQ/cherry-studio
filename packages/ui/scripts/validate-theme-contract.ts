@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename)
 const DEFAULT_STYLES_DIR = path.resolve(__dirname, '../src/styles')
 
 export interface ThemeContractSources {
+  variableCatalog: string
   contractEntry: string
   tokensEntry: string
   primitiveColors: string
@@ -217,6 +218,18 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
   }
 }
 
+function assertCatalogCoverage(sources: ThemeContractSources): void {
+  const requiredNames = [
+    ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
+    ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`)
+  ]
+  const missing = requiredNames.filter((name) => !sources.variableCatalog.includes(`\`${name}\``))
+
+  if (missing.length > 0) {
+    throw new Error(`[theme-contract] variable catalog is missing: ${missing.join(', ')}`)
+  }
+}
+
 export function validateThemeContractSources(sources: ThemeContractSources): void {
   assertUnique('Shadcn variables', SHADCN_VARIABLE_TOKENS)
   assertUnique('stable product variables', CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS)
@@ -244,6 +257,7 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
 
   assertExactImports('tokens.css', sources.tokensEntry, ['./tokens/index.css'])
   assertExactImports('contract.css', sources.contractEntry, ['./tokens.css', './shadcn.css', './product.css'])
+  assertCatalogCoverage(sources)
   assertLayerDependencies(sources)
 
   const orderedSources: SourceEntry[] = [
@@ -296,6 +310,7 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
 export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): Promise<ThemeContractSources> {
   const tokensDir = path.join(stylesDir, 'tokens')
   const [
+    variableCatalog,
     contractEntry,
     tokensEntry,
     primitiveColors,
@@ -307,6 +322,7 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     shadcn,
     product
   ] = await Promise.all([
+    fs.readFile(path.resolve(stylesDir, '../../docs/variable-catalog.md'), 'utf8'),
     fs.readFile(path.join(stylesDir, 'contract.css'), 'utf8'),
     fs.readFile(path.join(stylesDir, 'tokens.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/primitive.css'), 'utf8'),
@@ -320,6 +336,7 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
   ])
 
   return {
+    variableCatalog,
     contractEntry,
     tokensEntry,
     primitiveColors,
