@@ -16,15 +16,33 @@ export function useAutoLoadMore({ containerRef, itemCount, hasMore, isLoading, l
   useEffect(() => {
     if (!hasMore || isLoading) return
 
-    const frameId = requestAnimationFrame(() => {
-      const container = containerRef.current
-      if (!container || container.clientHeight === 0) return
+    const container = containerRef.current
+    if (!container) return
 
-      if (container.scrollHeight <= container.clientHeight) {
-        loadMore()
+    let frameId: number | null = null
+
+    const scheduleMeasurement = () => {
+      if (frameId !== null) return
+
+      frameId = requestAnimationFrame(() => {
+        frameId = null
+        if (container.clientHeight === 0) return
+
+        if (container.scrollHeight <= container.clientHeight) {
+          loadMore()
+        }
+      })
+    }
+
+    const resizeObserver = new ResizeObserver(scheduleMeasurement)
+    resizeObserver.observe(container)
+    scheduleMeasurement()
+
+    return () => {
+      resizeObserver.disconnect()
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId)
       }
-    })
-
-    return () => cancelAnimationFrame(frameId)
+    }
   }, [containerRef, hasMore, isLoading, itemCount, loadMore])
 }

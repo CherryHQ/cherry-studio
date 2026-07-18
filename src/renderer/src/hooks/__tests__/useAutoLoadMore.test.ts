@@ -13,9 +13,27 @@ const setContainerSize = (container: HTMLElement, clientHeight: number, scrollHe
 
 describe('useAutoLoadMore', () => {
   const animationFrameCallbacks: FrameRequestCallback[] = []
+  const observe = vi.fn()
+  const disconnect = vi.fn()
+  let resizeObserverCallback: ResizeObserverCallback
+  const originalResizeObserver = globalThis.ResizeObserver
 
   beforeEach(() => {
     animationFrameCallbacks.length = 0
+    observe.mockReset()
+    disconnect.mockReset()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class ResizeObserver {
+        constructor(callback: ResizeObserverCallback) {
+          resizeObserverCallback = callback
+        }
+
+        observe = observe
+        unobserve = vi.fn()
+        disconnect = disconnect
+      }
+    )
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       animationFrameCallbacks.push(callback)
       return animationFrameCallbacks.length
@@ -25,12 +43,19 @@ describe('useAutoLoadMore', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    globalThis.ResizeObserver = originalResizeObserver
   })
 
   const flushAnimationFrames = () => {
     act(() => {
       const callbacks = animationFrameCallbacks.splice(0)
       callbacks.forEach((callback) => callback(performance.now()))
+    })
+  }
+
+  const notifyResize = () => {
+    act(() => {
+      resizeObserverCallback([], {} as ResizeObserver)
     })
   }
 
@@ -112,5 +137,38 @@ describe('useAutoLoadMore', () => {
     flushAnimationFrames()
 
     expect(loadMore).toHaveBeenCalledTimes(2)
+  })
+
+  it('checks again when resizing makes the content underfill the container', () => {
+    const container = document.createElement('div')
+    setContainerSize(container, 600, 601)
+    const loadMore = vi.fn()
+
+    renderAutoLoadMore({ containerRef: { current: container }, loadMore })
+    flushAnimationFrames()
+    expect(loadMore).not.toHaveBeenCalled()
+
+    setContainerSize(container, 700, 601)
+    notifyResize()
+    flushAnimationFrames()
+
+    expect(loadMore).toHaveBeenCalledOnce()
+  })
+
+  it('coalesces resize measurements and disconnects the observer on cleanup', () => {
+    const container = document.createElement('div')
+    setContainerSize(container, 600, 480)
+    const loadMore = vi.fn()
+    const { unmount } = renderAutoLoadMore({ containerRef: { current: container }, loadMore })
+
+    expect(observe).toHaveBeenCalledWith(container)
+    notifyResize()
+    notifyResize()
+    flushAnimationFrames()
+
+    expect(loadMore).toHaveBeenCalledOnce()
+
+    unmount()
+    expect(disconnect).toHaveBeenCalledOnce()
   })
 })
