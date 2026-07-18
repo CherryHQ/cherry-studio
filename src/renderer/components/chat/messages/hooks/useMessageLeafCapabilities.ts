@@ -27,6 +27,10 @@ import { type MessagePlatformActions, useMessagePlatformActions } from './useMes
 
 const logger = loggerService.withContext('useMessageLeafCapabilities')
 
+// `getFileView` runs on every message render; dedupe the warn per offending
+// path so a bad attachment path can't flood the log across rerenders/streams.
+const warnedFileViewPaths = new Set<string>()
+
 type MessageLeafActions = Pick<
   MessageListActions,
   'previewFile' | 'openFile' | 'subscribeToolProgress' | 'openExternalUrl' | 'openInExternalApp'
@@ -160,7 +164,8 @@ export function useMessageLeafCapabilities({
   const getFileView = useCallback<NonNullable<MessageListState['getFileView']>>(
     (file) => {
       const parsedPath = file.path ? AbsoluteFilePathSchema.safeParse(file.path) : undefined
-      if (parsedPath && !parsedPath.success) {
+      if (parsedPath && !parsedPath.success && file.path && !warnedFileViewPaths.has(file.path)) {
+        warnedFileViewPaths.add(file.path)
         logger.warn('getFileView: non-canonical/invalid attachment path', { fileId: file.id, path: file.path })
       }
       return {

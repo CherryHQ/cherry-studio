@@ -19,15 +19,21 @@
  *   2. Strip trailing separator (except on a bare drive / POSIX root).
  *   3. Windows only: uppercase the drive letter, normalize separators to `\`.
  *
- * This is reachability-safe **lexical** cleanup only: every step is a
- * filesystem no-op for *which file the path reaches* — the cleaned string
- * still resolves to the same on-disk entry on every platform. The result is
- * therefore **byte-faithful**: Unicode (NFC) normalization is deliberately
- * NOT performed, so a canonicalized path keeps the exact bytes the OS handed
- * us and always reaches the real file even on normalization-sensitive
- * filesystems (Linux ext4/btrfs), where an NFC-rewritten path would not exist
- * on disk. See `docs/references/file/file-manager-architecture.md §1.2
- * "Rejected: Unicode (NFC) normalization of externalPath"`.
+ * This is purely **lexical** cleanup — it never consults the filesystem. Two
+ * caveats follow:
+ *
+ * - **Not a reachability/security primitive.** Collapsing `..` lexically is
+ *   target-preserving only when no earlier segment is a symlink/junction:
+ *   `/a/link/../b` becomes `/a/b`, but if `link` resolves elsewhere the two
+ *   reach different files. When true on-disk target equivalence matters
+ *   (containment checks, identity-based dedup), resolve with a filesystem-aware
+ *   primitive (`fs.realpath`) at the main-process boundary — not this helper.
+ * - **Byte-faithful.** Unicode (NFC) normalization is deliberately NOT
+ *   performed, so a canonicalized path keeps the exact bytes the OS handed us
+ *   and still reaches the real file on normalization-sensitive filesystems
+ *   (Linux ext4/btrfs), where an NFC-rewritten path would not exist on disk.
+ *   See `docs/references/file/file-manager-architecture.md §1.2 "Rejected:
+ *   Unicode (NFC) normalization of externalPath"`.
  *
  * The input **must already be absolute**. POSIX absolute (`/…`) and Windows
  * absolute (`X:\…` or `X:/…`) are both accepted; mixed-platform input is

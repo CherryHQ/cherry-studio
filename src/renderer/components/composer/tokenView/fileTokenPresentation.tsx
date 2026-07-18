@@ -8,6 +8,10 @@ import type { ComponentType, ReactNode } from 'react'
 
 const logger = loggerService.withContext('fileTokenPresentation')
 
+// `getFilePreviewUrl` runs on every token render; dedupe the warn per offending
+// path/URL so a bad attachment can't flood the log across rerenders.
+const warnedPreviewKeys = new Set<string>()
+
 const fileTokenIconClassName = 'size-3 shrink-0 text-current'
 const fileTokenContainerClassName = 'border-border bg-background hover:bg-accent'
 
@@ -127,7 +131,10 @@ function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: 
       if (url.protocol !== 'file:') return previewUrl
       const parsedPath = AbsoluteFilePathSchema.safeParse(fileUrlToPath(url))
       if (!parsedPath.success) {
-        logger.warn('getFilePreviewUrl: non-absolute path in file: previewUrl', { previewUrl })
+        if (!warnedPreviewKeys.has(previewUrl)) {
+          warnedPreviewKeys.add(previewUrl)
+          logger.warn('getFilePreviewUrl: non-absolute path in file: previewUrl', { previewUrl })
+        }
         return undefined
       }
       return toSafeFileUrl(parsedPath.data, extension || null)
@@ -138,7 +145,10 @@ function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: 
   if (!file.path) return undefined
   const parsedPath = AbsoluteFilePathSchema.safeParse(file.path)
   if (!parsedPath.success) {
-    logger.warn('getFilePreviewUrl: non-absolute/invalid attachment path', { path: file.path })
+    if (!warnedPreviewKeys.has(file.path)) {
+      warnedPreviewKeys.add(file.path)
+      logger.warn('getFilePreviewUrl: non-absolute/invalid attachment path', { path: file.path })
+    }
     return undefined
   }
   return toSafeFileUrl(parsedPath.data, extension || null)

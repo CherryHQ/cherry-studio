@@ -276,7 +276,9 @@ export interface FileIpcApi {
    *   `name` / `ext` are projections of `externalPath` and `size` is not
    *   stored for external; live values come from `getMetadata`).
    * - No existing entry → insert a new row after a one-shot `fs.stat` that
-   *   verifies the path exists and seeds DanglingCache.
+   *   seeds DanglingCache. The stat is a best-effort presence probe, not an
+   *   existence gate: `ENOENT`/`ENOTDIR` create a *dangling* entry (absent
+   *   file, allowed by design); only a genuine FS fault (e.g. `EACCES`) throws.
    *
    * Idempotent by design — callers holding an `externalPath` can invoke this
    * freely without pre-checking. The global unique index

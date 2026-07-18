@@ -536,16 +536,22 @@ export default defineConfig([
               }
             },
             create(context) {
-              return {
-                TSAsExpression(node) {
-                  const ann = node.typeAnnotation
-                  if (ann?.type !== 'TSTypeReference' || ann.typeName?.type !== 'Identifier') return
-                  if (ann.typeName.name === 'AbsoluteFilePath') {
-                    context.report({ node, messageId: 'noAsFilePath' })
-                  } else if (ann.typeName.name === 'CanonicalFilePath') {
-                    context.report({ node, messageId: 'noAsCanonicalFilePath' })
-                  }
+              // Matches both `x as T` (TSAsExpression) and `<T>x` (TSTypeAssertion).
+              // Limitation: name-based, so an aliased import (`import { AbsoluteFilePath as AFP }`
+              // then `x as AFP`) is not caught — aliasing a brand solely to forge it is not a
+              // real-world pattern, and resolving aliases would require full scope analysis.
+              function checkAssertion(node) {
+                const ann = node.typeAnnotation
+                if (ann?.type !== 'TSTypeReference' || ann.typeName?.type !== 'Identifier') return
+                if (ann.typeName.name === 'AbsoluteFilePath') {
+                  context.report({ node, messageId: 'noAsFilePath' })
+                } else if (ann.typeName.name === 'CanonicalFilePath') {
+                  context.report({ node, messageId: 'noAsCanonicalFilePath' })
                 }
+              }
+              return {
+                TSAsExpression: checkAssertion,
+                TSTypeAssertion: checkAssertion
               }
             }
           }
