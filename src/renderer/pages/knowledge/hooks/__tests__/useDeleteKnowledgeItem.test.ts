@@ -43,6 +43,43 @@ describe('useDeleteKnowledgeItem', () => {
     expect(result.current.isDeleting).toBe(false)
   })
 
+  it('deletes multiple knowledge items through one runtime IPC request and one cache refresh', async () => {
+    const { result } = renderHook(() => useDeleteKnowledgeItem('base-1'))
+
+    await act(async () => {
+      await expect(result.current.deleteItems(['note-1', 'note-2'])).resolves.toBeUndefined()
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.delete_items', {
+      baseId: 'base-1',
+      itemIds: ['note-1', 'note-2']
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledTimes(1)
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
+  })
+
+  it('splits more than 100 items into valid runtime batches and refreshes once', async () => {
+    const itemIds = Array.from({ length: 101 }, (_, index) => `note-${index + 1}`)
+    const { result } = renderHook(() => useDeleteKnowledgeItem('base-1'))
+
+    await act(async () => {
+      await expect(result.current.deleteItems(itemIds)).resolves.toBeUndefined()
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledTimes(2)
+    expect(mockIpcRequest).toHaveBeenNthCalledWith(1, 'knowledge.delete_items', {
+      baseId: 'base-1',
+      itemIds: itemIds.slice(0, 100)
+    })
+    expect(mockIpcRequest).toHaveBeenNthCalledWith(2, 'knowledge.delete_items', {
+      baseId: 'base-1',
+      itemIds: itemIds.slice(100)
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest.mock.invocationCallOrder[1]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
+  })
+
   it('keeps delete rejected, refreshes items, and exposes inline error when runtime IPC rejects', async () => {
     const deleteError = new Error('delete failed')
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
@@ -59,7 +96,7 @@ describe('useDeleteKnowledgeItem', () => {
     expect(result.current.isDeleting).toBe(false)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge source', deleteError, {
       baseId: 'base-1',
-      itemId: 'note-1'
+      itemIds: ['note-1']
     })
   })
 })
