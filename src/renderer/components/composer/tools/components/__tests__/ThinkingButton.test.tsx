@@ -78,6 +78,7 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 
 const DEFAULT_TEST_SETTINGS = {
   customParameters: [],
+  enableGenerateImage: false,
   enableMaxToolCalls: true,
   enableMaxTokens: false,
   enableTemperature: false,
@@ -178,7 +179,6 @@ describe('ThinkingToolRuntime', () => {
       id: 'thinking',
       kind: 'group',
       sources: ['popover'],
-      showInActiveControls: false,
       suffix: 'Low'
     })
     expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([

@@ -11,7 +11,7 @@ import type {
   TreeMutationPushPayload,
   TreeNode
 } from '@shared/utils/file'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } from './artifactPanePath'
 
@@ -294,6 +294,7 @@ function useLazyArtifactFileTree({
   expandedIds: ReadonlySet<string>
 }) {
   const previousTreeOpenRef = useRef(false)
+  const previousWorkspacePathRef = useRef(workspacePath)
   const lazyChildrenByDirIdRef = useRef<Map<string, FileTreeNode[]>>(new Map())
   const lazyLoadingDirIdsRef = useRef<Set<string>>(new Set())
   const lazyRequestIdsByDirIdRef = useRef<Map<string, number>>(new Map())
@@ -333,6 +334,13 @@ function useLazyArtifactFileTree({
     lazyRequestIdsByDirIdRef.current.clear()
     bumpLazyVersion()
   }, [bumpLazyVersion])
+
+  // Directory ids are workspace-relative, so cached children cannot cross a workspace boundary.
+  useLayoutEffect(() => {
+    if (previousWorkspacePathRef.current === workspacePath) return
+    previousWorkspacePathRef.current = workspacePath
+    resetLazyChildren()
+  }, [resetLazyChildren, workspacePath])
 
   const restartLazyLoads = useCallback(
     (options?: { clearChildren?: boolean }) => {
@@ -517,8 +525,7 @@ function useLazyArtifactFileTree({
       lazyLoadingDirIdsRef.current.size > 0 ||
       Array.from(expandedIds).some((id) => id !== WORKSPACE_ROOT_ID && !lazyChildrenByDirIdRef.current.has(id)),
     loadDirectoryChildren,
-    reloadExpandedDirectories,
-    resetLazyChildren
+    reloadExpandedDirectories
   }
 }
 
@@ -553,7 +560,6 @@ export interface ArtifactFileTreeModel {
   error?: Error
   setExpandedIds: (ids: ReadonlySet<string>) => void
   reloadExpandedDirectories: () => void
-  resetLazyChildren: () => void
   refresh: () => void
 }
 
@@ -561,10 +567,9 @@ export interface ArtifactFileTreeModel {
  * Owns the workspace directory tree: materialization (`useDirectoryTree`),
  * lazy directory loading, and the O(N) projections the file panel renders.
  *
- * Lifting this whole model above the `ArtifactPane` instance lets the agent
- * right-pane create it once (in a provider that survives the Host↔Overlay
- * maximize swap) instead of rebuilding it on every remount. The presentational
- * `ArtifactPaneView` just renders the returned model.
+ * A right-panel capability creates this model on first presentation. The
+ * capability controller then keeps that instance alive across close, tab, and
+ * layout changes; `ArtifactPaneView` only renders the returned model.
  */
 export function useArtifactFileTreeModel({
   workspacePath,
@@ -580,8 +585,7 @@ export function useArtifactFileTreeModel({
     displayTree,
     isLoading: isLazyLoading,
     loadDirectoryChildren,
-    reloadExpandedDirectories,
-    resetLazyChildren
+    reloadExpandedDirectories
   } = useLazyArtifactFileTree({
     workspacePath,
     treeOpen,
@@ -696,7 +700,6 @@ export function useArtifactFileTreeModel({
     error,
     setExpandedIds,
     reloadExpandedDirectories,
-    resetLazyChildren,
     refresh
   }
 }

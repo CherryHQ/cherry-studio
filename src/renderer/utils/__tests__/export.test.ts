@@ -47,7 +47,7 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
 // Import the functions to test AFTER setting up mocks
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
-import { getTitleFromString, messageToPlainText, processCitations } from '../export'
+import { getTitleFromString, messagesToPlainText, messageToPlainText, processCitations } from '../export'
 
 // --- Helper Functions for Test Data ---
 
@@ -290,6 +290,23 @@ describe('export', () => {
 
       expect(result).toBe('/pdf/ hello')
       expect(markdownToPlainText).toHaveBeenCalledWith('/pdf/ hello')
+    })
+  })
+
+  describe('messagesToPlainText', () => {
+    it('labels an assistant row with the frozen snapshot author, not a generic "Assistant"', () => {
+      const message = createExportView([{ type: 'text', text: 'hi' }])
+      message.messageSnapshot = {
+        id: 'a1',
+        name: 'My Assistant',
+        emoji: '🤖',
+        model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
+      }
+      expect(messagesToPlainText([message])).toContain('My Assistant:')
+    })
+
+    it('falls back to "Assistant:" for a snapshot-less assistant row', () => {
+      expect(messagesToPlainText([createExportView([{ type: 'text', text: 'hi' }])])).toContain('Assistant:')
     })
   })
 })

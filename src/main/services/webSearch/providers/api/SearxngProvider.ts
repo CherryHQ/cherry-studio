@@ -164,7 +164,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
 
     const abortResult = rejectedResults.find((item) => isAbortError(item.reason))
 
-    if (abortResult) {
+    if (abortResult && context.signal?.aborted) {
       throw abortResult.reason
     }
 

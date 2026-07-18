@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -68,6 +69,19 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
+}))
+
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
+  ...(await importOriginal<typeof UseModelModule>()),
+  useDefaultModel: () => ({ defaultModel: undefined })
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useTabs: () => ({ openTab: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -448,7 +462,6 @@ describe('AssistantSelector', () => {
     expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Assistant' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
@@ -470,7 +483,7 @@ describe('AssistantSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
@@ -490,7 +503,7 @@ describe('AssistantSelector', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Assistant' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))

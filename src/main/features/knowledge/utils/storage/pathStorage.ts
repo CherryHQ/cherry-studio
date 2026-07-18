@@ -131,12 +131,18 @@ export function reserveImportedFileRelativePath(
 export async function copyFileIntoKnowledgeBaseAt(
   baseId: string,
   sourcePath: string,
-  relativePath: string
+  relativePath: string,
+  options: { signal?: AbortSignal; overwrite?: boolean } = {}
 ): Promise<string> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
-  await assertTargetAvailable(destPath)
+  // `overwrite` lets directory expansion re-copy over its own orphans from a prior
+  // aborted attempt (the prefix is unique per container, so a same-named dest can
+  // only be that self-orphan). `copy` commits via tmp+rename, so overwrite is atomic.
+  if (!options.overwrite) {
+    await assertTargetAvailable(destPath)
+  }
   await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
-  await copy(AbsoluteFilePathSchema.parse(sourcePath), destPath)
+  await copy(AbsoluteFilePathSchema.parse(sourcePath), destPath, options.signal)
   return relativePath
 }
 

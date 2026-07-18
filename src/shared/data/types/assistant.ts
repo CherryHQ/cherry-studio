@@ -52,6 +52,8 @@ export const AssistantSettingsSchema = z.object({
 
   // -- Context sources --
   enableWebSearch: z.boolean(),
+  /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
+  enableGenerateImage: z.boolean(),
 
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:
@@ -84,6 +86,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,
+  enableGenerateImage: false,
   customParameters: []
 }
 

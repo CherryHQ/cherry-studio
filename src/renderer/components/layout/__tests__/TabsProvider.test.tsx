@@ -125,7 +125,7 @@ function TabIds() {
 }
 
 function BatchCloseControls() {
-  const { activeTabId, addTab, closeTabs, setActiveTab, tabs } = useTabsContext()
+  const { activeTabId, addTab, closeTabs, setActiveTab, tabs, updateTab } = useTabsContext()
 
   return (
     <>
@@ -148,11 +148,32 @@ function BatchCloseControls() {
       <button type="button" onClick={() => setActiveTab('c')}>
         Activate C
       </button>
+      <button type="button" onClick={() => setActiveTab('home')}>
+        Activate Home
+      </button>
       <button type="button" onClick={() => closeTabs(['b', 'c'])}>
         Close B and C
       </button>
+      <button type="button" onClick={() => closeTabs(['home', 'b', 'd'], 'c')}>
+        Close others around C
+      </button>
+      <button type="button" onClick={() => updateTab('c', { isDormant: true })}>
+        Hibernate C
+      </button>
+      <button type="button" onClick={() => closeTabs(['b', 'c'], 'c')}>
+        Close B and C keeping C
+      </button>
+      <button type="button" onClick={() => closeTabs(['home', 'b', 'c', 'd'], 'files')}>
+        Close all normals to Files
+      </button>
       <div data-testid="active-tab-id">{activeTabId}</div>
       <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+      <div data-testid="dormant-ids">
+        {tabs
+          .filter((tab) => tab.isDormant)
+          .map((tab) => tab.id)
+          .join(',')}
+      </div>
     </>
   )
 }
@@ -198,6 +219,20 @@ function CloseHomeAfterSecondTabOpens() {
     didCloseRef.current = true
     closeTab('home')
   }, [closeTab, tabs])
+
+  return <TabSnapshot />
+}
+
+// Opens the same URL as the initial tab with forceNew, the way the tab bar's + button does.
+function ForceNewSameUrlOpener() {
+  const { openTab } = useTabsContext()
+  const didOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/launchpad', { forceNew: true })
+  }, [openTab])
 
   return <TabSnapshot />
 }
@@ -374,6 +409,133 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
   })
 
+  it('activates the designated survivor instead of the nearest neighbor when the active tab is batch-closed', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    // Active tab (home) sits left of the designated survivor (c) with the
+    // pinned files tab further left — without activateId the nearest-left rule
+    // would land on the pinned tab instead of c.
+    fireEvent.click(screen.getByRole('button', { name: 'Activate Home' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close others around C' }))
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,c'))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c')
+  })
+
+  it('wakes a dormant survivor when batch close activates it', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hibernate C' }))
+    await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent('c'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate Home' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close others around C' }))
+
+    // The dormant survivor must be woken, not just pointed at — a dormant tab
+    // is not rendered, so activating without waking would blank the content.
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
+    expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,c')
+    expect(screen.getByTestId('dormant-ids')).toHaveTextContent(/^$/)
+  })
+
+  it('falls back to the nearest neighbor when the designated survivor is itself closed', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
+
+    // activateId 'c' is inside the closing set, so it cannot survive — the
+    // nearest-neighbor rule applies (b closes too, so home wins).
+    fireEvent.click(screen.getByRole('button', { name: 'Close B and C keeping C' }))
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,d'))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+  })
+
+  it('wakes a dormant pinned survivor through the pinned store', async () => {
+    pinnedTabsValue = [{ ...PINNED_FILES_TAB, isDormant: true }]
+
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate Home' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close all normals to Files' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('files'))
+
+    // The pinned store is mocked, so assert on the updater sent to it: the
+    // dormant pinned survivor must come back woken.
+    const updater = setPinnedTabsMock.mock.calls.at(-1)?.[0] as (prev: Tab[]) => Tab[]
+    expect(typeof updater).toBe('function')
+    const next = updater([{ ...PINNED_FILES_TAB, isDormant: true }])
+    expect(next.find((tab) => tab.id === 'files')?.isDormant).toBe(false)
+  })
+
   it('opens launchpad when closing the only tab', async () => {
     render(
       <TabsProvider
@@ -415,6 +577,28 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/agents')
     expect(screen.getByTestId('tab-urls')).not.toHaveTextContent('/app/launchpad')
     expect(screen.getByTestId('active-tab-id')).toHaveTextContent('agents')
+  })
+
+  it('creates a second tab for an already-open URL when forceNew is set', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/launchpad',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <ForceNewSameUrlOpener />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/launchpad,/app/launchpad'))
+    const ids = (screen.getByTestId('tab-ids').textContent ?? '').split(',')
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
   })
 })
 

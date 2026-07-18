@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { toSafeFileUrl } from '@shared/utils/file'
+import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
 import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 
@@ -113,14 +113,32 @@ function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLab
   return getNormalizedFileExtension(file, fallbackLabel).toUpperCase()
 }
 
-function getFilePreviewUrl(file: ComposerAttachment | undefined) {
-  if (!file?.path || file.type !== FILE_TYPE.IMAGE) return undefined
+function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: string, previewUrl?: string) {
+  if (file?.type !== FILE_TYPE.IMAGE) return undefined
+  const extension = getNormalizedFileExtension(file, fallbackLabel)
+
+  if (previewUrl) {
+    let url: URL
+    try {
+      url = new URL(previewUrl)
+    } catch {
+      return undefined
+    }
+    if (url.protocol !== 'file:') return previewUrl
+    const parsedPath = AbsoluteFilePathSchema.safeParse(fileUrlToPath(url))
+    if (!parsedPath.success) {
+      logger.warn('getFilePreviewUrl: non-absolute path in file: previewUrl', { previewUrl })
+      return undefined
+    }
+    return toSafeFileUrl(parsedPath.data, extension || null)
+  }
+  if (!file.path) return undefined
   const parsedPath = AbsoluteFilePathSchema.safeParse(file.path)
   if (!parsedPath.success) {
-    logger.warn('getFilePreviewUrl: non-canonical/invalid attachment path', { path: file.path })
+    logger.warn('getFilePreviewUrl: non-absolute/invalid attachment path', { path: file.path })
     return undefined
   }
-  return toSafeFileUrl(parsedPath.data, file.ext || null)
+  return toSafeFileUrl(parsedPath.data, extension || null)
 }
 
 function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenVariant {
@@ -137,7 +155,8 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
 
 export function getFileTokenPresentation(
   file: ComposerAttachment | undefined,
-  fallbackLabel: string
+  fallbackLabel: string,
+  previewUrl?: string
 ): FileTokenPresentation {
   const extensionLabel = getFileExtensionLabel(file, fallbackLabel)
   const variant = getFileTokenVariant(file, fallbackLabel)
@@ -151,6 +170,6 @@ export function getFileTokenPresentation(
     containerClassName: fileTokenContainerClassName,
     iconClassName: preset.iconClassName,
     typeLabel: extensionLabel || preset.defaultTypeLabel,
-    previewUrl: variant === 'image' ? getFilePreviewUrl(file) : undefined
+    previewUrl: variant === 'image' ? getFilePreviewUrl(file, fallbackLabel, previewUrl) : undefined
   }
 }

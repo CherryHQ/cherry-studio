@@ -32,6 +32,20 @@ describe('resolveCliConfigApplyContext', () => {
     })
   })
 
+  it('keeps the primary model when a Subagent override is configured', () => {
+    expect(
+      resolveCliConfigApplyContext(CodeCli.CLAUDE_CODE, 'anthropic', {
+        modelId: 'anthropic::claude-fable-5',
+        config: { env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet-4-5' } }
+      })
+    ).toEqual({
+      modelId: 'anthropic::claude-fable-5',
+      providerId: 'anthropic',
+      rawModelId: 'claude-fable-5',
+      writePrimaryModel: true
+    })
+  })
+
   it('prefers the detailed Claude env model over the stored modelId and skips the primary write', () => {
     expect(
       resolveCliConfigApplyContext(CodeCli.CLAUDE_CODE, 'anthropic', {

@@ -1,7 +1,7 @@
 import { Button, Checkbox } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import {
-  CLAUDE_DETAILED_MODEL_ROLES,
+  CLAUDE_MODEL_ROLES,
   CLAUDE_PERMISSION_MODES,
   CLAUDE_REASONING_EFFORTS,
   safeCreateUniqueModelId,
@@ -20,10 +20,11 @@ const MODEL_ROLE_META = {
   fable: { labelKey: 'code.adv.claude.fable_model', supports1M: true },
   opus: { labelKey: 'code.adv.claude.opus_model', supports1M: true },
   sonnet: { labelKey: 'code.adv.claude.sonnet_model', supports1M: true },
-  haiku: { labelKey: 'code.adv.claude.haiku_model', supports1M: false }
+  haiku: { labelKey: 'code.adv.claude.haiku_model', supports1M: false },
+  subagent: { labelKey: 'code.adv.claude.subagent_model', supports1M: true }
 } as const
 
-const MODEL_ROLES = CLAUDE_DETAILED_MODEL_ROLES.map((role) => ({
+const MODEL_ROLES = CLAUDE_MODEL_ROLES.map((role) => ({
   ...role,
   ...MODEL_ROLE_META[role.roleKey]
 }))
@@ -90,6 +91,7 @@ export interface ClaudeConfigFieldsProps {
   section?: 'all' | 'basic' | 'advanced'
   providerId?: string
   modelFilter?: (model: Model) => boolean
+  onSettingsNavigate?: (navigate: () => void) => void
 }
 
 function getEnv(config: Record<string, unknown>): Record<string, string> {
@@ -137,7 +139,8 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   onChange,
   section = 'all',
   providerId,
-  modelFilter
+  modelFilter,
+  onSettingsNavigate
 }) => {
   const { t } = useTranslation()
   const [showAllToggles, setShowAllToggles] = useState(false)
@@ -159,15 +162,15 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   )
 
   const updateModelRole = useCallback(
-    (role: (typeof CLAUDE_DETAILED_MODEL_ROLES)[number], modelValue: string) => {
-      const { model, name } = role
+    (role: (typeof CLAUDE_MODEL_ROLES)[number], modelValue: string) => {
+      const { model } = role
       const nextEnv = { ...env }
       if (modelValue) {
         nextEnv[model] = modelValue
-        nextEnv[name] = stripClaudeOneMMarker(modelValue)
+        if ('name' in role) nextEnv[role.name] = stripClaudeOneMMarker(modelValue)
       } else {
         delete nextEnv[model]
-        delete nextEnv[name]
+        if ('name' in role) delete nextEnv[role.name]
       }
       onChange({ ...config, env: nextEnv })
     },
@@ -279,6 +282,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                   value={toProviderModelId(providerId, roleModelId)}
                   placeholder={t('settings.models.empty')}
                   filter={modelFilter}
+                  onSettingsNavigate={onSettingsNavigate}
                   onSelect={(nextModelId) => {
                     const nextRawModelId = getRawModelId(nextModelId)
                     updateModelRole(field, nextRawModelId ? setOneMMarker(nextRawModelId, uses1M) : '')
@@ -312,8 +316,9 @@ const ClaudeRoleModelSelector: FC<{
   value?: UniqueModelId
   placeholder: string
   filter?: (model: Model) => boolean
+  onSettingsNavigate?: (navigate: () => void) => void
   onSelect: (modelId: UniqueModelId | undefined) => void
-}> = ({ value, placeholder, filter, onSelect }) => {
+}> = ({ value, placeholder, filter, onSettingsNavigate, onSelect }) => {
   return (
     <div className="min-w-0 flex-1">
       <ModelSelector
@@ -323,6 +328,7 @@ const ClaudeRoleModelSelector: FC<{
         onSelect={onSelect}
         filter={filter}
         showTagFilter
+        onSettingsNavigate={onSettingsNavigate}
         trigger={<ModelSelectorTrigger value={value} placeholder={placeholder} />}
       />
     </div>

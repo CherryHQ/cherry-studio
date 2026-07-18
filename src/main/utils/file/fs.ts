@@ -40,6 +40,7 @@ import {
 } from 'node:fs/promises'
 import path from 'node:path'
 import { Writable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -452,19 +453,23 @@ export async function stat(
   }
 }
 
-/** Copy a file from source to destination atomically (tmp + rename on dest). */
-export async function copy(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promise<void> {
-  const reader = createReadStream(src)
-  const writer = createAtomicWriteStream(dest)
-  await new Promise<void>((resolve, reject) => {
-    reader.on('error', (err) => {
-      writer.destroy(err)
-      reject(err)
-    })
-    writer.on('error', reject)
-    writer.on('finish', resolve)
-    reader.pipe(writer)
-  })
+/**
+ * Copy a file from source to destination atomically (tmp + rename on dest).
+ *
+ * When `signal` is provided, an abort interrupts the in-flight byte copy: `pipeline`
+ * destroys the `AtomicWriteStream`, whose `_destroy` best-effort unlinks the tmp file
+ * (leaving `dest` untouched) before the returned promise rejects with an `AbortError`.
+ * Without it, a single hung read (cloud placeholder, disconnected volume) could block
+ * forever — see the knowledge directory-import freeze this guards against.
+ */
+export async function copy(src: AbsoluteFilePath, dest: AbsoluteFilePath, signal?: AbortSignal): Promise<void> {
+  // `pipeline` treats an explicit trailing `undefined` as a stream (and throws on
+  // validation), so branch instead of forwarding `undefined` as its options arg.
+  if (signal) {
+    await pipeline(createReadStream(src), createAtomicWriteStream(dest), { signal })
+  } else {
+    await pipeline(createReadStream(src), createAtomicWriteStream(dest))
+  }
 }
 
 /**

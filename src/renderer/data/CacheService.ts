@@ -414,6 +414,35 @@ export class CacheService {
   }
 
   /**
+   * Pure physical read of a shared cache entry, for external-store snapshots.
+   *
+   * @internal Hook-layer primitive, not a consumer API. Its only legitimate
+   * caller is `useCache.ts` (the external-store snapshots behind
+   * `useSharedCacheValue` / `useSharedCacheSelector` / `useSharedCache`).
+   * Business code observing a shared value uses those hooks; an imperative
+   * one-shot read uses the TTL-aware `getShared` — calling this instead is a
+   * TTL-blind read and a smell.
+   *
+   * Unlike `getShared`, this reader never evaluates TTL and never mutates the
+   * store (no lazy deletion, no subscriber notification, no broadcast).
+   * `useSyncExternalStore` requires `getSnapshot` to return the same result
+   * until the store emits a change — a time-based flip to `undefined` with no
+   * notification would violate that contract (tearing / "getSnapshot should be
+   * cached" warnings), so the snapshot reflects the local physical Map only.
+   *
+   * Consequence: an expired-but-not-yet-collected entry still returns its old
+   * value; it disappears when Main's tombstone arrives (lazy cleanup / GC) or
+   * when this window's own imperative `getShared` evicts it. Eventual
+   * consistency, upper bound TTL + Main GC interval — see cache-overview.md.
+   *
+   * @param key - Schema-defined shared cache key
+   * @returns Physically stored value, or undefined if absent
+   */
+  getSharedSnapshot<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+    return this.sharedCache.get(key)?.value as InferSharedCacheValue<K> | undefined
+  }
+
+  /**
    * Internal implementation for shared cache get
    */
   private getSharedInternal(key: string): any {
@@ -1068,16 +1097,32 @@ export class CacheService {
     window.api.cache.onSync((message: CacheSyncMessage) => {
       if (message.type === 'shared') {
         if (message.value === undefined) {
-          // Handle deletion
+          // Deletion tombstone: physically remove and always notify so
+          // observers see the value disappear (unlike main's
+          // subscribeSharedChange, renderer hooks must re-render on it).
           this.sharedCache.delete(message.key)
-        } else {
-          // Handle set - use expireAt directly (absolute timestamp from sender)
-          const entry: CacheEntry = {
-            value: message.value,
-            expireAt: message.expireAt
-          }
-          this.sharedCache.set(message.key, entry)
+          this.notifySubscribers(message.key)
+          return
         }
+
+        const existingEntry = this.sharedCache.get(message.key)
+
+        // Equal-value update (e.g. Main's TTL-only refresh): renew expireAt in
+        // place, keep the old value reference, and skip notification. Compared
+        // against the raw local entry value (NOT TTL-aware) — snapshot readers
+        // reflect the physical Map, so their observable value never changed and
+        // notifying would only cause re-renders plus reference churn.
+        if (existingEntry && isEqual(existingEntry.value, message.value)) {
+          existingEntry.expireAt = message.expireAt
+          return
+        }
+
+        // Handle set - use expireAt directly (absolute timestamp from sender)
+        const entry: CacheEntry = {
+          value: message.value,
+          expireAt: message.expireAt
+        }
+        this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
         // Update persist cache (other windows only update memory, not localStorage)

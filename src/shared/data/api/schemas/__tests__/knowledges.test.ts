@@ -652,7 +652,7 @@ it('rejects non-nullable optional config null clears in patch schema', () => {
   ).toBe(true)
 })
 
-it('keeps patch groupId aligned with topic semantics', () => {
+it('accepts only null or a non-blank groupId in knowledge patches', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: null }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: GROUP_ID }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: '   ' }).success).toBe(false)
