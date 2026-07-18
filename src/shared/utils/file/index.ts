@@ -1,9 +1,4 @@
-export {
-  type CanonicalFilePath,
-  CanonicalFilePathSchema,
-  canonicalizeFilePath,
-  isCanonicalFilePath
-} from './canonicalize'
+export { type CanonicalFilePath, CanonicalFilePathSchema, canonicalizeFilePath } from './canonicalize'
 export {
   audioExts,
   codeLangExts,
