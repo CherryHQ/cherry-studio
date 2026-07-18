@@ -239,8 +239,12 @@ vi.mock('@renderer/utils/error', () => ({
 
 // Isolate the panel's activate dispatch from the real system-open hook (which touches window.api).
 const previewSourceMock = vi.hoisted(() => vi.fn())
+const invalidatePreviewRequestsMock = vi.hoisted(() => vi.fn())
 vi.mock('../../../hooks/usePreviewKnowledgeSource', () => ({
-  usePreviewKnowledgeSource: () => ({ previewSource: previewSourceMock })
+  usePreviewKnowledgeSource: () => ({
+    invalidatePreviewRequests: invalidatePreviewRequestsMock,
+    previewSource: previewSourceMock
+  })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -699,6 +703,10 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(screen.getByText('本地资料夹'))
 
+    expect(invalidatePreviewRequestsMock).toHaveBeenCalledOnce()
+    expect(invalidatePreviewRequestsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onDrillIntoDirectory.mock.invocationCallOrder[0]
+    )
     expect(onDrillIntoDirectory).toHaveBeenCalledWith(item)
     expect(onItemClick).not.toHaveBeenCalled()
     expect(previewSourceMock).not.toHaveBeenCalled()
@@ -728,6 +736,10 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(backButton)
 
+    expect(invalidatePreviewRequestsMock).toHaveBeenCalledOnce()
+    expect(invalidatePreviewRequestsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onNavigateUp.mock.invocationCallOrder[0]
+    )
     expect(onNavigateUp).toHaveBeenCalledTimes(1)
   })
 

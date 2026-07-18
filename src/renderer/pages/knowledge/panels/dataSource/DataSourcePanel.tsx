@@ -90,7 +90,10 @@ const DataSourcePanel = ({
   onReindex
 }: DataSourcePanelProps) => {
   const { t } = useTranslation()
-  const { previewSource } = usePreviewKnowledgeSource(onPreviewFile)
+  const { invalidatePreviewRequests, previewSource } = usePreviewKnowledgeSource(
+    onPreviewFile,
+    currentDirectory?.id ?? null
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
@@ -111,6 +114,7 @@ const DataSourcePanel = ({
   const handleActivateItem = useCallback(
     (item: KnowledgeItem) => {
       if (item.type === 'directory') {
+        invalidatePreviewRequests()
         onDrillIntoDirectory?.(item)
         return
       }
@@ -120,8 +124,13 @@ const DataSourcePanel = ({
       }
       onItemClick?.(item.id)
     },
-    [onDrillIntoDirectory, onItemClick, previewSource]
+    [invalidatePreviewRequests, onDrillIntoDirectory, onItemClick, previewSource]
   )
+
+  const handleNavigateUp = useCallback(() => {
+    invalidatePreviewRequests()
+    onNavigateUp?.()
+  }, [invalidatePreviewRequests, onNavigateUp])
 
   const handleToggleOne = useCallback((itemId: string, next: boolean) => {
     setSelectedIds((prev) => {
@@ -208,7 +217,7 @@ const DataSourcePanel = ({
             <Button
               type="button"
               variant="ghost"
-              onClick={onNavigateUp}
+              onClick={handleNavigateUp}
               className="h-auto min-h-0 gap-1 px-2.5 py-0 text-foreground text-sm opacity-70 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100">
               <ChevronLeft className="size-4" />
               {t('knowledge.data_source.back_to_parent')}

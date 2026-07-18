@@ -26,15 +26,19 @@ const sanitizeHttpUrl = (source: string): string | null => {
   }
 }
 
-export const usePreviewKnowledgeSource = (onPreviewFile: (target: KnowledgeFilePreviewTarget) => void) => {
+export const usePreviewKnowledgeSource = (
+  onPreviewFile: (target: KnowledgeFilePreviewTarget) => void,
+  navigationKey: string | null = null
+) => {
   const { t } = useTranslation()
   const requestVersionRef = useRef(0)
+  const invalidatePreviewRequests = useCallback(() => {
+    requestVersionRef.current += 1
+  }, [])
 
   useEffect(() => {
-    return () => {
-      requestVersionRef.current += 1
-    }
-  }, [])
+    return invalidatePreviewRequests
+  }, [invalidatePreviewRequests, navigationKey])
 
   const previewSource = useCallback(
     async (item: KnowledgeItem): Promise<void> => {
@@ -90,6 +94,7 @@ export const usePreviewKnowledgeSource = (onPreviewFile: (target: KnowledgeFileP
   )
 
   return {
+    invalidatePreviewRequests,
     previewSource
   }
 }

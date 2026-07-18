@@ -870,7 +870,7 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
   })
 
-  it('opens an embedded file preview and returns to the data source list', async () => {
+  it('opens an embedded file preview and preserves navigator state when returning', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
@@ -891,12 +891,25 @@ describe('KnowledgePage', () => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
     })
 
+    const resizeButton = screen.getByTestId('navigator-resize-start')
+    const content = resizeButton.parentElement?.parentElement?.parentElement
+
+    if (!content) {
+      throw new Error('Expected knowledge page content container')
+    }
+
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 500))
+    fireEvent.mouseDown(resizeButton)
+    fireEvent.mouseMove(document, { clientX: 320 })
+    fireEvent.mouseUp(document)
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+
     fireEvent.click(screen.getByRole('button', { name: 'PreviewFile item-1' }))
 
     expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/knowledge/item-1.pdf')
     expect(screen.getByText('item-1.pdf')).toBeInTheDocument()
     expect(screen.queryByTestId('data-source-panel')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('base-navigator')).not.toBeInTheDocument()
+    expect(screen.getByTestId('base-navigator')).not.toBeVisible()
     expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
     expect(screen.getByRole('button', { name: 'OpenRagConfig' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'OpenRecallTest' })).toBeInTheDocument()
@@ -905,7 +918,8 @@ describe('KnowledgePage', () => {
 
     expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
-    expect(screen.getByTestId('base-navigator')).toBeInTheDocument()
+    expect(screen.getByTestId('base-navigator')).toBeVisible()
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
   })
 
   it('returns from an embedded preview to the current directory', async () => {
@@ -1702,7 +1716,7 @@ describe('KnowledgePage', () => {
     render(<KnowledgePage />)
 
     const resizeButton = screen.getByTestId('navigator-resize-start')
-    const content = resizeButton.parentElement?.parentElement
+    const content = resizeButton.parentElement?.parentElement?.parentElement
 
     if (!content) {
       throw new Error('Expected knowledge page content container')
@@ -1741,7 +1755,7 @@ describe('KnowledgePage', () => {
     mockDetailHeaderRender.mockClear()
 
     const resizeButton = screen.getByTestId('navigator-resize-start')
-    const content = resizeButton.parentElement?.parentElement
+    const content = resizeButton.parentElement?.parentElement?.parentElement
 
     if (!content) {
       throw new Error('Expected knowledge page content container')

@@ -21,10 +21,12 @@ let loggerErrorSpy: ReturnType<typeof vi.spyOn>
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, reject, resolve }
 }
 
 vi.mock('@renderer/ipc', () => ({
@@ -103,6 +105,48 @@ describe('usePreviewKnowledgeSource', () => {
       fileName: 'second.pdf',
       filePath: '/knowledge/base-1/raw/second.pdf'
     })
+  })
+
+  it('discards a deferred preview result after directory navigation', async () => {
+    const request = createDeferred<string>()
+    mockIpcRequest.mockReturnValueOnce(request.promise)
+    const { result, rerender } = renderHook(
+      ({ directoryId }: { directoryId: string | null }) => usePreviewKnowledgeSource(previewFileMock, directoryId),
+      { initialProps: { directoryId: null as string | null } }
+    )
+
+    let preview!: Promise<void>
+    act(() => {
+      preview = result.current.previewSource(createFileItem({ id: 'file-1', source: '/Users/me/report.pdf' }))
+    })
+
+    rerender({ directoryId: 'directory-1' })
+    request.resolve('/knowledge/base-1/raw/report.pdf')
+    await act(async () => preview)
+
+    expect(previewFileMock).not.toHaveBeenCalled()
+  })
+
+  it('discards a deferred preview error after directory navigation', async () => {
+    const request = createDeferred<string>()
+    mockIpcRequest.mockReturnValueOnce(request.promise)
+    const { result, rerender } = renderHook(
+      ({ directoryId }: { directoryId: string | null }) => usePreviewKnowledgeSource(previewFileMock, directoryId),
+      { initialProps: { directoryId: null as string | null } }
+    )
+
+    let preview!: Promise<void>
+    act(() => {
+      preview = result.current.previewSource(createFileItem({ id: 'file-1', source: '/Users/me/report.pdf' }))
+    })
+
+    rerender({ directoryId: 'directory-1' })
+    request.reject(new Error('stale failure'))
+    await act(async () => preview)
+
+    expect(loggerErrorSpy).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('opens directory sources through the file path API', async () => {

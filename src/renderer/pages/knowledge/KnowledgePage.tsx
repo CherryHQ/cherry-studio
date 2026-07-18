@@ -20,7 +20,9 @@ const KnowledgePageContent = () => {
 
   return (
     <KnowledgePageShell>
-      {filePreview ? null : <KnowledgePageNavigatorSection />}
+      <div className={filePreview ? 'hidden' : 'contents'} hidden={Boolean(filePreview)}>
+        <KnowledgePageNavigatorSection />
+      </div>
       {selectedBase ? (
         <KnowledgePageDetailSection />
       ) : (
