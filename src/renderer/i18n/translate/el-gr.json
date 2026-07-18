@@ -6101,7 +6101,8 @@
           "downloading": "Λήψη…",
           "ready": "Έτοιμος"
         },
-        "title": "Τοπικά Μοντέλα"
+        "title": "Τοπικά Μοντέλα",
+        "unsupported": "Τα τοπικά μοντέλα δεν υποστηρίζονται σε αυτήν την πλατφόρμα."
       },
       "notInstalled": "Δεν έχει εγκατασταθεί",
       "openBinariesDir": "Open binaries directory",
@@ -6575,10 +6576,10 @@
       "user": "Χρήστης"
     },
     "menuGroups": {
-      "automation": "Αυτοματοποίηση",
-      "capabilities": "Δυνατότητες & Εργαλεία",
+      "automation": "Αποδοτικότητα",
+      "capabilities": "Εργαλεία",
       "models": "Μοντέλα",
-      "personal": "Προσωπικό",
+      "personal": "Προτιμήσεις",
       "quickAccess": "Γρήγορη Πρόσβαση",
       "system": "Σύστημα"
     },

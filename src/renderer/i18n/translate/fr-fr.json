@@ -6101,7 +6101,8 @@
           "downloading": "Téléchargement…",
           "ready": "Prêt"
         },
-        "title": "Modèles locaux"
+        "title": "Modèles locaux",
+        "unsupported": "Les modèles locaux ne sont pas pris en charge sur cette plateforme."
       },
       "notInstalled": "Non installé",
       "openBinariesDir": "Open binaries directory",
@@ -6575,10 +6576,10 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "automation": "Automatisation",
-      "capabilities": "Capacités et Outils",
+      "automation": "Efficacité",
+      "capabilities": "Outils",
       "models": "Modèles",
-      "personal": "Personnel",
+      "personal": "Préférences",
       "quickAccess": "Accès rapide",
       "system": "Système"
     },

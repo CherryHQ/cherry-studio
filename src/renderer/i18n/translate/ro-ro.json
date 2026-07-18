@@ -6101,7 +6101,8 @@
           "downloading": "Se descarcă…",
           "ready": "Gata"
         },
-        "title": "Modele Locale"
+        "title": "Modele Locale",
+        "unsupported": "Modelele locale nu sunt acceptate pe această platformă."
       },
       "notInstalled": "Neinstalat",
       "openBinariesDir": "Open binaries directory",
@@ -6575,10 +6576,10 @@
       "user": "Utilizator"
     },
     "menuGroups": {
-      "automation": "Automatizare",
-      "capabilities": "Capacități și instrumente",
+      "automation": "Eficiență",
+      "capabilities": "Instrumente",
       "models": "Modele",
-      "personal": "Personal",
+      "personal": "Preferințe",
       "quickAccess": "Acces Rapid",
       "system": "Sistem"
     },

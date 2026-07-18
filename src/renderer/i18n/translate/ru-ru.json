@@ -6101,7 +6101,8 @@
           "downloading": "Загрузка…",
           "ready": "Готов"
         },
-        "title": "Локальные модели"
+        "title": "Локальные модели",
+        "unsupported": "Локальные модели не поддерживаются на этой платформе."
       },
       "notInstalled": "Не установлено",
       "openBinariesDir": "Open binaries directory",
@@ -6575,10 +6576,10 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "automation": "Автоматизация",
-      "capabilities": "Возможности и инструменты",
+      "automation": "Эффективность",
+      "capabilities": "Инструменты",
       "models": "Модели",
-      "personal": "Личный",
+      "personal": "Предпочтения",
       "quickAccess": "Быстрый доступ",
       "system": "Система"
     },

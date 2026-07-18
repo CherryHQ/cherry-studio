@@ -6101,7 +6101,8 @@
           "downloading": "Đang tải xuống…",
           "ready": "Sẵn sàng"
         },
-        "title": "Mô hình cục bộ"
+        "title": "Mô hình cục bộ",
+        "unsupported": "Nền tảng này không hỗ trợ mô hình cục bộ."
       },
       "notInstalled": "Chưa cài đặt",
       "openBinariesDir": "Open binaries directory",
@@ -6575,10 +6576,10 @@
       "user": "Người dùng"
     },
     "menuGroups": {
-      "automation": "Tự động hóa",
-      "capabilities": "Khả năng & Công cụ",
+      "automation": "Hiệu suất",
+      "capabilities": "Công cụ",
       "models": "Mô hình",
-      "personal": "Cá nhân",
+      "personal": "Tùy chọn",
       "quickAccess": "Truy cập nhanh",
       "system": "Hệ thống"
     },

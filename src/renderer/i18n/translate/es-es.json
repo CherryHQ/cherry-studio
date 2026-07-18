@@ -6101,7 +6101,8 @@
           "downloading": "Descargando…",
           "ready": "Listo"
         },
-        "title": "Modelos Locales"
+        "title": "Modelos Locales",
+        "unsupported": "Los modelos locales no son compatibles con esta plataforma."
       },
       "notInstalled": "No instalado",
       "openBinariesDir": "Open binaries directory",
@@ -6575,10 +6576,10 @@
       "user": "Usuario"
     },
     "menuGroups": {
-      "automation": "Automatización",
-      "capabilities": "Capacidades y Herramientas",
+      "automation": "Eficiencia",
+      "capabilities": "Herramientas",
       "models": "Modelos",
-      "personal": "Personal",
+      "personal": "Preferencias",
       "quickAccess": "Acceso rápido",
       "system": "Sistema"
     },
