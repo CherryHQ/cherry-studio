@@ -132,7 +132,8 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
+import { DevResetMutationGate } from '@main/services/devResetMutationGate'
+import { copy as fsCopy, remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -449,6 +450,13 @@ export interface IFileManager {
   createReadStream(id: FileEntryId): Promise<Readable>
 
   /**
+   * Copy entry bytes to an absolute dest path without creating a new FileEntry.
+   * Uses the same physical-path resolution + external observe path as
+   * `createReadStream`. Does NOT call `copy()` (which would create a new entry).
+   */
+  copyContentTo(id: FileEntryId, destPath: string): Promise<{ size: number }>
+
+  /**
    * Get live physical file metadata (always via `fs.stat`).
    *
    * This is the canonical way to obtain a fresh `size` / `mtime` for an
@@ -645,12 +653,61 @@ export class FileManager extends BaseService implements IFileManager {
   // a fresh cache — file-manager-architecture.md §1.6.1 / §12 mandate this is
   // a class private field, not a module singleton, for test-isolation reasons.
   private readonly _versionCache: VersionCache = createVersionCacheImpl(2000)
+  private readonly devResetGate = new DevResetMutationGate()
+  private readonly openAtomicStreams = new Set<AtomicWriteStream>()
 
   private readonly deps: FileManagerDeps = {
     fileEntryService,
     fileRefService,
     danglingCache,
     versionCache: this._versionCache
+  }
+
+  acquireDevResetMutationGate(): void {
+    this.devResetGate.acquire()
+  }
+
+  releaseDevResetMutationGate(): void {
+    this.devResetGate.release()
+  }
+
+  async drainDevResetMutations(): Promise<void> {
+    const failures: unknown[] = []
+    const streams = [...this.openAtomicStreams]
+    try {
+      await this.devResetGate.drain()
+    } catch (error) {
+      failures.push(error)
+    }
+    const abortResults = await Promise.allSettled(
+      streams.map(async (stream) => {
+        await stream.abort()
+      })
+    )
+    failures.push(
+      ...abortResults
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) => result.reason)
+    )
+    try {
+      await this.devResetGate.drain()
+    } catch (error) {
+      failures.push(error)
+    }
+    if (this.openAtomicStreams.size > 0) {
+      failures.push(new Error('FileManager dev reset drain completed with open atomic write streams'))
+    }
+    if (failures.length > 0) {
+      throw new Error(
+        `FileManager dev reset drain failed: ${failures
+          .map((failure) => (failure instanceof Error ? failure.message : String(failure)))
+          .join('; ')}`
+      )
+    }
+  }
+
+  runDevResetMutation<T>(label: string, operation: () => Promise<T>): Promise<T> {
+    return this.devResetGate.run(label, operation)
   }
 
   protected override async onInit(): Promise<void> {
@@ -703,7 +760,7 @@ export class FileManager extends BaseService implements IFileManager {
       return dispatchHandle(
         handle,
         (entryId) => this.permanentDelete(entryId),
-        (path) => fsRemove(path)
+        (path) => this.runDevResetMutation('FileManager.legacyPermanentDelete', () => fsRemove(path))
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
@@ -734,6 +791,10 @@ export class FileManager extends BaseService implements IFileManager {
    * - Both clean → `outcome: 'completed'`.
    */
   async runSweep(): Promise<OrphanReport> {
+    return this.devResetGate.run('FileManager.runSweep', () => this.runSweepUngated())
+  }
+
+  private async runSweepUngated(): Promise<OrphanReport> {
     const startedAt = Date.now()
     const fsSweepPromise = runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch(
       (err): FileSweepReport => {
@@ -833,7 +894,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
-    return internalEnsureExternal(this.deps, params)
+    return this.devResetGate.run('FileManager.ensureExternalEntry', () => internalEnsureExternal(this.deps, params))
   }
 
   // ─── Read ───
@@ -905,42 +966,46 @@ export class FileManager extends BaseService implements IFileManager {
   // ─── Mutation methods ───
 
   async createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry> {
-    return internalCreateInternal(this.deps, params)
+    return this.devResetGate.run('FileManager.createInternalEntry', () => internalCreateInternal(this.deps, params))
   }
 
   async batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchCreateResult> {
-    return aggregateCreate(
-      items,
-      (_, index) => `#${index}`,
-      (p) => this.createInternalEntry(p)
+    return this.devResetGate.run('FileManager.batchCreateInternalEntries', () =>
+      aggregateCreate(
+        items,
+        (_, index) => `#${index}`,
+        (p) => internalCreateInternal(this.deps, p)
+      )
     )
   }
 
   async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult> {
-    // Within-batch path duplicates resolve to the same entry per the public
-    // contract; the second occurrence reuses the just-inserted row. The
-    // canonical-path memoization here ensures both items end up in
-    // `succeeded` even though only one DB insert happens — and each carries
-    // its own `sourceRef`, so the caller can still correlate every input.
-    const seen = new Map<string, FileEntry>()
-    const succeeded: BatchCreateResult['succeeded'] = []
-    const failed: BatchCreateResult['failed'] = []
-    for (const params of items) {
-      const sourceRef = params.externalPath
-      try {
-        const canonical = canonicalizeExternalPath(params.externalPath)
-        const cached = seen.get(canonical)
-        const entry = cached ?? (await this.ensureExternalEntry(params))
-        if (!cached) seen.set(canonical, entry)
-        succeeded.push({ id: entry.id, sourceRef })
-      } catch (err) {
-        // Wire format only carries `.message`; preserve the stack via the
-        // logger side-channel for postmortem.
-        fileManagerLogger.warn('batchEnsureExternalEntries item failed', { sourceRef, err })
-        failed.push({ sourceRef, error: (err as Error).message })
+    return this.devResetGate.run('FileManager.batchEnsureExternalEntries', async () => {
+      // Within-batch path duplicates resolve to the same entry per the public
+      // contract; the second occurrence reuses the just-inserted row. The
+      // canonical-path memoization here ensures both items end up in
+      // `succeeded` even though only one DB insert happens — and each carries
+      // its own `sourceRef`, so the caller can still correlate every input.
+      const seen = new Map<string, FileEntry>()
+      const succeeded: BatchCreateResult['succeeded'] = []
+      const failed: BatchCreateResult['failed'] = []
+      for (const params of items) {
+        const sourceRef = params.externalPath
+        try {
+          const canonical = canonicalizeExternalPath(params.externalPath)
+          const cached = seen.get(canonical)
+          const entry = cached ?? (await internalEnsureExternal(this.deps, params))
+          if (!cached) seen.set(canonical, entry)
+          succeeded.push({ id: entry.id, sourceRef })
+        } catch (err) {
+          // Wire format only carries `.message`; preserve the stack via the
+          // logger side-channel for postmortem.
+          fileManagerLogger.warn('batchEnsureExternalEntries item failed', { sourceRef, err })
+          failed.push({ sourceRef, error: (err as Error).message })
+        }
       }
-    }
-    return { succeeded, failed }
+      return { succeeded, failed }
+    })
   }
 
   async createReadStream(id: FileEntryId): Promise<Readable> {
@@ -968,8 +1033,25 @@ export class FileManager extends BaseService implements IFileManager {
     return stream
   }
 
+  async copyContentTo(id: FileEntryId, destPath: string): Promise<{ size: number }> {
+    const entry = this.deps.fileEntryService.getById(id)
+    const physicalPath = resolvePhysicalPath(entry)
+    const copyAndStat = async (): Promise<{ size: number }> => {
+      await fsCopy(physicalPath, destPath as FilePath)
+      const s = await fsStat(destPath as FilePath)
+      if (s.isDirectory) {
+        throw Object.assign(new Error(`copyContentTo: source is a directory (${id})`), { code: 'EISDIR' })
+      }
+      return { size: s.size }
+    }
+    if (entry.origin === 'external') {
+      return observeExternalAccess(this.deps, entry, physicalPath, copyAndStat)
+    }
+    return copyAndStat()
+  }
+
   async write(id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
-    return internalWrite(this.deps, id, data)
+    return this.devResetGate.run('FileManager.write', () => internalWrite(this.deps, id, data))
   }
 
   async writeIfUnchanged(
@@ -978,11 +1060,18 @@ export class FileManager extends BaseService implements IFileManager {
     expectedVersion: FileVersion,
     expectedContentHash?: string
   ): Promise<FileVersion> {
-    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
+    return this.devResetGate.run('FileManager.writeIfUnchanged', () =>
+      internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
+    )
   }
 
   async createWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {
-    return internalCreateWriteStream(this.deps, id)
+    this.devResetGate.assertOpen('FileManager.createWriteStream')
+    const stream = internalCreateWriteStream(this.deps, id)
+    this.openAtomicStreams.add(stream)
+    const clear = () => this.openAtomicStreams.delete(stream)
+    stream.once('close', clear)
+    return stream
   }
 
   /** Alias kept for backwards compatibility; prefer `createWriteStream`. */
@@ -991,43 +1080,43 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async trash(id: FileEntryId): Promise<void> {
-    return internalTrash(this.deps, id)
+    return this.devResetGate.run('FileManager.trash', () => internalTrash(this.deps, id))
   }
 
   async restore(id: FileEntryId): Promise<FileEntry> {
-    return internalRestore(this.deps, id)
+    return this.devResetGate.run('FileManager.restore', () => internalRestore(this.deps, id))
   }
 
   async permanentDelete(id: FileEntryId): Promise<void> {
-    return internalPermanentDelete(this.deps, id)
+    return this.devResetGate.run('FileManager.permanentDelete', () => internalPermanentDelete(this.deps, id))
   }
 
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return internalBatchTrash(this.deps, ids)
+    return this.devResetGate.run('FileManager.batchTrash', () => internalBatchTrash(this.deps, ids))
   }
 
   async batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return internalBatchRestore(this.deps, ids)
+    return this.devResetGate.run('FileManager.batchRestore', () => internalBatchRestore(this.deps, ids))
   }
 
   async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return internalBatchPermanentDelete(this.deps, ids)
+    return this.devResetGate.run('FileManager.batchPermanentDelete', () => internalBatchPermanentDelete(this.deps, ids))
   }
 
   async emptyTrash(): Promise<BatchMutationResult> {
-    return internalEmptyTrash(this.deps)
+    return this.devResetGate.run('FileManager.emptyTrash', () => internalEmptyTrash(this.deps))
   }
 
   async rename(id: FileEntryId, newName: string): Promise<FileEntry> {
-    return internalRename(this.deps, id, newName)
+    return this.devResetGate.run('FileManager.rename', () => internalRename(this.deps, id, newName))
   }
 
   async copy(params: { id: FileEntryId; newName?: string }): Promise<FileEntry> {
-    return internalCopy(this.deps, params)
+    return this.devResetGate.run('FileManager.copy', () => internalCopy(this.deps, params))
   }
 
   async withTempCopy<T>(id: FileEntryId, fn: (tempPath: string) => Promise<T>): Promise<T> {
-    return internalWithTempCopy(this.deps, id, fn)
+    return this.devResetGate.run('FileManager.withTempCopy', () => internalWithTempCopy(this.deps, id, fn))
   }
 
   async open(id: FileEntryId): Promise<void> {

@@ -296,6 +296,15 @@ export class KnowledgeService extends BaseService {
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    return this.workflowService.runDevResetMutation('KnowledgeService.createBase', () => this.createBaseUngated(dto))
+  }
+
+  /**
+   * Create a base without acquiring a new reset-gate lease. Call only from an
+   * already-admitted mutation (e.g. {@link restoreBaseUngated}) so nested create
+   * cannot deadlock when the coordinator holds the gate closed.
+   */
+  private async createBaseUngated(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const base = knowledgeBaseService.create(dto)
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
@@ -330,6 +339,14 @@ export class KnowledgeService extends BaseService {
   }
 
   async deleteBase(baseId: string): Promise<void> {
+    return this.workflowService.runDevResetMutation('KnowledgeService.deleteBase', () => this.deleteBaseUngated(baseId))
+  }
+
+  /**
+   * Delete a base without a new reset-gate lease. Used by admitted restore
+   * failure cleanup so it cannot hit a closed gate mid-flight.
+   */
+  private async deleteBaseUngated(baseId: string): Promise<void> {
     await this.cancelAllJobsForBase(baseId)
 
     await this.knowledgeLockManager.withBaseMutationLock(baseId, async () => {
@@ -358,6 +375,10 @@ export class KnowledgeService extends BaseService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
+    return this.workflowService.runDevResetMutation('KnowledgeService.restoreBase', () => this.restoreBaseUngated(dto))
+  }
+
+  private async restoreBaseUngated(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
 
     const createDto: CreateKnowledgeBaseDto = {
@@ -403,12 +424,14 @@ export class KnowledgeService extends BaseService {
     }
 
     const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
-    const restoredBase = await this.createBase(createDto)
+    // Already inside the restore gate lease — use ungated create/delete so a
+    // concurrent coordinator acquire cannot close the gate mid-cleanup.
+    const restoredBase = await this.createBaseUngated(createDto)
     try {
-      await this.addItems(restoredBase.id, inputs)
+      await this.workflowService.addItemsWithinDevResetMutation(restoredBase.id, inputs)
     } catch (error) {
       try {
-        await this.deleteBase(restoredBase.id)
+        await this.deleteBaseUngated(restoredBase.id)
       } catch (cleanupError) {
         const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
         logger.error(
@@ -444,25 +467,41 @@ export class KnowledgeService extends BaseService {
     return await this.workflowService.addItems(baseId, items, conflictStrategy)
   }
 
-  async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
-    if (rootItemIds.length === 0) {
-      return
-    }
+  acquireDevResetMutationGate(): void {
+    this.workflowService.acquireDevResetMutationGate()
+  }
 
-    await this.workflowService.deleteItems(baseId, rootItemIds)
+  releaseDevResetMutationGate(): void {
+    this.workflowService.releaseDevResetMutationGate()
+  }
+
+  async drainDevResetMutations(): Promise<void> {
+    await this.workflowService.drainDevResetMutations()
+  }
+
+  async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
+    return this.workflowService.runDevResetMutation('KnowledgeService.deleteItems', async () => {
+      const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+      if (rootItemIds.length === 0) {
+        return
+      }
+
+      await this.workflowService.deleteItems(baseId, rootItemIds)
+    })
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
-    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
-    if (rootItemIds.length === 0) {
-      return
-    }
+    return this.workflowService.runDevResetMutation('KnowledgeService.reindexItems', async () => {
+      this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
+      const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+      if (rootItemIds.length === 0) {
+        return
+      }
 
-    await this.assertSubtreesCanReindex(baseId, rootItemIds)
+      await this.assertSubtreesCanReindex(baseId, rootItemIds)
 
-    await this.workflowService.reindexItems(baseId, rootItemIds)
+      await this.workflowService.reindexItems(baseId, rootItemIds)
+    })
   }
 
   /**
@@ -478,21 +517,38 @@ export class KnowledgeService extends BaseService {
    * to roll back to once it is committed.
    */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
-    const rootItemIds = rootItems.map((item) => item.id)
+    return this.workflowService.runDevResetMutation('KnowledgeService.enableEmbeddingModel', async () => {
+      const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
+      const rootItemIds = rootItems.map((item) => item.id)
 
-    if (rootItemIds.length > 0) {
-      this.assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
-      await this.assertSubtreesCanReindex(baseId, rootItemIds)
-    }
+      if (rootItemIds.length > 0) {
+        this.assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
+        await this.assertSubtreesCanReindex(baseId, rootItemIds)
+      }
 
-    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+      const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
 
-    if (rootItemIds.length > 0) {
-      await this.reindexItems(baseId, rootItemIds)
-    }
+      if (rootItemIds.length > 0) {
+        // Already inside the reset gate — call workflow directly to avoid nested gate.
+        await this.workflowService.reindexItems(baseId, rootItemIds)
+      }
 
-    return updatedBase
+      return updatedBase
+    })
+  }
+
+  /**
+   * Metadata/config update for a knowledge base. All SQLite knowledge-base
+   * writes (including DataApi PATCH) must go through this gated method.
+   */
+  async updateBase(
+    id: string,
+    dto: UpdateKnowledgeBaseDto,
+    options?: { allowEmbeddingModelBackfill?: boolean }
+  ): Promise<KnowledgeBase> {
+    return this.workflowService.runDevResetMutation('KnowledgeService.updateBase', async () => {
+      return knowledgeBaseService.update(id, dto, options)
+    })
   }
 
   listBases(): KnowledgeBase[] {

@@ -202,9 +202,28 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  /** Connected transports keyed by serverKey — retained for stdio child-exit proof. */
+  private clientTransports = new Map<
+    string,
+    StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
+  >()
   private activeToolCalls: Map<string, AbortController> = new Map()
+  /** Settlements for in-flight callToolByServer promises (survives abort until finally). */
+  private activeToolCallSettlements = new Set<Promise<void>>()
+  /** In-flight withClient operation promises — drained before client close on reset. */
+  private activeOperations = new Set<Promise<unknown>>()
   private serverLogs = new ServerLogBuffer(200)
   private stopping = false
+  /** Dev-reset latch — rejects new transports until released or process exit. */
+  private closedForDevReset = false
+  /** True only after closeAllForDevReset proves clients + transports empty. */
+  private closeAllSucceeded = false
+  /** Bumped on each closeAllForDevReset so in-flight acquires fail after awaits. */
+  private resetGeneration = 0
+  /** Absolute bound for closeAllForDevReset awaits; tests may shrink. */
+  private devResetTimeoutMs = 30_000
+  /** Absolute bound for onStop drain awaits; tests may shrink. Faster than reset (30s). */
+  private shutdownTimeoutMs = 5_000
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
 
@@ -216,13 +235,118 @@ export class McpRuntimeService extends BaseService {
     this.stopping = false
   }
 
+  /**
+   * Disconnect/kill all MCP stdio transports for `dev.reset_app_data`.
+   * Sets a latch that rejects new client init until releaseDevResetLatch().
+   * Every drain/close await races an absolute deadline so hung tools/OAuth/close
+   * cannot block forever; expiry leaves closeAllSucceeded=false (latch sticks).
+   */
+  async closeAllForDevReset(): Promise<void> {
+    this.closedForDevReset = true
+    this.closeAllSucceeded = false
+    this.resetGeneration += 1
+    const deadline = Date.now() + this.devResetTimeoutMs
+    this.abortActiveToolCalls()
+    await this.raceDeadline(this.waitForActiveToolCalls(), deadline, 'active-tool-settlement')
+    await this.drainActiveOperations(deadline)
+
+    const failures: string[] = []
+    while (this.clients.size > 0 || this.pendingClients.size > 0) {
+      if (Date.now() > deadline) {
+        throw new Error(
+          `McpRuntimeService.closeAllForDevReset timed out with ${this.clients.size} client(s) and ${this.pendingClients.size} pending`
+        )
+      }
+      await this.raceDeadline(this.waitForPendingClients(), deadline, 'pending-clients')
+      const serverKeys = [...this.clients.keys()]
+      if (serverKeys.length === 0 && this.pendingClients.size === 0) {
+        break
+      }
+      // waitForPendingClients above awaits all pending settle (allSettled). Empty clients
+      // but non-empty pending means those inits rejected and were retained on cleanup
+      // failure (F2-A) — allSettled resolves instantly for settled promises, so without
+      // this guard the loop busy-spins to the deadline (CPU starve). Fail closed instead.
+      if (serverKeys.length === 0) {
+        throw new Error(
+          `McpRuntimeService.closeAllForDevReset: ${this.pendingClients.size} pending client(s) remain stuck after client drain (cleanup failure retained)`
+        )
+      }
+      const results = await this.raceDeadline(
+        Promise.allSettled(serverKeys.map((key) => this.closeClient(key))),
+        deadline,
+        'close-clients'
+      )
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          failures.push(result.reason instanceof Error ? result.reason.message : String(result.reason))
+        }
+      }
+      if (failures.length > 0) {
+        // Latch stays set — releaseDevResetLatch will refuse to clear it.
+        throw new Error(
+          `McpRuntimeService.closeAllForDevReset failed for ${failures.length} client(s): ${failures.join('; ')}`
+        )
+      }
+    }
+
+    this.serverLogs.clear()
+    const allClosed = this.clients.size === 0 && this.pendingClients.size === 0 && this.clientTransports.size === 0
+    if (!allClosed) {
+      throw new Error(
+        `McpRuntimeService.closeAllForDevReset: handles remain (clients=${this.clients.size}, pending=${this.pendingClients.size}, transports=${this.clientTransports.size})`
+      )
+    }
+    this.closeAllSucceeded = true
+  }
+
+  /**
+   * Release the reset latch after a pre-destructive failure. No-op if
+   * closeAllForDevReset failed — stay latched until process restart so a
+   * half-closed client cannot be pinged/reused from the cache.
+   */
+  releaseDevResetLatch(): void {
+    if (this.closedForDevReset && !this.closeAllSucceeded) {
+      logger.warn('Refusing to release McpRuntimeService reset latch after failed close')
+      return
+    }
+    this.closedForDevReset = false
+  }
+
   protected async onStop(): Promise<void> {
     this.stopping = true
     this.abortActiveToolCalls()
-    await this.waitForPendingClients()
-    await this.closeAllClients()
+    const deadline = Date.now() + this.shutdownTimeoutMs
+
+    try {
+      await this.raceDeadline(this.waitForActiveToolCalls(), deadline, 'onStop-active-tool-settlement')
+    } catch (error) {
+      logger.warn('MCP onStop: active tool settlement exceeded shutdown deadline; proceeding to close clients', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
+    try {
+      await this.raceDeadline(this.waitForPendingClients(), deadline, 'onStop-pending-clients')
+    } catch (error) {
+      logger.warn('MCP onStop: pending clients exceeded shutdown deadline; proceeding to close clients', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
+    // Always reached — fail-closed: uncooperative tools/clients are abandoned after
+    // abort + timeout. closeAllClients is also deadline-bounded (a hung client.close
+    // must not block lifecycle shutdown indefinitely), matching the reset path which
+    // races closeClient allSettled against its deadline.
+    try {
+      await this.raceDeadline(this.closeAllClients(), deadline, 'onStop-close-clients')
+    } catch (error) {
+      logger.warn('MCP onStop: closeAllClients exceeded shutdown deadline; proceeding to clear', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
     this.pendingClients.clear()
     this.clients.clear()
+    this.clientTransports.clear()
     this.serverLogs.clear()
   }
 
@@ -317,10 +441,19 @@ export class McpRuntimeService extends BaseService {
   ): Promise<T> {
     const server = this.getServerById(serverId)
     const client = await this.getOrCreateClient(server)
-    return operation(client, server)
+    const opPromise = (async () => operation(client, server))()
+    this.activeOperations.add(opPromise)
+    try {
+      return await opPromise
+    } finally {
+      this.activeOperations.delete(opPromise)
+    }
   }
 
   private async getOrCreateClient(server: McpServer): Promise<Client> {
+    this.assertResetOpen('getOrCreateClient')
+    const admittedGeneration = this.resetGeneration
+
     if (this.stopping || this.isStopped || this.isDestroyed) {
       throw new Error('MCP runtime is stopping')
     }
@@ -337,7 +470,9 @@ export class McpRuntimeService extends BaseService {
     if (pendingClient) {
       this.setServerStatus(server.id, 'connecting')
       getServerLogger(server).silly(`Waiting for pending client initialization`)
-      return pendingClient
+      const client = await pendingClient
+      this.assertResetGeneration(admittedGeneration, 'after pending client')
+      return client
     }
 
     // Check if we already have a client for this server configuration
@@ -349,18 +484,27 @@ export class McpRuntimeService extends BaseService {
           // add short timeout to prevent hanging
           timeout: 1000
         })
+        this.assertResetGeneration(admittedGeneration, 'after ping')
         getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
         // If the ping fails, remove the client from the cache
         // and create a new one
         if (!pingResult) {
-          this.clients.delete(serverKey)
+          // Fail closed: closeClient closes the client + awaits stdio child exit
+          // and deletes the maps ONLY after that proof succeeds. If it throws,
+          // the old transport stays live AND stays tracked — do NOT swallow and
+          // overwrite with a replacement, or reset proves false closure over a
+          // live child. Propagate so the caller fails; reset still drains the entry.
+          await this.closeClient(serverKey)
         } else {
           this.setServerStatus(server.id, 'connected')
           return existingClient
         }
       } catch (error: any) {
+        this.assertResetGeneration(admittedGeneration, 'after ping error')
         getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
-        this.clients.delete(serverKey)
+        // Fail closed — propagate closeClient failure (see ping-false branch) so a
+        // surviving child is never overwritten off the tracked maps.
+        await this.closeClient(serverKey)
       }
     }
 
@@ -375,9 +519,18 @@ export class McpRuntimeService extends BaseService {
 
     // Create a promise for the initialization process
     const initPromise = (async () => {
+      let localClient: Client | undefined
+      let localTransport:
+        | StdioClientTransport
+        | SSEClientTransport
+        | InMemoryTransport
+        | StreamableHTTPClientTransport
+        | undefined
       try {
+        this.assertResetGeneration(admittedGeneration, 'init start')
         // Create new client instance for each connection
         const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
+        localClient = client
 
         let args = [...(server.args || [])]
 
@@ -634,7 +787,7 @@ export class McpRuntimeService extends BaseService {
           client: Client,
           transport: SSEClientTransport | StreamableHTTPClientTransport,
           typeOverride?: McpServerType
-        ) => {
+        ): Promise<StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport> => {
           getServerLogger(server).debug(`Starting OAuth flow`)
           // Create an event emitter for the OAuth callback
           const events = new EventEmitter()
@@ -667,6 +820,7 @@ export class McpRuntimeService extends BaseService {
             await client.connect(newTransport)
 
             getServerLogger(server).debug(`Successfully authenticated`)
+            return newTransport
           } catch (oauthError) {
             getServerLogger(server).error(`OAuth authentication failed`, oauthError as Error)
             throw new Error(
@@ -700,8 +854,14 @@ export class McpRuntimeService extends BaseService {
           for (let i = 0; i < transportTypes.length; i++) {
             const candidateType = transportTypes[i]
             const transport = await initTransport(candidateType)
+            // Assign BEFORE connect so a failed connect still reaches the finally cleanup
+            // (stdio PID proof). initTransport may spawn the stdio child before connect
+            // resolves/rejects; a connect rejection previously left localTransport unassigned,
+            // letting the spawned child escape tracking (codex round-6 F2-B).
+            localTransport = transport
             try {
               await client.connect(transport, connectOptions)
+              this.assertResetGeneration(admittedGeneration, 'after connect')
               connected = true
               break
             } catch (error: any) {
@@ -710,7 +870,12 @@ export class McpRuntimeService extends BaseService {
                 (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
               ) {
                 logger.debug(`Authentication required for server: ${server.name}`)
-                await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport, candidateType)
+                localTransport = await handleAuth(
+                  client,
+                  transport as SSEClientTransport | StreamableHTTPClientTransport,
+                  candidateType
+                )
+                this.assertResetGeneration(admittedGeneration, 'after oauth')
                 connected = true
                 break
               }
@@ -736,7 +901,10 @@ export class McpRuntimeService extends BaseService {
           }
 
           if (!connected) {
-            // Release the last (failed) transport/connection so it isn't leaked until GC.
+            // Release the SDK client handle, but do NOT clear localTransport — the finally
+            // block must still run stdio PID proof. Clearing locals here (round-6) bypassed
+            // finally cleanup, letting a stdio child spawned by initTransport escape tracking
+            // when every connect candidate failed (codex round-7).
             await client.close().catch(() => undefined)
             throw lastError ?? new Error('Failed to connect to MCP server')
           }
@@ -749,16 +917,23 @@ export class McpRuntimeService extends BaseService {
           })
 
           if (this.stopping || this.isStopped || this.isDestroyed) {
-            await client.close()
             throw new Error('MCP runtime is stopping')
           }
 
-          // Store the new client in the cache
+          this.assertResetGeneration(admittedGeneration, 'before clients.set')
+          // Transfer ownership into tracked maps before clearing locals so
+          // finally does not close a successfully cached client/transport.
           this.clients.set(serverKey, client)
+          if (localTransport) {
+            this.clientTransports.set(serverKey, localTransport)
+          }
+          const tracked = client
+          localClient = undefined
+          localTransport = undefined
           this.setServerStatus(server.id, 'connected')
 
           // Set up notification handlers
-          this.setupNotificationHandlers(client, server)
+          this.setupNotificationHandlers(tracked, server)
 
           // Clear existing cache to ensure fresh data
           this.clearServerCache(server)
@@ -770,7 +945,7 @@ export class McpRuntimeService extends BaseService {
             message: 'Server activated',
             source: 'client'
           })
-          return client
+          return tracked
         } catch (error) {
           this.setServerStatus(server.id, 'error', error)
           getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
@@ -784,8 +959,48 @@ export class McpRuntimeService extends BaseService {
           throw error
         }
       } finally {
-        // Clean up the pending promise when done
-        this.pendingClients.delete(serverKey)
+        // Clean up any local client/transport that never entered the tracked
+        // maps (generation throw after OAuth, connect failure, stopping mid-flight).
+        // FAIL-CLOSED: a transport that never reached clientTransports is invisible
+        // to the reset drain. Delete pendingClients ONLY after cleanup succeeds — a
+        // failed cleanup (e.g. stdio child survived SIGKILL) must keep the entry
+        // tracked so closeAllForDevReset sees a non-empty pending map, hits its
+        // deadline, and sets closeAllSucceeded=false -> force-exit (never false
+        // success over a live child).
+        try {
+          if (localTransport) {
+            if (this.closedForDevReset && localTransport instanceof StdioClientTransport) {
+              // Read pid BEFORE close: StdioClientTransport.close() clears _process,
+              // making the pid getter return null afterwards — awaitStdioChildExit(null)
+              // would TypeError and, because waitForPendingClients uses allSettled, be
+              // swallowed as a successful drain. Capture the pid up front (like closeClient).
+              const stdioPid = localTransport.pid
+              await localTransport.close()
+              if (stdioPid != null) {
+                await this.awaitStdioChildExit(stdioPid, serverKey)
+              }
+            } else {
+              await localTransport.close().catch(() => undefined)
+            }
+          }
+          if (localClient) {
+            await localClient.close().catch(() => undefined)
+          }
+          // Cleanup succeeded — safe to drop tracking.
+          this.pendingClients.delete(serverKey)
+        } catch (cleanupError) {
+          // Cleanup FAILED. Do NOT delete pendingClients — waitForPendingClients uses
+          // allSettled, so a rejected init promise alone would read as success; the
+          // tracked entry is what forces closeAllForDevReset to time out -> force-exit.
+          logger.error(
+            `MCP local cleanup failed for ${serverKey}; keeping pending entry tracked for reset drain`,
+            cleanupError as Error
+          )
+          throw cleanupError
+        } finally {
+          localTransport = undefined
+          localClient = undefined
+        }
       }
     })()
 
@@ -893,6 +1108,12 @@ export class McpRuntimeService extends BaseService {
     this.activeToolCalls.clear()
   }
 
+  private async waitForActiveToolCalls(): Promise<void> {
+    const settlements = [...this.activeToolCallSettlements]
+    if (settlements.length === 0) return
+    await Promise.allSettled(settlements)
+  }
+
   private async waitForPendingClients(): Promise<void> {
     const pending = [...this.pendingClients.values()]
     if (pending.length === 0) return
@@ -911,16 +1132,102 @@ export class McpRuntimeService extends BaseService {
 
   async closeClient(serverKey: string) {
     const client = this.clients.get(serverKey)
-    if (client) {
-      // Remove the client from the cache
-      await client.close()
-      logger.debug(`Closed server`, { serverKey })
-      this.clients.delete(serverKey)
-      // Clear all caches for this server
-      this.clearServerCache(serverKey)
-      this.serverLogs.remove(serverKey)
-    } else {
+    if (!client) {
       logger.warn(`No client found for server`, { serverKey })
+      return
+    }
+
+    const transport = this.clientTransports.get(serverKey)
+    const stdioPid = transport instanceof StdioClientTransport ? transport.pid : null
+
+    // Close first; only remove from the cache after transport/child verification so a
+    // failed close cannot leave a half-dead entry that release would unlatch for reuse.
+    await client.close()
+    if (stdioPid != null) {
+      await this.awaitStdioChildExit(stdioPid, serverKey)
+    }
+
+    logger.debug(`Closed server`, { serverKey })
+    this.clients.delete(serverKey)
+    this.clientTransports.delete(serverKey)
+    this.clearServerCache(serverKey)
+    this.serverLogs.remove(serverKey)
+  }
+
+  private assertResetOpen(label: string): void {
+    if (this.closedForDevReset) {
+      throw new Error(`MCP runtime is closed for dev reset (${label})`)
+    }
+  }
+
+  private assertResetGeneration(admittedGeneration: number, label: string): void {
+    if (this.closedForDevReset || this.resetGeneration !== admittedGeneration) {
+      throw new Error(`MCP runtime is closed for dev reset (${label})`)
+    }
+  }
+
+  /**
+   * Race an await against the absolute reset deadline so hung drains cannot
+   * block closeAllForDevReset past the bound.
+   */
+  private async raceDeadline<T>(p: Promise<T>, deadline: number, label: string): Promise<T> {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) {
+      throw new Error(`${label} exceeded reset deadline`)
+    }
+    let timer: NodeJS.Timeout | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out after reset deadline`)), remaining)
+      timer.unref?.()
+    })
+    try {
+      return await Promise.race([p, timeout])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  private async drainActiveOperations(deadline: number): Promise<void> {
+    while (this.activeOperations.size > 0) {
+      await this.raceDeadline(Promise.allSettled([...this.activeOperations]), deadline, 'active-operations')
+    }
+  }
+
+  /**
+   * StdioClientTransport.close() may SIGKILL without awaiting the final 'close'
+   * event. Retain the pid before close and prove the child is gone (or fail closed).
+   */
+  private async awaitStdioChildExit(pid: number, serverKey: string): Promise<void> {
+    const deadline = Date.now() + 5_000
+    while (Date.now() < deadline) {
+      if (!this.isPidAlive(pid)) {
+        return
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    try {
+      process.kill(pid, 'SIGKILL')
+    } catch {
+      // already gone
+    }
+    const killDeadline = Date.now() + 2_000
+    while (Date.now() < killDeadline) {
+      if (!this.isPidAlive(pid)) {
+        return
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    if (this.isPidAlive(pid)) {
+      throw new Error(`McpRuntimeService.closeClient: stdio child pid ${pid} still alive after SIGKILL (${serverKey})`)
+    }
+  }
+
+  private isPidAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code !== 'ESRCH'
     }
   }
 
@@ -1031,9 +1338,13 @@ export class McpRuntimeService extends BaseService {
     const server = this.getServerById(serverId)
     getServerLogger(server).debug(`Checking connectivity`)
     try {
-      const client = await this.getOrCreateClient(server)
-      // Attempt to list tools as a way to check connectivity
-      await client.listTools()
+      // Lease the listTools call via withClient so closeAllForDevReset can drain
+      // it — a direct getOrCreateClient + client.listTools bypasses activeOperations
+      // and leaves a live client invisible to the reset drain.
+      await this.withClient(server.id, async (client) => {
+        // Attempt to list tools as a way to check connectivity
+        await client.listTools()
+      })
       getServerLogger(server).debug(`Connectivity check successful`)
       this.setServerStatus(server.id, 'connected')
       this.emitServerLog(server, {
@@ -1052,9 +1363,15 @@ export class McpRuntimeService extends BaseService {
         data: redactSensitive(error),
         source: 'connectivity'
       })
-      // Close the client if connectivity check fails to ensure a clean state for the next attempt
+      // Close the client if connectivity check fails to ensure a clean state for the next attempt.
+      // Nested catch: closeClient failure (F1 propagation) must not turn this boolean-returning
+      // check into a rejection — keep the `return false` + status/cache cleanup contract intact.
       const serverKey = this.getServerKey(server)
-      await this.closeClient(serverKey)
+      try {
+        await this.closeClient(serverKey)
+      } catch (closeError) {
+        getServerLogger(server).warn(`Failed to close client after connectivity check failure`, closeError as Error)
+      }
       application.get('McpCatalogService').clearSharedToolsCache(server.id)
       this.setServerStatus(server.id, 'error', error)
       return false
@@ -1070,9 +1387,18 @@ export class McpRuntimeService extends BaseService {
   }
 
   public async callToolByServer({ server, name, args, callId }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
+    if (this.closedForDevReset) {
+      throw new Error('McpRuntimeService is closed for dev reset')
+    }
     const toolCallId = callId || uuidv4()
     const abortController = new AbortController()
     this.activeToolCalls.set(toolCallId, abortController)
+
+    let settleToolCall!: () => void
+    const settlement = new Promise<void>((resolve) => {
+      settleToolCall = resolve
+    })
+    this.activeToolCallSettlements.add(settlement)
 
     const callToolFunc = async ({ server, name, args }: RuntimeCallToolArgs) => {
       try {
@@ -1128,23 +1454,27 @@ export class McpRuntimeService extends BaseService {
       name,
       args
     }
-    return await withSpanFunc(
-      `${server.name}.${name}`,
-      `MCP`,
-      // oxlint-disable-next-line no-unused-vars
-      (_recorded: typeof tracedInput) => callToolFunc({ server, name, args }),
-      [tracedInput]
-    )
+    try {
+      return await withSpanFunc(
+        `${server.name}.${name}`,
+        `MCP`,
+        // oxlint-disable-next-line no-unused-vars
+        (_recorded: typeof tracedInput) => callToolFunc({ server, name, args }),
+        [tracedInput]
+      )
+    } finally {
+      settleToolCall()
+      this.activeToolCallSettlements.delete(settlement)
+    }
   }
 
   /**
    * List prompts available on an MCP server
    */
   private async listPromptsImpl(server: McpServer): Promise<McpPrompt[]> {
-    const client = await this.getOrCreateClient(server)
     getServerLogger(server).debug(`Listing prompts`)
     try {
-      const { prompts } = await client.listPrompts()
+      const { prompts } = await this.withClient(server.id, async (client) => client.listPrompts())
       return prompts.map((prompt: any) => ({
         ...prompt,
         id: `p${nanoid()}`,
@@ -1190,8 +1520,7 @@ export class McpRuntimeService extends BaseService {
    */
   private async getPromptImpl(server: McpServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
     logger.debug(`Getting prompt ${name} from server: ${server.name}`)
-    const client = await this.getOrCreateClient(server)
-    return await client.getPrompt({ name, arguments: args })
+    return this.withClient(server.id, async (client) => client.getPrompt({ name, arguments: args }))
   }
 
   /**
@@ -1225,10 +1554,9 @@ export class McpRuntimeService extends BaseService {
    * List resources available on an MCP server (implementation)
    */
   private async listResourcesImpl(server: McpServer): Promise<McpResource[]> {
-    const client = await this.getOrCreateClient(server)
     logger.debug(`Listing resources for server: ${server.name}`)
     try {
-      const result = await client.listResources()
+      const result = await this.withClient(server.id, async (client) => client.listResources())
       const resources = result.resources || []
       return (Array.isArray(resources) ? resources : []).map((resource: any) => ({
         ...resource,
@@ -1272,9 +1600,8 @@ export class McpRuntimeService extends BaseService {
    */
   private async getResourceImpl(server: McpServer, uri: string): Promise<GetResourceResponse> {
     getServerLogger(server, { uri }).debug(`Getting resource`)
-    const client = await this.getOrCreateClient(server)
     try {
-      const result = await client.readResource({ uri: uri })
+      const result = await this.withClient(server.id, async (client) => client.readResource({ uri: uri }))
       const contents: McpResource[] = []
       if (result.contents && result.contents.length > 0) {
         result.contents.forEach((content: any) => {

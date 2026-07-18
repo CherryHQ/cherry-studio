@@ -4,11 +4,13 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 import { aiHandlers } from './ai'
 import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
+import { backupHandlers } from './backup'
 import { binaryHandlers } from './binary'
 import { channelHandlers } from './channel'
 import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
+import { devHandlers } from './dev'
 import { exportHandlers } from './export'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
@@ -47,11 +49,13 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...aiHandlers,
   ...apiGatewayHandlers,
   ...appHandlers,
+  ...backupHandlers,
   ...binaryHandlers,
   ...channelHandlers,
   ...cherryinHandlers,
   ...citationHandlers,
   ...codeCliHandlers,
+  ...devHandlers,
   ...exportHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,

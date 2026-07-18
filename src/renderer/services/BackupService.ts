@@ -169,6 +169,12 @@ export async function restore() {
 }
 
 export async function reset() {
+  // Packaged builds refuse reset — BackupService / DevResetCoordinator are DEV-only.
+  if (!import.meta.env.DEV) {
+    toast.error(i18n.t('settings.data.backup.v2_unavailable'))
+    return
+  }
+
   const confirmed = await popup.confirm({
     title: i18n.t('common.warning'),
     content: i18n.t('message.reset.confirm.content'),
@@ -190,12 +196,14 @@ export async function reset() {
   })
   if (!doubleConfirmed) return
 
-  localStorage.clear()
-  // Legacy Dexie cleanup is intentionally disabled in v2.
-  // await clearDatabase()
-  await window.api.resetData()
-  toast.success(i18n.t('message.reset.success'))
-  setTimeout(() => window.api.application.relaunch(), 1000)
+  try {
+    // Main owns the 6-owner barrier + SQLite/Data deletion + relaunch.
+    // Do NOT clear localStorage / call legacy resetData / relaunch from renderer.
+    await ipcApi.request('dev.reset_app_data')
+  } catch (error) {
+    logger.error('dev.reset_app_data failed', error as Error)
+    toast.error(error instanceof Error ? error.message : i18n.t('common.error'))
+  }
 }
 
 // 备份到 webdav

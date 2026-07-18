@@ -369,4 +369,17 @@ describe('CacheService subscription', () => {
       expect(cb).not.toHaveBeenCalled()
     })
   })
+
+  describe('closeForDevReset write gate', () => {
+    it('rejects set, setShared, and setPersist while latched', () => {
+      // Latch without flushForDevReset I/O — subscription suite has no persist temp path.
+      service.closedForDevReset = true
+
+      expect(() => service.set('k1', 'a')).toThrow(/CacheService\.set rejected during dev reset/)
+      expect(() => service.setShared(SHARED_EXACT, 'a')).toThrow(/CacheService\.setShared rejected during dev reset/)
+      expect(() => service.setPersist('internal.persist_probe' as never, 1 as never)).toThrow(
+        /CacheService\.setPersist rejected during dev reset/
+      )
+    })
+  })
 })

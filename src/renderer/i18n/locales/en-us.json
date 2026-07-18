@@ -5643,8 +5643,43 @@
         "label": "App Logs"
       },
       "backup": {
+        "legacy_local_unavailable": "Legacy local backup controls are disabled. Use Backup / Restore above.",
         "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
         "skip_file_data_title": "Slim Backup",
+        "v2": {
+          "export": {
+            "cancel_timeout": "Cancel timed out. The backup may still be running.",
+            "cancelled": "Backup cancelled.",
+            "failure": "Backup failed.",
+            "phase": {
+              "archive": "Creating archive…",
+              "collect": "Collecting data…",
+              "journal": "Writing journal…",
+              "merge": "Merging data…",
+              "preflight": "Checking disk space…",
+              "quiesce": "Quiescing services…",
+              "relaunch": "Relaunching…",
+              "snapshot": "Copying database…",
+              "verify": "Verifying backup…"
+            },
+            "running": "Backing up…",
+            "selecting": "Choose where to save the backup…",
+            "starting": "Starting backup…",
+            "success": "Backup completed."
+          },
+          "file_filter": "Cherry Backup",
+          "preset": {
+            "full": "Full backup (all data)",
+            "lite": "Lite backup (chat & settings, no knowledge/files)"
+          },
+          "restore": {
+            "confirm_content": "Restoring will replace current data and relaunch the app. Continue?",
+            "failure": "Restore failed.",
+            "pick_prompt": "Select a .cbu backup archive to restore.",
+            "relaunching": "Restore staged. The app is relaunching…",
+            "selected": "Selected archive:"
+          }
+        },
         "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."
       },
       "clear_cache": {

@@ -4,6 +4,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { DevResetMutationGate } from '@main/services/devResetMutationGate'
 import { getFileExt } from '@main/utils/legacyFile'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
@@ -55,9 +56,46 @@ const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 
 export class KnowledgeWorkflowService {
+  private readonly devResetGate = new DevResetMutationGate()
+
   constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
 
+  acquireDevResetMutationGate(): void {
+    this.devResetGate.acquire()
+  }
+
+  releaseDevResetMutationGate(): void {
+    this.devResetGate.release()
+  }
+
+  async drainDevResetMutations(): Promise<void> {
+    await this.devResetGate.drain()
+  }
+
+  runDevResetMutation<T>(label: string, operation: () => Promise<T>): Promise<T> {
+    return this.devResetGate.run(label, operation)
+  }
+
   async addItems(
+    baseId: string,
+    inputs: KnowledgeAddItemInput[],
+    conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY
+  ): Promise<KnowledgeAddItemsResult> {
+    return this.devResetGate.run('KnowledgeWorkflowService.addItems', () =>
+      this.addItemsUngated(baseId, inputs, conflictStrategy)
+    )
+  }
+
+  /** Run an add that is already covered by an outer reset-tracked mutation. */
+  addItemsWithinDevResetMutation(
+    baseId: string,
+    inputs: KnowledgeAddItemInput[],
+    conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY
+  ): Promise<KnowledgeAddItemsResult> {
+    return this.addItemsUngated(baseId, inputs, conflictStrategy)
+  }
+
+  private async addItemsUngated(
     baseId: string,
     inputs: KnowledgeAddItemInput[],
     conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY

@@ -49,7 +49,7 @@ const mcpSdkMock = vi.hoisted(() => {
   const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
   class Client {
     setNotificationHandler = vi.fn()
-    _transport: { kind: string } | undefined = undefined
+    _transport: { kind: string; close?: ReturnType<typeof vi.fn> } | undefined = undefined
     close = vi.fn().mockImplementation(async () => {
       this._transport = undefined
     })
@@ -58,7 +58,7 @@ const mcpSdkMock = vi.hoisted(() => {
     constructor() {
       clients.push(this)
     }
-    async connect(transport: { kind: string }) {
+    async connect(transport: { kind: string; close?: ReturnType<typeof vi.fn> }) {
       // Mirror MCP SDK Protocol.connect: _transport is set before start() runs, and a failed
       // start() leaves it set. This is what makes the fallback retry fail unless client.close()
       // resets it — the test would not catch that regression otherwise.
@@ -67,6 +67,7 @@ const mcpSdkMock = vi.hoisted(() => {
       }
       this._transport = transport
       this.connectCalls.push({ kind: transport.kind })
+      mcpSdkMock.state.onAfterConnect?.()
       if (transport.kind === 'sse') {
         throw new SseError(405, 'Non-200 status code (405)')
       }
@@ -89,7 +90,11 @@ const mcpSdkMock = vi.hoisted(() => {
     Client,
     StreamableHTTPError,
     clients,
-    state: { failStreamable: false, failStreamableCode: 503 }
+    state: {
+      failStreamable: false,
+      failStreamableCode: 503,
+      onAfterConnect: null as null | (() => void)
+    }
   }
 })
 
@@ -245,6 +250,251 @@ describe('McpRuntimeService.closeClientsForServer', () => {
   })
 })
 
+describe('McpRuntimeService.closeAllForDevReset', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableCode = 503
+    mcpSdkMock.state.onAfterConnect = null
+    mcpSdkMock.clients.length = 0
+  })
+
+  it('closes all connected clients and rejects new transports while the latch is held', async () => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockResolvedValue(undefined)
+    const key = serverKeyFor('server-1')
+    ;(service as any).clients.set(key, { close })
+
+    await service.closeAllForDevReset()
+
+    expect(close).toHaveBeenCalledOnce()
+    expect((service as any).clients.size).toBe(0)
+    await (service as any).onInit()
+    await expect(
+      (service as any).getOrCreateClient({ id: 'server-1', name: 'server', isActive: true } as McpServer)
+    ).rejects.toThrow('closed for dev reset')
+  })
+
+  it('keeps the reset latch after a failed close so cached clients cannot be reused', async () => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockRejectedValueOnce(new Error('close failed'))
+    const key = serverKeyFor('server-1')
+    ;(service as any).clients.set(key, { close })
+
+    await expect(service.closeAllForDevReset()).rejects.toThrow('close failed')
+    service.releaseDevResetLatch()
+    await expect(
+      (service as any).getOrCreateClient({ id: 'server-1', name: 'server', isActive: true } as McpServer)
+    ).rejects.toThrow('closed for dev reset')
+    expect((service as any).clients.has(key)).toBe(true)
+  })
+
+  it('awaits active tool-call settlement after aborting them', async () => {
+    const service = new McpRuntimeService()
+    let resolveTool!: () => void
+    const toolPromise = new Promise<void>((resolve) => {
+      resolveTool = resolve
+    })
+    ;(service as any).activeToolCallSettlements.add(toolPromise)
+    ;(service as any).activeToolCalls.set('call-1', new AbortController())
+
+    let closeResolved = false
+    const closePromise = service.closeAllForDevReset().then(() => {
+      closeResolved = true
+    })
+
+    await Promise.resolve()
+    expect(closeResolved).toBe(false)
+
+    resolveTool()
+    await closePromise
+    expect(closeResolved).toBe(true)
+  })
+
+  it('F1: times out a stuck tool-call settlement against the absolute deadline', async () => {
+    const service = new McpRuntimeService()
+    ;(service as any).devResetTimeoutMs = 30
+    ;(service as any).activeToolCallSettlements.add(new Promise<void>(() => {}))
+
+    await expect(service.closeAllForDevReset()).rejects.toThrow(/active-tool-settlement.*deadline/)
+    expect((service as any).closeAllSucceeded).toBe(false)
+    service.releaseDevResetLatch()
+    await expect(
+      (service as any).getOrCreateClient({ id: 'server-1', name: 'server', isActive: true } as McpServer)
+    ).rejects.toThrow('closed for dev reset')
+  })
+
+  it('F1: times out a pending client acquire against the absolute deadline', async () => {
+    const service = new McpRuntimeService()
+    ;(service as any).devResetTimeoutMs = 30
+    ;(service as any).pendingClients.set(serverKeyFor('server-1'), new Promise(() => {}))
+
+    await expect(service.closeAllForDevReset()).rejects.toThrow(/pending-clients.*deadline/)
+    expect((service as any).closeAllSucceeded).toBe(false)
+    service.releaseDevResetLatch()
+    expect((service as any).closedForDevReset).toBe(true)
+  })
+
+  it('F1: times out a hung client.close against the absolute deadline', async () => {
+    const service = new McpRuntimeService()
+    ;(service as any).devResetTimeoutMs = 30
+    const key = serverKeyFor('server-1')
+    ;(service as any).clients.set(key, {
+      close: () => new Promise<void>(() => {})
+    })
+
+    await expect(service.closeAllForDevReset()).rejects.toThrow(/close-clients.*deadline/)
+    expect((service as any).closeAllSucceeded).toBe(false)
+    expect((service as any).clients.has(key)).toBe(true)
+    service.releaseDevResetLatch()
+    expect((service as any).closedForDevReset).toBe(true)
+  })
+
+  it('F1: ping-failed cached client with failing close stays tracked (no overwrite)', async () => {
+    const service = new McpRuntimeService()
+    const server = { id: 'server-1', name: 'server', isActive: true } as McpServer
+    const key = serverKeyFor('server-1')
+    // Cached client whose ping returns false AND whose close keeps failing. closeClient must
+    // NOT delete the maps (close failed), and getOrCreateClient must propagate the failure
+    // instead of swallowing + overwriting with a replacement (the round-4 regression).
+    const cachedClient = {
+      ping: vi.fn().mockResolvedValue(false),
+      close: vi.fn().mockRejectedValue(new Error('close failed'))
+    }
+    ;(service as any).clients.set(key, cachedClient)
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toThrow(/close failed/)
+
+    // Fail-closed: the orphaned entry stays tracked; no replacement overwrote it.
+    expect((service as any).clients.get(key)).toBe(cachedClient)
+  })
+
+  it('F2: closes local client/transport when reset cancels after connect', async () => {
+    const service = new McpRuntimeService()
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.onAfterConnect = () => {
+      // Simulate closeAllForDevReset racing a successful connect: generation flips
+      // before clients.set, so assertResetGeneration throws with local handles live.
+      ;(service as any).closedForDevReset = true
+      ;(service as any).resetGeneration += 1
+    }
+
+    const server = {
+      id: 'oauth-race-server',
+      name: 'oauth-race',
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.example.com/mcp',
+      isActive: true
+    } as unknown as McpServer
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toThrow(/closed for dev reset/)
+
+    const client = mcpSdkMock.clients.at(-1)
+    expect(client?.close).toHaveBeenCalled()
+    expect((service as any).clients.size).toBe(0)
+    expect((service as any).clientTransports.size).toBe(0)
+    expect((service as any).pendingClients.size).toBe(0)
+    // Empty maps alone must not claim success — latch stays until verified drain.
+    ;(service as any).closeAllSucceeded = false
+    service.releaseDevResetLatch()
+    expect((service as any).closedForDevReset).toBe(true)
+  })
+
+  it('F2: closeAllForDevReset refuses success while clientTransports remain', async () => {
+    const service = new McpRuntimeService()
+    const key = serverKeyFor('server-1')
+    ;(service as any).clientTransports.set(key, { close: vi.fn() })
+
+    await expect(service.closeAllForDevReset()).rejects.toThrow(/transports=1/)
+    expect((service as any).closeAllSucceeded).toBe(false)
+  })
+
+  it('F3: drains withClient operations before closing clients', async () => {
+    const service = new McpRuntimeService()
+    ;(service as any).devResetTimeoutMs = 200
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'server', isActive: true } as McpServer)
+
+    let resolveOp!: (value: string) => void
+    const opGate = new Promise<string>((resolve) => {
+      resolveOp = resolve
+    })
+    const key = serverKeyFor('server-1')
+    ;(service as any).clients.set(key, { close: vi.fn().mockResolvedValue(undefined) })
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ close: vi.fn() })
+
+    const withClientPromise = service.withClient('server-1', async () => opGate)
+    // Lease is registered after getOrCreateClient resolves.
+    await vi.waitFor(() => {
+      expect((service as any).activeOperations.size).toBe(1)
+    })
+
+    let closeSettled = false
+    const closePromise = service.closeAllForDevReset().then(() => {
+      closeSettled = true
+    })
+    await Promise.resolve()
+    expect(closeSettled).toBe(false)
+    expect((service as any).activeOperations.size).toBe(1)
+
+    resolveOp('done')
+    await expect(withClientPromise).resolves.toBe('done')
+    await closePromise
+    expect(closeSettled).toBe(true)
+    expect((service as any).activeOperations.size).toBe(0)
+    expect((service as any).closeAllSucceeded).toBe(true)
+  })
+})
+
+describe('McpRuntimeService.onStop', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+  })
+
+  it('F3: uncooperative tool settlement does not hang onStop', async () => {
+    const service = new McpRuntimeService()
+    ;(service as any).shutdownTimeoutMs = 30
+    ;(service as any).activeToolCallSettlements.add(new Promise<void>(() => {}))
+    const close = vi.fn().mockResolvedValue(undefined)
+    const key = serverKeyFor('server-1')
+    ;(service as any).clients.set(key, { close })
+
+    await expect((service as any).onStop()).resolves.toBeUndefined()
+
+    expect(close).toHaveBeenCalledOnce()
+    expect((service as any).clients.size).toBe(0)
+  })
+
+  it('F3: cooperative tool settlement still closes clients onStop', async () => {
+    const service = new McpRuntimeService()
+    ;(service as any).shutdownTimeoutMs = 200
+    ;(service as any).activeToolCallSettlements.add(Promise.resolve())
+    const close = vi.fn().mockResolvedValue(undefined)
+    const key = serverKeyFor('server-1')
+    ;(service as any).clients.set(key, { close })
+
+    await expect((service as any).onStop()).resolves.toBeUndefined()
+
+    expect(close).toHaveBeenCalledOnce()
+    expect((service as any).clients.size).toBe(0)
+  })
+
+  it('F3: a hung client.close does not hang onStop (deadline-bounded closeAllClients)', async () => {
+    const service = new McpRuntimeService()
+    ;(service as any).shutdownTimeoutMs = 30
+    const key = serverKeyFor('server-1')
+    // client.close never settles — without the deadline, closeAllClients would hang onStop.
+    ;(service as any).clients.set(key, { close: vi.fn().mockReturnValue(new Promise(() => {})) })
+
+    await expect((service as any).onStop()).resolves.toBeUndefined()
+
+    // Despite the hung close, onStop completed (deadline + warn) and cleared the maps.
+    expect((service as any).clients.size).toBe(0)
+    expect((service as any).clientTransports.size).toBe(0)
+  })
+})
+
 describe('MCP IPC payload validation (mcp-services-5)', () => {
   it('rejects a malformed callTool payload (missing serverId/name)', () => {
     expect(McpCallToolPayloadSchema.safeParse({}).success).toBe(false)
@@ -357,6 +607,8 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     MockMainCacheServiceUtils.resetMocks()
     mcpSdkMock.state.failStreamable = false
     mcpSdkMock.state.failStreamableCode = 503
+    mcpSdkMock.state.onAfterConnect = null
+    mcpSdkMock.clients.length = 0
   })
 
   function urlServer(type: 'sse' | 'streamableHttp'): McpServer {

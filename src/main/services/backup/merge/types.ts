@@ -1,0 +1,131 @@
+// Merge engine core types — detached restore import pipeline (plan (b)).
+//
+// The merge engine merges backup rows into a detached work.sqlite (VACUUM INTO copy
+// of live) inside one synchronous better-sqlite3 transaction. Conflict resolution
+// follows identity-class defaults (uuid-entity → SKIP, natural-key/slot → FIELD_MERGE);
+// identity propagation rewrites FKs to local canonical PKs; junction rows are
+// resolved in a global phase after all root/member writes. See spec
+// `backup-restore-safety/import-orchestrator.md` + plan `cryptic-inventing-toucan.md`.
+
+import type { AggregateBoundary } from '@main/data/db/backup/contributorTypes'
+import type { DbColumnName, DbTableName } from '@main/data/db/backup/dbSchemaRefs'
+import type { BackupDomain, ConflictStrategy } from '@main/data/db/backup/domains'
+import type { DbType } from '@main/data/db/types'
+import type Database from 'better-sqlite3'
+
+/** Effective action for an aggregate during merge — exhaustive switch in importRows (B3). */
+export type MergeAction = 'insert' | 'skip' | 'overwrite' | 'rename' | 'field-merge'
+
+/** Per-aggregate decision produced by scanAggregates (work.sqlite is the merge base). */
+export interface AggregateDecision {
+  readonly aggregate: AggregateBoundary
+  /** Composite identity tuple (ordered, NOT delimiter-joined) —忠实表达 [scope,key]/[type,name]/.... */
+  readonly identity: readonly (string | number)[]
+  /** Backup-side physical PK tuple (ordered) — importRows queries backupDb members by this. */
+  readonly backupPrimaryKey: readonly (string | number)[]
+  /**
+   * Local canonical PK (FIELD_MERGE local wins / RENAME new PK); undefined when the
+   * aggregate is not yet imported or has no local survivor. Drives identity propagation.
+   */
+  readonly localCanonicalPrimaryKey?: readonly (string | number)[]
+  readonly action: MergeAction
+  /** New root uuid for RENAME (renamable uuid-entity, single-column PK only). */
+  readonly newRootKey?: string
+}
+
+/** Endpoint of a junction reference (root or member table + the FK column into it). */
+export interface JunctionEndpoint {
+  readonly table: DbTableName
+  readonly fkColumn: DbColumnName
+  /** 'root' or a member table name (e.g. chat_message_file_ref.sourceId → message member). */
+  readonly aggregatePath: 'root' | DbTableName
+}
+
+/**
+ * Registry-derived descriptor for a junction table (B4). Derived from
+ * schema.references filter kind='junction' — NOT aggregate.members. Excludes
+ * include-member dual-cascade tables (assistant_mcp_server etc.) which are handled
+ * by root/member processing.
+ */
+export interface JunctionDescriptor {
+  readonly table: DbTableName
+  readonly ownerDomain: BackupDomain
+  readonly sourceEndpoint: JunctionEndpoint
+  readonly targetEndpoint: JunctionEndpoint
+}
+
+/**
+ * identityMap is role-aware (R8): source eligibility vs target availability.
+ * The asymmetry is critical — a skipped target survives locally (available),
+ * while a skipped source was not imported (ineligible).
+ *
+ * The maps are scoped per endpoint TABLE (not flat by id) so that the same textual id
+ * in two different entity tables cannot overwrite each other. Once FIELD_MERGE maps an
+ * id to a different canonical id, a flat map could rewrite a FK to the wrong entity;
+ * per-table scope keeps endpoints disjoint. The junction phase consumes the same
+ * per-table scope because no registry junction currently reuses one table across
+ * distinct endpoint shapes.
+ */
+export interface IdentityMap {
+  /**
+   * Source eligibility: per endpoint table, backup-id → imported work-id. Only rows
+   * imported THIS restore (insert/FIELD_MERGE/OVERWRITE). skip → absent (not imported,
+   * ineligible). rename → backup old id absent (work is the new clone).
+   */
+  readonly sourceMap: Map<DbTableName, Map<string, string>>
+  /**
+   * Target availability: per endpoint table, backup-id → canonical work-id. Imported OR
+   * pre-existing local (skip = local survives = available → local canonical). rename
+   * (old not imported) / domain-unselected → absent.
+   */
+  readonly targetMap: Map<DbTableName, Map<string, string>>
+}
+
+/** A degraded-to-SKIP record (renamable:false RENAME fallback, etc.) — for the restore sidecar. */
+export interface DegradedSkip {
+  readonly table: DbTableName
+  readonly count: number
+  readonly reason: string
+}
+
+/** Merge engine result (degraded-to-SKIP records go to the BackupService-owned sidecar, NOT journal). */
+export interface MergeResult {
+  readonly degradedToSkips: readonly DegradedSkip[]
+}
+
+/**
+ * Context the MergeEngine consumes. Carries the migrated backup.sqlite (read-only),
+ * the user's optional strategy override, the file_entry IDs whose blobs were not
+ * staged (skip during import), the role-aware identityMap (built during import), and
+ * the write-quiesce lease (released in finally even if cleanup throws).
+ */
+export interface MergeContext {
+  /** Absolute path to the admitted, migrated backup.sqlite opened read-only by the engine. */
+  readonly backupDbPath: string
+  /** Selected domains for this restore (drives topo sort + which aggregates are scanned). */
+  readonly domains: readonly BackupDomain[]
+  /**
+   * User strategy override. undefined (omit) → use each aggregate's conflictDefault
+   * (防 UI 默认 SKIP 覆盖 PROVIDERS FIELD_MERGE 丢凭证). Only set when the user explicitly
+   * chooses a strategy.
+   */
+  readonly userStrategy?: ConflictStrategy
+  /** file_entry IDs whose blobs were not staged — skip these rows during import. */
+  readonly skippedFileEntryIds: ReadonlySet<string>
+  /**
+   * Optional keyed rewrite metadata from pre-merge staging (internal origin +
+   * staged byte size). FILE_STORAGE transformRow may consume this; MVP external
+   * rows are skipped instead of rewritten.
+   */
+  readonly fileEntryRewrites?: ReadonlyMap<
+    string,
+    { readonly origin: 'internal'; readonly externalPath: null; readonly size: number }
+  >
+}
+
+/** Merge engine entry signature — invoked by ImportOrchestrator inside the staging spine. */
+export type MergeBackupIntoWork = (
+  workSqlite: Database.Database,
+  workDb: DbType,
+  ctx: MergeContext
+) => Promise<MergeResult>

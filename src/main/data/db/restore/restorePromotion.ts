@@ -9,6 +9,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
 import { hashDbFile } from './hashDbFile'
+import { resolveUserDataRelativePath } from './resolveUserDataRelativePath'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
 import { PROMOTION_STEP_ORDER, readRestoreJournal, writeRestoreJournal } from './restoreJournal'
 
@@ -147,7 +148,7 @@ export function isLiveDbStranded(): boolean {
     return false
   }
   const livePath = application.getPath('app.database.file')
-  const asidePath = path.resolve(application.getPath('app.userdata'), read.journal.db.aside)
+  const asidePath = resolveUserDataRelativePath(read.journal.db.aside)
   return !fs.existsSync(livePath) && fs.existsSync(asidePath)
 }
 
@@ -157,8 +158,8 @@ function buildContext(journal: StagedJournal | PromotingJournal): PromotionConte
     journal,
     userData,
     livePath: application.getPath('app.database.file'),
-    workPath: path.resolve(userData, journal.db.promote),
-    asidePath: path.resolve(userData, journal.db.aside)
+    workPath: resolveUserDataRelativePath(journal.db.promote),
+    asidePath: resolveUserDataRelativePath(journal.db.aside)
   }
 }
 
@@ -199,6 +200,12 @@ function assertNoAddConflicts(ctx: PromotionContext): void {
     if (entry.kind === 'blob-add' || entry.kind === 'dir-add' || entry.kind === 'note-add') {
       const live = resolveEntry(ctx, entry.livePath)
       if (fs.existsSync(live)) {
+        // TODO(skills-restore §7.2): SKILLS dir-add (folderName) same-name conflict must
+        // NOT expire the whole restore like blob/note add does — it should keep the local
+        // dir (no-clobber, never-delete-local) + record degraded + reconcileSkills, per
+        // skills-directory-resource design §7.2. This generic fatal rule stays correct for
+        // blob/note add; specialize it for SKILLS dir-add when #07-13 lands SKILLS restore
+        // promotion (dir-add candidate keyed by folderName, not file_entry.id).
         throw new Error(`add target already exists: ${entry.livePath} (${entry.kind})`)
       }
     }
@@ -608,8 +615,8 @@ function quarantineCorruptJournal(error: string): void {
 
 // ─── filesystem primitives ───
 
-function resolveEntry(ctx: PromotionContext, relativePath: string): string {
-  return path.resolve(ctx.userData, relativePath)
+function resolveEntry(_ctx: PromotionContext, relativePath: string): string {
+  return resolveUserDataRelativePath(relativePath)
 }
 
 function markStep(journal: PromotingJournal, step: PromotionStep): PromotingJournal {

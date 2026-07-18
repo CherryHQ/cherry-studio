@@ -8,9 +8,11 @@
  *
  * DataApi only exposes operations that are satisfied by the database layer.
  * Runtime/index mutations that create, delete, restore, or reindex vector-store
- * artifacts are coordinated by `KnowledgeService` instead.
+ * artifacts are coordinated by `KnowledgeService` instead. Metadata PATCH also
+ * goes through KnowledgeService so it shares the dev-reset mutation gate.
  */
 
+import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
@@ -35,7 +37,7 @@ export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateKnowledgeBaseSchema.parse(body)
-      return knowledgeBaseService.update(params.id, parsed)
+      return application.get('KnowledgeService').updateBase(params.id, parsed)
     }
   },
 

@@ -190,6 +190,8 @@ export class CacheService extends BaseService {
   private readonly PERSIST_SAVE_DEBOUNCE_MS = 350
   // Main-local change notifier for the persist tier (never relayed to renderers).
   private persistNotifier = new CacheNotifier()
+  /** When set, persist/shared writes should refuse — used by closeForDevReset. */
+  private closedForDevReset = false
 
   constructor() {
     super()
@@ -311,6 +313,7 @@ export class CacheService extends BaseService {
    * Set value in main process cache
    */
   set<T>(key: string, value: T, ttl?: number): void {
+    this.assertNotDevReset('set')
     const oldValue = this.peekInternal(key)
     const entry: CacheEntry<T> = {
       value,
@@ -411,6 +414,7 @@ export class CacheService extends BaseService {
    * @param ttl - Time to live in milliseconds (optional)
    */
   setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {
+    this.assertNotDevReset('setShared')
     // Pre-write entry state, TTL-aware: an expired entry counts as absent, so
     // re-setting it with the same value is an absent → value transition (full
     // broadcast + notify), never mistaken for a TTL-only refresh.
@@ -622,6 +626,7 @@ export class CacheService extends BaseService {
    * oldValue) where oldValue is the previous effective value.
    */
   setPersist<K extends MainPersistCacheKey>(key: K, value: MainPersistCacheSchema[K]): void {
+    this.assertNotDevReset('setPersist')
     const oldValue = this.getPersist(key)
     if (isEqual(oldValue, value)) {
       return
@@ -743,6 +748,62 @@ export class CacheService extends BaseService {
   }
 
   /**
+   * Strict flush + latch for `dev.reset_app_data`. Propagates persist write
+   * failures (unlike lifecycle onStop, which swallows them via savePersistSync).
+   * Does not go through LifecycleManager.stopSingle.
+   */
+  async closeForDevReset(): Promise<void> {
+    this.closedForDevReset = true
+    this.flushPersistStrict()
+    this.gcInterval?.dispose()
+    this.gcInterval = null
+    this.cache.clear()
+    this.sharedCache.clear()
+    this.persistCache.clear()
+    this.internalNotifier.clear()
+    this.sharedNotifier.clear()
+    this.persistNotifier.clear()
+    logger.info('CacheService closed for dev reset')
+  }
+
+  /** Release the reset latch after a pre-destructive failure and reload persist. */
+  async reopenAfterDevResetFailure(): Promise<void> {
+    this.closedForDevReset = false
+    this.persistFilePath = application.getPath('app.userdata', 'cache.json')
+    this.loadPersist()
+    if (!this.gcInterval) {
+      this.startGarbageCollection()
+    }
+    logger.info('CacheService reopened after pre-destructive reset failure')
+  }
+
+  private assertNotDevReset(method: string): void {
+    if (this.closedForDevReset) {
+      throw new Error(`CacheService.${method} rejected during dev reset`)
+    }
+  }
+
+  /**
+   * Cancel any pending debounced write and flush immediately, throwing on I/O
+   * failure so DevResetCoordinator can fail closed.
+   */
+  private flushPersistStrict(): void {
+    if (this.persistSaveTimer) {
+      clearTimeout(this.persistSaveTimer)
+      this.persistSaveTimer = null
+    }
+    // Always write a consistent snapshot for reset (even if no debounce pending).
+    const snapshot: Record<string, unknown> = {}
+    for (const [key, value] of this.persistCache.entries()) {
+      snapshot[key] = value
+    }
+    const content = JSON.stringify(snapshot, null, 2)
+    const tempPath = `${this.persistFilePath}.tmp`
+    fs.writeFileSync(tempPath, content, 'utf-8')
+    fs.renameSync(tempPath, this.persistFilePath)
+  }
+
+  /**
    * Cancel any pending debounced write and flush immediately (used on stop).
    */
   private flushPersist(): void {
@@ -778,6 +839,11 @@ export class CacheService extends BaseService {
 
       const senderWindowId = BrowserWindow.fromWebContents(event.sender)?.id
 
+      // Drop renderer cache sync during dev reset — the cache is latched and
+      // cleared; a queued/stale setShared must not repopulate or broadcast.
+      if (this.closedForDevReset) {
+        return
+      }
       // Update Main's sharedCache when receiving shared type sync
       if (message.type === 'shared') {
         // Capture pre-change value (TTL-aware) so subscribers see a consistent oldValue.

@@ -2454,6 +2454,80 @@
     },
     "user": "Usuario"
   },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "[to be translated]:This HTML file has no content.",
+        "title": "[to be translated]:Empty file"
+      },
+      "mode": {
+        "label": "[to be translated]:HTML view mode",
+        "preview": "[to be translated]:Preview",
+        "source": "[to be translated]:Source"
+      },
+      "read_error": {
+        "title": "[to be translated]:Couldn't read this file"
+      },
+      "too_large": {
+        "description": "[to be translated]:HTML files larger than {{limit}} MiB cannot be previewed.",
+        "title": "[to be translated]:File is too large"
+      }
+    },
+    "invalid_path": {
+      "description": "[to be translated]:File preview requires a valid absolute local path.",
+      "title": "[to be translated]:Can't preview this file"
+    },
+    "load_error": {
+      "description": "[to be translated]:The preview content could not be loaded.",
+      "title": "[to be translated]:Preview failed"
+    },
+    "loading": "[to be translated]:Loading preview...",
+    "markdown": {
+      "empty": {
+        "description": "[to be translated]:This Markdown file has no content.",
+        "title": "[to be translated]:Empty file"
+      },
+      "mode": {
+        "label": "[to be translated]:Markdown view mode",
+        "preview": "[to be translated]:Preview",
+        "source": "[to be translated]:Source"
+      },
+      "read_error": {
+        "title": "[to be translated]:Couldn't read this file"
+      },
+      "too_large": {
+        "description": "[to be translated]:Markdown files larger than {{limit}} MiB cannot be previewed.",
+        "title": "[to be translated]:File is too large"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "[to be translated]:Open with default app",
+        "description": "[to be translated]:PDF files larger than {{limit}} MiB cannot be previewed.",
+        "open_error": "[to be translated]:Couldn't open this file",
+        "title": "[to be translated]:File is too large"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "[to be translated]:This text file has no content.",
+        "title": "[to be translated]:Empty file"
+      },
+      "read_error": {
+        "title": "[to be translated]:Couldn't read this file"
+      },
+      "too_large": {
+        "description": "[to be translated]:Text files larger than {{limit}} MiB cannot be previewed.",
+        "title": "[to be translated]:File is too large"
+      }
+    },
+    "unsupported": {
+      "action": "[to be translated]:Open with default app",
+      "description": "[to be translated]:This file type cannot be previewed yet.",
+      "open_error": "[to be translated]:Couldn't open this file",
+      "title": "[to be translated]:Preview unavailable"
+    }
+  },
   "files": {
     "actions": "Acciones",
     "all": "Todos los archivos",
@@ -3497,8 +3571,10 @@
       "title": "Biblioteca"
     },
     "skill_add": {
+      "add": "[to be translated]:Add Skill",
       "local_import": "Importación local",
-      "online_search": "Búsqueda en línea"
+      "online_search": "Búsqueda en línea",
+      "system_search": "[to be translated]:System search"
     },
     "skill_detail": {
       "created_at": "Creado",
@@ -3526,6 +3602,19 @@
       "updated": "Ordenar por actualización"
     },
     "subtitle": "Gestiona tus asistentes, agentes y habilidades",
+    "system_skill": {
+      "conflict": "[to be translated]:Name conflict",
+      "description": "[to be translated]:Import skills already installed on this system.",
+      "empty_description": "[to be translated]:No importable skills were found in other coding tools on this device.",
+      "empty_title": "[to be translated]:No skills available to import",
+      "enable_success": "[to be translated]:Enabled {{name}}",
+      "enabled": "[to be translated]:Enabled",
+      "import": "[to be translated]:Import",
+      "import_success": "[to be translated]:Imported {{name}}",
+      "imported": "[to be translated]:Imported",
+      "search_placeholder": "[to be translated]:Search system skills...",
+      "title": "[to be translated]:System skills"
+    },
     "tag_picker": {
       "no_tags": "Aún sin etiquetas",
       "placeholder": "Nuevo nombre de etiqueta..."
@@ -4699,6 +4788,7 @@
     "req_error_text": "El servidor está ocupado o la indicación contiene palabras con derechos de autor o palabras sensibles. Por favor, inténtelo de nuevo.",
     "req_error_token": "Por favor, verifique la validez del token",
     "required_field": "Campo obligatorio",
+    "revealing": "[to be translated]:Revealing generated image",
     "safety_tolerance": "Tolerancia de seguridad",
     "safety_tolerance_tip": "Más alto = filtro más permisivo; 0 es el más estricto, 6 es el más permisivo",
     "seed": "Semilla aleatoria",
@@ -5553,8 +5643,43 @@
         "label": "Registros de la aplicación"
       },
       "backup": {
+        "legacy_local_unavailable": "[to be translated]:Legacy local backup controls are disabled. Use Backup / Restore above.",
         "skip_file_data_help": "Omitir la copia de seguridad de archivos de datos como imágenes y bases de conocimiento durante la copia de seguridad, respaldando únicamente historial de chat y configuraciones. Reduce el uso de espacio y acelera el proceso de copia de seguridad",
         "skip_file_data_title": "Copia de seguridad reducida",
+        "v2": {
+          "export": {
+            "cancel_timeout": "[to be translated]:Cancel timed out. The backup may still be running.",
+            "cancelled": "[to be translated]:Backup cancelled.",
+            "failure": "[to be translated]:Backup failed.",
+            "phase": {
+              "archive": "[to be translated]:Creating archive…",
+              "collect": "[to be translated]:Collecting data…",
+              "journal": "[to be translated]:Writing journal…",
+              "merge": "[to be translated]:Merging data…",
+              "preflight": "[to be translated]:Checking disk space…",
+              "quiesce": "[to be translated]:Quiescing services…",
+              "relaunch": "[to be translated]:Relaunching…",
+              "snapshot": "[to be translated]:Copying database…",
+              "verify": "[to be translated]:Verifying backup…"
+            },
+            "running": "[to be translated]:Backing up…",
+            "selecting": "[to be translated]:Choose where to save the backup…",
+            "starting": "[to be translated]:Starting backup…",
+            "success": "[to be translated]:Backup completed."
+          },
+          "file_filter": "[to be translated]:Cherry Backup",
+          "preset": {
+            "full": "[to be translated]:Full backup (all data)",
+            "lite": "[to be translated]:Lite backup (chat & settings, no knowledge/files)"
+          },
+          "restore": {
+            "confirm_content": "[to be translated]:Restoring will replace current data and relaunch the app. Continue?",
+            "failure": "[to be translated]:Restore failed.",
+            "pick_prompt": "[to be translated]:Select a .cbu backup archive to restore.",
+            "relaunching": "[to be translated]:Restore staged. The app is relaunching…",
+            "selected": "[to be translated]:Selected archive:"
+          }
+        },
         "v2_unavailable": "La copia de seguridad y restauración V2 aún no está disponible. Próximamente."
       },
       "clear_cache": {
@@ -7736,6 +7861,8 @@
   },
   "tab": {
     "close": "Cerrar pestaña",
+    "close_others": "[to be translated]:Close Other Tabs",
+    "close_to_right": "[to be translated]:Close Tabs to the Right",
     "move_to_first": "Mover al primero",
     "new": "Nueva pestaña",
     "open_in_new_window": "Abrir en ventana nueva",

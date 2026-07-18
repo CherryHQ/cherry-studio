@@ -26,6 +26,7 @@ import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { BackupService } from '@main/services/backup'
 import { BinaryManager } from '@main/services/BinaryManager'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
@@ -85,6 +86,7 @@ export const services = {
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
+  BackupService,
   CodeCliService,
   CommandService,
   CitationPreviewService,
