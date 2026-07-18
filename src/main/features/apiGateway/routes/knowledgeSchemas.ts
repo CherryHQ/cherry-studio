@@ -17,7 +17,10 @@ const KnowledgeBaseIdSchema = z.string().min(1, 'Knowledge base ID is required')
 export const KnowledgeSearchSchema = z.object({
   query: z.string().min(1, 'Query is required').max(1000, 'Query must be at most 1000 characters'),
   knowledge_base_ids: z.array(z.string().min(1, 'Knowledge base ID cannot be empty')).optional(),
-  document_count: z.coerce.number().int().min(1).max(20).default(5)
+  // Per-base result count, mirroring the kb_search tool's topK: overrides each base's configured
+  // documentCount for this call. Optional (no forced default) so an omitted value falls back to
+  // `documentCount ?? 10` inside KnowledgeService.search, instead of pinning every base to a fixed number.
+  document_count: z.coerce.number().int().min(1).max(20).optional()
 })
 
 /** `GET /` pagination query. */

@@ -6,6 +6,7 @@ import {
   KnowledgeAddItemInputSchema,
   KnowledgeAddItemsResultSchema,
   KnowledgeBaseSchema,
+  KnowledgeDocumentCountSchema,
   KnowledgeItemChunkSchema,
   KnowledgeSearchResultSchema,
   RestoreKnowledgeBaseResultSchema,
@@ -71,7 +72,13 @@ export const knowledgeRequestSchemas = {
     output: KnowledgeBaseSchema
   }),
   'knowledge.search': defineRoute({
-    input: z.strictObject({ baseId: baseIdSchema, query: z.string().trim().min(1).max(1000) }),
+    // topK optionally overrides the base's documentCount for this call (same precedence as the
+    // kb_search tool: topK ?? documentCount ?? 10). Reuses the canonical document-count schema.
+    input: z.strictObject({
+      baseId: baseIdSchema,
+      query: z.string().trim().min(1).max(1000),
+      topK: KnowledgeDocumentCountSchema.optional()
+    }),
     output: z.array(KnowledgeSearchResultSchema)
   }),
   'knowledge.list_item_chunks': defineRoute({

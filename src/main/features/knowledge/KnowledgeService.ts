@@ -511,7 +511,7 @@ export class KnowledgeService extends BaseService {
   }
 
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
-  async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
+  async search(baseId: string, query: string, topK?: number | null): Promise<KnowledgeSearchResult[]> {
     this.assertBaseCanRunRuntimeOperation(baseId, 'search')
 
     if (!SEARCH_TOKEN_PATTERN.test(query)) {
@@ -529,7 +529,9 @@ export class KnowledgeService extends BaseService {
     // BM25 is lexical only; skip the embedding round-trip when the query won't use it.
     const queryEmbedding = mode === 'bm25' ? undefined : await embedKnowledgeQuery(base, query)
 
-    const resolvedTopK = base.documentCount ?? 10
+    // An explicit per-call topK (from the kb_search tool) overrides the base's stored documentCount;
+    // both share the same fallback so an unset value still resolves to 10.
+    const resolvedTopK = topK ?? base.documentCount ?? 10
     const candidateLimit = Math.min(resolvedTopK * KNOWLEDGE_SEARCH_OVERFETCH_FACTOR, KNOWLEDGE_SEARCH_CANDIDATE_CAP)
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
@@ -547,7 +549,7 @@ export class KnowledgeService extends BaseService {
     const visibleSearchResults = this.toVisibleSearchResults(baseId, matches, scoreKind)
 
     if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults, resolvedTopK)
       // We trim the results after the rerank here, so the reranker can actually do its job and surface the best matches.
       const topReranked = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
       return withSearchRanks(applyRelevanceThreshold(topReranked, base.threshold))

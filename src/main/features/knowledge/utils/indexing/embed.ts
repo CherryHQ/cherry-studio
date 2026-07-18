@@ -4,8 +4,37 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 
+/**
+ * Query-side instruct prefixes for instruction-aware, asymmetric retrieval embedding models.
+ * Such models are trained with a task instruction on the QUERY only; documents stay plain text.
+ * The prefix is therefore applied in {@link embedKnowledgeQuery} and never in
+ * {@link embedKnowledgeTexts}, so indexed chunks stay plain and existing indexes remain valid
+ * (no re-embedding needed).
+ *
+ * To support another query-prefix model, append an entry — `matches` receives the lowercased
+ * `provider::model` id. Models that also need a DOCUMENT-side prefix (e.g. E5's `query:`/`passage:`,
+ * nomic's `search_query:`/`search_document:`) do NOT belong here: they require prefixing documents
+ * at index time and re-embedding the corpus, which is a separate change.
+ */
+const QUERY_INSTRUCT_PREFIXES: ReadonlyArray<{ matches: (modelId: string) => boolean; prefix: string }> = [
+  {
+    // Qwen3-Embedding, per its Hugging Face model card — omitting the instruct costs ~1-5% retrieval quality.
+    matches: (modelId) => modelId.includes('qwen3-embedding'),
+    prefix: 'Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: '
+  }
+]
+
+/** The query-side instruct prefix for the base's embedding model, or '' when none applies. */
+function queryInstructPrefix(embeddingModelId: string | null): string {
+  if (embeddingModelId === null) {
+    return ''
+  }
+  const modelId = embeddingModelId.toLowerCase()
+  return QUERY_INSTRUCT_PREFIXES.find((entry) => entry.matches(modelId))?.prefix ?? ''
+}
+
 export async function embedKnowledgeQuery(base: KnowledgeBase, query: string): Promise<number[]> {
-  const [embedding] = await embedKnowledgeTexts(base, [query])
+  const [embedding] = await embedKnowledgeTexts(base, [queryInstructPrefix(base.embeddingModelId) + query])
   return embedding
 }
 

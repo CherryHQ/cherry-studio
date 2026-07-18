@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockList, mockGetById, mockSearch } = vi.hoisted(() => ({
   mockList: vi.fn<(query: unknown) => unknown>(),
   mockGetById: vi.fn<(id: string) => unknown>(),
-  mockSearch: vi.fn<(baseId: string, query: string) => Promise<unknown[]>>()
+  mockSearch: vi.fn<(baseId: string, query: string, topK?: number | null) => Promise<unknown[]>>()
 }))
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
@@ -114,6 +114,43 @@ describe('knowledge routes (v2)', () => {
     expect(status).toBe(200)
     expect(body.results.map((r: any) => r.chunkId)).toEqual(['b', 'a'])
     expect(body.results[0].knowledge_base_id).toBe('kb-2')
+  })
+
+  it('POST /search forwards document_count to KnowledgeService.search as the per-base topK', async () => {
+    mockList.mockReturnValue({ items: [kb('kb-1', 'KB 1')], total: 1, page: 1 })
+    mockSearch.mockResolvedValue([result('a', 0.9)])
+
+    await call('POST', '/knowledge-bases/search', { query: 'hi', document_count: 15 })
+
+    expect(mockSearch).toHaveBeenCalledWith('kb-1', 'hi', 15)
+  })
+
+  it('POST /search without document_count leaves the per-base count to the base default (undefined) and does not cap', async () => {
+    mockList.mockReturnValue({ items: [kb('kb-1', 'KB 1'), kb('kb-2', 'KB 2')], total: 2, page: 1 })
+    mockSearch.mockImplementation(async (baseId: string) =>
+      baseId === 'kb-1' ? [result('a', 0.4), result('c', 0.3)] : [result('b', 0.9)]
+    )
+
+    const { status, body } = await call('POST', '/knowledge-bases/search', { query: 'hi' })
+
+    expect(status).toBe(200)
+    // Undefined topK → the service applies each base's own documentCount fallback.
+    expect(mockSearch).toHaveBeenCalledWith('kb-1', 'hi', undefined)
+    // No document_count → no cross-base cap: every merged result is returned.
+    expect(body.results.map((r: any) => r.chunkId)).toEqual(['b', 'a', 'c'])
+  })
+
+  it('POST /search caps the merged cross-base results at document_count when provided', async () => {
+    mockList.mockReturnValue({ items: [kb('kb-1', 'KB 1'), kb('kb-2', 'KB 2')], total: 2, page: 1 })
+    mockSearch.mockImplementation(async (baseId: string) =>
+      baseId === 'kb-1' ? [result('a', 0.4), result('c', 0.3)] : [result('b', 0.9)]
+    )
+
+    const { status, body } = await call('POST', '/knowledge-bases/search', { query: 'hi', document_count: 2 })
+
+    expect(status).toBe(200)
+    // document_count=2 caps the flat cross-base list to the top 2 by score.
+    expect(body.results.map((r: any) => r.chunkId)).toEqual(['b', 'a'])
   })
 
   it('POST /search warns when no knowledge bases are configured', async () => {

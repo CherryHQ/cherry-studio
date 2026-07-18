@@ -1897,6 +1897,23 @@ describe('KnowledgeService', () => {
     expect(results.map((result) => result.chunkId)).toEqual(['c1', 'c2'])
   })
 
+  it('lets a per-call topK override the base documentCount for both over-fetch and the final trim', async () => {
+    const service = new KnowledgeService()
+    // documentCount is 5, but the caller asks for topK=2 → over-fetch 2×5=10 candidates, trim to 2.
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ documentCount: 5 }))
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+    storeSearchMock.mockResolvedValueOnce([
+      { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'a', score: 0.9 },
+      { unitId: 'c2', materialId: NOTE_ITEM_ID, unitIndex: 1, text: 'b', score: 0.8 },
+      { unitId: 'c3', materialId: NOTE_ITEM_ID, unitIndex: 2, text: 'c', score: 0.7 }
+    ])
+
+    const results = await service.search('kb-1', 'hello', 2)
+
+    expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ topK: 10 }))
+    expect(results.map((result) => result.chunkId)).toEqual(['c1', 'c2'])
+  })
+
   describe('hasAnyBase', () => {
     it('reports true when the base count is non-zero and false when it is zero, via a single-row count', async () => {
       const service = new KnowledgeService()
@@ -2335,7 +2352,10 @@ describe('KnowledgeService', () => {
       expect.arrayContaining([
         expect.objectContaining({ chunkId: 'chunk-1', score: 0.8 }),
         expect.objectContaining({ chunkId: 'chunk-2', score: 0.2 })
-      ])
+      ]),
+      // resolvedTopK (base.documentCount ?? 10) is forwarded so the reranker asks for the same
+      // number of candidates the search then trims to (see rerank topN fallback fix).
+      base.documentCount
     )
   })
 

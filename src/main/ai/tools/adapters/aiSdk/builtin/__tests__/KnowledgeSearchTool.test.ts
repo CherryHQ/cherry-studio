@@ -35,11 +35,11 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 function callExecute(
-  args: { query: string; baseIds: string[] },
+  args: { query: string; baseIds: string[]; topK?: number | null },
   ctx: { knowledgeBaseIds?: string[]; abortSignal?: AbortSignal } = {}
 ): Promise<unknown> {
   const execute = entry.tool.execute as (
-    args: { query: string; baseIds: string[] },
+    args: { query: string; baseIds: string[]; topK?: number | null },
     options: ToolExecutionOptions
   ) => Promise<unknown>
   return execute(args, {
@@ -89,23 +89,31 @@ describe('kb_search', () => {
     knowledgeServiceSearch.mockResolvedValue([])
     await callExecute({ query: 'q', baseIds: ['kb-1', 'kb-other'] }, { knowledgeBaseIds: ['kb-1'] })
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(1)
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q')
+    // Third arg is the per-call topK; undefined here → the service falls back to the base default.
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q', undefined)
   })
 
   it('trusts the requested baseIds when assistant scope is empty (future toggle path)', async () => {
     knowledgeServiceSearch.mockResolvedValue([])
     await callExecute({ query: 'q', baseIds: ['kb-1', 'kb-2'] }, { knowledgeBaseIds: [] })
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q')
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'q')
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q', undefined)
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'q', undefined)
   })
 
   it('queries every requested base when all are in-scope', async () => {
     knowledgeServiceSearch.mockResolvedValue([])
     await callExecute({ query: 'how does X work', baseIds: ['kb-1', 'kb-2'] }, { knowledgeBaseIds: ['kb-1', 'kb-2'] })
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'how does X work')
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'how does X work')
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'how does X work', undefined)
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'how does X work', undefined)
+  })
+
+  it('forwards an explicit topK to every targeted base', async () => {
+    knowledgeServiceSearch.mockResolvedValue([])
+    await callExecute({ query: 'q', baseIds: ['kb-1', 'kb-2'], topK: 25 }, { knowledgeBaseIds: ['kb-1', 'kb-2'] })
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q', 25)
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'q', 25)
   })
 
   it('aggregates, dedupes by content, sorts by score desc, assigns 1-based ids', async () => {

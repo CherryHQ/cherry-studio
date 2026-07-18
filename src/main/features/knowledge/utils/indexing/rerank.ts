@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
+import { DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
 import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { APICallError } from 'ai'
@@ -85,11 +85,16 @@ async function rerankWithAiService(
 export async function rerankKnowledgeSearchResults(
   base: KnowledgeBase,
   query: string,
-  searchResults: KnowledgeSearchResult[]
+  searchResults: KnowledgeSearchResult[],
+  topN: number
 ): Promise<KnowledgeSearchResult[]> {
   if (!base.rerankModelId || searchResults.length === 0) {
     return searchResults
   }
 
-  return await rerankWithAiService(base, query, searchResults, base.documentCount ?? DEFAULT_DOCUMENT_COUNT)
+  // topN comes from the caller's resolved search topK (KnowledgeService.search), NOT a second
+  // fallback on base.documentCount: an independent `?? DEFAULT_DOCUMENT_COUNT` (6) here would ask
+  // the reranker for fewer candidates than the caller then trims to (`documentCount ?? 10`),
+  // silently capping results at 6 whenever documentCount is unset.
+  return await rerankWithAiService(base, query, searchResults, topN)
 }
