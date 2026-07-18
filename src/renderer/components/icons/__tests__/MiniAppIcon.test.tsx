@@ -110,16 +110,18 @@ describe('MiniAppIcon', () => {
     expect(container.querySelector('[data-testid="compound-logo"]')).toBeInTheDocument()
   })
 
-  it('preserves direct icon sizing and automatic theme variants in plain mode', () => {
+  it('enlarges unconfigured icons and preserves automatic theme variants in plain mode', () => {
     const { container } = render(
       <MiniAppIcon app={{ ...baseApp, logo: 'compound-logo' }} appearance="plain" size={40} />
     )
 
     expect(container.querySelector('[data-testid="compound-logo"]')).toHaveAttribute('data-variant', 'auto')
     expect(container.querySelector('[data-testid="compound-logo"]')).toHaveStyle({
-      width: '40px',
-      height: '40px'
+      width: '48px',
+      height: '48px',
+      flexShrink: 0
     })
+    expect(container.querySelector('[data-testid="compound-logo"]')).not.toHaveStyle({ overflow: 'hidden' })
   })
 
   it.each(['felo', 'abacus'])('constrains the configured %s icon in plain mode', (logo) => {

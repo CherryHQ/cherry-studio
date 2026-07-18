@@ -10,8 +10,8 @@ describe('getIconDisplayConfig', () => {
     }
   )
 
-  it('keeps provider-list-only configuration out of mini apps', () => {
-    expect(getIconDisplayConfig('mini-app', 'lmstudio')).toBeUndefined()
+  it('enlarges mini-app icons outside the contained-icon list', () => {
+    expect(getIconDisplayConfig('mini-app', 'lmstudio')).toEqual({ scale: 1.2 })
   })
 
   it('enlarges provider logos outside the contained-icon list', () => {

@@ -51,8 +51,9 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
             style={{
               width: `${iconSize}px`,
               height: `${iconSize}px`,
-              borderRadius: displayConfig ? `${displayConfig.borderRadius}px` : undefined,
-              overflow: displayConfig ? 'hidden' : undefined
+              flexShrink: 0,
+              borderRadius: displayConfig?.borderRadius === undefined ? undefined : `${displayConfig.borderRadius}px`,
+              overflow: displayConfig?.borderRadius === undefined ? undefined : 'hidden'
             }}
           />
         </span>
