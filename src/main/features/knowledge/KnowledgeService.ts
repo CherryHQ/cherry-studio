@@ -24,7 +24,7 @@ import {
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { estimateTokenCount } from 'tokenx'
 
 import { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -511,7 +511,7 @@ export class KnowledgeService extends BaseService {
     return knowledgeItemService.getRootItemsByBaseId(baseId)
   }
 
-  getFilePath(itemId: string): FilePath {
+  getFilePath(itemId: string): AbsoluteFilePath {
     const item = knowledgeItemService.getById(itemId)
 
     if (item.type === 'file') {
