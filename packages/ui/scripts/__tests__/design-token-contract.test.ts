@@ -3,7 +3,13 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { CHERRY_PRODUCT_COLOR_TOKENS, CHERRY_PRODUCT_VARIABLE_TOKENS, SHADCN_COLOR_TOKENS } from '../build-theme-css'
+import {
+  CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS,
+  CHERRY_PRODUCT_COLOR_TOKENS,
+  CHERRY_PRODUCT_VARIABLE_TOKENS,
+  CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS,
+  SHADCN_COLOR_TOKENS
+} from '../theme-contract'
 
 const STYLES_DIR = path.resolve(import.meta.dirname, '../../src/styles')
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '../../../..')
@@ -53,6 +59,22 @@ function expectCompatibilityAliases(
 }
 
 describe('design token contract', () => {
+  it('classifies every product variable by stability and Tailwind exposure', () => {
+    const stableTokens = new Set<string>(CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS)
+    const migrationTokens = new Set<string>(CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS)
+    const productTokens = new Set<string>(CHERRY_PRODUCT_VARIABLE_TOKENS)
+
+    expect(stableTokens.size).toBe(CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS.length)
+    expect(migrationTokens.size).toBe(CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS.length)
+    expect(productTokens.size).toBe(CHERRY_PRODUCT_VARIABLE_TOKENS.length)
+    expect([...stableTokens].filter((token) => migrationTokens.has(token))).toEqual([])
+    expect(productTokens).toEqual(new Set([...stableTokens, ...migrationTokens]))
+
+    for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
+      expect(productTokens.has(token)).toBe(true)
+    }
+  })
+
   it('separates official Shadcn colors from Cherry Studio product colors', async () => {
     const [shadcnSource, semanticSource, statusSource, productSource] = await Promise.all([
       fs.readFile(path.join(STYLES_DIR, 'shadcn.css'), 'utf8'),

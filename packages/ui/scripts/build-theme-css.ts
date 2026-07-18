@@ -2,121 +2,21 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { CHERRY_PRODUCT_COLOR_TOKENS, SHADCN_COLOR_TOKENS } from './theme-contract'
+
+export {
+  CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS,
+  CHERRY_PRODUCT_COLOR_TOKENS,
+  CHERRY_PRODUCT_VARIABLE_TOKENS,
+  CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS,
+  SHADCN_COLOR_TOKENS
+} from './theme-contract'
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
-
-export const SHADCN_COLOR_TOKENS = [
-  'background',
-  'foreground',
-  'card',
-  'card-foreground',
-  'popover',
-  'popover-foreground',
-  'primary',
-  'primary-foreground',
-  'secondary',
-  'secondary-foreground',
-  'muted',
-  'muted-foreground',
-  'accent',
-  'accent-foreground',
-  'destructive',
-  'destructive-foreground',
-  'border',
-  'input',
-  'ring',
-  'chart-1',
-  'chart-2',
-  'chart-3',
-  'chart-4',
-  'chart-5',
-  'sidebar',
-  'sidebar-foreground',
-  'sidebar-primary',
-  'sidebar-primary-foreground',
-  'sidebar-accent',
-  'sidebar-accent-foreground',
-  'sidebar-border',
-  'sidebar-ring'
-] as const
-
-export const CHERRY_PRODUCT_COLOR_TOKENS = [
-  'background-subtle',
-  'border-subtle',
-  'border-strong',
-  'icon',
-  'sidebar-active-bg',
-  'sidebar-active-border',
-  'sidebar-glow-bg',
-  'sidebar-glow-line',
-  'success',
-  'success-foreground',
-  'success-subtle',
-  'success-subtle-foreground',
-  'success-border',
-  'warning',
-  'warning-foreground',
-  'warning-subtle',
-  'warning-subtle-foreground',
-  'warning-border',
-  'info',
-  'info-foreground',
-  'info-subtle',
-  'info-subtle-foreground',
-  'info-border',
-  'error',
-  'error-foreground',
-  'error-subtle',
-  'error-subtle-foreground',
-  'error-border'
-] as const
-
-export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
-  ...CHERRY_PRODUCT_COLOR_TOKENS,
-  'text-primary',
-  'text-secondary',
-  'text-tertiary',
-  'text-light',
-  'background-soft',
-  'background-muted',
-  'background-translucent',
-  'border-soft',
-  'border-faint',
-  'fill-secondary',
-  'frame-border',
-  'group-background',
-  'modal',
-  'link',
-  'code-block',
-  'inline-code',
-  'inline-code-foreground',
-  'interactive-hover',
-  'interactive-active',
-  'reference',
-  'reference-foreground',
-  'reference-subtle',
-  'highlight-foreground',
-  'highlight',
-  'highlight-accent',
-  'list-item',
-  'list-item-hover',
-  'list-item-radius',
-  'navbar-translucent',
-  'navbar',
-  'chat',
-  'chat-user',
-  'chat-assistant',
-  'chat-user-foreground',
-  'system-gray-1',
-  'system-gray-2',
-  'system-gray-3',
-  'icon-contrast',
-  'primary-soft',
-  'primary-subtle'
-] as const
 
 const COMPATIBILITY_SEMANTIC_LINES = [
   '--color-primary-soft: color-mix(in srgb, var(--primary) 60%, transparent);',

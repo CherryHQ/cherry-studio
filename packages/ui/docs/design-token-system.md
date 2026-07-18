@@ -90,9 +90,9 @@ sources.
 
 `product.css` is the authored Cherry Studio product layer. Some entries intentionally duplicate nearby roles so
 that every historical renderer value has an exact destination before automated replacement starts. These parity
-tokens are valid migration targets, but new feature code should still prefer an existing Shadcn or stable product
-role. Redundant parity roles may be consolidated only after their old consumers have been migrated and visually
-verified.
+tokens are valid migration targets but forbidden in new feature code. New code must prefer an official Shadcn
+role, then a stable product role. Redundant parity roles may be consolidated only after their old consumers have
+been migrated and visually verified.
 
 ### 3.2 Official Shadcn semantic layer
 
@@ -145,6 +145,16 @@ Rules:
 - reference official Shadcn variables when a product role should follow TweakCN themes;
 - do not encode palette names or add a token for a single use site;
 - new product variables require addition to the explicit generated allowlist.
+
+Product variables have an explicit stability level:
+
+| Stability | Meaning | New code |
+| --- | --- | --- |
+| `stable` | Long-term Cherry Studio semantics not covered by Shadcn | Allowed when no official Shadcn role fits |
+| `migration` | Exact destination for historical rendering behavior | Forbidden; migration tooling only |
+
+`CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS` and `CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS` are disjoint, explicit
+allowlists. Tailwind exposure is a separate concern and does not make a migration variable stable.
 
 Example:
 

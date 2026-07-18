@@ -141,9 +141,10 @@ To avoid mixing value sources, semantic variables, theme mappings, and runtime o
 
 1. `--background`, `--primary`, `--muted-foreground`, and the other variables in `shadcn.css` are the official Shadcn contract
 2. Approved Cherry Studio product semantics use `--cs-*`, such as `--cs-success` and `--cs-background-subtle`
-3. Primitive and unclassified historical `--cs-*` variables remain internal value providers, not automatic public API
-4. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; prefer the resulting semantic utilities in components
-5. `--cs-theme-*` is a controlled runtime input and must resolve into the semantic contract
+3. Product variables marked `migration` are replacement targets only and must not be introduced in new code
+4. Primitive and unclassified historical `--cs-*` variables remain internal value providers, not automatic public API
+5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; prefer the resulting semantic utilities in components
+6. `--cs-theme-*` is a controlled runtime input and must resolve into the semantic contract
 
 Default consumption rules:
 
