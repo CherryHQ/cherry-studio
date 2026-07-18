@@ -272,7 +272,8 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'qwen-code',
   'kimi-code',
   'qoder-cli',
-  'github-copilot-cli'
+  'github-copilot-cli',
+  'pi'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]

@@ -3,7 +3,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-05-22T11:33:31.538Z
- * Total icons: 22
+ * Total icons: 23
  */
 
 export { AddCategory } from './add-category'
@@ -25,6 +25,7 @@ export { MessageAi1 } from './message-ai-1'
 export { MessageBalloonAi1 } from './message-balloon-ai-1'
 export { OpenCode } from './open-code'
 export { OpenaiCodex } from './openai-codex'
+export { PiCli } from './pi-cli'
 export { QoderCli } from './qoder-cli'
 export { QwenCode } from './qwen-code'
 export { Vector } from './vector'

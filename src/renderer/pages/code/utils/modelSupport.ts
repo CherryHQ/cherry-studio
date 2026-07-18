@@ -32,6 +32,12 @@ export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
     case CodeCli.QWEN_CODE:
     case CodeCli.KIMI_CODE:
       return hasAnyModelEndpoint(model, OPENAI_LIKE_ENDPOINTS)
+    case CodeCli.PI:
+      return hasAnyModelEndpoint(model, [
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        ...OPENAI_LIKE_ENDPOINTS
+      ])
     case CodeCli.QODER_CLI:
     case CodeCli.GITHUB_COPILOT_CLI:
       return false

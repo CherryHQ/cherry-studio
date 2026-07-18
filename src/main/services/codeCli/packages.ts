@@ -32,7 +32,8 @@ export const CODE_CLI_PACKAGE_SPECS: Record<CodeCli, CodeCliPackageSpec> = {
   [CodeCli.QWEN_CODE]: { executable: 'qwen', packageName: '@qwen-code/qwen-code', install: 'npm' },
   [CodeCli.KIMI_CODE]: { executable: 'kimi', packageName: '@moonshot-ai/kimi-code', install: 'npm' },
   [CodeCli.QODER_CLI]: { executable: 'qoderclicn', packageName: '@qodercn-ai/qoderclicn', install: 'npm' },
-  [CodeCli.GITHUB_COPILOT_CLI]: { executable: 'copilot', packageName: '@github/copilot', install: 'npm' }
+  [CodeCli.GITHUB_COPILOT_CLI]: { executable: 'copilot', packageName: '@github/copilot', install: 'npm' },
+  [CodeCli.PI]: { executable: 'pi', packageName: '@earendil-works/pi-coding-agent', install: 'npm' }
 }
 
 export function getCodeCliPackageSpec(cliTool: CodeCli): CodeCliPackageSpec {

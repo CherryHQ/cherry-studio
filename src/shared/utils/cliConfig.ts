@@ -16,7 +16,9 @@ export const CLI_CONFIG_TARGET_IDS = [
   'gemini-env',
   'gemini-settings',
   'qwen-settings',
-  'kimi-config'
+  'kimi-config',
+  'pi-models',
+  'pi-settings'
 ] as const
 
 export type CliConfigTarget = (typeof CLI_CONFIG_TARGET_IDS)[number]
@@ -37,6 +39,8 @@ export const GEMINI_ENV_PATH = '~/.gemini/.env'
 export const GEMINI_SETTINGS_PATH = '~/.gemini/settings.json'
 export const QWEN_CONFIG_PATH = '~/.qwen/settings.json'
 export const KIMI_CONFIG_PATH = '~/.kimi-code/config.toml'
+export const PI_MODELS_PATH = '~/.pi/agent/models.json'
+export const PI_SETTINGS_PATH = '~/.pi/agent/settings.json'
 
 export const CLI_CONFIG_FILE_SPECS: Record<
   CliConfigTarget,
@@ -49,7 +53,9 @@ export const CLI_CONFIG_FILE_SPECS: Record<
   'gemini-env': { label: 'Gemini .env', path: GEMINI_ENV_PATH, language: 'dotenv' },
   'gemini-settings': { label: 'Gemini settings.json', path: GEMINI_SETTINGS_PATH, language: 'json' },
   'qwen-settings': { label: 'Qwen settings.json', path: QWEN_CONFIG_PATH, language: 'json' },
-  'kimi-config': { label: 'Kimi config.toml', path: KIMI_CONFIG_PATH, language: 'toml' }
+  'kimi-config': { label: 'Kimi config.toml', path: KIMI_CONFIG_PATH, language: 'toml' },
+  'pi-models': { label: 'Pi models.json', path: PI_MODELS_PATH, language: 'json' },
+  'pi-settings': { label: 'Pi settings.json', path: PI_SETTINGS_PATH, language: 'json' }
 }
 
 /** The file-based CLI tools, as a tuple so IPC schemas can `z.enum` it. */
@@ -59,7 +65,8 @@ export const FILE_CONFIGURED_CLI_TOOL_IDS = [
   CodeCli.OPEN_CODE,
   CodeCli.GEMINI_CLI,
   CodeCli.QWEN_CODE,
-  CodeCli.KIMI_CODE
+  CodeCli.KIMI_CODE,
+  CodeCli.PI
 ] as const
 
 export type FileConfiguredCli = (typeof FILE_CONFIGURED_CLI_TOOL_IDS)[number]
@@ -76,7 +83,8 @@ const CLI_CONFIG_TARGETS: Record<FileConfiguredCli, readonly CliConfigTarget[]> 
   [CodeCli.OPEN_CODE]: ['opencode-config'],
   [CodeCli.GEMINI_CLI]: ['gemini-env', 'gemini-settings'],
   [CodeCli.QWEN_CODE]: ['qwen-settings'],
-  [CodeCli.KIMI_CODE]: ['kimi-config']
+  [CodeCli.KIMI_CODE]: ['kimi-config'],
+  [CodeCli.PI]: ['pi-models', 'pi-settings']
 }
 
 /** CLI tools that write on-disk config files (the ones with targets above). */

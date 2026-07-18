@@ -7,12 +7,21 @@ import {
   CODEX_CHAT_ENDPOINT,
   CODEX_RESPONSES_ENDPOINT,
   GEMINI_AGGREGATOR_BASE_URLS,
-  OPEN_CODE_ENDPOINTS
+  OPEN_CODE_ENDPOINTS,
+  PI_ENDPOINTS
 } from './constants'
 
 export interface OpenCodeNpmInfo {
   npm: string
   providerType: 'anthropic' | 'google' | 'openai' | 'openai-compatible'
+  endpointType: EndpointType
+}
+
+export type PiApi = 'anthropic-messages' | 'google-generative-ai' | 'openai-completions' | 'openai-responses'
+
+export interface PiProviderInfo {
+  api: PiApi
+  baseUrl: string
   endpointType: EndpointType
 }
 
@@ -79,6 +88,26 @@ function toOpenCodeNpmInfo(endpointType: EndpointType): OpenCodeNpmInfo {
   }
 }
 
+function resolveSupportedEndpointType(
+  provider: Provider,
+  modelEndpointTypes: EndpointType[] | undefined,
+  supportedEndpoints: readonly EndpointType[],
+  fallbackEndpoint: EndpointType
+): EndpointType {
+  const hasEndpoint = (type: EndpointType) => Boolean(provider.endpointConfigs?.[type]?.baseUrl)
+  const isSupported = (type: EndpointType | undefined): type is EndpointType =>
+    Boolean(type && supportedEndpoints.includes(type))
+
+  return (
+    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
+    (isSupported(provider.defaultChatEndpoint) && hasEndpoint(provider.defaultChatEndpoint)
+      ? provider.defaultChatEndpoint
+      : undefined) ??
+    supportedEndpoints.find(hasEndpoint) ??
+    fallbackEndpoint
+  )
+}
+
 /** Reverse lookup of `toOpenCodeNpmInfo`, used when re-deriving info from an already-written opencode.json draft. */
 export function openCodeNpmInfoFromNpmPackage(npm: string): OpenCodeNpmInfo {
   const entry = OPEN_CODE_NPM_ENTRIES.find((e) => e.npm === npm)
@@ -90,19 +119,33 @@ export function openCodeNpmInfoFromNpmPackage(npm: string): OpenCodeNpmInfo {
 }
 
 export function resolveOpenCodeNpmInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): OpenCodeNpmInfo {
-  const hasEndpoint = (type: EndpointType) => Boolean(provider.endpointConfigs?.[type]?.baseUrl)
-  const isSupported = (type: EndpointType | undefined): type is EndpointType =>
-    Boolean(type && OPEN_CODE_ENDPOINTS.includes(type))
+  return toOpenCodeNpmInfo(
+    resolveSupportedEndpointType(provider, modelEndpointTypes, OPEN_CODE_ENDPOINTS, 'openai-chat-completions')
+  )
+}
 
-  const endpointType =
-    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
-    (isSupported(provider.defaultChatEndpoint) && hasEndpoint(provider.defaultChatEndpoint)
-      ? provider.defaultChatEndpoint
-      : undefined) ??
-    OPEN_CODE_ENDPOINTS.find(hasEndpoint) ??
+export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): PiProviderInfo {
+  const endpointType = resolveSupportedEndpointType(
+    provider,
+    modelEndpointTypes,
+    PI_ENDPOINTS,
     'openai-chat-completions'
+  )
+  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const apiByEndpoint: Partial<Record<EndpointType, PiApi>> = {
+    'anthropic-messages': 'anthropic-messages',
+    'google-generate-content': 'google-generative-ai',
+    'openai-chat-completions': 'openai-completions',
+    'openai-responses': 'openai-responses'
+  }
+  const baseUrl =
+    endpointType === 'google-generate-content'
+      ? formatApiHost(rawBaseUrl, true, 'v1beta')
+      : endpointType === 'openai-chat-completions' || endpointType === 'openai-responses'
+        ? formatApiHost(rawBaseUrl)
+        : withoutTrailingSlash(rawBaseUrl ?? '')
 
-  return toOpenCodeNpmInfo(endpointType)
+  return { api: apiByEndpoint[endpointType]!, baseUrl, endpointType }
 }
 
 export function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {
