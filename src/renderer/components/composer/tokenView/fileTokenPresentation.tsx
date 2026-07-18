@@ -118,19 +118,22 @@ function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: 
   const extension = getNormalizedFileExtension(file, fallbackLabel)
 
   if (previewUrl) {
-    let url: URL
+    // `fileUrlToPath` (decodeURIComponent) throws URIError on malformed percent-
+    // encoding like `file:///tmp/100%.png` — which `new URL()` accepts — so the
+    // whole conversion (parse, path extraction, schema check, URL rebuild) stays
+    // inside one guard; a narrower try around only `new URL` would crash render.
     try {
-      url = new URL(previewUrl)
+      const url = new URL(previewUrl)
+      if (url.protocol !== 'file:') return previewUrl
+      const parsedPath = AbsoluteFilePathSchema.safeParse(fileUrlToPath(url))
+      if (!parsedPath.success) {
+        logger.warn('getFilePreviewUrl: non-absolute path in file: previewUrl', { previewUrl })
+        return undefined
+      }
+      return toSafeFileUrl(parsedPath.data, extension || null)
     } catch {
       return undefined
     }
-    if (url.protocol !== 'file:') return previewUrl
-    const parsedPath = AbsoluteFilePathSchema.safeParse(fileUrlToPath(url))
-    if (!parsedPath.success) {
-      logger.warn('getFilePreviewUrl: non-absolute path in file: previewUrl', { previewUrl })
-      return undefined
-    }
-    return toSafeFileUrl(parsedPath.data, extension || null)
   }
   if (!file.path) return undefined
   const parsedPath = AbsoluteFilePathSchema.safeParse(file.path)
