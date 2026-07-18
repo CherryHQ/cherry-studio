@@ -11,7 +11,7 @@ const { browserWindowMock, ipcHandleMock, ipcRemoveHandlerMock, validateSenderMo
 
 vi.mock('@main/core/platform', () => ({ isDev: false, isMac: false }))
 vi.mock('@application', () => ({ application: { getPath: vi.fn(() => '/app') } }))
-vi.mock('@main/ipc/validateSender', () => ({ validateSender: validateSenderMock }))
+vi.mock('@main/core/security/validateSender', () => ({ validateSender: validateSenderMock }))
 vi.mock('electron', () => ({
   BrowserWindow: browserWindowMock,
   ipcMain: { handle: ipcHandleMock, removeHandler: ipcRemoveHandlerMock }
