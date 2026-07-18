@@ -20,6 +20,7 @@ import * as z from 'zod'
 const logger = loggerService.withContext('UserDataRelocationGate')
 const ACTIVE_PROFILE_MARKERS = ['SingletonLock', 'SingletonSocket'] as const
 const RELOCATION_OWNER_MARKER = '.cherry-relocation-owner.json'
+const RELOCATION_PAYLOAD_DIRNAME = 'payload'
 const FREE_SPACE_SAFETY_FACTOR = 1.2
 
 const relocationOwnerSchema = z.object({
@@ -66,19 +67,14 @@ export function assertUserDataRelocationRequest(pending: PendingRelocation): voi
 }
 
 export async function runUserDataRelocationGate(): Promise<UserDataRelocationGateResult> {
-  if (!app.isPackaged) return 'skipped'
-
-  const relocation = bootConfigService.get('temp.user_data_relocation')
+  let relocation = readUserDataRelocationState()
   if (!relocation) return 'skipped'
 
-  const currentUserData = normalizeForCompare(app.getPath('userData'))
-  if (normalizeForCompare(relocation.from) !== currentUserData) {
-    logger.warn('Discarding stale userData relocation request', {
-      requestedFrom: relocation.from,
-      currentUserData: app.getPath('userData')
-    })
-    clearRelocationState()
-    return 'skipped'
+  // Only a pending copy needs the source tree quiescent. A failed-state launch
+  // just shows the error window, so it must not depend on the temp filesystem —
+  // otherwise a broken environment would also block the error explanation.
+  if (relocation.status === 'pending') {
+    relocation = prepareIsolatedSessionData(relocation)
   }
 
   await app.whenReady()
@@ -125,23 +121,69 @@ export async function runUserDataRelocationGate(): Promise<UserDataRelocationGat
       to: relocation.to,
       error: message
     })
-    bootConfigService.set('temp.user_data_relocation', {
-      status: 'failed',
-      taskId: relocation.taskId,
-      from: relocation.from,
-      to: relocation.to,
-      copy: relocation.copy,
-      error: message,
-      failedAt: new Date().toISOString()
-    })
-    // The filesystem has already been rolled back. A BootConfig write failure
-    // must not crash preboot before the recovery window can explain the error.
-    bootConfigService.flush()
+    // The filesystem has already been rolled back.
+    persistFailedRelocation(relocation, message)
     publish(makeProgress('failed', relocation, 0, 0, message))
     if (relocationWindow.isUnavailable() || !relocationWindow.hasWindow()) restart()
   }
 
   return 'handled'
+}
+
+function prepareIsolatedSessionData(pending: PendingRelocation): RelocationState {
+  try {
+    const sessionRoot = application.getPath('app.temp', 'relocation-session')
+    fs.mkdirSync(sessionRoot, { recursive: true, mode: 0o700 })
+    const sessionDataPath = fs.mkdtempSync(path.join(sessionRoot, `${pending.taskId}-`))
+    app.setPath('sessionData', sessionDataPath)
+    logger.info('Prepared isolated sessionData for userData relocation', { sessionDataPath })
+    return pending
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    // Failing the relocation here (instead of throwing) matters: an escaped
+    // error would hard-exit before any window exists, and the still-pending
+    // request would repeat that on every launch — an unrecoverable boot loop.
+    logger.error('Could not prepare isolated sessionData; failing relocation', { taskId: pending.taskId, error })
+    return persistFailedRelocation(pending, `failed to prepare isolated sessionData: ${message}`)
+  }
+}
+
+function persistFailedRelocation(pending: PendingRelocation, message: string): FailedRelocation {
+  const failed: FailedRelocation = {
+    status: 'failed',
+    taskId: pending.taskId,
+    from: pending.from,
+    to: pending.to,
+    copy: pending.copy,
+    error: message,
+    failedAt: new Date().toISOString()
+  }
+  bootConfigService.set('temp.user_data_relocation', failed)
+  // A BootConfig write failure must not crash preboot before the recovery
+  // window can explain the error; flush() is best-effort and only logs.
+  bootConfigService.flush()
+  return failed
+}
+
+function readUserDataRelocationState(): RelocationState | null {
+  if (!app.isPackaged) return null
+
+  // BootConfigService already validates this key against the shared zod schema
+  // on load and set, so a non-null value here is structurally trustworthy.
+  const relocation = bootConfigService.get('temp.user_data_relocation')
+  if (!relocation) return null
+
+  const currentUserDataPath = application.getPath('app.userdata')
+  const currentUserData = normalizeForCompare(currentUserDataPath)
+  if (normalizeForCompare(relocation.from) !== currentUserData) {
+    logger.warn('Discarding stale userData relocation request', {
+      requestedFrom: relocation.from,
+      currentUserData: currentUserDataPath
+    })
+    clearRelocationState()
+    return null
+  }
+  return relocation
 }
 
 async function executeRelocation(
@@ -168,6 +210,7 @@ async function executeRelocation(
   publish(makeProgress('copying', pending, 0, total))
 
   const { workPath, asidePath } = relocationArtifactPaths(pending.to, pending.taskId)
+  const payloadPath = path.join(workPath, RELOCATION_PAYLOAD_DIRNAME)
   let asideCreated = false
   let promoted = false
 
@@ -191,7 +234,7 @@ async function executeRelocation(
     // Let Node own recursive copying. The filter only applies relocation-specific
     // exclusions and records links that must stop pointing at the old userData tree.
     const symlinks: Array<{ source: string; target: string; type: 'dir' | 'file' | 'junction' | undefined }> = []
-    await fsp.cp(pending.from, workPath, {
+    await fsp.cp(pending.from, payloadPath, {
       recursive: true,
       force: false,
       errorOnExist: true,
@@ -250,8 +293,11 @@ async function executeRelocation(
     publish(makeProgress('copying', pending, total, total))
 
     assertEffectiveSeparation(pending.from, workPath)
-    await fsp.rename(workPath, pending.to)
+    await writeRelocationOwner(payloadPath, pending.taskId)
+    await fsp.rename(payloadPath, pending.to)
     promoted = true
+    await fsp.rm(path.join(workPath, RELOCATION_OWNER_MARKER), { force: true })
+    await fsp.rmdir(workPath)
     commit()
   } catch (error) {
     const rollbackError = await rollbackCopy({
@@ -569,6 +615,7 @@ function readJsonFile(file: string): unknown | null {
 
 function assertTargetIsNotProtected(target: string, normalizedTarget: string): void {
   const protectedApplicationTrees = [
+    application.getPath('app.temp', 'relocation-session'),
     application.getPath('app.install'),
     application.getPath('app.root'),
     application.getPath('app.extra_resources'),

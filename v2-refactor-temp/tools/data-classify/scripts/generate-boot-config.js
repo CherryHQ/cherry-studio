@@ -47,14 +47,14 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '    .union([\n' +
       '      z.object({\n' +
       "        status: z.literal('pending'),\n" +
-      '        taskId: z.string(),\n' +
+      '        taskId: z.uuid(),\n' +
       '        from: z.string(),\n' +
       '        to: z.string(),\n' +
       '        copy: z.boolean()\n' +
       '      }),\n' +
       '      z.object({\n' +
       "        status: z.literal('failed'),\n" +
-      '        taskId: z.string(),\n' +
+      '        taskId: z.uuid(),\n' +
       '        from: z.string(),\n' +
       '        to: z.string(),\n' +
       '        copy: z.boolean(),\n' +

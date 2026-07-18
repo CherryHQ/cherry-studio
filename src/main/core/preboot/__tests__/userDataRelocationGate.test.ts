@@ -6,7 +6,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  appGetPathMock,
+  appSetPathMock,
   bootConfigFlushMock,
   bootConfigGetMock,
   bootConfigSetMock,
@@ -19,7 +19,7 @@ const {
   windowIsUnavailableMock,
   windowOpenMock
 } = vi.hoisted(() => ({
-  appGetPathMock: vi.fn(),
+  appSetPathMock: vi.fn(),
   bootConfigFlushMock: vi.fn(),
   bootConfigGetMock: vi.fn(),
   bootConfigSetMock: vi.fn(),
@@ -39,11 +39,13 @@ const TASK_ID = '11111111-1111-4111-8111-111111111111'
 
 vi.mock('@application', () => ({
   application: {
-    getPath: (key: string) => {
-      if (key === 'app.install') return relocationState.installPath
-      if (key === 'cherry.home') return relocationState.cherryHome
-      if (key in relocationState) return relocationState[key]
-      return path.join(String(relocationState.protectedRoot), key.replaceAll('.', '-'))
+    getPath: (key: string, filename?: string) => {
+      let root: unknown
+      if (key === 'app.install') root = relocationState.installPath
+      else if (key === 'cherry.home') root = relocationState.cherryHome
+      else if (key in relocationState) root = relocationState[key]
+      else root = path.join(String(relocationState.protectedRoot), key.replaceAll('.', '-'))
+      return filename ? path.join(String(root), filename) : root
     },
     relaunch: relaunchMock
   }
@@ -74,7 +76,7 @@ vi.mock('@main/services/relocationWindowService', () => ({
 vi.mock('electron', () => ({
   app: {
     isPackaged: true,
-    getPath: appGetPathMock,
+    setPath: appSetPathMock,
     whenReady: vi.fn().mockResolvedValue(undefined)
   }
 }))
@@ -113,10 +115,13 @@ beforeEach(async () => {
   platformState.isWin = false
   await usePromises()
 
+  const appTemp = makeRoot()
   relocationState = {
     installPath: makeRoot(),
     cherryHome: makeRoot(),
     protectedRoot: makeRoot(),
+    'app.temp': appTemp,
+    'app.userdata': null,
     'temp.user_data_relocation': null
   }
   bootConfigGetMock.mockImplementation((key: string) => relocationState[key])
@@ -146,6 +151,28 @@ afterEach(() => {
 })
 
 describe('userDataRelocationGate', () => {
+  it('prepares a fresh temporary sessionData directory for a valid relocation', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target, false)
+
+    const { runUserDataRelocationGate } = await loadGate()
+
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+    const sessionDataPath = appSetPathMock.mock.calls[0]?.[1]
+    expect(sessionDataPath).toEqual(expect.any(String))
+    expect(
+      String(sessionDataPath).startsWith(
+        path.join(String(relocationState['app.temp']), 'relocation-session', `${TASK_ID}-`)
+      )
+    ).toBe(true)
+    expect(fs.statSync(String(sessionDataPath)).isDirectory()).toBe(true)
+  })
+
   it('clears a stale request whose source is not the currently resolved userData', async () => {
     const root = makeRoot()
     const current = path.join(root, 'current')
@@ -153,13 +180,14 @@ describe('userDataRelocationGate', () => {
     const target = path.join(root, 'target')
     fs.mkdirSync(current)
     fs.mkdirSync(stale)
-    appGetPathMock.mockReturnValue(current)
+    relocationState['app.userdata'] = current
     relocationState['temp.user_data_relocation'] = pending(stale, target)
 
     const { runUserDataRelocationGate } = await loadGate()
 
     await expect(runUserDataRelocationGate()).resolves.toBe('skipped')
     expect(relocationState['temp.user_data_relocation']).toBeNull()
+    expect(appSetPathMock).not.toHaveBeenCalled()
     expect(windowOpenMock).not.toHaveBeenCalled()
   })
 
@@ -200,7 +228,7 @@ describe('userDataRelocationGate', () => {
     fs.mkdirSync(source)
     fs.mkdirSync(workPath)
     fs.writeFileSync(path.join(workPath, 'partial.txt'), 'keep')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     const { runUserDataRelocationGate } = await loadGate()
@@ -218,7 +246,7 @@ describe('userDataRelocationGate', () => {
     fs.writeFileSync(path.join(source, 'new.txt'), 'new')
     fs.mkdirSync(target)
     fs.writeFileSync(path.join(target, 'SingletonLock'), 'owned')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target, true)
 
     const { runUserDataRelocationGate } = await loadGate()
@@ -242,7 +270,7 @@ describe('userDataRelocationGate', () => {
     fs.writeFileSync(path.join(target, 'old.txt'), 'old')
     fs.mkdirSync(path.join(target, 'old-folder'))
     fs.writeFileSync(path.join(target, 'old-folder', 'nested.txt'), 'nested')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     const { runUserDataRelocationGate } = await loadGate()
@@ -263,7 +291,7 @@ describe('userDataRelocationGate', () => {
     fs.writeFileSync(path.join(source, 'SingletonLock'), 'lock')
     fs.writeFileSync(path.join(source, 'SingletonSocket'), 'socket')
     fs.writeFileSync(path.join(source, 'SingletonCookie'), 'cookie')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     const { runUserDataRelocationGate } = await loadGate()
@@ -284,7 +312,7 @@ describe('userDataRelocationGate', () => {
     fs.mkdirSync(source)
     fs.writeFileSync(path.join(source, 'data.txt'), 'data')
     fs.symlinkSync(path.join(source, 'data.txt'), path.join(source, 'data-link'))
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     const { runUserDataRelocationGate } = await loadGate()
@@ -300,7 +328,7 @@ describe('userDataRelocationGate', () => {
     const target = path.join(root, 'target')
     fs.mkdirSync(path.join(source, 'real'), { recursive: true })
     fs.symlinkSync('real', path.join(source, 'relative-link'), 'dir')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
     platformState.isWin = true
     const symlinkMock = vi.fn<typeof symlink>().mockImplementation(async (targetValue, linkPath) => {
@@ -313,7 +341,7 @@ describe('userDataRelocationGate', () => {
 
     expect(symlinkMock).toHaveBeenCalledWith(
       path.join(fs.realpathSync(target), 'real'),
-      path.join(root, `.target.cherry-relocation-${TASK_ID}-work`, 'relative-link'),
+      path.join(root, `.target.cherry-relocation-${TASK_ID}-work`, 'payload', 'relative-link'),
       'junction'
     )
     expect(commitMock).toHaveBeenCalledWith(target)
@@ -325,12 +353,13 @@ describe('userDataRelocationGate', () => {
     const target = path.join(root, 'target')
     fs.mkdirSync(source)
     fs.writeFileSync(path.join(source, 'volatile.txt'), 'cache')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
       cp: vi.fn<typeof cp>().mockImplementation(async (_source, destination, options) => {
         const sourcePath = path.join(source, 'volatile.txt')
+        fs.mkdirSync(String(destination), { recursive: true })
         fs.rmSync(sourcePath)
         const shouldCopy = await options?.filter?.(sourcePath, path.join(String(destination), 'volatile.txt'))
         expect(shouldCopy).toBe(false)
@@ -349,7 +378,7 @@ describe('userDataRelocationGate', () => {
     const target = path.join(root, 'target')
     fs.mkdirSync(source)
     fs.writeFileSync(path.join(source, 'data.txt'), 'data')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({ statfs: vi.fn().mockResolvedValue({ bsize: 1, bavail: 4, blocks: 10 }) })
@@ -370,7 +399,7 @@ describe('userDataRelocationGate', () => {
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
     fs.mkdirSync(source)
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = {
       status: 'failed',
       taskId: TASK_ID,
@@ -384,6 +413,7 @@ describe('userDataRelocationGate', () => {
     const { runUserDataRelocationGate } = await loadGate()
     await expect(runUserDataRelocationGate()).resolves.toBe('handled')
 
+    expect(appSetPathMock).not.toHaveBeenCalled()
     expect(relocationState['temp.user_data_relocation']).toMatchObject({ status: 'failed' })
     expect(updateProgressMock).toHaveBeenCalledWith(expect.objectContaining({ stage: 'failed', error: 'copy failed' }))
 
@@ -393,13 +423,43 @@ describe('userDataRelocationGate', () => {
     expect(relaunchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('fails the relocation instead of crashing when the temporary sessionData cannot be prepared', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    const blockedTemp = path.join(root, 'blocked-temp')
+    fs.writeFileSync(blockedTemp, 'not a directory')
+    relocationState['app.temp'] = blockedTemp
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocationGate } = await loadGate()
+
+    await expect(runUserDataRelocationGate()).resolves.toBe('handled')
+    expect(appSetPathMock).not.toHaveBeenCalled()
+    expect(relocationState['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      taskId: TASK_ID,
+      error: expect.stringContaining('failed to prepare isolated sessionData')
+    })
+    expect(updateProgressMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'failed',
+        error: expect.stringContaining('failed to prepare isolated sessionData')
+      })
+    )
+    expect(fs.existsSync(target)).toBe(false)
+  })
+
   it('copies successfully into a new target', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
     fs.mkdirSync(source)
     fs.writeFileSync(path.join(source, 'data.txt'), 'data')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     const { runUserDataRelocationGate } = await loadGate()
@@ -417,7 +477,7 @@ describe('userDataRelocationGate', () => {
     fs.mkdirSync(source)
     fs.mkdirSync(target)
     fs.writeFileSync(path.join(target, 'arbitrary-document.xlsx'), 'existing file')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target, false)
 
     const { inspectUserDataRelocationTarget, runUserDataRelocationGate } = await loadGate()
@@ -538,6 +598,25 @@ describe('userDataRelocationGate', () => {
     })
   })
 
+  it('protects the relocation session root and its application-temp parent', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const sessionRoot = path.join(String(relocationState['app.temp']), 'relocation-session')
+    const appTempRoot = path.dirname(sessionRoot)
+    fs.mkdirSync(source)
+
+    const { inspectUserDataRelocationTarget } = await loadGate()
+
+    expect(inspectUserDataRelocationTarget(source, sessionRoot)).toEqual({
+      valid: false,
+      reason: 'target_protected'
+    })
+    expect(inspectUserDataRelocationTarget(source, appTempRoot)).toEqual({
+      valid: false,
+      reason: 'target_protected'
+    })
+  })
+
   it('rejects source children, source parents, and protected application directories', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
@@ -572,7 +651,7 @@ describe('userDataRelocationGate', () => {
     fs.mkdirSync(source)
     fs.mkdirSync(target)
     fs.writeFileSync(path.join(source, 'data.txt'), 'data')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
@@ -596,7 +675,7 @@ describe('userDataRelocationGate', () => {
     fs.mkdirSync(source)
     fs.mkdirSync(target)
     fs.writeFileSync(path.join(source, 'locked.db'), 'data')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
@@ -616,7 +695,7 @@ describe('userDataRelocationGate', () => {
     const target = path.join(root, 'target')
     fs.mkdirSync(source)
     fs.writeFileSync(path.join(source, 'data.txt'), 'data')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
     commitMock.mockImplementationOnce(() => {
       throw new Error('boot config disk full')
@@ -646,7 +725,7 @@ describe('userDataRelocationGate', () => {
       JSON.stringify({ kind: 'cherry-studio-user-data-relocation', taskId: TASK_ID })
     )
     fs.writeFileSync(path.join(work, 'partial.txt'), 'partial')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     const { runUserDataRelocationGate } = await loadGate()
@@ -671,7 +750,7 @@ describe('userDataRelocationGate', () => {
     )
     fs.writeFileSync(path.join(target, 'stale-promoted.txt'), 'stale')
     fs.mkdirSync(aside)
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     const { runUserDataRelocationGate } = await loadGate()
@@ -693,7 +772,7 @@ describe('userDataRelocationGate', () => {
     fs.mkdirSync(aside)
     fs.writeFileSync(path.join(target, 'existing.txt'), 'existing')
     fs.writeFileSync(path.join(target, 'new-after-crash.txt'), 'preserve')
-    appGetPathMock.mockReturnValue(source)
+    relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     const { runUserDataRelocationGate } = await loadGate()

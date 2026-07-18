@@ -14,13 +14,24 @@ But some setup must happen even earlier — synchronously, with no lifecycle
 services available — because `application.bootstrap()` itself depends on it.
 Most importantly: `application.initPathRegistry()` is called from preboot
 in `main/main.ts` after userData resolution, the single-instance lock,
-Chromium flag setup, and crash telemetry setup. It calls
-`buildPathRegistry()` to build a frozen snapshot of the path registry by
-reading `app.getPath('userData')` and other Electron paths. So all
+Chromium flag setup, and crash telemetry setup. It calls `buildPathRegistry()`
+to build a frozen snapshot of the path registry by reading
+`app.getPath('userData')` and other Electron paths. So all
 `app.setPath('userData', …)` calls must complete **before**
 `application.initPathRegistry()` is called, and the registry must be
-initialized **before** `application.bootstrap()` (which asserts the
-registry exists and refuses to start otherwise).
+initialized **before** `application.bootstrap()` (which asserts the registry
+exists and refuses to start otherwise).
+
+The userData relocation gate runs after the path registry is initialized, so
+it can create its temporary Chromium profile under `app.temp` through
+`application.getPath()`. For a pending relocation it calls
+`app.setPath('sessionData', …)` synchronously before its first
+`await app.whenReady()`; if preparing that directory fails, the request is
+marked failed instead of crashing preboot (an escaped error would boot-loop:
+exit before any window, pending request replayed every launch). A failed-state
+launch only shows the error window and never touches the temp profile. A
+relocation-only launch never continues to lifecycle bootstrap, so that launch
+does not consume the registry's earlier `app.session` snapshot.
 
 This directory holds that pre-bootstrap work.
 
@@ -184,7 +195,9 @@ import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 ```
 
 Each preboot module has its own timing contract (`userDataLocation` must run
-before `initPathRegistry`; `chromiumFlags` must run before `app.whenReady`).
+before `initPathRegistry`; `userDataRelocationGate` must set its temporary
+`sessionData` before `app.whenReady`; `chromiumFlags` must run before
+`app.whenReady`).
 A barrel export would fold away which function lives in which module — and
 therefore which timing rules apply — making the preboot sequence in
 `main/main.ts` harder to reason about. Importing from concrete paths keeps

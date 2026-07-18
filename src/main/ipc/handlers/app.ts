@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { arch } from 'node:os'
 
 import { application } from '@application'
@@ -15,6 +14,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import { app, BrowserWindow, webContents } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AppIpc')
 
@@ -42,7 +42,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
 
     const pending = {
       status: 'pending' as const,
-      taskId: randomUUID(),
+      taskId: uuidv4(),
       from: canonicalizeUserDataPath(application.getPath('app.userdata')),
       to: canonicalizeUserDataPath(path),
       copy
