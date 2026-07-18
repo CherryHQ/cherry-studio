@@ -1,11 +1,12 @@
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
-import { resolveIconRef, useIcon } from '@cherrystudio/ui/icons'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
@@ -17,6 +18,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -24,7 +26,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SelectorShellLayout } from '../SelectorShell'
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../SelectorShell'
+import { SelectorShell } from '../SelectorShell'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
@@ -37,11 +39,13 @@ const logger = loggerService.withContext('ModelSelector')
 
 const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
-const ROW_TAG_SIZE = 8
+const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
+const MODEL_SELECTOR_CONTENT_HEIGHT = 440
+const MODEL_SELECTOR_WIDTH = 400
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
-const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(DEFAULT_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
+const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
 
 const estimateModelSelectorItemSize = () => ITEM_HEIGHT
 type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['scrollToIndex']>[1]>['align']
@@ -169,12 +173,12 @@ function ModelRow({
   detailPortalContainer?: SelectorShellLayout['portalContainer']
   t: (key: string) => string
 }) {
-  const icon = useIcon(resolveIconRef(item.modelIdentifier, item.provider.id))
+  const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const rowTags = useMemo(() => getModelDisplayTags(item.model), [item.model])
   const providerName = getProviderDisplayName(item.provider)
 
   const leading = icon ? (
-    <icon.Avatar size={20} />
+    <icon.Avatar size={24} />
   ) : (
     <Avatar size="sm">
       <AvatarFallback>{first(item.model.name) || 'M'}</AvatarFallback>
@@ -187,13 +191,14 @@ function ModelRow({
       size="sm"
       tabIndex={-1}
       aria-hidden="true"
+      className="ml-1"
       data-testid={`model-selector-checkbox-${item.modelId}`}
     />
   ) : null
 
   const trailing =
     rowTags.length > 0 ? (
-      <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+      <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
         {rowTags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
@@ -449,6 +454,21 @@ export function ModelSelector(props: ModelSelectorProps) {
     [setFocusedItemKey]
   )
 
+  const focusItemBeforePaint = useCallback(
+    (key: string, align: ModelSelectorScrollAlign = 'auto') => {
+      setFocusedItemKey(key)
+      const index = listItemsRef.current.findIndex((item) => item.key === key)
+      if (index < 0) return
+
+      if (focusScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusScrollFrameRef.current)
+        focusScrollFrameRef.current = null
+      }
+      listRef.current?.scrollToIndex(index, { align })
+    },
+    [setFocusedItemKey]
+  )
+
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
       skipNextFocusScroll.current = true
@@ -631,7 +651,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const currentModelItems = modelItemsRef.current
     if (!open || isLoading || currentModelItems.length === 0) {
       return
@@ -649,9 +669,11 @@ export function ModelSelector(props: ModelSelectorProps) {
           currentModelItems[0]?.key)
 
     if (targetKey) {
-      focusItem(targetKey, 'start')
+      // Position the virtual list before paint so opening does not briefly show
+      // the first rows before jumping to the selected model on the next frame.
+      focusItemBeforePaint(targetKey, 'start')
     }
-  }, [deferredSearchText, focusItem, isLoading, open, selectedTagsKey])
+  }, [deferredSearchText, focusItemBeforePaint, isLoading, open, selectedTagsKey])
 
   const rowRenderer = useCallback(
     (item: FlatListItem, detailPortalContainer?: SelectorShellLayout['portalContainer']) => {
@@ -661,7 +683,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
         return (
           <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
-            <span className="truncate">{groupTitle}</span>
+            <span className="flex h-4 items-center truncate leading-4">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
                 <Button
@@ -669,12 +691,12 @@ export function ModelSelector(props: ModelSelectorProps) {
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('navigate.provider_settings')}
-                  className="size-4 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
+                  className="size-4 shrink-0 translate-y-[2px] p-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
                   onClick={(event) => {
                     event.stopPropagation()
-                    handleNavigateToProviderSettings(item.settingsProviderId ?? item.provider!.id)
+                    handleNavigateToProviderSettings(item.provider!.id)
                   }}>
-                  <Settings2 className="size-3" />
+                  <Settings2 className="block size-3" />
                 </Button>
               </Tooltip>
             )}
@@ -746,28 +768,29 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     return (
       <>
-        <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}
             tag={tag}
             size={FILTER_TAG_SIZE}
-            showTooltip
+            showLabel
             inactive={!tagSelection[tag]}
             onClick={() => toggleTag(tag)}
-            className="transition-colors"
+            className="h-5 items-center transition-colors"
           />
         ))}
       </>
     )
-  }, [availableTags, showTagFilter, t, tagSelection, toggleTag])
+  }, [availableTags, showTagFilter, tagSelection, toggleTag])
 
   const multiSelectConfig = useMemo(
     () =>
       multiple
         ? {
             label: t('models.multi_select.label'),
+            ariaLabel: t('models.multi_select.label'),
             checked: multiSelectMode,
+            placement: 'search-badge' as const,
             onCheckedChange: handleMultiSelectModeChange,
             dataTestId: 'model-selector-multi-select-switch',
             rowTestId: 'model-selector-multi-select-row'
@@ -785,7 +808,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleNavigateToCustomModelSettings, t]
   )
 
-  const initialListHeight = Math.min(listHeight, DEFAULT_SELECTOR_CONTENT_HEIGHT)
+  const initialListHeight = Math.min(listHeight, MODEL_SELECTOR_CONTENT_HEIGHT)
 
   return (
     <>
@@ -798,13 +821,14 @@ export function ModelSelector(props: ModelSelectorProps) {
         search={searchConfig}
         filterContent={filterContent}
         multiSelect={multiSelectConfig}
+        width={MODEL_SELECTOR_WIDTH}
         side={side}
         align={align}
         sideOffset={sideOffset}
         portalContainer={portalContainer}
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
-        contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
+        contentHeight={MODEL_SELECTOR_CONTENT_HEIGHT}
         bottomAction={bottomAction}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {

@@ -102,7 +102,7 @@ export async function readFile(
         : await extractDocumentText(entryId, { signal })
 
     if (!text.trim()) return textResult(noExtractableTextNote(entry.handle))
-    return paginate(text, input.offset, input.limit)
+    return paginate(text, input.offset ?? undefined, input.limit ?? undefined)
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
     // Log the detail; return a sanitized, filename-level message (no entry ids / paths).

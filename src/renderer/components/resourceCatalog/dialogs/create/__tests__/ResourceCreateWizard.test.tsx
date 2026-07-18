@@ -49,6 +49,9 @@ vi.mock('../steps/BasicInfoStep', async () => {
       return (
         <>
           <div data-testid="model-id">{modelId ?? 'empty'}</div>
+          <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
+            fill name
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -96,6 +99,31 @@ describe('ResourceCreateWizard', () => {
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
   })
 
+  it('submits the default model when the user does not choose another model', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    modelHook.defaultModel = makeModel()
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      avatar: '💬',
+      name: 'My Resource',
+      modelId: 'provider::default',
+      description: '',
+      prompt: '',
+      knowledgeBaseIds: [],
+      skillIds: []
+    })
+  })
+
   it('does not prefill a default model rejected by the wizard model filter', async () => {
     modelHook.defaultModel = makeModel()
 
@@ -104,6 +132,31 @@ describe('ResourceCreateWizard', () => {
     )
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+  })
+
+  it('removes an auto-selected default model if the model filter later excludes it', async () => {
+    const user = userEvent.setup()
+    modelHook.defaultModel = makeModel()
+    let defaultModelAllowed = true
+    const modelFilter = () => defaultModelAllowed
+    const props = {
+      kind: 'agent' as const,
+      open: true,
+      onOpenChange: vi.fn(),
+      onSubmit: vi.fn(),
+      modelFilter
+    }
+    const { rerender } = render(<ResourceCreateWizard {...props} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+
+    defaultModelAllowed = false
+    rerender(<ResourceCreateWizard {...props} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
   })
 
   it('gates Next on a valid name + model, then walks assistant steps to a mapped submit', async () => {

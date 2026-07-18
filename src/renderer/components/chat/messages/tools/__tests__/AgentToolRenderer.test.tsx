@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
@@ -29,9 +30,13 @@ const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
-vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  usePartsMap: () => mockPartsMap()
-}))
+vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    usePartsMap: () => mockPartsMap()
+  }
+})
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
@@ -134,16 +139,15 @@ describe('AgentToolRenderer', () => {
     'message.tools.activity.assistantTask': 'task',
     'message.tools.activity.availableFeatures': 'available features',
     'message.tools.activity.availableResources': 'available resources',
-    'message.tools.activity.commandName': '{{name}} command',
     'message.tools.activity.create': 'Create',
     'message.tools.activity.currentFolder': 'current folder',
-    'message.tools.activity.executeCommand': 'Run command',
-    'message.tools.activity.executingCommand': 'Running command',
+    'message.tools.activity.executeCommand': 'Run task',
+    'message.tools.activity.executingCommand': 'Running task',
     'message.tools.activity.file': 'file',
     'message.tools.activity.handle': 'Handle',
     'message.tools.activity.handling': 'Handling',
     'message.tools.activity.installing': 'Installing',
-    'message.tools.activity.projectDependencies': 'project dependencies',
+    'message.tools.activity.projectDependencies': 'project requirements',
     'message.tools.activity.searching': 'Finding',
     'message.tools.activity.taskId': 'Task {{id}}',
     'message.tools.activity.taskList': 'task list',
@@ -157,6 +161,7 @@ describe('AgentToolRenderer', () => {
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
     'agent.sidebar_title': 'Agents',
+    'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
@@ -224,6 +229,24 @@ describe('AgentToolRenderer', () => {
       expect(isValidAgentToolsType('')).toBe(false)
       expect(isValidAgentToolsType(null)).toBe(false)
       expect(isValidAgentToolsType(undefined)).toBe(false)
+    })
+  })
+
+  describe('unknown MCP tool rendering', () => {
+    it('shows the tool type before the MCP tool name', () => {
+      const toolResponse = createToolResponse({
+        tool: {
+          id: 'mcp__exa__web_search_exa',
+          name: 'mcp__exa__web_search_exa',
+          description: 'Search the web',
+          type: 'provider'
+        },
+        status: 'done'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByRole('button', { name: 'MCP Server Tool exa:web_search_exa' })).toBeInTheDocument()
     })
   })
 
@@ -710,6 +733,24 @@ describe('AgentToolRenderer', () => {
         query: { sessionId: 'session-1' }
       })
     })
+
+    it('uses the document processing feature title for the file-processing route', () => {
+      const toolResponse = createToolResponse({
+        tool: {
+          id: 'mcp__assistant__navigate',
+          name: 'mcp__assistant__navigate',
+          description: 'Navigate',
+          type: 'provider'
+        },
+        status: 'done',
+        arguments: { path: '/settings/file-processing' },
+        response: 'Navigate link created: /settings/file-processing'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText(/Document Processing/)).toBeInTheDocument()
+    })
   })
 
   describe('meta tool rendering', () => {
@@ -775,6 +816,34 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('agent tool flow action', () => {
+    it('routes a nested subagent click through the real tool group and renderer chain', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+        status: 'done',
+        arguments: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+        response: 'ok'
+      })
+
+      render(<ToolBlockGroup items={[{ id: 'agent-group', toolResponse }]} />)
+
+      const groupTrigger = screen.getByTestId('child-tool-group').querySelector('button')!
+      fireEvent.click(groupTrigger)
+
+      const agentRow = screen
+        .getAllByRole('button')
+        .find((element) => element !== groupTrigger && element.tagName === 'DIV')
+      expect(agentRow).toBeDefined()
+      fireEvent.click(agentRow!)
+
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
+        toolName: 'Agent',
+        title: 'Inspect renderer'
+      })
+    })
+
     it('opens the right-pane flow only from subagent rows', () => {
       const openAgentToolFlow = vi.fn()
       mockMessageListActions.mockReturnValue({ openAgentToolFlow })

@@ -18,8 +18,19 @@ import { TabRouter } from './TabRouter'
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab, openTab } =
-    useTabs()
+  const {
+    tabs,
+    activeTabId,
+    setActiveTab,
+    closeTab,
+    closeTabs,
+    updateTab,
+    reorderTabs,
+    pinTab,
+    unpinTab,
+    detachTab,
+    openTab
+  } = useTabs()
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -107,6 +118,7 @@ export const AppShell = () => {
       isFullscreen={isFullscreen}
       setActiveTab={setActiveTab}
       closeTab={closeTab}
+      closeTabs={closeTabs}
       reorderTabs={reorderTabs}
       pinTab={pinTab}
       unpinTab={unpinTab}

@@ -25,3 +25,4 @@ export {
   RESOURCE_TYPE_ORDER,
   TAG_COLOR_PALETTE
 } from './constants'
+export { buildCreateAgentDto, buildCreateAssistantDto } from './resourceCreate'
