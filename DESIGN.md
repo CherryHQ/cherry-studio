@@ -690,6 +690,7 @@ Use Tailwind's numeric spacing scale, based on the `--spacing` 4px unit. Compone
 | `var(--radius-xl)` | 14px | Large cards, hero sections |
 | `var(--radius-2xl)` | 18px | Feature cards, prominent containers |
 | `var(--radius-3xl)` | 22px | Dialogs, PageSidePanel, marketing cards, large modals |
+| `var(--radius-4xl)` | 26px | Extra-large feature and presentation surfaces |
 | `var(--radius-round)` | 9999px | Pills, avatars, circular buttons |
 
 ## 6. Depth & Elevation

@@ -73,6 +73,10 @@ black, or the page foreground will have sufficient contrast.
 | `--chart-5` | Fifth categorical data series |
 | `--radius` | Canonical Shadcn radius input; Tailwind radii derive from it |
 
+The standard Tailwind adapter derives `radius-sm` through `radius-4xl` from `--radius` with the Shadcn
+multipliers. Cherry's smaller `4xs` through `xs` aliases and `round` alias are compatibility extensions, not
+inputs to the semantic contract.
+
 ## 4. Stable Cherry Studio product variables
 
 Stable product variables are allowed in new code when no official Shadcn role expresses the product concept.

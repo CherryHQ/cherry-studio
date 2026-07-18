@@ -32,12 +32,13 @@ const RADIUS_LINES = [
   '--radius-3xs: var(--cs-radius-3xs);',
   '--radius-2xs: var(--cs-radius-2xs);',
   '--radius-xs: var(--cs-radius-xs);',
-  '--radius-sm: calc(var(--radius) - 0.25rem);',
-  '--radius-md: calc(var(--radius) - 0.125rem);',
+  '--radius-sm: calc(var(--radius) * 0.6);',
+  '--radius-md: calc(var(--radius) * 0.8);',
   '--radius-lg: var(--radius);',
-  '--radius-xl: calc(var(--radius) + 0.25rem);',
-  '--radius-2xl: calc(var(--radius) + 0.5rem);',
-  '--radius-3xl: calc(var(--radius) + 0.75rem);',
+  '--radius-xl: calc(var(--radius) * 1.4);',
+  '--radius-2xl: calc(var(--radius) * 1.8);',
+  '--radius-3xl: calc(var(--radius) * 2.2);',
+  '--radius-4xl: calc(var(--radius) * 2.6);',
   '--radius-full: var(--cs-radius-round);',
   '--radius-round: var(--cs-radius-round);'
 ]

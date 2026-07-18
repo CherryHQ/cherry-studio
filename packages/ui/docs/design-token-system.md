@@ -358,18 +358,20 @@ Tailwind radius variables derive from that input while preserving the current 6/
 
 ```css
 @theme inline {
-  --radius-sm: calc(var(--radius) - 0.25rem);
-  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 0.25rem);
-  --radius-2xl: calc(var(--radius) + 0.5rem);
-  --radius-3xl: calc(var(--radius) + 0.75rem);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
   --radius-full: 9999px;
 }
 ```
 
-Existing extended radius names remain available for compatibility. New code uses `rounded-full` instead of
-`rounded-round`.
+The multipliers match the current Shadcn radius adapter, so a theme that overrides `--radius` scales every
+standard radius consistently. Existing smaller and extended radius names remain available for compatibility.
+New code uses `rounded-full` instead of `rounded-round`.
 
 Spacing, typography, shadow, and motion keep their current behavior in this PR. They require separate design
 decisions and must not block the color contract.
