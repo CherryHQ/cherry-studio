@@ -11,6 +11,7 @@ Studio product semantics use `--cs-*`. The full theme entry exposes both through
 Runtime styles and design tokens live under `src/styles`:
 
 - [theme.css](../src/styles/theme.css)
+- [contract.css](../src/styles/contract.css)
 - [shadcn.css](../src/styles/shadcn.css)
 - [product.css](../src/styles/product.css)
 - [tokens.css](../src/styles/tokens.css)

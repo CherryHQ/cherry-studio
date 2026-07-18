@@ -175,6 +175,7 @@
       "default": "./dist/icons/index.js"
     },
     "./styles/tokens.css": "./dist/styles/tokens.css",
+    "./styles/contract.css": "./dist/styles/contract.css",
     "./styles/theme.css": "./dist/styles/theme.css"
   }
 }

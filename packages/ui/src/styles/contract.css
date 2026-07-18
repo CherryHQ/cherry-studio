@@ -1,0 +1,12 @@
+/**
+ * Cherry Studio semantic contract.
+ *
+ * Import order is architectural and must remain one-way:
+ * foundation providers -> official Shadcn semantics -> product semantics.
+ * This entry contains no Tailwind adapter and is suitable for consumers that
+ * use CSS custom properties directly.
+ */
+
+@import './tokens.css';
+@import './shadcn.css';
+@import './product.css';

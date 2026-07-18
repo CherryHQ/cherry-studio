@@ -14,8 +14,9 @@ describe('buildThemeContractCss', () => {
     const stylesDir = path.resolve(import.meta.dirname, '../../src/styles')
     const css = buildThemeContractCss(await loadThemeContractInputs(stylesDir))
 
-    expect(css).toContain("@import './tokens.css';")
-    expect(css).toContain("@import './shadcn.css';")
+    expect(css).toContain("@import './contract.css';")
+    expect(css).not.toContain("@import './tokens.css';")
+    expect(css).not.toContain("@import './shadcn.css';")
     expect(css).toContain('@theme inline {')
     expect(css).not.toContain('/* Runtime Theme Inputs */')
     expect(css).not.toContain('--cs-theme-primary:')

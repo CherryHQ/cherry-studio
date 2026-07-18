@@ -2,8 +2,9 @@
  * Canonical Shadcn theme contract.
  *
  * Official Shadcn variables remain unprefixed for ecosystem compatibility.
- * Cherry Studio extensions use the `--cs-*` product namespace and live in the
- * token sources imported before this file.
+ * Foundation providers are imported before this file. Cherry Studio product
+ * semantics are imported after it so they may intentionally follow official
+ * variables and third-party themes such as TweakCN.
  */
 
 :root {

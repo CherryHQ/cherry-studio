@@ -31,7 +31,7 @@ npm install motion react react-dom tailwindcss
 > `@cherrystudio/ui/styles/tokens.css`
 > `@cherrystudio/ui/styles/theme.css`
 >
-### Two Integration Modes
+### Three Integration Modes
 
 #### Mode 1: Full Theme Contract ✨
 
@@ -67,9 +67,25 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 <div className="rounded-round">Full radius (999px)</div>
 ```
 
-#### Mode 2: Selective Token Consumption 🎯
+#### Mode 2: Semantic CSS Contract
 
-Import only the design tokens and decide which theme mappings your app wants to expose.
+Import the official Shadcn and Cherry Studio product variables without installing Tailwind mappings.
+
+```css
+/* app.css */
+@import '@cherrystudio/ui/styles/contract.css';
+```
+
+**Characteristics:**
+
+- ✅ Exposes official variables such as `--background`, `--primary`, and `--sidebar`
+- ✅ Exposes approved product variables such as `--cs-success` and `--cs-chat-user`
+- ✅ Preserves the required foundation → Shadcn → product import order
+- ✅ Works for CSS Modules, CSS-in-JS, and non-Tailwind consumers
+
+#### Mode 3: Selective Foundation Consumption 🎯
+
+Import only primitives and existing foundation providers, then decide which values your design system exposes.
 
 ```css
 /* app.css */
@@ -87,9 +103,10 @@ Import only the design tokens and decide which theme mappings your app wants to 
 **Characteristics:**
 
 - ✅ Does not override the full Tailwind theme
-- ✅ Gives access to all Cherry Studio design tokens through CSS variables (`var(--cs-primary)`, `var(--cs-red-500)`)
+- ✅ Gives access to Cherry Studio foundation values (`var(--cs-primary)`, `var(--cs-red-500)`)
 - ✅ Lets you choose what to adopt and what to keep
-- ✅ Works well when you already have a design system and only want selected Cherry Studio tokens
+- ✅ Works when you already own the semantic contract and only need selected Cherry Studio foundations
+- ⚠️ Does not expose the complete Shadcn or Cherry Studio product contract
 
 **Example:**
 
@@ -132,8 +149,9 @@ Default consumption rules:
 
 1. Regular application packages should depend on `@cherrystudio/ui/styles/theme.css` by default
 2. Components should prefer semantic utilities such as `bg-background`, `text-muted-foreground`, and `bg-success`; custom CSS may use the matching official or product variable
-3. Only design-system-adjacent packages that explicitly need token-level access should depend on `@cherrystudio/ui/styles/tokens.css`
-4. Runtime theme logic should only write to controlled entry variables such as `--cs-theme-*`, not directly to derived `--color-*` variables
+3. Non-Tailwind consumers should depend on `@cherrystudio/ui/styles/contract.css`
+4. Only design-system-adjacent packages that explicitly need foundation-level access should depend on `@cherrystudio/ui/styles/tokens.css`
+5. Runtime theme logic should only write to controlled entry variables such as `--cs-theme-*`, not directly to derived `--color-*` variables
 
 ## Usage
 

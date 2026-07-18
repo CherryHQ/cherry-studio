@@ -4,6 +4,7 @@
   "defaultKind": "css-custom-property",
   "exclude": [
     "packages/ui/src/styles/theme.css",
+    "packages/ui/src/styles/contract.css",
     "packages/ui/src/styles/shadcn.css",
     "packages/ui/src/styles/product.css",
     "packages/ui/src/styles/tokens/**",

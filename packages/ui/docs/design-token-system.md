@@ -28,15 +28,28 @@ The new system does not create another independent palette. It creates two expli
 values already shipped by Cherry Studio:
 
 ```text
-existing values
-   ├── official Shadcn semantics ──────────┐
-   │   (--background, --primary, ...)      │
-   │                                      ├── Tailwind @theme inline adapter
-   └── Cherry Studio product semantics ───┘   (--color-background, --color-success, ...)
-       (--cs-success, --cs-{domain}-*, ...)                │
-                                                           ▼
-                                         bg-background / bg-success / ...
+foundation values
+  (--cs-brand-*, existing providers)
+              │
+              ▼
+official Shadcn semantics
+  (--background, --primary, ...)
+              │
+              ▼
+Cherry Studio product semantics
+  (--cs-success, --cs-{domain}-*, ...)
+              │
+              ▼
+Tailwind @theme inline adapter
+  (--color-background, --color-success, ...)
+              │
+              ▼
+semantic utilities
+  (bg-background, bg-success, ...)
 ```
+
+The public entries reflect that graph: `tokens.css` exposes foundations, `contract.css` composes the semantic CSS
+contract, and generated `theme.css` adds the Tailwind adapter.
 
 During migration, compatibility variables point toward this flow. Official and product semantic variables
 must never point to `--color-*`, `--app-*`, or legacy variables.
