@@ -18,7 +18,6 @@ import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -112,20 +111,19 @@ export interface AgentChatRuntimeState {
 }
 
 interface UseAgentChatRuntimeStateParams {
-  session: AgentSessionEntity
+  sessionId: string
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
 }
 
 export function useAgentChatRuntimeState({
-  session,
+  sessionId,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
-  const sessionId = session.id
-  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
     isLoading,

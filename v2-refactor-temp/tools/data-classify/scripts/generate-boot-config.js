@@ -20,7 +20,7 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
     sourceCategory: 'legacy-home',
     originalKey: 'appDataPath',
     targetKey: 'app.user_data_path',
-    type: 'Record<string, string>',
+    zodType: 'z.record(z.string(), z.string())',
     defaultValue: 'VALUE: {}',
     jsdoc: [
       'Custom user data directory, keyed by executable path.',
@@ -42,10 +42,27 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
     sourceCategory: 'transient',
     originalKey: 'userDataRelocation',
     targetKey: 'temp.user_data_relocation',
-    type:
-      "\n    | { status: 'pending'; taskId: string; from: string; to: string; copy: boolean }" +
-      "\n    | { status: 'failed'; taskId: string; from: string; to: string; copy: boolean; error: string; failedAt: string }" +
-      '\n    | null',
+    zodType:
+      'z\n' +
+      '    .union([\n' +
+      '      z.object({\n' +
+      "        status: z.literal('pending'),\n" +
+      '        taskId: z.string(),\n' +
+      '        from: z.string(),\n' +
+      '        to: z.string(),\n' +
+      '        copy: z.boolean()\n' +
+      '      }),\n' +
+      '      z.object({\n' +
+      "        status: z.literal('failed'),\n" +
+      '        taskId: z.string(),\n' +
+      '        from: z.string(),\n' +
+      '        to: z.string(),\n' +
+      '        copy: z.boolean(),\n' +
+      '        error: z.string(),\n' +
+      '        failedAt: z.string()\n' +
+      '      })\n' +
+      '    ])\n' +
+      '    .nullable()',
     defaultValue: null,
     jsdoc: [
       'In-flight relocation of the Electron userData directory tree',
@@ -178,22 +195,27 @@ class BootConfigGenerator {
     return deduplicatedData
   }
 
-  mapType(itemType, defaultValue) {
-    if (itemType && itemType !== 'unknown') {
-      if (itemType === 'boolean') return 'boolean'
-      if (itemType === 'string') return 'string'
-      if (itemType === 'number') return 'number'
-      return itemType
-    }
+  /**
+   * Map an item to its emitted zod schema expression.
+   *
+   * Only explicit `zodType` (manual items) and explicit simple `type`
+   * (classification items) are accepted. Deliberately NEVER falls back to
+   * `typeof defaultValue` like the old interface-type mapper did: a
+   * 'VALUE: xxx' escape string would masquerade as a string default and
+   * silently emit the wrong schema. Unknown types abort generation loudly.
+   */
+  mapZodType(item) {
+    if (item.zodType) return item.zodType
 
-    if (defaultValue !== null && defaultValue !== undefined) {
-      const valueType = typeof defaultValue
-      if (valueType === 'boolean' || valueType === 'string' || valueType === 'number') {
-        return valueType
-      }
+    const ZOD_TYPE_MAP = { boolean: 'z.boolean()', string: 'z.string()', number: 'z.number()' }
+    const mapped = ZOD_TYPE_MAP[item.type]
+    if (!mapped) {
+      throw new Error(
+        `No zod mapping for bootConfig item '${item.targetKey}' (type: ${item.type}). ` +
+          `Add an explicit zodType or a simple type (boolean/string/number).`
+      )
     }
-
-    return 'unknown'
+    return mapped
   }
 
   formatDefaultValue(value) {
@@ -230,6 +252,10 @@ class BootConfigGenerator {
  * small MANUAL_BOOT_CONFIG_ITEMS list in generate-boot-config.js for keys
  * that don't fit classification.json's model yet, e.g. config-file sources).
  *
+ * The zod schema is the single source of truth: the BootConfigSchema type
+ * is inferred from it, and BootConfigService validates file/set values
+ * against it at runtime.
+ *
  * To update this file, either modify classification.json or the manual list
  * in the generator, then run:
  * node v2-refactor-temp/tools/data-classify/scripts/generate-boot-config.js
@@ -237,22 +263,29 @@ class BootConfigGenerator {
  * === AUTO-GENERATED CONTENT START ===
  */`
 
-    let interfaceCode = 'export interface BootConfigSchema {\n'
+    // Namespace form required by eslint's import-zod/prefer-zod-namespace —
+    // emitting `import { z }` would make every regeneration lint-dirty.
+    const importCode = "import * as z from 'zod'"
+
+    let schemaCode = 'export const bootConfigSchema = z.object({\n'
     sortedData.forEach((item, index) => {
-      const tsType = this.mapType(item.type, item.defaultValue)
+      const zodExpr = this.mapZodType(item)
       // Optional JSDoc block (currently only emitted for manual items).
       if (Array.isArray(item.jsdoc) && item.jsdoc.length > 0) {
-        if (index > 0) interfaceCode += '\n'
-        interfaceCode += '  /**\n'
+        if (index > 0) schemaCode += '\n'
+        schemaCode += '  /**\n'
         for (const line of item.jsdoc) {
-          interfaceCode += line.length > 0 ? `   * ${line}\n` : '   *\n'
+          schemaCode += line.length > 0 ? `   * ${line}\n` : '   *\n'
         }
-        interfaceCode += '   */\n'
+        schemaCode += '   */\n'
       }
-      interfaceCode += `  // ${item.source}/${item.sourceCategory}/${item.originalKey}\n`
-      interfaceCode += `  '${item.targetKey}': ${tsType}\n`
+      schemaCode += `  // ${item.source}/${item.sourceCategory}/${item.originalKey}\n`
+      const isLast = index === sortedData.length - 1
+      schemaCode += `  '${item.targetKey}': ${zodExpr}${isLast ? '' : ','}\n`
     })
-    interfaceCode += '}'
+    schemaCode += '})'
+
+    const typeCode = 'export type BootConfigSchema = z.infer<typeof bootConfigSchema>'
 
     let defaultsCode = 'export const DefaultBootConfig: BootConfigSchema = {\n'
     sortedData.forEach((item, index) => {
@@ -264,7 +297,7 @@ class BootConfigGenerator {
 
     const footer = '// === AUTO-GENERATED CONTENT END ==='
 
-    return [header, '', interfaceCode, '', defaultsCode, '', footer, ''].join('\n')
+    return [header, '', importCode, '', schemaCode, '', typeCode, '', defaultsCode, '', footer, ''].join('\n')
   }
 
   writeFile(content) {

@@ -70,10 +70,13 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 
 ### Error Handling
 
-- Tracks load errors: `parse_error` (invalid JSON) or `read_error` (file inaccessible)
+- Tracks load errors: `parse_error` (invalid JSON), `read_error` (file inaccessible), or `validation_error` (valid JSON with values failing the zod schema)
 - **Missing file** (first launch): falls back to `DefaultBootConfig` — this is normal
-- **Corrupt file**: records the error via `loadError`. The app should check `hasLoadError()` and **abort startup** rather than continue with potentially incorrect configuration
+- **Corrupt file** (`parse_error` / `read_error`): records the error via `loadError`; all values fall back to defaults
+- **Invalid values** (`validation_error`): every present key is validated against `bootConfigSchema` on load; invalid keys fall back to defaults (listed in `loadError.invalidKeys`) while valid keys are kept. A non-object file root is also a `validation_error`
+- `Application.bootstrap()` checks `hasLoadError()` before any services start and shows a recovery dialog. Validation errors offer "Repair and Restart" (`repair()` — rewrite the file keeping the valid keys); parse errors offer "Reset and Restart" (`reset()` — delete the file); read errors offer plain "Restart"
 - Errors can be inspected via `hasLoadError()` / `getLoadError()` / `clearLoadError()`
+- `set()` throws on values failing the schema before any state change — the single runtime enforcement point covering typed callers, the Preference IPC route, and `BootConfigMigrator` (which skips invalid v1 values at prepare time)
 
 ## Architecture
 
@@ -187,7 +190,7 @@ Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
 | ------------------------------------------------------ | -------------------------------------------------------------- |
 | `src/main/data/bootConfig/BootConfigService.ts`        | Core service — sync load, debounced save, change notifications |
 | `src/main/data/bootConfig/types.ts`                    | `BootConfigLoadError` type definition                          |
-| `src/shared/data/bootConfig/bootConfigSchemas.ts` | `BootConfigSchema` interface and `DefaultBootConfig`           |
+| `src/shared/data/bootConfig/bootConfigSchemas.ts` | `bootConfigSchema` (zod, single source), inferred `BootConfigSchema` type, `DefaultBootConfig` |
 | `src/shared/data/bootConfig/bootConfigTypes.ts`   | `BootConfigKey`, `Public`/`InternalBootConfigKey`, `BootConfigPreferenceKeys` mapped type |
 | `src/shared/data/preference/preferenceUtils.ts`   | `BootConfig.*` prefix routing + `isPublicBootConfigKey` whitelist guard |
 | `src/main/data/PreferenceService.ts`                   | Routes `BootConfig.*` keys to `bootConfigService`              |
