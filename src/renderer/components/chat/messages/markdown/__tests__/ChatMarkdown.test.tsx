@@ -34,7 +34,8 @@ vi.mock('../../MessageListProvider', () => ({
 }))
 
 vi.mock('@renderer/components/markdown', () => ({
-  useMarkdownComponents: () => ({})
+  useMarkdownComponents: () => ({}),
+  remarkFileLinks: () => () => {}
 }))
 
 vi.mock('@renderer/components/chat/messages/tools/shared/ClickableFilePath', () => ({

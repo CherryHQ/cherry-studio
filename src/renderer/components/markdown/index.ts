@@ -6,5 +6,6 @@
  */
 
 export { default as Link } from './Link'
+export { remarkFileLinks } from './remarkFileLinks'
 export { StaticMarkdown } from './StaticMarkdown'
 export { useMarkdownComponents } from './useMarkdownComponents'

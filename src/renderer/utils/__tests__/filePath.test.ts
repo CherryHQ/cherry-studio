@@ -47,8 +47,11 @@ describe('parseFileLinkHref', () => {
     ['C:/Users/Alice/project/README.md', 'C:/Users/Alice/project/README.md'],
     ['C:\\Users\\Alice\\project\\README.md', 'C:\\Users\\Alice\\project\\README.md'],
     ['C:/Users/Alice/notes.md#top', 'C:/Users/Alice/notes.md'],
-    // file: URLs → pathname
-    ['file:///Users/x.md', '/Users/x.md']
+    // Rooted drive path (the form remarkFileLinks emits) is un-rooted back to `C:/…`
+    ['/C:/Users/Alice/project/README.md', 'C:/Users/Alice/project/README.md'],
+    ['/D:/Docs/Meeting%20Notes.md#top', 'D:/Docs/Meeting Notes.md'],
+    // A real POSIX absolute path keeps its leading slash (no drive letter follows it)
+    ['/abs/C-notes/x.md', '/abs/C-notes/x.md']
   ])('parses %s → %s', (href, expected) => {
     expect(parseFileLinkHref(href)).toBe(expected)
   })
@@ -57,6 +60,7 @@ describe('parseFileLinkHref', () => {
     ['https://example.com/page.md'], // external https
     ['http://localhost:5173/x.md'], // external http
     ['mailto:a@b.com'],
+    ['file:///Users/x.md'], // file: is blocked upstream by rehype-harden → treated as external
     ['//cdn.example.com/x.md'], // protocol-relative
     ['#section'], // in-page anchor
     [''],

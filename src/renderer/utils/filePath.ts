@@ -52,9 +52,14 @@ export const isWindowsDrivePath = (value: string): boolean => /^[A-Za-z]:[\\/]/.
  * return the decoded filesystem path to open, or `null` for external links.
  *
  * File vs external is decided by URL scheme (`http`/`https`/`mailto`/… → external;
- * schemeless or `file:` → file), except Windows drive paths (`C:/…`), whose leading
- * `C:` must not be mistaken for a scheme. Query and hash are stripped and
- * percent-encoding decoded, so `./Docs%20Notes.md#section` opens `./Docs Notes.md`.
+ * schemeless → file), except Windows drive paths (`C:/…`), whose leading `C:` must
+ * not be mistaken for a scheme. Query and hash are stripped and percent-encoding
+ * decoded, so `./Docs%20Notes.md#section` opens `./Docs Notes.md`.
+ *
+ * A leading slash in front of a drive letter (`/C:/Users/…`) is dropped: that is
+ * the rooted form `remarkFileLinks` rewrites drive paths into so they survive the
+ * markdown sanitize/harden pipeline (`file://` is not an option — rehype-harden
+ * hard-blocks the `file:` scheme).
  *
  * This is the link-boundary counterpart to `isInlineFilePath` (which classifies
  * inline *text*): any non-external target is treated as a file, so single-segment
@@ -66,20 +71,16 @@ export function parseFileLinkHref(href: string | undefined): string | null {
   // Guard Windows drive paths before the generic scheme check: `C:/…` must not
   // parse as scheme `c`.
   const scheme = isWindowsDrivePath(href) ? undefined : /^([a-z][a-z0-9+.-]*):/i.exec(href)?.[1]?.toLowerCase()
-  if (scheme && scheme !== 'file') return null // http(s), mailto, tel, … → external
+  if (scheme) return null // http(s), mailto, tel, file, … → external / non-openable
   let path = href.replace(/[?#].*$/, '') // drop query + hash
-  if (scheme === 'file') {
-    try {
-      path = new URL(path).pathname
-    } catch {
-      return null
-    }
-  }
   if (!path) return null
   try {
     path = decodeURIComponent(path)
   } catch {
     // keep raw path on malformed percent-encoding
   }
+  // Un-root a drive path (`/C:/Users/…` → `C:/Users/…`); a real POSIX path such as
+  // `/home/user/x` has no drive letter after the slash and is left as-is.
+  if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1)
   return path || null
 }

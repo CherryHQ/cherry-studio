@@ -8,7 +8,7 @@ import {
 } from '@renderer/components/chat/messages/MessageListProvider'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { openFileTarget } from '@renderer/components/chat/messages/tools/shared/openFileTarget'
-import { useMarkdownComponents } from '@renderer/components/markdown'
+import { remarkFileLinks, useMarkdownComponents } from '@renderer/components/markdown'
 import { type MarkdownHost, MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
@@ -26,6 +26,9 @@ interface Props {
 }
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
+
+/** Stable identity so the memoized markdown block isn't invalidated each render. */
+const REMARK_PLUGINS = [remarkFileLinks]
 
 const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) => {
   const { t } = useTranslation()
@@ -89,6 +92,7 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
           id={block.id}
           plugins={plugins}
           components={mergedComponents}
+          remarkPlugins={REMARK_PLUGINS}
           footnoteLabel={footnoteLabel}
           animated={isStreaming ? undefined : false}
           parseIncompleteMarkdown={isStreaming}>
@@ -103,6 +107,7 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
         id={block.id}
         plugins={plugins}
         components={mergedComponents}
+        remarkPlugins={REMARK_PLUGINS}
         className={className}
         footnoteLabel={footnoteLabel}>
         {content}

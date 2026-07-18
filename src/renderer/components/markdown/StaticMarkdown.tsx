@@ -6,7 +6,11 @@ import { processLatexBrackets } from '@renderer/utils/markdown'
 import { type FC, useId, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { remarkFileLinks } from './remarkFileLinks'
 import { useMarkdownComponents } from './useMarkdownComponents'
+
+/** Stable identity so the memoized markdown block isn't invalidated each render. */
+const REMARK_PLUGINS = [remarkFileLinks]
 
 interface Props {
   children: string
@@ -39,6 +43,7 @@ export const StaticMarkdown: FC<Props> = ({ children, id, className }) => {
       id={blockId}
       plugins={plugins}
       components={components}
+      remarkPlugins={REMARK_PLUGINS}
       className={className}
       footnoteLabel={t('common.footnotes')}>
       {content}
