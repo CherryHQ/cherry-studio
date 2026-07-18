@@ -47,6 +47,16 @@ describe('validateThemeContractSources', () => {
     expect(() => validateThemeContractSources(sources)).toThrow(/light variable cycle/)
   })
 
+  it('rejects a stable product role that depends on migration-only behavior', async () => {
+    const sources = await loadSources()
+    sources.product = sources.product.replace(
+      '--cs-chat-user-foreground: var(--foreground);',
+      '--cs-chat-user-foreground: var(--cs-text-primary);'
+    )
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/stable product .* cannot depend on migration-only/)
+  })
+
   it('rejects an ambiguous semantic entry order', async () => {
     const sources = await loadSources()
     sources.contractEntry = sources.contractEntry.replace(

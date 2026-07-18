@@ -289,6 +289,7 @@ with:
 
 ```text
 --cs-background-subtle
+--cs-background-subtle-foreground
 --cs-border-subtle
 --cs-border-strong
 ```
@@ -314,6 +315,10 @@ Each intent has the same shape:
 
 `destructive` and `error` are distinct. `destructive` styles a dangerous action; `error` communicates system
 feedback. They may share palette values without sharing semantics.
+
+Every stable product surface has a declared foreground in `CHERRY_PRODUCT_SURFACE_PAIRS`. A component using a
+product surface must use its paired foreground instead of guessing `foreground`, white, or black. Stable product
+variables may depend on official Shadcn variables or foundations, but never on migration-only variables.
 
 Hover and active colors are component-state decisions. The shared contract does not multiply every intent into
 global `hover` and `active` variables.

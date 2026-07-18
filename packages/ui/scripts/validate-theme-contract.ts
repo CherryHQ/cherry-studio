@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url'
 import {
   CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS,
   CHERRY_PRODUCT_COLOR_TOKENS,
+  CHERRY_PRODUCT_SURFACE_PAIRS,
   CHERRY_PRODUCT_VARIABLE_TOKENS,
   CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS,
+  SHADCN_SURFACE_PAIRS,
   SHADCN_VARIABLE_TOKENS
 } from './theme-contract'
 
@@ -73,6 +75,24 @@ function extractImports(source: string): string[] {
 function assertUnique(label: string, values: readonly string[]): void {
   if (new Set(values).size !== values.length) {
     throw new Error(`[theme-contract] ${label} contains duplicate names`)
+  }
+}
+
+function assertSurfacePairs(
+  label: string,
+  pairs: ReadonlyArray<readonly [surface: string, foreground: string]>,
+  variableNames: Set<string>
+): void {
+  const surfaces = new Set<string>()
+
+  for (const [surface, foreground] of pairs) {
+    if (surface === foreground || surfaces.has(surface)) {
+      throw new Error(`[theme-contract] ${label} has an invalid or duplicate surface pair for ${surface}`)
+    }
+    if (!variableNames.has(surface) || !variableNames.has(foreground)) {
+      throw new Error(`[theme-contract] ${label} pair ${surface} / ${foreground} is outside its public contract`)
+    }
+    surfaces.add(surface)
   }
 }
 
@@ -207,6 +227,7 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
   const stableVariables = new Set<string>(CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS)
   const migrationVariables = new Set<string>(CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS)
   const productVariables = new Set<string>(CHERRY_PRODUCT_VARIABLE_TOKENS)
+  const shadcnVariables = new Set<string>(SHADCN_VARIABLE_TOKENS)
 
   for (const token of stableVariables) {
     if (migrationVariables.has(token)) {
@@ -218,6 +239,8 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
       throw new Error(`[theme-contract] Tailwind product color ${token} is missing from the product contract`)
     }
   }
+  assertSurfacePairs('Shadcn contract', SHADCN_SURFACE_PAIRS, shadcnVariables)
+  assertSurfacePairs('product contract', CHERRY_PRODUCT_SURFACE_PAIRS, stableVariables)
 
   assertExactImports('tokens.css', sources.tokensEntry, ['./tokens/index.css'])
   assertExactImports('contract.css', sources.contractEntry, ['./tokens.css', './shadcn.css', './product.css'])
@@ -240,6 +263,20 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
 
   assertRequiredDeclarations('Shadcn contract', rootDeclarations, SHADCN_VARIABLE_TOKENS, '--')
   assertRequiredDeclarations('product contract', rootDeclarations, CHERRY_PRODUCT_VARIABLE_TOKENS, '--cs-')
+
+  const migrationVariableNames = new Set(CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`))
+  for (const token of CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS) {
+    const name = `--cs-${token}`
+    const declaration = rootDeclarations.get(name)
+    if (!declaration) continue
+
+    const migrationDependency = extractReferences(declaration.value).find((reference) =>
+      migrationVariableNames.has(reference)
+    )
+    if (migrationDependency) {
+      throw new Error(`[theme-contract] stable product ${name} cannot depend on migration-only ${migrationDependency}`)
+    }
+  }
 
   const productDeclarationNames = new Set(
     extractDeclarations(sources.product, 'product.css').map((declaration) => declaration.name)

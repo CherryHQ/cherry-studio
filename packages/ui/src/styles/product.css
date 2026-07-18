@@ -8,6 +8,9 @@
  */
 
 :root {
+  /* Stable product-wide surface */
+  --cs-background-subtle-foreground: var(--foreground);
+
   /* Migration parity: content hierarchy */
   --cs-text-primary: var(--foreground);
   --cs-text-secondary: var(--cs-foreground-secondary);
@@ -23,11 +26,11 @@
   --cs-fill-secondary: var(--cs-background-soft);
   --cs-frame-border: #ddd;
   --cs-group-background: var(--cs-background-soft);
-  --cs-modal: var(--card);
 
   /* Stable product domain: rich text and code */
   --cs-link: #1677ff;
   --cs-code-block: #e3e3e3;
+  --cs-code-block-foreground: var(--foreground);
   --cs-inline-code: rgba(0, 0, 0, 0.06);
   --cs-inline-code-foreground: rgb(218, 97, 92);
 
@@ -45,16 +48,22 @@
 
   /* Stable product domain: lists and navigation shell */
   --cs-list-item: #fff;
+  --cs-list-item-foreground: var(--foreground);
   --cs-list-item-hover: #fafafa;
   --cs-list-item-radius: var(--cs-radius-lg);
   --cs-navbar-translucent: rgba(255, 255, 255, 0.55);
   --cs-navbar: rgb(244, 244, 244);
+  --cs-navbar-foreground: var(--foreground);
+  --cs-modal: var(--card);
+  --cs-modal-foreground: var(--foreground);
 
   /* Stable product domain: conversation surfaces */
   --cs-chat: transparent;
+  --cs-chat-foreground: var(--foreground);
   --cs-chat-user: rgba(0, 0, 0, 0.045);
   --cs-chat-assistant: transparent;
-  --cs-chat-user-foreground: var(--cs-text-primary);
+  --cs-chat-assistant-foreground: var(--cs-chat-foreground);
+  --cs-chat-user-foreground: var(--foreground);
 
   /* Migration parity: platform compatibility colors */
   --cs-system-gray-1: #8e8e93;
@@ -69,6 +78,7 @@
 
   /* Stable product domain: application shell effects */
   --cs-sidebar-active-bg: rgba(16, 185, 129, 0.08);
+  --cs-sidebar-active-foreground: var(--sidebar-foreground);
   --cs-sidebar-active-border: rgba(16, 185, 129, 0.15);
   --cs-sidebar-glow-bg: rgba(16, 185, 129, 0.25);
   --cs-sidebar-glow-line: rgba(16, 185, 129, 0.5);
@@ -77,7 +87,6 @@
 .dark {
   /* Migration parity: layered application surfaces */
   --cs-frame-border: #333;
-  --cs-modal: #111;
 
   /* Stable product domain: rich text and code */
   --cs-link: #338cff;
@@ -101,6 +110,7 @@
   --cs-list-item-hover: rgba(255, 255, 255, 0.05);
   --cs-navbar-translucent: rgba(20, 20, 20, 0.55);
   --cs-navbar: #1f1f1f;
+  --cs-modal: #111;
 
   /* Stable product domain: conversation surfaces */
   --cs-chat-user: rgba(255, 255, 255, 0.08);
