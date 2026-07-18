@@ -33,7 +33,7 @@ import {
 } from '@shared/ai/claudecode/toolRegistry'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
-import { Sparkles, Wrench } from 'lucide-react'
+import { ToolCase, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -700,7 +700,7 @@ function AgentToolsFields({
         id: skill.id,
         name: skill.name,
         description: skill.description,
-        icon: <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" />
+        icon: <ToolCase size={13} strokeWidth={1.5} className="text-amber-500/60" />
       })),
     [skills]
   )
