@@ -8,8 +8,14 @@ import {
   loadThemeContractInputs,
   SHADCN_COLOR_TOKENS
 } from '../build-theme-css'
+import { assertGeneratedThemeCssCurrent } from '../check-theme-contract'
 
 describe('buildThemeContractCss', () => {
+  it('detects stale generated theme output', () => {
+    expect(() => assertGeneratedThemeCssCurrent('current', 'current')).not.toThrow()
+    expect(() => assertGeneratedThemeCssCurrent('stale', 'current')).toThrow('generated theme.css is stale')
+  })
+
   it('maps token sources into the public theme contract', async () => {
     const stylesDir = path.resolve(import.meta.dirname, '../../src/styles')
     const css = buildThemeContractCss(await loadThemeContractInputs(stylesDir))

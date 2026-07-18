@@ -201,7 +201,7 @@ pnpm build
 # Type check
 pnpm type:check
 
-# Validate variable ownership, layering, references, and cycles
+# Validate the variable graph, generated adapter, registry, and compatibility bridges
 pnpm theme:check
 
 # Run tests

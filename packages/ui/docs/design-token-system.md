@@ -455,10 +455,12 @@ The generated contract must validate that:
 - every Tailwind semantic color maps to its official or product semantic variable with `@theme inline`;
 - no source addition silently expands the canonical API;
 - generated CSS matches committed output;
-- migration records use a known strategy and do not contain duplicate sources.
+- migration records use a known strategy and do not contain duplicate sources;
+- renderer compatibility declarations remain single canonical aliases with matching exact migration rules.
 
-Run `pnpm --filter @cherrystudio/ui theme:check` for the contract-only validation. `theme:build` runs the same
-validation before writing generated CSS, so an invalid graph cannot silently regenerate the adapter.
+Run `pnpm --filter @cherrystudio/ui theme:check` to validate the canonical graph, committed generated CSS,
+migration registry, and renderer bridges together. `theme:build` reruns the canonical graph validation before
+writing generated CSS, so an invalid graph cannot silently regenerate the adapter.
 
 ## 9. Delivery in this PR
 

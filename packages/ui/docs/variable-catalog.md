@@ -177,7 +177,8 @@ Before adding a variable:
 5. Define a root value and ensure light/dark resolution is intentional.
 6. Add the name to `theme-contract.ts`; add Tailwind exposure only when semantic utilities are required.
 7. Add migration metadata when replacing an existing name.
-8. Run `pnpm --filter @cherrystudio/ui theme:check` and `theme:build`.
+8. Run `theme:build`, then `pnpm --filter @cherrystudio/ui theme:check`; the check also covers generated output,
+   migration rules, and renderer compatibility bridges.
 9. Update this catalog and the relevant visual guidance.
 
 ## 8. Rules for AI-generated code
