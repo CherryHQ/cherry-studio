@@ -79,6 +79,21 @@ describe('HtmlArtifactView', () => {
     )
   })
 
+  it('keeps a static HTML fallback outside the live preview capture boundary', () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const fallback = screen.getByTestId('html-artifact-capture-fallback')
+    const previewFrame = screen.getByTestId('html-preview-frame')
+    const livePreview = previewFrame.parentElement
+    if (!livePreview) throw new Error('Expected live HTML preview wrapper')
+
+    expect(fallback).toHaveTextContent('Preview')
+    expect(fallback).toHaveTextContent('<main>Page</main>')
+    expect(livePreview).toHaveAttribute('data-html-artifact-live-preview')
+    expect(livePreview).not.toContainElement(fallback)
+    expect(livePreview.parentElement).toContainElement(fallback)
+  })
+
   it('zooms the HTML viewport without changing the message dimensions', () => {
     render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
 

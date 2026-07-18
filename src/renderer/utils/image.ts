@@ -142,6 +142,13 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
+          // Live HTML artifact previews can navigate or contain cross-origin frames.
+          // html-to-image recursively reads iframe documents while cloning, which can
+          // throw a SecurityError. The component keeps a static sibling fallback for
+          // image exports, so omit only the live preview subtree here.
+          if (node.hasAttribute('data-html-artifact-live-preview')) {
+            return false
+          }
           if (node.style.display === 'none') {
             return false
           }

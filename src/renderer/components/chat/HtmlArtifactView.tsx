@@ -66,13 +66,28 @@ const DesktopHtmlPreview = memo(function DesktopHtmlPreview({
         style={{ width: DESKTOP_VIEWPORT_WIDTH, height: DESKTOP_VIEWPORT_HEIGHT }}>
         <div
           data-testid="desktop-html-zoom-layer"
-          className="origin-top-left"
+          className="relative origin-top-left"
           style={{
             width: `${100 / zoomScale}%`,
             height: `${100 / zoomScale}%`,
             transform: `scale(${zoomScale})`
           }}>
-          <HtmlPreviewFrame html={html} title={title} />
+          {/* html-to-image skips the live iframe and captures this inert source snapshot instead. */}
+          <div
+            aria-hidden="true"
+            data-testid="html-artifact-capture-fallback"
+            className="absolute inset-0 flex flex-col overflow-hidden bg-muted p-6 text-foreground">
+            <div className="mb-4 flex shrink-0 items-center gap-2 text-foreground-muted text-xs">
+              <Code2 className="size-4 shrink-0" />
+              <span className="truncate">{title}</span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
+              {html}
+            </div>
+          </div>
+          <div data-html-artifact-live-preview className="absolute inset-0">
+            <HtmlPreviewFrame html={html} title={title} />
+          </div>
         </div>
       </div>
     </div>
