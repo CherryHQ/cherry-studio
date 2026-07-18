@@ -200,6 +200,9 @@ pnpm build
 # Type check
 pnpm type:check
 
+# Validate variable ownership, layering, references, and cycles
+pnpm theme:check
+
 # Run tests
 pnpm test
 ```

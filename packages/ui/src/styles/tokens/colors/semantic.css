@@ -35,7 +35,6 @@
   --cs-border-subtle: oklch(0 0 0 / 0.04);
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
-  --cs-frame-border: oklch(0 0 0 / 0.12);
   --cs-border-strong: var(--cs-border-hover);
 
   /* Ring (Focus) */
@@ -103,7 +102,6 @@
   --cs-border-subtle: oklch(1 0 0 / 0.05);
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
-  --cs-frame-border: oklch(1 0 0 / 0.14);
 
   /* Ring (Focus) - 保持不变 */
   --cs-ring: oklch(0.76 0.204 131 / 0.4);

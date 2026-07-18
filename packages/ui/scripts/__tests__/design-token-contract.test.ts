@@ -8,7 +8,8 @@ import {
   CHERRY_PRODUCT_COLOR_TOKENS,
   CHERRY_PRODUCT_VARIABLE_TOKENS,
   CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS,
-  SHADCN_COLOR_TOKENS
+  SHADCN_COLOR_TOKENS,
+  SHADCN_VARIABLE_TOKENS
 } from '../theme-contract'
 
 const STYLES_DIR = path.resolve(import.meta.dirname, '../../src/styles')
@@ -105,7 +106,7 @@ describe('design token contract', () => {
     const source = await fs.readFile(path.join(STYLES_DIR, 'migrations/shadcn-v2.json'), 'utf8')
     const registry = JSON.parse(source) as MigrationRegistry
     const canonicalVariableNames = new Set<string>([
-      ...SHADCN_COLOR_TOKENS.map((token) => `--${token}`),
+      ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
       ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`)
     ])
     const sourceNames = registry.rules.map((rule) => rule.source)
@@ -141,7 +142,7 @@ describe('design token contract', () => {
     ])
     const registry = JSON.parse(registrySource) as MigrationRegistry
     const canonicalVariableNames = new Set<string>([
-      ...SHADCN_COLOR_TOKENS.map((token) => `--${token}`),
+      ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
       ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`)
     ])
     const legacyDeclarations = extractVariableDeclarations(legacySource, () => true)

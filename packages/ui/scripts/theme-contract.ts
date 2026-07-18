@@ -43,6 +43,8 @@ export const SHADCN_COLOR_TOKENS = [
   'sidebar-ring'
 ] as const
 
+export const SHADCN_VARIABLE_TOKENS = [...SHADCN_COLOR_TOKENS, 'radius'] as const
+
 export const CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS = [
   /* Shared product semantics */
   'background-subtle',

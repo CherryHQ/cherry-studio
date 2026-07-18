@@ -438,11 +438,17 @@ Icons normally inherit `currentColor`; component hover/active states normally st
 The generated contract must validate that:
 
 - all required Shadcn variables exist;
+- every public product variable has exactly one `stable` or `migration` classification;
+- foundation, Shadcn, product, and adapter dependencies remain one-way;
+- no variable has duplicate ownership across authored layers;
+- every light and dark reference resolves and the variable graph has no cycles;
 - every Tailwind semantic color maps to its official or product semantic variable with `@theme inline`;
-- aliases resolve without cycles;
 - no source addition silently expands the canonical API;
 - generated CSS matches committed output;
 - migration records use a known strategy and do not contain duplicate sources.
+
+Run `pnpm --filter @cherrystudio/ui theme:check` for the contract-only validation. `theme:build` runs the same
+validation before writing generated CSS, so an invalid graph cannot silently regenerate the adapter.
 
 ## 9. Delivery in this PR
 
