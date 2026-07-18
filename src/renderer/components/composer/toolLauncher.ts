@@ -46,6 +46,12 @@ export interface ComposerToolLauncher {
   showInActiveControls?: boolean
   disabled?: boolean
   hidden?: boolean
+  /**
+   * QuickPanel symbol of the panel this launcher's `action` opens, when it differs
+   * from `id` (e.g. Knowledge Base opens the `#` panel). Lets the "open by launcherId"
+   * control detect its own panel and toggle it closed on a second activation.
+   */
+  panelSymbol?: string
   submenu?: ComposerToolLauncher[]
   action?: (options: ComposerToolLauncherActionOptions) => void
 }

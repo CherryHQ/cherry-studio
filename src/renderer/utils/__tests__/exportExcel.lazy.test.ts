@@ -19,14 +19,13 @@ describe('exportExcel lazy boundary', () => {
     const { exportTableToExcel } = await import('../exportExcel')
     expect(loaded).not.toHaveBeenCalled()
 
-    // Cancelled folder picker still exercises the xlsx workbook-building path.
+    // Cancelled save dialog still exercises the xlsx workbook-building path.
     Object.assign(window, {
       api: {
         ...window.api,
         file: {
           ...window.api?.file,
-          selectFolder: vi.fn(async () => null),
-          write: vi.fn()
+          save: vi.fn(async () => null)
         }
       }
     })

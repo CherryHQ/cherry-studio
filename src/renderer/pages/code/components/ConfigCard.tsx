@@ -1,8 +1,10 @@
-import { Button } from '@cherrystudio/ui'
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { Button, NormalTooltip } from '@cherrystudio/ui'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
+import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
-import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
+import { isApiGatewayProviderId } from '@shared/types/codeCli'
+import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,8 +12,11 @@ export interface ProviderCardProps {
   provider: Provider
   providerName: string
   modelName?: string
+  /** Optional one-line blurb shown under the name — used to promote the unified gateway. */
+  description?: string
   isCurrent: boolean
   dragging?: boolean
+  onMoveToTop?: (provider: Provider) => void
   onConfigure: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
 }
@@ -22,13 +27,16 @@ export const ProviderCard: FC<ProviderCardProps> = ({
   provider,
   providerName,
   modelName,
+  description,
   isCurrent,
   dragging,
+  onMoveToTop,
   onConfigure,
   onToggleCurrent
 }) => {
   const { t } = useTranslation()
-  const providerIcon = resolveProviderIcon(provider.id)
+  const isGateway = isApiGatewayProviderId(provider.id)
+  const providerIcon = useIcon(resolveProviderIconRef(provider.id))
 
   return (
     <div
@@ -46,13 +54,20 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         />
 
         <span aria-hidden className="shrink-0">
-          <ProviderAvatarPrimitive
-            providerId={provider.id}
-            providerName={providerName}
-            logo={providerIcon}
-            size={24}
-            className="rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
-          />
+          {isGateway ? (
+            // The unified gateway wears a broadcast-tower glyph (relay/hub metaphor) instead of a brand logo.
+            <span className="flex size-6 items-center justify-center rounded-md border border-border/30 bg-background text-foreground">
+              <GatewayIcon width={15} height={15} />
+            </span>
+          ) : (
+            <ProviderAvatarPrimitive
+              providerId={provider.id}
+              providerName={providerName}
+              logo={providerIcon}
+              size={24}
+              className="rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
+            />
+          )}
         </span>
 
         <div className="min-w-0 flex-1">
@@ -67,9 +82,23 @@ export const ProviderCard: FC<ProviderCardProps> = ({
               </>
             )}
           </div>
+          {description && <p className="mt-0.5 truncate text-muted-foreground/60 text-xs">{description}</p>}
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
+          {onMoveToTop && (
+            <NormalTooltip content={t('code.move_provider_to_top')} side="top" sideOffset={4} delayDuration={300}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={t('code.move_provider_to_top')}
+                onClick={() => onMoveToTop(provider)}
+                className="size-6 border-border/50">
+                <ArrowUpToLine size={13} />
+              </Button>
+            </NormalTooltip>
+          )}
           <Button
             type="button"
             variant="outline"

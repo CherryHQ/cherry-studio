@@ -189,10 +189,9 @@ export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_M
    * Writes `agent_skill` join rows in the same create transaction. Builtin
    * skills need no id here — they read as enabled by default for every agent
    * (see `AgentGlobalSkillService.list()`) until a row explicitly disables one.
-   * Editing an existing agent's skills goes through the skill toggle IPC (which
-   * also manages workspace symlinks), NOT PATCH /agents — so this is
-   * intentionally absent from AGENT_MUTABLE_FIELDS / UpdateAgentSchema to avoid
-   * a dual-write path.
+   * Editing an existing agent's skills goes through PATCH /agents with
+   * `skillUpdates`. This remains intentionally absent from AGENT_MUTABLE_FIELDS
+   * because join-table updates are applied separately from agent-row fields.
    */
   skillIds: AgentSkillIdSetSchema.optional()
 })
@@ -245,10 +244,11 @@ export const AGENTS_MAX_LIMIT = 500
 /**
  * Query parameters for `GET /agents`.
  * - `search` LIKEs against `name` OR `description` (case-insensitive,
- *   wildcards in the raw input are escaped server-side).
+ *   wildcards in the raw input are escaped server-side), including the localized
+ *   builtin Cherry Assistant fallback when its stored description is blank.
  */
 export const ListAgentsQuerySchema = z.strictObject({
-  /** Free-text match against name OR description (case-insensitive LIKE). */
+  /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
   page: z.int().positive().default(AGENTS_DEFAULT_PAGE),

@@ -1,8 +1,15 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { searchSkills } from '@renderer/utils/skillSearch'
-import type { InstalledSkill, LocalSkill, SkillResult, SkillSearchResult } from '@shared/types/skill'
+import type {
+  InstalledSkill,
+  LocalSkill,
+  SkillResult,
+  SkillSearchResult,
+  SystemSkillCandidate
+} from '@shared/types/skill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useSkills')
@@ -54,7 +61,7 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
   const uninstall = useCallback(
     async (skillId: string) => {
       try {
-        const result = await window.api.skill.uninstall(skillId)
+        const result = await ipcApi.request('skill.uninstall', { skillId })
         unwrapSkillResult(result)
         await refreshSkillsBestEffort(invalidate)
         return true
@@ -128,7 +135,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
     setLocalError(null)
 
     try {
-      const result = await window.api.skill.listLocal(workdir)
+      const result = await ipcApi.request('skill.list_local', { workdir })
       const data = unwrapSkillResult(result)
       if (requestId === localRequestIdRef.current) setLocalSkills(data)
     } catch (error) {
@@ -161,6 +168,78 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
     error: installed.error ?? localError,
     refresh
   }
+}
+
+/** Discover and import skills from known system-level CLI directories. */
+export function useSystemSkills(enabled = true) {
+  const [skills, setSkills] = useState<SystemSkillCandidate[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [importing, setImporting] = useState<Set<string>>(() => new Set())
+  const importingRef = useRef<Set<string>>(new Set())
+  const invalidate = useInvalidateCache()
+  const requestIdRef = useRef(0)
+
+  const discover = useCallback(async () => {
+    const requestId = ++requestIdRef.current
+    if (!enabled) {
+      setSkills([])
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      const discovered = await ipcApi.request('skill.discover_system', {})
+      if (requestId === requestIdRef.current) setSkills(discovered)
+    } catch (cause) {
+      if (requestId !== requestIdRef.current) return
+      const message = skillErrorMessage(cause)
+      setSkills([])
+      setError(message)
+      logger.warn('Failed to discover system skills', { error: message })
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false)
+    }
+  }, [enabled])
+
+  useEffect(() => {
+    void discover()
+    return () => {
+      requestIdRef.current += 1
+    }
+  }, [discover])
+
+  const importSkill = useCallback(
+    async (skill: SystemSkillCandidate): Promise<InstalledSkill | null> => {
+      if (skill.status !== 'available') return null
+      if (importingRef.current.has(skill.id)) return null
+      importingRef.current.add(skill.id)
+      setImporting((current) => new Set(current).add(skill.id))
+      try {
+        const installed = await ipcApi.request('skill.import_system', { directoryPath: skill.directoryPath })
+        await refreshSkillsBestEffort(invalidate)
+        await discover()
+        return installed
+      } catch (cause) {
+        await discover()
+        reportSkillMutationError('import system skill', cause)
+        return null
+      } finally {
+        importingRef.current.delete(skill.id)
+        setImporting((current) => {
+          const next = new Set(current)
+          next.delete(skill.id)
+          return next
+        })
+      }
+    },
+    [discover, invalidate]
+  )
+
+  return { skills, loading, error, importSkill, importing }
 }
 
 /**
@@ -245,7 +324,7 @@ export function useSkillInstall() {
     async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string }> => {
       beginInstalling(installSource)
       try {
-        const skill = unwrapSkillResult(await window.api.skill.install({ installSource }))
+        const skill = unwrapSkillResult(await ipcApi.request('skill.install', { installSource }))
         await refreshSkillsBestEffort(invalidate)
         return { skill }
       } catch (err) {
@@ -261,7 +340,7 @@ export function useSkillInstall() {
     async (zipFilePath: string): Promise<InstalledSkill | null> => {
       beginInstalling('zip')
       try {
-        const skill = unwrapSkillResult(await window.api.skill.installFromZip({ zipFilePath }))
+        const skill = unwrapSkillResult(await ipcApi.request('skill.install_from_zip', { zipFilePath }))
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
@@ -277,7 +356,7 @@ export function useSkillInstall() {
     async (directoryPath: string): Promise<InstalledSkill | null> => {
       beginInstalling('directory')
       try {
-        const skill = unwrapSkillResult(await window.api.skill.installFromDirectory({ directoryPath }))
+        const skill = unwrapSkillResult(await ipcApi.request('skill.install_from_directory', { directoryPath }))
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {

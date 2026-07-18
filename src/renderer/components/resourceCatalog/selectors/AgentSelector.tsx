@@ -9,7 +9,8 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
+import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -100,12 +101,12 @@ export function AgentSelector(props: AgentSelectorProps) {
       ...(data?.items ?? []).map((agent) => ({
         id: agent.id,
         name: agent.name,
-        description: agent.description,
+        description: getAgentDescriptionForDisplay(agent, t),
         emoji: getAgentAvatarFromConfiguration(agent.configuration)
       })),
       ...(additionalItems ?? [])
     ],
-    [additionalItems, data]
+    [additionalItems, data, t]
   )
 
   const handleTogglePin = useCallback(
@@ -158,20 +159,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       let created: AgentDetail
       try {
         created = await createAgent({
-          body: {
-            type: 'claude-code',
-            name: values.name,
-            model: values.modelId,
-            planModel: values.modelId,
-            smallModel: values.modelId,
-            description: values.description,
-            instructions: values.prompt,
-            skillIds: values.skillIds,
-            configuration: {
-              avatar: values.avatar,
-              permission_mode: 'bypassPermissions'
-            }
-          }
+          body: buildCreateAgentDto(values)
         })
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
@@ -191,7 +179,7 @@ export function AgentSelector(props: AgentSelectorProps) {
           props.onChange({
             id: created.id,
             name: created.name,
-            description: created.description,
+            description: getAgentDescriptionForDisplay(created, t),
             emoji: getAgentAvatarFromConfiguration(created.configuration)
           })
         } else {

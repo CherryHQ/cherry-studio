@@ -34,7 +34,7 @@ const assistantGroupActionRegistry = createActionRegistry<AssistantGroupActionCo
 assistantGroupActionRegistry.registerCommand({
   id: 'assistant-group.edit',
   run: ({ assistantId, onEdit }) => {
-    window.requestAnimationFrame(() => onEdit(assistantId))
+    onEdit(assistantId)
   }
 })
 

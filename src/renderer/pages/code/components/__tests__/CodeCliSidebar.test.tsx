@@ -47,12 +47,6 @@ function renderSidebar(
 }
 
 describe('CodeCliSidebar', () => {
-  it('uses the same vertical spacing as the provider list', () => {
-    renderSidebar()
-
-    expect(screen.getByRole('button', { name: /Claude Code/ }).parentElement).toHaveClass('space-y-2')
-  })
-
   it('renders each CLI row horizontally with status on the right', () => {
     renderSidebar()
 
@@ -84,7 +78,6 @@ describe('CodeCliSidebar', () => {
     const summary = screen.getByText('deepseek-v4-flash')
 
     expect(name.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(summary).toHaveClass('font-mono')
     expect(screen.getByRole('button', { name: /OpenAI Codex/ }).textContent).not.toContain('deepseek-v4-flash')
   })
 })

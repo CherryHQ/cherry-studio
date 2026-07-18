@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -252,7 +252,7 @@ export function TabsProvider({
   )
 
   const closeTabs = useCallback(
-    (ids: readonly string[]) => {
+    (ids: readonly string[], activateId?: string) => {
       const closingIdSet = new Set(ids)
       if (closingIdSet.size === 0) return
 
@@ -266,21 +266,43 @@ export function TabsProvider({
       if (fallbackTab) {
         newActiveId = fallbackTab.id
       } else if (closingIdSet.has(activeTabId)) {
-        const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
-        const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
-        const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
-        newActiveId = (leftTab ?? rightTab)?.id ?? ''
+        // Prefer the caller-designated survivor (e.g. the tab whose menu ran
+        // "close others"); otherwise fall back to the nearest neighbor.
+        const preferredTab = activateId ? remainingTabs.find((tab) => tab.id === activateId) : undefined
+        if (preferredTab) {
+          newActiveId = preferredTab.id
+        } else {
+          const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
+          const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
+          const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
+          newActiveId = (leftTab ?? rightTab)?.id ?? ''
+        }
       }
 
       const pinnedIds = new Set(closingTabs.filter(storesPinned).map((tab) => tab.id))
       const normalIds = new Set(closingTabs.filter((tab) => !storesPinned(tab)).map((tab) => tab.id))
 
-      if (pinnedIds.size > 0) {
-        setPinnedTabs((prev) => prev.filter((tab) => !pinnedIds.has(tab.id)))
+      // Activating a tab must also wake it — a dormant tab is not rendered, so
+      // only switching activeTabId would leave the content area blank.
+      const reselectedTab =
+        newActiveId !== activeTabId ? remainingTabs.find((tab) => tab.id === newActiveId) : undefined
+      const wakeInPinned = !!reselectedTab?.isDormant && storesPinned(reselectedTab)
+      const wakeInNormal = !!reselectedTab?.isDormant && !storesPinned(reselectedTab)
+      const wake = (tab: Tab) =>
+        tab.id === newActiveId ? { ...tab, isDormant: false, lastAccessTime: Date.now() } : tab
+
+      if (pinnedIds.size > 0 || wakeInPinned) {
+        setPinnedTabs((prev) => {
+          // The persist-cache updater receives a readonly view and must return
+          // a fresh mutable array, so the no-filter branch copies.
+          const next = pinnedIds.size > 0 ? prev.filter((tab) => !pinnedIds.has(tab.id)) : [...prev]
+          return wakeInPinned ? next.map(wake) : next
+        })
       }
-      if (normalIds.size > 0 || fallbackTab) {
+      if (normalIds.size > 0 || fallbackTab || wakeInNormal) {
         setNormalTabs((prev) => {
-          const next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          let next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          if (wakeInNormal) next = next.map(wake)
           return fallbackTab ? [fallbackTab] : next
         })
       }
@@ -395,7 +417,7 @@ export function TabsProvider({
       if (!tab) return
 
       // Send IPC message to create new window
-      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+      void ipcApi.request('tab.detach', {
         ...tab,
         url: resolveSidebarAppTabEntryUrl(tab)
       })
@@ -440,17 +462,7 @@ export function TabsProvider({
   )
 
   // Listen for tab attach requests (from Main Process)
-  useEffect(() => {
-    if (!window.electron?.ipcRenderer) return
-
-    const handleAttachRequest = (_event: any, tabData: Tab) => {
-      attachTab(tabData)
-    }
-
-    const removeAttachRequest = window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
-
-    return removeAttachRequest
-  }, [attachTab])
+  useIpcOn('tab.attached', (tabData) => attachTab(tabData))
 
   /**
    * Get the currently active tab

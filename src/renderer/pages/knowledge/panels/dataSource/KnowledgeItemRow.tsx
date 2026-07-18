@@ -1,13 +1,15 @@
 import { Checkbox, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
 import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,12 +28,28 @@ export interface KnowledgeItemRowProps {
   onViewChunks: () => void
 }
 
+/**
+ * Live " NN%" suffix for a row whose index job is embedding. Mounted only while
+ * `item.status === 'embedding'` and subscribed read-only, so ordinary rows never
+ * create or pin the shared-cache key — the indexing job in main owns it end-to-end
+ * (created when embedding actually starts, TTL-collected after the job exits).
+ */
+const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
+  const progress = useSharedCacheValue(`knowledge.item.embedding_progress.${itemId}` as const)
+  if (progress == null) {
+    return null
+  }
+  return ` ${progress}%`
+}
+
 const KnowledgeItemStatusBadge = ({
   failureReason,
-  status
+  status,
+  embeddingProgress
 }: {
   failureReason: string | null
   status: DataSourceStatusViewModel
+  embeddingProgress: ReactNode
 }) => {
   const { t } = useTranslation()
   const icon =
@@ -53,7 +71,10 @@ const KnowledgeItemStatusBadge = ({
       tabIndex={failureReason ? 0 : undefined}
       aria-label={failureReason ?? undefined}>
       {icon}
-      <span>{t(status.labelKey)}</span>
+      <span>
+        {t(status.labelKey)}
+        {embeddingProgress}
+      </span>
     </span>
   )
 
@@ -94,6 +115,10 @@ const KnowledgeItemRow = ({
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
+  // Left-click activates the row: file/url open with the system tool and a directory drills into
+  // its children — all status-independent (the source exists regardless of index state). A note
+  // has no external target, so it only activates once its in-app chunk view is ready (`completed`).
+  const canActivate = item.type === 'note' ? canViewChunks : true
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)
   const fullTitle = 'source' in item.data ? item.data.source : title
@@ -173,27 +198,33 @@ const KnowledgeItemRow = ({
       <div
         role="row"
         data-state={selected ? 'selected' : undefined}
-        tabIndex={canViewChunks ? 0 : undefined}
-        aria-label={canViewChunks ? t('knowledge.data_source.table.view_chunks_row', { title }) : undefined}
-        onClick={canViewChunks ? onClick : undefined}
-        onKeyDown={canViewChunks ? handleRowKeyDown : undefined}
+        tabIndex={canActivate ? 0 : undefined}
+        aria-label={canActivate ? t('knowledge.data_source.table.open_row', { title }) : undefined}
+        onClick={canActivate ? onClick : undefined}
+        onKeyDown={canActivate ? handleRowKeyDown : undefined}
         className={cn(
           KNOWLEDGE_ITEM_ROW_GRID,
-          'group/row min-h-12 rounded-lg transition-colors',
-          canViewChunks &&
+          'group/row rounded-md px-2.5 py-1.5 transition-colors',
+          canActivate &&
             'cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-          selected ? 'bg-accent' : canViewChunks && 'hover:bg-accent/40'
+          // Match the navigator base rows: hover highlight for any row, solid selected background
+          // for the checked one.
+          selected ? 'bg-secondary' : 'hover:bg-accent'
         )}>
-        <div role="gridcell" className="flex items-center" onClick={(event) => event.stopPropagation()}>
-          <Checkbox
-            size="sm"
-            className={knowledgeDataSourceCheckboxClassName}
-            aria-label={t('knowledge.data_source.table.select_row')}
-            checked={selected}
-            onCheckedChange={(next) => onToggleSelect(next === true)}
-          />
+        <div role="gridcell" className="flex items-center self-stretch" onClick={(event) => event.stopPropagation()}>
+          {/* The label fills the whole cell so a click anywhere in the checkbox column toggles
+              selection; the cell's stopPropagation keeps that click from also opening the row. */}
+          <label className="flex size-full cursor-pointer items-center">
+            <Checkbox
+              size="sm"
+              className={knowledgeDataSourceCheckboxClassName}
+              aria-label={t('knowledge.data_source.table.select_row')}
+              checked={selected}
+              onCheckedChange={(next) => onToggleSelect(next === true)}
+            />
+          </label>
         </div>
-        <div role="gridcell" className="flex min-w-0 items-center gap-2 py-3">
+        <div role="gridcell" className="flex min-w-0 items-center gap-2">
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
@@ -205,10 +236,17 @@ const KnowledgeItemRow = ({
           {typeLabel}
         </div>
         <div role="gridcell">
-          <KnowledgeItemStatusBadge status={status} failureReason={failureReason} />
+          <KnowledgeItemStatusBadge
+            status={status}
+            failureReason={failureReason}
+            embeddingProgress={item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
+          />
         </div>
         <div role="gridcell" className="truncate text-foreground-muted text-xs">
           {updatedAt}
+        </div>
+        <div role="gridcell" className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>
+          <KnowledgeRowActionsMenu items={contextMenuItems} />
         </div>
       </div>
     </CommandContextMenu>

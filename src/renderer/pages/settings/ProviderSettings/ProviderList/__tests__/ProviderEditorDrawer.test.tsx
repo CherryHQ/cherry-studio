@@ -5,10 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProviderEditorDrawer from '../ProviderEditorDrawer'
 
 const mocks = vi.hoisted(() => ({
-  fileToAvatarDataUrl: vi.fn(),
-  imageStorageGet: vi.fn(),
-  imageStorageRemove: vi.fn(),
-  imageStorageSet: vi.fn(),
   providerAvatarPrimitive: vi.fn()
 }))
 
@@ -75,18 +71,6 @@ vi.mock('@renderer/components/ProviderLogoPicker', () => ({
   )
 }))
 
-vi.mock('@renderer/services/ImageStorage', () => ({
-  default: {
-    get: (...args: any[]) => mocks.imageStorageGet(...args),
-    remove: (...args: any[]) => mocks.imageStorageRemove(...args),
-    set: (...args: any[]) => mocks.imageStorageSet(...args)
-  }
-}))
-
-vi.mock('@renderer/utils/image', () => ({
-  fileToAvatarDataUrl: (...args: any[]) => mocks.fileToAvatarDataUrl(...args)
-}))
-
 vi.mock('@renderer/utils/style', () => ({
   generateColorFromChar: vi.fn(),
   getForegroundColor: vi.fn(),
@@ -108,46 +92,20 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
     ) : null
 }))
 
+vi.mock('@renderer/services/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }
+}))
+
 describe('ProviderEditorDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.fileToAvatarDataUrl.mockResolvedValue('data:image/png;base64,stored-provider-logo')
-    mocks.imageStorageGet.mockResolvedValue('data:image/png;base64,stored')
-    mocks.imageStorageRemove.mockResolvedValue(undefined)
-    mocks.imageStorageSet.mockResolvedValue(undefined)
+    // jsdom has no object-URL impl; stub so the staged-upload preview path runs.
+    URL.createObjectURL = vi.fn(() => 'blob:provider-logo')
+    URL.revokeObjectURL = vi.fn()
   })
 
-  it('encodes an uploaded logo via fileToAvatarDataUrl and previews the result', async () => {
-    const onSubmit = vi.fn().mockResolvedValue(undefined)
+  it('stages an uploaded logo and previews it via an object URL', async () => {
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
-    mocks.fileToAvatarDataUrl.mockResolvedValue('data:image/png;base64,stored-provider-logo')
-
-    render(
-      <ProviderEditorDrawer
-        open
-        mode={{ kind: 'create-custom' }}
-        initialLogo={undefined}
-        onClose={vi.fn()}
-        onSubmit={onSubmit}
-      />
-    )
-
-    fireEvent.change(document.querySelector('input[type="file"]')!, {
-      target: { files: [file] }
-    })
-
-    await waitFor(() => {
-      expect(mocks.fileToAvatarDataUrl).toHaveBeenCalledWith(file)
-      expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute(
-        'data-logo',
-        'data:image/png;base64,stored-provider-logo'
-      )
-    })
-  })
-
-  it('surfaces a toast when encoding the uploaded logo fails', async () => {
-    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
-    mocks.fileToAvatarDataUrl.mockRejectedValue(new Error('decode failed'))
 
     render(
       <ProviderEditorDrawer
@@ -164,11 +122,72 @@ describe('ProviderEditorDrawer', () => {
     })
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('settings.provider.logo_upload_failed')
+      expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo', 'blob:provider-logo')
     })
   })
 
-  it('submits null when an uploaded logo is reset before saving', async () => {
+  it('rejects an oversize logo at pick time without staging a preview', () => {
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 })
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+
+    expect(vi.mocked(toast.error)).toHaveBeenCalled()
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it('submits the uploaded logo as an image edit (raw file, no pre-store)', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'edit',
+          provider: {
+            id: 'custom-provider',
+            name: 'Custom Provider',
+            defaultChatEndpoint: 'openai-chat-completions'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+    await waitFor(() => expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'edit',
+          name: 'Custom Provider',
+          logo: expect.objectContaining({ kind: 'image' })
+        })
+      )
+    })
+  })
+
+  it('submits a default logo edit when reset before saving', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
 
@@ -200,15 +219,15 @@ describe('ProviderEditorDrawer', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
         expect.objectContaining({
-          logo: null,
           mode: 'edit',
-          name: 'Custom Provider'
+          name: 'Custom Provider',
+          logo: { kind: 'default' }
         })
       )
     })
   })
 
-  it('submits the built-in icon reference when selected after uploading a logo', async () => {
+  it('submits a preset-key logo edit when an icon is selected after uploading', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
 
@@ -240,9 +259,9 @@ describe('ProviderEditorDrawer', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
         expect.objectContaining({
-          logo: 'icon:openai',
           mode: 'edit',
-          name: 'Custom Provider'
+          name: 'Custom Provider',
+          logo: { kind: 'key', key: 'icon:openai' }
         })
       )
     })

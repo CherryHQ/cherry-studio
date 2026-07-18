@@ -188,7 +188,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         return
       }
 
-      window.requestAnimationFrame(() => void onContextMenuAction(item, action))
+      await onContextMenuAction(item, action)
     },
     [onContextMenuAction]
   )

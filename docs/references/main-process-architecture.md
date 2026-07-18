@@ -10,7 +10,7 @@ Exactly these, each with a single charter:
 
 | Dir | Category | Why it earns a top-level home |
 |---|---|---|
-| `core` | **App runtime** | Business-agnostic infrastructure concerned only with running the app. The test: lift `core/` onto a different Electron app, add other business code, and you have a different application. One kind of thing — the app substrate: lifecycle / DI container, path registry, logger, window manager, scheduler & jobs, preboot, diagnostics. |
+| `core` | **App runtime** | Business-agnostic infrastructure concerned only with running the app. The test: lift `core/` onto a different Electron app, add other business code, and you have a different application. One kind of thing — the app substrate: lifecycle / DI container, path registry, logger, window manager, scheduler & jobs, preboot, diagnostics, security primitives (IPC source trust). |
 | `ipc` | **Cross-process boundary** | Electron's defining inter-process mechanism — special and important enough to stand alone. Unified as **IpcApi** (schema + router + handler): the single typed boundary between main and renderer. |
 | `data` | **Data layer** | The general business-data store — a first-class data layer, hence independent. Holds DbService / CacheService / PreferenceService / DataApiService / BootConfig, DB schemas, and the v1→v2 migrators (which by design read domain data — throwaway migration code). Detailed in [Data System Reference](./data/README.md). |
 | `ai` | **Core domain** | Cherry Studio *is* an AI client, so AI earns its own top-level home: everything tied to the AI essence lives here (providers, middleware, MCP, agents, stream manager). Mirrors `@shared/ai`. |
@@ -27,7 +27,7 @@ Naming follows [Naming Conventions §4.9](./naming-conventions.md): `core` / `da
 src/main/
 ├── main.ts      # process entry: preboot → application.bootstrap()
 ├── ipc.ts       # legacy IPC registration (being retired into ipc/)
-├── core/        # business-agnostic app runtime (lifecycle/DI, paths, logger, window, scheduler/job, preboot)
+├── core/        # business-agnostic app runtime (lifecycle/DI, paths, logger, window, scheduler/job, preboot, security)
 ├── ipc/         # IpcApi — the typed main↔renderer boundary
 ├── data/        # the data layer (DB/Cache/Preference/DataApi/BootConfig, schemas, migration)
 ├── ai/          # the AI subsystem — the product's core domain
@@ -105,6 +105,7 @@ Per-subsystem depth lives in dedicated docs; this page owns only the directory l
 | Window manager | `core/window/` | [Window Manager Reference](./window-manager/README.md) |
 | Scheduler & jobs | `core/scheduler/`, `core/job/` | [Job & Scheduler Reference](./job-and-scheduler/README.md) |
 | Path registry | `core/paths/` | [paths/README](../../src/main/core/paths/README.md) |
+| IPC source-trust gate (`validateSender`) | `core/security/` | [IpcApi Overview §Security](./ipc/ipc-overview.md#security--two-gates) |
 | Data systems (DB/Cache/Preference/DataApi/BootConfig) | `data/` | [Data System Reference](./data/README.md) |
 | IPC (IpcApi) | `ipc/` | [IPC Reference](./ipc/README.md) |
 | AI subsystem | `ai/` | [AI Reference](./ai/README.md) |

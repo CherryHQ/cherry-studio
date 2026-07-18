@@ -1,3 +1,4 @@
+import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -7,65 +8,97 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TopicRightPane } from '../TopicRightPane'
 
 const developerModeEnabled = vi.fn(() => true)
+const useCommandHandlerMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandHandler: useCommandHandlerMock
+}))
+
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useIsActiveTab: () => true
+}))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) =>
     key === 'app.developer_mode.enabled' ? [developerModeEnabled(), vi.fn()] : [undefined, vi.fn()]
 }))
 
-vi.mock('@cherrystudio/ui', async (importOriginal) => ({
-  ...(await importOriginal()),
-  Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  TabsList: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  TabsTrigger: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Tooltip: ({ children }: PropsWithChildren) => children
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const original = await importOriginal<Record<string, unknown>>()
+  const { createContext, use } = await import('react')
+  const TabsValueContext = createContext('')
 
-vi.mock('@renderer/components/chat/shell/RightPaneHost', async () => {
-  const React = await import('react')
+  return {
+    ...original,
+    Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Tabs: ({ children, value }: PropsWithChildren<{ value?: string }>) => (
+      <TabsValueContext value={value ?? ''}>{children}</TabsValueContext>
+    ),
+    TabsContent: ({
+      children,
+      className,
+      forceMount,
+      value
+    }: PropsWithChildren<{ className?: string; forceMount?: boolean; value: string }>) => {
+      const activeValue = use(TabsValueContext)
+      const active = activeValue === value
+      if (!active && !forceMount) return null
 
+      return (
+        <div className={className} data-state={active ? 'active' : 'inactive'} hidden={!active}>
+          {children}
+        </div>
+      )
+    },
+    TabsList: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    TabsTrigger: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Tooltip: ({ children }: PropsWithChildren) => children
+  }
+})
+
+vi.mock('@renderer/components/chat/shell/RightPaneHost', () => {
   return {
     ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
     ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
     ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-    ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
-    RightPaneHost: ({
+    ARTIFACT_RIGHT_PANE_MIN_WIDTH: 255,
+    PersistentRightPaneHost: ({
       children,
-      onCloseAnimationComplete,
+      maximized,
       open
-    }: PropsWithChildren<{ onCloseAnimationComplete?: () => void; open?: boolean }>) => {
-      React.useEffect(() => {
-        if (!open) onCloseAnimationComplete?.()
-      }, [onCloseAnimationComplete, open])
-
-      return (
-        <section data-testid="right-pane" data-open={String(Boolean(open))}>
-          {open ? children : null}
-        </section>
-      )
-    }
+    }: PropsWithChildren<{ maximized?: boolean; open?: boolean }>) => (
+      <section
+        data-testid="right-pane"
+        data-open={String(Boolean(open))}
+        data-maximized={String(Boolean(maximized))}
+        hidden={!open}>
+        {children}
+      </section>
+    )
   }
 })
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
-  TracePane: ({ payload }: { payload: { topicId: string; traceId: string } | null }) => (
-    <div data-testid="trace-pane" data-topic-id={payload?.topicId} data-trace-id={payload?.traceId} />
-  )
+  TracePane: ({ payload }: { payload: { topicId: string; traceId: string } | null }) =>
+    payload ? <div data-testid="trace-pane" data-topic-id={payload.topicId} data-trace-id={payload.traceId} /> : null
 }))
 
 vi.mock('../TopicBranchPanel', () => ({
-  default: ({ onLocateMessage }: { onLocateMessage?: (messageId: string) => void }) => (
-    <button type="button" data-testid="branch-pane" onClick={() => onLocateMessage?.('message-1')}>
+  default: ({ open, onLocateMessage }: { open: boolean; onLocateMessage?: (messageId: string) => void }) => (
+    <button
+      type="button"
+      data-open={String(open)}
+      data-testid="branch-pane"
+      onClick={() => onLocateMessage?.('message-1')}>
       locate current branch message
     </button>
   )
@@ -81,20 +114,119 @@ vi.mock('react-i18next', () => ({
 
 describe('TopicRightPane', () => {
   beforeEach(() => {
+    useCommandHandlerMock.mockClear()
     developerModeEnabled.mockReturnValue(true)
+  })
+
+  const triggerRightSidebarShortcut = () => {
+    const handler = useCommandHandlerMock.mock.calls
+      .filter(([command]) => command === 'topic.sidebar.toggle')
+      .at(-1)?.[1] as (() => void) | undefined
+
+    expect(handler).toBeDefined()
+    handler?.()
+  }
+
+  it('registers the right sidebar keyboard shortcut for the branch pane', () => {
+    render(
+      <TopicRightPane topicId="topic-a">
+        <TopicRightPane.Viewport />
+      </TopicRightPane>
+    )
+
+    expect(useCommandHandlerMock).toHaveBeenCalledWith(
+      'topic.sidebar.toggle',
+      expect.any(Function),
+      expect.objectContaining({ enabled: true })
+    )
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('opens the resource pane from the right sidebar keyboard shortcut when resources are available', () => {
+    render(
+      <TopicRightPane
+        topicId="topic-a"
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
+        <TopicRightPane.Viewport />
+      </TopicRightPane>
+    )
+
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+  })
+
+  it('disables the right sidebar keyboard shortcut without a ready capability', () => {
+    render(
+      <TopicRightPane>
+        <TopicRightPane.Viewport />
+      </TopicRightPane>
+    )
+
+    expect(useCommandHandlerMock).toHaveBeenCalledWith(
+      'topic.sidebar.toggle',
+      expect.any(Function),
+      expect.objectContaining({ enabled: false })
+    )
+  })
+
+  it('hides environmental presentation without discarding topic pane intent or its visited instance', () => {
+    const { rerender } = render(
+      <TopicRightPane topicId="topic-a">
+        <TopicRightPane.Viewport />
+      </TopicRightPane>
+    )
+
+    act(triggerRightSidebarShortcut)
+    const branchPane = screen.getByTestId('branch-pane')
+
+    rerender(
+      <TopicRightPane topicId="topic-a" present={false}>
+        <TopicRightPane.Viewport />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('branch-pane')).toBe(branchPane)
+    expect(branchPane).toHaveAttribute('data-open', 'false')
+    expect(useCommandHandlerMock).toHaveBeenLastCalledWith(
+      'topic.sidebar.toggle',
+      expect.any(Function),
+      expect.objectContaining({ enabled: false })
+    )
+
+    rerender(
+      <TopicRightPane topicId="topic-a">
+        <TopicRightPane.Viewport />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('branch-pane')).toBe(branchPane)
+    expect(branchPane).toHaveAttribute('data-open', 'true')
   })
 
   it('shows a permanent trace tab keyed on the container traceId when developer mode is on', () => {
     render(
-      <TopicRightPane>
-        <TopicRightPane.Toggle />
-        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
+      <TopicRightPane topicId="topic-a" traceId="trace-a">
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
 
-    expect(screen.getByRole('button', { name: /trace\.label/ })).toBeInTheDocument()
+    expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toBeInTheDocument()
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-topic-id', 'topic-a')
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-trace-id', 'trace-a')
   })
@@ -103,13 +235,13 @@ describe('TopicRightPane', () => {
     developerModeEnabled.mockReturnValue(false)
 
     render(
-      <TopicRightPane>
-        <TopicRightPane.Toggle />
-        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
+      <TopicRightPane topicId="topic-a" traceId="trace-a">
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
 
     expect(screen.queryByRole('button', { name: /trace\.label/ })).toBeNull()
     expect(screen.queryByTestId('trace-pane')).toBeNull()
@@ -120,13 +252,13 @@ describe('TopicRightPane', () => {
     const onLocateMessage = vi.fn()
 
     render(
-      <TopicRightPane>
-        <TopicRightPane.Toggle />
-        <TopicRightPane.Host topicId="topic-1" topicName="Topic" onLocateMessage={onLocateMessage} />
+      <TopicRightPane topicId="topic-1" topicName="Topic">
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport onLocateMessage={onLocateMessage} />
       </TopicRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'locate current branch message' }))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
@@ -141,21 +273,24 @@ describe('TopicRightPane', () => {
       <TopicRightPane
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}
         defaultOpen>
-        <TopicRightPane.Host />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('resource-list')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /chat\.topics\.title/ })).toBeInTheDocument()
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.topics.title')
+    expect(document.querySelector('[data-shell-tab-shortcut="resources"]')).not.toBeInTheDocument()
   })
 
   it('shows top shortcuts for the stable right-pane tabs while closed', () => {
     render(
       <TopicRightPane
+        topicId="topic-a"
+        traceId="trace-a"
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
-        <TopicRightPane.Shortcuts topicId="topic-a" />
-        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
@@ -169,31 +304,114 @@ describe('TopicRightPane', () => {
     fireEvent.click(branchShortcut as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).toBeNull()
+    expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).toBeInTheDocument()
   })
 
-  it('hides the top trace shortcut when developer mode is off', () => {
-    developerModeEnabled.mockReturnValue(false)
-
+  it('collapses the active pane from the same tab shortcut while preserving the view label', () => {
     render(
-      <TopicRightPane
-        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
-        <TopicRightPane.Shortcuts topicId="topic-a" />
-        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
+      <TopicRightPane topicId="topic-a" traceId="trace-a">
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
-    expect(screen.queryByRole('button', { name: 'chat.topics.title' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'chat.message.flow.title' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'trace.label' })).toBeNull()
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.message.flow.title')
+
+    const openStateShortcut = document.querySelector('[data-shell-tab-shortcut="branch"]')
+    expect(openStateShortcut).toBeInTheDocument()
+    expect(openStateShortcut).toHaveAttribute('aria-label', 'chat.message.flow.title')
+    expect(screen.queryByRole('button', { name: 'common.close_sidebar' })).toBeInTheDocument()
+
+    fireEvent.click(openStateShortcut as HTMLElement)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
-  it('resets the open resource tab when the resource pane is removed', () => {
+  it('switches to another pane entry without closing the docked pane', () => {
+    render(
+      <TopicRightPane topicId="topic-a" traceId="trace-a">
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
+      </TopicRightPane>
+    )
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('trace.label')
+    expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-topic-id', 'topic-a')
+    expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).toHaveAttribute('aria-pressed', 'false')
+    expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps visited capabilities mounted across switches without offering maximize', () => {
+    render(
+      <TopicRightPane
+        topicId="topic-a"
+        traceId="trace-a"
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
+        <ResourcePaneCountButton label="chat.topics.title" count={3} />
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
+      </TopicRightPane>
+    )
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+    const branchPane = screen.getByTestId('branch-pane')
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+
+    expect(screen.getByTestId('branch-pane')).toBe(branchPane)
+    expect(branchPane).toHaveAttribute('data-open', 'false')
+    expect(branchPane).not.toBeVisible()
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+    expect(screen.getByTestId('branch-pane')).toBe(branchPane)
+    expect(branchPane).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.message.flow.title')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.topics.title 3' }))
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+  })
+
+  it('keeps the resource count entry visible while docked open and lets it close the active resource view', () => {
+    render(
+      <TopicRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
+        <ResourcePaneCountButton label="chat.topics.title" count={3} />
+        <TopicRightPane.Viewport />
+      </TopicRightPane>
+    )
+
+    const resourceEntry = screen.getByRole('button', { name: 'chat.topics.title 3' })
+
+    fireEvent.click(resourceEntry)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.topics.title')
+    expect(resourceEntry).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(resourceEntry)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('reconciles an open resource capability to the next ready capability', () => {
     const { rerender } = render(
       <TopicRightPane
+        topicId="topic-a"
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}
         defaultOpen>
-        <TopicRightPane.Host topicId="topic-a" />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
@@ -201,20 +419,21 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('resource-list')).toBeInTheDocument()
 
     rerender(
-      <TopicRightPane>
-        <TopicRightPane.Host topicId="topic-a" />
+      <TopicRightPane topicId="topic-a" defaultOpen>
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.queryByTestId('resource-list')).toBeNull()
+    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
   })
 
   it('opens the resource pane on a locate reveal request', () => {
     const resourcePane = { node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }
     const { rerender } = render(
       <TopicRightPane resourcePane={resourcePane}>
-        <TopicRightPane.Host />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
@@ -224,7 +443,7 @@ describe('TopicRightPane', () => {
       <TopicRightPane
         resourcePane={resourcePane}
         revealRequest={{ itemId: 'topic-a', requestId: 1, clearFilters: true, clearQuery: true }}>
-        <TopicRightPane.Host />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
@@ -236,13 +455,13 @@ describe('TopicRightPane', () => {
     const resourcePane = { node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }
     const { rerender } = render(
       <TopicRightPane resourcePane={resourcePane}>
-        <TopicRightPane.Host />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
     rerender(
       <TopicRightPane resourcePane={resourcePane} revealRequest={{ itemId: 'topic-a', requestId: 2 }}>
-        <TopicRightPane.Host />
+        <TopicRightPane.Viewport />
       </TopicRightPane>
     )
 
@@ -254,7 +473,7 @@ describe('TopicRightPane', () => {
       <TabIdProvider tabId="chat-tab">
         <TopicRightPane
           resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
-          <TopicRightPane.Host />
+          <TopicRightPane.Viewport />
         </TopicRightPane>
       </TabIdProvider>
     )

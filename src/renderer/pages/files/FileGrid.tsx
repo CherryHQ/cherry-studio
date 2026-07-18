@@ -1,6 +1,6 @@
-import { Button, ImagePreviewTrigger } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { Trash2 } from 'lucide-react'
-import { memo, useMemo } from 'react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
@@ -8,19 +8,23 @@ import type { FileItem } from './fileDisplay'
 import { getFormatLabel, typeBgColors, typeIconColors, typeIcons } from './fileDisplay'
 import { InlineRename } from './InlineRename'
 
+// Decorative placeholder gradients for image thumbnails, keyed by a hash of the
+// file name. Each stop uses a primitive color token from the design system
+// (DESIGN.md §2 — decorative color must come from the primitive scales, never
+// raw hex) so these tints stay consistent with the rest of the palette.
 const GALLERY_GRADIENTS = [
-  'linear-gradient(135deg,#ffd3a5,#fd6585)',
-  'linear-gradient(135deg,#a1c4fd,#c2e9fb)',
-  'linear-gradient(135deg,#fbc2eb,#a6c1ee)',
-  'linear-gradient(135deg,#fad0c4,#ffd1ff)',
-  'linear-gradient(135deg,#a8edea,#fed6e3)',
-  'linear-gradient(135deg,#ffecd2,#fcb69f)',
-  'linear-gradient(135deg,#84fab0,#8fd3f4)',
-  'linear-gradient(135deg,#fccb90,#d57eeb)',
-  'linear-gradient(135deg,#e0c3fc,#8ec5fc)',
-  'linear-gradient(135deg,#f6d365,#fda085)',
-  'linear-gradient(135deg,#cfd9df,#e2ebf0)',
-  'linear-gradient(135deg,#43cea2,#185a9d)'
+  'linear-gradient(135deg,var(--color-orange-200),var(--color-rose-400))',
+  'linear-gradient(135deg,var(--color-blue-300),var(--color-cyan-200))',
+  'linear-gradient(135deg,var(--color-pink-200),var(--color-indigo-300))',
+  'linear-gradient(135deg,var(--color-rose-200),var(--color-fuchsia-200))',
+  'linear-gradient(135deg,var(--color-teal-200),var(--color-pink-200))',
+  'linear-gradient(135deg,var(--color-amber-200),var(--color-orange-300))',
+  'linear-gradient(135deg,var(--color-green-300),var(--color-sky-300))',
+  'linear-gradient(135deg,var(--color-amber-300),var(--color-purple-400))',
+  'linear-gradient(135deg,var(--color-violet-200),var(--color-sky-300))',
+  'linear-gradient(135deg,var(--color-amber-300),var(--color-orange-400))',
+  'linear-gradient(135deg,var(--color-slate-200),var(--color-slate-100))',
+  'linear-gradient(135deg,var(--color-emerald-400),var(--color-blue-600))'
 ]
 
 function gradientFor(name: string): string {
@@ -31,8 +35,6 @@ function gradientFor(name: string): string {
 
 export const FileGrid = memo(function FileGrid({
   files,
-  selectedIds,
-  onSelect,
   onOpen,
   onDelete,
   isTrash,
@@ -42,8 +44,6 @@ export const FileGrid = memo(function FileGrid({
   onRenameCancel
 }: {
   files: FileItem[]
-  selectedIds: Set<string>
-  onSelect: (id: string) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
   isTrash: boolean
@@ -53,36 +53,10 @@ export const FileGrid = memo(function FileGrid({
   onRenameCancel: () => void
 }) {
   const { t } = useTranslation()
-  const imagePreviewItems = useMemo(
-    () =>
-      files.flatMap((file) =>
-        file.type === 'image' && file.previewUrl
-          ? [{ id: file.id, src: file.previewUrl, alt: file.name, title: file.name }]
-          : []
-      ),
-    [files]
-  )
-  const previewLabels = useMemo(
-    () => ({
-      close: t('preview.close'),
-      dialogTitle: t('preview.label'),
-      flipHorizontal: t('preview.flip_horizontal'),
-      flipVertical: t('preview.flip_vertical'),
-      next: t('preview.next'),
-      previous: t('preview.previous'),
-      reset: t('preview.reset'),
-      rotateLeft: t('preview.rotate_left'),
-      rotateRight: t('preview.rotate_right'),
-      zoomIn: t('preview.zoom_in'),
-      zoomOut: t('preview.zoom_out')
-    }),
-    [t]
-  )
 
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 p-3">
       {files.map((file) => {
-        const selected = selectedIds.has(file.id)
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         const isImage = file.type === 'image'
@@ -93,31 +67,15 @@ export const FileGrid = memo(function FileGrid({
           <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
             <div
               onClick={() => {
-                if (isRenaming) return
-                if (previewUrl) return
-                onSelect(file.id)
+                if (isRenaming || file.isMissing) return
+                onOpen(file)
               }}
-              onDoubleClick={() => {
-                if (!isRenaming && !previewUrl && !file.isMissing) onOpen(file)
-              }}
-              className={`group relative cursor-pointer rounded-lg border transition-all ${
-                selected
-                  ? 'border-border/50 bg-accent/50'
-                  : 'border-border/30 hover:border-border/50 hover:bg-accent/50'
-              }`}>
+              className="group relative cursor-pointer rounded-lg border border-border/30 transition-all hover:border-border/50 hover:bg-accent/50">
               <div
                 className={`${shapeClass} relative flex items-center justify-center overflow-hidden ${bgClass}`}
                 style={isImage ? { backgroundImage: gradientFor(file.name) } : undefined}>
                 {previewUrl ? (
-                  <ImagePreviewTrigger
-                    item={{ id: file.id, src: previewUrl, alt: file.name, title: file.name }}
-                    items={imagePreviewItems}
-                    alt={file.name}
-                    dialogProps={{ labels: previewLabels }}
-                    className="h-full w-full cursor-zoom-in object-cover"
-                    onClick={(e) => e.stopPropagation()}
-                    onDoubleClick={(e) => e.stopPropagation()}
-                  />
+                  <img src={previewUrl} alt={file.name} draggable={false} className="h-full w-full object-cover" />
                 ) : (
                   <Icon size={22} strokeWidth={1.2} className={typeIconColors[file.type]} />
                 )}

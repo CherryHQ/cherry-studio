@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourceCatalogView } from '../ResourceCatalogView'
 
-const { refetchMock, resourceCatalogControllerMock, resourceGridMock } = vi.hoisted(() => ({
+const { refetchMock, resourceCatalogControllerMock, resourceGridMock, systemSkillDialogMock } = vi.hoisted(() => ({
   refetchMock: vi.fn(),
   resourceCatalogControllerMock: vi.fn(),
-  resourceGridMock: vi.fn()
+  resourceGridMock: vi.fn(),
+  systemSkillDialogMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -51,8 +52,15 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   AssistantEditDialog: () => null
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => ({
-  ImportAssistantDialog: () => null,
-  ImportSkillDialog: () => null
+  ImportAssistantDialog: () => null
+}))
+vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
+  ImportSkillDialog: () => null,
+  SkillMarketplaceDialog: () => null,
+  SystemSkillDialog: (props: { mode: 'manage' | 'agent-create' }) => {
+    systemSkillDialogMock(props)
+    return null
+  }
 }))
 
 vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
@@ -79,10 +87,6 @@ vi.mock('../ResourceGrid', () => ({
   }
 }))
 
-vi.mock('../SkillMarketplaceDialog', () => ({
-  SkillMarketplaceDialog: () => null
-}))
-
 function createController(resourceError?: Error) {
   return {
     resourceError,
@@ -101,6 +105,7 @@ function createController(resourceError?: Error) {
       onExport: vi.fn(),
       onImportAssistant: vi.fn(),
       onOpenAssistantLibrary: vi.fn(),
+      onOpenSystemSkills: vi.fn(),
       onSearchChange: vi.fn(),
       onTagFilter: vi.fn(),
       resources: [],
@@ -126,7 +131,9 @@ function createController(resourceError?: Error) {
       setDeleteConfirm: vi.fn(),
       setSelectedSkill: vi.fn(),
       setSkillImportOpen: vi.fn(),
-      skillImportOpen: false
+      setSystemSkillOpen: vi.fn(),
+      skillImportOpen: false,
+      systemSkillOpen: false
     }
   }
 }
@@ -136,6 +143,7 @@ describe('ResourceCatalogView', () => {
     refetchMock.mockClear()
     resourceCatalogControllerMock.mockReset()
     resourceGridMock.mockClear()
+    systemSkillDialogMock.mockClear()
     resourceCatalogControllerMock.mockReturnValue(createController())
   })
 
@@ -163,5 +171,12 @@ describe('ResourceCatalogView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens system skill management without agent enablement semantics', () => {
+    render(<ResourceCatalogView resourceType="skill" skillAgentId="agent-1" />)
+
+    expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ onOpenSystemSkills: expect.any(Function) }))
+    expect(systemSkillDialogMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'manage' }))
   })
 })

@@ -1,4 +1,4 @@
-import { FILE_TYPE } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -66,5 +66,24 @@ describe('buildFilePartsForAttachments', () => {
 
     expect(part.mediaType).toBe('application/pdf')
     expect(part.url).toBe('file:///p/fe-3.pdf')
+  })
+
+  it('keeps the safe pasted-text marker on the sent file part', async () => {
+    const [part] = await buildFilePartsForAttachments([
+      attachment({
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT,
+        path: '/tmp/pasted_text.txt',
+        name: 'pasted_text.txt',
+        origin_name: 'Pasted text.txt',
+        ext: '.txt',
+        type: FILE_TYPE.TEXT
+      })
+    ])
+
+    expect(part.providerMetadata?.cherry).toEqual({
+      fileEntryId: 'fe-1',
+      fileTokenSourceId: 'source-1',
+      composerFileKind: 'pasted-text'
+    })
   })
 })

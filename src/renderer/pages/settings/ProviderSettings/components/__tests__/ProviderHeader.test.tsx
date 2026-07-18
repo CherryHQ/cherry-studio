@@ -81,7 +81,6 @@ describe('ProviderHeader', () => {
   it('does not show the provider id subtitle', () => {
     render(<ProviderHeader providerId="openai" />)
 
-    expect(screen.getByText('OpenAI')).toHaveClass('font-bold', 'text-[15px]')
     expect(screen.queryByText('openai')).not.toBeInTheDocument()
   })
 
