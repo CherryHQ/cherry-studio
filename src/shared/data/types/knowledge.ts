@@ -74,7 +74,7 @@ export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
 // user_model, so the base needs a new embedding model on restore.
 // `missing_vector_store`: the embedding model resolved, but the per-base legacy vector store
 // was missing/empty/locked so its dimensions could not be determined. The base (name, model,
-// config, idle items) is kept as a restorable `failed` row instead of being dropped, so the
+// config, unindexed items) is kept as a restorable `failed` row instead of being dropped, so the
 // user can re-index it — a transient lock is recoverable by re-running rather than a data loss.
 export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model', 'missing_vector_store'] as const
 export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
@@ -87,7 +87,7 @@ export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode =
  * - `directory_not_migrated`: a v1-indexed `directory` whose container-level vectors could not
  *   be re-attributed to per-file children (unreadable legacy sources, or no migratable vectors).
  * - `indexing_interrupted`: an indexing job was abandoned by an app quit / restart, so the item
- *   was parked at `failed` instead of silently resumed (see KnowledgeService.recoverInterruptedItems).
+ *   was parked at `failed` instead of silently resumed (see KnowledgeIngestionService.recoverInterruptedItems).
  * Modeled as a zod enum (the same shape as the base error codes above) so the renderer's
  * code → i18n switch in `error.ts` stays exhaustive-checkable and the code ↔ translator-key
  * triple is tied together. Codes are localized by the UI; any other value is a free-form message.
@@ -144,7 +144,14 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   updatedAt: z.iso.datetime()
 })
 
-export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value, ctx) => {
+/**
+ * Cross-field invariants for a knowledge base row, shared by the read-side entity
+ * schema and the pre-write candidate schema so a rule is defined exactly once.
+ */
+function refineKnowledgeBaseInvariants(
+  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'createdAt' | 'updatedAt'>,
+  ctx: z.RefinementCtx
+): void {
   if (value.status === 'completed') {
     if (value.error !== null) {
       ctx.addIssue({
@@ -180,8 +187,29 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
       message: 'Chunk overlap must be smaller than chunk size'
     })
   }
-})
+
+  if (value.chunkStrategy === 'delimiter' && !value.chunkSeparator) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkSeparator'],
+      message: 'Separator is required when chunk strategy is delimiter'
+    })
+  }
+}
+
+export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine(refineKnowledgeBaseInvariants)
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
+
+/**
+ * The full row about to be inserted/updated, validated against the same
+ * invariants as the read-side schema before it ever reaches the DB CHECK
+ * constraints — `id`/`createdAt`/`updatedAt` don't exist yet at write time.
+ */
+export const KnowledgeBaseWriteSchema = KnowledgeBaseEntitySchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+}).superRefine(refineKnowledgeBaseInvariants)
 
 /**
  * A knowledge base that has finished setup and is ready for runtime operations
@@ -236,7 +264,7 @@ const KnowledgeItemSharedSchema = z.strictObject({
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
   // relativePath / indexedRelativePath are always produced by main-side helpers
-  // (copyFileIntoKnowledgeBaseAt, toKnowledgeRelativePath, ...), never raw caller
+  // (copyFileIntoKnowledgeBaseAt, toMaterialRelativePath, ...), never raw caller
   // input. The base-relative, POSIX-normalized, no-traversal invariant is
   // enforced imperatively by assertSafeKnowledgeRelativePath at the filesystem
   // boundary (getKnowledgeBaseFilePath). This schema only validates shape, so a

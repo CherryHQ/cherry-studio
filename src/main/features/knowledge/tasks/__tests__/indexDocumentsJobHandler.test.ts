@@ -2,8 +2,8 @@ import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbed
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
-import { hashEmbeddingText } from '../../vectorstore/indexStore/hashing'
-import type { RebuildMaterialInput } from '../../vectorstore/indexStore/model'
+import { hashEmbeddingText } from '../../pipeline/vectorstore/indexStore/hashing'
+import type { RebuildMaterialInput } from '../../pipeline/vectorstore/indexStore/model'
 import {
   captureNoteSnapshotFileMock,
   captureUrlSnapshotFileMock,
@@ -12,14 +12,12 @@ import {
   createCtx,
   createFileItem,
   createIndexDocumentsJobHandler,
-  createJobSnapshot,
   createNoteItem,
   createUrlItem,
   embedKnowledgeTextsMock,
   fakeEmbedVector,
   fetchKnowledgeWebPageMock,
   FILE_ITEM_ID,
-  getJobMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
   knowledgeItemUpdateSnapshotRelativePathMock,
@@ -59,7 +57,7 @@ describe('index-documents job handler', () => {
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
     knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
@@ -72,7 +70,12 @@ describe('index-documents job handler', () => {
       })
     )
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
-    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null })).toBe('base.kb-1')
+    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID })).toBe('base.kb-1')
+    // README's lock-boundary contract: embedding (paid API call) must run before the
+    // mutation lock is taken, never inside it.
+    expect(embedKnowledgeTextsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeLockManager.runExclusive.mock.invocationCallOrder[0]
+    )
   })
 
   it('pairs every embedding vector with the hash of the body it was computed from', async () => {
@@ -81,7 +84,7 @@ describe('index-documents job handler', () => {
     knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce(distinctDocuments())
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     const input = lastRebuildInput()
     expect(input.embeddings.length).toBeGreaterThanOrEqual(3)
@@ -107,9 +110,9 @@ describe('index-documents job handler', () => {
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce(distinctDocuments())
     // 'bravo' is already in the index; reindexing must not re-embed it.
     const storedHash = hashEmbeddingText('bravo')
-    listExistingEmbeddingHashesMock.mockResolvedValueOnce(new Set([storedHash]))
+    listExistingEmbeddingHashesMock.mockReturnValueOnce(new Set([storedHash]))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     // The paid embed call received only the two missing bodies.
     const embeddedBodies = embedKnowledgeTextsMock.mock.calls[0][1] as string[]
@@ -267,9 +270,9 @@ describe('index-documents job handler', () => {
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
     knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce(distinctDocuments())
-    listExistingEmbeddingHashesMock.mockResolvedValueOnce(new Set(DISTINCT_DOCS.map(hashEmbeddingText)))
+    listExistingEmbeddingHashesMock.mockReturnValueOnce(new Set(DISTINCT_DOCS.map(hashEmbeddingText)))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     // The batch loop has nothing to embed, so the paid embed seam is never
     // called at all, and the rebuild reuses the stored vectors: no embeddings
@@ -299,7 +302,7 @@ describe('index-documents job handler', () => {
     knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce(distinctDocuments())
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     // No paid embed round-trip and no existing-hash lookup for a lexical base.
     expect(embedKnowledgeTextsMock).not.toHaveBeenCalled()
@@ -325,7 +328,7 @@ describe('index-documents job handler', () => {
     knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([])
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     // An image-only PDF or failed extraction must leave a diagnosable trace —
     // without the warn it would look indexed while matching nothing.
@@ -344,7 +347,7 @@ describe('index-documents job handler', () => {
     knowledgeItemGetByIdMock.mockReturnValue(fileItem)
     knowledgeItemUpdateStatusMock.mockReturnValue(fileItem)
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID }))
 
     expect(lastRebuildInput().material.relativePath).toBe('source.md')
   })
@@ -353,13 +356,7 @@ describe('index-documents job handler', () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID))
 
-    await handler.execute(
-      createCtx({
-        baseId: 'kb-1',
-        itemId: FILE_ITEM_ID,
-        parentJobId: null
-      })
-    )
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID }))
 
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(expect.objectContaining({ id: FILE_ITEM_ID }))
   })
@@ -370,7 +367,7 @@ describe('index-documents job handler', () => {
     knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([])
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
@@ -387,7 +384,7 @@ describe('index-documents job handler', () => {
       .mockReturnValueOnce(createNoteItem(NOTE_ITEM_ID))
       .mockReturnValueOnce(createNoteItem(NOTE_ITEM_ID, null, 'deleting'))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     expect(rebuildMaterialMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
@@ -396,11 +393,13 @@ describe('index-documents job handler', () => {
   it('does not mark completed when vector replacement fails', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
-    rebuildMaterialMock.mockRejectedValueOnce(new Error('vector write failed'))
+    rebuildMaterialMock.mockImplementationOnce(() => {
+      throw new Error('vector write failed')
+    })
 
-    await expect(
-      handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
-    ).rejects.toThrow('vector write failed')
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))).rejects.toThrow(
+      'vector write failed'
+    )
 
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
@@ -408,9 +407,7 @@ describe('index-documents job handler', () => {
   it('stops before side effects when aborted before execution', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
 
-    await expect(
-      handler.execute(createAbortedCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
-    ).rejects.toThrow()
+    await expect(handler.execute(createAbortedCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))).rejects.toThrow()
 
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
     expect(rebuildMaterialMock).not.toHaveBeenCalled()
@@ -424,7 +421,7 @@ describe('index-documents job handler', () => {
     knowledgeItemGetByIdMock.mockReturnValue(createUrlItem('url-1'))
     captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1', parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1' }))
 
     // Fetched exactly once, snapshot written, relativePath persisted.
     expect(fetchKnowledgeWebPageMock).toHaveBeenCalledTimes(1)
@@ -444,13 +441,18 @@ describe('index-documents job handler', () => {
     // item-id virtual placeholder — so it points at the bytes captureUrlSnapshotFile
     // wrote and agrees with what the v1→v2 migrator stamps for the same url.
     expect(lastRebuildInput().material.relativePath).toBe('example-page.md')
+    // README's lock-boundary contract: the network fetch must complete before the
+    // (first) mutation lock is taken, never inside it.
+    expect(fetchKnowledgeWebPageMock.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeLockManager.runExclusive.mock.invocationCallOrder[0]
+    )
   })
 
   it('does not fetch a URL that already has a captured snapshot', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createUrlItem('url-1', 'cached.md'))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1', parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1' }))
 
     expect(fetchKnowledgeWebPageMock).not.toHaveBeenCalled()
     expect(captureUrlSnapshotFileMock).not.toHaveBeenCalled()
@@ -467,7 +469,7 @@ describe('index-documents job handler', () => {
       .mockReturnValueOnce(createUrlItem('url-1'))
       .mockReturnValueOnce(createUrlItem('url-1', 'raced.md'))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1', parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1' }))
 
     // Fetched before the lock, but the duplicate write/persist is skipped.
     expect(fetchKnowledgeWebPageMock).toHaveBeenCalledTimes(1)
@@ -486,9 +488,7 @@ describe('index-documents job handler', () => {
     knowledgeItemGetByIdMock.mockReturnValue(createUrlItem('url-1'))
     fetchKnowledgeWebPageMock.mockResolvedValueOnce('')
 
-    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1', parentJobId: null }))).rejects.toThrow(
-      'empty markdown'
-    )
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1' }))).rejects.toThrow('empty markdown')
 
     expect(captureUrlSnapshotFileMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('url-1', 'completed')
@@ -499,9 +499,7 @@ describe('index-documents job handler', () => {
     const emptyNote = { ...createNoteItem(NOTE_ITEM_ID), data: { source: 'My note', content: '   ' } }
     knowledgeItemGetByIdMock.mockReturnValue(emptyNote)
 
-    await expect(
-      handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
-    ).rejects.toThrow('empty content')
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))).rejects.toThrow('empty content')
 
     expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
@@ -515,7 +513,7 @@ describe('index-documents job handler', () => {
     knowledgeItemGetByIdMock.mockReturnValue(noSnapshotNote)
     captureNoteSnapshotFileMock.mockResolvedValue('My note.md')
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     // No network fetch; the in-hand content is written and the relativePath persisted.
     expect(fetchKnowledgeWebPageMock).not.toHaveBeenCalled()
@@ -534,7 +532,7 @@ describe('index-documents job handler', () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, null, 'processing', 'cached-note.md'))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
@@ -551,7 +549,7 @@ describe('index-documents job handler', () => {
       .mockReturnValueOnce(noSnapshotNote)
       .mockReturnValueOnce(createNoteItem(NOTE_ITEM_ID, null, 'processing', 'raced-note.md'))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
 
     expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
@@ -563,13 +561,6 @@ describe('index-documents job handler', () => {
 
   it('onSettled skips failed status when the item is deleting', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'index-job',
-        type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
-      })
-    )
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', null, 'deleting'))
 
     await handler.onSettled?.({
@@ -578,7 +569,7 @@ describe('index-documents job handler', () => {
       scheduleId: null,
       parentId: null,
       status: 'failed',
-      input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null },
+      input: { baseId: 'kb-1', itemId: 'note-1' },
       error: { code: 'FAILED', message: 'cancelled', retryable: false },
       attempt: 1,
       metadata: {}

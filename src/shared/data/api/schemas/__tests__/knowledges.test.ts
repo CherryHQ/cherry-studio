@@ -395,7 +395,7 @@ describe('Knowledge base schemas', () => {
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'idle',
+        status: 'processing',
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -409,7 +409,7 @@ describe('Knowledge base schemas', () => {
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'idle',
+        status: 'processing',
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success

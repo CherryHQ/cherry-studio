@@ -7,7 +7,7 @@
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import type {
   KnowledgeBaseListItem,
   ListKnowledgeBasesQuery,
@@ -23,7 +23,8 @@ import {
   DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR,
   DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
   type KnowledgeBase,
-  KnowledgeBaseSchema
+  KnowledgeBaseSchema,
+  KnowledgeBaseWriteSchema
 } from '@shared/data/types/knowledge'
 import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
 
@@ -33,40 +34,6 @@ const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
-
-function validateKnowledgeBaseConfig(config: {
-  chunkSize: number
-  chunkOverlap: number
-  chunkStrategy?: string | null
-  chunkSeparator?: string | null
-}): Record<string, string[]> {
-  const fieldErrors: Record<string, string[]> = {}
-
-  if (config.chunkOverlap >= config.chunkSize) {
-    fieldErrors.chunkOverlap = ['Chunk overlap must be smaller than chunk size']
-  }
-
-  if (config.chunkStrategy === 'delimiter' && !config.chunkSeparator) {
-    fieldErrors.chunkSeparator = ['Separator is required when chunk strategy is delimiter']
-  }
-
-  return fieldErrors
-}
-
-// The vector arm of the DB CHECK requires a positive dimensions alongside the model;
-// a no-model base always persists a null dimensions regardless of what is passed. The
-// IPC boundary already rejects a model without dimensions via CreateKnowledgeBaseSchema's
-// refine, so this guards internal callers (e.g. restoreBase) that build a DTO directly,
-// before the write reaches the DB CHECK as an untranslated constraint violation.
-function validateDimensionsForEmbeddingModel(
-  embeddingModelId: string | null,
-  dimensions: number | null | undefined
-): Record<string, string[]> {
-  if (embeddingModelId != null && !(typeof dimensions === 'number' && Number.isInteger(dimensions) && dimensions > 0)) {
-    return { dimensions: ['A knowledge base with an embedding model requires positive dimensions'] }
-  }
-  return {}
-}
 
 function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   const clean = nullsToUndefined(row)
@@ -197,14 +164,6 @@ export class KnowledgeBaseService {
       chunkStrategy: dto.chunkStrategy ?? DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
       chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR
     }
-    const createFieldErrors = {
-      ...validateKnowledgeBaseConfig(createConfig),
-      ...validateDimensionsForEmbeddingModel(embeddingModelId, dto.dimensions)
-    }
-    if (Object.keys(createFieldErrors).length > 0) {
-      throw DataApiErrorFactory.validation(createFieldErrors)
-    }
-
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
@@ -220,6 +179,18 @@ export class KnowledgeBaseService {
       chunkSeparator: createConfig.chunkSeparator,
       threshold: dto.threshold ?? null,
       documentCount: dto.documentCount ?? null
+    }
+
+    // threshold/documentCount are nullable in the insert values but optional in the
+    // write schema, so nulls become undefined for validation.
+    const createCandidate = {
+      ...createValues,
+      threshold: createValues.threshold ?? undefined,
+      documentCount: createValues.documentCount ?? undefined
+    }
+    const createValidation = KnowledgeBaseWriteSchema.safeParse(createCandidate)
+    if (!createValidation.success) {
+      throw toDataApiError(createValidation.error, 'create knowledge base')
     }
 
     const db = application.get('DbService').getDb()
@@ -280,12 +251,28 @@ export class KnowledgeBaseService {
       chunkSeparator: dto.chunkSeparator !== undefined ? dto.chunkSeparator : existing.chunkSeparator
     }
 
-    const updateFieldErrors = {
-      ...validateKnowledgeBaseConfig(nextConfig),
-      ...validateDimensionsForEmbeddingModel(nextEmbeddingModelId, nextDimensions)
+    // Validate the merged next-state (existing row + this PATCH) against the same
+    // invariants as the read schema — a failed base's leftover-incompatible pairing
+    // isn't governed by these invariants until it goes through restore, so
+    // metadata-only updates (rename, move group) must not be blocked by them; that
+    // gating lives inside `refineKnowledgeBaseInvariants` itself (only enforced
+    // when `status === 'completed'`).
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...existingConfig } = existing
+    void _id // Intentionally unused - excluding id/createdAt/updatedAt from the write candidate
+    void _createdAt
+    void _updatedAt
+    const updateCandidate = {
+      ...existingConfig,
+      embeddingModelId: nextEmbeddingModelId,
+      dimensions: nextDimensions,
+      chunkSize: nextConfig.chunkSize,
+      chunkOverlap: nextConfig.chunkOverlap,
+      chunkStrategy: nextConfig.chunkStrategy,
+      chunkSeparator: nextConfig.chunkSeparator
     }
-    if (Object.keys(updateFieldErrors).length > 0) {
-      throw DataApiErrorFactory.validation(updateFieldErrors)
+    const updateValidation = KnowledgeBaseWriteSchema.safeParse(updateCandidate)
+    if (!updateValidation.success) {
+      throw toDataApiError(updateValidation.error, 'update knowledge base')
     }
 
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}

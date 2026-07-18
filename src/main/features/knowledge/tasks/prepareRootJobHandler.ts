@@ -3,25 +3,27 @@ import './jobTypes'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
+import { removeDir } from '@main/utils/file'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
-import type { KnowledgeLockManager } from '../KnowledgeLockManager'
-import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
+import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
+import { markUnscheduledKnowledgeItemsFailed } from '../ingestion/statusCleanup'
+import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
+import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
-import { markUnscheduledKnowledgeItemsFailed } from '../utils/cleanup/statusCleanup'
-import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
-import { isIndexableKnowledgeItem } from '../utils/items'
-import { prepareKnowledgeItem } from '../utils/sources/prepare'
-import { deleteKnowledgeItemFilesBestEffort } from '../utils/storage/pathStorage'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
-import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
+import { prepareKnowledgeItem } from './prepareItem'
+import { resolveLiveKnowledgeItem } from './utils/liveItem'
+import { markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
 
 export function createPrepareRootJobHandler(
-  knowledgeLockManager: KnowledgeLockManager,
-  workflowService: KnowledgeWorkflowService
+  knowledgeLockManager: KeyedMutex,
+  ingestionService: KnowledgeItemScheduler
 ): JobHandler<KnowledgePrepareRootPayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
@@ -56,7 +58,7 @@ export function createPrepareRootJobHandler(
       // Source expansion creates child items, so it runs under the base mutation lock.
       const leafItems = await scanRootItem(ctx, knowledgeLockManager)
       // Child indexing is scheduled after expansion succeeds so partial scans do not enqueue stale leaves.
-      await enqueueLeafItems(ctx, leafItems, workflowService)
+      await enqueueLeafItems(ctx, leafItems, ingestionService)
     },
 
     async onSettled(event) {
@@ -70,15 +72,6 @@ function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPayload>)
 
   try {
     knowledgeBaseService.getById(baseId)
-    const item = knowledgeItemService.getById(itemId)
-
-    if (item.status === 'deleting') {
-      logger.info('Skipping prepare-root for deleting item', { baseId, itemId, jobId: ctx.jobId })
-      reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
-      return null
-    }
-
-    return item
   } catch (error) {
     if (isDataApiNotFoundError(error)) {
       logger.info('Skipping prepare-root for missing base or item', { baseId, itemId, jobId: ctx.jobId })
@@ -87,57 +80,70 @@ function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPayload>)
     }
     throw error
   }
+
+  const result = resolveLiveKnowledgeItem(itemId)
+  if ('skip' in result) {
+    if (result.skip === 'deleting') {
+      logger.info('Skipping prepare-root for deleting item', { baseId, itemId, jobId: ctx.jobId })
+      reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
+    } else {
+      logger.info('Skipping prepare-root for missing base or item', { baseId, itemId, jobId: ctx.jobId })
+      reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
+    }
+    return null
+  }
+
+  return result.item
 }
 
 async function deletePreviousLeafExpansion(
   baseId: string,
   itemId: string,
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): Promise<void> {
-  await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+  await knowledgeLockManager.runExclusive(baseId, async () => {
     const base = knowledgeBaseService.getById(baseId)
     const descendants = knowledgeItemService.getSubtreeItems(baseId, [itemId])
     const removableDescendants = descendants.filter((item) => item.status !== 'deleting')
-    const removableDescendantIds = removableDescendants.map((item) => item.id)
-    const removableLeafIds = removableDescendants.filter(isIndexableKnowledgeItem).map((item) => item.id)
+    await purgeKnowledgeSubtreeWithinLock(base, removableDescendants, { baseId, itemId })
 
-    await deleteKnowledgeItemVectors(base, removableLeafIds)
-    // Best-effort: a file-removal failure must not abort the row deletion below.
-    await deleteKnowledgeItemFilesBestEffort(baseId, removableDescendants, { baseId, itemId })
-    knowledgeItemService.deleteItemsByIds(baseId, removableDescendantIds)
+    // `getSubtreeItems` excludes the container row, so the purge above never touches the
+    // container's own `raw/<pathPrefix>` shell. A prior attempt pins `relativePath` before
+    // copying any byte (see prepareDirectoryForRuntime), so if orphan bytes exist the row
+    // records their prefix — reclaim the whole shell here. removeDir is idempotent (ENOENT
+    // no-op) when the shell was never created.
+    const result = resolveLiveKnowledgeItem(itemId)
+    if ('item' in result && result.item.type === 'directory') {
+      const prefix = result.item.data.relativePath
+      if (prefix) {
+        await removeDir(getKnowledgeBaseFilePath(baseId, prefix))
+      }
+    }
   })
 }
 
 async function scanRootItem(
   ctx: JobContext<KnowledgePrepareRootPayload>,
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): Promise<KnowledgeItem[]> {
   const { baseId, itemId } = ctx.input
 
-  return await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
-    let currentItem: KnowledgeItem
-    try {
-      currentItem = knowledgeItemService.getById(itemId)
-    } catch (error) {
-      if (isDataApiNotFoundError(error)) {
+  return await knowledgeLockManager.runExclusive(baseId, async () => {
+    const result = resolveLiveKnowledgeItem(itemId)
+    if ('skip' in result) {
+      if (result.skip === 'deleting') {
+        logger.info('Skipping prepare-root for deleting item before expansion', { baseId, itemId, jobId: ctx.jobId })
+        reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
+      } else {
         logger.info('Skipping prepare-root for missing item before expansion', { baseId, itemId, jobId: ctx.jobId })
         reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
-        return []
       }
-      throw error
-    }
-
-    if (currentItem.status === 'deleting') {
-      logger.info('Skipping prepare-root for deleting item before expansion', { baseId, itemId, jobId: ctx.jobId })
-      reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
       return []
     }
 
     const leaves = await prepareKnowledgeItem({
       baseId,
-      item: currentItem,
-      onCreatedItem: () => {},
-      runMutation: async (task) => await task(),
+      item: result.item,
       signal: ctx.signal
     })
     if (leaves.length > 0) {
@@ -150,7 +156,7 @@ async function scanRootItem(
 async function enqueueLeafItems(
   ctx: JobContext<KnowledgePrepareRootPayload>,
   leafItems: KnowledgeItem[],
-  workflowService: KnowledgeWorkflowService
+  ingestionService: KnowledgeItemScheduler
 ): Promise<void> {
   const { baseId } = ctx.input
 
@@ -160,7 +166,7 @@ async function enqueueLeafItems(
   for (const [index, leaf] of leafItems.entries()) {
     ctx.signal.throwIfAborted()
     try {
-      await workflowService.scheduleItem(baseIdInput, toKnowledgeItemId(leaf.id), ctx.jobId)
+      await ingestionService.scheduleItem(baseIdInput, toKnowledgeItemId(leaf.id), ctx.jobId)
       completedSchedulingLeafIds.add(leaf.id)
     } catch (error) {
       markUnscheduledLeafItemsFailed(baseId, leafItems, completedSchedulingLeafIds, error)
@@ -190,7 +196,6 @@ function markUnscheduledLeafItemsFailed(
     errorMessage: message,
     failedStatusError: `Failed to schedule knowledge child item job: ${message}`,
     logger,
-    logMessage: 'Failed to mark unscheduled knowledge child item after prepare-root scheduling failure',
-    logContextKey: 'scheduleError'
+    logMessage: 'Failed to mark unscheduled knowledge child item after prepare-root scheduling failure'
   })
 }

@@ -30,16 +30,6 @@ Used by subtree id-based operations: `deleteItems` and `reindexItems`.
 
 This helper is not used by `addItems` because `addItems` receives new item payloads, not persisted item ids.
 
-### `KnowledgeService.getRootItemsInBase`
-
-Private helper used only by single-item chunk operations.
-
-- De-duplicates input item ids.
-- Loads each selected item.
-- Rejects items that do not belong to the requested `baseId`.
-
-Subtree operations do not use this helper; they use `KnowledgeItemService.getOutermostSelectedItemIds` instead.
-
 ### Subtree Status Reconciliation
 
 Any non-delete subtree status update must reconcile parent containers outside the updated subtree. For example, if a child subtree is marked `failed` after a scheduling failure, the parent directory must also be recalculated so it does not remain `processing` without active work.
@@ -262,7 +252,7 @@ The child scheduling compensation mirrors `addItems`: once a child job was accep
 
 ## Shutdown
 
-`KnowledgeService` does not cancel knowledge jobs during service shutdown. Knowledge job handlers use JobManager `recovery: 'retry'`, so unfinished pending, delayed, or running rows are left for JobManager startup recovery instead of being terminal-cancelled while their knowledge items still show active statuses.
+`KnowledgeService` does not cancel knowledge jobs during service shutdown. The indexing handlers (`prepare-root`, `index-documents`, `check-file-processing-result`) and `reindex-subtree` use JobManager `recovery: 'abandon'` — an app restart never silently resumes them, which would otherwise re-spend the paid embedding API. `KnowledgeIngestionService.recoverInterruptedItems()` runs on startup and parks any item left in an active status by an interrupted job as `failed`. Only `delete-subtree` uses `recovery: 'retry'`, so unfinished pending, delayed, or running delete jobs are left for JobManager startup recovery instead of being terminal-cancelled.
 
 ## Review Checklist
 

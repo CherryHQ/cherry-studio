@@ -336,7 +336,7 @@ Database service providing access to the mock SQLite database.
 | Method | Signature |
 |--------|-----------|
 | `getDb` | `() => MockDb` |
-| `withWriteTx` | `<T>(fn: (tx) => Promise<T>) => Promise<T>` (passthrough — calls `fn(db)`) |
+| `withWriteTx` | `<T>(fn: (tx) => T) => T` (synchronous, mirrors production) |
 | `isReady` | `boolean` (getter) |
 
 ```typescript
@@ -351,7 +351,7 @@ MockMainDbServiceUtils.getDefaultMockDb()
 MockMainDbServiceUtils.setDb(customMockDb)
 ```
 
-> **`withWriteTx`**: passthrough (`async (fn) => fn(this.db)`) — no mutex / BUSY retry. Use `vi.spyOn(dbServiceInstance, 'withWriteTx')` to inject custom behavior. Hand-rolled DbService mocks MUST include this method or production code throws `TypeError: dbService.withWriteTx is not a function`.
+> **`withWriteTx`**: once a real DB is attached (`setupTestDatabase()` → `setDb()`), delegates to `db.transaction(fn, { behavior: 'immediate' })` for real transaction semantics (rollback on throw, etc.); in pure-mock mode (default db, no `setDb()`) falls through to `fn(this.db)` — no mutex / BUSY retry. Use `vi.spyOn(dbServiceInstance, 'withWriteTx')` to inject custom behavior. Hand-rolled DbService mocks MUST include this method or production code throws `TypeError: dbService.withWriteTx is not a function`.
 
 ---
 
