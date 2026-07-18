@@ -3324,6 +3324,46 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "web-search"
+      ],
+      "contextWindow": 1000000,
+      "family": "claude-opus",
+      "id": "claude-opus-4-8-fast",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Opus 4.8 (Fast)",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["low", "medium", "high"]
+      }
+    },
+    {
       "capabilities": ["function-call", "image-recognition", "file-input"],
       "contextWindow": 200000,
       "family": "claude-haiku",
@@ -3354,6 +3394,46 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "web-search"
+      ],
+      "contextWindow": 1000000,
+      "family": "claude-opus",
+      "id": "claude-opus-4-7-fast",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Opus 4.7 (Fast)",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 37.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 150
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["low", "medium", "high"]
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
       "id": "claude-fable-latest",
@@ -3370,60 +3450,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 50
-        }
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
-      "contextWindow": 1000000,
-      "id": "claude-opus-4-8-fast",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "claude-opus-4-8-fast",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 50
-        }
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
-      "contextWindow": 1000000,
-      "id": "claude-opus-4-7-fast",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "claude-opus-4-7-fast",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 150
         }
       }
     },
@@ -8422,7 +8448,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 131072,
+      "contextWindow": 128000,
       "id": "llama-3-2-11b-vision-instruct",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 4096,
@@ -8819,26 +8845,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 131072,
-      "id": "llama-3-3-nemotron-super-49b-v1-5",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "llama-3-3-nemotron-super-49b-v1-5",
-      "outputModalities": ["text"],
-      "ownedBy": "meta",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.39999999999999997
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.39999999999999997
         }
       }
     },
@@ -10603,6 +10609,43 @@
         "structured-output",
         "file-input"
       ],
+      "contextWindow": 1048576,
+      "family": "kimi-k3",
+      "id": "kimi-k3",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Kimi K3",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
       "contextWindow": 262144,
       "family": "kimi-k2",
       "id": "kimi-k2-7-code-highspeed",
@@ -10691,7 +10734,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
-      "contextWindow": 262144,
+      "contextWindow": 1048576,
       "id": "kimi-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
@@ -10701,11 +10744,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.66
+          "perMillionTokens": 3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.41
+          "perMillionTokens": 15
         }
       }
     },
@@ -12377,6 +12420,16 @@
           "perMillionTokens": 0
         }
       }
+    },
+    {
+      "capabilities": ["audio-recognition"],
+      "family": "whisper",
+      "id": "gpt-realtime-whisper",
+      "inputModalities": ["audio"],
+      "metadata": {},
+      "name": "gpt-realtime-whisper",
+      "outputModalities": ["text"],
+      "ownedBy": "openai"
     },
     {
       "capabilities": [
@@ -15959,7 +16012,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 202752,
+      "contextWindow": 200000,
       "family": "glm-flash",
       "id": "glm-4-7-flash",
       "inputModalities": ["text"],
@@ -16531,6 +16584,36 @@
           "currency": "USD",
           "perMillionTokens": 0.861
         }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "file-input"],
+      "contextWindow": 1048576,
+      "family": "ling",
+      "id": "inkling",
+      "inputModalities": ["text", "image", "audio"],
+      "maxOutputTokens": 256000,
+      "metadata": {},
+      "name": "Inkling",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "bailing",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.17
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.05
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
       }
     },
     {
@@ -17313,11 +17396,19 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
       "contextWindow": 1048576,
       "family": "muse",
       "id": "muse-spark-1-1",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 1048576,
       "metadata": {},
       "name": "Muse Spark 1.1",
@@ -17542,5 +17633,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "aebd9a8b27762c96"
+  "version": "87484cb32971c8d7"
 }
