@@ -69,7 +69,6 @@ function makeProgress(stage: RelocationProgress['stage'], bytesCopied: number, b
     stage,
     from: '/old/data',
     to: '/new/data',
-    copy: true,
     bytesCopied,
     bytesTotal
   }

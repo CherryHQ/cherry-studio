@@ -124,7 +124,6 @@ describe('userDataRelocation validation', () => {
 
     expect(inspectUserDataRelocationTarget(target)).toEqual({
       valid: true,
-      targetExists: true,
       targetEmpty: true
     })
     expect(inspectUserDataRelocationTarget(usersRoot)).toEqual({
@@ -154,7 +153,6 @@ describe('userDataRelocation validation', () => {
 
     expect(inspectUserDataRelocationTarget(target)).toEqual({
       valid: true,
-      targetExists: true,
       targetEmpty: true
     })
     expect(inspectUserDataRelocationTarget(appData)).toEqual({
@@ -181,7 +179,6 @@ describe('userDataRelocation validation', () => {
 
     expect(inspectUserDataRelocationTarget(target)).toEqual({
       valid: true,
-      targetExists: true,
       targetEmpty: true
     })
     expect(inspectUserDataRelocationTarget(appData)).toEqual({
@@ -204,7 +201,6 @@ describe('userDataRelocation validation', () => {
 
     expect(inspectUserDataRelocationTarget(target)).toEqual({
       valid: true,
-      targetExists: true,
       targetEmpty: true
     })
     expect(inspectUserDataRelocationTarget(systemTemp)).toEqual({
@@ -259,6 +255,22 @@ describe('userDataRelocation validation', () => {
     })
   })
 
+  it('rejects a ".."-prefixed child name as inside the source', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    fs.mkdirSync(source)
+    relocationState['app.userdata'] = source
+
+    const { inspectUserDataRelocationTarget } = await loadDomain()
+
+    // "..archive" is a legal directory name; a naive startsWith('..') check on
+    // path.relative() output would treat it as outside the source.
+    expect(inspectUserDataRelocationTarget(path.join(source, '..archive'))).toEqual({
+      valid: false,
+      reason: 'target_inside_source'
+    })
+  })
+
   it('allows writable descendants of protected Linux top-level directories but not the directories themselves', async () => {
     vi.resetModules()
     const entries: string[] = []
@@ -292,7 +304,6 @@ describe('userDataRelocation validation', () => {
 
     expect(inspectUserDataRelocationTarget('/var/cherry')).toEqual({
       valid: true,
-      targetExists: true,
       targetEmpty: true
     })
     expect(inspectUserDataRelocationTarget('/var')).toEqual({
@@ -302,7 +313,6 @@ describe('userDataRelocation validation', () => {
     entries.push('unrelated.txt')
     expect(inspectUserDataRelocationTarget('/var/cherry')).toEqual({
       valid: true,
-      targetExists: true,
       targetEmpty: false
     })
   })

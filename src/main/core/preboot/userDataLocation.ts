@@ -11,7 +11,8 @@ const DEFAULT_DEV_USER_DATA_SUFFIX = 'Dev'
 
 /**
  * "userData" in this module means Electron's complete OS-level userData
- * directory, including user content, Chromium state, and application logs.
+ * directory, including user content, Chromium state, and — on Windows and
+ * Linux — application logs (macOS keeps logs in ~/Library/Logs instead).
  */
 
 export function getNormalizedExecutablePath(): string {

@@ -62,7 +62,6 @@ function makeProgress(
     stage,
     from: '/old/data',
     to: '/new/data',
-    copy: true,
     bytesCopied: 0,
     bytesTotal: 0,
     ...overrides

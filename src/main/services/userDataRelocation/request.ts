@@ -17,8 +17,8 @@ const logger = loggerService.withContext('UserDataRelocation')
  */
 export function inspectUserDataRelocationTarget(targetPath: string): UserDataRelocationInspection {
   try {
-    const { targetExists, targetEmpty } = assertRelocationPaths(application.getPath('app.userdata'), targetPath)
-    return { valid: true, targetExists, targetEmpty }
+    const { targetEmpty } = assertRelocationPaths(application.getPath('app.userdata'), targetPath)
+    return { valid: true, targetEmpty }
   } catch (error) {
     if (error instanceof RelocationValidationError) {
       return { valid: false, reason: error.reason }

@@ -169,14 +169,14 @@ afterEach(() => {
 })
 
 describe('userDataRelocation execution', () => {
-  it('prepares a fresh temporary sessionData directory for a valid relocation', async () => {
+  it('prepares a fresh temporary sessionData directory for a pending copy', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
     fs.mkdirSync(source)
     fs.mkdirSync(target)
     relocationState['app.userdata'] = source
-    relocationState['temp.user_data_relocation'] = pending(source, target, false)
+    relocationState['temp.user_data_relocation'] = pending(source, target)
 
     const { runUserDataRelocation } = await loadDomain()
 
@@ -485,6 +485,35 @@ describe('userDataRelocation execution', () => {
     expectCommitted(target, { '/other/exe': '/other/data' })
   })
 
+  it('publishes file-granularity copy progress clamped to the scanned total', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'a.bin'), Buffer.alloc(60))
+    fs.writeFileSync(path.join(source, 'b.bin'), Buffer.alloc(40))
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocation } = await loadDomain()
+    await expect(runUserDataRelocation()).resolves.toBe('handled')
+
+    const copying = updateProgressMock.mock.calls
+      .map((call) => call[0] as { stage: string; bytesCopied: number; bytesTotal: number })
+      .filter((progress) => progress.stage === 'copying')
+    // Initial 0, one publish per file (each crosses an integer percent), and
+    // the unconditional (total, total) publish after fsp.cp returns.
+    expect(copying[0]).toMatchObject({ bytesCopied: 0, bytesTotal: 100 })
+    expect(copying.at(-1)).toMatchObject({ bytesCopied: 100, bytesTotal: 100 })
+    expect(copying.length).toBeGreaterThanOrEqual(3)
+    const series = copying.map((progress) => progress.bytesCopied)
+    expect(series).toEqual([...series].sort((a, b) => a - b))
+    for (const progress of copying) {
+      expect(progress.bytesCopied).toBeLessThanOrEqual(progress.bytesTotal)
+    }
+    expectCommitted(target)
+  })
+
   it('switches to any existing non-empty directory without modifying its files', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
@@ -499,13 +528,15 @@ describe('userDataRelocation execution', () => {
 
     expect(inspectUserDataRelocationTarget(target)).toEqual({
       valid: true,
-      targetExists: true,
       targetEmpty: false
     })
     await expect(runUserDataRelocation()).resolves.toBe('handled')
 
     expect(fs.readFileSync(path.join(target, 'arbitrary-document.xlsx'), 'utf8')).toBe('existing file')
     expect(fs.readdirSync(target)).toEqual(['arbitrary-document.xlsx'])
+    // A switch never reads the source tree, so it must not depend on the temp
+    // filesystem through sessionData isolation.
+    expect(appSetPathMock).not.toHaveBeenCalled()
     expectCommitted(target)
   })
 

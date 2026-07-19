@@ -17,7 +17,7 @@ export const USER_DATA_RELOCATION_VALIDATION_REASONS = [
 export type UserDataRelocationValidationReason = (typeof USER_DATA_RELOCATION_VALIDATION_REASONS)[number]
 
 export type UserDataRelocationInspection =
-  | { valid: true; targetExists: boolean; targetEmpty: boolean }
+  | { valid: true; targetEmpty: boolean }
   | { valid: false; reason: UserDataRelocationValidationReason }
 
 /**
@@ -37,7 +37,6 @@ export interface RelocationProgress {
   stage: RelocationStage
   from: string
   to: string
-  copy: boolean
   bytesCopied: number
   bytesTotal: number
   error?: string

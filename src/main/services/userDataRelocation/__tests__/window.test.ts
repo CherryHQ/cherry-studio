@@ -96,7 +96,6 @@ describe('userDataRelocation window', () => {
       stage: 'copying' as const,
       from: '/old',
       to: '/new',
-      copy: true,
       bytesCopied: 1,
       bytesTotal: 2
     }
@@ -115,7 +114,6 @@ describe('userDataRelocation window', () => {
       stage: 'completed',
       from: '/old',
       to: '/new',
-      copy: true,
       bytesCopied: 0,
       bytesTotal: 0
     })
@@ -148,7 +146,6 @@ describe('userDataRelocation window', () => {
       stage: 'copying' as const,
       from: '/old',
       to: '/new',
-      copy: true,
       bytesCopied: 3,
       bytesTotal: 4
     }

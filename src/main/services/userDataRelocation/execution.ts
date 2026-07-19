@@ -74,12 +74,12 @@ export async function runUserDataRelocation(): Promise<'handled' | 'skipped'> {
   let relocation = readUserDataRelocationState()
   if (!relocation) return 'skipped'
 
-  // Every pending relocation isolates sessionData (strictly only the copy
-  // needs the source tree quiescent — for a switch it is merely harmless).
-  // A failed-state launch just shows the error window, so it must not depend
-  // on the temp filesystem — otherwise a broken environment would also block
-  // the error explanation.
-  if (relocation.status === 'pending') {
+  // Only a pending copy isolates sessionData — the copy is what needs the
+  // source tree quiescent. A switch never reads the source tree and a
+  // failed-state launch just shows the error window, so neither may depend on
+  // the temp filesystem: a broken environment must not block a pure pointer
+  // switch or the error explanation.
+  if (relocation.status === 'pending' && relocation.copy) {
     relocation = prepareIsolatedSessionData(relocation)
   }
 
@@ -249,6 +249,21 @@ async function executeRelocation(
 
     const sourceReal = realPath(pending.from)
     const finalTargetEffective = resolveEffectivePath(pending.to)
+    // File-granularity approximate progress: the filter observes each file
+    // right before fsp.cp copies it, so the bar leads the actual writes by at
+    // most the file currently being copied. Clamped to the pre-scan total
+    // because the tree can change between scan and copy, and published only
+    // when the integer percent changes so small files cannot flood the IPC
+    // channel.
+    let processedBytes = 0
+    let publishedPercent = 0
+    const publishCopyProgress = () => {
+      const bytesCopied = Math.min(processedBytes, total)
+      const percent = total > 0 ? Math.floor((bytesCopied / total) * 100) : 100
+      if (percent === publishedPercent) return
+      publishedPercent = percent
+      publish(makeProgress('copying', pending, bytesCopied, total))
+    }
     // Let Node own recursive copying. The filter only applies relocation-specific
     // exclusions and records links that must stop pointing at the old userData tree.
     // fsp.cp with force:false + errorOnExist:true requires that payloadPath not
@@ -277,7 +292,13 @@ async function executeRelocation(
           }
           throw error
         }
-        if (!stat.isSymbolicLink()) return stat.isDirectory() || stat.isFile()
+        if (!stat.isSymbolicLink()) {
+          if (stat.isFile()) {
+            processedBytes += stat.size
+            publishCopyProgress()
+          }
+          return stat.isDirectory() || stat.isFile()
+        }
 
         let type: 'dir' | 'file' | 'junction' | undefined
         try {
@@ -541,7 +562,6 @@ function makeProgress(
     stage,
     from: relocation.from,
     to: relocation.to,
-    copy: relocation.copy,
     bytesCopied,
     bytesTotal,
     ...(error ? { error } : {})

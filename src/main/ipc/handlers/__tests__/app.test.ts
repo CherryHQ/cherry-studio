@@ -37,7 +37,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   ;(app as { isPackaged: boolean }).isPackaged = true
   appGetPathMock.mockReturnValue('/mock/path')
-  inspectTargetMock.mockReturnValue({ valid: true, targetExists: true, targetEmpty: true })
+  inspectTargetMock.mockReturnValue({ valid: true, targetEmpty: true })
   appGetMock.mockImplementation((name: string) => {
     if (name === 'AppUpdaterService') return appUpdaterService
     if (name === 'PreferenceService') return preferenceService
@@ -52,7 +52,7 @@ describe('appHandlers', () => {
     const result = await appHandlers['app.user_data_relocation.inspect']({ path: '/new/data' }, ctx)
 
     expect(inspectTargetMock).toHaveBeenCalledWith('/new/data')
-    expect(result).toEqual({ valid: true, targetExists: true, targetEmpty: true })
+    expect(result).toEqual({ valid: true, targetEmpty: true })
   })
 
   it('delegates relocation requests to the domain in packaged builds', async () => {
