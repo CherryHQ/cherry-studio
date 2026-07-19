@@ -261,6 +261,28 @@ export class DbService extends BaseService {
   }
 
   /**
+   * Online page-by-page copy via better-sqlite3 `backup()` on the managed
+   * connection. Used directly by v2 export. Distinct from
+   * createSnapshot (`VACUUM INTO`, restore merge-base): this API must not open a
+   * second live connection (that bypasses ownership and can force backup restart
+   * when the managed connection writes).
+   */
+  public async backupTo(destPath: string): Promise<void> {
+    if (!this.isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+    // Ensure a fresh destination: sqlite's online backup can refuse a stale /
+    // different-format target. Export paths are unique; unlink is defensive.
+    try {
+      fs.unlinkSync(destPath)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT') throw error
+    }
+    await this.sqlite.backup(destPath)
+  }
+
+  /**
    * Fold every committed WAL frame into the main database file and truncate
    * the -wal, asserting the checkpoint completed (busy == 0, all frames
    * checkpointed). Required before hashing the main file: under WAL the main

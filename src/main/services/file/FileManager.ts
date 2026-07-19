@@ -132,7 +132,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
+import { copy as fsCopy, remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -513,6 +513,13 @@ export interface IFileManager {
 
   /** Copy content into a new internal entry. Source can be internal or external. */
   copy(params: { id: FileEntryId; newName?: string }): Promise<FileEntry>
+
+  /**
+   * Copy entry bytes to an absolute dest path without creating a new FileEntry.
+   * Uses the same physical-path resolution + external observe path as
+   * `createReadStream`. Does NOT call `copy()` (which would create a new entry).
+   */
+  copyContentTo(id: FileEntryId, destPath: string): Promise<{ size: number }>
 
   // ─── Trash / Delete ───
 
@@ -1024,6 +1031,23 @@ export class FileManager extends BaseService implements IFileManager {
 
   async copy(params: { id: FileEntryId; newName?: string }): Promise<FileEntry> {
     return internalCopy(this.deps, params)
+  }
+
+  async copyContentTo(id: FileEntryId, destPath: string): Promise<{ size: number }> {
+    const entry = this.deps.fileEntryService.getById(id)
+    const physicalPath = resolvePhysicalPath(entry)
+    const copyAndStat = async (): Promise<{ size: number }> => {
+      await fsCopy(physicalPath, destPath as FilePath)
+      const s = await fsStat(destPath as FilePath)
+      if (s.isDirectory) {
+        throw Object.assign(new Error(`copyContentTo: source is a directory (${id})`), { code: 'EISDIR' })
+      }
+      return { size: s.size }
+    }
+    if (entry.origin === 'external') {
+      return observeExternalAccess(this.deps, entry, physicalPath, copyAndStat)
+    }
+    return copyAndStat()
   }
 
   async withTempCopy<T>(id: FileEntryId, fn: (tempPath: string) => Promise<T>): Promise<T> {
