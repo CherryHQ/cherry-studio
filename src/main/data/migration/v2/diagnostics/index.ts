@@ -1,4 +1,37 @@
 export type {
+  MigrationDatabaseDiagnosticsOptions,
+  MigrationDatabaseDiagnosticsWorkerFactory,
+  MigrationDatabaseDiagnosticsWorkerLike
+} from './MigrationDatabaseDiagnostics'
+export { MigrationDatabaseDiagnostics } from './MigrationDatabaseDiagnostics'
+export type {
+  MigrationDatabaseColumnCountBucket,
+  MigrationDatabaseCountBucket,
+  MigrationDatabaseDiagnosticResult,
+  MigrationDatabaseDiagnosticStep,
+  MigrationDatabaseExpectedObjectDefinition,
+  MigrationDatabaseExpectedObjectId,
+  MigrationDatabaseFailureCode,
+  MigrationDatabaseL0Data,
+  MigrationDatabaseL0Step,
+  MigrationDatabaseL1Data,
+  MigrationDatabaseL1Step,
+  MigrationDatabaseL2Data,
+  MigrationDatabaseL2Step,
+  MigrationDatabaseObjectKind,
+  MigrationDatabaseUnknownObjectKind
+} from './migrationDatabaseDiagnosticsSchemas'
+export {
+  migrationDatabaseDiagnosticResultSchema,
+  migrationDatabaseDiagnosticStepSchema,
+  migrationDatabaseL0DataSchema,
+  migrationDatabaseL0StepSchema,
+  migrationDatabaseL1DataSchema,
+  migrationDatabaseL1StepSchema,
+  migrationDatabaseL2DataSchema,
+  migrationDatabaseL2StepSchema
+} from './migrationDatabaseDiagnosticsSchemas'
+export type {
   MigrationDiagnosticsCoordinatorOptions,
   MigrationDiagnosticsSaveInProgress,
   MigrationDiagnosticsSnapshot
