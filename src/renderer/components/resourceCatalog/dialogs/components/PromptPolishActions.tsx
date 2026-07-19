@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import { Loader2, Sparkles, Undo2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('PromptPolishActions')
@@ -60,11 +60,14 @@ export function PromptPolishActions({
   const generationSourceRef = useRef(generationSource)
   const onChangeRef = useRef(onChange)
   const onRunningChangeRef = useRef(onRunningChange)
-  valueRef.current = value
-  disabledRef.current = disabled
-  generationSourceRef.current = generationSource
-  onChangeRef.current = onChange
-  onRunningChangeRef.current = onRunningChange
+
+  useLayoutEffect(() => {
+    valueRef.current = value
+    disabledRef.current = disabled
+    generationSourceRef.current = generationSource
+    onChangeRef.current = onChange
+    onRunningChangeRef.current = onRunningChange
+  }, [disabled, generationSource, onChange, onRunningChange, value])
 
   useEffect(() => {
     return () => {

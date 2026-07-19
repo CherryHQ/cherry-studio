@@ -1,6 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useState } from 'react'
+import { startTransition, Suspense, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -33,6 +33,15 @@ import { PromptPolishActions } from '../PromptPolishActions'
 
 const TEST_GENERATE_SYSTEM_PROMPT = 'Generate a test prompt from the supplied title.'
 const TEST_EXISTING_SYSTEM_PROMPT = 'Rewrite an existing test prompt as a structured persona.'
+const NEVER_RESOLVING_PROMISE = new Promise<never>(() => undefined)
+
+function SuspendWhen({ active }: { active: boolean }) {
+  if (active) {
+    throw NEVER_RESOLVING_PROMISE
+  }
+
+  return null
+}
 
 function Harness({
   initialValue = 'Draft {{date}} for ${city}',
@@ -350,6 +359,46 @@ describe('PromptPolishActions', () => {
     await act(async () => request.resolve('Late polished prompt'))
 
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('uses only committed props after an interrupted render', async () => {
+    const request = deferredResponse()
+    mocks.fetchGenerate.mockReturnValueOnce(request.promise)
+    const onChange = vi.fn()
+
+    function ConcurrentHarness() {
+      const [value, setValue] = useState('Original prompt')
+      const [suspended, setSuspended] = useState(false)
+
+      return (
+        <Suspense fallback={null}>
+          <PromptPolishActions
+            value={value}
+            emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+            existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+            onChange={onChange}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              startTransition(() => {
+                setValue('Uncommitted prompt')
+                setSuspended(true)
+              })
+            }}>
+            start interrupted render
+          </button>
+          <SuspendWhen active={suspended} />
+        </Suspense>
+      )
+    }
+
+    render(<ConcurrentHarness />)
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    fireEvent.click(screen.getByRole('button', { name: 'start interrupted render' }))
+    await act(async () => request.resolve('Polished prompt'))
+
+    expect(onChange).toHaveBeenCalledWith('Polished prompt')
   })
 
   it('does not apply a fallback response after the fallback source changes', async () => {
