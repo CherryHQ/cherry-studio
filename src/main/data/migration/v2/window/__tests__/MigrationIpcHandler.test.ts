@@ -1,5 +1,5 @@
 import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
-import { ipcMain } from 'electron'
+import { clipboard, dialog, ipcMain, shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Shared mock fns so each test can configure return values.
@@ -17,6 +17,22 @@ const windowConfirmQuitMock = vi.hoisted(() => vi.fn())
 const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
 const windowSetWriteWaiterMock = vi.hoisted(() => vi.fn())
 const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
+const migrationWebContents = vi.hoisted(() => ({ id: 'migration-web-contents' }))
+const windowGetMock = vi.hoisted(() => vi.fn())
+const diagnosticsStartMock = vi.hoisted(() => vi.fn())
+const diagnosticsReportRendererExportFailureMock = vi.hoisted(() => vi.fn())
+const diagnosticsSaveBundleMock = vi.hoisted(() => vi.fn())
+const isSafeExternalUrlMock = vi.hoisted(() => vi.fn())
+const electronMocks = vi.hoisted(() => ({
+  app: { getLocale: vi.fn(), quit: vi.fn() },
+  clipboard: { writeText: vi.fn() },
+  dialog: { showMessageBox: vi.fn(), showSaveDialog: vi.fn() },
+  ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
+  shell: { openExternal: vi.fn(), showItemInFolder: vi.fn() }
+}))
+
+vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: isSafeExternalUrlMock }))
+vi.mock('electron', () => electronMocks)
 
 vi.mock('../../core/MigrationEngine', () => ({ migrationEngine: engineMock }))
 vi.mock('../MigrationWindowManager', () => ({
@@ -30,7 +46,8 @@ vi.mock('../MigrationWindowManager', () => ({
     confirmQuit: windowConfirmQuitMock,
     setQuitRequester: windowSetQuitRequesterMock,
     setWriteWaiter: windowSetWriteWaiterMock,
-    clearCloseConfirm: windowClearCloseConfirmMock
+    clearCloseConfirm: windowClearCloseConfirmMock,
+    getWindow: windowGetMock
   }
 }))
 
@@ -58,17 +75,197 @@ describe('MigrationIpcHandler', () => {
     return all[all.length - 1]
   }
 
-  function invoke(channel: string, ...args: unknown[]) {
+  function invokeFrom(sender: unknown, channel: string, ...args: unknown[]) {
     const handler = handlers.get(channel)
     if (!handler) throw new Error(`No handler registered for ${channel}`)
-    return handler({}, ...args)
+    return Promise.resolve().then(() => handler({ sender }, ...args))
+  }
+
+  function invoke(channel: string, ...args: unknown[]) {
+    return invokeFrom(migrationWebContents, channel, ...args)
   }
 
   beforeEach(() => {
     vi.resetAllMocks()
+    electronMocks.app.getLocale.mockReturnValue('en-US')
+    windowGetMock.mockReturnValue({ webContents: migrationWebContents })
+    isSafeExternalUrlMock.mockReturnValue(true)
+    diagnosticsStartMock.mockResolvedValue(undefined)
+    diagnosticsReportRendererExportFailureMock.mockResolvedValue(undefined)
+    diagnosticsSaveBundleMock.mockResolvedValue({ status: 'saved' })
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+      canceled: false,
+      filePath: '/main-selected/migration-diagnostics.zip'
+    } as never)
+    engineMock.run.mockResolvedValue({ success: true, totalDuration: 1, migratorResults: [] })
     resetMigrationData()
-    registerMigrationIpcHandlers('/mock/userData')
+    registerMigrationIpcHandlers('/mock/userData', {
+      start: diagnosticsStartMock,
+      reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+      saveDiagnosticBundle: diagnosticsSaveBundleMock
+    })
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+  })
+
+  it('uses the fixed strict-diagnostics channel names', () => {
+    expect(MigrationIpcChannels).toMatchObject({
+      Start: 'migration:start',
+      SaveDiagnosticBundle: 'migration:save-diagnostic-bundle',
+      OpenDiagnosticEmail: 'migration:open-diagnostic-email',
+      ShowDiagnosticBundleInFolder: 'migration:show-diagnostic-bundle-in-folder',
+      CopySupportEmail: 'migration:copy-support-email'
+    })
+  })
+
+  it('starts renderer-export diagnostics without making StartMigration begin a second attempt', async () => {
+    await invoke(MigrationIpcChannels.Start)
+    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+    expect(diagnosticsStartMock).toHaveBeenCalledTimes(1)
+    expect(diagnosticsStartMock).toHaveBeenCalledWith()
+  })
+
+  it('reports renderer export failure through the narrow capability without forwarding the raw message', async () => {
+    await invoke(MigrationIpcChannels.ReportError, 'Bearer canary-secret /Users/private')
+
+    expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledTimes(1)
+    expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith()
+  })
+
+  describe('strict diagnostics support actions', () => {
+    it.each(['dialog_failed', 'snapshot_failed', 'archive_failed', 'publish_failed', 'save_in_progress'] as const)(
+      'returns the stable %s save failure code',
+      async (code) => {
+        if (code === 'dialog_failed') {
+          vi.mocked(dialog.showSaveDialog).mockRejectedValueOnce(new Error('native canary'))
+        } else {
+          diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code })
+        }
+
+        await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({ status: 'failed', code })
+      }
+    )
+
+    it('returns canceled without invoking the bundle capability', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
+
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({ status: 'canceled' })
+      expect(diagnosticsSaveBundleMock).not.toHaveBeenCalled()
+    })
+
+    it('uses only the Main-selected destination and returns the exact saved result', async () => {
+      await expect(
+        invoke(MigrationIpcChannels.SaveDiagnosticBundle, '/renderer-controlled/escape.zip', 'attacker@example.com')
+      ).resolves.toEqual({ status: 'saved', outputCount: 1 })
+
+      expect(diagnosticsSaveBundleMock).toHaveBeenCalledWith('/main-selected/migration-diagnostics.zip')
+    })
+
+    it('reveals only the most recent successful Main-selected destination', async () => {
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder, '/renderer-controlled/escape.zip')
+
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/main-selected/migration-diagnostics.zip')
+      expect(shell.showItemInFolder).not.toHaveBeenCalledWith('/renderer-controlled/escape.zip')
+    })
+
+    it.each(['canceled', 'failed'] as const)('does not reuse a stale destination after a %s save', async (outcome) => {
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      vi.mocked(shell.showItemInFolder).mockClear()
+
+      if (outcome === 'canceled') {
+        vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
+      } else {
+        diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: 'archive_failed' })
+      }
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+
+      await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).rejects.toThrow(
+        /saved diagnostic bundle/i
+      )
+      expect(shell.showItemInFolder).not.toHaveBeenCalled()
+    })
+
+    it('clears the reveal destination when handlers are unregistered and registered again', async () => {
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers('/mock/userData', {
+        start: diagnosticsStartMock,
+        reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+        saveDiagnosticBundle: diagnosticsSaveBundleMock
+      })
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+
+      await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).rejects.toThrow(
+        /saved diagnostic bundle/i
+      )
+    })
+
+    it('returns save_in_progress from the coordinator capability without showing a second error dialog', async () => {
+      diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: 'save_in_progress' })
+
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+        status: 'failed',
+        code: 'save_in_progress'
+      })
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+    })
+
+    it('opens a fixed, safely encoded support mailto only after URL validation', async () => {
+      await invoke(
+        MigrationIpcChannels.OpenDiagnosticEmail,
+        'attacker@example.com',
+        'javascript:alert(1)',
+        'Bearer canary'
+      )
+
+      const mailto = isSafeExternalUrlMock.mock.calls[0]?.[0] as string
+      expect(mailto).toMatch(/^mailto:support@cherry-ai\.com\?/)
+      const parsed = new URL(mailto)
+      expect(parsed.searchParams.get('subject')).toBeTruthy()
+      expect(parsed.searchParams.get('body')).toMatch(/attach/i)
+      expect(isSafeExternalUrlMock).toHaveBeenCalledWith(mailto)
+      expect(shell.openExternal).toHaveBeenCalledWith(mailto)
+      expect(isSafeExternalUrlMock.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(shell.openExternal).mock.invocationCallOrder[0]
+      )
+    })
+
+    it('rejects an unsafe fixed mailto without opening it', async () => {
+      isSafeExternalUrlMock.mockReturnValueOnce(false)
+
+      await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail)).rejects.toThrow(/safe support email/i)
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('copies only the fixed support email address', async () => {
+      await invoke(MigrationIpcChannels.CopySupportEmail, 'attacker@example.com')
+
+      expect(clipboard.writeText).toHaveBeenCalledWith('support@cherry-ai.com')
+    })
+  })
+
+  describe('sensitive sender identity', () => {
+    it.each([
+      MigrationIpcChannels.Start,
+      MigrationIpcChannels.SaveDiagnosticBundle,
+      MigrationIpcChannels.OpenDiagnosticEmail,
+      MigrationIpcChannels.ShowDiagnosticBundleInFolder,
+      MigrationIpcChannels.CopySupportEmail
+    ])('rejects %s from any sender other than the migration window', async (channel) => {
+      await expect(invokeFrom({ id: 'other-web-contents' }, channel)).rejects.toThrow(/migration window/i)
+    })
+
+    it('accepts all five sensitive channels from the migration window sender', async () => {
+      await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+        status: 'saved',
+        outputCount: 1
+      })
+      await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail)).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.CopySupportEmail)).resolves.toBe(true)
+    })
   })
 
   it('flips to the protected migration stage before running the engine', async () => {

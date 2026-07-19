@@ -1,8 +1,12 @@
-import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
+import {
+  type MigrationDiagnosticSaveResult,
+  MigrationIpcChannels,
+  type MigrationProgress
+} from '@shared/data/migration/v2/types'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
-import { useMigrationProgress } from '../useMigrationProgress'
+import { useMigrationActions, useMigrationProgress } from '../useMigrationProgress'
 
 const cleanup = vi.fn()
 const invoke = vi.fn()
@@ -126,5 +130,37 @@ describe('useMigrationProgress', () => {
     })
 
     expect(result.current.progress.summary?.durationMs).toBe(3_250)
+  })
+
+  it('exposes payload-free strict diagnostics actions on the fixed channels', async () => {
+    const { result } = renderHook(() => useMigrationActions())
+
+    await act(async () => {
+      await result.current.start()
+      await result.current.save()
+      await result.current.openEmail()
+      await result.current.showInFolder()
+      await result.current.copyEmail()
+    })
+
+    expect(invoke.mock.calls.slice(-5)).toEqual([
+      [MigrationIpcChannels.Start],
+      [MigrationIpcChannels.SaveDiagnosticBundle],
+      [MigrationIpcChannels.OpenDiagnosticEmail],
+      [MigrationIpcChannels.ShowDiagnosticBundleInFolder],
+      [MigrationIpcChannels.CopySupportEmail]
+    ])
+  })
+
+  it('publishes only the exact renderer diagnostic-save result union', () => {
+    type Expected =
+      | { status: 'canceled' }
+      | { status: 'saved'; outputCount: 1 }
+      | {
+          status: 'failed'
+          code: 'dialog_failed' | 'snapshot_failed' | 'archive_failed' | 'publish_failed' | 'save_in_progress'
+        }
+
+    expectTypeOf<MigrationDiagnosticSaveResult>().toEqualTypeOf<Expected>()
   })
 })

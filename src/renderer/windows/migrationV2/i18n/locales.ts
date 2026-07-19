@@ -116,6 +116,25 @@ export const zhCN = {
       error_prefix: '错误信息：',
       unknown: '未知错误'
     },
+    diagnostics: {
+      save: '保存诊断包',
+      saved: {
+        title: '诊断包已保存',
+        description: '联系支持团队时，请手动将已保存的 ZIP 文件添加为邮件附件。应用不会自动上传诊断包。'
+      },
+      actions: {
+        open_email: '打开邮件客户端',
+        show_in_folder: '在文件夹中显示',
+        copy_email: '复制支持邮箱'
+      },
+      failures: {
+        dialog_failed: '无法打开保存对话框，请重试。',
+        snapshot_failed: '无法生成诊断快照，请重试。',
+        archive_failed: '无法创建诊断压缩包，请重试。',
+        publish_failed: '无法将诊断包保存到所选位置，请重试。',
+        save_in_progress: '另一个诊断包正在保存，请稍候再试。'
+      }
+    },
     version_incompatible: {
       title: '版本升级提示',
       preamble: 'Cherry Studio 对数据存储进行了重大重构，为了保证旧数据的安全迁移，我们对升级顺序有严格要求。',
@@ -244,6 +263,26 @@ export const enUS = {
         'An error occurred during migration. You can retry or continue using the previous version (original data is intact).',
       error_prefix: 'Error: ',
       unknown: 'Unknown error'
+    },
+    diagnostics: {
+      save: 'Save diagnostic bundle',
+      saved: {
+        title: 'Diagnostic bundle saved',
+        description:
+          'When contacting support, manually attach the saved ZIP file to your email. The app does not upload the bundle automatically.'
+      },
+      actions: {
+        open_email: 'Open email client',
+        show_in_folder: 'Show in folder',
+        copy_email: 'Copy support email'
+      },
+      failures: {
+        dialog_failed: 'The save dialog could not be opened. Please try again.',
+        snapshot_failed: 'The diagnostic snapshot could not be created. Please try again.',
+        archive_failed: 'The diagnostic ZIP could not be created. Please try again.',
+        publish_failed: 'The diagnostic bundle could not be saved to that location. Please try again.',
+        save_in_progress: 'Another diagnostic bundle is being saved. Please try again shortly.'
+      }
     },
     version_incompatible: {
       title: 'Version Upgrade Required',

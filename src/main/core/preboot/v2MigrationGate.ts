@@ -111,7 +111,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     })
   }
 
-  const beginAttempt = (trigger: 'initial' | 'recovered_retry'): boolean => {
+  const beginAttempt = (trigger: 'initial' | 'manual_retry' | 'recovered_retry'): boolean => {
     try {
       diagnosticsCoordinator.beginAttempt(trigger)
       attemptActive = true
@@ -189,6 +189,49 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     } finally {
       attemptActive = false
     }
+  }
+
+  const startRendererExport = async (): Promise<void> => {
+    try {
+      const snapshot = await diagnosticsCoordinator.snapshot()
+      if (snapshot.attempts.at(-1)?.outcome !== 'in_progress') {
+        attemptActive = false
+        if (!beginAttempt('manual_retry')) return
+      } else {
+        attemptActive = true
+      }
+      recordEvent({
+        scope: 'renderer_export',
+        phase: 'prepare',
+        state: 'started',
+        code: 'unknown'
+      })
+    } catch {
+      logger.error('Failed to start renderer export diagnostics')
+    }
+  }
+
+  const finishRendererExportFailure = (): void => {
+    if (!attemptActive) return
+    try {
+      diagnosticsCoordinator.finishAttempt('failed', {
+        scope: 'renderer_export',
+        phase: 'finalize',
+        state: 'failed',
+        category: 'source',
+        code: 'source_parse'
+      })
+    } catch {
+      logger.error('Failed to finish renderer export diagnostics')
+    } finally {
+      attemptActive = false
+    }
+  }
+
+  const migrationIpcDiagnosticCapabilities = {
+    start: startRendererExport,
+    reportRendererExportFailure: finishRendererExportFailure,
+    saveDiagnosticBundle
   }
 
   const finishActiveRendererFailureAttempt = async (reason: MigrationRendererFailureReason): Promise<void> => {
@@ -360,7 +403,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   logger.info('Version compatibility check', { previousVersion, versionLogExists })
   if (versionCheck.outcome === 'block') {
     setVersionIncompatible(versionCheck.reason, versionCheck.details)
-    registerMigrationIpcHandlers(paths.userData)
+    registerMigrationIpcHandlers(paths.userData, migrationIpcDiagnosticCapabilities)
     try {
       await app.whenReady()
       migrationWindowManager.create({ failureClaim: windowFailureClaim, onRendererFailure })
@@ -378,7 +421,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   }
 
   if (dataLocation) setDataLocationNotice(dataLocation)
-  registerMigrationIpcHandlers(paths.userData)
+  registerMigrationIpcHandlers(paths.userData, migrationIpcDiagnosticCapabilities)
   try {
     await app.whenReady()
     migrationWindowManager.create({ failureClaim: windowFailureClaim, onRendererFailure })

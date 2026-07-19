@@ -1,3 +1,4 @@
+import type { MigrationDiagnosticSaveResult } from '@shared/data/migration/v2/types'
 import { dialog } from 'electron'
 
 import {
@@ -113,20 +114,48 @@ async function selectDestination(i18n: MigrationDiagnosticNativeI18n): Promise<s
   }
 }
 
+export interface MigrationDiagnosticBundleDialogOutcome {
+  result: MigrationDiagnosticSaveResult
+  destination?: string
+}
+
+async function saveBundleWithDialog(
+  i18n: MigrationDiagnosticNativeI18n,
+  operation: SaveBundle
+): Promise<MigrationDiagnosticBundleDialogOutcome> {
+  const destination = await selectDestination(i18n)
+  if (destination === null) return { result: { status: 'canceled' } }
+  if (destination === 'dialog_failed') return { result: { status: 'failed', code: 'dialog_failed' } }
+
+  try {
+    const result = await operation(destination)
+    if (result.status === 'saved') {
+      return { result: { status: 'saved', outputCount: 1 }, destination }
+    }
+    return {
+      result:
+        SAVE_FAILURE_PUBLIC_CODES[result.code] === undefined ? { status: 'failed', code: 'snapshot_failed' } : result
+    }
+  } catch {
+    return { result: { status: 'failed', code: 'snapshot_failed' } }
+  }
+}
+
+export async function saveMigrationDiagnosticBundleWithDialog(
+  locale: string,
+  operation: SaveBundle
+): Promise<MigrationDiagnosticBundleDialogOutcome> {
+  return saveBundleWithDialog(await createMigrationDiagnosticNativeI18n(locale), operation)
+}
+
 async function saveBundle(
   i18n: MigrationDiagnosticNativeI18n,
   operation: SaveBundle
 ): Promise<'canceled' | MigrationDiagnosticNativeSaveResult> {
-  const destination = await selectDestination(i18n)
-  if (destination === null) return 'canceled'
-  if (destination === 'dialog_failed') return { status: 'failed', code: 'dialog_failed' }
-  try {
-    const result = await operation(destination)
-    if (result.status === 'saved') return result
-    return SAVE_FAILURE_PUBLIC_CODES[result.code] === undefined ? { status: 'failed', code: 'snapshot_failed' } : result
-  } catch {
-    return { status: 'failed', code: 'snapshot_failed' }
-  }
+  const { result } = await saveBundleWithDialog(i18n, operation)
+  if (result.status === 'canceled') return 'canceled'
+  if (result.status === 'saved') return { status: 'saved' }
+  return result
 }
 
 async function presentSaveOutcome(

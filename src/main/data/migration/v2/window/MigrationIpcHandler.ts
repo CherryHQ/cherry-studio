@@ -4,6 +4,7 @@
 
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
+import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import {
   MigrationIpcChannels,
   type MigrationProgress,
@@ -11,20 +12,34 @@ import {
   type MigrationSummary,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { app, ipcMain } from 'electron'
+import { app, clipboard, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
 import { migrationEngine } from '../core/MigrationEngine'
+import {
+  type MigrationDiagnosticNativeSaveResult,
+  saveMigrationDiagnosticBundleWithDialog
+} from './migrationDiagnosticDialogs'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
+const SUPPORT_EMAIL = 'support@cherry-ai.com'
+const SUPPORT_EMAIL_SUBJECT = 'Cherry Studio migration diagnostics'
+const SUPPORT_EMAIL_BODY = 'Please describe the migration issue and manually attach the saved diagnostic ZIP.'
 
 let inFlightMigration: Promise<MigrationResult> | null = null
 // Set once a deferred quit has been registered, so repeated confirmations while a migration
 // write is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
+let lastSavedDiagnosticBundlePath: string | null = null
+
+export interface MigrationIpcDiagnosticCapabilities {
+  start(): void | Promise<void>
+  reportRendererExportFailure(): void | Promise<void>
+  saveDiagnosticBundle(destination: string): Promise<MigrationDiagnosticNativeSaveResult>
+}
 
 // Current migration progress
 let currentProgress: MigrationProgress = {
@@ -42,12 +57,60 @@ let dataLocationNotice: string | null = null
 /**
  * Register all migration IPC handlers
  */
-export function registerMigrationIpcHandlers(userDataPath: string): void {
+export function registerMigrationIpcHandlers(
+  userDataPath: string,
+  diagnosticCapabilities: MigrationIpcDiagnosticCapabilities
+): void {
   logger.info('Registering migration IPC handlers')
+  lastSavedDiagnosticBundlePath = null
 
   // Wire repeated-close quit deferral and native crash/hang waiting to the same in-flight write.
   migrationWindowManager.setQuitRequester(requestQuit)
   migrationWindowManager.setWriteWaiter(waitForInFlightWrites)
+
+  ipcMain.handle(MigrationIpcChannels.Start, async (event) => {
+    assertMigrationSender(event)
+    await diagnosticCapabilities.start()
+    return true
+  })
+
+  ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
+    assertMigrationSender(event)
+    lastSavedDiagnosticBundlePath = null
+    const outcome = await saveMigrationDiagnosticBundleWithDialog(
+      app.getLocale(),
+      diagnosticCapabilities.saveDiagnosticBundle
+    )
+    if (outcome.result.status === 'saved') {
+      lastSavedDiagnosticBundlePath = outcome.destination ?? null
+    }
+    return outcome.result
+  })
+
+  ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event) => {
+    assertMigrationSender(event)
+    const mailto = createSupportEmailUrl()
+    if (!isSafeExternalUrl(mailto)) {
+      throw new Error('Could not create a safe support email URL.')
+    }
+    await shell.openExternal(mailto)
+    return true
+  })
+
+  ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, (event) => {
+    assertMigrationSender(event)
+    if (lastSavedDiagnosticBundlePath === null) {
+      throw new Error('No saved diagnostic bundle is available.')
+    }
+    shell.showItemInFolder(lastSavedDiagnosticBundlePath)
+    return true
+  })
+
+  ipcMain.handle(MigrationIpcChannels.CopySupportEmail, (event) => {
+    assertMigrationSender(event)
+    clipboard.writeText(SUPPORT_EMAIL)
+    return true
+  })
 
   // Get user data path
   ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
@@ -187,7 +250,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Mirror renderer-local failures into main so close handling sees the terminal error stage.
-  ipcMain.handle(MigrationIpcChannels.ReportError, (_event, message: string) => {
+  ipcMain.handle(MigrationIpcChannels.ReportError, async (_event, message: string) => {
+    await diagnosticCapabilities.reportRendererExportFailure()
     updateProgress({
       stage: 'error',
       overallProgress: currentProgress.overallProgress,
@@ -295,6 +359,23 @@ export function unregisterMigrationIpcHandlers(): void {
 
   migrationWindowManager.setQuitRequester(null)
   migrationWindowManager.setWriteWaiter(null)
+  lastSavedDiagnosticBundlePath = null
+}
+
+function assertMigrationSender(event: IpcMainInvokeEvent): void {
+  const migrationWebContents = migrationWindowManager.getWindow()?.webContents
+  if (migrationWebContents === undefined || event.sender !== migrationWebContents) {
+    throw new Error('Migration IPC is restricted to the migration window.')
+  }
+}
+
+function createSupportEmailUrl(): string {
+  const url = new URL(`mailto:${SUPPORT_EMAIL}`)
+  url.search = new URLSearchParams({
+    subject: SUPPORT_EMAIL_SUBJECT,
+    body: SUPPORT_EMAIL_BODY
+  }).toString()
+  return url.toString()
 }
 
 /**
@@ -367,6 +448,7 @@ export function resetMigrationData(): void {
   inFlightMigration = null
   quitScheduled = false
   dataLocationNotice = null
+  lastSavedDiagnosticBundlePath = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,

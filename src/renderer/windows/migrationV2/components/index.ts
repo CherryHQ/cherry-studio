@@ -1,5 +1,6 @@
 export { CloseMigrationDialog } from './CloseMigrationDialog'
 export { Confetti } from './Confetti'
+export { MigrationDiagnosticsSavedActions } from './MigrationDiagnosticsSavedActions'
 export { MigrationWindowControls } from './MigrationWindowControls'
 export { MigratorProgressList } from './MigratorProgress'
 export { SkipMigrationDialog } from './SkipMigrationDialog'

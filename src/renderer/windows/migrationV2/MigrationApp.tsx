@@ -21,12 +21,17 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
-import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
+import {
+  type MigrationDiagnosticSaveResult,
+  MigrationIpcChannels,
+  type MigrationStage
+} from '@shared/data/migration/v2/types'
 import {
   AlertTriangle,
   ArrowRight,
   Check,
   Database,
+  Download,
   FolderOpen,
   Loader2,
   Monitor,
@@ -45,6 +50,7 @@ import { useTranslation } from 'react-i18next'
 import {
   CloseMigrationDialog,
   Confetti,
+  MigrationDiagnosticsSavedActions,
   MigrationWindowControls,
   MigratorProgressList,
   SkipMigrationDialog
@@ -62,6 +68,16 @@ const badgeToneClass: Record<BadgeTone, string> = {
   warning: 'border-warning-bg-hover bg-warning-bg text-warning',
   destructive: 'border-error-border bg-error-bg text-error-text',
   neutral: 'border-border bg-muted/40 text-foreground-secondary'
+}
+
+type MigrationDiagnosticSaveFailureCode = Extract<MigrationDiagnosticSaveResult, { status: 'failed' }>['code']
+
+const diagnosticFailureMessageKey: Record<MigrationDiagnosticSaveFailureCode, string> = {
+  dialog_failed: 'migration.diagnostics.failures.dialog_failed',
+  snapshot_failed: 'migration.diagnostics.failures.snapshot_failed',
+  archive_failed: 'migration.diagnostics.failures.archive_failed',
+  publish_failed: 'migration.diagnostics.failures.publish_failed',
+  save_in_progress: 'migration.diagnostics.failures.save_in_progress'
 }
 
 const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({ tone = 'neutral', children }) => (
@@ -248,6 +264,9 @@ const MigrationApp: React.FC = () => {
   // is still in flight; drives the non-blocking "closing after the current step" notice.
   const [quitDeferred, setQuitDeferred] = useState(false)
   const startGuardRef = useRef(false)
+  const diagnosticSaveGuardRef = useRef(false)
+  const [isSavingDiagnostics, setIsSavingDiagnostics] = useState(false)
+  const [diagnosticSaveResult, setDiagnosticSaveResult] = useState<MigrationDiagnosticSaveResult | null>(null)
 
   const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
   const toggleTheme = () => {
@@ -309,8 +328,10 @@ const MigrationApp: React.FC = () => {
     startGuardRef.current = true
     setIsLoading(true)
     setLocalMigrationError(null)
+    setDiagnosticSaveResult(null)
     try {
       logger.info('Starting migration process...')
+      await actions.start()
 
       // Export Redux data
       const reduxExporter = new ReduxExporter()
@@ -355,6 +376,24 @@ const MigrationApp: React.FC = () => {
     } finally {
       startGuardRef.current = false
       setIsLoading(false)
+    }
+  }
+
+  const saveDiagnostics = async () => {
+    if (diagnosticSaveGuardRef.current) {
+      return
+    }
+
+    diagnosticSaveGuardRef.current = true
+    setIsSavingDiagnostics(true)
+    setDiagnosticSaveResult(null)
+    try {
+      setDiagnosticSaveResult(await actions.save())
+    } catch {
+      setDiagnosticSaveResult({ status: 'failed', code: 'snapshot_failed' })
+    } finally {
+      diagnosticSaveGuardRef.current = false
+      setIsSavingDiagnostics(false)
     }
   }
 
@@ -545,15 +584,50 @@ const MigrationApp: React.FC = () => {
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
+            {diagnosticSaveResult?.status === 'saved' ? (
+              <div className="space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3">
+                <div>
+                  <p className="font-medium text-foreground text-sm">{t('migration.diagnostics.saved.title')}</p>
+                  <p className="mt-1 text-foreground-muted text-xs leading-relaxed">
+                    {t('migration.diagnostics.saved.description')}
+                  </p>
+                </div>
+                <MigrationDiagnosticsSavedActions
+                  onOpenEmail={() => void actions.openEmail()}
+                  onShowInFolder={() => void actions.showInFolder()}
+                  onCopyEmail={() => void actions.copyEmail()}
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                  loading={isSavingDiagnostics}
+                  disabled={isSavingDiagnostics}
+                  onClick={() => void saveDiagnostics()}>
+                  <Download size={14} />
+                  {t('migration.diagnostics.save')}
+                </Button>
+                {diagnosticSaveResult?.status === 'failed' && (
+                  <p className="text-center text-error-text text-xs" role="alert">
+                    {t(diagnosticFailureMessageKey[diagnosticSaveResult.code])}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
+              <Button variant="outline" size="lg" disabled={isSavingDiagnostics} onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}
               </Button>
               <Button
                 variant="default"
                 size="lg"
                 className="flex-1 gap-2"
+                disabled={isSavingDiagnostics}
                 onClick={() => {
+                  setDiagnosticSaveResult(null)
                   setLocalMigrationError(null)
                   void actions.retry()
                 }}>

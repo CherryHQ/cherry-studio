@@ -4,6 +4,7 @@
 
 import { loggerService } from '@logger'
 import {
+  type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationStage,
@@ -109,8 +110,28 @@ export function useMigrationProgress() {
  * Hook for migration actions
  */
 export function useMigrationActions() {
+  const start = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.Start)
+  }, [])
+
   const startMigration = useCallback(async (payload: StartMigrationPayload) => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.StartMigration, payload)
+  }, [])
+
+  const save = useCallback(async (): Promise<MigrationDiagnosticSaveResult> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+  }, [])
+
+  const openEmail = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDiagnosticEmail)
+  }, [])
+
+  const showInFolder = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+  }, [])
+
+  const copyEmail = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.CopySupportEmail)
   }, [])
 
   const retry = useCallback(() => {
@@ -130,7 +151,12 @@ export function useMigrationActions() {
   }, [])
 
   return {
+    start,
     startMigration,
+    save,
+    openEmail,
+    showInFolder,
+    copyEmail,
     retry,
     cancel,
     restart,

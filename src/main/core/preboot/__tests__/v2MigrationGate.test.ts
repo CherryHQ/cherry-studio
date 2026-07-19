@@ -247,6 +247,18 @@ type RendererFailureCallback = (
   writesSettled: Promise<void>
 ) => Promise<void>
 
+interface RegisteredMigrationDiagnosticsCapabilities {
+  start(): Promise<void>
+  reportRendererExportFailure(): Promise<void>
+  saveDiagnosticBundle(destination: string): Promise<unknown>
+}
+
+function registeredDiagnosticsCapabilities(): RegisteredMigrationDiagnosticsCapabilities {
+  const capabilities = registerMigrationIpcHandlersMock.mock.calls.at(-1)?.[1]
+  if (!capabilities) throw new Error('Migration diagnostics capabilities were not registered')
+  return capabilities as RegisteredMigrationDiagnosticsCapabilities
+}
+
 beforeEach(() => {
   vi.resetModules()
   resolveMigrationPathsMock.mockReset().mockReturnValue(defaultResolveResult)
@@ -350,7 +362,14 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
-      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith('/mock/userData')
+      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith(
+        '/mock/userData',
+        expect.objectContaining({
+          reportRendererExportFailure: expect.any(Function),
+          saveDiagnosticBundle: expect.any(Function),
+          start: expect.any(Function)
+        })
+      )
       expect(migrationWindowCreateMock).toHaveBeenCalledTimes(1)
       expect(migrationWindowWaitForReadyMock).toHaveBeenCalledTimes(1)
       // Success path should NOT unregister handlers — the migration window
@@ -360,6 +379,94 @@ describe('runV2MigrationGate', () => {
       expect(appQuitMock).not.toHaveBeenCalled()
       // Normal-path close() must NOT fire on the handled branch.
       expect(closeMock).not.toHaveBeenCalled()
+    })
+
+    it('starts renderer export on the active attempt and creates manual_retry only after the engine ends it', async () => {
+      const coordinator = await createMemoryDiagnosticsCoordinator()
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
+      stubMigrationV2({ diagnosticsCoordinator: coordinator })
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+      const capabilities = registeredDiagnosticsCapabilities()
+
+      await capabilities.start()
+      let snapshot = await coordinator.snapshot()
+      expect(snapshot.attempts).toHaveLength(1)
+      expect(snapshot.attempts[0]).toMatchObject({
+        trigger: 'initial',
+        outcome: 'in_progress'
+      })
+      expect(snapshot.attempts[0].events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            scope: 'renderer_export',
+            phase: 'prepare',
+            state: 'started',
+            code: 'unknown'
+          })
+        ])
+      )
+
+      coordinator.finishAttempt('failed', {
+        scope: 'engine',
+        phase: 'finalize',
+        state: 'failed',
+        category: 'database_write',
+        code: 'sqlite_constraint'
+      })
+
+      await capabilities.start()
+      snapshot = await coordinator.snapshot()
+      expect(snapshot.attempts).toHaveLength(2)
+      expect(snapshot.attempts[1]).toMatchObject({
+        trigger: 'manual_retry',
+        outcome: 'in_progress',
+        events: [expect.objectContaining({ scope: 'renderer_export', state: 'started' })]
+      })
+    })
+
+    it('ends renderer export failure with allowlisted diagnostics and never records the raw renderer message', async () => {
+      const coordinator = await createMemoryDiagnosticsCoordinator()
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
+      stubMigrationV2({ diagnosticsCoordinator: coordinator })
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+      const capabilities = registeredDiagnosticsCapabilities()
+
+      await capabilities.start()
+      await capabilities.reportRendererExportFailure()
+
+      const snapshot = await coordinator.snapshot()
+      const lastAttempt = snapshot.attempts.at(-1)
+      expect(lastAttempt).toMatchObject({ outcome: 'failed' })
+      expect(lastAttempt?.events.slice(-2)).toEqual([
+        expect.objectContaining({ scope: 'renderer_export', state: 'started' }),
+        expect.objectContaining({
+          scope: 'renderer_export',
+          phase: 'finalize',
+          state: 'failed',
+          category: 'source',
+          code: 'source_parse'
+        })
+      ])
+      expect(JSON.stringify(snapshot)).not.toContain('canary-secret')
+      expect(JSON.stringify(snapshot)).not.toContain('/Users/private')
     })
   })
 

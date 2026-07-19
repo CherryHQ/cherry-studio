@@ -134,6 +134,14 @@ export interface StartMigrationPayload {
   localStorageExportPath?: string
 }
 
+export type MigrationDiagnosticSaveResult =
+  | { status: 'canceled' }
+  | { status: 'saved'; outputCount: 1 }
+  | {
+      status: 'failed'
+      code: 'dialog_failed' | 'snapshot_failed' | 'archive_failed' | 'publish_failed' | 'save_in_progress'
+    }
+
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
   // Status queries
@@ -144,6 +152,10 @@ export const MigrationIpcChannels = {
 
   // Flow control
   Start: 'migration:start',
+  SaveDiagnosticBundle: 'migration:save-diagnostic-bundle',
+  OpenDiagnosticEmail: 'migration:open-diagnostic-email',
+  ShowDiagnosticBundleInFolder: 'migration:show-diagnostic-bundle-in-folder',
+  CopySupportEmail: 'migration:copy-support-email',
   StartMigration: 'migration:start-migration',
   // Renderer-local failure mirrored to main's terminal error stage.
   ReportError: 'migration:report-error',
