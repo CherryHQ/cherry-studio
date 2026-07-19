@@ -433,6 +433,50 @@ describe('runV2MigrationGate', () => {
       })
     })
 
+    it('single-flights concurrent renderer starts and still terminates their manual retry on export failure', async () => {
+      const coordinator = await createMemoryDiagnosticsCoordinator()
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
+      stubMigrationV2({ diagnosticsCoordinator: coordinator })
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+      const capabilities = registeredDiagnosticsCapabilities()
+      coordinator.finishAttempt('failed', {
+        scope: 'engine',
+        phase: 'finalize',
+        state: 'failed',
+        category: 'database_write',
+        code: 'sqlite_constraint'
+      })
+
+      await Promise.all([capabilities.start(), capabilities.start()])
+      await capabilities.reportRendererExportFailure()
+
+      const snapshot = await coordinator.snapshot()
+      expect(snapshot.attempts).toHaveLength(2)
+      const retry = snapshot.attempts[1]
+      expect(retry).toMatchObject({ trigger: 'manual_retry', outcome: 'failed' })
+      expect(
+        retry.events.filter((event) => event.scope === 'renderer_export' && event.state === 'started')
+      ).toHaveLength(1)
+      expect(retry.events.at(-1)).toMatchObject({
+        scope: 'renderer_export',
+        phase: 'finalize',
+        state: 'failed',
+        category: 'source',
+        code: 'source_parse'
+      })
+      expect(JSON.stringify(snapshot)).not.toContain('canary-secret')
+      expect(JSON.stringify(snapshot)).not.toContain('/Users/private')
+    })
+
     it('ends renderer export failure with allowlisted diagnostics and never records the raw renderer message', async () => {
       const coordinator = await createMemoryDiagnosticsCoordinator()
       needsMigrationMock.mockResolvedValue(true)

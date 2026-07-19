@@ -21,19 +21,23 @@ import {
   type MigrationDiagnosticNativeSaveResult,
   saveMigrationDiagnosticBundleWithDialog
 } from './migrationDiagnosticDialogs'
+import { createMigrationDiagnosticNativeI18n } from './migrationDiagnosticNativeI18n'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 const SUPPORT_EMAIL = 'support@cherry-ai.com'
-const SUPPORT_EMAIL_SUBJECT = 'Cherry Studio migration diagnostics'
-const SUPPORT_EMAIL_BODY = 'Please describe the migration issue and manually attach the saved diagnostic ZIP.'
+
+interface DiagnosticRegistrationState {
+  epoch: number
+  lastSavedBundlePath: string | null
+}
 
 let inFlightMigration: Promise<MigrationResult> | null = null
 // Set once a deferred quit has been registered, so repeated confirmations while a migration
 // write is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
-let lastSavedDiagnosticBundlePath: string | null = null
+let activeDiagnosticRegistration: DiagnosticRegistrationState | null = null
 
 export interface MigrationIpcDiagnosticCapabilities {
   start(): void | Promise<void>
@@ -62,7 +66,9 @@ export function registerMigrationIpcHandlers(
   diagnosticCapabilities: MigrationIpcDiagnosticCapabilities
 ): void {
   logger.info('Registering migration IPC handlers')
-  lastSavedDiagnosticBundlePath = null
+  invalidateActiveDiagnosticRegistration()
+  const diagnosticRegistration: DiagnosticRegistrationState = { epoch: 0, lastSavedBundlePath: null }
+  activeDiagnosticRegistration = diagnosticRegistration
 
   // Wire repeated-close quit deferral and native crash/hang waiting to the same in-flight write.
   migrationWindowManager.setQuitRequester(requestQuit)
@@ -76,20 +82,26 @@ export function registerMigrationIpcHandlers(
 
   ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
     assertMigrationSender(event)
-    lastSavedDiagnosticBundlePath = null
+    const saveEpoch = diagnosticRegistration.epoch
     const outcome = await saveMigrationDiagnosticBundleWithDialog(
       app.getLocale(),
       diagnosticCapabilities.saveDiagnosticBundle
     )
-    if (outcome.result.status === 'saved') {
-      lastSavedDiagnosticBundlePath = outcome.destination ?? null
+    if (
+      outcome.result.status === 'saved' &&
+      outcome.destination !== undefined &&
+      activeDiagnosticRegistration === diagnosticRegistration &&
+      diagnosticRegistration.epoch === saveEpoch
+    ) {
+      diagnosticRegistration.lastSavedBundlePath = outcome.destination
     }
     return outcome.result
   })
 
   ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event) => {
     assertMigrationSender(event)
-    const mailto = createSupportEmailUrl()
+    const i18n = await createMigrationDiagnosticNativeI18n(app.getLocale())
+    const mailto = createSupportEmailUrl(i18n.t('support.emailSubject'), i18n.t('support.emailBody'))
     if (!isSafeExternalUrl(mailto)) {
       throw new Error('Could not create a safe support email URL.')
     }
@@ -99,10 +111,13 @@ export function registerMigrationIpcHandlers(
 
   ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, (event) => {
     assertMigrationSender(event)
-    if (lastSavedDiagnosticBundlePath === null) {
+    if (
+      activeDiagnosticRegistration !== diagnosticRegistration ||
+      diagnosticRegistration.lastSavedBundlePath === null
+    ) {
       throw new Error('No saved diagnostic bundle is available.')
     }
-    shell.showItemInFolder(lastSavedDiagnosticBundlePath)
+    shell.showItemInFolder(diagnosticRegistration.lastSavedBundlePath)
     return true
   })
 
@@ -359,7 +374,14 @@ export function unregisterMigrationIpcHandlers(): void {
 
   migrationWindowManager.setQuitRequester(null)
   migrationWindowManager.setWriteWaiter(null)
-  lastSavedDiagnosticBundlePath = null
+  invalidateActiveDiagnosticRegistration()
+  activeDiagnosticRegistration = null
+}
+
+function invalidateActiveDiagnosticRegistration(): void {
+  if (activeDiagnosticRegistration === null) return
+  activeDiagnosticRegistration.epoch += 1
+  activeDiagnosticRegistration.lastSavedBundlePath = null
 }
 
 function assertMigrationSender(event: IpcMainInvokeEvent): void {
@@ -369,11 +391,11 @@ function assertMigrationSender(event: IpcMainInvokeEvent): void {
   }
 }
 
-function createSupportEmailUrl(): string {
+function createSupportEmailUrl(subject: string, body: string): string {
   const url = new URL(`mailto:${SUPPORT_EMAIL}`)
   url.search = new URLSearchParams({
-    subject: SUPPORT_EMAIL_SUBJECT,
-    body: SUPPORT_EMAIL_BODY
+    subject,
+    body
   }).toString()
   return url.toString()
 }
@@ -448,7 +470,7 @@ export function resetMigrationData(): void {
   inFlightMigration = null
   quitScheduled = false
   dataLocationNotice = null
-  lastSavedDiagnosticBundlePath = null
+  invalidateActiveDiagnosticRegistration()
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,

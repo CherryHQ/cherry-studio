@@ -163,20 +163,56 @@ describe('MigrationIpcHandler', () => {
 
     it('reveals only the most recent successful Main-selected destination', async () => {
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({
+        canceled: false,
+        filePath: '/main-selected/replacement-diagnostics.zip'
+      } as never)
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
       await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder, '/renderer-controlled/escape.zip')
 
-      expect(shell.showItemInFolder).toHaveBeenCalledWith('/main-selected/migration-diagnostics.zip')
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/main-selected/replacement-diagnostics.zip')
+      expect(shell.showItemInFolder).not.toHaveBeenCalledWith('/main-selected/migration-diagnostics.zip')
       expect(shell.showItemInFolder).not.toHaveBeenCalledWith('/renderer-controlled/escape.zip')
     })
 
-    it.each(['canceled', 'failed'] as const)('does not reuse a stale destination after a %s save', async (outcome) => {
+    it.each([
+      'canceled',
+      'dialog_failed',
+      'snapshot_failed',
+      'archive_failed',
+      'publish_failed',
+      'save_in_progress'
+    ] as const)('keeps the last successful destination after a later %s save outcome', async (outcome) => {
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
       vi.mocked(shell.showItemInFolder).mockClear()
 
       if (outcome === 'canceled') {
         vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
+      } else if (outcome === 'dialog_failed') {
+        vi.mocked(dialog.showSaveDialog).mockRejectedValueOnce(new Error('native canary'))
       } else {
-        diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: 'archive_failed' })
+        diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: outcome })
+      }
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/main-selected/migration-diagnostics.zip')
+    })
+
+    it.each([
+      'canceled',
+      'dialog_failed',
+      'snapshot_failed',
+      'archive_failed',
+      'publish_failed',
+      'save_in_progress'
+    ] as const)('has no reveal destination after an initial %s save outcome', async (outcome) => {
+      if (outcome === 'canceled') {
+        vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
+      } else if (outcome === 'dialog_failed') {
+        vi.mocked(dialog.showSaveDialog).mockRejectedValueOnce(new Error('native canary'))
+      } else {
+        diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: outcome })
       }
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
 
@@ -201,6 +237,61 @@ describe('MigrationIpcHandler', () => {
       )
     })
 
+    it('ignores a saved result from an obsolete registration and lets the new registration publish its own path', async () => {
+      let resolveOldSave!: (result: { status: 'saved' }) => void
+      diagnosticsSaveBundleMock.mockImplementationOnce(
+        () => new Promise<{ status: 'saved' }>((resolve) => (resolveOldSave = resolve))
+      )
+      const oldSave = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await vi.waitFor(() => expect(diagnosticsSaveBundleMock).toHaveBeenCalledTimes(1))
+
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers('/mock/userData', {
+        start: diagnosticsStartMock,
+        reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+        saveDiagnosticBundle: diagnosticsSaveBundleMock
+      })
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+
+      resolveOldSave({ status: 'saved' })
+      await expect(oldSave).resolves.toEqual({ status: 'saved', outputCount: 1 })
+      await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).rejects.toThrow(
+        /saved diagnostic bundle/i
+      )
+
+      vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({
+        canceled: false,
+        filePath: '/main-selected/new-registration.zip'
+      } as never)
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/main-selected/new-registration.zip')
+    })
+
+    it('invalidates a pending save on reset while allowing later saves from the current handlers', async () => {
+      let resolveOldSave!: (result: { status: 'saved' }) => void
+      diagnosticsSaveBundleMock.mockImplementationOnce(
+        () => new Promise<{ status: 'saved' }>((resolve) => (resolveOldSave = resolve))
+      )
+      const oldSave = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await vi.waitFor(() => expect(diagnosticsSaveBundleMock).toHaveBeenCalledTimes(1))
+
+      resetMigrationData()
+      resolveOldSave({ status: 'saved' })
+      await expect(oldSave).resolves.toEqual({ status: 'saved', outputCount: 1 })
+      await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).rejects.toThrow(
+        /saved diagnostic bundle/i
+      )
+
+      vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({
+        canceled: false,
+        filePath: '/main-selected/after-reset.zip'
+      } as never)
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/main-selected/after-reset.zip')
+    })
+
     it('returns save_in_progress from the coordinator capability without showing a second error dialog', async () => {
       diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: 'save_in_progress' })
 
@@ -211,7 +302,7 @@ describe('MigrationIpcHandler', () => {
       expect(dialog.showMessageBox).not.toHaveBeenCalled()
     })
 
-    it('opens a fixed, safely encoded support mailto only after URL validation', async () => {
+    it('opens a fixed, safely encoded English support mailto only after URL validation', async () => {
       await invoke(
         MigrationIpcChannels.OpenDiagnosticEmail,
         'attacker@example.com',
@@ -222,13 +313,26 @@ describe('MigrationIpcHandler', () => {
       const mailto = isSafeExternalUrlMock.mock.calls[0]?.[0] as string
       expect(mailto).toMatch(/^mailto:support@cherry-ai\.com\?/)
       const parsed = new URL(mailto)
-      expect(parsed.searchParams.get('subject')).toBeTruthy()
-      expect(parsed.searchParams.get('body')).toMatch(/attach/i)
+      expect(parsed.searchParams.get('subject')).toBe('Cherry Studio migration diagnostics')
+      expect(parsed.searchParams.get('body')).toBe(
+        'Please describe the migration issue and manually attach the saved diagnostic ZIP.'
+      )
       expect(isSafeExternalUrlMock).toHaveBeenCalledWith(mailto)
       expect(shell.openExternal).toHaveBeenCalledWith(mailto)
       expect(isSafeExternalUrlMock.mock.invocationCallOrder[0]).toBeLessThan(
         vi.mocked(shell.openExternal).mock.invocationCallOrder[0]
       )
+    })
+
+    it('opens a fixed, safely encoded zh-CN support mailto from Main locale only', async () => {
+      electronMocks.app.getLocale.mockReturnValueOnce('zh-CN')
+
+      await invoke(MigrationIpcChannels.OpenDiagnosticEmail, 'attacker@example.com', 'renderer-controlled copy')
+
+      const parsed = new URL(isSafeExternalUrlMock.mock.calls[0]?.[0] as string)
+      expect(parsed.searchParams.get('subject')).toBe('Cherry Studio 迁移诊断')
+      expect(parsed.searchParams.get('body')).toBe('请描述迁移问题，并手动附上已保存的诊断 ZIP 文件。')
+      expect(shell.openExternal).toHaveBeenCalledWith(parsed.toString())
     })
 
     it('rejects an unsafe fixed mailto without opening it', async () => {

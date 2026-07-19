@@ -38,6 +38,10 @@ const resources = {
         savedMessage: 'The diagnostic bundle was saved. Attach it when contacting the Cherry Studio developers.',
         failedTitle: 'Could not save diagnostic bundle',
         failedMessage: 'The diagnostic bundle could not be saved. No data was uploaded or sent.'
+      },
+      support: {
+        emailSubject: 'Cherry Studio migration diagnostics',
+        emailBody: 'Please describe the migration issue and manually attach the saved diagnostic ZIP.'
       }
     }
   },
@@ -76,6 +80,10 @@ const resources = {
         savedMessage: '诊断包已保存。联系 Cherry Studio 开发者时请手动附上该文件。',
         failedTitle: '无法保存诊断包',
         failedMessage: '诊断包保存失败。未上传或发送任何数据。'
+      },
+      support: {
+        emailSubject: 'Cherry Studio 迁移诊断',
+        emailBody: '请描述迁移问题，并手动附上已保存的诊断 ZIP 文件。'
       }
     }
   }

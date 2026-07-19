@@ -75,6 +75,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   let resolvedPaths: ReturnType<typeof resolveMigrationPaths>['paths'] | null = null
   let engineInitialized = false
   let attemptActive = false
+  let startRendererExportInFlight: Promise<void> | null = null
   type DiagnosticEventInput = Parameters<(typeof diagnosticsCoordinator)['recordEvent']>[0]
 
   const saveDiagnosticBundle = async (destination: string): Promise<MigrationDiagnosticNativeSaveResult> => {
@@ -191,11 +192,10 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     }
   }
 
-  const startRendererExport = async (): Promise<void> => {
+  const runRendererExportStart = async (): Promise<void> => {
     try {
       const snapshot = await diagnosticsCoordinator.snapshot()
       if (snapshot.attempts.at(-1)?.outcome !== 'in_progress') {
-        attemptActive = false
         if (!beginAttempt('manual_retry')) return
       } else {
         attemptActive = true
@@ -211,9 +211,29 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     }
   }
 
-  const finishRendererExportFailure = (): void => {
-    if (!attemptActive) return
+  const startRendererExport = (): Promise<void> => {
+    if (startRendererExportInFlight !== null) return startRendererExportInFlight
+
+    const operation = runRendererExportStart().finally(() => {
+      if (startRendererExportInFlight === operation) {
+        startRendererExportInFlight = null
+      }
+    })
+    startRendererExportInFlight = operation
+    return operation
+  }
+
+  const finishRendererExportFailure = async (): Promise<void> => {
+    const pendingStart = startRendererExportInFlight
+    if (pendingStart !== null) await pendingStart
+
     try {
+      const snapshot = await diagnosticsCoordinator.snapshot()
+      if (snapshot.attempts.at(-1)?.outcome !== 'in_progress') {
+        attemptActive = false
+        return
+      }
+      attemptActive = true
       diagnosticsCoordinator.finishAttempt('failed', {
         scope: 'renderer_export',
         phase: 'finalize',
