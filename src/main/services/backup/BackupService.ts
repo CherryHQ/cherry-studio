@@ -89,14 +89,7 @@ export class BackupService extends BaseService {
   private _onProgress?: Emitter<BackupProgressUpdate>
   /** The single active operation — export OR restore, mutually exclusive (null when idle). */
   private activeOperation: ActiveOperation | null = null
-  /**
-   * Settles when the active operation's finally completes. Dev reset acquires a
-   * fence then awaits this so an already-admitted export/restore finishes before
-   * destructive deletion — without aborting and guessing.
-   */
-  private activeOperationDone: Promise<void> | null = null
-  private activeOperationDoneResolve: (() => void) | null = null
-  /** Finalized contributor registry, available only in the current dev-only backup surface. */
+  /** Finalized contributor registry, available only in the current backup surface. */
   private registry?: ReturnType<typeof contributorManager.getRegistry>
   /**
    * Notes root resolved ONCE per export (startBackup, before preflight) and reused by
@@ -569,18 +562,11 @@ export class BackupService extends BaseService {
 
   private beginActiveOperation(active: ActiveOperation): void {
     this.activeOperation = active
-    this.activeOperationDone = new Promise<void>((resolve) => {
-      this.activeOperationDoneResolve = resolve
-    })
   }
 
   private endActiveOperation(active: ActiveOperation): void {
     if (this.activeOperation !== active) return
     this.activeOperation = null
-    const resolve = this.activeOperationDoneResolve
-    this.activeOperationDoneResolve = null
-    this.activeOperationDone = null
-    resolve?.()
   }
 
   protected onStop(): void {

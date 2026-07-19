@@ -8,7 +8,6 @@ import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
-import { devRequestSchemas } from './dev'
 import { exportRequestSchemas } from './export'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
@@ -51,7 +50,6 @@ export const ipcRequestSchemas = {
   ...cherryinRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
-  ...devRequestSchemas,
   ...exportRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
