@@ -16,7 +16,7 @@ import { loggerService } from '@logger'
 import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { isPathInside } from '@main/utils/file'
-import { and, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 
 const logger = loggerService.withContext('backup/FileStager')
 
@@ -119,11 +119,13 @@ export interface FileStager {
 }
 
 /**
- * Resolves each id against file_entry (only non-deleted rows), copies the blob
- * to <destDir>/<id> via FileManager's read-only `copyContentTo` (same physical
- * path resolution as createReadStream), and sums actual on-disk sizes.
- * Ids whose file_entry was soft-deleted or whose source file is unreadable land
- * in `missing` instead of throwing.
+ * Resolves each id against file_entry (non-deleted **internal** rows only), copies
+ * the blob to <destDir>/<id> via FileManager's read-only `copyContentTo` (same
+ * physical path resolution as createReadStream), and sums actual on-disk sizes.
+ * External rows are dangling by design (architecture §5.1) — TOPICS/PAINTINGS
+ * file_ref may still surface their ids, but export does not copy absolute-path
+ * blobs. Ids whose file_entry was soft-deleted, external, or whose source file
+ * is unreadable land in `missing` instead of throwing.
  */
 export class SqliteFileStager implements FileStager {
   constructor(
@@ -149,12 +151,19 @@ export class SqliteFileStager implements FileStager {
     const rows: Array<(typeof fileEntryTable)['$inferSelect']> = []
     for (let i = 0; i < ids.length; i += CHUNK) {
       const batch = ids.slice(i, i + CHUNK)
-      // Only non-deleted rows are staged; a soft-deleted file_entry (e.g. referenced
-      // by an un-pruned painting_file_ref) is reported missing rather than copied.
+      // Only non-deleted internal rows are staged. Soft-deleted rows and external
+      // rows (dangling by design — architecture §5.1) are reported missing rather
+      // than copied (file_ref domains may still collect external ids).
       const r = await this.liveDb
         .select()
         .from(fileEntryTable)
-        .where(and(inArray(fileEntryTable.id, batch), isNull(fileEntryTable.deletedAt)))
+        .where(
+          and(
+            inArray(fileEntryTable.id, batch),
+            eq(fileEntryTable.origin, 'internal'),
+            isNull(fileEntryTable.deletedAt)
+          )
+        )
       rows.push(...r)
     }
 
