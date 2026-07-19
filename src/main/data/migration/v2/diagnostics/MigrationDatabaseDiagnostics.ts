@@ -249,7 +249,11 @@ export class MigrationDatabaseDiagnostics {
       }
 
       const handleMessage = (message: unknown): void => {
-        if (settled || pendingResult !== undefined || pendingFinal !== undefined) return
+        if (settled || pendingResult !== undefined) return
+        if (pendingFinal !== undefined) {
+          stopFailed('protocol_error')
+          return
+        }
         const byteLength = getMessageByteLength(message)
         if (byteLength === null || byteLength > MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES) {
           stopFailed('protocol_error')

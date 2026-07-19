@@ -81,7 +81,7 @@ Migration diagnostics will follow this pattern but remain a separate implementat
 
 `worker_threads.Worker.terminate()` cannot interrupt a synchronous native `better-sqlite3` call: it waits for the native query to return. Database diagnostics therefore run in a dedicated child-process asset imported through Electron Vite's `?modulePath`. The host launches the fixed asset with the Electron executable in Node mode, sends the database path and fixed file identities over IPC only after a versioned `ready` message, and never places them in argv, environment variables, stdout, or stderr. A hard timeout sends `SIGKILL`, then keeps the database lease and waits for the real `exit` event before returning. The child must not instantiate `LoggerService`, use `console`, or launch descendants.
 
-The main build uses one Rollup input for `main.ts`, explicitly retains CJS output, and emits the child as a separate hashed asset. `better-sqlite3` remains external in that child; Zod, logger code, lifecycle services, and the main-process service graph must not enter its bundle.
+The main build uses one Rollup input for `main.ts`, explicitly retains CJS output, and emits the child as a separate hashed asset. A main-only smoke build reuses the production main config, writes to a fresh temporary output directory, resolves the unique child asset reference from emitted `main.js`, and scans that referenced artifact. `better-sqlite3` remains external in that child; Zod, logger code, lifecycle services, and the main-process service graph must not enter its bundle.
 
 ### 5.4 Existing redaction is local, not global
 
@@ -314,7 +314,7 @@ After a read-only open:
 - known application object identifiers may be retained, while unknown identifiers map to `unknown`;
 - output count and byte caps applied.
 
-Child-produced levels report `success`, `failed`, or `truncated`. The host separately reports overall `completed`, `failed`, or `timed_out` completion and preserves only the real ordered level prefix received before a terminal process failure; it does not fabricate unfinished levels. A final message is accepted only after L0, L1, and L2 have arrived in order and all three are deeply identical to the saved prefix.
+Child-produced levels report `success`, `failed`, or `truncated`. The host separately reports overall `completed`, `failed`, or `timed_out` completion and preserves only the real ordered level prefix received before a terminal process failure; it does not fabricate unfinished levels. A final message is accepted only after L0, L1, and L2 have arrived in order and all three are deeply identical to the saved prefix. After that final message and before process exit, any additional IPC message—including a duplicate step, an unknown object, or an arbitrary value—is a `protocol_error`: the host sends `SIGKILL` once and retains the lease until the real exit event.
 
 ### 9.5 Explicit exclusions
 

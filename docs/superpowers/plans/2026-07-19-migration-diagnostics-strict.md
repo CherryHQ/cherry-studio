@@ -234,7 +234,7 @@ git commit --signoff -m "feat(data-migration): record bounded failure context"
 
 - [ ] **步骤 1：写 fake child、callback lease 和生产 DB integration 失败测试**
 
-Fake child 覆盖 ready 后才发送 DB path/identity、增量 L0/L1/L2、final 缺失/非法/超限/与 prefix 不一致、spawn/IPC/error/exit/kill throw、3 秒 timeout、SIGKILL once、等待真实 exit、listener cleanup，并断言顶层 completion 保留真实 partial prefix、不伪造未完成层。Lease 测试覆盖 active lease 时 close deferred、callback throw finally、closeRequested 拒绝新 lease、L0 后 engine.close 保留同一 WAL/SHM identity、child exit 后执行 pending close。Integration 使用 `setupTestDatabase()` 的 production DB，覆盖 healthy、missing DB、schema mismatch、FK violation、截断副本、unreadable、step truncation；不手写 production DDL。另覆盖 live writer + WAL-only schema marker、WAL 缺 SHM、clean WAL header 无 sidecars、identity mismatch，以及确认 native query 已进入后 timeout/SIGKILL/exit，随后 writer 继续 commit/checkpoint/integrity。
+Fake child 覆盖 ready 后才发送 DB path/identity、增量 L0/L1/L2、final 缺失/非法/超限/与 prefix 不一致、final 后 exit 前的任意额外消息、spawn/IPC/error/exit/kill throw、3 秒 timeout、SIGKILL once、等待真实 exit、listener cleanup，并断言顶层 completion 保留真实 partial prefix、不伪造未完成层。Lease 测试覆盖 active lease 时 close deferred、callback throw finally、closeRequested 拒绝新 lease、L0 后 engine.close 保留同一 WAL/SHM identity、child exit 后执行 pending close。Integration 使用 `setupTestDatabase()` 的 production DB，覆盖 healthy、missing DB、schema mismatch、FK violation、截断副本、unreadable、step truncation；不手写 production DDL。另覆盖 live writer + WAL-only schema marker、WAL 缺 SHM、clean WAL header 无 sidecars、identity mismatch，以及确认 native query 已进入后 timeout/SIGKILL/exit，随后 writer 继续 commit/checkpoint/integrity。
 
 - [ ] **步骤 2：运行并确认 FAIL**
 
@@ -256,7 +256,7 @@ pnpm exec vitest run --project scripts scripts/__tests__/migration-diagnostics-c
 
 WAL 契约采用 callback lease：`MigrationDbService` 存 databaseFile，仅在 writer open、未 closeRequested、DB/WAL/SHM 全部为 regular/non-symlink 时捕获三者 dev/ino 并同步增加 active lease；close 在 active lease 时只记 pending，最后 callback finally 才真实幂等关闭。Child 在 SQLite open 前后核对 identity；不一致则 L1/L2 固定 `identity_mismatch` 且无 data。无 lease（initialize 失败、engine closed、sidecar 不安全）只运行 L0，绝不 construct SQLite，completion 固定 `lease_unavailable`。此契约消除 app 自身 close/checkpoint TOCTOU；不防外部恶意原子替换，检测到 identity 漂移即丢弃 L1/L2。诊断前后 main DB 与 WAL 的 existence/size/hash/mtime 必须不变；已有 SHM 仅保证仍为 regular file，允许 SQLite 更新协调缓存的 hash/mtime，不声明 forensic zero-mutation。
 
-Main build 删除 `lib.entry`，改为单一 `rollupOptions.input: main.ts`，保持 `inlineDynamicImports`/external/manualChunks 语义，并显式设置 `entryFileNames: 'main.js'` 与 `format: 'cjs'`。`format` 不能省略：`lib.entry` 原先隐式提供 CJS，改为 Rollup input 后 electron-vite 会在构建开始前拒绝未指定格式。构建测试和真实产物必须确认 `main.js` + 独立 child chunk、child 中 `better-sqlite3` external，且无 logger/Zod/main services。
+Main build 删除 `lib.entry`，改为单一 `rollupOptions.input: main.ts`，保持 `inlineDynamicImports`/external/manualChunks 语义，并显式设置 `entryFileNames: 'main.js'` 与 `format: 'cjs'`。`format` 不能省略：`lib.entry` 原先隐式提供 CJS，改为 Rollup input 后 electron-vite 会在构建开始前拒绝未指定格式。构建烟测必须直接复用生产 main config，通过真实 CLI 写入临时 outDir，并从 `main.js` 的唯一引用解析 child chunk 后扫描该产物；真实产物同样必须确认 child 中 `better-sqlite3` external，且无 logger/Zod/main services。
 
 - [ ] **步骤 4：重复三次稳定性测试**
 

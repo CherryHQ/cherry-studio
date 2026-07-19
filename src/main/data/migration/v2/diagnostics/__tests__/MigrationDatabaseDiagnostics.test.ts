@@ -211,6 +211,40 @@ describe('MigrationDatabaseDiagnostics', () => {
     expect(child.unref).toHaveBeenCalledOnce()
   })
 
+  it.each([
+    {
+      caseName: 'duplicate step',
+      makeLateMessage: (result: MigrationDatabaseCompletedDiagnosticResult) => ({ type: 'step', step: result.l2 })
+    },
+    { caseName: 'unknown object', makeLateMessage: () => ({ type: 'unknown' }) },
+    { caseName: 'arbitrary value', makeLateMessage: () => 'unexpected-after-final' }
+  ])('rejects a $caseName received after final but before exit', async ({ makeLateMessage }) => {
+    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
+    let settled = false
+    const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
+      settled = true
+      return result
+    })
+    const child = children[0]
+    const completed = makeResult()
+
+    emitReady(child)
+    emitAllSteps(child, completed)
+    emitMessage(child, { type: 'result', result: completed })
+    child.emit('message', makeLateMessage(completed))
+
+    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
+    await flushPromises()
+    expect(settled).toBe(false)
+    emitExit(child, null, 'SIGKILL')
+
+    const result = await inspection
+    expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
+    expect(result.l0).toEqual(completed.l0)
+    expect(result.l1).toEqual(completed.l1)
+    expect(result.l2).toEqual(completed.l2)
+  })
+
   it('times out and kills a child that sends a complete final result but never exits', async () => {
     vi.useFakeTimers()
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild, timeoutMs: 25 })
