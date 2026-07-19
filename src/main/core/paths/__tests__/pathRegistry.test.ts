@@ -68,6 +68,13 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       // the rename visible in the test suite.
       expect(shouldAutoEnsure('feature.agents.skills')).toBe(true)
     })
+
+    it('returns true for the feature.backup.restore.* keys (persistent restore paths)', () => {
+      // restore.file (journal) / restore.staging live under appUserData (same volume as
+      // the live DB) and are Cherry-owned, writable, not opted out.
+      expect(shouldAutoEnsure('feature.backup.restore.file')).toBe(true)
+      expect(shouldAutoEnsure('feature.backup.restore.staging')).toBe(true)
+    })
   })
 
   describe('cherry-owned files — should auto-ensure (Application.getPath ensures the dirname)', () => {
