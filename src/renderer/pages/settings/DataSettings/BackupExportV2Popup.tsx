@@ -233,16 +233,20 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         )}
 
         {phase === 'success' && (
-          <div className="text-sm">
+          <div className="text-sm" role="status" aria-live="polite">
             {t('settings.data.backup.v2.export.success')}
             {archivePath ? <div className="mt-2 break-all text-foreground-muted">{archivePath}</div> : null}
           </div>
         )}
 
-        {phase === 'cancelled' && <div className="text-sm">{t('settings.data.backup.v2.export.cancelled')}</div>}
+        {phase === 'cancelled' && (
+          <div className="text-sm" role="status" aria-live="polite">
+            {t('settings.data.backup.v2.export.cancelled')}
+          </div>
+        )}
 
         {phase === 'failure' && (
-          <div className="text-destructive text-sm">
+          <div className="text-destructive text-sm" role="alert">
             {t('settings.data.backup.v2.export.failure')}
             {errorMessage ? <div className="mt-2 break-all">{errorMessage}</div> : null}
           </div>
