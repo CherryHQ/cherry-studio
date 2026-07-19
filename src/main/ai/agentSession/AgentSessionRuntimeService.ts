@@ -232,10 +232,14 @@ export class AgentSessionRuntimeService extends BaseService {
       for (const entry of this.entries.values()) {
         if (entry.lastResumeToken) liveEntryTokens.add(entry.lastResumeToken)
       }
+      // Snapshot the persisted resume tokens once — `runtime_resume_token` is unindexed, so probing
+      // it per on-disk token would turn each sweep into many full-table scans on the synchronous main
+      // thread. The 24h age guard still protects tokens minted after this snapshot; at worst a
+      // concurrent deletion is reclaimed on the next sweep.
+      const persistedTokens = agentSessionMessageService.getReferencedRuntimeResumeTokens()
       const live: AgentSessionLiveIndex = {
         isSessionLive: (sessionId) => this.entries.has(sessionId) || agentSessionService.exists(sessionId),
-        isResumeTokenLive: (token) =>
-          liveEntryTokens.has(token) || agentSessionMessageService.hasRuntimeResumeToken(token)
+        isResumeTokenLive: (token) => liveEntryTokens.has(token) || persistedTokens.has(token)
       }
 
       await this.sweepSystemWorkspaceDirectories(live)

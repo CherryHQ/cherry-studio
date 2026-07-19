@@ -290,16 +290,23 @@ export class AgentSessionMessageService {
     }
   }
 
-  /** Whether any message still references this external runtime session id. */
-  hasRuntimeResumeToken(token: string): boolean {
+  /**
+   * Every external runtime session id (resume token) still referenced by a message row, as one
+   * set. The sweeper materializes this once per pass and probes it in memory rather than issuing an
+   * unindexed lookup per on-disk token (`runtime_resume_token` is not indexed).
+   */
+  getReferencedRuntimeResumeTokens(): Set<string> {
     const database = application.get('DbService').getDb()
-    const [row] = database
-      .select({ id: sessionMessagesTable.id })
+    const rows = database
+      .selectDistinct({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
       .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.runtimeResumeToken, token))
-      .limit(1)
+      .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
       .all()
-    return !!row
+    const tokens = new Set<string>()
+    for (const row of rows) {
+      if (row.runtimeResumeToken) tokens.add(row.runtimeResumeToken)
+    }
+    return tokens
   }
 
   // ── Persistence methods ──────────────────────────────────────────
