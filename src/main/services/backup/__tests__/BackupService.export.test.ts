@@ -71,5 +71,4 @@ describe('BackupService packaged export path', () => {
       return err instanceof IpcError && err.code === 'BACKUP_RESTORE_NOT_READY'
     })
   })
-
 })
