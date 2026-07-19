@@ -123,6 +123,30 @@ describe('profilePayloadLengths', () => {
     expect(result.slots[0]).toMatchObject({ kind: 'json', traversal: 'truncated' })
   })
 
+  it('keeps later JSON slot traversal local after an earlier slot is truncated', () => {
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+
+    const result = profilePayloadLengths([{ metadata: cyclic, content: { ok: 'x' } }], {
+      target: 'message',
+      fields: ['metadata', 'content']
+    })
+
+    expect(result.traversal).toBe('truncated')
+    expect(result.slots).toEqual([
+      expect.objectContaining({ slot: 'metadata', kind: 'json', traversal: 'truncated' }),
+      expect.objectContaining({ slot: 'content', kind: 'json', traversal: 'complete' })
+    ])
+  })
+
+  it('keeps JSON slot traversal local when only the descriptor field limit is exceeded', () => {
+    const fields = Array.from({ length: 65 }, () => 'content') as PayloadProfileDescriptor['fields']
+    const result = profilePayloadLengths([{ content: { ok: 'x' } }], { target: 'message', fields })
+
+    expect(result.traversal).toBe('truncated')
+    expect(result.slots).toEqual([expect.objectContaining({ slot: 'content', kind: 'json', traversal: 'complete' })])
+  })
+
   it.each([
     [
       'cycle',

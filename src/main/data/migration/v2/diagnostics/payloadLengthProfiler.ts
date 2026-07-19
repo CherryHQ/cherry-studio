@@ -287,7 +287,10 @@ function measureJson(
       maxStringCharLength = Math.max(maxStringCharLength, child.maxStringCharLength)
       maxStringByteLength = Math.max(maxStringByteLength, child.maxStringByteLength)
       truncated ||= child.truncated
-      if (context.truncated && deadlineExceeded(context)) break
+      if (deadlineExceeded(context)) {
+        truncated = true
+        break
+      }
     }
   } else {
     const names = ownPropertyNames(value)
@@ -316,7 +319,10 @@ function measureJson(
         maxStringByteLength = Math.max(maxStringByteLength, child.maxStringByteLength)
         truncated ||= !key.complete
         includedProperties += 1
-        if (context.truncated && deadlineExceeded(context)) break
+        if (deadlineExceeded(context)) {
+          truncated = true
+          break
+        }
       }
     }
   }
@@ -327,7 +333,7 @@ function measureJson(
     serializedBytes,
     maxStringCharLength,
     maxStringByteLength,
-    truncated: truncated || context.truncated
+    truncated
   }
 }
 
