@@ -17,10 +17,6 @@ vi.mock('../contributors', () => ({
   }
 }))
 
-vi.mock('@main/data/db/restore/restoreJournal', () => ({
-  readRestoreJournal: vi.fn(() => ({ kind: 'none' }))
-}))
-
 vi.mock('../ExcludedDomainStripper', () => ({
   SqliteBackupStripper: vi.fn()
 }))
@@ -43,7 +39,6 @@ describe('BackupService packaged export path', () => {
 
   async function initPackagedService(): Promise<BackupService> {
     const service = new BackupService()
-    vi.spyOn(service as never, 'performRestoreRecovery' as never).mockImplementation(() => undefined)
     vi.spyOn(service as never, 'readSchemaMigrationId' as never).mockReturnValue('migration-1')
     vi.spyOn(service as never, 'validateOutputPath' as never).mockImplementation(() => undefined)
     vi.spyOn(service as never, 'preflightDisk' as never).mockResolvedValue(undefined)
