@@ -17,7 +17,12 @@ const windowConfirmQuitMock = vi.hoisted(() => vi.fn())
 const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
 const windowSetWriteWaiterMock = vi.hoisted(() => vi.fn())
 const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
-const migrationWebContents = vi.hoisted(() => ({ id: 'migration-web-contents' }))
+const migrationMainFrame = vi.hoisted(() => ({ id: 'migration-main-frame', parent: null }))
+const migrationWebContents = vi.hoisted(() => ({
+  id: 'migration-web-contents',
+  getType: () => 'window',
+  mainFrame: migrationMainFrame
+}))
 const windowGetMock = vi.hoisted(() => vi.fn())
 const diagnosticsStartMock = vi.hoisted(() => vi.fn())
 const diagnosticsReportRendererExportFailureMock = vi.hoisted(() => vi.fn())
@@ -55,6 +60,7 @@ import {
   registerMigrationIpcHandlers,
   resetMigrationData,
   setDataLocationNotice,
+  setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from '../MigrationIpcHandler'
 
@@ -75,14 +81,14 @@ describe('MigrationIpcHandler', () => {
     return all[all.length - 1]
   }
 
-  function invokeFrom(sender: unknown, channel: string, ...args: unknown[]) {
+  function invokeFrom(source: { sender: unknown; senderFrame: unknown }, channel: string, ...args: unknown[]) {
     const handler = handlers.get(channel)
     if (!handler) throw new Error(`No handler registered for ${channel}`)
-    return Promise.resolve().then(() => handler({ sender }, ...args))
+    return Promise.resolve().then(() => handler(source, ...args))
   }
 
   function invoke(channel: string, ...args: unknown[]) {
-    return invokeFrom(migrationWebContents, channel, ...args)
+    return invokeFrom({ sender: migrationWebContents, senderFrame: migrationMainFrame }, channel, ...args)
   }
 
   beforeEach(() => {
@@ -126,6 +132,7 @@ describe('MigrationIpcHandler', () => {
   })
 
   it('reports renderer export failure through the narrow capability without forwarding the raw message', async () => {
+    await invoke(MigrationIpcChannels.Start)
     await invoke(MigrationIpcChannels.ReportError, 'Bearer canary-secret /Users/private')
 
     expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledTimes(1)
@@ -302,6 +309,81 @@ describe('MigrationIpcHandler', () => {
       expect(dialog.showMessageBox).not.toHaveBeenCalled()
     })
 
+    it('rejects a concurrent save before opening a second native dialog', async () => {
+      let resolveDialog!: (result: { canceled: true; filePath: undefined }) => void
+      vi.mocked(dialog.showSaveDialog).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveDialog = resolve as typeof resolveDialog
+          }) as never
+      )
+
+      const firstSave = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await vi.waitFor(() => expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1))
+
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+        status: 'failed',
+        code: 'save_in_progress'
+      })
+      expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1)
+
+      resolveDialog({ canceled: true, filePath: undefined })
+      await expect(firstSave).resolves.toEqual({ status: 'canceled' })
+    })
+
+    it.each(['canceled', 'failed', 'saved'] as const)(
+      'releases the full save guard after a %s outcome',
+      async (outcome) => {
+        if (outcome === 'canceled') {
+          vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
+        } else if (outcome === 'failed') {
+          diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: 'archive_failed' })
+        }
+
+        await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+        await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+          status: 'saved',
+          outputCount: 1
+        })
+
+        expect(dialog.showSaveDialog).toHaveBeenCalledTimes(2)
+      }
+    )
+
+    it('keeps the full save guard across handler replacement until the old dialog settles', async () => {
+      let resolveOldDialog!: (result: { canceled: true; filePath: undefined }) => void
+      vi.mocked(dialog.showSaveDialog).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOldDialog = resolve as typeof resolveOldDialog
+          }) as never
+      )
+      const oldSave = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await vi.waitFor(() => expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1))
+
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers('/mock/userData', {
+        start: diagnosticsStartMock,
+        reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+        saveDiagnosticBundle: diagnosticsSaveBundleMock
+      })
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+        status: 'failed',
+        code: 'save_in_progress'
+      })
+      expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1)
+
+      resolveOldDialog({ canceled: true, filePath: undefined })
+      await oldSave
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+        status: 'saved',
+        outputCount: 1
+      })
+      expect(dialog.showSaveDialog).toHaveBeenCalledTimes(2)
+    })
+
     it('opens a fixed, safely encoded English support mailto only after URL validation', async () => {
       await invoke(
         MigrationIpcChannels.OpenDiagnosticEmail,
@@ -350,17 +432,35 @@ describe('MigrationIpcHandler', () => {
   })
 
   describe('sensitive sender identity', () => {
-    it.each([
+    const sensitiveChannels = [
       MigrationIpcChannels.Start,
       MigrationIpcChannels.SaveDiagnosticBundle,
       MigrationIpcChannels.OpenDiagnosticEmail,
       MigrationIpcChannels.ShowDiagnosticBundleInFolder,
       MigrationIpcChannels.CopySupportEmail
-    ])('rejects %s from any sender other than the migration window', async (channel) => {
-      await expect(invokeFrom({ id: 'other-web-contents' }, channel)).rejects.toThrow(/migration window/i)
+    ] as const
+
+    const foreignMainFrame = { id: 'foreign-main-frame', parent: null }
+    const foreignWebContents = { id: 'foreign-web-contents', getType: () => 'window', mainFrame: foreignMainFrame }
+    const webviewMainFrame = { id: 'webview-main-frame', parent: null }
+    const webviewWebContents = { id: 'webview-web-contents', getType: () => 'webview', mainFrame: webviewMainFrame }
+
+    it.each(
+      sensitiveChannels.flatMap((channel) => [
+        [
+          channel,
+          'same-webContents subframe',
+          { sender: migrationWebContents, senderFrame: { parent: migrationMainFrame } }
+        ],
+        [channel, 'same-webContents null frame', { sender: migrationWebContents, senderFrame: null }],
+        [channel, 'foreign window', { sender: foreignWebContents, senderFrame: foreignMainFrame }],
+        [channel, 'webview', { sender: webviewWebContents, senderFrame: webviewMainFrame }]
+      ])
+    )('rejects %s from a %s caller', async (channel, _caller, source) => {
+      await expect(invokeFrom(source, channel)).rejects.toThrow(/migration window/i)
     })
 
-    it('accepts all five sensitive channels from the migration window sender', async () => {
+    it('accepts all five sensitive channels only from the migration window top frame', async () => {
       await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
         status: 'saved',
@@ -369,6 +469,132 @@ describe('MigrationIpcHandler', () => {
       await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.CopySupportEmail)).resolves.toBe(true)
+    })
+  })
+
+  describe('renderer export phase', () => {
+    const foreignMainFrame = { id: 'foreign-main-frame', parent: null }
+    const foreignWebContents = { id: 'foreign-web-contents', getType: () => 'window', mainFrame: foreignMainFrame }
+    const webviewMainFrame = { id: 'webview-main-frame', parent: null }
+    const webviewWebContents = { id: 'webview-web-contents', getType: () => 'webview', mainFrame: webviewMainFrame }
+
+    it.each([
+      ['same-webContents subframe', { sender: migrationWebContents, senderFrame: { parent: migrationMainFrame } }],
+      ['same-webContents null frame', { sender: migrationWebContents, senderFrame: null }],
+      ['foreign window', { sender: foreignWebContents, senderFrame: foreignMainFrame }],
+      ['webview', { sender: webviewWebContents, senderFrame: webviewMainFrame }]
+    ])('rejects ReportError from a %s caller without consuming the active phase', async (_caller, source) => {
+      await invoke(MigrationIpcChannels.Start)
+
+      await expect(invokeFrom(source, MigrationIpcChannels.ReportError, 'foreign canary')).rejects.toThrow(
+        /migration window/i
+      )
+      expect(diagnosticsReportRendererExportFailureMock).not.toHaveBeenCalled()
+
+      await expect(invoke(MigrationIpcChannels.ReportError, 'real renderer failure')).resolves.toBe(true)
+      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('ignores ReportError when no renderer export phase is active', async () => {
+      await expect(invoke(MigrationIpcChannels.ReportError, 'forged terminal message')).resolves.toBe(false)
+
+      expect(diagnosticsReportRendererExportFailureMock).not.toHaveBeenCalled()
+      expect(progressBroadcasts()).toEqual([])
+    })
+
+    it('consumes an active renderer export failure exactly once', async () => {
+      await invoke(MigrationIpcChannels.Start)
+
+      await expect(invoke(MigrationIpcChannels.ReportError, 'first failure')).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.ReportError, 'late replacement')).resolves.toBe(false)
+
+      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledTimes(1)
+      expect(lastProgress()).toMatchObject({ stage: 'error', error: 'first failure' })
+    })
+
+    it('deactivates renderer export immediately when StartMigration accepts the handoff', async () => {
+      await invoke(MigrationIpcChannels.Start)
+      await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+
+      await expect(invoke(MigrationIpcChannels.ReportError, 'late renderer failure')).resolves.toBe(false)
+
+      expect(diagnosticsReportRendererExportFailureMock).not.toHaveBeenCalled()
+      expect(lastProgress().stage).toBe('completed')
+    })
+
+    it('clears the renderer export phase on Retry', async () => {
+      await invoke(MigrationIpcChannels.Start)
+      await invoke(MigrationIpcChannels.Retry)
+
+      await expect(invoke(MigrationIpcChannels.ReportError, 'late renderer failure')).resolves.toBe(false)
+      expect(diagnosticsReportRendererExportFailureMock).not.toHaveBeenCalled()
+    })
+
+    it('does not publish a reporting generation that Retry invalidated while its capability was pending', async () => {
+      let resolveReport!: () => void
+      diagnosticsReportRendererExportFailureMock.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveReport = resolve
+          })
+      )
+      await invoke(MigrationIpcChannels.Start)
+      const report = invoke(MigrationIpcChannels.ReportError, 'obsolete failure')
+      await vi.waitFor(() => expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledTimes(1))
+
+      await invoke(MigrationIpcChannels.Retry)
+      resolveReport()
+
+      await expect(report).resolves.toBe(false)
+      expect(lastProgress()).toMatchObject({ stage: 'introduction', currentMessage: 'Ready to retry migration' })
+    })
+
+    it('clears the renderer export phase on reset and handler replacement', async () => {
+      await invoke(MigrationIpcChannels.Start)
+      resetMigrationData()
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers('/mock/userData', {
+        start: diagnosticsStartMock,
+        reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+        saveDiagnosticBundle: diagnosticsSaveBundleMock
+      })
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+
+      await expect(invoke(MigrationIpcChannels.ReportError, 'obsolete renderer failure')).resolves.toBe(false)
+      expect(diagnosticsReportRendererExportFailureMock).not.toHaveBeenCalled()
+    })
+
+    it('accepts Start only in the introduction stage and allows it again after Retry', async () => {
+      await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.ReportError, 'export failed')).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(false)
+
+      await invoke(MigrationIpcChannels.Retry)
+      await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(true)
+
+      expect(diagnosticsStartMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('rejects a new Start while the engine owns the active attempt', async () => {
+      let resolveRun!: (result: MigrationResult) => void
+      engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
+      await invoke(MigrationIpcChannels.Start)
+      const migration = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await vi.waitFor(() => expect(engineMock.run).toHaveBeenCalledTimes(1))
+
+      await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(false)
+      expect(diagnosticsStartMock).toHaveBeenCalledTimes(1)
+
+      resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+      await migration
+    })
+
+    it('does not activate renderer export from the version-incompatible stage', async () => {
+      resetMigrationData()
+      setVersionIncompatible('v1_too_old', { previousVersion: '1.0.0', requiredVersion: '1.9.12' })
+
+      await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(false)
+      expect(diagnosticsStartMock).not.toHaveBeenCalled()
     })
   })
 
@@ -559,6 +785,7 @@ describe('MigrationIpcHandler', () => {
     })
 
     it('transitions main to the terminal error stage when the renderer reports a pre-handoff failure', async () => {
+      await invoke(MigrationIpcChannels.Start)
       const result = await invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
 
       expect(result).toBe(true)
@@ -625,6 +852,7 @@ describe('MigrationIpcHandler', () => {
     })
 
     it('pushes the live stage to the window manager on progress updates', async () => {
+      await invoke(MigrationIpcChannels.Start)
       await invoke(MigrationIpcChannels.ReportError, 'boom')
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
     })
@@ -694,6 +922,57 @@ describe('MigrationIpcHandler', () => {
 
       resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
       await migrationFlow
+      await tick()
+
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers quit and the native write waiter for the entire pending diagnostic dialog', async () => {
+      let resolveDialog!: (result: { canceled: true; filePath: undefined }) => void
+      vi.mocked(dialog.showSaveDialog).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveDialog = resolve as typeof resolveDialog
+          }) as never
+      )
+      const save = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await vi.waitFor(() => expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1))
+
+      const requestQuit = windowSetQuitRequesterMock.mock.calls.at(-1)?.[0] as () => boolean
+      const waitForWrites = windowSetWriteWaiterMock.mock.calls.at(-1)?.[0] as () => Promise<void>
+      expect(requestQuit()).toBe(false)
+      let waiterSettled = false
+      const waiting = waitForWrites().then(() => {
+        waiterSettled = true
+      })
+      await Promise.resolve()
+
+      expect(waiterSettled).toBe(false)
+      expect(windowConfirmQuitMock).not.toHaveBeenCalled()
+
+      resolveDialog({ canceled: true, filePath: undefined })
+      await Promise.all([save, waiting])
+      await tick()
+
+      expect(waiterSettled).toBe(true)
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps one scheduled quit across reset while an old diagnostic save is pending', async () => {
+      let resolveSave!: (result: { status: 'saved' }) => void
+      diagnosticsSaveBundleMock.mockImplementationOnce(
+        () => new Promise<{ status: 'saved' }>((resolve) => (resolveSave = resolve))
+      )
+      const save = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await vi.waitFor(() => expect(diagnosticsSaveBundleMock).toHaveBeenCalledTimes(1))
+      const requestQuit = windowSetQuitRequesterMock.mock.calls.at(-1)?.[0] as () => boolean
+
+      expect(requestQuit()).toBe(false)
+      resetMigrationData()
+      expect(requestQuit()).toBe(false)
+
+      resolveSave({ status: 'saved' })
+      await save
       await tick()
 
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)

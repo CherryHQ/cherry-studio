@@ -6,6 +6,7 @@ import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import {
+  type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationResult,
@@ -27,13 +28,25 @@ import { migrationWindowManager } from './MigrationWindowManager'
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 const SUPPORT_EMAIL = 'support@cherry-ai.com'
+const DIAGNOSTIC_SAVE_IN_PROGRESS_RESULT: MigrationDiagnosticSaveResult = Object.freeze({
+  status: 'failed',
+  code: 'save_in_progress'
+})
 
 interface DiagnosticRegistrationState {
   epoch: number
   lastSavedBundlePath: string | null
+  rendererExportGeneration: number
+  rendererExportPhase: {
+    generation: number
+    status: 'exporting' | 'reporting_failure'
+  } | null
 }
 
 let inFlightMigration: Promise<MigrationResult> | null = null
+// Covers the complete user-visible save transaction: native dialog, bundle build, and path
+// publication. It intentionally outlives handler registrations so two windows cannot overlap.
+let diagnosticSaveInFlight: Promise<MigrationDiagnosticSaveResult> | null = null
 // Set once a deferred quit has been registered, so repeated confirmations while a migration
 // write is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
@@ -67,7 +80,12 @@ export function registerMigrationIpcHandlers(
 ): void {
   logger.info('Registering migration IPC handlers')
   invalidateActiveDiagnosticRegistration()
-  const diagnosticRegistration: DiagnosticRegistrationState = { epoch: 0, lastSavedBundlePath: null }
+  const diagnosticRegistration: DiagnosticRegistrationState = {
+    epoch: 0,
+    lastSavedBundlePath: null,
+    rendererExportGeneration: 0,
+    rendererExportPhase: null
+  }
   activeDiagnosticRegistration = diagnosticRegistration
 
   // Wire repeated-close quit deferral and native crash/hang waiting to the same in-flight write.
@@ -76,26 +94,58 @@ export function registerMigrationIpcHandlers(
 
   ipcMain.handle(MigrationIpcChannels.Start, async (event) => {
     assertMigrationSender(event)
-    await diagnosticCapabilities.start()
+    if (
+      activeDiagnosticRegistration !== diagnosticRegistration ||
+      currentProgress.stage !== 'introduction' ||
+      diagnosticRegistration.rendererExportPhase !== null
+    ) {
+      return false
+    }
+
+    const generation = diagnosticRegistration.rendererExportGeneration + 1
+    diagnosticRegistration.rendererExportGeneration = generation
+    diagnosticRegistration.rendererExportPhase = { generation, status: 'exporting' }
+    try {
+      await diagnosticCapabilities.start()
+    } catch (error) {
+      if (diagnosticRegistration.rendererExportPhase?.generation === generation) {
+        clearRendererExportPhase(diagnosticRegistration)
+      }
+      throw error
+    }
     return true
   })
 
   ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
     assertMigrationSender(event)
-    const saveEpoch = diagnosticRegistration.epoch
-    const outcome = await saveMigrationDiagnosticBundleWithDialog(
-      app.getLocale(),
-      diagnosticCapabilities.saveDiagnosticBundle
-    )
-    if (
-      outcome.result.status === 'saved' &&
-      outcome.destination !== undefined &&
-      activeDiagnosticRegistration === diagnosticRegistration &&
-      diagnosticRegistration.epoch === saveEpoch
-    ) {
-      diagnosticRegistration.lastSavedBundlePath = outcome.destination
+    if (diagnosticSaveInFlight !== null) {
+      return DIAGNOSTIC_SAVE_IN_PROGRESS_RESULT
     }
-    return outcome.result
+
+    const saveEpoch = diagnosticRegistration.epoch
+    const savePromise = (async (): Promise<MigrationDiagnosticSaveResult> => {
+      const outcome = await saveMigrationDiagnosticBundleWithDialog(
+        app.getLocale(),
+        diagnosticCapabilities.saveDiagnosticBundle
+      )
+      if (
+        outcome.result.status === 'saved' &&
+        outcome.destination !== undefined &&
+        activeDiagnosticRegistration === diagnosticRegistration &&
+        diagnosticRegistration.epoch === saveEpoch
+      ) {
+        diagnosticRegistration.lastSavedBundlePath = outcome.destination
+      }
+      return outcome.result
+    })()
+    diagnosticSaveInFlight = savePromise
+    try {
+      return await savePromise
+    } finally {
+      if (diagnosticSaveInFlight === savePromise) {
+        diagnosticSaveInFlight = null
+      }
+    }
   })
 
   ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event) => {
@@ -194,6 +244,10 @@ export function registerMigrationIpcHandlers(
         throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
       }
 
+      // Main owns the attempt from this point. A later renderer ReportError belongs to an
+      // obsolete export phase and must not finish or overwrite the engine-owned attempt.
+      clearRendererExportPhase(diagnosticRegistration)
+
       // Set up progress callback
       migrationEngine.onProgress((progress) => {
         updateProgress(progress)
@@ -265,8 +319,26 @@ export function registerMigrationIpcHandlers(
   })
 
   // Mirror renderer-local failures into main so close handling sees the terminal error stage.
-  ipcMain.handle(MigrationIpcChannels.ReportError, async (_event, message: string) => {
+  ipcMain.handle(MigrationIpcChannels.ReportError, async (event, message: string) => {
+    assertMigrationSender(event)
+    const phase = diagnosticRegistration.rendererExportPhase
+    if (activeDiagnosticRegistration !== diagnosticRegistration || phase === null || phase.status !== 'exporting') {
+      return false
+    }
+
+    diagnosticRegistration.rendererExportPhase = {
+      generation: phase.generation,
+      status: 'reporting_failure'
+    }
     await diagnosticCapabilities.reportRendererExportFailure()
+    if (
+      activeDiagnosticRegistration !== diagnosticRegistration ||
+      diagnosticRegistration.rendererExportPhase?.generation !== phase.generation ||
+      diagnosticRegistration.rendererExportPhase.status !== 'reporting_failure'
+    ) {
+      return false
+    }
+    clearRendererExportPhase(diagnosticRegistration)
     updateProgress({
       stage: 'error',
       overallProgress: currentProgress.overallProgress,
@@ -280,6 +352,7 @@ export function registerMigrationIpcHandlers(
   // Retry migration
   ipcMain.handle(MigrationIpcChannels.Retry, async () => {
     try {
+      clearRendererExportPhase(diagnosticRegistration)
       // Reset to the introduction stage so the user can re-trigger migration from its Start button.
       // Carry the data-location notice back so it doesn't disappear after a failed export.
       updateProgress({
@@ -382,11 +455,20 @@ function invalidateActiveDiagnosticRegistration(): void {
   if (activeDiagnosticRegistration === null) return
   activeDiagnosticRegistration.epoch += 1
   activeDiagnosticRegistration.lastSavedBundlePath = null
+  clearRendererExportPhase(activeDiagnosticRegistration)
+}
+
+function clearRendererExportPhase(registration: DiagnosticRegistrationState): void {
+  registration.rendererExportPhase = null
 }
 
 function assertMigrationSender(event: IpcMainInvokeEvent): void {
   const migrationWebContents = migrationWindowManager.getWindow()?.webContents
-  if (migrationWebContents === undefined || event.sender !== migrationWebContents) {
+  if (
+    migrationWebContents === undefined ||
+    event.sender !== migrationWebContents ||
+    event.senderFrame !== migrationWebContents.mainFrame
+  ) {
     throw new Error('Migration IPC is restricted to the migration window.')
   }
 }
@@ -421,6 +503,7 @@ function updateProgress(progress: MigrationProgress): void {
 function requestQuit(): boolean {
   const pending: Promise<unknown>[] = []
   if (inFlightMigration) pending.push(inFlightMigration)
+  if (diagnosticSaveInFlight) pending.push(diagnosticSaveInFlight)
 
   if (pending.length === 0) {
     migrationWindowManager.confirmQuit()
@@ -443,9 +526,11 @@ function requestQuit(): boolean {
  * still needs to let the user save diagnostics and exit after a failed write.
  */
 async function waitForInFlightWrites(): Promise<void> {
-  const pending = inFlightMigration
-  if (pending !== null) {
-    await Promise.allSettled([pending])
+  const pending: Promise<unknown>[] = []
+  if (inFlightMigration) pending.push(inFlightMigration)
+  if (diagnosticSaveInFlight) pending.push(diagnosticSaveInFlight)
+  if (pending.length > 0) {
+    await Promise.allSettled(pending)
   }
 }
 
@@ -467,8 +552,11 @@ function createMigrationSummary(result: MigrationResult, progress: MigrationProg
  * Reset cached data
  */
 export function resetMigrationData(): void {
-  inFlightMigration = null
-  quitScheduled = false
+  // An active operation owns its promise until settlement. Clearing either guard here would let
+  // reset/re-registration open a second dialog or schedule multiple deferred quits.
+  if (inFlightMigration === null && diagnosticSaveInFlight === null) {
+    quitScheduled = false
+  }
   dataLocationNotice = null
   invalidateActiveDiagnosticRegistration()
   currentProgress = {

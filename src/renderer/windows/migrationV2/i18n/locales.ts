@@ -125,7 +125,8 @@ export const zhCN = {
       actions: {
         open_email: '打开邮件客户端',
         show_in_folder: '在文件夹中显示',
-        copy_email: '复制支持邮箱'
+        copy_email: '复制支持邮箱',
+        failed: '无法完成支持操作，请重试。'
       },
       failures: {
         dialog_failed: '无法打开保存对话框，请重试。',
@@ -274,7 +275,8 @@ export const enUS = {
       actions: {
         open_email: 'Open email client',
         show_in_folder: 'Show in folder',
-        copy_email: 'Copy support email'
+        copy_email: 'Copy support email',
+        failed: 'The support action could not be completed. Please try again.'
       },
       failures: {
         dialog_failed: 'The save dialog could not be opened. Please try again.',

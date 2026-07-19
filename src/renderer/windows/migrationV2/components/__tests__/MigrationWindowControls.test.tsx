@@ -51,4 +51,24 @@ describe('MigrationWindowControls', () => {
     expect(screen.queryByRole('button', { name: 'Minimize' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
   })
+
+  it('disables only the custom close control while a diagnostic save is pending', () => {
+    const invoke = vi.fn().mockResolvedValue(undefined)
+    ;(window as unknown as { electron: { ipcRenderer: { invoke: typeof invoke } } }).electron = {
+      ipcRenderer: { invoke }
+    }
+
+    render(<MigrationWindowControls disabled />)
+
+    const minimize = screen.getByRole('button', { name: 'Minimize' })
+    const close = screen.getByRole('button', { name: 'Close' })
+    expect(minimize).toBeEnabled()
+    expect(close).toBeDisabled()
+
+    fireEvent.click(close)
+    fireEvent.click(minimize)
+
+    expect(invoke).not.toHaveBeenCalledWith(MigrationIpcChannels.CloseWindow)
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.Minimize)
+  })
 })

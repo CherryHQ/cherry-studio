@@ -20,6 +20,9 @@ const cleanup = vi.fn()
 const on = vi.fn(() => cleanup)
 const removeAllListeners = vi.fn()
 const invoke = vi.fn()
+const loggerErrorMock = vi.hoisted(() => vi.fn())
+const loggerInfoMock = vi.hoisted(() => vi.fn())
+const migrationWindowControlsPropsMock = vi.hoisted(() => vi.fn())
 const platformState = vi.hoisted(() => ({
   isMac: false
 }))
@@ -118,8 +121,8 @@ vi.mock('@renderer/utils/platform', () => ({
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
     withContext: () => ({
-      error: vi.fn(),
-      info: vi.fn()
+      error: loggerErrorMock,
+      info: loggerInfoMock
     })
   }
 }))
@@ -158,8 +161,10 @@ vi.mock('../components', () => {
     MigrationDiagnosticsSavedActions: ({
       onCopyEmail,
       onOpenEmail,
-      onShowInFolder
+      onShowInFolder,
+      disabled
     }: {
+      disabled?: boolean
       onCopyEmail: () => void
       onOpenEmail: () => void
       onShowInFolder: () => void
@@ -169,21 +174,24 @@ vi.mock('../components', () => {
         { 'data-testid': 'migration-diagnostics-saved-actions' },
         React.createElement(
           'button',
-          { type: 'button', onClick: onOpenEmail },
+          { type: 'button', disabled, onClick: onOpenEmail },
           'migration.diagnostics.actions.open_email'
         ),
         React.createElement(
           'button',
-          { type: 'button', onClick: onShowInFolder },
+          { type: 'button', disabled, onClick: onShowInFolder },
           'migration.diagnostics.actions.show_in_folder'
         ),
         React.createElement(
           'button',
-          { type: 'button', onClick: onCopyEmail },
+          { type: 'button', disabled, onClick: onCopyEmail },
           'migration.diagnostics.actions.copy_email'
         )
       ),
-    MigrationWindowControls: () => null,
+    MigrationWindowControls: (props: { disabled?: boolean }) => {
+      migrationWindowControlsPropsMock(props)
+      return null
+    },
     MigratorProgressList: () => null,
     SkipMigrationDialog: () => null
   }
@@ -210,6 +218,9 @@ describe('MigrationApp', () => {
   beforeEach(() => {
     cleanup.mockClear()
     invoke.mockClear()
+    loggerErrorMock.mockClear()
+    loggerInfoMock.mockClear()
+    migrationWindowControlsPropsMock.mockClear()
     on.mockClear()
     removeAllListeners.mockClear()
     Object.defineProperty(window, 'matchMedia', {
@@ -433,8 +444,9 @@ describe('MigrationApp', () => {
     vi.mocked(ReduxExporter).mockImplementation(
       () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
     )
+    const rendererFailure = 'Dexie export failed: Bearer renderer-canary /Users/private'
     vi.mocked(DexieExporter).mockImplementation(
-      () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
+      () => ({ exportAll: vi.fn().mockRejectedValue(new Error(rendererFailure)) }) as unknown as DexieExporter
     )
     invoke.mockResolvedValue('/tmp/userData')
 
@@ -444,9 +456,12 @@ describe('MigrationApp', () => {
 
     // The failure surfaces the error stage locally, without ever handing off to main.
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
-    expect(screen.getByText(/Dexie export failed/)).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(rendererFailure))).toBeInTheDocument()
     expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
-    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'Dexie export failed')
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, rendererFailure)
+    expect(loggerErrorMock).toHaveBeenCalledWith('Migration renderer export failed')
+    expect(JSON.stringify(loggerErrorMock.mock.calls)).not.toContain('renderer-canary')
+    expect(JSON.stringify(loggerErrorMock.mock.calls)).not.toContain('/Users/private')
   })
 
   it('drives the error stage when the migration handoff rejects', async () => {
@@ -541,6 +556,7 @@ describe('MigrationApp', () => {
         expect(save).toBeDisabled()
         expect(screen.getByRole('button', { name: 'migration.buttons.retry' })).toBeDisabled()
         expect(screen.getByRole('button', { name: 'migration.buttons.close' })).toBeDisabled()
+        expect(migrationWindowControlsPropsMock).toHaveBeenLastCalledWith(expect.objectContaining({ disabled: true }))
       })
       fireEvent.click(save)
       expect(migrationHookMock.actions.save).toHaveBeenCalledTimes(1)
@@ -558,12 +574,71 @@ describe('MigrationApp', () => {
       expect(within(actions).getAllByRole('button')).toHaveLength(3)
       expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
 
-      fireEvent.click(within(actions).getByRole('button', { name: 'migration.diagnostics.actions.open_email' }))
-      fireEvent.click(within(actions).getByRole('button', { name: 'migration.diagnostics.actions.show_in_folder' }))
-      fireEvent.click(within(actions).getByRole('button', { name: 'migration.diagnostics.actions.copy_email' }))
+      const openEmail = within(actions).getByRole('button', { name: 'migration.diagnostics.actions.open_email' })
+      const showInFolder = within(actions).getByRole('button', {
+        name: 'migration.diagnostics.actions.show_in_folder'
+      })
+      const copyEmail = within(actions).getByRole('button', { name: 'migration.diagnostics.actions.copy_email' })
+
+      fireEvent.click(openEmail)
+      await waitFor(() => expect(migrationHookMock.actions.openEmail).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(openEmail).toBeEnabled())
+      fireEvent.click(showInFolder)
+      await waitFor(() => expect(migrationHookMock.actions.showInFolder).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(showInFolder).toBeEnabled())
+      fireEvent.click(copyEmail)
+      await waitFor(() => expect(migrationHookMock.actions.copyEmail).toHaveBeenCalledTimes(1))
+
       expect(migrationHookMock.actions.openEmail).toHaveBeenCalledTimes(1)
       expect(migrationHookMock.actions.showInFolder).toHaveBeenCalledTimes(1)
       expect(migrationHookMock.actions.copyEmail).toHaveBeenCalledTimes(1)
+    })
+
+    it('catches a rejected support action and renders only a fixed localized failure', async () => {
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved', outputCount: 1 })
+      migrationHookMock.actions.openEmail.mockRejectedValue(new Error('Bearer support-action-canary /Users/private'))
+      const unhandledRejection = vi.fn()
+      window.addEventListener('unhandledrejection', unhandledRejection)
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      const actions = await screen.findByTestId('migration-diagnostics-saved-actions')
+
+      fireEvent.click(within(actions).getByRole('button', { name: 'migration.diagnostics.actions.open_email' }))
+
+      expect(await screen.findByText('migration.diagnostics.actions.failed')).toBeInTheDocument()
+      expect(screen.queryByText(/support-action-canary/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/\/Users\/private/)).not.toBeInTheDocument()
+      expect(unhandledRejection).not.toHaveBeenCalled()
+      window.removeEventListener('unhandledrejection', unhandledRejection)
+    })
+
+    it('disables all support actions while one is pending and prevents duplicate dispatch', async () => {
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved', outputCount: 1 })
+      let resolveOpenEmail!: () => void
+      migrationHookMock.actions.openEmail.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveOpenEmail = resolve
+          })
+      )
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      const actions = await screen.findByTestId('migration-diagnostics-saved-actions')
+      const openEmail = within(actions).getByRole('button', { name: 'migration.diagnostics.actions.open_email' })
+
+      fireEvent.click(openEmail)
+      await waitFor(() => {
+        for (const button of within(actions).getAllByRole('button')) {
+          expect(button).toBeDisabled()
+        }
+      })
+      fireEvent.click(openEmail)
+      expect(migrationHookMock.actions.openEmail).toHaveBeenCalledTimes(1)
+
+      await act(async () => resolveOpenEmail())
+      await waitFor(() => expect(openEmail).toBeEnabled())
     })
 
     it.each(['dialog_failed', 'snapshot_failed', 'archive_failed', 'publish_failed', 'save_in_progress'] as const)(

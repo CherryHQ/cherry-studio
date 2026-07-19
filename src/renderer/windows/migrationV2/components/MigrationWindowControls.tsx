@@ -9,11 +9,15 @@ import { useTranslation } from 'react-i18next'
 const controlButtonClass =
   'h-full w-12 rounded-none text-foreground-secondary shadow-none transition-[background,color] duration-150 hover:bg-accent hover:text-foreground [&_svg]:pointer-events-none'
 
+interface MigrationWindowControlsProps {
+  disabled?: boolean
+}
+
 /**
  * Custom minimize/close controls for the frameless migration window on Windows/Linux.
  * macOS renders real native traffic lights instead, so this returns null there.
  */
-export const MigrationWindowControls: React.FC = () => {
+export const MigrationWindowControls: React.FC<MigrationWindowControlsProps> = ({ disabled = false }) => {
   const { t } = useTranslation()
 
   if (isMac) {
@@ -43,6 +47,7 @@ export const MigrationWindowControls: React.FC = () => {
         type="button"
         variant="ghost"
         size="icon-sm"
+        disabled={disabled}
         className={cn(controlButtonClass, 'hover:bg-destructive hover:text-white')}
         onClick={handleClose}
         aria-label={t('migration.window.close')}>

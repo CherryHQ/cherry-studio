@@ -37,4 +37,27 @@ describe('MigrationDiagnosticsSavedActions', () => {
     expect(onShowInFolder).toHaveBeenCalledTimes(1)
     expect(onCopyEmail).toHaveBeenCalledTimes(1)
   })
+
+  it('disables all support actions and suppresses callbacks while one is pending', () => {
+    const onOpenEmail = vi.fn()
+    const onShowInFolder = vi.fn()
+    const onCopyEmail = vi.fn()
+
+    render(
+      <MigrationDiagnosticsSavedActions
+        disabled
+        onOpenEmail={onOpenEmail}
+        onShowInFolder={onShowInFolder}
+        onCopyEmail={onCopyEmail}
+      />
+    )
+
+    for (const button of screen.getAllByRole('button')) {
+      expect(button).toBeDisabled()
+      fireEvent.click(button)
+    }
+    expect(onOpenEmail).not.toHaveBeenCalled()
+    expect(onShowInFolder).not.toHaveBeenCalled()
+    expect(onCopyEmail).not.toHaveBeenCalled()
+  })
 })

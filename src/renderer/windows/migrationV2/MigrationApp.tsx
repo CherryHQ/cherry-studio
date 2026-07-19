@@ -265,7 +265,10 @@ const MigrationApp: React.FC = () => {
   const [quitDeferred, setQuitDeferred] = useState(false)
   const startGuardRef = useRef(false)
   const diagnosticSaveGuardRef = useRef(false)
+  const diagnosticSupportActionGuardRef = useRef(false)
   const [isSavingDiagnostics, setIsSavingDiagnostics] = useState(false)
+  const [isRunningDiagnosticSupportAction, setIsRunningDiagnosticSupportAction] = useState(false)
+  const [diagnosticSupportActionFailed, setDiagnosticSupportActionFailed] = useState(false)
   const [diagnosticSaveResult, setDiagnosticSaveResult] = useState<MigrationDiagnosticSaveResult | null>(null)
 
   const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
@@ -369,7 +372,7 @@ const MigrationApp: React.FC = () => {
         localStorageExportPath: localStorageFilePath
       })
     } catch (error) {
-      logger.error('Failed to start migration', error as Error)
+      logger.error('Migration renderer export failed')
       const message = errorMessage(error)
       setLocalMigrationError(message)
       void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)
@@ -387,6 +390,7 @@ const MigrationApp: React.FC = () => {
     diagnosticSaveGuardRef.current = true
     setIsSavingDiagnostics(true)
     setDiagnosticSaveResult(null)
+    setDiagnosticSupportActionFailed(false)
     try {
       setDiagnosticSaveResult(await actions.save())
     } catch {
@@ -394,6 +398,24 @@ const MigrationApp: React.FC = () => {
     } finally {
       diagnosticSaveGuardRef.current = false
       setIsSavingDiagnostics(false)
+    }
+  }
+
+  const runDiagnosticSupportAction = async (action: () => Promise<unknown>) => {
+    if (diagnosticSupportActionGuardRef.current) {
+      return
+    }
+
+    diagnosticSupportActionGuardRef.current = true
+    setIsRunningDiagnosticSupportAction(true)
+    setDiagnosticSupportActionFailed(false)
+    try {
+      await action()
+    } catch {
+      setDiagnosticSupportActionFailed(true)
+    } finally {
+      diagnosticSupportActionGuardRef.current = false
+      setIsRunningDiagnosticSupportAction(false)
     }
   }
 
@@ -593,10 +615,16 @@ const MigrationApp: React.FC = () => {
                   </p>
                 </div>
                 <MigrationDiagnosticsSavedActions
-                  onOpenEmail={() => void actions.openEmail()}
-                  onShowInFolder={() => void actions.showInFolder()}
-                  onCopyEmail={() => void actions.copyEmail()}
+                  disabled={isRunningDiagnosticSupportAction}
+                  onOpenEmail={() => void runDiagnosticSupportAction(actions.openEmail)}
+                  onShowInFolder={() => void runDiagnosticSupportAction(actions.showInFolder)}
+                  onCopyEmail={() => void runDiagnosticSupportAction(actions.copyEmail)}
                 />
+                {diagnosticSupportActionFailed && (
+                  <p className="text-center text-error-text text-xs" role="alert">
+                    {t('migration.diagnostics.actions.failed')}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
@@ -628,6 +656,7 @@ const MigrationApp: React.FC = () => {
                 disabled={isSavingDiagnostics}
                 onClick={() => {
                   setDiagnosticSaveResult(null)
+                  setDiagnosticSupportActionFailed(false)
                   setLocalMigrationError(null)
                   void actions.retry()
                 }}>
@@ -708,7 +737,7 @@ const MigrationApp: React.FC = () => {
           <span className="text-foreground-muted">·</span>
           <span className="text-foreground-muted text-xs">{t('migration.title')}</span>
         </div>
-        <MigrationWindowControls />
+        <MigrationWindowControls disabled={isSavingDiagnostics} />
       </header>
 
       <div className="flex min-h-0 flex-1">

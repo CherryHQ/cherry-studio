@@ -167,7 +167,10 @@ export class MigrationWindowManager {
         return
       }
       logger.info('Migration window closed by user; quitting app')
-      app.quit()
+      // Even terminal/entry stages can have a diagnostic save dialog or archive build in flight.
+      // Keep the native window alive until the shared requester confirms every write has settled.
+      event.preventDefault()
+      this.routeQuit()
     })
 
     // A crashed or hung renderer cannot present diagnostics itself. Route either signal into
@@ -299,6 +302,10 @@ export class MigrationWindowManager {
   private forceQuit(reason: string): void {
     logger.warn('Forcing migration window quit', { reason })
     this.closeConfirmPending = false
+    this.routeQuit()
+  }
+
+  private routeQuit(): void {
     if (this.requestQuit) {
       this.requestQuit()
     } else {
