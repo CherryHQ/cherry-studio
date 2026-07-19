@@ -100,27 +100,32 @@ describe('SqliteFileStager', () => {
     }
   })
 
-  it('stageFiles copies external blobs from the row absolute externalPath', async () => {
+  it('stageFiles skips external rows (dangling by design — schema ref only, no blob copy)', async () => {
     const externalDir = await mkdtemp(join(tmpdir(), 'cs-ext-'))
     const externalFile = join(externalDir, 'ext.bin')
+    const intBlob = join(externalDir, 'int1.txt')
     const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
     try {
       await writeFile(externalFile, 'ext-content')
-      await dbh.db
-        .insert(fileEntryTable)
-        .values([{ id: 'ext1', origin: 'external', name: 'e', externalPath: externalFile }])
+      await writeFile(intBlob, 'hello')
+      await dbh.db.insert(fileEntryTable).values([
+        { id: 'int1', origin: 'internal', name: 'a', ext: 'txt', size: 5 },
+        { id: 'ext1', origin: 'external', name: 'e', externalPath: externalFile }
+      ])
 
       const stager = new SqliteFileStager(
         new BackupReadonlyDb(dbh.db),
-        pathFileBlobs({ ext1: externalFile }),
+        pathFileBlobs({ int1: intBlob, ext1: externalFile }),
         '/unused',
         '/unused'
       )
-      const r = await stager.stageFiles(new Set(['ext1']), dest)
+      const r = await stager.stageFiles(new Set(['int1', 'ext1']), dest)
 
       expect(r.total).toBe(1)
-      expect(r.totalBytes).toBe(11) // 'ext-content'.length
-      expect((await readFile(join(dest, 'ext1'))).toString()).toBe('ext-content')
+      expect(r.totalBytes).toBe(5)
+      expect(r.missing).toEqual(['ext1'])
+      expect(existsSync(join(dest, 'int1'))).toBe(true)
+      expect(existsSync(join(dest, 'ext1'))).toBe(false)
     } finally {
       await rm(externalDir, { recursive: true, force: true })
       await rm(dest, { recursive: true, force: true })
