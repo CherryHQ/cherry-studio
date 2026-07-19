@@ -109,6 +109,169 @@ async function customZip(
   return readFileSync(outputFile)
 }
 
+const ZIP_LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
+const ZIP_DATA_DESCRIPTOR_SIGNATURE = 0x08074b50
+const ZIP_CENTRAL_FILE_HEADER_SIGNATURE = 0x02014b50
+const ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06064b50
+const ZIP64_END_OF_CENTRAL_DIRECTORY_LOCATOR_SIGNATURE = 0x07064b50
+const ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50
+
+interface ProductionZipEntryLayout {
+  readonly centralOffset: number
+  readonly localOffset: number
+  readonly nameLength: number
+}
+
+interface ProductionZipLayout {
+  readonly centralOffset: number
+  readonly centralSize: number
+  readonly eocdOffset: number
+  readonly entries: readonly ProductionZipEntryLayout[]
+}
+
+function parseProductionZipLayout(archive: Buffer): ProductionZipLayout {
+  const eocdOffset = archive.byteLength - 22
+  if (eocdOffset < 0 || archive.readUInt32LE(eocdOffset) !== ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE) {
+    throw new Error('Expected the production archive to end with an ordinary EOCD')
+  }
+  const entryCount = archive.readUInt16LE(eocdOffset + 10)
+  const centralSize = archive.readUInt32LE(eocdOffset + 12)
+  const centralOffset = archive.readUInt32LE(eocdOffset + 16)
+  const entries: ProductionZipEntryLayout[] = []
+  let cursor = centralOffset
+  for (let index = 0; index < entryCount; index += 1) {
+    if (archive.readUInt32LE(cursor) !== ZIP_CENTRAL_FILE_HEADER_SIGNATURE) {
+      throw new Error('Expected a contiguous production central directory')
+    }
+    const nameLength = archive.readUInt16LE(cursor + 28)
+    const extraLength = archive.readUInt16LE(cursor + 30)
+    const commentLength = archive.readUInt16LE(cursor + 32)
+    entries.push({ centralOffset: cursor, localOffset: archive.readUInt32LE(cursor + 42), nameLength })
+    cursor += 46 + nameLength + extraLength + commentLength
+  }
+  if (cursor !== centralOffset + centralSize) throw new Error('Expected exact production central directory size')
+  return { centralOffset, centralSize, eocdOffset, entries }
+}
+
+function insertBeforeCentral(
+  archive: Buffer,
+  insertionOffset: number,
+  addition: Buffer,
+  shiftLocalOffsetsAtOrAfter: number
+): Buffer {
+  const layout = parseProductionZipLayout(archive)
+  const mutated = Buffer.concat([archive.subarray(0, insertionOffset), addition, archive.subarray(insertionOffset)])
+  const delta = addition.byteLength
+  for (const entry of layout.entries) {
+    const shiftedCentralOffset = entry.centralOffset + delta
+    const shiftedLocalOffset =
+      entry.localOffset >= shiftLocalOffsetsAtOrAfter ? entry.localOffset + delta : entry.localOffset
+    mutated.writeUInt32LE(shiftedLocalOffset, shiftedCentralOffset + 42)
+  }
+  mutated.writeUInt32LE(layout.centralOffset + delta, layout.eocdOffset + delta + 16)
+  return mutated
+}
+
+function removeBeforeCentral(archive: Buffer, removalOffset: number, removalLength: number): Buffer {
+  const layout = parseProductionZipLayout(archive)
+  const removalEnd = removalOffset + removalLength
+  const mutated = Buffer.concat([archive.subarray(0, removalOffset), archive.subarray(removalEnd)])
+  for (const entry of layout.entries) {
+    const shiftedCentralOffset = entry.centralOffset - removalLength
+    const shiftedLocalOffset = entry.localOffset >= removalEnd ? entry.localOffset - removalLength : entry.localOffset
+    mutated.writeUInt32LE(shiftedLocalOffset, shiftedCentralOffset + 42)
+  }
+  mutated.writeUInt32LE(layout.centralOffset - removalLength, layout.eocdOffset - removalLength + 16)
+  return mutated
+}
+
+function addLocalExtra(archive: Buffer): Buffer {
+  const layout = parseProductionZipLayout(archive)
+  const first = layout.entries[0]
+  if (first === undefined || archive.readUInt32LE(first.localOffset) !== ZIP_LOCAL_FILE_HEADER_SIGNATURE) {
+    throw new Error('Expected the first production local header')
+  }
+  const localNameLength = archive.readUInt16LE(first.localOffset + 26)
+  const insertionOffset = first.localOffset + 30 + localNameLength
+  const extra = Buffer.from([0xfe, 0xca, 0x00, 0x00])
+  const mutated = insertBeforeCentral(archive, insertionOffset, extra, insertionOffset)
+  mutated.writeUInt16LE(extra.byteLength, first.localOffset + 28)
+  return mutated
+}
+
+function addCentralMetadata(archive: Buffer, kind: 'extra' | 'comment'): Buffer {
+  const layout = parseProductionZipLayout(archive)
+  const first = layout.entries[0]
+  if (first === undefined) throw new Error('Expected a production central entry')
+  const addition = kind === 'extra' ? Buffer.from([0xfe, 0xca, 0x00, 0x00]) : Buffer.from('comment')
+  const insertionOffset = first.centralOffset + 46 + first.nameLength
+  const mutated = Buffer.concat([archive.subarray(0, insertionOffset), addition, archive.subarray(insertionOffset)])
+  mutated.writeUInt16LE(addition.byteLength, first.centralOffset + (kind === 'extra' ? 30 : 32))
+  mutated.writeUInt32LE(layout.centralSize + addition.byteLength, layout.eocdOffset + addition.byteLength + 12)
+  return mutated
+}
+
+function addUnnecessaryZip64Region(archive: Buffer): Buffer {
+  const layout = parseProductionZipLayout(archive)
+  const zip64Eocd = Buffer.alloc(56)
+  zip64Eocd.writeUInt32LE(ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE, 0)
+  zip64Eocd.writeBigUInt64LE(44n, 4)
+  zip64Eocd.writeUInt16LE(45, 12)
+  zip64Eocd.writeUInt16LE(45, 14)
+  zip64Eocd.writeBigUInt64LE(BigInt(layout.entries.length), 24)
+  zip64Eocd.writeBigUInt64LE(BigInt(layout.entries.length), 32)
+  zip64Eocd.writeBigUInt64LE(BigInt(layout.centralSize), 40)
+  zip64Eocd.writeBigUInt64LE(BigInt(layout.centralOffset), 48)
+  const locator = Buffer.alloc(20)
+  locator.writeUInt32LE(ZIP64_END_OF_CENTRAL_DIRECTORY_LOCATOR_SIGNATURE, 0)
+  locator.writeBigUInt64LE(BigInt(layout.eocdOffset), 8)
+  locator.writeUInt32LE(1, 16)
+  return Buffer.concat([
+    archive.subarray(0, layout.eocdOffset),
+    zip64Eocd,
+    locator,
+    archive.subarray(layout.eocdOffset)
+  ])
+}
+
+function addAdjustedPrefix(archive: Buffer): Buffer {
+  const layout = parseProductionZipLayout(archive)
+  const prefix = Buffer.from('SFX!')
+  const mutated = Buffer.concat([prefix, archive])
+  for (const entry of layout.entries) {
+    mutated.writeUInt32LE(entry.localOffset + prefix.byteLength, entry.centralOffset + prefix.byteLength + 42)
+  }
+  mutated.writeUInt32LE(layout.centralOffset + prefix.byteLength, layout.eocdOffset + prefix.byteLength + 16)
+  return mutated
+}
+
+function mutateFirstLocalHeader(archive: Buffer, mutate: (copy: Buffer, localOffset: number) => void): Buffer {
+  const layout = parseProductionZipLayout(archive)
+  const first = layout.entries[0]
+  if (first === undefined) throw new Error('Expected a production local entry')
+  const copy = Buffer.from(archive)
+  mutate(copy, first.localOffset)
+  return copy
+}
+
+function firstDescriptorOffset(archive: Buffer): number {
+  const layout = parseProductionZipLayout(archive)
+  const second = layout.entries[1]
+  if (second === undefined) throw new Error('Expected two production local entries')
+  const descriptorOffset = second.localOffset - 16
+  if (archive.readUInt32LE(descriptorOffset) !== ZIP_DATA_DESCRIPTOR_SIGNATURE) {
+    throw new Error('Expected the signed production data descriptor')
+  }
+  return descriptorOffset
+}
+
+async function mutateProductionZip(
+  entries: ReadonlyArray<readonly [string, Buffer]>,
+  mutate: (archive: Buffer) => Buffer
+): Promise<Buffer> {
+  return mutate(await customZip(entries))
+}
+
 let testDir = ''
 
 beforeEach(() => {
@@ -118,6 +281,29 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(testDir, { recursive: true, force: true })
 })
+
+type ArchiveMutation = (archive: Buffer) => Buffer
+
+async function expectInjectedArchiveRejected(
+  label: string,
+  createArchiveBuffer: (entries: ReadonlyArray<readonly [string, Buffer]>) => Promise<Buffer>
+): Promise<void> {
+  const destination = path.join(testDir, `malicious-${label.replaceAll(/[^a-z0-9]+/gi, '-')}.zip`)
+  const builder = new MigrationDiagnosticBundleBuilder({
+    createArchiveBuffer: async (entries) =>
+      createArchiveBuffer(entries.map((entry) => [entry.name, entry.buffer] as const))
+  })
+
+  const result = await builder.save({
+    destination,
+    snapshot: snapshotWithCanaries(['attempt']),
+    collectDatabaseDiagnostics: async () => databaseUnavailable()
+  })
+
+  expect(result).toEqual({ status: 'failed', code: 'archive_failed', publication: 'not_published' })
+  expect(existsSync(destination)).toBe(false)
+  expect(existsSync(`${destination}.partial`)).toBe(false)
+}
 
 describe('strict diagnostic ZIP integration', () => {
   it('round-trips exactly four fixed top-level regular files within the uncompressed budget', async () => {
@@ -143,6 +329,158 @@ describe('strict diagnostic ZIP integration', () => {
     migrationDatabaseDiagnosticsDocumentSchema.parse(
       JSON.parse(archive.data.get('database-diagnostics.json')?.toString('utf8') ?? '')
     )
+  })
+
+  it('rejects five physical entries when a fixed central-directory name is duplicated', async () => {
+    await expectInjectedArchiveRejected('duplicate-name', async (entries) => {
+      const readme = entries.find(([name]) => name === 'README.txt')
+      if (readme === undefined) throw new Error('Expected README entry')
+      return customZip([...entries, readme])
+    })
+  })
+
+  it.each<readonly [string, ArchiveMutation]>([
+    ['bytes before the first local record', (archive) => Buffer.concat([Buffer.from('SFX!'), archive])],
+    ['an adjusted SFX-style prefix before the first local record', addAdjustedPrefix],
+    ['bytes after the final EOCD', (archive) => Buffer.concat([archive, Buffer.from('suffix')])],
+    [
+      'a gap between local records',
+      (archive) => {
+        const second = parseProductionZipLayout(archive).entries[1]
+        if (second === undefined) throw new Error('Expected a second local record')
+        return insertBeforeCentral(archive, second.localOffset, Buffer.from([0]), second.localOffset)
+      }
+    ],
+    [
+      'a gap between the final descriptor and central directory',
+      (archive) => {
+        const centralOffset = parseProductionZipLayout(archive).centralOffset
+        return insertBeforeCentral(archive, centralOffset, Buffer.from([0]), Number.MAX_SAFE_INTEGER)
+      }
+    ],
+    ['an unnecessary ZIP64 EOCD and locator', addUnnecessaryZip64Region]
+  ])('rejects a non-canonical physical envelope containing %s', async (label, mutate) => {
+    await expectInjectedArchiveRejected(label, (entries) => mutateProductionZip(entries, mutate))
+  })
+
+  it.each<readonly [string, ArchiveMutation]>([
+    [
+      'a local filename that disagrees with its central entry',
+      (archive) =>
+        mutateFirstLocalHeader(archive, (copy, offset) => {
+          copy[offset + 30] = 'x'.charCodeAt(0)
+        })
+    ],
+    [
+      'local flags that disagree with central flags',
+      (archive) =>
+        mutateFirstLocalHeader(archive, (copy, offset) => {
+          copy.writeUInt16LE(copy.readUInt16LE(offset + 6) | 0x0800, offset + 6)
+        })
+    ],
+    [
+      'a local method that disagrees with the central method',
+      (archive) =>
+        mutateFirstLocalHeader(archive, (copy, offset) => {
+          copy.writeUInt16LE(0, offset + 8)
+        })
+    ],
+    [
+      'a nonzero local CRC in descriptor mode',
+      (archive) =>
+        mutateFirstLocalHeader(archive, (copy, offset) => {
+          copy.writeUInt32LE(1, offset + 14)
+        })
+    ],
+    [
+      'a nonzero local compressed size in descriptor mode',
+      (archive) =>
+        mutateFirstLocalHeader(archive, (copy, offset) => {
+          copy.writeUInt32LE(1, offset + 18)
+        })
+    ],
+    [
+      'a nonzero local uncompressed size in descriptor mode',
+      (archive) =>
+        mutateFirstLocalHeader(archive, (copy, offset) => {
+          copy.writeUInt32LE(1, offset + 22)
+        })
+    ],
+    [
+      'a descriptor CRC that disagrees with central CRC',
+      (archive) => {
+        const copy = Buffer.from(archive)
+        const offset = firstDescriptorOffset(copy)
+        copy.writeUInt32LE(copy.readUInt32LE(offset + 4) ^ 1, offset + 4)
+        return copy
+      }
+    ],
+    [
+      'a descriptor compressed size that disagrees with central size',
+      (archive) => {
+        const copy = Buffer.from(archive)
+        const offset = firstDescriptorOffset(copy)
+        copy.writeUInt32LE(copy.readUInt32LE(offset + 8) + 1, offset + 8)
+        return copy
+      }
+    ],
+    [
+      'a descriptor uncompressed size that disagrees with central size',
+      (archive) => {
+        const copy = Buffer.from(archive)
+        const offset = firstDescriptorOffset(copy)
+        copy.writeUInt32LE(copy.readUInt32LE(offset + 12) + 1, offset + 12)
+        return copy
+      }
+    ],
+    [
+      'an unsigned descriptor variant not emitted by production',
+      (archive) => removeBeforeCentral(archive, firstDescriptorOffset(archive), 4)
+    ]
+  ])('rejects local/central metadata disagreement from %s', async (label, mutate) => {
+    await expectInjectedArchiveRejected(label, (entries) => mutateProductionZip(entries, mutate))
+  })
+
+  it.each<readonly [string, ArchiveMutation]>([
+    ['a local extra field', addLocalExtra],
+    ['a central extra field', (archive) => addCentralMetadata(archive, 'extra')],
+    ['a central entry comment', (archive) => addCentralMetadata(archive, 'comment')]
+  ])('rejects non-canonical entry metadata containing %s', async (label, mutate) => {
+    await expectInjectedArchiveRejected(label, (entries) => mutateProductionZip(entries, mutate))
+  })
+
+  it.each<readonly [string, ArchiveMutation]>([
+    [
+      'a central directory offset outside the buffer',
+      (archive) => {
+        const copy = Buffer.from(archive)
+        const layout = parseProductionZipLayout(copy)
+        copy.writeUInt32LE(0xfffffff0, layout.eocdOffset + 16)
+        return copy
+      }
+    ],
+    [
+      'a truncated central directory size',
+      (archive) => {
+        const copy = Buffer.from(archive)
+        const layout = parseProductionZipLayout(copy)
+        copy.writeUInt32LE(layout.centralSize - 1, layout.eocdOffset + 12)
+        return copy
+      }
+    ],
+    [
+      'a local record offset outside the buffer',
+      (archive) => {
+        const copy = Buffer.from(archive)
+        const first = parseProductionZipLayout(copy).entries[0]
+        if (first === undefined) throw new Error('Expected first central entry')
+        copy.writeUInt32LE(0xfffffff0, first.centralOffset + 42)
+        return copy
+      }
+    ],
+    ['a truncated EOCD', (archive) => archive.subarray(0, archive.byteLength - 1)]
+  ])('rejects malformed or truncated ZIP offsets from %s', async (label, mutate) => {
+    await expectInjectedArchiveRejected(label, (entries) => mutateProductionZip(entries, mutate))
   })
 
   it('canonicalizes every legal free-string field and scans all extracted bytes for privacy canaries', async () => {

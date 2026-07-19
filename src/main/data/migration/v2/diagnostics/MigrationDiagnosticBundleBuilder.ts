@@ -50,6 +50,17 @@ const DATABASE_DETAIL_OMISSION_ORDER = ['l2', 'l1', 'l0'] as const
 const MAX_MANIFEST_FIXED_POINT_ITERATIONS = 16
 const ZIP_UNIX_FILE_TYPE_MASK = 0o170000
 const ZIP_UNIX_REGULAR_FILE = 0o100000
+const ZIP_LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
+const ZIP_DATA_DESCRIPTOR_SIGNATURE = 0x08074b50
+const ZIP_CENTRAL_FILE_HEADER_SIGNATURE = 0x02014b50
+const ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50
+const ZIP_LOCAL_FILE_HEADER_BYTES = 30
+const ZIP_DATA_DESCRIPTOR_BYTES = 16
+const ZIP_CENTRAL_FILE_HEADER_BYTES = 46
+const ZIP_END_OF_CENTRAL_DIRECTORY_BYTES = 22
+const ZIP_PRODUCTION_VERSION_NEEDED = 20
+const ZIP_PRODUCTION_FLAGS = 0x0008
+const ZIP_PRODUCTION_METHOD = 8
 
 export interface MigrationDiagnosticArchiveEntry {
   readonly name: MigrationDiagnosticStrictEntryName
@@ -96,6 +107,16 @@ interface SerializedBundle {
 interface PublicationFailure {
   readonly kind: 'archive' | 'publish'
   readonly publication: 'not_published' | 'published'
+}
+
+interface CanonicalZipCentralEntry {
+  readonly name: Buffer
+  readonly flags: number
+  readonly method: number
+  readonly crc: number
+  readonly compressedBytes: number
+  readonly uncompressedBytes: number
+  readonly localOffset: number
 }
 
 function failed(
@@ -431,6 +452,150 @@ function unlinkOwnedPartial(file: string): void {
   }
 }
 
+function containsRange(buffer: Buffer, offset: number, length: number): boolean {
+  return (
+    Number.isSafeInteger(offset) &&
+    Number.isSafeInteger(length) &&
+    offset >= 0 &&
+    length >= 0 &&
+    offset <= buffer.byteLength - length
+  )
+}
+
+function validateCanonicalZipStructure(
+  archive: Buffer,
+  expectedEntries: readonly MigrationDiagnosticArchiveEntry[]
+): boolean {
+  try {
+    if (
+      expectedEntries.length !== MIGRATION_DIAGNOSTIC_STRICT_ENTRIES.length ||
+      archive.byteLength < ZIP_END_OF_CENTRAL_DIRECTORY_BYTES
+    ) {
+      return false
+    }
+
+    const eocdOffset = archive.byteLength - ZIP_END_OF_CENTRAL_DIRECTORY_BYTES
+    if (
+      archive.readUInt32LE(eocdOffset) !== ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE ||
+      archive.readUInt16LE(eocdOffset + 4) !== 0 ||
+      archive.readUInt16LE(eocdOffset + 6) !== 0 ||
+      archive.readUInt16LE(eocdOffset + 8) !== expectedEntries.length ||
+      archive.readUInt16LE(eocdOffset + 10) !== expectedEntries.length ||
+      archive.readUInt16LE(eocdOffset + 20) !== 0
+    ) {
+      return false
+    }
+
+    const centralBytes = archive.readUInt32LE(eocdOffset + 12)
+    const centralOffset = archive.readUInt32LE(eocdOffset + 16)
+    if (
+      centralOffset === 0xffffffff ||
+      centralBytes === 0xffffffff ||
+      !containsRange(archive, centralOffset, centralBytes) ||
+      centralOffset + centralBytes !== eocdOffset
+    ) {
+      return false
+    }
+
+    const centralEntries: CanonicalZipCentralEntry[] = []
+    let centralCursor = centralOffset
+    for (const expected of expectedEntries) {
+      if (
+        !containsRange(archive, centralCursor, ZIP_CENTRAL_FILE_HEADER_BYTES) ||
+        archive.readUInt32LE(centralCursor) !== ZIP_CENTRAL_FILE_HEADER_SIGNATURE ||
+        archive.readUInt16LE(centralCursor + 6) !== ZIP_PRODUCTION_VERSION_NEEDED ||
+        archive.readUInt16LE(centralCursor + 8) !== ZIP_PRODUCTION_FLAGS ||
+        archive.readUInt16LE(centralCursor + 10) !== ZIP_PRODUCTION_METHOD ||
+        archive.readUInt16LE(centralCursor + 30) !== 0 ||
+        archive.readUInt16LE(centralCursor + 32) !== 0 ||
+        archive.readUInt16LE(centralCursor + 34) !== 0
+      ) {
+        return false
+      }
+
+      const nameBytes = archive.readUInt16LE(centralCursor + 28)
+      const expectedName = Buffer.from(expected.name, 'utf8')
+      if (
+        nameBytes !== expectedName.byteLength ||
+        !containsRange(archive, centralCursor + ZIP_CENTRAL_FILE_HEADER_BYTES, nameBytes)
+      ) {
+        return false
+      }
+      const name = archive.subarray(
+        centralCursor + ZIP_CENTRAL_FILE_HEADER_BYTES,
+        centralCursor + ZIP_CENTRAL_FILE_HEADER_BYTES + nameBytes
+      )
+      if (!name.equals(expectedName)) return false
+
+      const compressedBytes = archive.readUInt32LE(centralCursor + 20)
+      const uncompressedBytes = archive.readUInt32LE(centralCursor + 24)
+      const localOffset = archive.readUInt32LE(centralCursor + 42)
+      if (
+        compressedBytes === 0xffffffff ||
+        uncompressedBytes === 0xffffffff ||
+        localOffset === 0xffffffff ||
+        uncompressedBytes !== expected.buffer.byteLength
+      ) {
+        return false
+      }
+      centralEntries.push({
+        name,
+        flags: archive.readUInt16LE(centralCursor + 8),
+        method: archive.readUInt16LE(centralCursor + 10),
+        crc: archive.readUInt32LE(centralCursor + 16),
+        compressedBytes,
+        uncompressedBytes,
+        localOffset
+      })
+      centralCursor += ZIP_CENTRAL_FILE_HEADER_BYTES + nameBytes
+    }
+    if (centralCursor !== centralOffset + centralBytes) return false
+
+    let localCursor = 0
+    for (const central of centralEntries) {
+      if (
+        central.localOffset !== localCursor ||
+        !containsRange(archive, localCursor, ZIP_LOCAL_FILE_HEADER_BYTES) ||
+        archive.readUInt32LE(localCursor) !== ZIP_LOCAL_FILE_HEADER_SIGNATURE ||
+        archive.readUInt16LE(localCursor + 4) !== ZIP_PRODUCTION_VERSION_NEEDED ||
+        archive.readUInt16LE(localCursor + 6) !== central.flags ||
+        archive.readUInt16LE(localCursor + 8) !== central.method ||
+        archive.readUInt32LE(localCursor + 14) !== 0 ||
+        archive.readUInt32LE(localCursor + 18) !== 0 ||
+        archive.readUInt32LE(localCursor + 22) !== 0 ||
+        archive.readUInt16LE(localCursor + 28) !== 0
+      ) {
+        return false
+      }
+
+      const localNameBytes = archive.readUInt16LE(localCursor + 26)
+      const localNameOffset = localCursor + ZIP_LOCAL_FILE_HEADER_BYTES
+      if (
+        localNameBytes !== central.name.byteLength ||
+        !containsRange(archive, localNameOffset, localNameBytes) ||
+        !archive.subarray(localNameOffset, localNameOffset + localNameBytes).equals(central.name)
+      ) {
+        return false
+      }
+
+      const descriptorOffset = localNameOffset + localNameBytes + central.compressedBytes
+      if (
+        !containsRange(archive, descriptorOffset, ZIP_DATA_DESCRIPTOR_BYTES) ||
+        archive.readUInt32LE(descriptorOffset) !== ZIP_DATA_DESCRIPTOR_SIGNATURE ||
+        archive.readUInt32LE(descriptorOffset + 4) !== central.crc ||
+        archive.readUInt32LE(descriptorOffset + 8) !== central.compressedBytes ||
+        archive.readUInt32LE(descriptorOffset + 12) !== central.uncompressedBytes
+      ) {
+        return false
+      }
+      localCursor = descriptorOffset + ZIP_DATA_DESCRIPTOR_BYTES
+    }
+    return localCursor === centralOffset
+  } catch {
+    return false
+  }
+}
+
 function isRegularZipEntry(metadata: StreamZip.ZipEntry): boolean {
   if (!metadata.isFile || metadata.isDirectory) return false
   const unixFileType = (metadata.attr >>> 16) & ZIP_UNIX_FILE_TYPE_MASK
@@ -443,6 +608,7 @@ async function validateArchive(
 ): Promise<boolean> {
   let zip: InstanceType<typeof StreamZip.async> | undefined
   try {
+    if (!validateCanonicalZipStructure(fs.readFileSync(archiveFile), expectedEntries)) return false
     zip = new StreamZip.async({ file: archiveFile })
     const actualEntries = await zip.entries()
     const archiveComment: string | null = await zip.comment
