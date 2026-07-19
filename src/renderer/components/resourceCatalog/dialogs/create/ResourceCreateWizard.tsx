@@ -186,6 +186,7 @@ export function ResourceCreateWizard({
   }, [form, kind, open, selectableDefaultModelId])
 
   const isLast = stepIndex === steps.length - 1
+
   const goNext = () => {
     if (stepIndex === 0) {
       const { name, modelId } = form.getValues()

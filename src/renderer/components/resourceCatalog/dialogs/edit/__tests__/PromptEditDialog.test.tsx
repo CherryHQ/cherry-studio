@@ -1,6 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type * as LucideReact from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -60,8 +59,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [14]
 }))
 
-vi.mock('lucide-react', async (importOriginal) => ({
-  ...(await importOriginal<typeof LucideReact>()),
+vi.mock('lucide-react', () => ({
   Braces: () => <span />
 }))
 
