@@ -20,6 +20,14 @@
  * inferred `InputFor` / `OutputFor`) as consumers migrate to IpcApi. Do not add
  * new File IPC surface here except temporary legacy-preload compatibility notes.
  *
+ * **Contracts here may be stale.** Because this file is slated for deletion once
+ * the migration completes, individual method signatures below are NOT kept in
+ * lockstep with the routes as they move to IpcApi — a method may already resolve
+ * through `file.get_metadata` & friends with a different (e.g. nullable) shape
+ * than what its JSDoc/type here still declares. For any migrated route, the
+ * schema in `src/shared/ipc/schemas/file.ts` and its handler are authoritative;
+ * treat the declarations here as historical intent, not the live contract.
+ *
  * ## Unified access via FileHandle
  *
  * Most operations accept `FileHandle` (tagged union) so consumers don't have
