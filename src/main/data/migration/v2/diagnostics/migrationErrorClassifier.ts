@@ -15,6 +15,13 @@ const UNKNOWN_CLASSIFICATION: ClassifiedMigrationError = {
 }
 
 function classifyCode(code: string): Pick<ClassifiedMigrationError, 'category' | 'code'> | undefined {
+  if (code === 'SQLITE_CANTOPEN' || code.startsWith('SQLITE_CANTOPEN_')) {
+    return { category: 'filesystem', code: 'path_unavailable' }
+  }
+  if (code === 'SQLITE_READONLY' || code.startsWith('SQLITE_READONLY_')) {
+    return { category: 'filesystem', code: 'permission_denied' }
+  }
+
   switch (code) {
     case 'EACCES':
     case 'EPERM':
@@ -23,6 +30,7 @@ function classifyCode(code: string): Pick<ClassifiedMigrationError, 'category' |
     case 'ENOTDIR':
       return { category: 'filesystem', code: 'path_unavailable' }
     case 'ENOSPC':
+    case 'SQLITE_FULL':
       return { category: 'filesystem', code: 'disk_full' }
     case 'SQLITE_CORRUPT':
       return { category: 'database_read', code: 'sqlite_corrupt' }

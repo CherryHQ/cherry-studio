@@ -11,12 +11,50 @@ This directory contains the v2 data migration implementation.
 ```
 src/main/data/migration/v2/
 ├── core/              # MigrationEngine, MigrationContext, MigrationPaths
+├── diagnostics/       # Crash-safe state, strict bundle, and read-only database diagnostics
 ├── migrators/         # Domain-specific migrators
 │   └── mappings/      # Mapping definitions
 ├── utils/             # ReduxStateReader, DexieFileReader, JSONStreamReader, LegacyHomeConfigReader
 ├── window/            # IPC handlers, window manager
 └── index.ts           # Public exports
 ```
+
+## Strict Migration Diagnostics (Scheme A)
+
+Migration diagnostics run before normal application bootstrap. `runV2MigrationGate()` constructs a
+preboot-scoped `MigrationDiagnosticsCoordinator` before resolving paths and passes it explicitly to the engine,
+window, and failure surfaces. It is deliberately not a lifecycle service or global singleton.
+
+After paths resolve, the coordinator persists a bounded, strict journal at
+`MigrationPaths.diagnosticsJournalFile` (`{userData}/migration-diagnostics-v1.json`). An unfinished failure,
+renderer crash, force quit, or power loss keeps the journal for the next launch and recovered retry. A successful
+migration reconciliation deletes it. The journal contains fixed diagnostic fields only and is never copied into
+the support bundle.
+
+The user-saved Scheme A ZIP has an exact four-file allowlist:
+
+- `manifest.json`
+- `migration-events.json`
+- `database-diagnostics.json`
+- `README.txt`
+
+The sum of those entries is limited to 1 MiB **before compression**. The bundle contains fixed migration events,
+numeric payload-length buckets, and bounded read-only database structure/integrity results. It excludes application
+and migration logs, database/WAL/SHM files, the journal, exports, SQL, business rows, raw errors and stacks,
+credentials, absolute paths, and user content. Database diagnostic failure or timeout is represented by a fixed
+partial/unavailable result and does not prevent the remaining bundle from being saved.
+
+The same save operation is available from renderer migration errors, pre-window native failures, renderer
+crash/unresponsive dialogs, and unfinished-session recovery. After a successful save, the app can open the user's
+external email client with instructions, reveal the ZIP, or copy the support address. It never uploads, sends, or
+attaches the bundle automatically; the user must review and attach the ZIP manually.
+
+The acceptance matrix is in
+[`diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts`](diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts),
+with shared seeded failures in
+[`diagnostics/__tests__/fixtures/migrationDiagnosticAcceptanceFixtures.ts`](diagnostics/__tests__/fixtures/migrationDiagnosticAcceptanceFixtures.ts).
+It builds and extracts real ZIPs, validates all four strict documents, checks the uncompressed budget and privacy
+canaries, and covers archive publication failure separately.
 
 ## Path Safety — Use `MigrationPaths` (Strict Requirement)
 

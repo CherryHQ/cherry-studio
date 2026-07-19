@@ -1,12 +1,12 @@
 # Migration Diagnostic Bundle Design
 
-**Status:** Proposed; implementation is blocked pending review
+**Status:** Scheme A implemented and repository acceptance-tested; Scheme B comparison pending
 
 **Date:** 2026-07-18
 
 **Target:** v1-to-v2 migration gate on `main`
 
-**Design branch:** `codex/migration-diagnostics-bundle`
+**Candidate branches:** `codex/migration-diagnostics-strict` and `codex/migration-diagnostics-log-assisted`
 
 ## 1. Decision summary
 
@@ -509,6 +509,28 @@ Reviewers score whether a package identifies:
 
 Scheme A wins by default if it covers every high-priority fixture. Scheme B is selected only if it materially diagnoses a real high-priority case that A cannot and passes privacy review. The final choice and rationale will be recorded in an ADR or the finalized design document.
 
+### 15.1 Scheme A acceptance baseline (2026-07-20)
+
+The strict branch now has a shared seeded acceptance matrix covering database open, corruption, schema, and
+constraint failures; oversized string, JSON, and blob values; source parsing; path permissions; renderer crash and
+hang; recovered retry; and a database child timeout with a real L0 prefix. Each of the 13 package fixtures builds and
+extracts a production `MigrationDiagnosticBundleBuilder` ZIP, then verifies:
+
+- the exact four-entry allowlist and regular top-level files;
+- strict parsing of the manifest, event, and database documents;
+- fixed category, code, scope, migrator, and phase signals needed to locate the failure;
+- numeric-only oversized-payload evidence and ordered retry triggers;
+- completed, unavailable, and partial database diagnostic states;
+- manifest byte accounting and the 1 MiB uncompressed Scheme A limit;
+- byte scanning for seeded user-message, path, stack, credential, identity, and database-URL canaries.
+
+A fourteenth case forces archive finalization to fail and verifies the fixed `archive_failed` result, preservation of
+an existing destination, and cleanup of the sibling `.partial` file. It intentionally produces no ZIP to score.
+
+Repository result: `MigrationDiagnosticAcceptance.integration.test.ts` passes 14/14 cases. This establishes the
+Scheme A baseline for the later blind A/B comparison; it does **not** select Scheme A for production. Scheme B
+fixtures, privacy review, and comparative triage remain pending.
+
 ## 16. Testing and verification
 
 ### 16.1 Unit tests
@@ -587,6 +609,13 @@ Each implementation branch must run:
 
 The design-document commit also follows the repository's signed Conventional Commit and pre-commit verification requirements.
 
+### 16.6 Verification boundary for the Scheme A baseline
+
+The repository acceptance above uses production bundle construction, ZIP extraction, strict schema validation, and
+seeded failure data. Existing focused tests cover preboot/native dialog routing, renderer IPC, journal recovery,
+database process isolation, and support actions. A live packaged migration-window smoke test has not been executed as
+part of this acceptance update and is not reported as passed; it remains a release-candidate verification item.
+
 ## 17. Alternatives rejected
 
 ### Package the whole database
@@ -615,9 +644,6 @@ Rejected because it adds I/O and potentially expensive database access even when
 
 ## 18. Implementation gate
 
-No implementation begins until:
-
-1. this design is reviewed;
-2. its personal Feishu copy is synchronized and verified;
-3. a concrete implementation plan is written;
-4. the two stacked candidate branches are created from the reviewed design base.
+The reviewed design, synchronized personal Feishu copy, concrete implementation plan, and two stacked candidate
+branches satisfied the gate for candidate implementation. Scheme A is now implemented on the strict branch. Scheme B
+and the final one-policy production selection remain subject to the comparison and privacy review in section 15.
