@@ -85,7 +85,6 @@ describe('MarkdownFilePreview', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        file: { getMetadata: mocks.getMetadata },
         fs: { readText: mocks.readText }
       }
     })
@@ -132,6 +131,21 @@ describe('MarkdownFilePreview', () => {
     expect(loggerError).toHaveBeenCalledWith(
       `Failed to read Markdown preview: ${filePath}`,
       expect.objectContaining({ message: 'EACCES: permission denied' })
+    )
+  })
+
+  it('shows the error state and skips the read when metadata is null', async () => {
+    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mocks.getMetadata.mockResolvedValueOnce(null)
+
+    renderPreview()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.markdown.read_error.title')
+    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
+    expect(mocks.readText).not.toHaveBeenCalled()
+    expect(loggerError).toHaveBeenCalledWith(
+      `Failed to read Markdown preview: ${filePath}`,
+      expect.objectContaining({ message: `Failed to read file metadata: ${filePath}` })
     )
   })
 

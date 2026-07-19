@@ -9,7 +9,6 @@ import TextFilePreview from '../TextFilePreview'
 const mocks = vi.hoisted(() => ({
   codeViewer: vi.fn(),
   getMetadata: vi.fn(),
-  isTextFile: vi.fn(),
   readText: vi.fn()
 }))
 
@@ -54,7 +53,6 @@ describe('TextFilePreview', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        file: { getMetadata: mocks.getMetadata, isTextFile: mocks.isTextFile },
         fs: { readText: mocks.readText }
       }
     })
@@ -66,7 +64,6 @@ describe('TextFilePreview', () => {
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
     expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: filePath })
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
-    expect(mocks.isTextFile).not.toHaveBeenCalled()
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
       expect.objectContaining({ language: 'TypeScript', value: 'const answer = 42', wrapped: false })
     )
@@ -125,6 +122,21 @@ describe('TextFilePreview', () => {
     expect(loggerError).toHaveBeenCalledWith(
       `Failed to read text preview: ${filePath}`,
       expect.objectContaining({ message: 'EACCES: permission denied' })
+    )
+  })
+
+  it('shows the error state and skips the read when metadata is null', async () => {
+    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mocks.getMetadata.mockResolvedValueOnce(null)
+
+    renderPreview()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.text.read_error.title')
+    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
+    expect(mocks.readText).not.toHaveBeenCalled()
+    expect(loggerError).toHaveBeenCalledWith(
+      `Failed to read text preview: ${filePath}`,
+      expect.objectContaining({ message: `Failed to read file metadata: ${filePath}` })
     )
   })
 
