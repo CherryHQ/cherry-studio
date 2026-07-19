@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { isLinux, isMac, isWin } from '@main/core/platform'
-import type { UserDataRelocationValidationReason } from '@shared/types/relocation'
+import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 
 import type { PendingRelocation } from './types'
 

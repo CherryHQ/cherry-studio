@@ -35,7 +35,7 @@ Internal dependency direction (acyclic): `execution → validation, window, type
 `runUserDataRelocation()` runs before `application.bootstrap()`; these constraints are intrinsic to that timing, not style choices:
 
 - No lifecycle service exists yet — nothing on the execution path may use `application.get()`.
-- The progress window bypasses WindowManager (`window.ts` builds a raw BrowserWindow) and installs an operation-scoped handler on the shared `IpcChannel.IpcApi_Request` channel — safe only because a relocation launch exclusively owns the process and never starts IpcApiService.
+- The progress window bypasses WindowManager (`window.ts` builds a raw BrowserWindow) and talks over dedicated bare IPC channels (`UserDataRelocationIpcChannels`) with the `simplest.js` preload — IpcApiService never starts during a relocation launch, so none of the IpcApi infrastructure is available. Same pattern as the migration window.
 - A pending copy must redirect `sessionData` to a throwaway directory **before** the first `app.whenReady()` await, or Chromium starts writing into the source tree mid-copy.
 - An error escaping before the window exists would hard-exit with no UI and replay the still-pending request on every launch — a boot loop. Every failure path therefore degrades to a persisted `failed` state, which the next launch only explains in the error window.
 - A relocation launch returns to `main.ts` before `application.bootstrap()`, so it never consumes the path registry's earlier `app.session` snapshot.

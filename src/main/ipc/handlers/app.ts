@@ -25,20 +25,17 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
     installPath: application.getPath('app.install')
   }),
-  'app.inspect_user_data_relocation': async ({ path }) => inspectUserDataRelocationTarget(path),
-  'app.request_user_data_relocation': async ({ path, copy }) => {
+  // The request face of userData relocation IPC: the running app validates a
+  // target and persists the request here. The execution face (a relocation-only
+  // launch) never starts IpcApiService — its progress window talks over bare
+  // UserDataRelocationIpcChannels instead (services/userDataRelocation/window.ts).
+  'app.user_data_relocation.inspect': async ({ path }) => inspectUserDataRelocationTarget(path),
+  'app.user_data_relocation.request': async ({ path, copy }) => {
     if (!app.isPackaged) {
       throw new IpcError('USER_DATA_RELOCATION_UNAVAILABLE', 'userData relocation is available only in packaged builds')
     }
     requestUserDataRelocation(path, copy)
   },
-  // Served for real by the relocation window's scoped router (window.ts of
-  // services/userDataRelocation) during a relocation-only launch, where this
-  // lifecycle router never starts. These are the normal-launch degenerate
-  // answers the global registry's exhaustive typing requires: no relocation
-  // is ever in flight here.
-  'app.user_data_relocation.get_progress': async () => null,
-  'app.user_data_relocation.restart': async () => application.relaunch(),
   'app.relaunch': async () => application.relaunch(),
   'app.adjust_zoom': async ({ delta, reset = false }) => {
     handleZoomFactor(BrowserWindow.getAllWindows(), delta, reset)

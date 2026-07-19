@@ -4,17 +4,12 @@ import type { FileHandle } from '@shared/data/types/file'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import type { CreateInternalEntryIpcParams } from '@shared/types/file'
-import { dialog } from 'electron'
 
 /**
  * Thin adapters for FileManager-backed file routes. Pure SQL file-entry reads stay
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
-  'file.select_directory': async ({ title }) => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'], title })
-    return result.canceled ? null : (result.filePaths[0] ?? null)
-  },
   'file.batch_get_metadata': async ({ items }) => {
     const fileManager = application.get('FileManager')
     const pairs = await Promise.all(

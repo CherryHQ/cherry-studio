@@ -20,6 +20,17 @@ export type UserDataRelocationInspection =
   | { valid: true; targetExists: boolean; targetEmpty: boolean }
   | { valid: false; reason: UserDataRelocationValidationReason }
 
+/**
+ * Bare ipcMain/ipcRenderer channels for the relocation-only launch, where the
+ * lifecycle IpcApiService never starts. Same pattern as MigrationIpcChannels.
+ */
+export const UserDataRelocationIpcChannels = {
+  GetProgress: 'user-data-relocation:get-progress',
+  Restart: 'user-data-relocation:restart',
+  // Main -> Renderer progress event
+  Progress: 'user-data-relocation:progress'
+} as const
+
 export type RelocationStage = 'preparing' | 'copying' | 'committing' | 'completed' | 'failed'
 
 export interface RelocationProgress {

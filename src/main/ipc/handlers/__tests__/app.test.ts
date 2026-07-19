@@ -49,14 +49,14 @@ const ctx = { senderId: 'w1' }
 
 describe('appHandlers', () => {
   it('inspects relocation targets through the domain validation', async () => {
-    const result = await appHandlers['app.inspect_user_data_relocation']({ path: '/new/data' }, ctx)
+    const result = await appHandlers['app.user_data_relocation.inspect']({ path: '/new/data' }, ctx)
 
     expect(inspectTargetMock).toHaveBeenCalledWith('/new/data')
     expect(result).toEqual({ valid: true, targetExists: true, targetEmpty: true })
   })
 
   it('delegates relocation requests to the domain in packaged builds', async () => {
-    const result = await appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true }, ctx)
+    const result = await appHandlers['app.user_data_relocation.request']({ path: '/new/data', copy: true }, ctx)
 
     expect(requestRelocationMock).toHaveBeenCalledWith('/new/data', true)
     expect(result).toBeUndefined()
@@ -66,7 +66,7 @@ describe('appHandlers', () => {
     ;(app as { isPackaged: boolean }).isPackaged = false
 
     await expect(
-      appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true }, ctx)
+      appHandlers['app.user_data_relocation.request']({ path: '/new/data', copy: true }, ctx)
     ).rejects.toMatchObject({ code: 'USER_DATA_RELOCATION_UNAVAILABLE' })
     expect(requestRelocationMock).not.toHaveBeenCalled()
   })

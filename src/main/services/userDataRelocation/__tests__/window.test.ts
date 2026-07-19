@@ -17,6 +17,8 @@ vi.mock('electron', () => ({
   ipcMain: { handle: ipcHandleMock, removeHandler: ipcRemoveHandlerMock }
 }))
 
+import { UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
+
 import { openUserDataRelocationWindow } from '../window'
 
 interface MockWindow extends EventEmitter {
@@ -29,10 +31,10 @@ interface MockWindow extends EventEmitter {
 }
 
 let window: MockWindow
-let handlers: Map<string, (event: unknown, route: string, input?: unknown) => unknown>
+let handlers: Map<string, (event: unknown) => unknown>
 
-function invoke(route: string, input?: unknown): unknown {
-  return handlers.get('ipc-api:request')?.({}, route, input)
+function invoke(channel: string): unknown {
+  return handlers.get(channel)?.({})
 }
 
 function makeWindow(): MockWindow {
@@ -55,9 +57,8 @@ beforeEach(() => {
   vi.unstubAllEnvs()
   validateSenderMock.mockReturnValue(true)
   handlers = new Map()
-  ipcHandleMock.mockImplementation(
-    (channel: string, handler: (event: unknown, route: string, input?: unknown) => unknown) =>
-      handlers.set(channel, handler)
+  ipcHandleMock.mockImplementation((channel: string, handler: (event: unknown) => unknown) =>
+    handlers.set(channel, handler)
   )
   ipcRemoveHandlerMock.mockImplementation((channel: string) => handlers.delete(channel))
   window = makeWindow()
@@ -65,7 +66,7 @@ beforeEach(() => {
 })
 
 describe('userDataRelocation window', () => {
-  it('does not silently replace an existing shared IpcApi handler', () => {
+  it('does not silently replace an existing handler on its channels', () => {
     ipcHandleMock.mockImplementationOnce(() => {
       throw new Error('Attempted to register a second handler')
     })
@@ -73,7 +74,6 @@ describe('userDataRelocation window', () => {
     expect(() => openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn() })).toThrow(
       'Attempted to register a second handler'
     )
-    expect(ipcRemoveHandlerMock).not.toHaveBeenCalled()
     expect(browserWindowMock).not.toHaveBeenCalled()
   })
 
@@ -103,7 +103,7 @@ describe('userDataRelocation window', () => {
     controller.updateProgress(progress)
     window.close()
 
-    expect(window.webContents.send).toHaveBeenCalledWith('ipc-api:event', 'app.user_data_relocation.progress', progress)
+    expect(window.webContents.send).toHaveBeenCalledWith(UserDataRelocationIpcChannels.Progress, progress)
     expect(onRestart).not.toHaveBeenCalled()
     expect(controller.hasWindow()).toBe(true)
   })
@@ -123,29 +123,27 @@ describe('userDataRelocation window', () => {
     window.close()
 
     expect(onRestart).toHaveBeenCalledTimes(1)
-    expect(ipcRemoveHandlerMock).toHaveBeenCalledWith('ipc-api:request')
+    expect(ipcRemoveHandlerMock).toHaveBeenCalledWith(UserDataRelocationIpcChannels.GetProgress)
+    expect(ipcRemoveHandlerMock).toHaveBeenCalledWith(UserDataRelocationIpcChannels.Restart)
   })
 
-  it('keeps the window and restart IpcApi route available when the restart callback throws', async () => {
+  it('keeps the window and restart channel available when the restart callback throws', () => {
     const onRestart = vi.fn().mockImplementationOnce(() => {
       throw new Error('failed to clear relocation state')
     })
     const controller = openUserDataRelocationWindow({ getProgress: () => null, onRestart })
 
-    await expect(invoke('app.user_data_relocation.restart')).resolves.toMatchObject({
-      ok: false,
-      error: { message: 'failed to clear relocation state' }
-    })
+    expect(() => invoke(UserDataRelocationIpcChannels.Restart)).toThrow('failed to clear relocation state')
     expect(controller.hasWindow()).toBe(true)
     expect(window.close).not.toHaveBeenCalled()
-    expect(handlers.has('ipc-api:request')).toBe(true)
+    expect(handlers.has(UserDataRelocationIpcChannels.Restart)).toBe(true)
 
-    await expect(invoke('app.user_data_relocation.restart')).resolves.toEqual({ ok: true, data: undefined })
+    expect(invoke(UserDataRelocationIpcChannels.Restart)).toBeUndefined()
     expect(onRestart).toHaveBeenCalledTimes(2)
     expect(window.close).toHaveBeenCalledTimes(1)
   })
 
-  it('serves current progress through the scoped IpcApi route', async () => {
+  it('serves current progress through its dedicated channel', () => {
     const progress = {
       stage: 'copying' as const,
       from: '/old',
@@ -156,18 +154,15 @@ describe('userDataRelocation window', () => {
     }
     openUserDataRelocationWindow({ getProgress: () => progress, onRestart: vi.fn() })
 
-    await expect(invoke('app.user_data_relocation.get_progress')).resolves.toEqual({ ok: true, data: progress })
+    expect(invoke(UserDataRelocationIpcChannels.GetProgress)).toEqual(progress)
   })
 
-  it('rejects relocation IpcApi requests from an untrusted sender', async () => {
+  it('rejects relocation IPC requests from an untrusted sender', () => {
     const onRestart = vi.fn()
     validateSenderMock.mockReturnValue(false)
     openUserDataRelocationWindow({ getProgress: () => null, onRestart })
 
-    await expect(invoke('app.user_data_relocation.restart')).resolves.toMatchObject({
-      ok: false,
-      error: { code: 'FORBIDDEN_SENDER' }
-    })
+    expect(() => invoke(UserDataRelocationIpcChannels.Restart)).toThrow('untrusted sender')
     expect(onRestart).not.toHaveBeenCalled()
   })
 

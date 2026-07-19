@@ -4,12 +4,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
-import { IpcRouter } from '@main/ipc/IpcRouter'
-import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcError'
-import { userDataRelocationWindowRequestSchemas } from '@shared/ipc/schemas/app'
-import type { IpcHandlersFor } from '@shared/ipc/types'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { RelocationProgress, RelocationStage } from '@shared/types/relocation'
+import {
+  type RelocationProgress,
+  type RelocationStage,
+  UserDataRelocationIpcChannels
+} from '@shared/types/userDataRelocation'
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 
 const logger = loggerService.withContext('UserDataRelocationWindow')
@@ -31,9 +30,9 @@ interface OpenRelocationWindowOptions {
 
 /**
  * Opens the one-off BrowserWindow used before lifecycle WindowManager and
- * IpcApiService exist. It installs an operation-scoped IpcApi endpoint for this
- * preboot window; all retained state is scoped to the returned controller, so
- * the module itself remains stateless.
+ * IpcApiService exist. It serves the window over dedicated bare IPC channels
+ * (same pattern as the migration window); all retained state is scoped to the
+ * returned controller, so the module itself remains stateless.
  */
 export function openUserDataRelocationWindow(options: OpenRelocationWindowOptions): UserDataRelocationWindow {
   let window: BrowserWindow | null = null
@@ -45,7 +44,8 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
   const hasWindow = () => window !== null && !window.isDestroyed()
 
   const unregisterIpc = () => {
-    ipcMain.removeHandler(IpcChannel.IpcApi_Request)
+    ipcMain.removeHandler(UserDataRelocationIpcChannels.GetProgress)
+    ipcMain.removeHandler(UserDataRelocationIpcChannels.Restart)
   }
 
   const close = () => {
@@ -63,36 +63,21 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     close()
   }
 
-  const relocationHandlers: IpcHandlersFor<typeof userDataRelocationWindowRequestSchemas> = {
-    'app.user_data_relocation.get_progress': async () => options.getProgress(),
-    'app.user_data_relocation.restart': async () => requestRestart()
-  }
-  const router = new IpcRouter(userDataRelocationWindowRequestSchemas, relocationHandlers)
-  const handleRequest = async (
-    event: IpcMainInvokeEvent,
-    route: string,
-    input: unknown
-  ): Promise<IpcResult<unknown>> => {
-    if (!validateSender(event, application.getPath('app.root'))) {
-      logger.warn('Rejected relocation IpcApi request from untrusted sender', { route })
-      const error = new IpcError(
-        IpcErrorCode.FORBIDDEN_SENDER,
-        `Rejected IpcApi request from relocation window: ${route}`
-      )
-      return { ok: false, error: error.toJSON() }
-    }
-    try {
-      const data = await router.dispatch(route, input, { senderId: null })
-      return { ok: true, data }
-    } catch (error) {
-      return { ok: false, error: IpcError.from(error).toJSON() }
-    }
+  const handleGuarded = (channel: string, handler: () => unknown) => {
+    ipcMain.handle(channel, (event: IpcMainInvokeEvent) => {
+      if (!validateSender(event, application.getPath('app.root'))) {
+        logger.warn('Rejected relocation IPC request from untrusted sender', { channel })
+        throw new Error(`Rejected IPC request from untrusted sender: ${channel}`)
+      }
+      return handler()
+    })
   }
 
-  // The lifecycle IpcApiService has not started yet. This launch is exclusively
-  // owned by the relocation flow, so its scoped endpoint can safely occupy the
-  // shared request channel until the window closes and the app relaunches.
-  ipcMain.handle(IpcChannel.IpcApi_Request, handleRequest)
+  // The lifecycle IpcApiService never starts during a relocation launch, so the
+  // window is served over these dedicated bare channels until it closes and the
+  // app relaunches.
+  handleGuarded(UserDataRelocationIpcChannels.GetProgress, () => options.getProgress())
+  handleGuarded(UserDataRelocationIpcChannels.Restart, () => requestRestart())
 
   window = new BrowserWindow({
     width: 560,
@@ -105,7 +90,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     title: 'Cherry Studio',
     webPreferences: {
       preload: join(__dirname, '../preload/simplest.js'),
-      partition: 'relocation-window',
+      partition: 'user-data-relocation-window',
       sandbox: false,
       contextIsolation: true
     },
@@ -169,9 +154,9 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
   })
 
   if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-    void window.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/windows/relocation/index.html`)
+    void window.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/windows/userDataRelocation/index.html`)
   } else {
-    void window.loadFile(join(__dirname, '../renderer/windows/relocation/index.html'))
+    void window.loadFile(join(__dirname, '../renderer/windows/userDataRelocation/index.html'))
   }
 
   window.once('ready-to-show', () => window?.show())
@@ -186,7 +171,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     updateProgress: (progress) => {
       stage = progress.stage
       if (hasWindow() && !unavailable) {
-        window!.webContents.send(IpcChannel.IpcApi_Event, 'app.user_data_relocation.progress', progress)
+        window!.webContents.send(UserDataRelocationIpcChannels.Progress, progress)
       }
     },
     hasWindow,

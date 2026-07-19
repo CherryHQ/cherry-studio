@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
-import type { RelocationProgress } from '@shared/types/relocation'
+import type { RelocationProgress } from '@shared/types/userDataRelocation'
 import { app } from 'electron'
 import * as z from 'zod'
 

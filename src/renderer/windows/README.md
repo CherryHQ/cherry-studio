@@ -18,7 +18,7 @@ Each subdirectory is one renderer window: an HTML entry, a thin bootstrap, and a
 
 ## prepareWindow
 
-`prepareWindow.ts` is the shared L1 prologue: `await prepareWindow({ preference: 'all' | [keys] })` initializes i18n and warms the preference cache **before** the first render, so `usePreference` reads saved values on frame one instead of defaults (no theme flash). `main`/`subWindow` warm the full cache (`'all'`, one in-memory IPC fetch); light windows list exactly the keys their first frame reads. `migrationV2` and `relocation` are preboot special cases (own i18n, no preferences) and stay standalone. CSS side-effect imports stay per-entry — `selection/toolbar` deliberately omits `index.css` (fonts / markdown / chat styles) to keep the lightest window minimal.
+`prepareWindow.ts` is the shared L1 prologue: `await prepareWindow({ preference: 'all' | [keys] })` initializes i18n and warms the preference cache **before** the first render, so `usePreference` reads saved values on frame one instead of defaults (no theme flash). `main`/`subWindow` warm the full cache (`'all'`, one in-memory IPC fetch); light windows list exactly the keys their first frame reads. `migrationV2` and `userDataRelocation` are preboot special cases (own i18n, no preferences) and stay standalone. CSS side-effect imports stay per-entry — `selection/toolbar` deliberately omits `index.css` (fonts / markdown / chat styles) to keep the lightest window minimal.
 
 ## Window runtime leaf
 
@@ -48,7 +48,7 @@ Each window declares its logger source **declaratively** in its `index.html`, no
 | `subWindow` | `SubWindowApp` | `SubWindowAppShell` |
 | `quickAssistant` | `QuickAssistantApp` | `HomeWindow` |
 | `migrationV2` | `MigrationApp` | in-component (`components/`) |
-| `relocation` | `RelocationApp` | in-component progress/recovery UI |
+| `userDataRelocation` | `RelocationApp` | in-component progress/recovery UI |
 | `selection/action` | `SelectionActionApp` | `ActionWindow` |
 | `selection/toolbar` | `SelectionToolbarApp` | `SelectionToolbar` (reused in settings pages) |
 

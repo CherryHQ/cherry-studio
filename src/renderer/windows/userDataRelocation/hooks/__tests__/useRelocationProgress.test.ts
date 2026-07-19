@@ -1,67 +1,66 @@
-import type { RelocationProgress } from '@shared/types/relocation'
+import { type RelocationProgress, UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useRelocationProgress } from '../useRelocationProgress'
 
-const requestMock = vi.fn()
+const invokeMock = vi.fn()
 const onMock = vi.fn()
 const unsubscribeMock = vi.fn()
-let progressListener: ((progress: RelocationProgress) => void) | undefined
+let progressListener: ((event: unknown, progress: RelocationProgress) => void) | undefined
 
 beforeEach(() => {
-  requestMock.mockReset()
+  invokeMock.mockReset()
   onMock.mockReset()
   unsubscribeMock.mockReset()
   progressListener = undefined
-  onMock.mockImplementation((_event: string, listener: (progress: RelocationProgress) => void) => {
+  onMock.mockImplementation((_channel: string, listener: (event: unknown, progress: RelocationProgress) => void) => {
     progressListener = listener
     return unsubscribeMock
   })
-  ;(window as unknown as { api: { ipcApi: unknown } }).api.ipcApi = {
-    request: requestMock,
-    on: onMock
+  ;(window as unknown as { electron: { ipcRenderer: unknown } }).electron = {
+    ipcRenderer: { invoke: invokeMock, on: onMock }
   }
 })
 
 describe('useRelocationProgress', () => {
   it('keeps a newer progress event when the initial progress request resolves later', async () => {
-    let resolveInitial: ((result: { ok: true; data: RelocationProgress }) => void) | undefined
-    requestMock.mockImplementationOnce(
+    let resolveInitial: ((progress: RelocationProgress) => void) | undefined
+    invokeMock.mockImplementationOnce(
       () =>
-        new Promise<{ ok: true; data: RelocationProgress }>((resolve) => {
+        new Promise<RelocationProgress>((resolve) => {
           resolveInitial = resolve
         })
     )
     const copying = makeProgress('copying', 40, 100)
     const { result } = renderHook(() => useRelocationProgress())
 
-    act(() => progressListener?.(copying))
-    await act(async () => resolveInitial?.({ ok: true, data: makeProgress('preparing', 0, 0) }))
+    act(() => progressListener?.({}, copying))
+    await act(async () => resolveInitial?.(makeProgress('preparing', 0, 0)))
 
     expect(result.current.progress).toEqual(copying)
   })
 
   it('loads the current progress and unsubscribes on unmount', async () => {
     const current = makeProgress('committing', 100, 100)
-    requestMock.mockResolvedValueOnce({ ok: true, data: current })
+    invokeMock.mockResolvedValueOnce(current)
 
     const { result, unmount } = renderHook(() => useRelocationProgress())
 
     await waitFor(() => expect(result.current.progress).toEqual(current))
     unmount()
 
-    expect(onMock).toHaveBeenCalledWith('app.user_data_relocation.progress', expect.any(Function))
+    expect(onMock).toHaveBeenCalledWith(UserDataRelocationIpcChannels.Progress, expect.any(Function))
     expect(unsubscribeMock).toHaveBeenCalledOnce()
   })
 
-  it('requests a restart through the relocation-scoped route', () => {
-    requestMock.mockResolvedValue({ ok: true, data: null })
+  it('requests a restart through the dedicated relocation channel', () => {
+    invokeMock.mockResolvedValue(undefined)
     const { result } = renderHook(() => useRelocationProgress())
 
     act(() => result.current.restart())
 
-    expect(requestMock).toHaveBeenCalledWith('app.user_data_relocation.restart', undefined)
+    expect(invokeMock).toHaveBeenCalledWith(UserDataRelocationIpcChannels.Restart)
   })
 })
 

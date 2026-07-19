@@ -15,7 +15,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
-import type { UserDataRelocationValidationReason } from '@shared/types/relocation'
+import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
@@ -42,15 +42,16 @@ const BasicDataSettings: React.FC = () => {
       return
     }
 
-    const newAppDataPath = await ipcApi.request('file.select_directory', {
-      title: t('settings.data.app_data.select_title')
+    const newAppDataPath = await window.api.file.selectFolder({
+      title: t('settings.data.app_data.select_title'),
+      properties: ['openDirectory', 'createDirectory']
     })
 
     if (!newAppDataPath) {
       return
     }
 
-    const inspection = await ipcApi.request('app.inspect_user_data_relocation', { path: newAppDataPath })
+    const inspection = await ipcApi.request('app.user_data_relocation.inspect', { path: newAppDataPath })
     if (!inspection.valid) {
       showRelocationValidationError(inspection.reason)
       return
@@ -142,7 +143,7 @@ const BasicDataSettings: React.FC = () => {
     if (!confirmed) return
 
     try {
-      await ipcApi.request('app.request_user_data_relocation', {
+      await ipcApi.request('app.user_data_relocation.request', {
         path: newPath,
         copy: shouldCopyData
       })
