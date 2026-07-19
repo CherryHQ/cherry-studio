@@ -386,6 +386,8 @@ Scheme A excludes:
 
 All output schemas are strict and reject unknown properties. The total uncompressed bytes of all archive entries must not exceed **1 MiB**.
 
+The bundle canonicalizes source-generated session and attempt identifiers to attempt ordinals, normalizes the app version to its numeric `major.minor.patch`, and maps non-allowlisted migrator identifiers to `unknown`. If the byte budget is exceeded, it removes the oldest intermediate event first while retaining every explicit attempt terminal event. Only after intermediate events are exhausted may it omit optional database detail bodies, in the fixed order L2, then L1, then L0; database completion, level status, and fixed failure codes remain present. The manifest records every event removal and database-detail omission.
+
 ## 12. Scheme B: log-assisted migration diagnostic bundle
 
 Scheme B inherits all Scheme A entries and adds:

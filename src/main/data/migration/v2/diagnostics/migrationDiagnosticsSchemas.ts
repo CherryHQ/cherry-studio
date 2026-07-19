@@ -25,6 +25,25 @@ export const MIGRATION_ERROR_CATEGORIES = [
   'unknown'
 ] as const
 
+/** Fixed production migrator identifiers safe to expose in strict diagnostics. */
+export const MIGRATION_DIAGNOSTIC_MIGRATOR_IDS = Object.freeze([
+  'bootConfig',
+  'preferences',
+  'note',
+  'miniapp',
+  'mcp_server',
+  'provider_model',
+  'assistant',
+  'file',
+  'agents',
+  'knowledge',
+  'knowledge_vector',
+  'chat',
+  'painting',
+  'translate',
+  'prompt'
+] as const)
+
 export const PAYLOAD_PROFILE_TARGETS = [
   'preference',
   'assistant',

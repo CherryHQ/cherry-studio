@@ -302,6 +302,8 @@ pnpm exec vitest run --project main \
 
 四项先严格验证并转为固定名 Buffer Map；manifest 迭代到 byte counts 稳定后硬断言预算。只调用 `archive.append(buffer, { name })`。发布复用 `atomicWriteFile(..., { mode: 0o600 })`；若精确 `.partial` 名称无法复用，则在本模块实现窄的 sibling temp/fsync/rename，不改共享 helper。
 
+超出预算时先按全局 sequence 删除最旧的中间事件，保留每次 attempt 的显式终态事件；中间事件耗尽后，才能按 `L2 详情 → L1 详情 → L0 详情` 的固定顺序省略可选数据库详情，不得省略 completion、各层 status 或固定错误码；manifest 必须明示每次裁剪。
+
 - [ ] **步骤 4：重跑同一命令，预期 PASS；提交**
 
 ```bash
