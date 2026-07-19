@@ -329,6 +329,37 @@ beforeEach(() => {
 })
 
 describe('resolveMigrationPaths — legacy custom userData recovery', () => {
+  it('freezes centralized diagnostic paths for the default userData', () => {
+    applyFs({ dirs: [DEFAULT_USER_DATA] })
+
+    const { paths } = resolveMigrationPaths()
+
+    expect(paths.diagnosticsJournalFile).toBe(path.join(DEFAULT_USER_DATA, 'migration-diagnostics-v1.json'))
+    expect(paths.migrationExportDir).toBe(path.join(DEFAULT_USER_DATA, 'migration_temp'))
+    expect(paths.logsDir).toBe('/mock/logs')
+    expect(paths.homeDir).toBe('/mock/home')
+    expect(Object.isFrozen(paths)).toBe(true)
+  })
+
+  it('redirects only userData-derived diagnostic paths for custom userData', () => {
+    h.normalizedExe.mockReturnValue('/current/exe')
+    applyFs({
+      dirs: ['/custom/data'],
+      contents: {
+        [CONFIG_FILE]: JSON.stringify({
+          appDataPath: [{ executablePath: '/current/exe', dataPath: '/custom/data' }]
+        })
+      }
+    })
+
+    const { paths } = resolveMigrationPaths()
+
+    expect(paths.diagnosticsJournalFile).toBe('/custom/data/migration-diagnostics-v1.json')
+    expect(paths.migrationExportDir).toBe('/custom/data/migration_temp')
+    expect(paths.logsDir).toBe('/mock/logs')
+    expect(paths.homeDir).toBe('/mock/home')
+  })
+
   it('redirects to the matching entry when the current exe matches exactly (regression guard)', () => {
     h.normalizedExe.mockReturnValue('D:\\Cherry Studio\\Cherry Studio.exe')
     applyFs({

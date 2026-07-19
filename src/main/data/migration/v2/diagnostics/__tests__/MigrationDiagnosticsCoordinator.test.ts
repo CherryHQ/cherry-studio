@@ -1,0 +1,374 @@
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import type { MigrationPaths } from '../../core/MigrationPaths'
+import { MigrationDiagnosticsCoordinator } from '../MigrationDiagnosticsCoordinator'
+import { readMigrationDiagnosticsJournal, writeMigrationDiagnosticsJournal } from '../migrationDiagnosticsJournal'
+import type { MigrationDiagnosticEventInput, MigrationDiagnosticsSession } from '../migrationDiagnosticsSchemas'
+
+let testDir = ''
+let now = new Date('2026-07-19T10:00:00.000Z')
+let nextId = 0
+
+function paths(): MigrationPaths {
+  return Object.freeze({
+    userData: testDir,
+    cherryHome: path.join(testDir, '.cherrystudio'),
+    databaseFile: path.join(testDir, 'cherrystudio.sqlite'),
+    knowledgeBaseDir: path.join(testDir, 'Data', 'KnowledgeBase'),
+    filesDataDir: path.join(testDir, 'Data', 'Files'),
+    versionLogFile: path.join(testDir, 'version.log'),
+    legacyAgentDbFile: path.join(testDir, 'Data', 'agents.db'),
+    agentWorkspacesDir: path.join(testDir, 'Data', 'Agents'),
+    customMiniAppsFile: path.join(testDir, 'Data', 'Files', 'custom-minapps.json'),
+    legacyConfigFile: path.join(testDir, '.cherrystudio', 'config', 'config.json'),
+    migrationsFolder: path.join(testDir, 'migrations'),
+    diagnosticsJournalFile: path.join(testDir, 'migration-diagnostics-v1.json'),
+    migrationExportDir: path.join(testDir, 'migration_temp'),
+    logsDir: path.join(testDir, 'logs'),
+    homeDir: testDir
+  })
+}
+
+function coordinator(): MigrationDiagnosticsCoordinator {
+  return new MigrationDiagnosticsCoordinator({
+    appVersion: '2.0.0-test',
+    platform: 'darwin',
+    arch: 'arm64',
+    clock: () => new Date(now),
+    idGenerator: () => `random-${++nextId}`
+  })
+}
+
+function eventInput(overrides: Partial<MigrationDiagnosticEventInput> = {}): MigrationDiagnosticEventInput {
+  return {
+    scope: 'engine',
+    phase: 'execute',
+    state: 'started',
+    code: 'unknown',
+    ...overrides
+  }
+}
+
+function oldSession(overrides: Partial<MigrationDiagnosticsSession> = {}): MigrationDiagnosticsSession {
+  return {
+    version: 1,
+    sessionId: 'old-session',
+    appVersion: '1.9.12',
+    platform: 'win32',
+    arch: 'x64',
+    startedAt: '2026-07-19T08:00:00.000Z',
+    state: 'failed',
+    attempts: [
+      {
+        id: 'old-attempt',
+        trigger: 'initial',
+        startedAt: '2026-07-19T08:01:00.000Z',
+        outcome: 'failed',
+        endedAt: '2026-07-19T08:02:00.000Z',
+        events: [
+          {
+            sequence: 7,
+            at: '2026-07-19T08:02:00.000Z',
+            attemptId: 'old-attempt',
+            scope: 'gate',
+            phase: 'finalize',
+            state: 'failed',
+            code: 'unknown'
+          }
+        ]
+      }
+    ],
+    ...overrides
+  }
+}
+
+beforeEach(() => {
+  testDir = mkdtempSync(path.join(tmpdir(), 'cs-migration-diagnostics-coordinator-'))
+  now = new Date('2026-07-19T10:00:00.000Z')
+  nextId = 0
+})
+
+afterEach(() => {
+  rmSync(testDir, { recursive: true, force: true })
+})
+
+describe('MigrationDiagnosticsCoordinator attachment and recovery', () => {
+  it('works in memory without constructing or writing a filesystem path', async () => {
+    const subject = coordinator()
+    const attemptId = subject.beginAttempt('initial')
+    subject.recordEvent(eventInput())
+
+    const snapshot = await subject.snapshot()
+
+    expect(attemptId).toBe('random-2')
+    expect(snapshot.sessionId).toBe('random-1')
+    expect(snapshot.attempts).toHaveLength(1)
+    expect(readdirSync(testDir)).toEqual([])
+  })
+
+  it('persists its current memory session when attach finds no journal', () => {
+    const subject = coordinator()
+    subject.beginAttempt('initial')
+
+    subject.attachPaths(paths())
+
+    const persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(persisted.kind).toBe('ok')
+    if (persisted.kind === 'ok') {
+      expect(persisted.journal.sessionId).toBe('random-1')
+      expect(persisted.journal.attempts[0]?.id).toBe('random-2')
+    }
+    expect(subject.recovered).toBe(false)
+  })
+
+  it('recovers a valid unfinished journal without overwriting it', async () => {
+    writeMigrationDiagnosticsJournal(paths().diagnosticsJournalFile, oldSession())
+    const subject = coordinator()
+
+    subject.attachPaths(paths())
+
+    expect(subject.recovered).toBe(true)
+    expect((await subject.snapshot()).sessionId).toBe('old-session')
+    const persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(persisted.kind === 'ok' && persisted.journal.sessionId).toBe('old-session')
+  })
+
+  it('quarantines corrupt input and persists only the fresh safe session', async () => {
+    writeFileSync(paths().diagnosticsJournalFile, '{"rawError":"sk-secret"')
+    const subject = coordinator()
+
+    subject.attachPaths(paths())
+
+    expect(subject.recovered).toBe(false)
+    expect((await subject.snapshot()).sessionId).toBe('random-1')
+    expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile).kind).toBe('ok')
+    expect(readdirSync(testDir).filter((name) => name.includes('.corrupt.'))).toHaveLength(1)
+  })
+
+  it('allows paths to attach only once', () => {
+    const subject = coordinator()
+    subject.attachPaths(paths())
+
+    expect(() => subject.attachPaths(paths())).toThrow('already attached')
+  })
+
+  it('closes a recovered in-progress attempt at its last recorded time, excluding downtime', async () => {
+    const unfinished = oldSession({
+      state: 'active',
+      attempts: [
+        {
+          id: 'old-attempt',
+          trigger: 'initial',
+          startedAt: '2026-07-19T08:01:00.000Z',
+          outcome: 'in_progress',
+          events: [
+            {
+              sequence: 7,
+              at: '2026-07-19T08:03:00.000Z',
+              attemptId: 'old-attempt',
+              scope: 'engine',
+              phase: 'execute',
+              state: 'started',
+              code: 'unknown'
+            }
+          ]
+        }
+      ]
+    })
+    writeMigrationDiagnosticsJournal(paths().diagnosticsJournalFile, unfinished)
+    now = new Date('2026-07-19T12:00:00.000Z')
+    const subject = coordinator()
+
+    subject.attachPaths(paths())
+    const recovered = await subject.snapshot()
+    const recoveredAttempt = recovered.attempts[0]
+
+    expect(recovered.state).toBe('failed')
+    expect(recoveredAttempt?.outcome).toBe('interrupted')
+    if (recoveredAttempt?.outcome !== 'interrupted') {
+      throw new Error('Expected the recovered attempt to be interrupted')
+    }
+    expect(recoveredAttempt.endedAt).toBe('2026-07-19T08:03:00.000Z')
+    expect(recoveredAttempt.events.at(-1)).toEqual({
+      sequence: 8,
+      at: '2026-07-19T08:03:00.000Z',
+      attemptId: 'old-attempt',
+      scope: 'gate',
+      phase: 'finalize',
+      state: 'interrupted',
+      code: 'unknown'
+    })
+  })
+})
+
+describe('MigrationDiagnosticsCoordinator attempts and retention', () => {
+  it('persists attempt, event, failure, and retry boundaries after attachment', () => {
+    const subject = coordinator()
+    subject.attachPaths(paths())
+    const attemptId = subject.beginAttempt('initial')
+    let persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(persisted.kind === 'ok' && persisted.journal.attempts[0]?.id).toBe(attemptId)
+
+    subject.recordEvent(eventInput())
+    persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(persisted.kind === 'ok' && persisted.journal.attempts[0]?.events).toHaveLength(1)
+
+    now = new Date('2026-07-19T10:01:00.000Z')
+    subject.finishAttempt('failed', eventInput({ scope: 'gate', phase: 'finalize', state: 'failed' }))
+    persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(persisted.kind === 'ok' && persisted.journal.state).toBe('failed')
+    expect(persisted.kind === 'ok' && persisted.journal.attempts[0]?.outcome).toBe('failed')
+
+    subject.beginAttempt('manual_retry')
+    persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(persisted.kind === 'ok' && persisted.journal.state).toBe('active')
+  })
+
+  it('rejects recording or finishing without an active attempt', () => {
+    const subject = coordinator()
+
+    expect(() => subject.recordEvent(eventInput())).toThrow('active attempt')
+    expect(() =>
+      subject.finishAttempt('failed', eventInput({ scope: 'gate', phase: 'finalize', state: 'failed' }))
+    ).toThrow('active attempt')
+  })
+
+  it('validates safe event input before mutation or persistence', async () => {
+    const subject = coordinator()
+    subject.attachPaths(paths())
+    subject.beginAttempt('initial')
+
+    expect(() =>
+      subject.recordEvent({ ...eventInput(), rawError: 'sk-secret' } as MigrationDiagnosticEventInput)
+    ).toThrow()
+    expect((await subject.snapshot()).attempts[0]?.events).toEqual([])
+    const persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(persisted.kind === 'ok' && persisted.journal.attempts[0]?.events).toEqual([])
+  })
+
+  it('retains at most five newest attempts', async () => {
+    const subject = coordinator()
+    for (let index = 0; index < 6; index += 1) {
+      subject.beginAttempt(index === 0 ? 'initial' : 'manual_retry')
+      subject.finishAttempt('failed', eventInput({ scope: 'gate', phase: 'finalize', state: 'failed' }))
+    }
+
+    const snapshot = await subject.snapshot()
+
+    expect(snapshot.attempts).toHaveLength(5)
+    expect(snapshot.attempts.map((attempt) => attempt.id)).toEqual([
+      'random-3',
+      'random-4',
+      'random-5',
+      'random-6',
+      'random-7'
+    ])
+  })
+
+  it('retains 200 total events, every terminal event, and the newest intermediate events', async () => {
+    const subject = coordinator()
+    for (let attemptIndex = 0; attemptIndex < 5; attemptIndex += 1) {
+      subject.beginAttempt(attemptIndex === 0 ? 'initial' : 'manual_retry')
+      for (let eventIndex = 0; eventIndex < 45; eventIndex += 1) {
+        subject.recordEvent(eventInput())
+      }
+      subject.finishAttempt('failed', eventInput({ scope: 'gate', phase: 'finalize', state: 'failed' }))
+    }
+
+    const snapshot = await subject.snapshot()
+    const events = snapshot.attempts.flatMap((attempt) => attempt.events)
+
+    expect(events).toHaveLength(200)
+    for (const attempt of snapshot.attempts) {
+      expect(attempt.events.at(-1)?.state).toBe('failed')
+      expect(attempt.events.at(-1)?.phase).toBe('finalize')
+    }
+    expect(events.at(-1)?.sequence).toBe(230)
+    expect(events.some((event) => event.sequence === 1)).toBe(false)
+    expect(events.map((event) => event.sequence)).toEqual(
+      [...events.map((event) => event.sequence)].sort((left, right) => left - right)
+    )
+  })
+})
+
+describe('MigrationDiagnosticsCoordinator snapshot, save, and completion', () => {
+  it('shares an in-flight snapshot Promise and returns a deeply frozen detached clone', async () => {
+    const subject = coordinator()
+    subject.beginAttempt('initial')
+    subject.recordEvent(eventInput())
+
+    const firstPromise = subject.snapshot()
+    const secondPromise = subject.snapshot()
+    expect(secondPromise).toBe(firstPromise)
+    const first = await firstPromise
+
+    expect(Object.isFrozen(first)).toBe(true)
+    expect(Object.isFrozen(first.attempts)).toBe(true)
+    expect(Object.isFrozen(first.attempts[0])).toBe(true)
+    expect(Object.isFrozen(first.attempts[0]?.events)).toBe(true)
+    expect(Reflect.set(first as object, 'state', 'completed')).toBe(false)
+
+    subject.recordEvent(eventInput({ phase: 'validate' }))
+    expect(first.attempts[0]?.events).toHaveLength(1)
+    expect((await subject.snapshot()).attempts[0]?.events).toHaveLength(2)
+  })
+
+  it('returns save_in_progress without invoking an overlapping operation and resets after success', async () => {
+    const subject = coordinator()
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let firstCalls = 0
+    let secondCalls = 0
+
+    const first = subject.runSave(async () => {
+      firstCalls += 1
+      await blocked
+      return { status: 'saved' as const }
+    })
+    const overlap = await subject.runSave(async () => {
+      secondCalls += 1
+      return { status: 'saved' as const }
+    })
+
+    expect(overlap).toEqual({ status: 'failed', code: 'save_in_progress' })
+    expect(firstCalls).toBe(1)
+    expect(secondCalls).toBe(0)
+    release()
+    await expect(first).resolves.toEqual({ status: 'saved' })
+    await expect(subject.runSave(async () => ({ status: 'saved' as const }))).resolves.toEqual({ status: 'saved' })
+  })
+
+  it('resets the save guard when the operation rejects', async () => {
+    const subject = coordinator()
+
+    await expect(
+      subject.runSave(async () => {
+        throw new Error('archive failed')
+      })
+    ).rejects.toThrow('archive failed')
+    await expect(subject.runSave(async () => ({ status: 'saved' as const }))).resolves.toEqual({ status: 'saved' })
+  })
+
+  it('completes in memory and deletes only the live journal/tmp', async () => {
+    const subject = coordinator()
+    subject.attachPaths(paths())
+    subject.beginAttempt('initial')
+    subject.finishAttempt('completed', eventInput({ scope: 'gate', phase: 'finalize', state: 'completed' }))
+    writeFileSync(`${paths().diagnosticsJournalFile}.tmp`, 'stale')
+    const corrupt = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json')
+    writeFileSync(corrupt, 'corrupt')
+
+    subject.complete()
+
+    expect((await subject.snapshot()).state).toBe('completed')
+    expect(existsSync(paths().diagnosticsJournalFile)).toBe(false)
+    expect(existsSync(`${paths().diagnosticsJournalFile}.tmp`)).toBe(false)
+    expect(existsSync(corrupt)).toBe(true)
+  })
+})

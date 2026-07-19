@@ -180,6 +180,170 @@ export const migrationDiagnosticEventSchema = z
   })
   .strict()
 
+export const MIGRATION_DIAGNOSTICS_SESSION_VERSION = 1 as const
+export const MIGRATION_DIAGNOSTICS_MAX_ATTEMPTS = 5
+export const MIGRATION_DIAGNOSTICS_MAX_EVENTS = 200
+
+export const migrationDiagnosticEventInputSchema = migrationDiagnosticEventSchema.omit({
+  sequence: true,
+  at: true,
+  attemptId: true
+})
+
+export const migrationAttemptTriggerSchema = z.enum(['initial', 'manual_retry', 'recovered_retry'])
+export const migrationAttemptTerminalOutcomeSchema = z.enum(['completed', 'failed', 'interrupted'])
+export const migrationDiagnosticsPlatformSchema = z.enum(['darwin', 'win32', 'linux', 'other'])
+export const migrationDiagnosticsArchSchema = z.enum(['x64', 'arm64', 'ia32', 'other'])
+
+const migrationAttemptCommonFields = {
+  id: z.string().min(1).max(64),
+  trigger: migrationAttemptTriggerSchema,
+  startedAt: z.string().datetime(),
+  events: z.array(migrationDiagnosticEventSchema).max(MIGRATION_DIAGNOSTICS_MAX_EVENTS)
+}
+
+export const migrationDiagnosticsAttemptSchema = z
+  .discriminatedUnion('outcome', [
+    z
+      .object({
+        ...migrationAttemptCommonFields,
+        outcome: z.literal('in_progress')
+      })
+      .strict(),
+    z
+      .object({
+        ...migrationAttemptCommonFields,
+        outcome: z.literal('completed'),
+        endedAt: z.string().datetime()
+      })
+      .strict(),
+    z
+      .object({
+        ...migrationAttemptCommonFields,
+        outcome: z.literal('failed'),
+        endedAt: z.string().datetime()
+      })
+      .strict(),
+    z
+      .object({
+        ...migrationAttemptCommonFields,
+        outcome: z.literal('interrupted'),
+        endedAt: z.string().datetime()
+      })
+      .strict()
+  ])
+  .superRefine((attempt, ctx) => {
+    let previousSequence = -1
+    let previousEventTime = Date.parse(attempt.startedAt)
+    for (const [index, event] of attempt.events.entries()) {
+      if (event.attemptId !== attempt.id) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Event attempt ID must match its parent attempt',
+          path: ['events', index, 'attemptId']
+        })
+      }
+      if (event.sequence <= previousSequence) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Event sequences must be strictly increasing',
+          path: ['events', index, 'sequence']
+        })
+      }
+      const eventTime = Date.parse(event.at)
+      if (eventTime < previousEventTime) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Event times must not move backwards',
+          path: ['events', index, 'at']
+        })
+      }
+      previousSequence = event.sequence
+      previousEventTime = eventTime
+    }
+
+    if (attempt.outcome !== 'in_progress') {
+      const lastEvent = attempt.events.at(-1)
+      const lastEventAt = lastEvent?.at
+      if (lastEvent?.state !== attempt.outcome) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Finished attempt must retain its matching terminal event',
+          path: ['events']
+        })
+      }
+      const endedAt = Date.parse(attempt.endedAt)
+      if (endedAt < Date.parse(attempt.startedAt) || (lastEventAt !== undefined && endedAt < Date.parse(lastEventAt))) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Terminal attempt end time must include its recorded events',
+          path: ['endedAt']
+        })
+      }
+    }
+  })
+
+export const migrationDiagnosticsSessionSchema = z
+  .object({
+    version: z.literal(MIGRATION_DIAGNOSTICS_SESSION_VERSION),
+    sessionId: z.string().min(1).max(64),
+    appVersion: z.string().min(1).max(64),
+    platform: migrationDiagnosticsPlatformSchema,
+    arch: migrationDiagnosticsArchSchema,
+    startedAt: z.string().datetime(),
+    state: z.enum(['active', 'failed', 'completed']),
+    attempts: z.array(migrationDiagnosticsAttemptSchema).max(MIGRATION_DIAGNOSTICS_MAX_ATTEMPTS)
+  })
+  .strict()
+  .superRefine((session, ctx) => {
+    const attemptIds = new Set<string>()
+    let totalEvents = 0
+    let previousSequence = -1
+    let activeAttemptCount = 0
+
+    for (const [attemptIndex, attempt] of session.attempts.entries()) {
+      if (attemptIds.has(attempt.id)) {
+        ctx.addIssue({ code: 'custom', message: 'Attempt IDs must be unique', path: ['attempts', attemptIndex, 'id'] })
+      }
+      attemptIds.add(attempt.id)
+      if (Date.parse(attempt.startedAt) < Date.parse(session.startedAt)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Attempt time must not precede the session',
+          path: ['attempts', attemptIndex, 'startedAt']
+        })
+      }
+      if (attempt.outcome === 'in_progress') {
+        activeAttemptCount += 1
+        if (attemptIndex !== session.attempts.length - 1) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Only the newest attempt may be in progress',
+            path: ['attempts', attemptIndex, 'outcome']
+          })
+        }
+      }
+      totalEvents += attempt.events.length
+      for (const [eventIndex, event] of attempt.events.entries()) {
+        if (event.sequence <= previousSequence) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Session event sequences must be strictly increasing',
+            path: ['attempts', attemptIndex, 'events', eventIndex, 'sequence']
+          })
+        }
+        previousSequence = event.sequence
+      }
+    }
+
+    if (activeAttemptCount > 1) {
+      ctx.addIssue({ code: 'custom', message: 'A session may have only one active attempt', path: ['attempts'] })
+    }
+    if (totalEvents > MIGRATION_DIAGNOSTICS_MAX_EVENTS) {
+      ctx.addIssue({ code: 'custom', message: 'Session event retention limit exceeded', path: ['attempts'] })
+    }
+  })
+
 export type MigrationErrorCode = z.infer<typeof migrationErrorCodeSchema>
 export type MigrationErrorCategory = z.infer<typeof migrationErrorCategorySchema>
 export type PayloadProfileTarget = z.infer<typeof payloadProfileTargetSchema>
@@ -190,6 +354,13 @@ export type PayloadTraversal = z.infer<typeof payloadTraversalSchema>
 export type PayloadLengthSlotProfile = z.infer<typeof payloadLengthSlotProfileSchema>
 export type PayloadLengthProfile = z.infer<typeof payloadLengthProfileSchema>
 export type MigrationDiagnosticEvent = z.infer<typeof migrationDiagnosticEventSchema>
+export type MigrationDiagnosticEventInput = z.infer<typeof migrationDiagnosticEventInputSchema>
+export type MigrationAttemptTrigger = z.infer<typeof migrationAttemptTriggerSchema>
+export type MigrationAttemptTerminalOutcome = z.infer<typeof migrationAttemptTerminalOutcomeSchema>
+export type MigrationDiagnosticsPlatform = z.infer<typeof migrationDiagnosticsPlatformSchema>
+export type MigrationDiagnosticsArch = z.infer<typeof migrationDiagnosticsArchSchema>
+export type MigrationDiagnosticsAttempt = z.infer<typeof migrationDiagnosticsAttemptSchema>
+export type MigrationDiagnosticsSession = z.infer<typeof migrationDiagnosticsSessionSchema>
 
 export interface PayloadProfileDescriptor {
   readonly target: PayloadProfileTarget
