@@ -84,23 +84,55 @@ export abstract class BaseMigrator {
     try {
       return write()
     } catch (error) {
+      this.recordDiagnosedWriteFailure(ctx, descriptor, () => rows, error)
+      throw error
+    }
+  }
+
+  /**
+   * Async counterpart for an existing Promise-returning write boundary. The
+   * payload producer is deliberately lazy: it runs only after rejection, so a
+   * successful write pays no profiling or allocation cost.
+   */
+  protected async runDiagnosedAsyncWrite<T>(
+    ctx: MigrationContext,
+    descriptor: PayloadProfileDescriptor,
+    rows: () => readonly unknown[],
+    write: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await write()
+    } catch (error) {
+      this.recordDiagnosedWriteFailure(ctx, descriptor, rows, error)
+      throw error
+    }
+  }
+
+  private recordDiagnosedWriteFailure(
+    ctx: MigrationContext,
+    descriptor: PayloadProfileDescriptor,
+    rows: () => readonly unknown[],
+    error: unknown
+  ): void {
+    try {
       const classification = classifyMigrationError(error)
       this.diagnosedPhaseFailure = classification
+      ctx.diagnostics?.recordEvent({
+        scope: 'migrator',
+        phase: 'execute',
+        state: 'failed',
+        category: classification.category,
+        code: classification.code,
+        causeDepth: classification.causeDepth,
+        migratorId: this.id,
+        payloadProfile: profilePayloadLengths(rows(), descriptor)
+      })
+    } catch {
       try {
-        ctx.diagnostics?.recordEvent({
-          scope: 'migrator',
-          phase: 'execute',
-          state: 'failed',
-          category: classification.category,
-          code: classification.code,
-          causeDepth: classification.causeDepth,
-          migratorId: this.id,
-          payloadProfile: profilePayloadLengths(rows, descriptor)
-        })
-      } catch {
         ctx.logger?.error('Failed to record bounded migration write diagnostics')
+      } catch {
+        // Diagnostics and logging are both best-effort; the write error remains authoritative.
       }
-      throw error
     }
   }
 

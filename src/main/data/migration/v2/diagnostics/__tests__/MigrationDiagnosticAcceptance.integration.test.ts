@@ -85,9 +85,8 @@ describe('strict diagnostic acceptance matrix', () => {
         }))
       )
 
-      const locationEvent = events.attempts
-        .flatMap((attempt) => attempt.events)
-        .find(
+      const locationEvents = events.attempts.map((attempt) => {
+        const matchingEvents = attempt.events.filter(
           (event) =>
             event.category === fixture.expected.category &&
             event.code === fixture.expected.code &&
@@ -95,7 +94,13 @@ describe('strict diagnostic acceptance matrix', () => {
             event.phase === fixture.expected.phase &&
             event.migratorId === fixture.expected.migratorId
         )
-      expect(locationEvent).toBeDefined()
+        expect(
+          matchingEvents,
+          `${fixture.name}/${attempt.trigger} must retain exactly one fixed location signal`
+        ).toHaveLength(1)
+        return matchingEvents[0]
+      })
+      const locationEvent = locationEvents[0]
 
       if (fixture.expected.payload !== undefined) {
         expect(locationEvent?.payloadProfile).toMatchObject({

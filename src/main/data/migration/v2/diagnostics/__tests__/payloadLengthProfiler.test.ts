@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { payloadLengthProfileSchema, type PayloadProfileDescriptor } from '../migrationDiagnosticsSchemas'
-import { profilePayloadLengths } from '../payloadLengthProfiler'
+import { createPayloadByteLengthMeasurement, profilePayloadLengths } from '../payloadLengthProfiler'
 
 const messageContent = { target: 'message', fields: ['content'] } as const satisfies PayloadProfileDescriptor
 
@@ -46,6 +46,59 @@ describe('profilePayloadLengths', () => {
     expect(result.profiledByteLengthBucket).toBe('257-4096')
     expect(result.maxProfiledRowByteLengthBucket).toBe('257-4096')
   })
+
+  it('profiles an opaque byte-length measurement without carrying or allocating payload bytes', () => {
+    const measurement = createPayloadByteLengthMeasurement(300_000)
+    const descriptor = {
+      target: 'knowledge_vector_rebuild',
+      fields: ['vectorBlob']
+    } as const satisfies PayloadProfileDescriptor
+
+    expect(Reflect.ownKeys(measurement)).toEqual([])
+    expect(ArrayBuffer.isView(measurement)).toBe(false)
+    expect(measurement).not.toBeInstanceOf(ArrayBuffer)
+    expect(JSON.stringify(measurement)).toBe('{}')
+    expect(profilePayloadLengths([{ vectorBlob: measurement }], descriptor)).toEqual({
+      target: 'knowledge_vector_rebuild',
+      rowCountBucket: '1',
+      profiledByteLengthBucket: '262145+',
+      maxProfiledRowByteLengthBucket: '262145+',
+      traversal: 'complete',
+      slots: [
+        {
+          slot: 'vectorBlob',
+          kind: 'bytes',
+          totalByteLengthBucket: '262145+',
+          maxByteLengthBucket: '262145+'
+        }
+      ]
+    })
+  })
+
+  it.each([-1, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    'saturates anomalous opaque byte length %s and marks the profile truncated',
+    (byteLength) => {
+      const measurement = createPayloadByteLengthMeasurement(byteLength)
+      const result = profilePayloadLengths([{ vectorBlob: measurement }], {
+        target: 'knowledge_vector_rebuild',
+        fields: ['vectorBlob']
+      } as PayloadProfileDescriptor)
+
+      expect(result).toMatchObject({
+        profiledByteLengthBucket: '262145+',
+        maxProfiledRowByteLengthBucket: '262145+',
+        traversal: 'truncated',
+        slots: [
+          {
+            slot: 'vectorBlob',
+            kind: 'bytes',
+            totalByteLengthBucket: '262145+',
+            maxByteLengthBucket: '262145+'
+          }
+        ]
+      })
+    }
+  )
 
   it.each([new Int16Array(300), new DataView(new ArrayBuffer(300))])(
     'marks non-Uint8Array views as unsupported',

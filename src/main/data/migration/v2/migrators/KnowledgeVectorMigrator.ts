@@ -27,7 +27,7 @@ import {
 import { eq, inArray } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { PayloadProfileDescriptor } from '../diagnostics'
+import { createPayloadByteLengthMeasurement, type PayloadProfileDescriptor } from '../diagnostics'
 import type { LegacyKnowledgeVectorLoadResult, LegacyKnowledgeVectorRow } from '../utils/KnowledgeVectorSourceReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
@@ -42,6 +42,33 @@ const KNOWLEDGE_VECTOR_STATUS_PROFILE = {
   target: 'knowledge_vector_status',
   fields: ['error', 'data']
 } as const satisfies PayloadProfileDescriptor
+
+export const KNOWLEDGE_VECTOR_REBUILD_PROFILE = {
+  target: 'knowledge_vector_rebuild',
+  fields: ['vectorBlob']
+} as const satisfies PayloadProfileDescriptor
+
+function checkedFloat32ByteLength(vector: readonly number[]): number {
+  const elementCount = vector.length
+  const bytesPerElement = Float32Array.BYTES_PER_ELEMENT
+  if (
+    !Number.isSafeInteger(elementCount) ||
+    elementCount < 0 ||
+    elementCount > Number.MAX_SAFE_INTEGER / bytesPerElement
+  ) {
+    return Number.POSITIVE_INFINITY
+  }
+  return elementCount * bytesPerElement
+}
+
+/** Build content-free diagnostic rows from the exact float32 encoding width. */
+export function createKnowledgeVectorRebuildProfileRows(
+  input: Pick<RebuildMaterialInput, 'embeddings'>
+): ReadonlyArray<{ readonly vectorBlob: object }> {
+  return input.embeddings.map((embedding) => ({
+    vectorBlob: createPayloadByteLengthMeasurement(checkedFloat32ByteLength(embedding.vector))
+  }))
+}
 
 // Runtime vector store + material layout — source of truth:
 // src/main/features/knowledge/utils/storage/pathStorage.ts
@@ -1110,7 +1137,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const store = createKnowledgeIndexStoreAtPath(plan.targetDbPath, { baseId: plan.baseId })
         try {
           for (const material of materials) {
-            await store.rebuildMaterial(material.itemId, material.input)
+            await this.runDiagnosedAsyncWrite(
+              ctx,
+              KNOWLEDGE_VECTOR_REBUILD_PROFILE,
+              () => createKnowledgeVectorRebuildProfileRows(material.input),
+              () => store.rebuildMaterial(material.itemId, material.input)
+            )
             processedWork += 1
             this.reportRebuildProgress(processedWork, totalWork)
             await yieldToEventLoop()

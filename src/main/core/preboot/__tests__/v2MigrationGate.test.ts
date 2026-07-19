@@ -862,7 +862,9 @@ describe('runV2MigrationGate', () => {
       // The only throwing operation in resolveMigrationPaths() is the strict
       // pinUserDataPath() persist on the redirect branch.
       resolveMigrationPathsMock.mockImplementation(() => {
-        throw new Error('ENOSPC: no space left on device')
+        throw Object.assign(new Error('EACCES: permission denied, open /Users/private/config.json'), {
+          code: 'EACCES'
+        })
       })
       stubMigrationV2()
       stubElectron()
@@ -875,6 +877,23 @@ describe('runV2MigrationGate', () => {
       expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
         expect.objectContaining({ code: 'path_resolution_failed' })
       )
+      expect(diagnosticsRecordEventMock).toHaveBeenCalledWith({
+        scope: 'gate',
+        phase: 'resolve_paths',
+        state: 'failed',
+        category: 'filesystem',
+        code: 'permission_denied',
+        causeDepth: 0
+      })
+      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledWith('failed', {
+        scope: 'gate',
+        phase: 'finalize',
+        state: 'failed',
+        category: 'filesystem',
+        code: 'permission_denied',
+        causeDepth: 0
+      })
+      expect(JSON.stringify(diagnosticsRecordEventMock.mock.calls)).not.toContain('/Users/private')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })

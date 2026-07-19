@@ -51,6 +51,7 @@ const migrationHookMock = vi.hoisted(() => ({
     migrators: unknown[]
     overallProgress: number
     stage: string
+    warnings?: string[]
   }
 }))
 
@@ -667,6 +668,71 @@ describe('MigrationApp', () => {
 
       expect(await screen.findByText('migration.diagnostics.failures.snapshot_failed')).toBeInTheDocument()
       expect(screen.queryByText(/caught-canary/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('strict diagnostic bundle completed-warning actions', () => {
+    beforeEach(() => {
+      migrationHookMock.progress = {
+        currentMessage: 'Migration completed with warnings',
+        migrators: [],
+        overallProgress: 100,
+        stage: 'completed',
+        warnings: ['Knowledge vector base could not be rebuilt']
+      }
+    })
+
+    it('shows diagnostics only when the completed migration has warnings', () => {
+      const { rerender } = render(<MigrationApp />)
+
+      expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+
+      migrationHookMock.progress = {
+        currentMessage: 'Migration completed',
+        migrators: [],
+        overallProgress: 100,
+        stage: 'completed',
+        warnings: []
+      }
+      rerender(<MigrationApp />)
+
+      expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
+      expect(screen.queryByTestId('migration-diagnostics-saved-actions')).not.toBeInTheDocument()
+    })
+
+    it('disables Save and Restart while saving and prevents duplicate saves', async () => {
+      let resolveSave!: (result: { status: 'canceled' }) => void
+      migrationHookMock.actions.save.mockImplementation(
+        () => new Promise<{ status: 'canceled' }>((resolve) => (resolveSave = resolve))
+      )
+
+      render(<MigrationApp />)
+      const save = screen.getByRole('button', { name: 'migration.diagnostics.save' })
+      const restart = screen.getByRole('button', { name: 'migration.buttons.restart' })
+      fireEvent.click(save)
+
+      await waitFor(() => {
+        expect(save).toBeDisabled()
+        expect(restart).toBeDisabled()
+        expect(migrationWindowControlsPropsMock).toHaveBeenLastCalledWith(expect.objectContaining({ disabled: true }))
+      })
+      fireEvent.click(save)
+      fireEvent.click(restart)
+      expect(migrationHookMock.actions.save).toHaveBeenCalledTimes(1)
+      expect(migrationHookMock.actions.restart).not.toHaveBeenCalled()
+
+      await act(async () => resolveSave({ status: 'canceled' }))
+    })
+
+    it('shows the existing support actions after saving completed-warning diagnostics', async () => {
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved', outputCount: 1 })
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      const actions = await screen.findByTestId('migration-diagnostics-saved-actions')
+      expect(within(actions).getAllByRole('button')).toHaveLength(3)
+      expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
     })
   })
 

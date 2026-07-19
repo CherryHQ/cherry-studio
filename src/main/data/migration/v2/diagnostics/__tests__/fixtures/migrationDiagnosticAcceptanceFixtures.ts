@@ -1,4 +1,8 @@
 import {
+  createKnowledgeVectorRebuildProfileRows,
+  KNOWLEDGE_VECTOR_REBUILD_PROFILE
+} from '../../../migrators/KnowledgeVectorMigrator'
+import {
   EXPECTED_MIGRATION_DATABASE_OBJECTS,
   type MigrationDatabaseColumnCountBucket,
   type MigrationDatabaseCompletedDiagnosticResult,
@@ -152,8 +156,55 @@ function failedSnapshot(signal: FailureSignal): MigrationDiagnosticsSession {
   })
 }
 
+function completedWarningSnapshot(signal: FailureSignal): MigrationDiagnosticsSession {
+  const attemptId = 'acceptance-private-completed-warning-attempt-id'
+  return migrationDiagnosticsSessionSchema.parse({
+    version: 1,
+    sessionId: 'acceptance-private-completed-warning-session-id',
+    appVersion: '2.0.0-private-build',
+    platform: 'darwin',
+    arch: 'arm64',
+    startedAt: SESSION_STARTED_AT,
+    state: 'completed',
+    attempts: [
+      {
+        id: attemptId,
+        trigger: 'initial',
+        startedAt: SESSION_STARTED_AT,
+        outcome: 'completed',
+        endedAt: ATTEMPT_ENDED_AT,
+        events: [
+          {
+            sequence: 1,
+            at: FAILURE_RECORDED_AT,
+            attemptId,
+            scope: signal.scope,
+            phase: signal.phase,
+            state: 'failed',
+            code: signal.code,
+            category: signal.category,
+            causeDepth: signal.causeDepth,
+            migratorId: signal.migratorId,
+            payloadProfile: signal.payloadProfile
+          },
+          {
+            sequence: 2,
+            at: ATTEMPT_ENDED_AT,
+            attemptId,
+            scope: 'engine',
+            phase: 'finalize',
+            state: 'completed',
+            code: 'unknown'
+          }
+        ]
+      }
+    ]
+  })
+}
+
 function retryRecoverySnapshot(signal: FailureSignal): MigrationDiagnosticsSession {
   const firstAttemptId = 'acceptance-private-first-attempt-id'
+  const manualAttemptId = 'acceptance-private-manual-attempt-id'
   const recoveredAttemptId = 'acceptance-private-recovered-attempt-id'
   return migrationDiagnosticsSessionSchema.parse({
     version: 1,
@@ -168,13 +219,58 @@ function retryRecoverySnapshot(signal: FailureSignal): MigrationDiagnosticsSessi
         id: firstAttemptId,
         trigger: 'initial',
         startedAt: SESSION_STARTED_AT,
-        outcome: 'interrupted',
-        endedAt: FAILURE_RECORDED_AT,
+        outcome: 'failed',
+        endedAt: '2026-07-20T10:00:02.000Z',
         events: [
           {
             sequence: 1,
             at: FAILURE_RECORDED_AT,
             attemptId: firstAttemptId,
+            scope: signal.scope,
+            phase: signal.phase,
+            state: 'failed',
+            code: signal.code,
+            category: signal.category,
+            causeDepth: signal.causeDepth,
+            migratorId: signal.migratorId,
+            payloadProfile: signal.payloadProfile
+          },
+          {
+            sequence: 2,
+            at: '2026-07-20T10:00:02.000Z',
+            attemptId: firstAttemptId,
+            scope: 'engine',
+            phase: 'finalize',
+            state: 'failed',
+            code: 'unknown',
+            category: 'unknown'
+          }
+        ]
+      },
+      {
+        id: manualAttemptId,
+        trigger: 'manual_retry',
+        startedAt: '2026-07-20T10:00:03.000Z',
+        outcome: 'interrupted',
+        endedAt: '2026-07-20T10:00:05.000Z',
+        events: [
+          {
+            sequence: 3,
+            at: '2026-07-20T10:00:04.000Z',
+            attemptId: manualAttemptId,
+            scope: signal.scope,
+            phase: signal.phase,
+            state: 'failed',
+            code: signal.code,
+            category: signal.category,
+            causeDepth: signal.causeDepth,
+            migratorId: signal.migratorId,
+            payloadProfile: signal.payloadProfile
+          },
+          {
+            sequence: 4,
+            at: '2026-07-20T10:00:05.000Z',
+            attemptId: manualAttemptId,
             scope: 'gate',
             phase: 'finalize',
             state: 'interrupted',
@@ -186,13 +282,13 @@ function retryRecoverySnapshot(signal: FailureSignal): MigrationDiagnosticsSessi
       {
         id: recoveredAttemptId,
         trigger: 'recovered_retry',
-        startedAt: '2026-07-20T10:00:02.000Z',
+        startedAt: '2026-07-20T10:00:06.000Z',
         outcome: 'failed',
-        endedAt: '2026-07-20T10:00:04.000Z',
+        endedAt: '2026-07-20T10:00:08.000Z',
         events: [
           {
-            sequence: 2,
-            at: '2026-07-20T10:00:03.000Z',
+            sequence: 5,
+            at: '2026-07-20T10:00:07.000Z',
             attemptId: recoveredAttemptId,
             scope: signal.scope,
             phase: signal.phase,
@@ -204,8 +300,8 @@ function retryRecoverySnapshot(signal: FailureSignal): MigrationDiagnosticsSessi
             payloadProfile: signal.payloadProfile
           },
           {
-            sequence: 3,
-            at: '2026-07-20T10:00:04.000Z',
+            sequence: 6,
+            at: '2026-07-20T10:00:08.000Z',
             attemptId: recoveredAttemptId,
             scope: 'engine',
             phase: 'finalize',
@@ -464,14 +560,21 @@ export function createMigrationDiagnosticAcceptanceFixtures(): MigrationDiagnost
     payloadProfile: oversizedJsonProfile
   })
 
-  const oversizedBlobProfile = profilePayloadLengths([{ data: Buffer.alloc(300_000, 0x41) }], {
-    target: 'message',
-    fields: ['data']
-  })
+  const oversizedBlobProfile = profilePayloadLengths(
+    createKnowledgeVectorRebuildProfileRows({
+      embeddings: [
+        {
+          embeddingTextHash: 'acceptance-large-vector-hash',
+          vector: Array.from({ length: 75_000 }, () => 0)
+        }
+      ]
+    }),
+    KNOWLEDGE_VECTOR_REBUILD_PROFILE
+  )
   const oversizedBlobSignal = failureSignal(classifiedError('SQLITE_TOOBIG'), {
     scope: 'migrator',
     phase: 'execute',
-    migratorId: 'chat',
+    migratorId: 'knowledge_vector',
     payloadProfile: oversizedBlobProfile
   })
 
@@ -481,7 +584,7 @@ export function createMigrationDiagnosticAcceptanceFixtures(): MigrationDiagnost
     scope: 'renderer_export',
     phase: 'finalize'
   }
-  const pathSignal = failureSignal(classifiedError('SQLITE_READONLY_DBMOVED'), {
+  const pathSignal = failureSignal(classifiedError('EACCES'), {
     scope: 'gate',
     phase: 'resolve_paths'
   })
@@ -570,11 +673,12 @@ export function createMigrationDiagnosticAcceptanceFixtures(): MigrationDiagnost
       { completion: { status: 'failed', code: 'lease_unavailable' } },
       {
         payload: {
-          target: 'message',
+          target: 'knowledge_vector_rebuild',
           traversal: oversizedBlobProfile.traversal,
-          slot: 'data',
+          slot: 'vectorBlob',
           profile: { kind: 'bytes', totalByteLengthBucket: '262145+', maxByteLengthBucket: '262145+' }
-        }
+        },
+        snapshot: completedWarningSnapshot(oversizedBlobSignal)
       }
     ),
     fixture('source-parse', sourceParseSignal, unavailableDatabase(), {
@@ -596,7 +700,7 @@ export function createMigrationDiagnosticAcceptanceFixtures(): MigrationDiagnost
       { completion: { status: 'failed', code: 'lease_unavailable' } },
       {
         snapshot: retryRecoverySnapshot(retrySignal),
-        attemptTriggers: ['initial', 'recovered_retry']
+        attemptTriggers: ['initial', 'manual_retry', 'recovered_retry']
       }
     ),
     fixture('database-process-partial', partialDatabaseSignal, timedOutDatabaseWithL0(), {

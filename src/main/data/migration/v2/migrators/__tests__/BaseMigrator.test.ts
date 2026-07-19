@@ -4,7 +4,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import type { PayloadProfileDescriptor } from '../../diagnostics'
@@ -41,6 +41,14 @@ class ProbeMigrator extends BaseMigrator {
     write: () => T
   ): T {
     return this.runDiagnosedWrite(ctx, descriptor, rows, write)
+  }
+  diagnosedAsyncWrite<T>(
+    ctx: MigrationContext,
+    descriptor: PayloadProfileDescriptor,
+    rows: () => readonly unknown[],
+    write: () => Promise<T>
+  ): Promise<T> {
+    return this.runDiagnosedAsyncWrite(ctx, descriptor, rows, write)
   }
 }
 
@@ -124,6 +132,10 @@ async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], id:
 
 const probe = new ProbeMigrator()
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('BaseMigrator.assertOwnedForeignKeys', () => {
   const dbh = setupTestDatabase()
 
@@ -186,6 +198,7 @@ describe('BaseMigrator.runDiagnosedWrite', () => {
   })
 
   it('profiles only on failure and rethrows the original SQLITE_TOOBIG object unchanged', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(0)
     const recordEvent = vi.fn()
     const migrationRun = createMigrationRun(recordEvent)
     const canary = `PRIVATE_MESSAGE_CANARY_${'x'.repeat(300_000)}`
@@ -241,6 +254,64 @@ describe('BaseMigrator.runDiagnosedWrite', () => {
         throw original
       })
     ).toThrow(original)
+    expect(migrationRun.logger.error).toHaveBeenCalledWith('Failed to record bounded migration write diagnostics')
+  })
+
+  it('does not call the lazy async payload producer when the write succeeds', async () => {
+    const migrationRun = createMigrationRun()
+    const rows = vi.fn(() => [{ content: 'private-value' }])
+    const result = { inserted: 1 }
+
+    await expect(probe.diagnosedAsyncWrite(migrationRun, descriptor, rows, async () => result)).resolves.toBe(result)
+    expect(rows).not.toHaveBeenCalled()
+    expect(migrationRun.diagnostics.recordEvent).not.toHaveBeenCalled()
+    expect(migrationRun.db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('profiles the lazy async payload only after rejection and rethrows the original object', async () => {
+    const recordEvent = vi.fn()
+    const migrationRun = createMigrationRun(recordEvent)
+    const rows = vi.fn(() => [{ content: 'PRIVATE_ASYNC_VALUE' }])
+    const original = Object.assign(new Error('PRIVATE_ASYNC_ERROR'), { code: 'SQLITE_TOOBIG' })
+
+    await expect(
+      probe.diagnosedAsyncWrite(migrationRun, descriptor, rows, async () => {
+        throw original
+      })
+    ).rejects.toBe(original)
+
+    expect(rows).toHaveBeenCalledOnce()
+    expect(recordEvent).toHaveBeenCalledOnce()
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'migrator',
+        phase: 'execute',
+        state: 'failed',
+        category: 'database_write',
+        code: 'sqlite_too_big',
+        migratorId: 'probe',
+        payloadProfile: expect.objectContaining({ target: 'message' })
+      })
+    )
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_ASYNC')
+  })
+
+  it('keeps an async write rejection authoritative when its lazy payload producer fails', async () => {
+    const migrationRun = createMigrationRun()
+    const original = Object.assign(new Error('original private async database error'), { code: 'SQLITE_TOOBIG' })
+
+    await expect(
+      probe.diagnosedAsyncWrite(
+        migrationRun,
+        descriptor,
+        () => {
+          throw new Error('measurement failed')
+        },
+        async () => {
+          throw original
+        }
+      )
+    ).rejects.toBe(original)
     expect(migrationRun.logger.error).toHaveBeenCalledWith('Failed to record bounded migration write diagnostics')
   })
 

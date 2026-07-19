@@ -513,12 +513,13 @@ Scheme A wins by default if it covers every high-priority fixture. Scheme B is s
 
 The strict branch now has a shared seeded acceptance matrix covering database open, corruption, schema, and
 constraint failures; oversized string, JSON, and blob values; source parsing; path permissions; renderer crash and
-hang; recovered retry; and a database child timeout with a real L0 prefix. Each of the 13 package fixtures builds and
-extracts a production `MigrationDiagnosticBundleBuilder` ZIP, then verifies:
+hang; an exact `initial → manual_retry → recovered_retry` sequence; and a database child timeout with a real L0
+prefix. Each of the 13 package fixtures builds and extracts a production `MigrationDiagnosticBundleBuilder` ZIP,
+then verifies:
 
 - the exact four-entry allowlist and regular top-level files;
 - strict parsing of the manifest, event, and database documents;
-- fixed category, code, scope, migrator, and phase signals needed to locate the failure;
+- fixed category, code, scope, migrator, and phase signals needed to locate the failure in every recorded attempt;
 - numeric-only oversized-payload evidence and ordered retry triggers;
 - completed, unavailable, and partial database diagnostic states;
 - manifest byte accounting and the 1 MiB uncompressed Scheme A limit;
@@ -527,9 +528,17 @@ extracts a production `MigrationDiagnosticBundleBuilder` ZIP, then verifies:
 A fourteenth case forces archive finalization to fail and verifies the fixed `archive_failed` result, preservation of
 an existing destination, and cleanup of the sibling `.partial` file. It intentionally produces no ZIP to score.
 
+The oversized-BLOB fixture no longer fabricates a message `Buffer`. It reuses the production knowledge-vector
+descriptor and failure-only row producer for the real `rebuildMaterial()` embedding BLOB boundary, represented as a
+completed session with warnings so the ZIP is downloadable from the completed screen. That producer computes only
+`vector.length × 4`, returns frozen opaque byte-length tokens, and neither reads vector values nor allocates a second
+BLOB-sized byte array. The gate path fixture uses `EACCES` at `gate/resolve_paths`, and the retry fixture asserts the
+same fixed failure location independently in the initial, manual, and recovered attempts.
+
 Repository result: `MigrationDiagnosticAcceptance.integration.test.ts` passes 14/14 cases. This establishes the
 Scheme A baseline for the later blind A/B comparison; it does **not** select Scheme A for production. Scheme B
-fixtures, privacy review, and comparative triage remain pending.
+fixtures, privacy review, and comparative triage remain pending. The live packaged migration-window smoke test also
+remains unexecuted and is not counted as repository acceptance.
 
 ## 16. Testing and verification
 

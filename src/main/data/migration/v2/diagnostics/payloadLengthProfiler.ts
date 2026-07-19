@@ -31,6 +31,11 @@ interface JsonMeasurement {
   readonly truncated: boolean
 }
 
+interface ByteLengthMeasurement {
+  readonly byteLength: number
+  readonly truncated: boolean
+}
+
 interface SlotAccumulator {
   readonly slot: PayloadProfileSlot
   readonly kinds: Set<ProfiledKind>
@@ -52,6 +57,23 @@ const objectHasOwn = Object.hasOwn
 const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype)
 const typedArrayTagGetter = Object.getOwnPropertyDescriptor(typedArrayPrototype, Symbol.toStringTag)?.get
 const typedArrayByteLengthGetter = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'byteLength')?.get
+const opaqueByteLengthMeasurements = new WeakMap<object, ByteLengthMeasurement>()
+
+/**
+ * Create a frozen, content-free token for a byte length already known by the
+ * caller. The module-private WeakMap is the only place that associates the
+ * token with a number, so the value cannot carry payload bytes or serialize
+ * diagnostic content. Invalid lengths saturate and mark traversal truncated.
+ */
+export function createPayloadByteLengthMeasurement(byteLength: number): object {
+  const token = Object.freeze(Object.create(null)) as object
+  const isExact = Number.isSafeInteger(byteLength) && byteLength >= 0
+  opaqueByteLengthMeasurements.set(token, {
+    byteLength: isExact ? byteLength : LENGTH_SATURATION,
+    truncated: !isExact
+  })
+  return token
+}
 
 function saturatingAdd(left: number, right: number): number {
   return Math.min(LENGTH_SATURATION, left + right)
@@ -183,6 +205,15 @@ function uint8ArrayByteLength(value: unknown): number | undefined {
   } catch {
     return undefined
   }
+}
+
+function measureByteLength(value: unknown): ByteLengthMeasurement | undefined {
+  if (isObjectLike(value)) {
+    const opaqueMeasurement = opaqueByteLengthMeasurements.get(value)
+    if (opaqueMeasurement !== undefined) return opaqueMeasurement
+  }
+  const byteLength = uint8ArrayByteLength(value)
+  return byteLength === undefined ? undefined : { byteLength, truncated: false }
 }
 
 function truncatedJsonMeasurement(included: boolean): JsonMeasurement {
@@ -458,7 +489,7 @@ export function profilePayloadLengths(
       const descriptor = ownDataDescriptor(row, accumulator.slot)
       if (!descriptor || descriptor.value === null || descriptor.value === undefined) continue
       const value = descriptor.value
-      const byteLength = uint8ArrayByteLength(value)
+      const byteMeasurement = measureByteLength(value)
 
       if (typeof value === 'string') {
         accumulator.kinds.add('string')
@@ -469,11 +500,13 @@ export function profilePayloadLengths(
           profiledBytes = LENGTH_SATURATION
           knownRowBytes = LENGTH_SATURATION
         }
-      } else if (byteLength !== undefined) {
+      } else if (byteMeasurement !== undefined) {
         accumulator.kinds.add('bytes')
-        const bytes = Math.min(LENGTH_SATURATION, byteLength)
+        const bytes = Math.min(LENGTH_SATURATION, byteMeasurement.byteLength)
         accumulator.bytesTotal = saturatingAdd(accumulator.bytesTotal, bytes)
         accumulator.bytesMax = Math.max(accumulator.bytesMax, bytes)
+        accumulator.truncated ||= byteMeasurement.truncated
+        context.truncated ||= byteMeasurement.truncated
         profiledBytes = saturatingAdd(profiledBytes, bytes)
         knownRowBytes = saturatingAdd(knownRowBytes, bytes)
       } else if (isArray(value) || (isObjectLike(value) && isPlainObject(value))) {
@@ -502,7 +535,7 @@ export function profilePayloadLengths(
       const descriptor = ownDataDescriptor(row, accumulator.slot)
       if (!descriptor || descriptor.value === null || descriptor.value === undefined) continue
       const value = descriptor.value
-      const byteLength = uint8ArrayByteLength(value)
+      const byteMeasurement = measureByteLength(value)
       let fieldBytes = 0
 
       if (typeof value === 'string') {
@@ -516,8 +549,10 @@ export function profilePayloadLengths(
           fieldBytes = measured.bytes
           profiledBytes = saturatingAdd(profiledBytes, measured.bytes)
         }
-      } else if (byteLength !== undefined) {
-        fieldBytes = Math.min(LENGTH_SATURATION, byteLength)
+      } else if (byteMeasurement !== undefined) {
+        fieldBytes = Math.min(LENGTH_SATURATION, byteMeasurement.byteLength)
+        accumulator.truncated ||= byteMeasurement.truncated
+        context.truncated ||= byteMeasurement.truncated
       } else if (isArray(value) || (isObjectLike(value) && isPlainObject(value))) {
         const measured = measureJson(value, 0, new Set(), context)
         accumulator.jsonTotalBytes = saturatingAdd(accumulator.jsonTotalBytes, measured.serializedBytes)

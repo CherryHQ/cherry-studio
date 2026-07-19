@@ -127,4 +127,4 @@ export {
 } from './migrationDiagnosticsSchemas'
 export type { ClassifiedMigrationError } from './migrationErrorClassifier'
 export { classifyMigrationError } from './migrationErrorClassifier'
-export { profilePayloadLengths } from './payloadLengthProfiler'
+export { createPayloadByteLengthMeasurement, profilePayloadLengths } from './payloadLengthProfiler'

@@ -70,7 +70,8 @@ export const PAYLOAD_PROFILE_TARGETS = [
   'agent_message',
   'agent_workspace',
   'agent_relation',
-  'knowledge_vector_status'
+  'knowledge_vector_status',
+  'knowledge_vector_rebuild'
 ] as const
 
 export const PAYLOAD_PROFILE_SLOTS = [
@@ -120,7 +121,8 @@ export const PAYLOAD_PROFILE_SLOTS = [
   'trigger',
   'jobInputTemplate',
   'catchUpPolicy',
-  'error'
+  'error',
+  'vectorBlob'
 ] as const
 
 export const LENGTH_BUCKETS = ['0', '1-256', '257-4096', '4097-65536', '65537-262144', '262145+'] as const

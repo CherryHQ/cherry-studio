@@ -3,6 +3,7 @@ import * as os from 'node:os'
 import path from 'node:path'
 
 import { stripOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
+import { BetterSqlite3Driver } from '@main/features/knowledge/vectorstore/indexStore/BetterSqlite3Driver'
 import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
 import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
 import { encodeVectorBlob } from '@main/features/knowledge/vectorstore/indexStore/vectorBlob'
@@ -14,6 +15,7 @@ import {
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { profilePayloadLengths } from '../../diagnostics'
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 
@@ -52,7 +54,8 @@ vi.mock('@main/utils/legacyFile', () => ({
   }
 }))
 
-const { KnowledgeVectorMigrator } = await import('../KnowledgeVectorMigrator')
+const { KnowledgeVectorMigrator, KNOWLEDGE_VECTOR_REBUILD_PROFILE, createKnowledgeVectorRebuildProfileRows } =
+  await import('../KnowledgeVectorMigrator')
 
 const LEGACY_KNOWLEDGE_BASE_ID = 'kb-1'
 const MIGRATED_KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
@@ -1040,6 +1043,37 @@ describe('KnowledgeVectorMigrator', () => {
   })
 
   describe('execute + validate', () => {
+    it('describes rebuilt vector BLOB bytes from vector length without reading vector values', () => {
+      const vector = new Proxy([] as number[], {
+        get(_target, property) {
+          if (property === 'length') return 75_000
+          throw new Error(`Unexpected vector value access: ${String(property)}`)
+        }
+      })
+
+      const rows = createKnowledgeVectorRebuildProfileRows({
+        embeddings: [{ embeddingTextHash: 'hash', vector }]
+      })
+
+      expect(rows).toHaveLength(1)
+      expect(Reflect.ownKeys(rows[0].vectorBlob)).toEqual([])
+      expect(ArrayBuffer.isView(rows[0].vectorBlob)).toBe(false)
+      expect(profilePayloadLengths(rows, KNOWLEDGE_VECTOR_REBUILD_PROFILE)).toMatchObject({
+        target: 'knowledge_vector_rebuild',
+        rowCountBucket: '1',
+        profiledByteLengthBucket: '262145+',
+        maxProfiledRowByteLengthBucket: '262145+',
+        slots: [
+          {
+            slot: 'vectorBlob',
+            kind: 'bytes',
+            totalByteLengthBucket: '262145+',
+            maxByteLengthBucket: '262145+'
+          }
+        ]
+      })
+    })
+
     it('records bounded fixed status metadata when a degradation update is too large', async () => {
       const sqliteError = Object.assign(new Error('PRIVATE_VECTOR_PATH_/Users/alice'), { code: 'SQLITE_TOOBIG' })
       const recordEvent = vi.fn()
@@ -1072,6 +1106,88 @@ describe('KnowledgeVectorMigrator', () => {
         })
       )
       expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_VECTOR_PATH')
+      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+    })
+
+    it('records the real embedding BLOB insert rejection with a no-copy vector byte profile', async () => {
+      const vector = Array.from({ length: 75_000 }, (_, index) => (index % 97) / 97)
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-large-vector-0',
+          pageContent: 'large vector chunk',
+          uniqueLoaderId: 'loader-large-vector',
+          source: '/tmp/large-vector.md',
+          vector
+        }
+      ])
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase({ dimensions: vector.length })],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-large-vector' }]
+              }
+            ]
+          }
+        }
+      })
+      const recordEvent = vi.fn()
+      ;(migrationCtx as any).diagnostics = { recordEvent }
+      ;(migrationCtx as any).logger = { error: vi.fn() }
+      const original = Object.assign(new Error('PRIVATE_VECTOR_INSERT_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+      const realExecute = BetterSqlite3Driver.prototype.execute
+      let embeddingInsertCount = 0
+      vi.spyOn(BetterSqlite3Driver.prototype, 'execute').mockImplementation(function (
+        this: BetterSqlite3Driver,
+        sql,
+        args = []
+      ) {
+        if (sql.includes('INSERT OR IGNORE INTO embedding')) {
+          embeddingInsertCount += 1
+          const vectorBlob = args[1]
+          expect(vectorBlob).toBeInstanceOf(Uint8Array)
+          expect((vectorBlob as Uint8Array).byteLength).toBe(300_000)
+          throw original
+        }
+        return realExecute.call(this, sql, args)
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      const result = await migrator.execute(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(result.warnings).toHaveLength(1)
+      expect(embeddingInsertCount).toBe(1)
+      expect(recordEvent).toHaveBeenCalledWith({
+        scope: 'migrator',
+        phase: 'execute',
+        state: 'failed',
+        category: 'database_write',
+        code: 'sqlite_too_big',
+        causeDepth: 0,
+        migratorId: 'knowledge_vector',
+        payloadProfile: {
+          target: 'knowledge_vector_rebuild',
+          rowCountBucket: '1',
+          profiledByteLengthBucket: '262145+',
+          maxProfiledRowByteLengthBucket: '262145+',
+          traversal: 'complete',
+          slots: [
+            {
+              slot: 'vectorBlob',
+              kind: 'bytes',
+              totalByteLengthBucket: '262145+',
+              maxByteLengthBucket: '262145+'
+            }
+          ]
+        }
+      })
+      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_VECTOR_INSERT')
       expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
     })
 

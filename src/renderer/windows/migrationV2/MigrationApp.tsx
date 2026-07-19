@@ -430,6 +430,47 @@ const MigrationApp: React.FC = () => {
 
   const showRail = stage !== 'version_incompatible'
 
+  const renderDiagnosticsPanel = () =>
+    diagnosticSaveResult?.status === 'saved' ? (
+      <div className="space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3">
+        <div>
+          <p className="font-medium text-foreground text-sm">{t('migration.diagnostics.saved.title')}</p>
+          <p className="mt-1 text-foreground-muted text-xs leading-relaxed">
+            {t('migration.diagnostics.saved.description')}
+          </p>
+        </div>
+        <MigrationDiagnosticsSavedActions
+          disabled={isRunningDiagnosticSupportAction}
+          onOpenEmail={() => void runDiagnosticSupportAction(actions.openEmail)}
+          onShowInFolder={() => void runDiagnosticSupportAction(actions.showInFolder)}
+          onCopyEmail={() => void runDiagnosticSupportAction(actions.copyEmail)}
+        />
+        {diagnosticSupportActionFailed && (
+          <p className="text-center text-error-text text-xs" role="alert">
+            {t('migration.diagnostics.actions.failed')}
+          </p>
+        )}
+      </div>
+    ) : (
+      <div className="space-y-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full gap-2"
+          loading={isSavingDiagnostics}
+          disabled={isSavingDiagnostics}
+          onClick={() => void saveDiagnostics()}>
+          <Download size={14} />
+          {t('migration.diagnostics.save')}
+        </Button>
+        {diagnosticSaveResult?.status === 'failed' && (
+          <p className="text-center text-error-text text-xs" role="alert">
+            {t(diagnosticFailureMessageKey[diagnosticSaveResult.code])}
+          </p>
+        )}
+      </div>
+    )
+
   const renderStage = () => {
     switch (stage) {
       case 'introduction':
@@ -559,32 +600,40 @@ const MigrationApp: React.FC = () => {
               </div>
             )}
 
-            <Button variant="default" size="lg" className="w-full gap-2" onClick={() => actions.restart()}>
+            <Button
+              variant="default"
+              size="lg"
+              className="w-full gap-2"
+              disabled={isSavingDiagnostics}
+              onClick={() => actions.restart()}>
               <RotateCcw size={14} />
               {t('migration.buttons.restart')}
             </Button>
 
             {warnings.length > 0 && (
-              <Accordion
-                type="single"
-                collapsible
-                className="rounded-xl border border-warning-bg-hover bg-warning-bg px-4">
-                <AccordionItem value="migration-warnings" className="border-0 first:border-t-0">
-                  <AccordionTrigger className="py-3 font-medium text-sm text-warning hover:no-underline">
-                    {t('migration.completed.warning_heading', { count: warnings.length })}
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-0 pb-3" contentClassName="text-foreground-secondary">
-                    <p className="text-xs leading-relaxed">{t('migration.completed.warning_description')}</p>
-                    <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs leading-relaxed">
-                      {warnings.map((warning, index) => (
-                        <li key={index} className="wrap-break-words">
-                          {warning}
-                        </li>
-                      ))}
-                    </ul>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              <>
+                <Accordion
+                  type="single"
+                  collapsible
+                  className="rounded-xl border border-warning-bg-hover bg-warning-bg px-4">
+                  <AccordionItem value="migration-warnings" className="border-0 first:border-t-0">
+                    <AccordionTrigger className="py-3 font-medium text-sm text-warning hover:no-underline">
+                      {t('migration.completed.warning_heading', { count: warnings.length })}
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-0 pb-3" contentClassName="text-foreground-secondary">
+                      <p className="text-xs leading-relaxed">{t('migration.completed.warning_description')}</p>
+                      <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs leading-relaxed">
+                        {warnings.map((warning, index) => (
+                          <li key={index} className="wrap-break-words">
+                            {warning}
+                          </li>
+                        ))}
+                      </ul>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+                {renderDiagnosticsPanel()}
+              </>
             )}
           </div>
         )
@@ -606,45 +655,7 @@ const MigrationApp: React.FC = () => {
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
-            {diagnosticSaveResult?.status === 'saved' ? (
-              <div className="space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3">
-                <div>
-                  <p className="font-medium text-foreground text-sm">{t('migration.diagnostics.saved.title')}</p>
-                  <p className="mt-1 text-foreground-muted text-xs leading-relaxed">
-                    {t('migration.diagnostics.saved.description')}
-                  </p>
-                </div>
-                <MigrationDiagnosticsSavedActions
-                  disabled={isRunningDiagnosticSupportAction}
-                  onOpenEmail={() => void runDiagnosticSupportAction(actions.openEmail)}
-                  onShowInFolder={() => void runDiagnosticSupportAction(actions.showInFolder)}
-                  onCopyEmail={() => void runDiagnosticSupportAction(actions.copyEmail)}
-                />
-                {diagnosticSupportActionFailed && (
-                  <p className="text-center text-error-text text-xs" role="alert">
-                    {t('migration.diagnostics.actions.failed')}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full gap-2"
-                  loading={isSavingDiagnostics}
-                  disabled={isSavingDiagnostics}
-                  onClick={() => void saveDiagnostics()}>
-                  <Download size={14} />
-                  {t('migration.diagnostics.save')}
-                </Button>
-                {diagnosticSaveResult?.status === 'failed' && (
-                  <p className="text-center text-error-text text-xs" role="alert">
-                    {t(diagnosticFailureMessageKey[diagnosticSaveResult.code])}
-                  </p>
-                )}
-              </div>
-            )}
+            {renderDiagnosticsPanel()}
             <div className="flex items-center gap-2">
               <Button variant="outline" size="lg" disabled={isSavingDiagnostics} onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}

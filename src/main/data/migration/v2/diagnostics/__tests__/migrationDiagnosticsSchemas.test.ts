@@ -6,6 +6,7 @@ import {
   migrationDiagnosticEventSchema,
   migrationDiagnosticsSessionSchema,
   PAYLOAD_PROFILE_SLOTS,
+  PAYLOAD_PROFILE_TARGETS,
   payloadLengthProfileSchema
 } from '../migrationDiagnosticsSchemas'
 
@@ -110,6 +111,7 @@ describe('migrationDiagnosticEventSchema', () => {
   )
 
   it('uses fixed real insert fields for payload profiles', () => {
+    expect(PAYLOAD_PROFILE_TARGETS).toContain('knowledge_vector_rebuild')
     expect(PAYLOAD_PROFILE_SLOTS).toEqual(
       expect.arrayContaining([
         'data',
@@ -123,7 +125,8 @@ describe('migrationDiagnosticEventSchema', () => {
         'group',
         'value',
         'emoji',
-        'jobInputTemplate'
+        'jobInputTemplate',
+        'vectorBlob'
       ])
     )
     expect(PAYLOAD_PROFILE_SLOTS).not.toEqual(

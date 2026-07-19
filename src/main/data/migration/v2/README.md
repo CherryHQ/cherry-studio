@@ -29,7 +29,9 @@ After paths resolve, the coordinator persists a bounded, strict journal at
 `MigrationPaths.diagnosticsJournalFile` (`{userData}/migration-diagnostics-v1.json`). An unfinished failure,
 renderer crash, force quit, or power loss keeps the journal for the next launch and recovered retry. A successful
 migration reconciliation deletes it. The journal contains fixed diagnostic fields only and is never copied into
-the support bundle.
+the support bundle. An `initial` attempt, an in-process `manual_retry`, and a cross-launch `recovered_retry` remain
+separate ordered attempts in the same session; acceptance coverage verifies that the same fixed failure location is
+retained in every step of that three-attempt sequence.
 
 The user-saved Scheme A ZIP has an exact four-file allowlist:
 
@@ -44,10 +46,18 @@ and migration logs, database/WAL/SHM files, the journal, exports, SQL, business 
 credentials, absolute paths, and user content. Database diagnostic failure or timeout is represented by a fixed
 partial/unavailable result and does not prevent the remaining bundle from being saved.
 
-The same save operation is available from renderer migration errors, pre-window native failures, renderer
-crash/unresponsive dialogs, and unfinished-session recovery. After a successful save, the app can open the user's
-external email client with instructions, reveal the ZIP, or copy the support address. It never uploads, sends, or
-attaches the bundle automatically; the user must review and attach the ZIP manually.
+If `KnowledgeIndexStore.rebuildMaterial()` rejects while writing an embedding BLOB, diagnostics profile the real
+`knowledge_vector_rebuild.vectorBlob` boundary. The failure-only producer reads each vector's element count and uses
+the fixed float32 width to create a frozen, content-free byte-length measurement. It does not read vector values or
+allocate a second BLOB-sized `Buffer`/`ArrayBuffer`; the bundle receives only numeric byte buckets. An anomalous or
+overflowing length saturates the bucket and marks traversal truncated without replacing the original write error.
+
+The same save operation is available from renderer migration errors, a completed migration that contains warnings,
+pre-window native failures, renderer crash/unresponsive dialogs, and unfinished-session recovery. A warning-free
+completed migration shows no diagnostics controls. While saving, duplicate save and restart/close actions are
+disabled. After a successful save, the app can open the user's external email client with instructions, reveal the
+ZIP, or copy the support address. It never uploads, sends, or attaches the bundle automatically; the user must review
+and attach the ZIP manually.
 
 The acceptance matrix is in
 [`diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts`](diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts),
