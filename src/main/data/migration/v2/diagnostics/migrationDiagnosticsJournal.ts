@@ -14,6 +14,21 @@ export type MigrationDiagnosticsJournalReadResult =
   | { kind: 'corrupt'; reason: 'unreadable' | 'oversized' | 'invalid' }
   | { kind: 'ok'; journal: MigrationDiagnosticsSession }
 
+export type MigrationDiagnosticsJournalWritePublication = 'not_published' | 'published'
+
+export class MigrationDiagnosticsJournalWriteError extends Error {
+  override readonly name = 'MigrationDiagnosticsJournalWriteError'
+  readonly code = 'journal_write_failed'
+
+  constructor(readonly publication: MigrationDiagnosticsJournalWritePublication) {
+    super(
+      publication === 'published'
+        ? 'Migration diagnostics journal write failed after publication'
+        : 'Migration diagnostics journal write failed before publication'
+    )
+  }
+}
+
 interface JournalOperationOptions {
   readonly platform?: NodeJS.Platform
 }
@@ -36,6 +51,16 @@ function fsyncDirectory(directory: string, platform = process.platform): void {
     fs.fsyncSync(directoryFd)
   } finally {
     fs.closeSync(directoryFd)
+  }
+}
+
+function tightenAndFsyncFile(file: string): void {
+  const fd = fs.openSync(file, 'r')
+  try {
+    fs.fchmodSync(fd, 0o600)
+    fs.fsyncSync(fd)
+  } finally {
+    fs.closeSync(fd)
   }
 }
 
@@ -146,10 +171,10 @@ export function writeMigrationDiagnosticsJournal(
   }
 
   const tmpFile = `${journalFile}.tmp`
-  unlinkIfPresent(tmpFile)
-
   let fd: number | undefined
+  let publication: MigrationDiagnosticsJournalWritePublication = 'not_published'
   try {
+    unlinkIfPresent(tmpFile)
     fd = fs.openSync(tmpFile, 'wx', 0o600)
     const bytes = Buffer.from(serialized, 'utf8')
     let offset = 0
@@ -160,7 +185,9 @@ export function writeMigrationDiagnosticsJournal(
     fs.closeSync(fd)
     fd = undefined
     fs.renameSync(tmpFile, journalFile)
-  } catch (error) {
+    publication = 'published'
+    fsyncDirectory(path.dirname(journalFile), options.platform)
+  } catch {
     if (fd !== undefined) {
       try {
         fs.closeSync(fd)
@@ -168,11 +195,15 @@ export function writeMigrationDiagnosticsJournal(
         // Preserve the first failure while still making a best-effort close.
       }
     }
-    unlinkIfPresent(tmpFile)
-    throw error
+    if (publication === 'not_published') {
+      try {
+        unlinkIfPresent(tmpFile)
+      } catch {
+        // Preserve a stable write failure even when best-effort tmp cleanup also fails.
+      }
+    }
+    throw new MigrationDiagnosticsJournalWriteError(publication)
   }
-
-  fsyncDirectory(path.dirname(journalFile), options.platform)
 }
 
 function formatUtcBasicTimestamp(date: Date): string {
@@ -284,6 +315,7 @@ export function quarantineCorruptMigrationDiagnosticsJournal(
       throw error
     }
 
+    tightenAndFsyncFile(quarantinedFile)
     fsyncDirectory(directory, options.platform)
     unlinkIfPresent(journalFile)
     fsyncDirectory(directory, options.platform)

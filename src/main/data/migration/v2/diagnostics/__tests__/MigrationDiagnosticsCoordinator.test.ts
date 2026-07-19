@@ -1,8 +1,19 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import fs, { existsSync, fsyncSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>()
+  return {
+    ...actual,
+    default: {
+      ...actual,
+      fsyncSync: vi.fn(actual.fsyncSync)
+    }
+  }
+})
 
 import type { MigrationPaths } from '../../core/MigrationPaths'
 import { MigrationDiagnosticsCoordinator } from '../MigrationDiagnosticsCoordinator'
@@ -115,12 +126,14 @@ function oldSession(overrides: Partial<MigrationDiagnosticsSession> = {}): Migra
 }
 
 beforeEach(() => {
+  vi.clearAllMocks()
   testDir = mkdtempSync(path.join(tmpdir(), 'cs-migration-diagnostics-coordinator-'))
   now = new Date('2026-07-19T10:00:00.000Z')
   nextId = 0
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   rmSync(testDir, { recursive: true, force: true })
 })
 
@@ -167,6 +180,36 @@ describe('MigrationDiagnosticsCoordinator attachment and recovery', () => {
 
   it('quarantines corrupt input and persists only the fresh safe session', async () => {
     writeFileSync(paths().diagnosticsJournalFile, '{"rawError":"sk-secret"')
+    const subject = coordinator()
+
+    subject.attachPaths(paths())
+
+    expect(subject.recovered).toBe(false)
+    expect((await subject.snapshot()).sessionId).toBe('random-1')
+    expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile).kind).toBe('ok')
+    expect(readdirSync(testDir).filter((name) => name.includes('.corrupt.'))).toHaveLength(1)
+  })
+
+  it('quarantines a completed journal that contradictorily retains an active attempt', async () => {
+    const contradictoryJournal = {
+      version: 1,
+      sessionId: 'contradictory-session',
+      appVersion: '1.9.12',
+      platform: 'win32',
+      arch: 'x64',
+      startedAt: '2026-07-19T08:00:00.000Z',
+      state: 'completed',
+      attempts: [
+        {
+          id: 'unfinished-attempt',
+          trigger: 'initial',
+          startedAt: '2026-07-19T08:01:00.000Z',
+          outcome: 'in_progress',
+          events: []
+        }
+      ]
+    }
+    writeFileSync(paths().diagnosticsJournalFile, JSON.stringify(contradictoryJournal), { mode: 0o600 })
     const subject = coordinator()
 
     subject.attachPaths(paths())
@@ -276,6 +319,47 @@ describe('MigrationDiagnosticsCoordinator attempts and retention', () => {
     expect((await subject.snapshot()).attempts[0]?.events).toEqual([])
     const persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
     expect(persisted.kind === 'ok' && persisted.journal.attempts[0]?.events).toEqual([])
+  })
+
+  it('adopts a snapshot published before its parent-directory fsync failure', async () => {
+    const subject = coordinator()
+    subject.attachPaths(paths())
+    const rawFailure = 'secret-dirsync-/Users/alice'
+    const fsync = vi.mocked(fs.fsyncSync)
+    fsync.mockImplementationOnce(fsyncSync).mockImplementationOnce(() => {
+      throw new Error(rawFailure)
+    })
+    let failure: unknown
+
+    try {
+      subject.beginAttempt('initial')
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toMatchObject({
+      name: 'MigrationDiagnosticsJournalWriteError',
+      code: 'journal_write_failed',
+      publication: 'published'
+    })
+    expect(failure).toBeInstanceOf(Error)
+    if (!(failure instanceof Error)) {
+      throw new Error('Expected a journal write error')
+    }
+    expect(failure.message).toBe('Migration diagnostics journal write failed after publication')
+    expect(failure.message).not.toContain(rawFailure)
+    expect(failure.message).not.toContain(testDir)
+    fsync.mockImplementation(fsyncSync)
+
+    const published = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(published.kind === 'ok' && published.journal.attempts[0]?.id).toBe('random-2')
+    expect((await subject.snapshot()).attempts[0]?.id).toBe('random-2')
+
+    subject.recordEvent(eventInput())
+
+    expect((await subject.snapshot()).attempts[0]?.events[0]?.sequence).toBe(1)
+    const persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(persisted.kind === 'ok' && persisted.journal.attempts[0]?.events[0]?.sequence).toBe(1)
   })
 
   it('retains at most five newest attempts', async () => {

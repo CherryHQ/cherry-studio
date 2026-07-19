@@ -1,5 +1,7 @@
 import fs, {
+  chmodSync,
   existsSync,
+  fsyncSync,
   linkSync,
   lstatSync,
   mkdtempSync,
@@ -24,9 +26,11 @@ vi.mock('node:fs', async (importOriginal) => {
       openSync: vi.fn(actual.openSync),
       writeSync: vi.fn(actual.writeSync),
       fsyncSync: vi.fn(actual.fsyncSync),
+      fchmodSync: vi.fn(actual.fchmodSync),
       closeSync: vi.fn(actual.closeSync),
       linkSync: vi.fn(actual.linkSync),
-      renameSync: vi.fn(actual.renameSync)
+      renameSync: vi.fn(actual.renameSync),
+      unlinkSync: vi.fn(actual.unlinkSync)
     }
   }
 })
@@ -148,6 +152,62 @@ describe('writeMigrationDiagnosticsJournal', () => {
     expect(existsSync(`${journalFile()}.tmp`)).toBe(false)
     expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'ok', journal: session() })
   })
+
+  it('reports stable typed failures before and after atomic publication', () => {
+    const rawBeforeFailure = 'secret-before-/Users/alice'
+    vi.mocked(fs.renameSync).mockImplementationOnce(() => {
+      throw new Error(rawBeforeFailure)
+    })
+    let beforeFailure: unknown
+
+    try {
+      writeMigrationDiagnosticsJournal(journalFile(), session(), { platform: 'darwin' })
+    } catch (error) {
+      beforeFailure = error
+    }
+
+    expect(beforeFailure).toMatchObject({
+      name: 'MigrationDiagnosticsJournalWriteError',
+      code: 'journal_write_failed',
+      publication: 'not_published'
+    })
+    expect(beforeFailure).toBeInstanceOf(Error)
+    if (!(beforeFailure instanceof Error)) {
+      throw new Error('Expected a journal write error')
+    }
+    expect(beforeFailure.message).toBe('Migration diagnostics journal write failed before publication')
+    expect(beforeFailure.message).not.toContain(rawBeforeFailure)
+    expect(beforeFailure.message).not.toContain(testDir)
+    expect(existsSync(journalFile())).toBe(false)
+
+    const rawAfterFailure = 'secret-after-/Users/alice'
+    vi.mocked(fs.fsyncSync)
+      .mockImplementationOnce(fsyncSync)
+      .mockImplementationOnce(() => {
+        throw new Error(rawAfterFailure)
+      })
+    let afterFailure: unknown
+
+    try {
+      writeMigrationDiagnosticsJournal(journalFile(), session(), { platform: 'darwin' })
+    } catch (error) {
+      afterFailure = error
+    }
+
+    expect(afterFailure).toMatchObject({
+      name: 'MigrationDiagnosticsJournalWriteError',
+      code: 'journal_write_failed',
+      publication: 'published'
+    })
+    expect(afterFailure).toBeInstanceOf(Error)
+    if (!(afterFailure instanceof Error)) {
+      throw new Error('Expected a journal write error')
+    }
+    expect(afterFailure.message).toBe('Migration diagnostics journal write failed after publication')
+    expect(afterFailure.message).not.toContain(rawAfterFailure)
+    expect(afterFailure.message).not.toContain(testDir)
+    expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'ok', journal: session() })
+  })
 })
 
 describe('corrupt quarantine', () => {
@@ -188,6 +248,34 @@ describe('corrupt quarantine', () => {
     expect(JSON.stringify(result)).not.toContain(testDir)
     expect(JSON.stringify(result)).not.toContain(racerCanary)
     expect(JSON.stringify(result)).not.toContain(corruptJournal)
+  })
+
+  it('tightens a permissive source inode to 0600 and durably syncs it before removing live', () => {
+    const quarantineFile = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json')
+    writeFileSync(journalFile(), 'corrupt')
+    chmodSync(journalFile(), 0o644)
+    const link = vi.mocked(fs.linkSync)
+    const open = vi.mocked(fs.openSync)
+    const fchmod = vi.mocked(fs.fchmodSync)
+    const fsync = vi.mocked(fs.fsyncSync)
+    const close = vi.mocked(fs.closeSync)
+    const unlink = vi.mocked(fs.unlinkSync)
+
+    quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now, platform: 'darwin' })
+
+    expect(lstatSync(quarantineFile).mode & 0o777).toBe(0o600)
+    expect(link.mock.invocationCallOrder[0]).toBeLessThan(open.mock.invocationCallOrder[0])
+    expect(open.mock.calls[0]).toEqual([quarantineFile, 'r'])
+    expect(open.mock.invocationCallOrder[0]).toBeLessThan(fchmod.mock.invocationCallOrder[0])
+    expect(fchmod.mock.calls[0]?.[1]).toBe(0o600)
+    expect(fchmod.mock.invocationCallOrder[0]).toBeLessThan(fsync.mock.invocationCallOrder[0])
+    expect(fsync.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[0])
+    expect(close.mock.invocationCallOrder[0]).toBeLessThan(open.mock.invocationCallOrder[1])
+    expect(open.mock.calls[1]).toEqual([testDir, 'r'])
+    expect(close.mock.invocationCallOrder[1]).toBeLessThan(unlink.mock.invocationCallOrder[0])
+    expect(unlink.mock.calls[0]?.[0]).toBe(journalFile())
+    expect(unlink.mock.invocationCallOrder[0]).toBeLessThan(open.mock.invocationCallOrder[2])
+    expect(open.mock.calls[2]).toEqual([testDir, 'r'])
   })
 
   it('keeps at most two matching regular copies and evicts the oldest when adding a third', () => {

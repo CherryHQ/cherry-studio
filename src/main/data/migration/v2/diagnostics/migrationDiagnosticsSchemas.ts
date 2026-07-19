@@ -339,6 +339,21 @@ export const migrationDiagnosticsSessionSchema = z
     if (activeAttemptCount > 1) {
       ctx.addIssue({ code: 'custom', message: 'A session may have only one active attempt', path: ['attempts'] })
     }
+    const newestAttempt = session.attempts.at(-1)
+    if (session.state === 'completed' && newestAttempt?.outcome !== 'completed') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Completed session must end with a completed attempt',
+        path: ['attempts']
+      })
+    }
+    if (session.state === 'failed' && newestAttempt?.outcome !== 'failed' && newestAttempt?.outcome !== 'interrupted') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Failed session must end with a failed or interrupted attempt',
+        path: ['attempts']
+      })
+    }
     if (totalEvents > MIGRATION_DIAGNOSTICS_MAX_EVENTS) {
       ctx.addIssue({ code: 'custom', message: 'Session event retention limit exceeded', path: ['attempts'] })
     }

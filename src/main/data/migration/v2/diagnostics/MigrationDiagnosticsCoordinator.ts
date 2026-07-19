@@ -7,6 +7,7 @@ import {
   cleanupMigrationDiagnosticsJournal,
   garbageCollectMigrationDiagnosticsQuarantines,
   MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES,
+  MigrationDiagnosticsJournalWriteError,
   quarantineCorruptMigrationDiagnosticsJournal,
   readMigrationDiagnosticsJournal,
   writeMigrationDiagnosticsJournal
@@ -356,7 +357,14 @@ export class MigrationDiagnosticsCoordinator {
   private commit(candidate: MigrationDiagnosticsSession): void {
     const retained = retainedSession(candidate)
     if (this.attachedPaths !== null) {
-      writeMigrationDiagnosticsJournal(this.attachedPaths.diagnosticsJournalFile, retained)
+      try {
+        writeMigrationDiagnosticsJournal(this.attachedPaths.diagnosticsJournalFile, retained)
+      } catch (error) {
+        if (error instanceof MigrationDiagnosticsJournalWriteError && error.publication === 'published') {
+          this.currentSession = retained
+        }
+        throw error
+      }
     }
     this.currentSession = retained
   }

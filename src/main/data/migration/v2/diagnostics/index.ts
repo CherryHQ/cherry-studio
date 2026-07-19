@@ -4,11 +4,15 @@ export type {
   MigrationDiagnosticsSnapshot
 } from './MigrationDiagnosticsCoordinator'
 export { MigrationDiagnosticsCoordinator } from './MigrationDiagnosticsCoordinator'
-export type { MigrationDiagnosticsJournalReadResult } from './migrationDiagnosticsJournal'
+export type {
+  MigrationDiagnosticsJournalReadResult,
+  MigrationDiagnosticsJournalWritePublication
+} from './migrationDiagnosticsJournal'
 export {
   cleanupMigrationDiagnosticsJournal,
   garbageCollectMigrationDiagnosticsQuarantines,
   MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES,
+  MigrationDiagnosticsJournalWriteError,
   quarantineCorruptMigrationDiagnosticsJournal,
   readMigrationDiagnosticsJournal,
   writeMigrationDiagnosticsJournal

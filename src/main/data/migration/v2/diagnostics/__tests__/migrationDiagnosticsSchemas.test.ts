@@ -159,6 +159,42 @@ describe('migrationDiagnosticsSessionSchema', () => {
     expect(migrationDiagnosticsSessionSchema.safeParse(terminalWithoutEnd).success).toBe(false)
   })
 
+  it('requires terminal session states to agree with the newest terminal attempt', () => {
+    const inProgressAttempt = {
+      id: 'attempt-1',
+      trigger: 'initial',
+      startedAt: '2026-07-19T10:01:00.000Z',
+      outcome: 'in_progress',
+      events: []
+    }
+    const completedAttempt = {
+      ...validSession.attempts[0],
+      outcome: 'completed',
+      events: [{ ...terminalEvent, state: 'completed' }]
+    }
+
+    expect(
+      migrationDiagnosticsSessionSchema.safeParse({
+        ...validSession,
+        state: 'completed',
+        attempts: [inProgressAttempt]
+      }).success
+    ).toBe(false)
+    expect(
+      migrationDiagnosticsSessionSchema.safeParse({ ...validSession, state: 'failed', attempts: [inProgressAttempt] })
+        .success
+    ).toBe(false)
+    expect(migrationDiagnosticsSessionSchema.safeParse({ ...validSession, state: 'completed' }).success).toBe(false)
+    expect(
+      migrationDiagnosticsSessionSchema.safeParse({ ...validSession, state: 'failed', attempts: [completedAttempt] })
+        .success
+    ).toBe(false)
+    expect(
+      migrationDiagnosticsSessionSchema.safeParse({ ...validSession, state: 'active', attempts: [inProgressAttempt] })
+        .success
+    ).toBe(true)
+  })
+
   it('rejects an end time before the attempt or its terminal event', () => {
     const candidate = {
       ...validSession,
