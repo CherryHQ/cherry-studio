@@ -297,6 +297,8 @@ function measureJson(
     if (!names) {
       context.truncated = true
       truncated = true
+    } else if (deadlineExceeded(context)) {
+      truncated = true
     } else {
       let includedProperties = 0
       for (const name of names) {
@@ -306,6 +308,10 @@ function measureJson(
           break
         }
         const descriptor = ownDataDescriptor(value, name)
+        if (deadlineExceeded(context)) {
+          truncated = true
+          break
+        }
         if (!descriptor?.enumerable) continue
         const child = measureJson(descriptor.value, depth + 1, ancestors, context)
         truncated ||= child.truncated

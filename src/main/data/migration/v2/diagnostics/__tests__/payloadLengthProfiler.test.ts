@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { payloadLengthProfileSchema, type PayloadProfileDescriptor } from '../migrationDiagnosticsSchemas'
 import { profilePayloadLengths } from '../payloadLengthProfiler'
 
 const messageContent = { target: 'message', fields: ['content'] } as const satisfies PayloadProfileDescriptor
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('profilePayloadLengths', () => {
   it('profiles UTF-8 string character and byte buckets', () => {
@@ -187,6 +191,41 @@ describe('profilePayloadLengths', () => {
     })
 
     expect(result.traversal).toBe('truncated')
+  })
+
+  it('checks the deadline after collecting plain-object property names', () => {
+    let clockReads = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => (++clockReads >= 5 ? 6 : 0))
+
+    const result = profilePayloadLengths([{ metadata: {} }], {
+      target: 'file_entry',
+      fields: ['metadata']
+    })
+
+    expect(result.traversal).toBe('truncated')
+    expect(result.slots[0]).toMatchObject({ kind: 'json', traversal: 'truncated' })
+  })
+
+  it('checks the deadline while skipping accessor properties without executing getters', () => {
+    let clockReads = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => (++clockReads >= 6 ? 6 : 0))
+    let getterCalls = 0
+    const metadata = Object.defineProperty({}, 'secret', {
+      enumerable: true,
+      get() {
+        getterCalls += 1
+        return 'private'
+      }
+    })
+
+    const result = profilePayloadLengths([{ metadata }], {
+      target: 'file_entry',
+      fields: ['metadata']
+    })
+
+    expect(getterCalls).toBe(0)
+    expect(result.traversal).toBe('truncated')
+    expect(result.slots[0]).toMatchObject({ kind: 'json', traversal: 'truncated' })
   })
 
   it('skips accessors without executing them', () => {
