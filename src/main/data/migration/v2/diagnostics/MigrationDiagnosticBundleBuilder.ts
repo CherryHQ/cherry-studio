@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
+import { crc32 } from 'node:zlib'
 
 import { ZipArchive } from 'archiver'
 import StreamZip from 'node-stream-zip'
@@ -530,10 +531,12 @@ function validateCanonicalZipStructure(
       const compressedBytes = archive.readUInt32LE(centralCursor + 20)
       const uncompressedBytes = archive.readUInt32LE(centralCursor + 24)
       const localOffset = archive.readUInt32LE(centralCursor + 42)
+      const centralCrc = archive.readUInt32LE(centralCursor + 16)
       if (
         compressedBytes === 0xffffffff ||
         uncompressedBytes === 0xffffffff ||
         localOffset === 0xffffffff ||
+        centralCrc !== crc32(expected.buffer) >>> 0 ||
         uncompressedBytes !== expected.buffer.byteLength
       ) {
         return false
@@ -542,7 +545,7 @@ function validateCanonicalZipStructure(
         name,
         flags: archive.readUInt16LE(centralCursor + 8),
         method: archive.readUInt16LE(centralCursor + 10),
-        crc: archive.readUInt32LE(centralCursor + 16),
+        crc: centralCrc,
         compressedBytes,
         uncompressedBytes,
         localOffset

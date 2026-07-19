@@ -416,6 +416,19 @@ describe('strict diagnostic ZIP integration', () => {
       }
     ],
     [
+      'matching central and descriptor CRCs that disagree with the unchanged payload',
+      (archive) => {
+        const copy = Buffer.from(archive)
+        const first = parseProductionZipLayout(copy).entries[0]
+        if (first === undefined) throw new Error('Expected first central entry')
+        const descriptorOffset = firstDescriptorOffset(copy)
+        const changedCrc = (copy.readUInt32LE(first.centralOffset + 16) ^ 1) >>> 0
+        copy.writeUInt32LE(changedCrc, first.centralOffset + 16)
+        copy.writeUInt32LE(changedCrc, descriptorOffset + 4)
+        return copy
+      }
+    ],
+    [
       'a descriptor compressed size that disagrees with central size',
       (archive) => {
         const copy = Buffer.from(archive)
