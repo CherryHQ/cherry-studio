@@ -47,10 +47,13 @@ credentials, absolute paths, and user content. Database diagnostic failure or ti
 partial/unavailable result and does not prevent the remaining bundle from being saved.
 
 If `KnowledgeIndexStore.rebuildMaterial()` rejects while writing an embedding BLOB, diagnostics profile the real
-`knowledge_vector_rebuild.vectorBlob` boundary. The failure-only producer reads each vector's element count and uses
-the fixed float32 width to create a frozen, content-free byte-length measurement. It does not read vector values or
-allocate a second BLOB-sized `Buffer`/`ArrayBuffer`; the bundle receives only numeric byte buckets. An anomalous or
-overflowing length saturates the bucket and marks traversal truncated without replacing the original write error.
+`knowledge_vector_rebuild.vectorBlob` boundary. The failure-only producer first returns an O(1) lazy row source, then
+the profiler reads vector element counts only for its bounded sample and uses the fixed float32 width to create
+frozen, content-free byte-length measurements. The source preserves the real embedding count for `rowCountBucket`,
+does not read vector values, and never allocates a second BLOB-sized `Buffer`/`ArrayBuffer`. If the deadline or row
+budget truncates sampling, the numeric total/max buckets describe only that partial sample and `traversal` is
+`truncated`. An anomalous or overflowing length also saturates the bucket and marks traversal truncated without
+replacing the original write error.
 
 The same save operation is available from renderer migration errors, a completed migration that contains warnings,
 pre-window native failures, renderer crash/unresponsive dialogs, and unfinished-session recovery. A warning-free

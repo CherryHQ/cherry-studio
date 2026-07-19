@@ -1,5 +1,5 @@
 ---
-title: Migration failures can save a diagnostic bundle
+title: Migration failures or warnings can save a diagnostic bundle
 category: data-migration
 severity: notice
 introduced_in_pr: TBD
@@ -8,8 +8,8 @@ date: 2026-07-20
 
 ## What changed
 
-When the v1-to-v2 migration fails, Cherry Studio can now save one diagnostic ZIP from the migration page, an early
-native failure dialog, a renderer crash or hang, or recovery of an unfinished migration.
+When the v1-to-v2 migration fails or completes with warnings, Cherry Studio can now save one diagnostic ZIP from the
+migration page, an early native failure dialog, a renderer crash or hang, or recovery of an unfinished migration.
 
 ## Why this matters to the user
 

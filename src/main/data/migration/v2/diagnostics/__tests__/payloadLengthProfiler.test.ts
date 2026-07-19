@@ -75,6 +75,29 @@ describe('profilePayloadLengths', () => {
     })
   })
 
+  it('reads each sampled lazy row at most once across both passes', () => {
+    const getRow = vi.fn((index: number) => ({ content: `row-${index}` }))
+    const rows = { length: 2, getRow }
+
+    const result = profilePayloadLengths(rows, messageContent)
+
+    expect(getRow).toHaveBeenCalledTimes(2)
+    expect(getRow.mock.calls.map(([index]) => index)).toEqual([0, 1])
+    expect(result).toMatchObject({ rowCountBucket: '2-10', traversal: 'complete' })
+  })
+
+  it('checks the deadline before reading another lazy row', () => {
+    let clockReads = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => [0, 0, 6][clockReads++] ?? 6)
+    const getRow = vi.fn((index: number) => ({ content: `row-${index}` }))
+
+    const result = profilePayloadLengths({ length: 10_000, getRow }, messageContent)
+
+    expect(getRow).toHaveBeenCalledTimes(1)
+    expect(result.rowCountBucket).toBe('1001+')
+    expect(result.traversal).toBe('truncated')
+  })
+
   it.each([-1, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
     'saturates anomalous opaque byte length %s and marks the profile truncated',
     (byteLength) => {

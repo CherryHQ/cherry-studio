@@ -530,9 +530,11 @@ an existing destination, and cleanup of the sibling `.partial` file. It intentio
 
 The oversized-BLOB fixture no longer fabricates a message `Buffer`. It reuses the production knowledge-vector
 descriptor and failure-only row producer for the real `rebuildMaterial()` embedding BLOB boundary, represented as a
-completed session with warnings so the ZIP is downloadable from the completed screen. That producer computes only
-`vector.length × 4`, returns frozen opaque byte-length tokens, and neither reads vector values nor allocates a second
-BLOB-sized byte array. The gate path fixture uses `EACCES` at `gate/resolve_paths`, and the retry fixture asserts the
+completed session with warnings so the ZIP is downloadable from the completed screen. That producer returns an O(1)
+lazy source with the real embedding count. The profiler creates frozen opaque tokens only for its deadline- and
+row-budget-bounded sample, computes each as `vector.length × 4`, and neither reads vector values nor allocates a
+second BLOB-sized byte array. A partial sample keeps its numeric total/max buckets explicitly under
+`traversal: truncated`. The gate path fixture uses `EACCES` at `gate/resolve_paths`, and the retry fixture asserts the
 same fixed failure location independently in the initial, manual, and recovered attempts.
 
 Repository result: `MigrationDiagnosticAcceptance.integration.test.ts` passes 14/14 cases. This establishes the

@@ -11,6 +11,7 @@ import {
 
 const MAX_DEPTH = 8
 const MAX_NODES = 1_024
+const MAX_PROFILED_ROWS = MAX_NODES
 const MAX_DESCRIPTOR_FIELDS = 64
 const DEADLINE_MS = 5
 const LENGTH_SATURATION = 262_145
@@ -35,6 +36,13 @@ interface ByteLengthMeasurement {
   readonly byteLength: number
   readonly truncated: boolean
 }
+
+interface PayloadRowSource {
+  readonly length: number
+  getRow(index: number): unknown
+}
+
+type PayloadRows = readonly unknown[] | PayloadRowSource
 
 interface SlotAccumulator {
   readonly slot: PayloadProfileSlot
@@ -448,16 +456,24 @@ function fairRowIndex(step: number, rowCount: number): number {
   return step % 2 === 0 ? offset : rowCount - 1 - offset
 }
 
+function payloadRowCount(rows: PayloadRows): number {
+  const count = rows.length
+  if (!Number.isSafeInteger(count) || count < 0) throw new TypeError('Invalid payload row count')
+  return count
+}
+
+function readPayloadRow(rows: PayloadRows, index: number): unknown {
+  if (Array.isArray(rows)) return rows[index]
+  return (rows as PayloadRowSource).getRow(index)
+}
+
 function markDeadlineTruncation(accumulators: readonly SlotAccumulator[]): void {
   for (const accumulator of accumulators) {
     if (accumulator.kinds.has('string') || accumulator.kinds.has('json')) accumulator.truncated = true
   }
 }
 
-export function profilePayloadLengths(
-  rows: readonly unknown[],
-  descriptor: PayloadProfileDescriptor
-): PayloadLengthProfile {
+export function profilePayloadLengths(rows: PayloadRows, descriptor: PayloadProfileDescriptor): PayloadLengthProfile {
   const context: TraversalContext = {
     deadline: performance.now() + DEADLINE_MS,
     nodes: 0,
@@ -465,15 +481,18 @@ export function profilePayloadLengths(
   }
   const slots = descriptorSlots(descriptor, context)
   const accumulators = slots.map(createAccumulator)
+  const rowCount = payloadRowCount(rows)
+  const sampledRows: unknown[] = []
   let profiledBytes = 0
   let maxProfiledRowBytes = 0
 
-  shallowRows: for (let step = 0; step < rows.length; step++) {
+  shallowRows: for (let step = 0; step < Math.min(rowCount, MAX_PROFILED_ROWS); step++) {
     if (deadlineExceeded(context)) {
       markDeadlineTruncation(accumulators)
       break
     }
-    const row = rows[fairRowIndex(step, rows.length)]
+    const row = readPayloadRow(rows, fairRowIndex(step, rowCount))
+    sampledRows.push(row)
     if (row === null || row === undefined) continue
     if (!isObjectLike(row) || isArray(row) || !isPlainObject(row)) {
       for (const accumulator of accumulators) accumulator.kinds.add('unsupported')
@@ -519,7 +538,12 @@ export function profilePayloadLengths(
     }
   }
 
-  deepRows: for (const row of rows) {
+  if (sampledRows.length < rowCount) {
+    context.truncated = true
+    for (const accumulator of accumulators) accumulator.truncated = true
+  }
+
+  deepRows: for (const row of sampledRows) {
     if (deadlineExceeded(context)) {
       markDeadlineTruncation(accumulators)
       break
@@ -571,7 +595,7 @@ export function profilePayloadLengths(
 
   return {
     target: descriptor.target,
-    rowCountBucket: rowCountBucket(rows.length),
+    rowCountBucket: rowCountBucket(rowCount),
     profiledByteLengthBucket: lengthBucket(profiledBytes),
     maxProfiledRowByteLengthBucket: lengthBucket(maxProfiledRowBytes),
     traversal: context.truncated ? 'truncated' : 'complete',

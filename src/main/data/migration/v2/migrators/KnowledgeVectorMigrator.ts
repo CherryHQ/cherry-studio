@@ -61,13 +61,24 @@ function checkedFloat32ByteLength(vector: readonly number[]): number {
   return elementCount * bytesPerElement
 }
 
-/** Build content-free diagnostic rows from the exact float32 encoding width. */
+interface KnowledgeVectorRebuildProfileRows {
+  readonly length: number
+  getRow(index: number): { readonly vectorBlob: object }
+}
+
+/** Lazily expose content-free diagnostic rows using the exact float32 encoding width. */
 export function createKnowledgeVectorRebuildProfileRows(
   input: Pick<RebuildMaterialInput, 'embeddings'>
-): ReadonlyArray<{ readonly vectorBlob: object }> {
-  return input.embeddings.map((embedding) => ({
-    vectorBlob: createPayloadByteLengthMeasurement(checkedFloat32ByteLength(embedding.vector))
-  }))
+): KnowledgeVectorRebuildProfileRows {
+  const embeddings = input.embeddings
+  return Object.freeze({
+    length: embeddings.length,
+    getRow(index: number) {
+      return {
+        vectorBlob: createPayloadByteLengthMeasurement(checkedFloat32ByteLength(embeddings[index].vector))
+      }
+    }
+  })
 }
 
 // Runtime vector store + material layout — source of truth:

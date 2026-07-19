@@ -33,6 +33,8 @@ interface DiagnosedPhaseResult<TResult> {
   failureClassification?: ClassifiedMigrationError
 }
 
+type ProfilePayloadRows = Parameters<typeof profilePayloadLengths>[0]
+
 export abstract class BaseMigrator {
   // Metadata - must be implemented by subclasses
   abstract readonly id: string
@@ -97,7 +99,7 @@ export abstract class BaseMigrator {
   protected async runDiagnosedAsyncWrite<T>(
     ctx: MigrationContext,
     descriptor: PayloadProfileDescriptor,
-    rows: () => readonly unknown[],
+    rows: () => ProfilePayloadRows,
     write: () => Promise<T>
   ): Promise<T> {
     try {
@@ -111,7 +113,7 @@ export abstract class BaseMigrator {
   private recordDiagnosedWriteFailure(
     ctx: MigrationContext,
     descriptor: PayloadProfileDescriptor,
-    rows: () => readonly unknown[],
+    rows: () => ProfilePayloadRows,
     error: unknown
   ): void {
     try {

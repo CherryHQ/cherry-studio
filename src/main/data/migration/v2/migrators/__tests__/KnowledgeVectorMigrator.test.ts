@@ -1055,9 +1055,7 @@ describe('KnowledgeVectorMigrator', () => {
         embeddings: [{ embeddingTextHash: 'hash', vector }]
       })
 
-      expect(rows).toHaveLength(1)
-      expect(Reflect.ownKeys(rows[0].vectorBlob)).toEqual([])
-      expect(ArrayBuffer.isView(rows[0].vectorBlob)).toBe(false)
+      expect(rows.length).toBe(1)
       expect(profilePayloadLengths(rows, KNOWLEDGE_VECTOR_REBUILD_PROFILE)).toMatchObject({
         target: 'knowledge_vector_rebuild',
         rowCountBucket: '1',
@@ -1071,6 +1069,44 @@ describe('KnowledgeVectorMigrator', () => {
             maxByteLengthBucket: '262145+'
           }
         ]
+      })
+    })
+
+    it('creates an O(1) lazy source and bounds length reads for many embeddings', () => {
+      const embeddingCount = 10_000
+      let vectorLengthReads = 0
+      const vector = new Proxy([] as number[], {
+        get(_target, property) {
+          if (property === 'length') {
+            vectorLengthReads += 1
+            return 1
+          }
+          throw new Error(`Unexpected vector value access: ${String(property)}`)
+        }
+      })
+      const embeddings = Array.from({ length: embeddingCount }, (_, index) => ({
+        embeddingTextHash: `hash-${index}`,
+        vector
+      }))
+
+      const rows = createKnowledgeVectorRebuildProfileRows({ embeddings })
+
+      expect(vectorLengthReads).toBe(0)
+      expect(Array.isArray(rows)).toBe(false)
+      expect(Reflect.ownKeys(rows)).toEqual(['length', 'getRow'])
+      expect(rows.length).toBe(embeddingCount)
+
+      vi.spyOn(performance, 'now').mockReturnValue(0)
+      const result = profilePayloadLengths(rows, KNOWLEDGE_VECTOR_REBUILD_PROFILE)
+
+      expect(vectorLengthReads).toBeGreaterThan(0)
+      expect(vectorLengthReads).toBeLessThan(embeddingCount)
+      expect(vectorLengthReads).toBeLessThanOrEqual(1_024)
+      expect(result).toMatchObject({
+        target: 'knowledge_vector_rebuild',
+        rowCountBucket: '1001+',
+        traversal: 'truncated',
+        slots: [{ slot: 'vectorBlob', kind: 'bytes' }]
       })
     })
 

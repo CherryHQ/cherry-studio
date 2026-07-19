@@ -45,7 +45,7 @@ class ProbeMigrator extends BaseMigrator {
   diagnosedAsyncWrite<T>(
     ctx: MigrationContext,
     descriptor: PayloadProfileDescriptor,
-    rows: () => readonly unknown[],
+    rows: () => Parameters<typeof payloadProfiler.profilePayloadLengths>[0],
     write: () => Promise<T>
   ): Promise<T> {
     return this.runDiagnosedAsyncWrite(ctx, descriptor, rows, write)
@@ -307,6 +307,29 @@ describe('BaseMigrator.runDiagnosedWrite', () => {
         () => {
           throw new Error('measurement failed')
         },
+        async () => {
+          throw original
+        }
+      )
+    ).rejects.toBe(original)
+    expect(migrationRun.logger.error).toHaveBeenCalledWith('Failed to record bounded migration write diagnostics')
+  })
+
+  it('keeps an async write rejection authoritative when a lazy row source throws', async () => {
+    const migrationRun = createMigrationRun()
+    const original = Object.assign(new Error('original private async database error'), { code: 'SQLITE_TOOBIG' })
+    const rows = {
+      length: 1,
+      getRow() {
+        throw new Error('row measurement failed')
+      }
+    }
+
+    await expect(
+      probe.diagnosedAsyncWrite(
+        migrationRun,
+        descriptor,
+        () => rows,
         async () => {
           throw original
         }
