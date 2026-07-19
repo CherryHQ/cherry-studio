@@ -4,6 +4,8 @@ import {
   EXPECTED_MIGRATION_DATABASE_OBJECTS,
   MIGRATION_DATABASE_DIAGNOSTIC_MAX_DATABASE_FILE_LENGTH,
   MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS,
+  MIGRATION_DATABASE_DIAGNOSTIC_QUICK_CHECK_RESULT_LIMIT,
   MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
   MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION
 } from './migrationDatabaseDiagnosticsProtocol.mjs'
@@ -44,6 +46,29 @@ export const migrationDatabaseColumnCountBucketSchema = z.enum([
   '21_to_40',
   '41_plus'
 ])
+
+const countBucketBounds: Record<
+  z.infer<typeof migrationDatabaseCountBucketSchema>,
+  { readonly min: number; readonly max: number }
+> = {
+  '0': { min: 0, max: 0 },
+  '1': { min: 1, max: 1 },
+  '2_to_5': { min: 2, max: 5 },
+  '6_to_20': { min: 6, max: 20 },
+  '21_to_100': { min: 21, max: 100 },
+  '101_to_256': { min: 101, max: 256 },
+  '257_plus': { min: 257, max: Number.POSITIVE_INFINITY }
+}
+
+function bucketColumnCount(count: number): z.infer<typeof migrationDatabaseColumnCountBucketSchema> {
+  if (count === 0) return '0'
+  if (count <= 5) return '1_to_5'
+  if (count <= 10) return '6_to_10'
+  if (count <= 20) return '11_to_20'
+  if (count <= 40) return '21_to_40'
+  return '41_plus'
+}
+
 export const migrationDatabaseIntegerBucketSchema = z.enum(['0', '1_to_10', '11_to_100', '101_to_1000', '1001_plus'])
 export const migrationDatabaseFailureCodeSchema = z.enum([
   'invalid_input',
@@ -120,6 +145,20 @@ export const migrationDatabaseL0DataSchema = z
           code: 'custom',
           message: 'A regular database file must have a size bucket',
           path: ['sizeBucket']
+        })
+      }
+      if (data.sizeBucket === 'empty' && data.header !== 'insufficient') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'An empty regular file must have an insufficient SQLite header',
+          path: ['header']
+        })
+      }
+      if (data.header === 'valid' && data.writeMode === 'unavailable') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A valid SQLite header must expose its fixed write mode',
+          path: ['writeMode']
         })
       }
       if (data.header !== 'valid' && data.writeMode !== 'unavailable') {
@@ -245,6 +284,12 @@ export const migrationDatabaseL1DataSchema = z
           message: 'Observed table columns require a count bucket',
           path: ['objects', index, 'columnCountBucket']
         })
+      } else if (object.status === 'ok' && object.columnCountBucket !== bucketColumnCount(expectedColumnCount)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'An expected table with ok status must use its fixed column-count bucket',
+          path: ['objects', index, 'columnCountBucket']
+        })
       }
     }
 
@@ -337,6 +382,25 @@ export const migrationDatabaseL2DataSchema = z
           path: ['quickCheck', 'categories']
         })
       }
+      const quickCountBounds = countBucketBounds[quick.issueCountBucket]
+      if (quickCountBounds.min > MIGRATION_DATABASE_DIAGNOSTIC_QUICK_CHECK_RESULT_LIMIT) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Quick-check issue count exceeds its fixed result limit',
+          path: ['quickCheck', 'issueCountBucket']
+        })
+      }
+      if (
+        quick.truncated &&
+        (quickCountBounds.min > MIGRATION_DATABASE_DIAGNOSTIC_QUICK_CHECK_RESULT_LIMIT ||
+          quickCountBounds.max < MIGRATION_DATABASE_DIAGNOSTIC_QUICK_CHECK_RESULT_LIMIT)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A truncated quick check must reach its fixed result limit',
+          path: ['quickCheck', 'truncated']
+        })
+      }
     }
     if (new Set(quick.categories).size !== quick.categories.length) {
       ctx.addIssue({
@@ -384,6 +448,21 @@ export const migrationDatabaseL2DataSchema = z
           path: ['foreignKeys', 'violations']
         })
       }
+      const scannedCountBounds = countBucketBounds[foreignKeys.scannedCountBucket]
+      if (scannedCountBounds.min > MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Foreign-key scanned count exceeds its fixed row limit',
+          path: ['foreignKeys', 'scannedCountBucket']
+        })
+      }
+      if (foreignKeys.truncated && scannedCountBounds.max <= MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A truncated foreign-key check must reach a fixed truncation boundary',
+          path: ['foreignKeys', 'truncated']
+        })
+      }
     }
 
     const pairs = new Set<string>()
@@ -401,6 +480,13 @@ export const migrationDatabaseL2DataSchema = z
         ctx.addIssue({
           code: 'custom',
           message: 'Foreign-key summary groups cannot have a zero count',
+          path: ['foreignKeys', 'violations', index, 'countBucket']
+        })
+      }
+      if (countBucketBounds[violation.countBucket].min > MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Foreign-key summary group exceeds the fixed processed-row limit',
           path: ['foreignKeys', 'violations', index, 'countBucket']
         })
       }
@@ -425,7 +511,17 @@ function createStepSchema<TLevel extends 'l0' | 'l1' | 'l2', TData extends z.Zod
   ])
 }
 
-export const migrationDatabaseL0StepSchema = createStepSchema('l0', migrationDatabaseL0DataSchema)
+export const migrationDatabaseL0StepSchema = z.union([
+  z.object({ level: z.literal('l0'), status: z.literal('success'), data: migrationDatabaseL0DataSchema }).strict(),
+  z
+    .object({
+      level: z.literal('l0'),
+      status: z.literal('failed'),
+      code: migrationDatabaseFailureCodeSchema,
+      data: migrationDatabaseL0DataSchema.optional()
+    })
+    .strict()
+])
 export const migrationDatabaseL1StepSchema = createStepSchema('l1', migrationDatabaseL1DataSchema)
 export const migrationDatabaseL2StepSchema = createStepSchema('l2', migrationDatabaseL2DataSchema).superRefine(
   (step, ctx) => {

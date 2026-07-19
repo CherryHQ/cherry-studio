@@ -253,10 +253,12 @@ function inspectFile(databaseFile: string): MigrationDatabaseL0Step {
     }
     const header = Buffer.alloc(SQLITE_HEADER_PROBE_BYTES)
     const bytesRead = readSync(descriptor, header, 0, SQLITE_HEADER_PROBE_BYTES, 0)
+    const hasValidHeader =
+      bytesRead >= SQLITE_HEADER_BYTES && header.subarray(0, SQLITE_HEADER_BYTES).equals(SQLITE_HEADER)
     data.header =
-      bytesRead < SQLITE_HEADER_BYTES
+      bytesRead < SQLITE_HEADER_BYTES || (hasValidHeader && bytesRead < SQLITE_HEADER_PROBE_BYTES)
         ? 'insufficient'
-        : header.subarray(0, SQLITE_HEADER_BYTES).equals(SQLITE_HEADER)
+        : hasValidHeader
           ? 'valid'
           : 'invalid'
     data.writeMode = sqliteWriteMode(header, bytesRead)

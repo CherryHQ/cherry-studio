@@ -34,7 +34,8 @@ import {
   EXPECTED_MIGRATION_DATABASE_OBJECTS,
   type MigrationDatabaseCompletedDiagnosticResult,
   type MigrationDatabaseDiagnosticResult,
-  migrationDatabaseDiagnosticResultSchema
+  migrationDatabaseDiagnosticResultSchema,
+  migrationDatabaseDiagnosticsWorkerMessageSchema
 } from '../migrationDatabaseDiagnosticsSchemas'
 
 function sha256(file: string): string {
@@ -106,6 +107,10 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     expectCompleted(result)
 
     expect(migrationDatabaseDiagnosticResultSchema.parse(result)).toEqual(result)
+    expect(migrationDatabaseDiagnosticsWorkerMessageSchema.parse({ type: 'result', result })).toEqual({
+      type: 'result',
+      result
+    })
     expect(result.l0).toMatchObject({ status: 'success', data: { fileKind: 'regular', header: 'valid' } })
     expect(result.l1.status).toBe('success')
     expect(result.l2).toMatchObject({
@@ -343,6 +348,25 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     expect(result.l1).toMatchObject({ status: 'failed', code: 'not_database' })
     expect(result.l2).toMatchObject({ status: 'failed', code: 'not_database' })
     expect(JSON.stringify(result)).not.toContain('SQLite format')
+  })
+
+  it('round-trips a short SQLite magic probe as an insufficient header', async () => {
+    const databaseFile = join(fixtureDir, 'short-sqlite-magic.sqlite')
+    writeFileSync(databaseFile, Buffer.from('SQLite format 3\0', 'binary'))
+
+    const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
+
+    expect(migrationDatabaseDiagnosticsWorkerMessageSchema.parse({ type: 'result', result })).toEqual({
+      type: 'result',
+      result
+    })
+    expect(result.l0).toMatchObject({
+      status: 'success',
+      data: { sizeBucket: 'under_4_kib', header: 'insufficient', writeMode: 'unavailable' }
+    })
+    expect(result.l1).toEqual({ level: 'l1', status: 'failed', code: 'not_database' })
+    expect(result.l2).toEqual({ level: 'l2', status: 'failed', code: 'not_database' })
   })
 
   it.runIf(typeof process.getuid !== 'function' || process.getuid() !== 0)(

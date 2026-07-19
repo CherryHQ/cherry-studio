@@ -122,8 +122,36 @@ describe('migration database diagnostic semantic schemas', () => {
     expect(migrationDatabaseL0StepSchema.safeParse(step).success).toBe(false)
   })
 
+  it('rejects L0 states that the worker cannot produce', () => {
+    const validData = {
+      exists: true,
+      fileKind: 'regular' as const,
+      sizeBucket: '4_kib_to_1_mib' as const,
+      mtimeAgeBucket: 'under_1_hour' as const,
+      header: 'valid' as const,
+      writeMode: 'rollback' as const,
+      walSidecars: 'none' as const
+    }
+
+    expect(migrationDatabaseL0StepSchema.safeParse({ level: 'l0', status: 'truncated', data: validData }).success).toBe(
+      false
+    )
+    expect(
+      migrationDatabaseL0DataSchema.safeParse({ ...validData, sizeBucket: 'empty', header: 'valid' }).success
+    ).toBe(false)
+    expect(migrationDatabaseL0DataSchema.safeParse({ ...validData, writeMode: 'unavailable' }).success).toBe(false)
+  })
+
   it('accepts the complete fixed L1 expected-object set', () => {
     expect(migrationDatabaseL1DataSchema.safeParse(makeL1Data()).success).toBe(true)
+  })
+
+  it('rejects an ok L1 table whose column bucket disagrees with the fixed protocol definition', () => {
+    const data = makeL1Data()
+    const tableIndex = data.objects.findIndex((object) => object.id === 'agent')
+    data.objects[tableIndex] = { ...data.objects[tableIndex], columnCountBucket: '1_to_5' }
+
+    expect(migrationDatabaseL1DataSchema.safeParse(data).success).toBe(false)
   })
 
   it.each([
@@ -240,6 +268,41 @@ describe('migration database diagnostic semantic schemas', () => {
     ).toBe(false)
     expect(
       migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'truncated', data: makeL2Data() }).success
+    ).toBe(false)
+  })
+
+  it('rejects L2 count and truncation states beyond the worker hard limits', () => {
+    const quickOverflow = makeL2Data()
+    quickOverflow.quickCheck = {
+      outcome: 'issues',
+      issueCountBucket: '21_to_100',
+      categories: ['unknown'],
+      truncated: true
+    }
+    expect(
+      migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'truncated', data: quickOverflow }).success
+    ).toBe(false)
+
+    const foreignKeyOverflow = makeL2Data()
+    foreignKeyOverflow.foreignKeys = {
+      outcome: 'violations',
+      scannedCountBucket: '257_plus',
+      violations: [{ childObjectId: 'unknown', parentObjectId: 'unknown', countBucket: '257_plus' }],
+      truncated: true
+    }
+    expect(
+      migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'truncated', data: foreignKeyOverflow }).success
+    ).toBe(false)
+
+    const impossibleTruncation = makeL2Data()
+    impossibleTruncation.foreignKeys = {
+      outcome: 'violations',
+      scannedCountBucket: '1',
+      violations: [{ childObjectId: 'unknown', parentObjectId: 'unknown', countBucket: '1' }],
+      truncated: true
+    }
+    expect(
+      migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'truncated', data: impossibleTruncation }).success
     ).toBe(false)
   })
 
