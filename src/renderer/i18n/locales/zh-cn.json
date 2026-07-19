@@ -5668,11 +5668,11 @@
         "yuque": "导出到语雀"
       },
       "factory_reset": {
-        "button": "恢复出厂设置",
+        "button": "重置",
         "confirm_content": "将删除全部聊天记录、助手、知识库、文件和设置，应用会以全新安装状态重启。自定义数据目录位置、已下载的工具和本地模型会保留。",
-        "confirm_title": "恢复出厂设置？",
-        "error": "恢复出厂设置启动失败",
-        "title": "恢复出厂设置"
+        "confirm_title": "确定要重置所有数据吗？",
+        "error": "重置数据启动失败",
+        "title": "重置数据"
       },
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",

@@ -298,7 +298,7 @@ export function runFactoryResetGate(): void {
         error: String(error)
       })
       dialog.showErrorBox(
-        'Factory Reset Incomplete',
+        'Data Reset Incomplete',
         'Cherry Studio erased its data but could not save the reset completion ' +
           `to ${bootConfigService.getFilePath()}.\n\n` +
           'Starting now would erase anything you create on the next launch, so the app will quit instead.\n\n' +
@@ -406,10 +406,10 @@ function isPathInside(child: string, dir: string): boolean {
  */
 function showIncompleteResetWarning(): void {
   dialog.showErrorBox(
-    'Factory Reset Incomplete',
-    'Cherry Studio could not remove some of its data during the factory reset.\n\n' +
+    'Data Reset Incomplete',
+    'Cherry Studio could not remove some of its data during the data reset.\n\n' +
       'The app will start with whatever remains. ' +
-      'Please check file permissions (or antivirus locks) and run Factory Reset again from Settings.'
+      'Please check file permissions (or antivirus locks) and run Data Reset again from Settings.'
   )
 }
 
