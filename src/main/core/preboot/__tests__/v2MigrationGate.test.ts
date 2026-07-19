@@ -1,6 +1,9 @@
 import type { MigrationDiagnosticsCoordinator } from '@data/migration/v2/diagnostics/MigrationDiagnosticsCoordinator'
 import type { ClassifiedMigrationError } from '@data/migration/v2/diagnostics/migrationErrorClassifier'
-import type { MigrationWindowManager } from '@data/migration/v2/window/MigrationWindowManager'
+import type {
+  MigrationWindowFailureClaim,
+  MigrationWindowManager
+} from '@data/migration/v2/window/MigrationWindowManager'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -124,7 +127,7 @@ function stubMigrationV2(options: MigrationV2StubOptions = {}) {
       classifyMigrationError(error: unknown): ClassifiedMigrationError
     }>('@data/migration/v2/diagnostics/migrationErrorClassifier')
     const { createMigrationWindowFailureClaim } = await vi.importActual<{
-      createMigrationWindowFailureClaim: typeof import('@data/migration/v2/window/MigrationWindowManager').createMigrationWindowFailureClaim
+      createMigrationWindowFailureClaim(): MigrationWindowFailureClaim
     }>('@data/migration/v2/window/MigrationWindowManager')
     return {
       migrationEngine: {
@@ -1196,8 +1199,9 @@ describe('runV2MigrationGate', () => {
 
       const { runV2MigrationGate } = await loadModule()
       await runV2MigrationGate()
-      const callback = (migrationWindowCreateMock.mock.calls[0]?.[0] as { onRendererFailure: RendererFailureCallback })
-        .onRendererFailure
+      const createCall = migrationWindowCreateMock.mock.calls[0]
+      expect(createCall).toBeDefined()
+      const callback = (createCall[0] as { onRendererFailure: RendererFailureCallback }).onRendererFailure
 
       await callback('renderer_process_gone', Promise.resolve())
 
@@ -1238,8 +1242,9 @@ describe('runV2MigrationGate', () => {
 
       const { runV2MigrationGate } = await loadModule()
       await runV2MigrationGate()
-      const callback = (migrationWindowCreateMock.mock.calls[0]?.[0] as { onRendererFailure: RendererFailureCallback })
-        .onRendererFailure
+      const createCall = migrationWindowCreateMock.mock.calls[0]
+      expect(createCall).toBeDefined()
+      const callback = (createCall[0] as { onRendererFailure: RendererFailureCallback }).onRendererFailure
       let settleWrites!: () => void
       const writesSettled = new Promise<void>((resolve) => {
         settleWrites = resolve

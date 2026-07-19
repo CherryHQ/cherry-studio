@@ -96,7 +96,9 @@ describe('migrationDiagnosticEventSchema', () => {
       } as const
       expect(migrationDiagnosticEventSchema.parse(marker)).toEqual(marker)
 
-      const { attemptId: _attemptId, ...bundleMarker } = marker
+      const { attemptId, ...bundleMarker } = marker
+      expect(attemptId).toBe(validEvent.attemptId)
+      expect(bundleMarker).not.toHaveProperty('attemptId')
       expect(migrationDiagnosticBundleEventSchema.parse(bundleMarker)).toEqual(bundleMarker)
       expect(
         migrationDiagnosticBundleEventSchema.safeParse({
