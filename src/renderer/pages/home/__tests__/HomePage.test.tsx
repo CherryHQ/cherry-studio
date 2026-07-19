@@ -136,7 +136,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
           return homeMocks.persistCacheValues.get(key)
         }
 
-        return key === 'ui.chat.right_pane_open' ? true : null
+        return null
       })
       const setPersistCache = vi.fn((nextValue: unknown) => {
         homeMocks.persistCacheValues.set(key, nextValue)
@@ -724,11 +724,15 @@ describe('HomePage', () => {
     ipcMocks.request.mockClear()
   })
 
-  it('renders the assistant resource list with the resource pane open by default', () => {
+  it('shows both assistant and topic panes by default when topics are on the right', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.preferenceValues.set('topic.tab.position', 'right')
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open_override', null)
 
     render(<HomePage />)
 
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'resources')
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'true')
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-1')
@@ -762,7 +766,7 @@ describe('HomePage', () => {
   it('does not render the topic resource pane when the classic topic position is left', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.preferenceValues.set('topic.tab.position', 'left')
-    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', true)
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open_override', true)
 
     render(<HomePage />)
 
@@ -776,12 +780,12 @@ describe('HomePage', () => {
   it('does not auto-open the topic right pane when switching to assistant display mode with left topic position', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.preferenceValues.set('topic.tab.position', 'left')
-    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open_override', null)
 
     render(<HomePage />)
 
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
-    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open', true)
+    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
   })
 
   it('toggles the classic topic pane when the selected assistant is clicked again', () => {
@@ -791,7 +795,7 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
 
-    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', false)
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', false)
   })
 
   it('renders the modern topic sidebar when topic display mode is time', () => {
@@ -820,7 +824,7 @@ describe('HomePage', () => {
   it('switches to assistant grouping when changing topic position from the left sidebar', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
     homeMocks.preferenceValues.set('topic.tab.position', 'left')
-    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open_override', false)
 
     render(<HomePage />)
 
@@ -828,7 +832,7 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.display_mode')).toBe('assistant'))
     expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('right')
-    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', true)
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
   })
 
   it('expands only the active topic assistant when changing topic position to the left sidebar', async () => {
@@ -1028,12 +1032,12 @@ describe('HomePage', () => {
 
   it('respects a manually closed classic-layout topic right pane on re-entry', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open_override', false)
 
     render(<HomePage />)
 
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
-    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open', true)
+    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
   })
 
   it('records manual close state for the classic-layout topic right pane', () => {
@@ -1043,7 +1047,7 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close topic right pane' }))
 
-    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', false)
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', false)
   })
 
   it('passes the current assistant topic count to the classic-layout top button', () => {
