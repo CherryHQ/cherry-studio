@@ -48,6 +48,9 @@ interface SlotAccumulator {
 
 const payloadSlotSet = new Set<string>(PAYLOAD_PROFILE_SLOTS)
 const payloadTargetSet = new Set<string>(PAYLOAD_PROFILE_TARGETS)
+const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype)
+const typedArrayTagGetter = Object.getOwnPropertyDescriptor(typedArrayPrototype, Symbol.toStringTag)?.get
+const typedArrayByteLengthGetter = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'byteLength')?.get
 
 function saturatingAdd(left: number, right: number): number {
   return Math.min(LENGTH_SATURATION, left + right)
@@ -113,7 +116,9 @@ function measureJsonString(
     const measured = utf8CodeUnitBytes(value, index)
     rawBytes = saturatingAdd(rawBytes, measured.bytes)
 
-    if (
+    if (code >= 0xd800 && code <= 0xdfff && measured.consumed === 1) {
+      bytes = saturatingAdd(bytes, 6)
+    } else if (
       code === 0x22 ||
       code === 0x5c ||
       code === 0x08 ||
@@ -171,6 +176,17 @@ function ownDataDescriptor(value: object, key: PropertyKey): PropertyDescriptor 
 function ownPropertyNames(value: object): readonly string[] | undefined {
   try {
     return Object.getOwnPropertyNames(value)
+  } catch {
+    return undefined
+  }
+}
+
+function uint8ArrayByteLength(value: unknown): number | undefined {
+  if (!ArrayBuffer.isView(value)) return undefined
+  try {
+    if (typedArrayTagGetter?.call(value) !== 'Uint8Array') return undefined
+    const byteLength = typedArrayByteLengthGetter?.call(value)
+    return typeof byteLength === 'number' ? byteLength : undefined
   } catch {
     return undefined
   }
@@ -235,7 +251,10 @@ function measureJson(
     }
   }
 
-  if (!isObjectLike(value) || ArrayBuffer.isView(value)) return truncatedJsonMeasurement(false)
+  if (!isObjectLike(value) || ArrayBuffer.isView(value)) {
+    context.truncated = true
+    return truncatedJsonMeasurement(false)
+  }
   if (ancestors.has(value)) {
     context.truncated = true
     return truncatedJsonMeasurement(true)
@@ -419,6 +438,7 @@ export function profilePayloadLengths(
       const descriptor = ownDataDescriptor(row, accumulator.slot)
       if (!descriptor || descriptor.value === null || descriptor.value === undefined) continue
       const value = descriptor.value
+      const byteLength = uint8ArrayByteLength(value)
       let fieldBytes = 0
 
       if (typeof value === 'string') {
@@ -429,9 +449,9 @@ export function profilePayloadLengths(
         accumulator.stringMaxBytes = Math.max(accumulator.stringMaxBytes, measured.bytes)
         accumulator.truncated ||= !measured.complete
         fieldBytes = measured.bytes
-      } else if (ArrayBuffer.isView(value)) {
+      } else if (byteLength !== undefined) {
         accumulator.kinds.add('bytes')
-        const bytes = Math.min(LENGTH_SATURATION, value.byteLength)
+        const bytes = Math.min(LENGTH_SATURATION, byteLength)
         accumulator.bytesTotal = saturatingAdd(accumulator.bytesTotal, bytes)
         accumulator.bytesMax = Math.max(accumulator.bytesMax, bytes)
         fieldBytes = bytes

@@ -175,7 +175,7 @@ export const migrationDiagnosticEventSchema = z
     phase: z.enum(['resolve_paths', 'initialize', 'prepare', 'execute', 'validate', 'finalize', 'save']),
     state: z.enum(['started', 'completed', 'failed', 'interrupted', 'unavailable']),
     code: migrationErrorCodeSchema,
-    migratorId: z.string().min(1).max(64).optional(),
+    migratorId: z.string().max(64).optional(),
     payloadProfile: payloadLengthProfileSchema.optional()
   })
   .strict()

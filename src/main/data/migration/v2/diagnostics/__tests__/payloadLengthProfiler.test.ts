@@ -7,19 +7,19 @@ const messageContent = { target: 'message', fields: ['content'] } as const satis
 
 describe('profilePayloadLengths', () => {
   it('profiles UTF-8 string character and byte buckets', () => {
-    expect(profilePayloadLengths([{ content: '你a' }], messageContent)).toEqual({
+    expect(profilePayloadLengths([{ content: '你'.repeat(100) }], messageContent)).toEqual({
       target: 'message',
       rowCountBucket: '1',
-      profiledByteLengthBucket: '1-256',
-      maxProfiledRowByteLengthBucket: '1-256',
+      profiledByteLengthBucket: '257-4096',
+      maxProfiledRowByteLengthBucket: '257-4096',
       traversal: 'complete',
       slots: [
         {
           slot: 'content',
           kind: 'string',
-          totalByteLengthBucket: '1-256',
+          totalByteLengthBucket: '257-4096',
           maxCharLengthBucket: '1-256',
-          maxByteLengthBucket: '1-256'
+          maxByteLengthBucket: '257-4096'
         }
       ]
     })
@@ -27,7 +27,7 @@ describe('profilePayloadLengths', () => {
 
   it('profiles Buffer and Uint8Array byte lengths without values', () => {
     const result = profilePayloadLengths(
-      [{ content: Buffer.alloc(300) }, { content: new Uint8Array(10) }],
+      [{ content: Buffer.alloc(250) }, { content: new Uint8Array(300) }],
       messageContent
     )
 
@@ -40,6 +40,42 @@ describe('profilePayloadLengths', () => {
       }
     ])
     expect(result.profiledByteLengthBucket).toBe('257-4096')
+    expect(result.maxProfiledRowByteLengthBucket).toBe('257-4096')
+  })
+
+  it.each([new Int16Array(300), new DataView(new ArrayBuffer(300))])(
+    'marks non-Uint8Array views as unsupported',
+    (view) => {
+      const result = profilePayloadLengths([{ content: view }], messageContent)
+
+      expect(result.profiledByteLengthBucket).toBe('0')
+      expect(result.maxProfiledRowByteLengthBucket).toBe('0')
+      expect(result.slots).toEqual([{ slot: 'content', kind: 'unsupported' }])
+    }
+  )
+
+  it('reads Uint8Array length without invoking a hostile own accessor', () => {
+    let getterCalls = 0
+    const bytes = Object.defineProperty(new Uint8Array(300), 'byteLength', {
+      get() {
+        getterCalls += 1
+        throw new Error('own byteLength getter executed')
+      }
+    })
+
+    const result = profilePayloadLengths([{ content: bytes }], messageContent)
+
+    expect(getterCalls).toBe(0)
+    expect(result.profiledByteLengthBucket).toBe('257-4096')
+    expect(result.maxProfiledRowByteLengthBucket).toBe('257-4096')
+    expect(result.slots).toEqual([
+      {
+        slot: 'content',
+        kind: 'bytes',
+        totalByteLengthBucket: '257-4096',
+        maxByteLengthBucket: '257-4096'
+      }
+    ])
   })
 
   it('profiles JSON aggregate size and largest string leaf without emitting nested keys or values', () => {
@@ -60,6 +96,31 @@ describe('profilePayloadLengths', () => {
     expect(JSON.stringify(result)).not.toContain('secretDynamicKey')
     expect(JSON.stringify(result)).not.toContain('public-value')
     expect(payloadLengthProfileSchema.safeParse(result).success).toBe(true)
+  })
+
+  it('counts lone UTF-16 surrogates using well-formed JSON escaping', () => {
+    const result = profilePayloadLengths([{ metadata: { value: '\ud800'.repeat(50) } }], {
+      target: 'file_entry',
+      fields: ['metadata']
+    })
+
+    expect(result.slots[0]).toMatchObject({
+      kind: 'json',
+      totalSerializedByteLengthBucket: '257-4096',
+      maxSerializedByteLengthBucket: '257-4096',
+      maxStringLeafCharLengthBucket: '1-256',
+      maxStringLeafByteLengthBucket: '1-256'
+    })
+  })
+
+  it('propagates unsupported nested JSON values to the global traversal', () => {
+    const result = profilePayloadLengths([{ metadata: { missing: undefined } }], {
+      target: 'file_entry',
+      fields: ['metadata']
+    })
+
+    expect(result.traversal).toBe('truncated')
+    expect(result.slots[0]).toMatchObject({ kind: 'json', traversal: 'truncated' })
   })
 
   it.each([

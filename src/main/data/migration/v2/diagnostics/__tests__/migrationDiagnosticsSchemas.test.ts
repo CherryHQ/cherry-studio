@@ -37,6 +37,11 @@ describe('migrationDiagnosticEventSchema', () => {
     expect(migrationDiagnosticEventSchema.safeParse({ ...validEvent, scope: 'dynamic-scope' }).success).toBe(false)
   })
 
+  it('allows an empty migrator ID but still enforces its maximum length', () => {
+    expect(migrationDiagnosticEventSchema.safeParse({ ...validEvent, migratorId: '' }).success).toBe(true)
+    expect(migrationDiagnosticEventSchema.safeParse({ ...validEvent, migratorId: 'x'.repeat(65) }).success).toBe(false)
+  })
+
   it('exposes the fixed error-code allowlist', () => {
     expect(MIGRATION_ERROR_CODES).toEqual([
       'unknown',
