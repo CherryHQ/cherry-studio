@@ -29,7 +29,8 @@ import {
   Search,
   Settings2,
   Terminal,
-  TextCursorInput
+  TextCursorInput,
+  Wand
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -120,6 +121,14 @@ const SettingsPage: FC = () => {
                 label={t('settings.tool.file_processing.features.image_to_text.title')}
                 active={isActive('/settings/ocr')}
                 onClick={() => go('/settings/ocr')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Wand />}
+                label={t('settings.skills.title')}
+                active={isActive('/settings/skills')}
+                onClick={() => go('/settings/skills')}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.personal')}</div>
