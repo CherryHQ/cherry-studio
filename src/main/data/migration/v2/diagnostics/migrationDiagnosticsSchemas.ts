@@ -14,7 +14,8 @@ export const MIGRATION_ERROR_CODES = [
   'process_timeout',
   'renderer_process_gone',
   'renderer_unresponsive',
-  'archive_write'
+  'archive_write',
+  'upgrade_path_blocked'
 ] as const
 
 export const MIGRATION_ERROR_CATEGORIES = [
@@ -217,30 +218,103 @@ export const payloadProfileDescriptorSchema = z
   })
   .strict()
 
-export const migrationDiagnosticEventSchema = z
-  .object({
-    sequence: z.number().int().nonnegative(),
-    at: z.string().datetime(),
-    attemptId: z.string().min(1).max(64),
-    scope: z.enum(['gate', 'renderer_export', 'engine', 'migrator', 'database', 'bundle']),
-    phase: z.enum(['resolve_paths', 'initialize', 'prepare', 'execute', 'validate', 'finalize', 'save']),
-    state: z.enum(['started', 'completed', 'failed', 'interrupted', 'unavailable']),
-    code: migrationErrorCodeSchema,
-    category: migrationErrorCategorySchema.optional(),
-    causeDepth: z.number().int().min(0).max(4).optional(),
-    migratorId: z.string().max(64).optional(),
-    payloadProfile: payloadLengthProfileSchema.optional()
-  })
-  .strict()
+const migrationDiagnosticNormalizedVersionSchema = z.string().regex(/^\d{1,6}\.\d{1,6}\.\d{1,6}$/)
+const migrationDiagnosticCurrentVersionSchema = z.union([
+  z.literal('unknown'),
+  migrationDiagnosticNormalizedVersionSchema
+])
+
+export const migrationVersionGateContextSchema = z.discriminatedUnion('reason', [
+  z
+    .object({
+      reason: z.literal('no_version_log'),
+      currentVersion: migrationDiagnosticCurrentVersionSchema,
+      previousVersion: z.null(),
+      requiredVersion: migrationDiagnosticNormalizedVersionSchema,
+      gatewayVersion: z.null(),
+      versionLog: z.literal('missing')
+    })
+    .strict(),
+  z
+    .object({
+      reason: z.literal('v1_too_old'),
+      currentVersion: migrationDiagnosticCurrentVersionSchema,
+      previousVersion: migrationDiagnosticNormalizedVersionSchema,
+      requiredVersion: migrationDiagnosticNormalizedVersionSchema,
+      gatewayVersion: z.null(),
+      versionLog: z.literal('present')
+    })
+    .strict(),
+  z
+    .object({
+      reason: z.literal('v2_gateway_skipped'),
+      currentVersion: migrationDiagnosticCurrentVersionSchema,
+      previousVersion: migrationDiagnosticNormalizedVersionSchema,
+      requiredVersion: z.null(),
+      gatewayVersion: migrationDiagnosticNormalizedVersionSchema,
+      versionLog: z.literal('present')
+    })
+    .strict()
+])
+
+const migrationDiagnosticEventFields = {
+  scope: z.enum(['gate', 'renderer_export', 'engine', 'migrator', 'database', 'bundle']),
+  phase: z.enum(['resolve_paths', 'initialize', 'prepare', 'execute', 'validate', 'finalize', 'save']),
+  state: z.enum(['started', 'completed', 'failed', 'interrupted', 'unavailable']),
+  code: migrationErrorCodeSchema,
+  category: migrationErrorCategorySchema.optional(),
+  causeDepth: z.number().int().min(0).max(4).optional(),
+  payloadProfile: payloadLengthProfileSchema.optional(),
+  versionGate: migrationVersionGateContextSchema.optional()
+}
+
+interface MigrationDiagnosticVersionGateEventCandidate {
+  readonly scope?: unknown
+  readonly phase?: unknown
+  readonly state?: unknown
+  readonly code?: unknown
+  readonly versionGate?: unknown
+}
+
+function validateMigrationDiagnosticVersionGateEvent(
+  event: MigrationDiagnosticVersionGateEventCandidate,
+  ctx: z.RefinementCtx
+): void {
+  const isVersionGateEvent =
+    event.scope === 'gate' &&
+    event.phase === 'validate' &&
+    event.state === 'unavailable' &&
+    event.code === 'upgrade_path_blocked'
+
+  if (isVersionGateEvent !== (event.versionGate !== undefined)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Upgrade-path block code and context must appear together on the fixed gate event',
+      path: ['versionGate']
+    })
+  }
+}
+
+export function createMigrationDiagnosticEventSchema<const T extends z.ZodRawShape>(recordFields: T) {
+  return z
+    .object({ ...recordFields, ...migrationDiagnosticEventFields })
+    .strict()
+    .superRefine(validateMigrationDiagnosticVersionGateEvent)
+}
+
+export const migrationDiagnosticEventSchema = createMigrationDiagnosticEventSchema({
+  sequence: z.number().int().nonnegative(),
+  at: z.string().datetime(),
+  attemptId: z.string().min(1).max(64),
+  migratorId: z.string().max(64).optional()
+})
 
 export const MIGRATION_DIAGNOSTICS_SESSION_VERSION = 1 as const
 export const MIGRATION_DIAGNOSTICS_MAX_ATTEMPTS = 5
 export const MIGRATION_DIAGNOSTICS_MAX_EVENTS = 200
 
-export const migrationDiagnosticEventInputSchema = migrationDiagnosticEventSchema.omit({
-  sequence: true,
-  at: true,
-  attemptId: true
+export const migrationDiagnosticEventInputSchema = createMigrationDiagnosticEventSchema({
+  migratorId: z.string().max(64).optional()
 })
 
 export const migrationAttemptTriggerSchema = z.enum(['initial', 'manual_retry', 'recovered_retry'])
@@ -423,6 +497,7 @@ export type PayloadLengthSlotProfile = z.infer<typeof payloadLengthSlotProfileSc
 export type PayloadLengthProfile = z.infer<typeof payloadLengthProfileSchema>
 export type MigrationDiagnosticEvent = z.infer<typeof migrationDiagnosticEventSchema>
 export type MigrationDiagnosticEventInput = z.infer<typeof migrationDiagnosticEventInputSchema>
+export type MigrationVersionGateContext = z.infer<typeof migrationVersionGateContextSchema>
 export type MigrationAttemptTrigger = z.infer<typeof migrationAttemptTriggerSchema>
 export type MigrationAttemptTerminalOutcome = z.infer<typeof migrationAttemptTerminalOutcomeSchema>
 export type MigrationDiagnosticsPlatform = z.infer<typeof migrationDiagnosticsPlatformSchema>

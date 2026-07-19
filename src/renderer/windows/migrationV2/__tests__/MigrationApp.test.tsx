@@ -736,6 +736,59 @@ describe('MigrationApp', () => {
     })
   })
 
+  describe('strict diagnostic bundle version-incompatible actions', () => {
+    beforeEach(() => {
+      migrationHookMock.progress = {
+        currentMessage: 'Install the required gateway version first',
+        i18nMessage: {
+          key: 'migration.version_incompatible.v1_too_old',
+          params: { previousVersion: '1.8.0', requiredVersion: '1.9.12' }
+        },
+        migrators: [],
+        overallProgress: 0,
+        stage: 'version_incompatible'
+      }
+    })
+
+    it('shows the existing diagnostic save flow on the version-incompatible page', async () => {
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved', outputCount: 1 })
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      const actions = await screen.findByTestId('migration-diagnostics-saved-actions')
+      expect(within(actions).getAllByRole('button')).toHaveLength(3)
+      expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
+    })
+
+    it('disables Save, Close, Ignore, and window controls while saving and prevents duplicate saves', async () => {
+      let resolveSave!: (result: { status: 'canceled' }) => void
+      migrationHookMock.actions.save.mockImplementation(
+        () => new Promise<{ status: 'canceled' }>((resolve) => (resolveSave = resolve))
+      )
+
+      render(<MigrationApp />)
+      const save = screen.getByRole('button', { name: 'migration.diagnostics.save' })
+      const close = screen.getByRole('button', { name: 'migration.buttons.close' })
+      const ignore = screen.getByRole('button', { name: 'migration.buttons.ignore_migration' })
+      fireEvent.click(save)
+
+      await waitFor(() => {
+        expect(save).toBeDisabled()
+        expect(close).toBeDisabled()
+        expect(ignore).toBeDisabled()
+        expect(migrationWindowControlsPropsMock).toHaveBeenLastCalledWith(expect.objectContaining({ disabled: true }))
+      })
+      fireEvent.click(save)
+      fireEvent.click(close)
+      fireEvent.click(ignore)
+      expect(migrationHookMock.actions.save).toHaveBeenCalledTimes(1)
+      expect(migrationHookMock.actions.cancel).not.toHaveBeenCalled()
+
+      await act(async () => resolveSave({ status: 'canceled' }))
+    })
+  })
+
   describe('theme toggle', () => {
     const THEME_KEY = 'migration:theme_mode'
 

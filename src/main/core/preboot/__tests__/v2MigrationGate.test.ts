@@ -40,6 +40,7 @@ const resolveMigrationPathsMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const appQuitMock = vi.fn()
 const appRelaunchMock = vi.fn()
+const appGetVersionMock = vi.fn().mockReturnValue('2.0.0')
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
 
 const setVersionIncompatibleMock = vi.fn()
@@ -169,7 +170,7 @@ function stubElectron(browserWindowFactory?: () => object) {
     __esModule: true,
     app: {
       whenReady: whenReadyMock,
-      getVersion: vi.fn().mockReturnValue('2.0.0'),
+      getVersion: appGetVersionMock,
       getLocale: vi.fn().mockReturnValue('en-US')
     },
     BrowserWindow: vi.fn(browserWindowFactory),
@@ -278,6 +279,7 @@ beforeEach(() => {
   showErrorBoxMock.mockReset()
   appQuitMock.mockReset()
   appRelaunchMock.mockReset()
+  appGetVersionMock.mockReset().mockReturnValue('2.0.0')
   whenReadyMock.mockReset().mockResolvedValue(undefined)
   setVersionIncompatibleMock.mockReset()
   setDataLocationNoticeMock.mockReset()
@@ -674,6 +676,92 @@ describe('runV2MigrationGate', () => {
   })
 
   describe('handled path — version compatibility check fails', () => {
+    it.each([
+      {
+        currentVersion: '2.0.0-beta.1',
+        evaluation: {
+          check: {
+            outcome: 'block' as const,
+            reason: 'no_version_log' as const,
+            details: { requiredVersion: '1.9.12' }
+          },
+          previousVersion: null,
+          versionLogExists: false
+        },
+        expected: {
+          reason: 'no_version_log',
+          currentVersion: '2.0.0',
+          previousVersion: null,
+          requiredVersion: '1.9.12',
+          gatewayVersion: null,
+          versionLog: 'missing'
+        }
+      },
+      {
+        currentVersion: '2.0.0',
+        evaluation: {
+          check: {
+            outcome: 'block' as const,
+            reason: 'v1_too_old' as const,
+            details: { previousVersion: '1.8.0', requiredVersion: '1.9.12' }
+          },
+          previousVersion: '1.8.0',
+          versionLogExists: true
+        },
+        expected: {
+          reason: 'v1_too_old',
+          currentVersion: '2.0.0',
+          previousVersion: '1.8.0',
+          requiredVersion: '1.9.12',
+          gatewayVersion: null,
+          versionLog: 'present'
+        }
+      },
+      {
+        currentVersion: '2.1.0+private',
+        evaluation: {
+          check: {
+            outcome: 'block' as const,
+            reason: 'v2_gateway_skipped' as const,
+            details: { previousVersion: '1.9.12', currentVersion: '2.1.0+private', gatewayVersion: '2.0.0' }
+          },
+          previousVersion: '1.9.12',
+          versionLogExists: true
+        },
+        expected: {
+          reason: 'v2_gateway_skipped',
+          currentVersion: '2.1.0',
+          previousVersion: '1.9.12',
+          requiredVersion: null,
+          gatewayVersion: '2.0.0',
+          versionLog: 'present'
+        }
+      }
+    ])('records a sanitized $expected.reason event before opening version guidance', async (testCase) => {
+      appGetVersionMock.mockReturnValue(testCase.currentVersion)
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue(testCase.evaluation)
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+
+      const expectedEvent = {
+        scope: 'gate',
+        phase: 'validate',
+        state: 'unavailable',
+        code: 'upgrade_path_blocked',
+        versionGate: testCase.expected
+      }
+      expect(diagnosticsRecordEventMock).toHaveBeenCalledWith(expectedEvent)
+      expect(diagnosticsRecordEventMock.mock.invocationCallOrder.at(-1)).toBeLessThan(
+        setVersionIncompatibleMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+      )
+      expect(JSON.stringify(diagnosticsRecordEventMock.mock.calls)).not.toContain('+private')
+    })
+
     it("returns 'handled' and shows version_incompatible window when version check blocks", async () => {
       needsMigrationMock.mockResolvedValue(true)
       evaluateCandidateVersionMock.mockReturnValue({

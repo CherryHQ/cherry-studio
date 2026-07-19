@@ -4,10 +4,11 @@ import {
   MigrationDatabaseDiagnostics,
   MigrationDiagnosticBundleBuilder,
   type MigrationDiagnosticBundleSaveResult,
-  MigrationDiagnosticsCoordinator
+  MigrationDiagnosticsCoordinator,
+  type MigrationVersionGateContext
 } from './diagnostics'
 
-export type { MigrationDiagnosticBundleSaveResult }
+export type { MigrationDiagnosticBundleSaveResult, MigrationVersionGateContext }
 
 export function createMigrationDiagnosticsCoordinator(): MigrationDiagnosticsCoordinator {
   return new MigrationDiagnosticsCoordinator()

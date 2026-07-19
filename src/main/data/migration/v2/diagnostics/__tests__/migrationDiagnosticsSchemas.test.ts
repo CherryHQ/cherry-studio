@@ -81,8 +81,104 @@ describe('migrationDiagnosticEventSchema', () => {
       'process_timeout',
       'renderer_process_gone',
       'renderer_unresponsive',
-      'archive_write'
+      'archive_write',
+      'upgrade_path_blocked'
     ])
+  })
+
+  it.each([
+    {
+      reason: 'no_version_log',
+      currentVersion: '2.0.0',
+      previousVersion: null,
+      requiredVersion: '1.9.12',
+      gatewayVersion: null,
+      versionLog: 'missing'
+    },
+    {
+      reason: 'v1_too_old',
+      currentVersion: '2.0.0',
+      previousVersion: '1.8.0',
+      requiredVersion: '1.9.12',
+      gatewayVersion: null,
+      versionLog: 'present'
+    },
+    {
+      reason: 'v2_gateway_skipped',
+      currentVersion: '2.1.0',
+      previousVersion: '1.9.12',
+      requiredVersion: null,
+      gatewayVersion: '2.0.0',
+      versionLog: 'present'
+    }
+  ] as const)('accepts the fixed $reason upgrade-path block context in journal and bundle events', (versionGate) => {
+    const marker = {
+      ...validEvent,
+      scope: 'gate',
+      phase: 'validate',
+      state: 'unavailable',
+      code: 'upgrade_path_blocked',
+      versionGate
+    } as const
+
+    expect(migrationDiagnosticEventSchema.parse(marker)).toEqual(marker)
+    const { attemptId, ...bundleMarker } = marker
+    expect(attemptId).toBe(validEvent.attemptId)
+    expect(migrationDiagnosticBundleEventSchema.parse(bundleMarker)).toEqual(bundleMarker)
+  })
+
+  it.each([
+    {
+      ...validEvent,
+      scope: 'gate',
+      phase: 'validate',
+      state: 'unavailable',
+      code: 'upgrade_path_blocked'
+    },
+    {
+      ...validEvent,
+      versionGate: {
+        reason: 'no_version_log',
+        currentVersion: '2.0.0',
+        previousVersion: null,
+        requiredVersion: '1.9.12',
+        gatewayVersion: null,
+        versionLog: 'missing'
+      }
+    },
+    {
+      ...validEvent,
+      scope: 'gate',
+      phase: 'validate',
+      state: 'unavailable',
+      code: 'upgrade_path_blocked',
+      versionGate: {
+        reason: 'v1_too_old',
+        currentVersion: '2.0.0-beta.1',
+        previousVersion: '1.8.0',
+        requiredVersion: '1.9.12',
+        gatewayVersion: null,
+        versionLog: 'present'
+      }
+    },
+    {
+      ...validEvent,
+      scope: 'gate',
+      phase: 'validate',
+      state: 'unavailable',
+      code: 'upgrade_path_blocked',
+      versionGate: {
+        reason: 'no_version_log',
+        currentVersion: '2.0.0',
+        previousVersion: null,
+        requiredVersion: '1.9.12',
+        gatewayVersion: null,
+        versionLog: 'missing',
+        path: '/Users/private/version.log'
+      }
+    }
+  ])('rejects malformed or misplaced upgrade-path block context', (candidate) => {
+    expect(migrationDiagnosticEventSchema.safeParse(candidate).success).toBe(false)
   })
 
   it.each(['renderer_process_gone', 'renderer_unresponsive'] as const)(

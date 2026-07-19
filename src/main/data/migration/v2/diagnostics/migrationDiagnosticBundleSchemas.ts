@@ -10,11 +10,11 @@ import {
   migrationDatabaseL2DataSchema
 } from './migrationDatabaseDiagnosticsSchemas'
 import {
+  createMigrationDiagnosticEventSchema,
   MIGRATION_DIAGNOSTIC_MIGRATOR_IDS,
   MIGRATION_DIAGNOSTICS_MAX_ATTEMPTS,
   MIGRATION_DIAGNOSTICS_MAX_EVENTS,
   migrationAttemptTriggerSchema,
-  migrationDiagnosticEventSchema,
   migrationDiagnosticsArchSchema,
   migrationDiagnosticsPlatformSchema
 } from './migrationDiagnosticsSchemas'
@@ -44,10 +44,11 @@ const migrationDiagnosticBundleAttemptIdSchema = z
     'Attempt ID must use a bounded generated ordinal'
   )
 
-export const migrationDiagnosticBundleEventSchema = migrationDiagnosticEventSchema
-  .omit({ attemptId: true, migratorId: true })
-  .extend({ migratorId: migrationDiagnosticSafeMigratorIdSchema.optional() })
-  .strict()
+export const migrationDiagnosticBundleEventSchema = createMigrationDiagnosticEventSchema({
+  sequence: z.number().int().nonnegative(),
+  at: z.string().datetime(),
+  migratorId: migrationDiagnosticSafeMigratorIdSchema.optional()
+})
 
 const attemptCommonFields = {
   id: migrationDiagnosticBundleAttemptIdSchema,

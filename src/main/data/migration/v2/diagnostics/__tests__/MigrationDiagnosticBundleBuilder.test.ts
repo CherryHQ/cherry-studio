@@ -212,6 +212,63 @@ afterEach(() => {
 })
 
 describe('strict bundle schemas and accounting', () => {
+  it('copies a validated upgrade-path block context into migration-events.json', async () => {
+    const attemptId = 'version-block-private-attempt-id'
+    const versionGate = {
+      reason: 'v1_too_old',
+      currentVersion: '2.0.0',
+      previousVersion: '1.8.0',
+      requiredVersion: '1.9.12',
+      gatewayVersion: null,
+      versionLog: 'present'
+    } as const
+    const snapshot = {
+      version: 1,
+      sessionId: 'version-block-private-session-id',
+      appVersion: '2.0.0-beta.1+private',
+      platform: 'darwin',
+      arch: 'arm64',
+      startedAt: STARTED_AT,
+      state: 'active',
+      attempts: [
+        {
+          id: attemptId,
+          trigger: 'initial',
+          startedAt: STARTED_AT,
+          outcome: 'in_progress',
+          events: [
+            {
+              sequence: 1,
+              at: STARTED_AT,
+              attemptId,
+              scope: 'gate',
+              phase: 'validate',
+              state: 'unavailable',
+              code: 'upgrade_path_blocked',
+              versionGate
+            }
+          ]
+        }
+      ]
+    } as unknown as MigrationDiagnosticsSession
+    const destination = path.join(testDir, 'version-block.zip')
+
+    const result = await new MigrationDiagnosticBundleBuilder().save({
+      destination,
+      snapshot,
+      collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
+    })
+
+    expect(result.status).toBe('saved')
+    const entries = await readZip(destination)
+    const events = migrationDiagnosticEventsDocumentSchema.parse(parseJson(entries, 'migration-events.json'))
+    expect(events.session.appVersion).toBe('2.0.0')
+    expect(events.attempts[0]?.events[0]).toMatchObject({ code: 'upgrade_path_blocked', versionGate })
+    expect(JSON.stringify(events)).not.toContain('private-session-id')
+    expect(JSON.stringify(events)).not.toContain('private-attempt-id')
+    expect(JSON.stringify(events)).not.toContain('beta.1+private')
+  })
+
   it('rejects unknown keys in every generated structured document', async () => {
     const destination = path.join(testDir, 'diagnostics.zip')
     const builder = new MigrationDiagnosticBundleBuilder()

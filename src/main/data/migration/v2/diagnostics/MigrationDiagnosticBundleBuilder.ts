@@ -155,7 +155,8 @@ function createBundleEvent(event: MigrationDiagnosticEvent) {
     ...(event.category === undefined ? {} : { category: event.category }),
     ...(event.causeDepth === undefined ? {} : { causeDepth: event.causeDepth }),
     ...(event.migratorId === undefined ? {} : { migratorId: normalizeMigratorId(event.migratorId) }),
-    ...(event.payloadProfile === undefined ? {} : { payloadProfile: event.payloadProfile })
+    ...(event.payloadProfile === undefined ? {} : { payloadProfile: event.payloadProfile }),
+    ...(event.versionGate === undefined ? {} : { versionGate: event.versionGate })
   }
 }
 

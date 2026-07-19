@@ -694,11 +694,17 @@ const MigrationApp: React.FC = () => {
               <p>{progressMessage}</p>
               <p>{t('migration.version_incompatible.ignore_hint')}</p>
             </div>
+            {renderDiagnosticsPanel()}
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
+              <Button variant="outline" size="lg" disabled={isSavingDiagnostics} onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}
               </Button>
-              <Button variant="destructive" size="lg" className="flex-1" onClick={() => setSkipOpen(true)}>
+              <Button
+                variant="destructive"
+                size="lg"
+                className="flex-1"
+                disabled={isSavingDiagnostics}
+                onClick={() => setSkipOpen(true)}>
                 {t('migration.buttons.ignore_migration')}
               </Button>
             </div>

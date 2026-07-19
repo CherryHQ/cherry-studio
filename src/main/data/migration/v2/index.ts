@@ -16,14 +16,16 @@ export {
   evaluateCandidateVersion,
   getBlockMessage,
   V1_REQUIRED_VERSION,
-  V2_GATEWAY_VERSION
+  V2_GATEWAY_VERSION,
+  type VersionBlockReason
 } from './core/versionPolicy'
 export {
   classifyMigrationError,
   createMigrationDatabaseDiagnostics,
   createMigrationDiagnosticBundleBuilder,
   createMigrationDiagnosticsCoordinator,
-  type MigrationDiagnosticBundleSaveResult
+  type MigrationDiagnosticBundleSaveResult,
+  type MigrationVersionGateContext
 } from './migrationDiagnostics'
 export type {
   MigrationDiagnosticNativeDecision,

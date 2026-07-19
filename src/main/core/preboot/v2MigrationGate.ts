@@ -13,6 +13,7 @@ import {
   type MigrationDiagnosticNativeSaveResult,
   migrationEngine,
   type MigrationRendererFailureReason,
+  type MigrationVersionGateContext,
   migrationWindowManager,
   pinUserDataPath,
   presentMigrationDiagnosticFailure,
@@ -22,10 +23,12 @@ import {
   runMigrationDiagnosticSaveTransaction,
   setDataLocationNotice,
   setVersionIncompatible,
-  unregisterMigrationIpcHandlers
+  unregisterMigrationIpcHandlers,
+  type VersionBlockReason
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { app } from 'electron'
+import semver from 'semver'
 
 const logger = loggerService.withContext('V2MigrationGate')
 
@@ -34,6 +37,59 @@ const MEMORY_ONLY_DATABASE_DIAGNOSTICS = Object.freeze({
   expectedSchemaVersion: 1 as const,
   completion: Object.freeze({ status: 'failed' as const, code: 'lease_unavailable' as const })
 })
+
+function normalizeDiagnosticVersion(value: string | null | undefined): string | null {
+  if (!value) return null
+  const normalized = semver.coerce(value)?.version ?? null
+  return normalized !== null && /^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(normalized) ? normalized : null
+}
+
+function createVersionGateDiagnosticContext(
+  reason: VersionBlockReason,
+  details: Record<string, string>,
+  previousVersion: string | null,
+  versionLogExists: boolean
+): MigrationVersionGateContext | null {
+  const currentVersion = normalizeDiagnosticVersion(app.getVersion()) ?? 'unknown'
+  const normalizedPreviousVersion = normalizeDiagnosticVersion(previousVersion)
+
+  if (reason === 'no_version_log') {
+    const requiredVersion = normalizeDiagnosticVersion(details.requiredVersion)
+    if (requiredVersion === null || versionLogExists) return null
+    return {
+      reason,
+      currentVersion,
+      previousVersion: null,
+      requiredVersion,
+      gatewayVersion: null,
+      versionLog: 'missing'
+    }
+  }
+
+  if (reason === 'v1_too_old') {
+    const requiredVersion = normalizeDiagnosticVersion(details.requiredVersion)
+    if (normalizedPreviousVersion === null || requiredVersion === null || !versionLogExists) return null
+    return {
+      reason,
+      currentVersion,
+      previousVersion: normalizedPreviousVersion,
+      requiredVersion,
+      gatewayVersion: null,
+      versionLog: 'present'
+    }
+  }
+
+  const gatewayVersion = normalizeDiagnosticVersion(details.gatewayVersion)
+  if (normalizedPreviousVersion === null || gatewayVersion === null || !versionLogExists) return null
+  return {
+    reason,
+    currentVersion,
+    previousVersion: normalizedPreviousVersion,
+    requiredVersion: null,
+    gatewayVersion,
+    versionLog: 'present'
+  }
+}
 
 /**
  * Outcome of the v1→v2 migration gate.
@@ -429,6 +485,23 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   const { check: versionCheck, previousVersion, versionLogExists } = versionEvaluation
   logger.info('Version compatibility check', { previousVersion, versionLogExists })
   if (versionCheck.outcome === 'block') {
+    const versionGate = createVersionGateDiagnosticContext(
+      versionCheck.reason,
+      versionCheck.details,
+      previousVersion,
+      versionLogExists
+    )
+    if (versionGate === null) {
+      logger.error('Failed to normalize version-gate diagnostics')
+    } else {
+      recordEvent({
+        scope: 'gate',
+        phase: 'validate',
+        state: 'unavailable',
+        code: 'upgrade_path_blocked',
+        versionGate
+      })
+    }
     setVersionIncompatible(versionCheck.reason, versionCheck.details)
     registerMigrationIpcHandlers(paths.userData, migrationIpcDiagnosticCapabilities)
     try {
