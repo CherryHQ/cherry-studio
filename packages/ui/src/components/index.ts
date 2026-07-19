@@ -63,6 +63,8 @@ export {
   PageSidePanelItem,
   type PageSidePanelItemProps,
   type PageSidePanelPlacement,
+  type PageSidePanelPositioning,
+  PageSidePanelPositioningProvider,
   type PageSidePanelProps,
   PageSidePanelSection,
   type PageSidePanelSectionProps

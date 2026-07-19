@@ -13,6 +13,7 @@ import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const knobs = vi.hoisted(() => ({
+  isMac: false,
   renderPage: (() => null) as (url: string) => React.ReactNode
 }))
 
@@ -31,8 +32,20 @@ vi.mock('@cherrystudio/ui', async () => {
   const { DialogPortalContainerProvider, PortalContainerProvider, usePortalContainer } = await import(
     '@cherrystudio/ui/components/primitives/portal-container'
   )
-  return { DialogPortalContainerProvider, PortalContainerProvider, usePortalContainer }
+  const { PageSidePanelPositioningProvider } = await import('@cherrystudio/ui/components/composites/page-side-panel')
+  return {
+    DialogPortalContainerProvider,
+    PageSidePanelPositioningProvider,
+    PortalContainerProvider,
+    usePortalContainer
+  }
 })
+
+vi.mock('@renderer/utils/platform', () => ({
+  get isMac() {
+    return knobs.isMac
+  }
+}))
 
 vi.mock('@renderer/routeTree.gen', () => ({ routeTree: {} }))
 
@@ -85,6 +98,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
+  knobs.isMac = false
   knobs.renderPage = () => null
   vi.clearAllMocks()
 })
@@ -141,11 +155,31 @@ describe('TabRouter PageSidePanel portal isolation', () => {
     expect(aRoot).toBeInstanceOf(HTMLElement)
     expect(bRoot).toBeInstanceOf(HTMLElement)
     await waitFor(() => expect(bRoot.querySelector('[role="dialog"]')).toBeInTheDocument())
+    expect(bRoot.querySelector('[role="dialog"]')).toHaveClass('absolute')
+    expect(bRoot.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('fixed', 'inset-0')
 
     rerender(<Shell activeId="a" />)
 
     // b's panel stays in b's now-hidden root; it never migrates to active a.
     expect(bRoot.querySelector('[role="dialog"]')).toBeInTheDocument()
+    expect(bRoot.style.display).toBe('none')
+    expect(aRoot.querySelector('[role="dialog"]')).not.toBeInTheDocument()
+  })
+
+  it('uses viewport positioning for the panel on macOS without leaving its owning tab', async () => {
+    knobs.isMac = true
+    knobs.renderPage = (url) => <Page url={url} />
+
+    const { rerender } = render(<Shell activeId="b" />)
+    const aRoot = tabRoot('/a')
+    const bRoot = tabRoot('/b')
+
+    await waitFor(() => expect(bRoot.querySelector('[role="dialog"]')).toBeInTheDocument())
+    expect(bRoot.querySelector('[role="dialog"]')).toHaveClass('fixed', 'top-3', 'bottom-3')
+    expect(bRoot.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('fixed', 'inset-0')
+
+    rerender(<Shell activeId="a" />)
+
     expect(bRoot.style.display).toBe('none')
     expect(aRoot.querySelector('[role="dialog"]')).not.toBeInTheDocument()
   })
