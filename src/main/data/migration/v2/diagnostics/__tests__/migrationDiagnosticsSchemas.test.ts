@@ -92,6 +92,7 @@ describe('migrationDiagnosticEventSchema', () => {
         'rootPath',
         'externalPath',
         'logoKey',
+        'group',
         'value',
         'emoji',
         'jobInputTemplate'

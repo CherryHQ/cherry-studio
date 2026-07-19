@@ -55,6 +55,7 @@ export const PAYLOAD_PROFILE_TARGETS = [
 export const PAYLOAD_PROFILE_SLOTS = [
   'value',
   'name',
+  'group',
   'prompt',
   'description',
   'command',

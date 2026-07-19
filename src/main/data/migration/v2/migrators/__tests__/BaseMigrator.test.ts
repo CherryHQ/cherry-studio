@@ -69,6 +69,41 @@ class ExecuteCaptureProbeMigrator extends ProbeMigrator {
   }
 }
 
+type PhaseOutcome = 'captured_failure' | 'captured_success' | 'plain_failure' | 'success'
+
+class PhaseCaptureProbeMigrator extends ProbeMigrator {
+  prepareOutcomes: PhaseOutcome[] = []
+  validateOutcomes: PhaseOutcome[] = []
+
+  private capture(error: unknown): void {
+    ;(this as unknown as { capturePhaseFailure(error: unknown): void }).capturePhaseFailure(error)
+  }
+
+  override async prepare(): Promise<PrepareResult> {
+    const outcome = this.prepareOutcomes.shift() ?? 'success'
+    if (outcome.startsWith('captured')) {
+      this.capture(Object.assign(new Error('PRIVATE_PREPARE_ERROR'), { code: 'SQLITE_TOOBIG' }))
+    }
+    return outcome.endsWith('success')
+      ? { success: true, itemCount: 0 }
+      : { success: false, itemCount: 0, error: 'prepare failed' }
+  }
+
+  override async validate(): Promise<ValidateResult> {
+    const outcome = this.validateOutcomes.shift() ?? 'success'
+    if (outcome.startsWith('captured')) {
+      this.capture(Object.assign(new Error('PRIVATE_VALIDATE_ERROR'), { code: 'SQLITE_CORRUPT' }))
+    }
+    return outcome.endsWith('success')
+      ? { success: true, errors: [], stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 } }
+      : {
+          success: false,
+          errors: [{ key: 'validation', message: 'validate failed' }],
+          stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
+        }
+  }
+}
+
 async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: string) {
   await db
     .insert(agentTable)
@@ -246,5 +281,68 @@ describe('BaseMigrator.runDiagnosedWrite', () => {
     const diagnosed = await (migrator as any).executeWithDiagnostics(migrationRun)
 
     expect(diagnosed).toEqual({ result: { success: false, processedCount: 0, error: 'unrelated failure' } })
+  })
+})
+
+describe('BaseMigrator phase diagnostics wrappers', () => {
+  const migrationRun = {
+    diagnostics: { recordEvent: vi.fn() },
+    logger: { error: vi.fn() }
+  } as unknown as MigrationContext
+
+  it('returns only the fixed classification for caught prepare and validate failures', async () => {
+    const migrator = new PhaseCaptureProbeMigrator()
+    migrator.prepareOutcomes = ['captured_failure']
+    migrator.validateOutcomes = ['captured_failure']
+
+    const prepare = await (migrator as any).prepareWithDiagnostics(migrationRun)
+    const validate = await (migrator as any).validateWithDiagnostics(migrationRun)
+
+    expect(prepare).toEqual({
+      result: { success: false, itemCount: 0, error: 'prepare failed' },
+      failureClassification: { category: 'database_write', code: 'sqlite_too_big', causeDepth: 0 }
+    })
+    expect(validate).toEqual({
+      result: {
+        success: false,
+        errors: [{ key: 'validation', message: 'validate failed' }],
+        stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
+      },
+      failureClassification: { category: 'database_read', code: 'sqlite_corrupt', causeDepth: 0 }
+    })
+    expect(JSON.stringify({ prepare, validate })).not.toContain('PRIVATE_')
+  })
+
+  it('does not carry a prepare classification into a later validate phase', async () => {
+    const migrator = new PhaseCaptureProbeMigrator()
+    migrator.prepareOutcomes = ['captured_failure']
+    migrator.validateOutcomes = ['plain_failure']
+
+    await (migrator as any).prepareWithDiagnostics(migrationRun)
+    const validate = await (migrator as any).validateWithDiagnostics(migrationRun)
+
+    expect(validate).not.toHaveProperty('failureClassification')
+  })
+
+  it('clears a failed attempt before a successful retry', async () => {
+    const migrator = new PhaseCaptureProbeMigrator()
+    migrator.prepareOutcomes = ['captured_failure', 'success']
+
+    const first = await (migrator as any).prepareWithDiagnostics(migrationRun)
+    const retry = await (migrator as any).prepareWithDiagnostics(migrationRun)
+
+    expect(first).toHaveProperty('failureClassification.code', 'sqlite_too_big')
+    expect(retry).toEqual({ result: { success: true, itemCount: 0 } })
+  })
+
+  it('drops a captured best-effort error when the phase succeeds', async () => {
+    const migrator = new PhaseCaptureProbeMigrator()
+    migrator.prepareOutcomes = ['captured_success', 'plain_failure']
+
+    const bestEffort = await (migrator as any).prepareWithDiagnostics(migrationRun)
+    const laterFailure = await (migrator as any).prepareWithDiagnostics(migrationRun)
+
+    expect(bestEffort).toEqual({ result: { success: true, itemCount: 0 } })
+    expect(laterFailure).not.toHaveProperty('failureClassification')
   })
 })

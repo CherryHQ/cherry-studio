@@ -54,6 +54,11 @@ const KNOWLEDGE_ITEM_PROFILE = {
   fields: ['data']
 } as const satisfies PayloadProfileDescriptor
 
+const USER_MODEL_PROFILE = {
+  target: 'user_model',
+  fields: ['name', 'group']
+} as const satisfies PayloadProfileDescriptor
+
 const ITEM_INSERT_BATCH_SIZE = 200
 const LOOKUP_STREAM_BATCH_SIZE = 200
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
@@ -785,6 +790,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         warnings: this.warnings.length > 0 ? this.warnings : undefined
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('KnowledgeMigrator.prepare failed', error as Error)
       return {
         success: false,
@@ -860,10 +866,12 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     ctx.db.transaction((tx) => {
       for (const [providerId, rows] of rowsByProvider) {
-        insertManyWithOrderKey(tx, userModelTable, rows, {
-          pkColumn: userModelTable.id,
-          scope: eq(userModelTable.providerId, providerId)
-        })
+        this.runDiagnosedWrite(ctx, USER_MODEL_PROFILE, rows, () =>
+          insertManyWithOrderKey(tx, userModelTable, rows, {
+            pkColumn: userModelTable.id,
+            scope: eq(userModelTable.providerId, providerId)
+          })
+        )
       }
     })
 
@@ -1145,6 +1153,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('KnowledgeMigrator.validate failed', error as Error)
       return {
         success: false,

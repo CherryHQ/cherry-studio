@@ -123,6 +123,7 @@ export class BootConfigMigrator extends BaseMigrator {
         warnings: warnings.length > 0 ? warnings : undefined
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Preparation failed', error as Error)
       return {
         success: false,
@@ -219,6 +220,7 @@ export class BootConfigMigrator extends BaseMigrator {
         }
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Validation failed', error as Error)
       return {
         success: false,

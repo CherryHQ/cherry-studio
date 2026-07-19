@@ -170,6 +170,7 @@ export class TranslateMigrator extends BaseMigrator {
         warnings: warnings.length > 0 ? warnings : undefined
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Prepare failed', error as Error)
       return {
         success: false,
@@ -330,6 +331,7 @@ export class TranslateMigrator extends BaseMigrator {
         }
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Validation failed', error as Error)
       return {
         success: false,

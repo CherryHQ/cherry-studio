@@ -92,6 +92,7 @@ export class PromptMigrator extends BaseMigrator {
         warnings: this.skippedCount > 0 ? [`Skipped ${this.skippedCount} invalid quick phrases`] : undefined
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Prepare failed', error as Error)
       return {
@@ -188,6 +189,7 @@ export class PromptMigrator extends BaseMigrator {
         }
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Validation failed', error as Error)
       errors.push({
         key: 'validation_error',

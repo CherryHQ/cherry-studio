@@ -28,6 +28,11 @@ interface ForeignKeyViolation {
   fkid: number
 }
 
+interface DiagnosedPhaseResult<TResult> {
+  result: TResult
+  failureClassification?: ClassifiedMigrationError
+}
+
 export abstract class BaseMigrator {
   // Metadata - must be implemented by subclasses
   abstract readonly id: string
@@ -38,8 +43,8 @@ export abstract class BaseMigrator {
   // Progress callback for UI updates
   protected onProgress?: (progress: number, progressMessage: ProgressMessage) => void
 
-  /** Fixed metadata from the latest diagnosed write failure in the current execute attempt. */
-  private diagnosedWriteFailure?: ClassifiedMigrationError
+  /** Fixed metadata from the latest caught failure in the current phase attempt. */
+  private diagnosedPhaseFailure?: ClassifiedMigrationError
 
   /**
    * Set progress callback for reporting progress to UI
@@ -80,7 +85,7 @@ export abstract class BaseMigrator {
       return write()
     } catch (error) {
       const classification = classifyMigrationError(error)
-      this.diagnosedWriteFailure = classification
+      this.diagnosedPhaseFailure = classification
       try {
         ctx.diagnostics?.recordEvent({
           scope: 'migrator',
@@ -100,29 +105,51 @@ export abstract class BaseMigrator {
   }
 
   /**
+   * Preserve only fixed failure metadata while a migrator converts a raw
+   * exception into a phase result. Subclasses call this from their terminal
+   * prepare/validate catch, before the raw exception leaves scope.
+   */
+  protected capturePhaseFailure(error: unknown): void {
+    this.diagnosedPhaseFailure = classifyMigrationError(error)
+  }
+
+  private async runPhaseWithDiagnostics<TResult extends { success: boolean }>(
+    operation: () => Promise<TResult>
+  ): Promise<DiagnosedPhaseResult<TResult>> {
+    this.diagnosedPhaseFailure = undefined
+    try {
+      const result = await operation()
+      if (result.success || this.diagnosedPhaseFailure === undefined) return { result }
+      return { result, failureClassification: this.diagnosedPhaseFailure }
+    } finally {
+      this.diagnosedPhaseFailure = undefined
+    }
+  }
+
+  /** Prepare with fixed failure metadata available to the main-process engine. */
+  prepareWithDiagnostics(ctx: MigrationContext): Promise<DiagnosedPhaseResult<PrepareResult>> {
+    return this.runPhaseWithDiagnostics(() => this.prepare(ctx))
+  }
+
+  /**
    * Execute with fixed failure metadata available to the main-process engine.
    *
    * Migrators currently return display strings for many fatal write failures,
    * which discards the original SQLite code. This wrapper preserves only the
    * bounded classification and always clears it between attempts.
    */
-  async executeWithDiagnostics(ctx: MigrationContext): Promise<{
-    result: ExecuteResult
-    failureClassification?: ClassifiedMigrationError
-  }> {
-    this.diagnosedWriteFailure = undefined
-    try {
-      const result = await this.execute(ctx)
-      if (result.success || this.diagnosedWriteFailure === undefined) return { result }
-      return { result, failureClassification: this.diagnosedWriteFailure }
-    } finally {
-      this.diagnosedWriteFailure = undefined
-    }
+  executeWithDiagnostics(ctx: MigrationContext): Promise<DiagnosedPhaseResult<ExecuteResult>> {
+    return this.runPhaseWithDiagnostics(() => this.execute(ctx))
+  }
+
+  /** Validate with fixed failure metadata available to the main-process engine. */
+  validateWithDiagnostics(ctx: MigrationContext): Promise<DiagnosedPhaseResult<ValidateResult>> {
+    return this.runPhaseWithDiagnostics(() => this.validate(ctx))
   }
 
   /** Clear a diagnosed failure after an explicitly non-fatal, best-effort write. */
   protected clearNonterminalDiagnosedFailure(): void {
-    this.diagnosedWriteFailure = undefined
+    this.diagnosedPhaseFailure = undefined
   }
 
   /**

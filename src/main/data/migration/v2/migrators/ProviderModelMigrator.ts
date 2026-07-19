@@ -430,6 +430,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         warnings: warnings.length > 0 ? warnings : undefined
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       const phaseError = createPhaseError('Provider/model preparation failed', error)
       logger.error('Preparation failed', phaseError)
       return {
@@ -648,6 +649,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         }
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       const phaseError = createPhaseError('Provider/model validation failed', error)
       logger.error('Validation failed', phaseError)
       return {

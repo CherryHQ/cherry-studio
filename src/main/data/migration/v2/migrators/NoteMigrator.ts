@@ -175,6 +175,7 @@ export class NoteMigrator extends BaseMigrator {
         }
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Validation failed', error as Error)
       return {
         success: false,

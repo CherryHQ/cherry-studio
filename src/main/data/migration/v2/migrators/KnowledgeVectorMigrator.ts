@@ -903,6 +903,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         warnings: this.warnings.length > 0 ? [...this.warnings] : undefined
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       this.flushSkippedWarnings()
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('KnowledgeVectorMigrator.prepare failed', error as Error)
@@ -1335,6 +1336,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         }
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('KnowledgeVectorMigrator.validate failed', error as Error)
       return {
         success: false,

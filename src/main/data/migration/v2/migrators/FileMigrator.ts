@@ -301,6 +301,7 @@ export class FileMigrator extends BaseMigrator {
         warnings: this.warnings.length > 0 ? this.warnings : undefined
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('FileMigrator.prepare failed', error as Error)
       return {
         success: false,
@@ -408,6 +409,7 @@ export class FileMigrator extends BaseMigrator {
         }
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('FileMigrator.validate failed', error as Error)
       return {
         success: false,

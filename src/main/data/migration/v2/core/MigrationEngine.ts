@@ -74,13 +74,13 @@ const NOOP_MIGRATION_DIAGNOSTICS: MigrationAttemptDiagnostics = {
   complete: () => {}
 }
 
-class MigratorExecuteResultError extends Error {
+class MigratorResultError extends Error {
   constructor(
     message: string,
     readonly failureClassification?: ClassifiedMigrationError
   ) {
     super(message)
-    this.name = 'MigratorExecuteResultError'
+    this.name = 'MigratorResultError'
   }
 }
 
@@ -285,10 +285,10 @@ export class MigrationEngine {
           'migrator',
           'prepare',
           async () => {
-            const result = await migrator.prepare(context)
+            const { result, failureClassification } = await migrator.prepareWithDiagnostics(context)
             if (!result.success) {
               const reason = result.error ?? result.warnings?.join(', ') ?? 'unknown reason'
-              throw new Error(`${migrator.name} prepare failed: ${reason}`)
+              throw new MigratorResultError(`${migrator.name} prepare failed: ${reason}`, failureClassification)
             }
             return result
           },
@@ -304,10 +304,7 @@ export class MigrationEngine {
           async () => {
             const { result, failureClassification } = await migrator.executeWithDiagnostics(context)
             if (!result.success) {
-              throw new MigratorExecuteResultError(
-                `${migrator.name} execute failed: ${result.error}`,
-                failureClassification
-              )
+              throw new MigratorResultError(`${migrator.name} execute failed: ${result.error}`, failureClassification)
             }
             return result
           },
@@ -323,9 +320,16 @@ export class MigrationEngine {
           'migrator',
           'validate',
           async () => {
-            const result = await migrator.validate(context)
-            // Engine-level validation
-            this.validateMigratorResult(migrator, result)
+            const { result, failureClassification } = await migrator.validateWithDiagnostics(context)
+            try {
+              // Engine-level validation
+              this.validateMigratorResult(migrator, result)
+            } catch (error) {
+              if (failureClassification) {
+                throw new MigratorResultError(this.normalizeDisplayError(error).message, failureClassification)
+              }
+              throw error
+            }
             return result
           },
           migrator.id
@@ -492,7 +496,7 @@ export class MigrationEngine {
   }
 
   private classifyDiagnosticError(error: unknown): ClassifiedMigrationError {
-    if (error instanceof MigratorExecuteResultError && error.failureClassification) {
+    if (error instanceof MigratorResultError && error.failureClassification) {
       return error.failureClassification
     }
     return classifyMigrationError(error)

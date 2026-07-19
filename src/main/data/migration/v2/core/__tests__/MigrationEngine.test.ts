@@ -2,6 +2,10 @@ import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/sche
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
+import { KnowledgeMigrator } from '../../migrators/KnowledgeMigrator'
+import { McpServerMigrator } from '../../migrators/McpServerMigrator'
+import { PromptMigrator } from '../../migrators/PromptMigrator'
+import { createMigrationContext } from '../MigrationContext'
 import { MigrationDbService } from '../MigrationDbService'
 import { MigrationEngine } from '../MigrationEngine'
 import type { MigrationPaths } from '../MigrationPaths'
@@ -43,9 +47,21 @@ const mockPaths: MigrationPaths = {
 }
 
 function createTestMigrator(id: string, order: number, events: string[]) {
+  const prepare = vi.fn(async () => {
+    events.push(`${id}:prepare`)
+    return { success: true, itemCount: 0 }
+  })
   const execute = vi.fn(async () => {
     events.push(`${id}:execute`)
     return { success: true, processedCount: 0 }
+  })
+  const validate = vi.fn(async () => {
+    events.push(`${id}:validate`)
+    return {
+      success: true,
+      errors: [],
+      stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
+    }
   })
   return {
     id,
@@ -56,20 +72,12 @@ function createTestMigrator(id: string, order: number, events: string[]) {
     reset: vi.fn(() => {
       events.push(`${id}:reset`)
     }),
-    prepare: vi.fn(async () => {
-      events.push(`${id}:prepare`)
-      return { success: true, itemCount: 0 }
-    }),
+    prepare,
+    prepareWithDiagnostics: vi.fn(async () => ({ result: await prepare() })),
     execute,
     executeWithDiagnostics: vi.fn(async () => ({ result: await execute() })),
-    validate: vi.fn(async () => {
-      events.push(`${id}:validate`)
-      return {
-        success: true,
-        errors: [],
-        stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
-      }
-    })
+    validate,
+    validateWithDiagnostics: vi.fn(async () => ({ result: await validate() }))
   }
 }
 
@@ -88,6 +96,7 @@ describe('MigrationEngine', () => {
       finishAttempt: vi.fn(),
       complete: vi.fn()
     }
+    vi.mocked(createMigrationContext).mockResolvedValue({} as never)
 
     engine.initialize(mockPaths, false, diagnostics as any)
 
@@ -258,6 +267,196 @@ describe('MigrationEngine', () => {
       code: 'sqlite_too_big',
       causeDepth: 0
     })
+  })
+
+  it('preserves a real prepare exception classification after the migrator converts it to a failed result', async () => {
+    const canary = 'PRIVATE_PREPARE_CANARY_/Users/alice/sk-secret'
+    const original = Object.assign(new Error(canary), { code: 'SQLITE_TOOBIG' })
+    vi.mocked(createMigrationContext).mockResolvedValueOnce({
+      sources: {
+        dexieExport: {
+          tableExists: vi.fn().mockRejectedValue(original)
+        }
+      }
+    } as never)
+    engine.registerMigrators([new PromptMigrator()])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining(canary) })
+    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
+      scope: 'migrator',
+      phase: 'prepare',
+      state: 'failed',
+      category: 'database_write',
+      code: 'sqlite_too_big',
+      causeDepth: 0,
+      migratorId: 'prompt'
+    })
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
+      scope: 'engine',
+      phase: 'finalize',
+      state: 'failed',
+      category: 'database_write',
+      code: 'sqlite_too_big',
+      causeDepth: 0
+    })
+    expect(JSON.stringify(diagnostics.recordEvent.mock.calls)).not.toContain(canary)
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
+  })
+
+  it('preserves a real validate SQLITE_CORRUPT classification when markFailed also throws', async () => {
+    const canary = 'PRIVATE_VALIDATE_CANARY_/Users/alice/messages'
+    const original = Object.assign(new Error(canary), { code: 'SQLITE_CORRUPT' })
+    const statusError = Object.assign(new Error('PRIVATE_STATUS_CANARY'), { code: 'ENOSPC' })
+    const migrator = new McpServerMigrator()
+    vi.spyOn(migrator, 'prepare').mockResolvedValue({ success: true, itemCount: 0 })
+    vi.spyOn(migrator, 'execute').mockResolvedValue({ success: true, processedCount: 0 })
+    vi.mocked(createMigrationContext).mockResolvedValueOnce({
+      db: {
+        select: vi.fn(() => ({
+          from: vi.fn(() => {
+            throw original
+          })
+        }))
+      }
+    } as never)
+    vi.mocked((engine as any).markFailed).mockRejectedValueOnce(statusError)
+    engine.registerMigrators([migrator])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining(canary) })
+    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
+      scope: 'migrator',
+      phase: 'validate',
+      state: 'failed',
+      category: 'database_read',
+      code: 'sqlite_corrupt',
+      causeDepth: 0,
+      migratorId: 'mcp_server'
+    })
+    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
+      scope: 'database',
+      phase: 'finalize',
+      state: 'failed',
+      category: 'filesystem',
+      code: 'disk_full',
+      causeDepth: 0
+    })
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
+      scope: 'engine',
+      phase: 'finalize',
+      state: 'failed',
+      category: 'database_read',
+      code: 'sqlite_corrupt',
+      causeDepth: 0
+    })
+    expect(JSON.stringify(diagnostics.recordEvent.mock.calls)).not.toContain(canary)
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
+  })
+
+  it('profiles the real resurrected user_model write and preserves its terminal classification', async () => {
+    const nameCanary = `PRIVATE_MODEL_NAME_${'n'.repeat(300)}`
+    const groupCanary = `PRIVATE_MODEL_GROUP_${'g'.repeat(5_000)}`
+    const original = Object.assign(new Error(`SQLITE_TOOBIG ${nameCanary} ${groupCanary}`), {
+      code: 'SQLITE_TOOBIG'
+    })
+    const boundaryAll = vi.fn().mockReturnValue([])
+    const insertAll = vi.fn(() => {
+      throw original
+    })
+    const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            orderBy: vi.fn(() => ({
+              limit: vi.fn(() => ({ all: boundaryAll }))
+            }))
+          }))
+        }))
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          returning: vi.fn(() => ({ all: insertAll }))
+        }))
+      }))
+    }
+    const context = {
+      db: {
+        transaction: vi.fn((operation: (tx: unknown) => unknown) => operation(tx))
+      },
+      diagnostics,
+      logger: { error: vi.fn() },
+      sharedData: new Map()
+    }
+    vi.mocked(createMigrationContext).mockResolvedValueOnce(context as never)
+
+    const migrator = new KnowledgeMigrator() as any
+    const reset = migrator.reset.bind(migrator)
+    vi.spyOn(migrator, 'reset').mockImplementation(() => {
+      reset()
+      migrator.preparedBases = [{ id: 'kb-diagnostic' }]
+      migrator.resurrectedEmbeddingModels = new Map([
+        [
+          'private-provider::private-model',
+          {
+            id: 'private-provider::private-model',
+            providerId: 'private-provider',
+            modelId: 'private-model',
+            name: nameCanary,
+            group: groupCanary
+          }
+        ]
+      ])
+    })
+    vi.spyOn(migrator, 'prepare').mockResolvedValue({ success: true, itemCount: 1 })
+    engine.registerMigrators([migrator])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining('SQLITE_TOOBIG') })
+    expect(diagnostics.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'migrator',
+        phase: 'execute',
+        state: 'failed',
+        category: 'database_write',
+        code: 'sqlite_too_big',
+        causeDepth: 0,
+        migratorId: 'knowledge',
+        payloadProfile: expect.objectContaining({
+          target: 'user_model',
+          rowCountBucket: '1',
+          slots: expect.arrayContaining([
+            expect.objectContaining({
+              slot: 'name',
+              kind: 'string',
+              maxCharLengthBucket: '257-4096'
+            }),
+            expect.objectContaining({
+              slot: 'group',
+              kind: 'string',
+              maxCharLengthBucket: '4097-65536'
+            })
+          ])
+        })
+      })
+    )
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
+      scope: 'engine',
+      phase: 'finalize',
+      state: 'failed',
+      category: 'database_write',
+      code: 'sqlite_too_big',
+      causeDepth: 0
+    })
+    const serializedDiagnostics = JSON.stringify({
+      events: diagnostics.recordEvent.mock.calls,
+      terminal: diagnostics.finishAttempt.mock.calls
+    })
+    expect(serializedDiagnostics).not.toContain(nameCanary)
+    expect(serializedDiagnostics).not.toContain(groupCanary)
   })
 
   it('rethrows database initialization failures after recording fixed metadata even when the sink fails', () => {

@@ -208,7 +208,7 @@ pnpm exec vitest run --project main \
 | `ProviderModelMigrator.ts` | `user_provider`, `user_model`, `file_entry` | provider 的 `name`, `endpointConfigs`, `apiKeys`, `authConfig`, `apiFeatures`, `providerSettings`, `logoKey`; model 的 `name`, `description`, `capabilities`, `inputModalities`, `outputModalities`, `endpointTypes`, `customEndpointUrl`, `reasoning`, `parameters`, `pricing`, `notes`, `userOverrides`; file entry 的 `name`, `externalPath` |
 | `MiniAppMigrator.ts` | `mini_app`, `file_entry` | `name`, `url`, `logoKey`, `background`, `supportedRegions`, `configuration`, `nameKey`; file entry 的 `name`, `externalPath` |
 | `FileMigrator.ts` | `file_entry` | `name`, `externalPath` |
-| `KnowledgeMigrator.ts` | `knowledge_base`, `knowledge_item` | `name`, `chunkSeparator`; `data` |
+| `KnowledgeMigrator.ts` | `knowledge_base`, `knowledge_item`, `user_model` | `name`, `chunkSeparator`; `data`; resurrected model 的 `name`, `group`（仅长度桶，不写值） |
 | `ChatMigrator.ts` | `topic`, `message`, `file_ref`, `pin` | `name`; message 的 `data`, `searchableText`, `messageSnapshot`, `stats`; 临时 block 索引的实际 `payload`; 纯引用写入不统计 slot |
 | `PaintingMigrator.ts` | `painting`, `file_ref` | `prompt`; 纯引用写入不统计 slot |
 | `TranslateMigrator.ts` | `translate_language`, `translate_history` | `value`, `emoji`; `sourceText`, `targetText` |
