@@ -39,7 +39,7 @@ function HtmlPreviewLoading() {
   )
 }
 
-function HtmlPreviewError({ error }: { error: Error }) {
+function HtmlPreviewError() {
   const { t } = useTranslation()
 
   return (
@@ -47,8 +47,8 @@ function HtmlPreviewError({ error }: { error: Error }) {
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.html.read_error.title')}
-        description={error.message}
-        className="h-full [&_p]:break-all"
+        description={t('file_preview.load_error.description')}
+        className="h-full"
       />
     </div>
   )
@@ -91,7 +91,7 @@ interface HtmlPreviewContentProps {
 
 function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <HtmlPreviewLoading />
-  if (loadState.status === 'error') return <HtmlPreviewError error={loadState.error} />
+  if (loadState.status === 'error') return <HtmlPreviewError />
   if (loadState.status === 'too_large') return <HtmlPreviewTooLarge />
 
   if (mode === 'source') {

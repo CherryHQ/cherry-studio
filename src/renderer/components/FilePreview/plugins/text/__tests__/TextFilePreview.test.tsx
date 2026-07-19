@@ -112,14 +112,16 @@ describe('TextFilePreview', () => {
     expect(screen.queryByText('file_preview.text.empty.title')).not.toBeInTheDocument()
   })
 
-  it('shows and logs the actual read error for diagnosis', async () => {
+  it('logs the actual read error but shows only a localized description', async () => {
     const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mocks.readText.mockRejectedValueOnce(new Error('EACCES: permission denied'))
 
     renderPreview()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.text.read_error.title')
-    expect(screen.getByRole('alert')).toHaveTextContent('EACCES: permission denied')
+    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
+    // The raw (English) error message must not leak into the UI — it is for logs only.
+    expect(screen.queryByText('EACCES: permission denied')).not.toBeInTheDocument()
     expect(loggerError).toHaveBeenCalledWith(
       `Failed to read text preview: ${filePath}`,
       expect.objectContaining({ message: 'EACCES: permission denied' })

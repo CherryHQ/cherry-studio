@@ -65,7 +65,7 @@ function TextPreviewTooLarge() {
   )
 }
 
-function TextPreviewError({ error }: { error: Error }) {
+function TextPreviewError() {
   const { t } = useTranslation()
 
   return (
@@ -73,8 +73,8 @@ function TextPreviewError({ error }: { error: Error }) {
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.text.read_error.title')}
-        description={error.message}
-        className="h-full [&_p]:break-all"
+        description={t('file_preview.load_error.description')}
+        className="h-full"
       />
     </div>
   )
@@ -89,7 +89,7 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
   if (loadState.status === 'loading') return <TextPreviewLoading />
   if (loadState.status === 'empty') return <TextPreviewEmpty />
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
-  if (loadState.status === 'error') return <TextPreviewError error={loadState.error} />
+  if (loadState.status === 'error') return <TextPreviewError />
 
   return (
     <div className="min-h-full w-full">

@@ -37,7 +37,7 @@ function MarkdownPreviewLoading() {
   )
 }
 
-function MarkdownPreviewError({ error }: { error: Error }) {
+function MarkdownPreviewError() {
   const { t } = useTranslation()
 
   return (
@@ -45,8 +45,8 @@ function MarkdownPreviewError({ error }: { error: Error }) {
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.markdown.read_error.title')}
-        description={error.message}
-        className="h-full [&_p]:break-all"
+        description={t('file_preview.load_error.description')}
+        className="h-full"
       />
     </div>
   )
@@ -90,7 +90,7 @@ function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreview
   const { t } = useTranslation()
 
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
-  if (loadState.status === 'error') return <MarkdownPreviewError error={loadState.error} />
+  if (loadState.status === 'error') return <MarkdownPreviewError />
   if (loadState.status === 'too_large') return <MarkdownPreviewTooLarge />
 
   if (mode === 'source') {
