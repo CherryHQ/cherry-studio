@@ -59,9 +59,17 @@ absolute-path-type unification tracked as §7 / task #8.
   (restore the documented contract). Thread `workspacePath` into the tool-flow
   provider so relative tool output resolves to an absolute path instead of only
   "not erroring". Add a relative-path tool-flow regression test.
+- **#16740 coordination (open question)**: the `catch → false` half is
+  independent and safe to land now. The `workspacePath`-threading half touches
+  the same `createFilePathHandle(… as FilePath)` call site that #16740 reshapes
+  (`FilePath` → the `AbsoluteFilePath` brand, casts removed), and #16740
+  explicitly names "accessible-path-relative agent paths" as an untyped-string
+  category — so writing this half now would incur rebase churn. Recommendation:
+  fix #1 on top of #16740 alongside #3, unless the runtime regression needs the
+  `catch → false` safety net sooner. **Awaiting maintainer call.**
 
 ### #3 — Windows `file://` URL drops regress to plain text
-- **Verdict**: confirmed · **Status**: open
+- **Verdict**: confirmed · **Status**: deferred (depends on #16740)
 - **Where**: `src/renderer/components/composer/paste/useFileDragDrop.ts:55-62`;
   path contract in `src/shared/data/types/file.ts:180-184` (`AbsolutePathSchema`)
   vs. `src/shared/utils/file/url.ts:198-208` (`fileUrlToPath`).
@@ -70,19 +78,26 @@ absolute-path-type unification tracked as §7 / task #8.
   accepts a Windows path only in backslash form (`/^[A-Za-z]:\\/`). So a dropped
   `file:///C:/…` value is rejected at the IPC boundary, the probe throws, and the
   drop falls through to `onTextDropped` instead of attaching the file.
-- **Planned fix**: normalize the path form before handle construction (e.g.
-  through `canonicalizeAbsolutePath`) or reconcile the shared path contract so
-  forward-slash Windows paths are valid. Add a Windows `file://` URL regression
-  test. Ties into §7 / task #8 (unify the branded absolute-path type).
+- **Decision (deferred to #16740)**: do **not** apply a local normalization
+  hack. PR **#16740** ("unify filesystem path types as Zod brands", author's own
+  open PR on `eurfelux/refactor/file-type`) introduces `AbsoluteFilePathSchema`
+  whose refine is `s.startsWith('/') || /^[A-Za-z]:[/\\]/.test(s)` — the `[/\\]`
+  **already accepts forward-slash Windows paths** (`C:/…`), removing the
+  mismatch at the schema level. Once #16740 lands and this branch rebases onto
+  it, change `fileUrlToPath`'s return type to `AbsoluteFilePath` so its output is
+  schema-consistent by construction. Then add a Windows `file://` URL regression
+  test. This subsumes the old §7 / task #8 note.
 
 ### #8 — `isTextByContent` leaks a file descriptor on read failure
-- **Verdict**: confirmed · **Status**: open
-- **Where**: `src/main/utils/file/metadata.ts:34-37`.
-- **Detail**: the handle is opened, then closed only after a successful
-  `fileHandle.read(...)`. If `read` throws, the outer `catch` returns `false`
+- **Verdict**: confirmed · **Status**: resolved
+- **Where**: `src/main/utils/file/metadata.ts`.
+- **Detail**: the handle was opened, then closed only after a successful
+  `fileHandle.read(...)`. If `read` threw, the outer `catch` returned `false`
   without closing the handle → descriptor leak. This is v2 code introduced by
-  this migration (the `File_IsTextFile` fold), so it is in scope to fix.
-- **Planned fix**: close the handle in a `finally` block.
+  this migration (the `File_IsTextFile` fold).
+- **Resolution**: moved `fileHandle.close()` into a `finally` block wrapping the
+  read/analyse, so the descriptor is released on every path. Behavior-preserving
+  (existing tests unchanged).
 
 ---
 
