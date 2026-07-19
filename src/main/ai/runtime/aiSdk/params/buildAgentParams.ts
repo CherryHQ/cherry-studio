@@ -16,7 +16,7 @@ import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
-import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
+import { resolveGlobalMcpToolIds, syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
 import { registry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
@@ -178,6 +178,11 @@ export async function resolveTools(
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
+  }
+  // ponytail: when no assistant is configured (e.g. Quick Assist default),
+  // fall back to all globally active MCP servers so tools still work.
+  if (!mcpIdList && !request.assistantId) {
+    mcpIdList = await resolveGlobalMcpToolIds()
   }
   const mcpToolIds = new Set(mcpIdList ?? [])
   if (mcpToolIds.size) {

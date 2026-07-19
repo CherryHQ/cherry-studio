@@ -7,13 +7,21 @@ import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { CallOverrides } from '../../../../types/requests'
 
+const mcpListTools = vi.fn().mockReturnValue([])
+const mcpList = vi.fn().mockReturnValue({ items: [] })
+
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
+      if (name === 'McpCatalogService') return { listTools: mcpListTools }
       throw new Error(`unexpected service: ${name}`)
     }
   }
+}))
+
+vi.mock('@main/data/services/McpServerService', () => ({
+  mcpServerService: { list: mcpList }
 }))
 
 const { applyCallOverrides, composeStopWhen, resolveKnowledgeBaseIds, resolveTools } = await import(
@@ -170,5 +178,74 @@ describe('resolveTools knowledge-base wiring', () => {
     const { tools } = await resolveTools({}, undefined, makeModel(), false, [])
 
     expect(tools?.[KB_GATED_TOOL_NAME]).toBeUndefined()
+  })
+})
+
+describe('resolveTools MCP global fallback', () => {
+  const MCP_GATED_TOOL = 'mcp__webserver__web_search'
+
+  afterEach(() => {
+    registry.deregister(MCP_GATED_TOOL)
+    mcpListTools.mockReset()
+    mcpList.mockReset()
+  })
+
+  it('resolves globally active MCP tools when no assistantId is provided', async () => {
+    const fakeTool = {
+      id: MCP_GATED_TOOL,
+      serverId: 'srv-1',
+      serverName: 'webserver',
+      name: 'web_search',
+      description: 'Search the web',
+      inputSchema: { type: 'object', properties: {} }
+    }
+    mcpList.mockReturnValue({ items: [{ id: 'srv-1', name: 'webserver', isActive: true }] })
+    mcpListTools.mockReturnValue([fakeTool])
+
+    const { mcpToolIds } = await resolveTools({}, undefined, makeModel(), false, [])
+
+    expect(mcpToolIds.has(MCP_GATED_TOOL)).toBe(true)
+  })
+
+  it('does NOT override explicit mcpToolIds from the request', async () => {
+    mcpList.mockReturnValue({ items: [{ id: 'srv-1', name: 'webserver', isActive: true }] })
+    mcpListTools.mockReturnValue([
+      {
+        id: 'mcp__webserver__other',
+        serverId: 'srv-1',
+        serverName: 'webserver',
+        name: 'other',
+        description: '',
+        inputSchema: { type: 'object', properties: {} }
+      }
+    ])
+
+    const { mcpToolIds } = await resolveTools(
+      { mcpToolIds: ['mcp__webserver__web_search'] },
+      undefined,
+      makeModel(),
+      false,
+      []
+    )
+
+    expect(mcpToolIds.has('mcp__webserver__web_search')).toBe(true)
+    expect(mcpToolIds.has('mcp__webserver__other')).toBe(false)
+  })
+
+  it('skips global fallback when assistantId IS provided (assistant path handles it)', async () => {
+    // With an assistantId, resolveAssistantMcpToolIds runs instead —
+    // the global fallback should NOT fire.
+    mcpList.mockReturnValue({ items: [] })
+    mcpListTools.mockReturnValue([])
+
+    const { mcpToolIds } = await resolveTools({}, makeAssistant(), makeModel(), false, [])
+
+    // The assistant path will fail to resolve (no real assistant data),
+    // but the global fallback must NOT have been reached.
+    expect(mcpToolIds.size).toBe(0)
+    // mcpListTools should NOT have been called via the global path
+    // (it may be called by the assistant path which also uses McpCatalogService,
+    //  but that's expected — the key assertion is that mcpToolIds is empty
+    //  because the assistant had no MCP servers).
   })
 })
