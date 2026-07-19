@@ -5,17 +5,12 @@ const snapshotRef = vi.hoisted(() => ({
   value: { name: 'rtk', availability: { source: 'none' } } as BinaryToolSnapshot
 }))
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
-const mockExecFileAsync = vi.hoisted(() => vi.fn())
+const executeCommandMock = vi.hoisted(() => vi.fn())
 
 // Mock dependencies before importing the module
-vi.mock('node:child_process', () => ({
-  execFile: vi.fn()
+vi.mock('@main/utils/processRunner', () => ({
+  executeCommand: executeCommandMock
 }))
-
-vi.mock('node:util', async (importOriginal) => {
-  const actual = await importOriginal()
-  return { ...(actual as object), promisify: () => mockExecFileAsync }
-})
 
 vi.mock('node:os', () => ({
   default: {
@@ -81,7 +76,7 @@ describe('rtk utils', () => {
     vi.spyOn(Date, 'now').mockReturnValue(now)
     snapshotRef.value = { name: 'rtk', availability: { source: 'none' } }
     binaryManagerMock.getToolSnapshots.mockImplementation(async () => ({ rtk: snapshotRef.value }))
-    mockExecFileAsync.mockReset()
+    executeCommandMock.mockReset()
   })
 
   afterEach(() => {
@@ -94,27 +89,54 @@ describe('rtk utils', () => {
 
       expect(result).toBeNull()
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['rtk'])
-      expect(mockExecFileAsync).not.toHaveBeenCalled()
+      expect(executeCommandMock).not.toHaveBeenCalled()
     })
 
     it('uses a system RTK path and preserves the raw user environment', async () => {
       snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: 'rtk 0.30.1', stderr: '' })
-        .mockResolvedValueOnce({ stdout: 'rg --files', stderr: '' })
+      executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockResolvedValueOnce('rg --files')
 
       await expect(rtkRewrite('find . -type f')).resolves.toBe('rg --files')
-      expect(mockExecFileAsync).toHaveBeenNthCalledWith(
+      expect(executeCommandMock).toHaveBeenNthCalledWith(
         1,
         '/usr/local/bin/rtk',
         ['--version'],
-        expect.objectContaining({ env: { PATH: '/usr/local/bin:/usr/bin', MISE_DATA_DIR: '/user/mise' } })
+        expect.objectContaining({
+          capture: true,
+          env: { PATH: '/usr/local/bin:/usr/bin', MISE_DATA_DIR: '/user/mise' }
+        })
       )
-      expect(mockExecFileAsync).toHaveBeenNthCalledWith(
+      expect(executeCommandMock).toHaveBeenNthCalledWith(
         2,
         '/usr/local/bin/rtk',
         ['rewrite', 'find . -type f'],
-        expect.objectContaining({ env: { PATH: '/usr/local/bin:/usr/bin', MISE_DATA_DIR: '/user/mise' } })
+        expect.objectContaining({
+          capture: true,
+          env: { PATH: '/usr/local/bin:/usr/bin', MISE_DATA_DIR: '/user/mise' }
+        })
+      )
+    })
+
+    it('passes a system RTK .cmd path and arbitrary rewrite text as separate arguments', async () => {
+      const command = 'echo "quoted" & whoami %PATH%'
+      snapshotRef.value = {
+        name: 'rtk',
+        availability: { source: 'system', path: 'C:\\Users\\V\\AppData\\Roaming\\npm\\rtk.cmd' }
+      }
+      executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockResolvedValueOnce('rewritten')
+
+      await expect(rtkRewrite(command)).resolves.toBe('rewritten')
+      expect(executeCommandMock).toHaveBeenNthCalledWith(
+        1,
+        'C:\\Users\\V\\AppData\\Roaming\\npm\\rtk.cmd',
+        ['--version'],
+        expect.objectContaining({ capture: true })
+      )
+      expect(executeCommandMock).toHaveBeenNthCalledWith(
+        2,
+        'C:\\Users\\V\\AppData\\Roaming\\npm\\rtk.cmd',
+        ['rewrite', command],
+        expect.objectContaining({ capture: true })
       )
     })
 
@@ -124,20 +146,20 @@ describe('rtk utils', () => {
       const versionGate = new Promise<{ stdout: string; stderr: string }>((resolve) => {
         resolveVersion = resolve
       })
-      mockExecFileAsync.mockImplementation(async (_path: string, args: string[]) => {
-        if (args[0] === '--version') return versionGate
-        return { stdout: `rewritten:${args[1]}`, stderr: '' }
+      executeCommandMock.mockImplementation(async (_path: string, args: string[]) => {
+        if (args[0] === '--version') return versionGate.then((result) => result.stdout)
+        return `rewritten:${args[1]}`
       })
 
       const first = rtkRewrite('first')
       const second = rtkRewrite('second')
-      await vi.waitFor(() => expect(mockExecFileAsync).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(executeCommandMock).toHaveBeenCalledTimes(1))
       resolveVersion({ stdout: 'rtk 0.30.1', stderr: '' })
 
       await expect(Promise.all([first, second])).resolves.toEqual(['rewritten:first', 'rewritten:second'])
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(1)
-      expect(mockExecFileAsync).toHaveBeenCalledTimes(3)
-      for (const call of mockExecFileAsync.mock.calls) {
+      expect(executeCommandMock).toHaveBeenCalledTimes(3)
+      for (const call of executeCommandMock.mock.calls) {
         expect(call[0]).toBe('/usr/local/bin/rtk')
         expect(call[2]).toEqual(
           expect.objectContaining({ env: { PATH: '/usr/local/bin:/usr/bin', MISE_DATA_DIR: '/user/mise' } })
@@ -153,9 +175,7 @@ describe('rtk utils', () => {
       }
 
       // First call: version check, second call: rewrite
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: 'rtk 0.30.1', stderr: '' })
-        .mockResolvedValueOnce({ stdout: 'ls -la', stderr: '' })
+      executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockResolvedValueOnce('ls -la')
 
       const result = await rtkRewrite('ls -la')
 
@@ -169,9 +189,7 @@ describe('rtk utils', () => {
         application: { status: 'applied', version: '0.30.1' }
       }
 
-      mockExecFileAsync
-        .mockResolvedValueOnce({ stdout: 'rtk 0.30.1', stderr: '' })
-        .mockRejectedValueOnce(new Error('exit code 1'))
+      executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockRejectedValueOnce(new Error('exit code 1'))
 
       const result = await rtkRewrite('some-command')
 

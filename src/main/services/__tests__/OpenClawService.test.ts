@@ -8,6 +8,8 @@ import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
+const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
+const platformMock = vi.hoisted(() => ({ isWin: false }))
 
 // --- Mocks for OpenClawService dependencies ---
 
@@ -65,8 +67,15 @@ vi.mock('@main/services/RegionService', () => ({
   regionService: { isInChina: vi.fn(() => Promise.resolve(false)) }
 }))
 
+// Pin Windows behavior without depending on the host platform.
 vi.mock('@main/core/platform', () => ({
-  isWin: false
+  get isWin() {
+    return platformMock.isWin
+  }
+}))
+
+vi.mock('@main/utils/processRunner', () => ({
+  crossPlatformSpawn: crossPlatformSpawnMock
 }))
 
 vi.mock('@shared/utils', () => ({
@@ -134,6 +143,7 @@ describe('OpenClawService gateway status state machine', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    platformMock.isWin = false
     binaryManagerMock.getToolSnapshots.mockResolvedValue({
       openclaw: { name: 'openclaw', availability: { source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' } }
     })
@@ -266,6 +276,40 @@ describe('OpenClawService gateway status state machine', () => {
         PATH: '/usr/local/bin:/usr/bin',
         MISE_DATA_DIR: '/user/mise'
       })
+    })
+
+    it('launches a system OpenClaw .cmd through the process runner on Windows', async () => {
+      platformMock.isWin = true
+      const child = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+        unref: vi.fn()
+      }
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'healthy',
+        gatewayPort: 18790
+      })
+      vi.useFakeTimers()
+
+      const started = (service as any).startAndWaitForGateway('C:\\Users\\V\\AppData\\Roaming\\npm\\openclaw.cmd', {
+        Path: 'C:\\Windows\\System32'
+      })
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await expect(started).resolves.toBeUndefined()
+      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
+        'C:\\Users\\V\\AppData\\Roaming\\npm\\openclaw.cmd',
+        ['gateway', 'run', '--force'],
+        expect.objectContaining({
+          detached: false,
+          env: { Path: 'C:\\Windows\\System32' },
+          stdio: ['ignore', 'pipe', 'pipe'],
+          windowsHide: true
+        })
+      )
+      expect(child.unref).toHaveBeenCalledOnce()
     })
 
     it('stops stale gateway and restarts when port is in use by our gateway', async () => {

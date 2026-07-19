@@ -1,4 +1,4 @@
-import { execSync, spawn } from 'node:child_process'
+import { execSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
+import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import {
@@ -247,7 +248,7 @@ export class OpenClawService extends BaseService {
     // On Windows, avoid detached: true as it creates a visible console window.
     // Instead, use windowsHide: true without detached - proc.unref() ensures
     // the parent can exit independently.
-    const proc = spawn(openclawPath, args, {
+    const proc = crossPlatformSpawn(openclawPath, args, {
       env: shellEnv,
       detached: !isWin, // Only detach on non-Windows to avoid console flash
       stdio: ['ignore', 'pipe', 'pipe'],

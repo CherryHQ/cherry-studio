@@ -1,13 +1,9 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { executeCommand } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { gte as semverGte } from 'semver'
-
-const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('Utils:Rtk')
 
 const RTK_MIN_VERSION = '0.23.0'
@@ -41,7 +37,8 @@ async function probeRtk(): Promise<RtkExecution | null> {
   }
 
   try {
-    const { stdout } = await execFileAsync(execution.path, ['--version'], {
+    const stdout = await executeCommand(execution.path, ['--version'], {
+      capture: true,
       env: execution.env,
       timeout: REWRITE_TIMEOUT_MS
     })
@@ -87,7 +84,8 @@ export async function rtkRewrite(command: string): Promise<string | null> {
   if (!execution) return null
 
   try {
-    const { stdout } = await execFileAsync(execution.path, ['rewrite', command], {
+    const stdout = await executeCommand(execution.path, ['rewrite', command], {
+      capture: true,
       env: execution.env,
       timeout: REWRITE_TIMEOUT_MS
     })
