@@ -1,5 +1,5 @@
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync } from 'node:fs'
-import { isMainThread, parentPort, workerData } from 'node:worker_threads'
+import process from 'node:process'
 
 import Database from 'better-sqlite3'
 
@@ -18,9 +18,9 @@ import type {
   MigrationDatabaseColumnCountBucket,
   MigrationDatabaseCompletedDiagnosticResult,
   MigrationDatabaseCountBucket,
+  MigrationDatabaseDiagnosticsChildInput,
+  MigrationDatabaseDiagnosticsChildMessage,
   MigrationDatabaseDiagnosticStep,
-  MigrationDatabaseDiagnosticsWorkerInput,
-  MigrationDatabaseDiagnosticsWorkerMessage,
   MigrationDatabaseExpectedObjectId,
   MigrationDatabaseFailureCode,
   MigrationDatabaseL0Data,
@@ -75,11 +75,30 @@ function hasOnlyKeys(value: object, allowedKeys: readonly string[]): boolean {
   return Object.keys(value).every((key) => allowed.has(key))
 }
 
-function validateWorkerInput(value: unknown): MigrationDatabaseDiagnosticsWorkerInput | undefined {
+function getOwnObject(value: unknown, property: string): object | undefined {
+  if (value === null || typeof value !== 'object') return undefined
+  const descriptor = Object.getOwnPropertyDescriptor(value, property)
+  return descriptor && 'value' in descriptor && descriptor.value !== null && typeof descriptor.value === 'object'
+    ? descriptor.value
+    : undefined
+}
+
+function validateIdentity(value: unknown): { readonly device: string; readonly inode: string } | undefined {
+  if (value === null || typeof value !== 'object' || !hasOnlyKeys(value, ['device', 'inode'])) return undefined
+  const device = getOwnString(value, 'device')
+  const inode = getOwnString(value, 'inode')
+  if (device === undefined || inode === undefined || !/^\d{1,32}$/.test(device) || !/^\d{1,32}$/.test(inode)) {
+    return undefined
+  }
+  return { device, inode }
+}
+
+function validateChildInput(value: unknown): MigrationDatabaseDiagnosticsChildInput | undefined {
   try {
-    if (value === null || typeof value !== 'object' || !hasOnlyKeys(value, ['databaseFile'])) {
+    if (value === null || typeof value !== 'object') {
       return undefined
     }
+    const mode = getOwnString(value, 'mode')
     const databaseFile = getOwnString(value, 'databaseFile')
     if (
       databaseFile === undefined ||
@@ -88,7 +107,18 @@ function validateWorkerInput(value: unknown): MigrationDatabaseDiagnosticsWorker
     ) {
       return undefined
     }
-    return { databaseFile }
+    if (mode === 'l0_only' && hasOnlyKeys(value, ['mode', 'databaseFile'])) {
+      return { mode, databaseFile }
+    }
+    if (mode !== 'full' || !hasOnlyKeys(value, ['mode', 'databaseFile', 'identity'])) return undefined
+
+    const identity = getOwnObject(value, 'identity')
+    if (identity === undefined || !hasOnlyKeys(identity, ['database', 'wal', 'shm'])) return undefined
+    const database = validateIdentity(getOwnObject(identity, 'database'))
+    const wal = validateIdentity(getOwnObject(identity, 'wal'))
+    const shm = validateIdentity(getOwnObject(identity, 'shm'))
+    if (database === undefined || wal === undefined || shm === undefined) return undefined
+    return { mode, databaseFile, identity: { database, wal, shm } }
   } catch {
     return undefined
   }
@@ -177,6 +207,29 @@ function inspectWalSidecars(databaseFile: string): MigrationDatabaseL0Data['walS
   if (wal === 'regular') return 'wal_only'
   if (shm === 'regular') return 'shm_only'
   return 'none'
+}
+
+function fileIdentity(file: string): { readonly device: string; readonly inode: string } | undefined {
+  try {
+    const stats = lstatSync(file, { bigint: true })
+    if (!stats.isFile() || stats.isSymbolicLink()) return undefined
+    return { device: stats.dev.toString(), inode: stats.ino.toString() }
+  } catch {
+    return undefined
+  }
+}
+
+function matchesLeaseIdentity(input: Extract<MigrationDatabaseDiagnosticsChildInput, { mode: 'full' }>): boolean {
+  const actual = {
+    database: fileIdentity(input.databaseFile),
+    wal: fileIdentity(`${input.databaseFile}-wal`),
+    shm: fileIdentity(`${input.databaseFile}-shm`)
+  }
+  return (['database', 'wal', 'shm'] as const).every((kind) => {
+    const identity = actual[kind]
+    const expected = input.identity[kind]
+    return identity !== undefined && identity.device === expected.device && identity.inode === expected.inode
+  })
 }
 
 function sqliteWriteMode(header: Buffer, bytesRead: number): MigrationDatabaseL0Data['writeMode'] {
@@ -485,24 +538,24 @@ function failedStep<TLevel extends 'l0' | 'l1' | 'l2'>(
   return { level, status: 'failed', code } as Extract<MigrationDatabaseDiagnosticStep, { level: TLevel }>
 }
 
-function messageBytes(message: MigrationDatabaseDiagnosticsWorkerMessage): number {
+function messageBytes(message: MigrationDatabaseDiagnosticsChildMessage): number {
   return Buffer.byteLength(JSON.stringify(message), 'utf8')
 }
 
-function postMessage(message: MigrationDatabaseDiagnosticsWorkerMessage, maxMessageBytes: number): void {
-  if (!parentPort) throw new Error('Migration database diagnostics worker requires a parent port')
+function postMessage(message: MigrationDatabaseDiagnosticsChildMessage, maxMessageBytes: number): void {
+  if (process.send === undefined) throw new Error('Migration database diagnostics child requires IPC')
   if (messageBytes(message) > maxMessageBytes) {
-    throw new Error('Migration database diagnostics worker message exceeded its fixed budget')
+    throw new Error('Migration database diagnostics child message exceeded its fixed budget')
   }
-  parentPort.postMessage(message)
+  process.send(message)
 }
 
 function postStep(step: MigrationDatabaseDiagnosticStep, maxMessageBytes: number): void {
   postMessage({ type: 'step', step }, maxMessageBytes)
 }
 
-function runDiagnostics(): void {
-  const input = validateWorkerInput(workerData)
+function runDiagnostics(rawInput: unknown): void {
+  const input = validateChildInput(rawInput)
   let database: Database.Database | undefined
   let l0: MigrationDatabaseL0Step
   let l1: MigrationDatabaseL1Step
@@ -536,20 +589,34 @@ function runDiagnostics(): void {
     )
     l0 = inspectFile(input.databaseFile)
     postStep(l0, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+    if (input.mode === 'l0_only') return
+
     const blockedCode = blockedDatabaseCode(l0)
     if (blockedCode !== undefined) {
       l1 = failedStep('l1', blockedCode)
       l2 = failedStep('l2', blockedCode)
       postStep(l1, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
       postStep(l2, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+    } else if (!matchesLeaseIdentity(input)) {
+      l1 = failedStep('l1', 'identity_mismatch')
+      l2 = failedStep('l2', 'identity_mismatch')
+      postStep(l1, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+      postStep(l2, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
     } else {
       try {
         database = new Database(input.databaseFile, { readonly: true, fileMustExist: true })
         database.pragma('query_only = ON')
-        l1 = inspectStructure(database, expectedObjectsByName)
-        postStep(l1, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
-        l2 = inspectIntegrity(database, expectedObjectsByName)
-        postStep(l2, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+        if (!matchesLeaseIdentity(input)) {
+          l1 = failedStep('l1', 'identity_mismatch')
+          l2 = failedStep('l2', 'identity_mismatch')
+          postStep(l1, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+          postStep(l2, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+        } else {
+          l1 = inspectStructure(database, expectedObjectsByName)
+          postStep(l1, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+          l2 = inspectIntegrity(database, expectedObjectsByName)
+          postStep(l2, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+        }
       } catch (error) {
         const code = mapErrorCode(error, 'open_failed')
         l1 = failedStep('l1', code)
@@ -573,11 +640,15 @@ function runDiagnostics(): void {
   }
 }
 
-if (!isMainThread) {
-  try {
-    runDiagnostics()
-  } catch {
-    // Never emit the caught Error. A clean exit without a final message is a
-    // fixed worker_no_result at the host boundary and preserves prior steps.
-  }
+if (process.env.CHERRY_MIGRATION_DATABASE_DIAGNOSTICS_CHILD === '1' && process.send !== undefined) {
+  process.send({ type: 'ready', version: MIGRATION_DATABASE_DIAGNOSTIC_VERSION })
+  process.once('message', (input) => {
+    try {
+      runDiagnostics(input)
+    } catch {
+      process.exitCode = 1
+    } finally {
+      process.disconnect()
+    }
+  })
 }

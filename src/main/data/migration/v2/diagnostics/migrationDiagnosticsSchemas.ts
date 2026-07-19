@@ -11,7 +11,7 @@ export const MIGRATION_ERROR_CODES = [
   'sqlite_constraint',
   'sqlite_schema',
   'source_parse',
-  'worker_timeout',
+  'process_timeout',
   'archive_write'
 ] as const
 
@@ -20,7 +20,7 @@ export const MIGRATION_ERROR_CATEGORIES = [
   'database_read',
   'database_write',
   'source',
-  'worker',
+  'process',
   'archive',
   'unknown'
 ] as const

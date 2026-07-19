@@ -76,23 +76,48 @@ export const migrationDatabaseFailureCodeSchema = z.enum([
   'not_regular_file',
   'not_database',
   'wal_sidecars_unavailable',
+  'identity_mismatch',
   'read_failed',
   'open_failed',
   'query_failed'
 ])
 export const migrationDatabaseCompletionFailureCodeSchema = z.enum([
   'invalid_input',
-  'worker_error',
-  'worker_exit',
-  'worker_no_result',
+  'lease_unavailable',
+  'process_error',
+  'process_exit',
+  'process_no_result',
   'protocol_error'
 ])
 
-export const migrationDatabaseDiagnosticsWorkerInputSchema = z
+const migrationDatabaseFileIdentitySchema = z
   .object({
-    databaseFile: z.string().min(1).max(MIGRATION_DATABASE_DIAGNOSTIC_MAX_DATABASE_FILE_LENGTH)
+    device: z.string().regex(/^\d{1,32}$/),
+    inode: z.string().regex(/^\d{1,32}$/)
   })
   .strict()
+
+export const migrationDatabaseDiagnosticsChildInputSchema = z.discriminatedUnion('mode', [
+  z
+    .object({
+      mode: z.literal('l0_only'),
+      databaseFile: z.string().min(1).max(MIGRATION_DATABASE_DIAGNOSTIC_MAX_DATABASE_FILE_LENGTH)
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal('full'),
+      databaseFile: z.string().min(1).max(MIGRATION_DATABASE_DIAGNOSTIC_MAX_DATABASE_FILE_LENGTH),
+      identity: z
+        .object({
+          database: migrationDatabaseFileIdentitySchema,
+          wal: migrationDatabaseFileIdentitySchema,
+          shm: migrationDatabaseFileIdentitySchema
+        })
+        .strict()
+    })
+    .strict()
+])
 
 export const migrationDatabaseL0DataSchema = z
   .object({
@@ -571,7 +596,7 @@ const migrationDatabaseTimedOutDiagnosticResultSchema = z
   .object({
     version: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_VERSION),
     expectedSchemaVersion: z.literal(MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION),
-    completion: z.object({ status: z.literal('timed_out'), code: z.literal('worker_timeout') }).strict(),
+    completion: z.object({ status: z.literal('timed_out'), code: z.literal('process_timeout') }).strict(),
     l0: migrationDatabaseL0StepSchema.optional(),
     l1: migrationDatabaseL1StepSchema.optional(),
     l2: migrationDatabaseL2StepSchema.optional()
@@ -593,10 +618,14 @@ export const migrationDatabaseDiagnosticResultSchema = z
     }
   })
 
-export const migrationDatabaseDiagnosticsWorkerMessageSchema = z.union([
+export const migrationDatabaseDiagnosticsChildMessageSchema = z.union([
   z.object({ type: z.literal('step'), step: migrationDatabaseDiagnosticStepSchema }).strict(),
   z.object({ type: z.literal('result'), result: migrationDatabaseCompletedDiagnosticResultSchema }).strict()
 ])
+
+export const migrationDatabaseDiagnosticsChildReadySchema = z
+  .object({ type: z.literal('ready'), version: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_VERSION) })
+  .strict()
 
 export type MigrationDatabaseExpectedObjectId = z.infer<typeof migrationDatabaseExpectedObjectIdSchema>
 export type MigrationDatabaseObjectKind = z.infer<typeof migrationDatabaseObjectKindSchema>
@@ -606,7 +635,7 @@ export type MigrationDatabaseColumnCountBucket = z.infer<typeof migrationDatabas
 export type MigrationDatabaseFailureCode = z.infer<typeof migrationDatabaseFailureCodeSchema>
 export type MigrationDatabaseCompletionFailureCode = z.infer<typeof migrationDatabaseCompletionFailureCodeSchema>
 export type MigrationDatabaseExpectedObjectDefinition = (typeof EXPECTED_MIGRATION_DATABASE_OBJECTS)[number]
-export type MigrationDatabaseDiagnosticsWorkerInput = z.infer<typeof migrationDatabaseDiagnosticsWorkerInputSchema>
+export type MigrationDatabaseDiagnosticsChildInput = z.infer<typeof migrationDatabaseDiagnosticsChildInputSchema>
 export type MigrationDatabaseL0Data = z.infer<typeof migrationDatabaseL0DataSchema>
 export type MigrationDatabaseL1Data = z.infer<typeof migrationDatabaseL1DataSchema>
 export type MigrationDatabaseL2Data = z.infer<typeof migrationDatabaseL2DataSchema>
@@ -620,4 +649,4 @@ export type MigrationDatabaseCompletedDiagnosticResult = z.infer<
 export type MigrationDatabaseFailedDiagnosticResult = z.infer<typeof migrationDatabaseFailedDiagnosticResultSchema>
 export type MigrationDatabaseTimedOutDiagnosticResult = z.infer<typeof migrationDatabaseTimedOutDiagnosticResultSchema>
 export type MigrationDatabaseDiagnosticResult = z.infer<typeof migrationDatabaseDiagnosticResultSchema>
-export type MigrationDatabaseDiagnosticsWorkerMessage = z.infer<typeof migrationDatabaseDiagnosticsWorkerMessageSchema>
+export type MigrationDatabaseDiagnosticsChildMessage = z.infer<typeof migrationDatabaseDiagnosticsChildMessageSchema>

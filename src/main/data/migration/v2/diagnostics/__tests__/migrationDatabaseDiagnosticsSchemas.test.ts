@@ -4,6 +4,8 @@ import {
   EXPECTED_MIGRATION_DATABASE_OBJECTS,
   type MigrationDatabaseColumnCountBucket,
   migrationDatabaseDiagnosticResultSchema,
+  migrationDatabaseDiagnosticsChildInputSchema,
+  migrationDatabaseDiagnosticsChildReadySchema,
   migrationDatabaseL0DataSchema,
   migrationDatabaseL0StepSchema,
   type MigrationDatabaseL1Data,
@@ -60,6 +62,50 @@ function makeL2Data(): MigrationDatabaseL2Data {
 }
 
 describe('migration database diagnostic semantic schemas', () => {
+  it('accepts only fixed L0-only/full child inputs and closed file identities', () => {
+    const identity = {
+      database: { device: '1', inode: '10' },
+      wal: { device: '1', inode: '11' },
+      shm: { device: '1', inode: '12' }
+    }
+
+    expect(
+      migrationDatabaseDiagnosticsChildInputSchema.safeParse({
+        mode: 'l0_only',
+        databaseFile: '/private/database.sqlite'
+      }).success
+    ).toBe(true)
+    expect(
+      migrationDatabaseDiagnosticsChildInputSchema.safeParse({
+        mode: 'full',
+        databaseFile: '/private/database.sqlite',
+        identity
+      }).success
+    ).toBe(true)
+    expect(
+      migrationDatabaseDiagnosticsChildInputSchema.safeParse({
+        mode: 'full',
+        databaseFile: '/private/database.sqlite',
+        identity,
+        sql: 'SELECT secret FROM message'
+      }).success
+    ).toBe(false)
+    expect(
+      migrationDatabaseDiagnosticsChildInputSchema.safeParse({
+        mode: 'full',
+        databaseFile: '/private/database.sqlite',
+        identity: { ...identity, wal: { ...identity.wal, path: '/private/wal' } }
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps the ready handshake versioned and closed', () => {
+    expect(migrationDatabaseDiagnosticsChildReadySchema.safeParse({ type: 'ready', version: 1 }).success).toBe(true)
+    expect(
+      migrationDatabaseDiagnosticsChildReadySchema.safeParse({ type: 'ready', version: 1, path: '/private/db' }).success
+    ).toBe(false)
+  })
+
   it.each([
     {
       name: 'a missing file that claims to be regular',
@@ -116,13 +162,13 @@ describe('migration database diagnostic semantic schemas', () => {
   })
 
   it.each([
-    { level: 'l0', status: 'timed_out', code: 'worker_timeout' },
-    { level: 'l0', status: 'failed', code: 'worker_error' }
-  ])('rejects host-only terminal state from a worker diagnostic layer: $status/$code', (step) => {
+    { level: 'l0', status: 'timed_out', code: 'process_timeout' },
+    { level: 'l0', status: 'failed', code: 'process_error' }
+  ])('rejects host-only terminal state from a child diagnostic layer: $status/$code', (step) => {
     expect(migrationDatabaseL0StepSchema.safeParse(step).success).toBe(false)
   })
 
-  it('rejects L0 states that the worker cannot produce', () => {
+  it('rejects L0 states that the child cannot produce', () => {
     const validData = {
       exists: true,
       fileKind: 'regular' as const,
@@ -271,7 +317,7 @@ describe('migration database diagnostic semantic schemas', () => {
     ).toBe(false)
   })
 
-  it('rejects L2 count and truncation states beyond the worker hard limits', () => {
+  it('rejects L2 count and truncation states beyond the child hard limits', () => {
     const quickOverflow = makeL2Data()
     quickOverflow.quickCheck = {
       outcome: 'issues',
@@ -311,7 +357,7 @@ describe('migration database diagnostic semantic schemas', () => {
       migrationDatabaseDiagnosticResultSchema.safeParse({
         version: 1,
         expectedSchemaVersion: 1,
-        completion: { status: 'failed', code: 'worker_error' },
+        completion: { status: 'failed', code: 'process_error' },
         l1: { level: 'l1', status: 'failed', code: 'query_failed' }
       }).success
     ).toBe(false)

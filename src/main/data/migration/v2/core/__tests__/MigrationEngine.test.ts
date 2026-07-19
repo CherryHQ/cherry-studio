@@ -114,6 +114,50 @@ describe('MigrationEngine', () => {
     vi.spyOn(engine as any, 'cleanupTempFiles').mockResolvedValue(undefined)
   })
 
+  it('collects full database diagnostics only inside the MigrationDbService callback lease', async () => {
+    const lease = { opaque: true }
+    const expected = { completion: { status: 'completed' } }
+    const databaseDiagnostics = {
+      inspect: vi.fn(),
+      inspectWithLease: vi.fn(async (received) => {
+        expect(received).toBe(lease)
+        return expected
+      })
+    }
+    const migrationDb = {
+      getDb: vi.fn(() => ({})),
+      close: vi.fn(),
+      withDiagnosticsLease: vi.fn(async (run) => ({ kind: 'leased', value: await run(lease) }))
+    }
+    ;(engine as any).migrationDb = migrationDb
+
+    await expect(engine.collectDatabaseDiagnostics(databaseDiagnostics as any)).resolves.toBe(expected)
+    expect(migrationDb.withDiagnosticsLease).toHaveBeenCalledOnce()
+    expect(databaseDiagnostics.inspectWithLease).toHaveBeenCalledExactlyOnceWith(lease)
+    expect(databaseDiagnostics.inspect).not.toHaveBeenCalled()
+  })
+
+  it('falls back to L0-only diagnostics when a lease is unavailable or the engine is closed', async () => {
+    const l0Only = { completion: { status: 'failed', code: 'lease_unavailable' } }
+    const databaseDiagnostics = {
+      inspect: vi.fn(async () => l0Only),
+      inspectWithLease: vi.fn()
+    }
+    ;(engine as any).migrationDb = {
+      getDb: vi.fn(() => ({})),
+      close: vi.fn(),
+      withDiagnosticsLease: vi.fn(async () => ({ kind: 'unavailable' }))
+    }
+
+    await expect(engine.collectDatabaseDiagnostics(databaseDiagnostics as any)).resolves.toBe(l0Only)
+    expect(databaseDiagnostics.inspect).toHaveBeenLastCalledWith(mockPaths.databaseFile)
+    expect(databaseDiagnostics.inspectWithLease).not.toHaveBeenCalled()
+
+    engine.close()
+    await expect(engine.collectDatabaseDiagnostics(databaseDiagnostics as any)).resolves.toBe(l0Only)
+    expect(databaseDiagnostics.inspect).toHaveBeenLastCalledWith(mockPaths.databaseFile)
+  })
+
   it('resets every migrator before each run starts', async () => {
     const events: string[] = []
     const boot = createTestMigrator('boot', 1, events)

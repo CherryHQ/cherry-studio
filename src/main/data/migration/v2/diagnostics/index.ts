@@ -1,7 +1,9 @@
 export type {
+  MigrationDatabaseDiagnosticsChildFactory,
+  MigrationDatabaseDiagnosticsChildLike,
+  MigrationDatabaseDiagnosticsLease,
   MigrationDatabaseDiagnosticsOptions,
-  MigrationDatabaseDiagnosticsWorkerFactory,
-  MigrationDatabaseDiagnosticsWorkerLike
+  MigrationDatabaseDiagnosticsSpawnOptions
 } from './MigrationDatabaseDiagnostics'
 export { MigrationDatabaseDiagnostics } from './MigrationDatabaseDiagnostics'
 export type {

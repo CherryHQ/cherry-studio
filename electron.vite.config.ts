@@ -54,10 +54,15 @@ export default defineConfig({
       }
     },
     build: {
-      lib: { entry: resolve(__dirname, 'src/main/main.ts') },
       rollupOptions: {
+        input: resolve(__dirname, 'src/main/main.ts'),
         external: isMainExternalModule,
         output: {
+          entryFileNames: 'main.js',
+          // `lib.entry` used to supply CJS implicitly. With a single Rollup
+          // input (required by ?modulePath), electron-vite requires the format
+          // explicitly or aborts before it can emit the isolated child asset.
+          format: 'cjs',
           manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
           inlineDynamicImports: true // 内联所有动态导入，这是关键配置
         },

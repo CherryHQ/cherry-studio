@@ -4,9 +4,9 @@
 
 **目标：** 在所有迁移失败入口提供可保存的 Scheme A 诊断 ZIP，只包含严格结构化、无业务数据的事件与只读数据库状态，未压缩总量不超过 1 MiB。
 
-**架构：** `runV2MigrationGate()` 在解析路径前创建非全局 `MigrationDiagnosticsCoordinator`，路径可用后将 crash-safe journal、迁移引擎、窗口和 IPC 显式接到同一实例。保存时才启动隔离的只读 SQLite Worker，并把四个固定条目通过 allowlist 打成 ZIP；任一诊断组件失败均降级为结构化 unavailable 状态，不阻止其余内容保存。
+**架构：** `runV2MigrationGate()` 在解析路径前创建非全局 `MigrationDiagnosticsCoordinator`，路径可用后将 crash-safe journal、迁移引擎、窗口和 IPC 显式接到同一实例。保存时才启动可强杀的只读 SQLite 子进程；L1/L2 必须持有迁移 writer 的 callback lease，L0 在无 lease 时仍可运行。四个固定条目通过 allowlist 打成 ZIP；任一诊断组件失败均降级为结构化 unavailable 状态，不阻止其余内容保存。
 
-**技术栈：** TypeScript、Electron、Zod、better-sqlite3、Drizzle ORM、Node Worker Threads、archiver、node-stream-zip、React、i18next、`@cherrystudio/ui`、Vitest。
+**技术栈：** TypeScript、Electron、Zod、better-sqlite3、Drizzle ORM、Node child process / IPC、archiver、node-stream-zip、React、i18next、`@cherrystudio/ui`、Vitest。
 
 ---
 
@@ -16,7 +16,7 @@
 - 分支：`codex/migration-diagnostics-strict`，从已评审设计和本计划提交开始。
 - Scheme B 的日志读取、脱敏、隐私确认和双包输出只在配套日志方案计划实施。
 - 迁移发生在 lifecycle/IpcApi 启动前；不得新增 lifecycle service 或依赖正常应用 IpcApi。
-- 路径只从 `MigrationPaths` 取得；SQLite Worker 不导入 `@logger`；ZIP 只 append 固定 Buffer，禁止 directory/glob。
+- 路径只从 `MigrationPaths` 取得；SQLite child 不导入 `@logger`、Zod 或 main services，不使用 console/后代进程；ZIP 只 append 固定 Buffer，禁止 directory/glob。
 
 ## 文件结构
 
@@ -27,8 +27,9 @@
 - `src/main/data/migration/v2/diagnostics/payloadLengthProfiler.ts`：失败时计算指定字段的长度桶。
 - `src/main/data/migration/v2/diagnostics/migrationDiagnosticsJournal.ts`：原子替换、损坏隔离、恢复、GC 和完成删除。
 - `src/main/data/migration/v2/diagnostics/MigrationDiagnosticsCoordinator.ts`：session/attempt 状态机、保留和 single-flight snapshot/save。
-- `src/main/data/migration/v2/diagnostics/migrationDatabaseDiagnosticsWorker.ts`：L0/L1/L2 只读 SQLite Worker。
-- `src/main/data/migration/v2/diagnostics/MigrationDatabaseDiagnostics.ts`：Worker host、timeout、partial result。
+- `src/main/data/migration/v2/diagnostics/migrationDatabaseDiagnosticsChild.ts`：L0/L1/L2 只读 SQLite isolated child entry。
+- `src/main/data/migration/v2/diagnostics/migrationDatabaseDiagnosticsLease.ts`：内部 opaque lease 与固定文件 identity。
+- `src/main/data/migration/v2/diagnostics/MigrationDatabaseDiagnostics.ts`：child-process host、SIGKILL/exit、partial result。
 - `src/main/data/migration/v2/diagnostics/MigrationDiagnosticBundleBuilder.ts`：四项 A 包、1 MiB 预算、`.partial` 原子发布。
 - `src/main/data/migration/v2/diagnostics/index.ts`：显式 re-export，无逻辑。
 - `src/main/data/migration/v2/diagnostics/__tests__/*`：上述单元与 integration 测试。
@@ -124,7 +125,7 @@ export const migrationErrorCodeSchema = z.enum([
   'unknown', 'path_unavailable', 'permission_denied', 'disk_full',
   'sqlite_corrupt', 'sqlite_not_database', 'sqlite_too_big',
   'sqlite_constraint', 'sqlite_schema', 'source_parse',
-  'worker_timeout', 'archive_write'
+  'process_timeout', 'archive_write'
 ])
 ```
 
@@ -227,44 +228,57 @@ git add src/main/data/migration/v2/core src/main/data/migration/v2/migrators
 git commit --signoff -m "feat(data-migration): record bounded failure context"
 ```
 
-## 任务 4：L0/L1/L2 只读数据库 Worker
+## 任务 4：L0/L1/L2 只读数据库隔离进程
 
-**文件：** 新建 worker/host 与 `MigrationDatabaseDiagnostics.test.ts`、`MigrationDatabaseDiagnostics.integration.test.ts`。
+**文件：** 新建 child/host/lease 与 `MigrationDatabaseDiagnostics.test.ts`、`MigrationDatabaseDiagnostics.integration.test.ts`、`MigrationDatabaseDiagnostics.process.integration.test.ts`；修改 `MigrationDbService.ts`、`MigrationEngine.ts` 与 `electron.vite.config.ts`。
 
-- [ ] **步骤 1：写 fake Worker 和生产 DB integration 失败测试**
+- [ ] **步骤 1：写 fake child、callback lease 和生产 DB integration 失败测试**
 
-Fake Worker 覆盖增量 L0/L1/L2、final 缺失/非法/超限、error、exit、3 秒 timeout、terminate once、listener cleanup，并断言顶层 completion 保留真实 partial prefix、不伪造未完成层。Integration 使用 `setupTestDatabase()`，覆盖 healthy、missing DB、schema mismatch、FK violation、截断副本、unreadable、step truncation；不手写 production DDL。另覆盖 live writer + WAL-only schema marker、WAL 缺 SHM、clean WAL header 无 sidecars，以及 timeout/terminate 后 writer 继续 commit/checkpoint。
+Fake child 覆盖 ready 后才发送 DB path/identity、增量 L0/L1/L2、final 缺失/非法/超限/与 prefix 不一致、spawn/IPC/error/exit/kill throw、3 秒 timeout、SIGKILL once、等待真实 exit、listener cleanup，并断言顶层 completion 保留真实 partial prefix、不伪造未完成层。Lease 测试覆盖 active lease 时 close deferred、callback throw finally、closeRequested 拒绝新 lease、L0 后 engine.close 保留同一 WAL/SHM identity、child exit 后执行 pending close。Integration 使用 `setupTestDatabase()` 的 production DB，覆盖 healthy、missing DB、schema mismatch、FK violation、截断副本、unreadable、step truncation；不手写 production DDL。另覆盖 live writer + WAL-only schema marker、WAL 缺 SHM、clean WAL header 无 sidecars、identity mismatch，以及确认 native query 已进入后 timeout/SIGKILL/exit，随后 writer 继续 commit/checkpoint/integrity。
 
 - [ ] **步骤 2：运行并确认 FAIL**
 
 ```bash
 pnpm exec vitest run --project main \
+  src/main/data/migration/v2/core/__tests__/MigrationDbService.integration.test.ts \
+  src/main/data/migration/v2/core/__tests__/MigrationEngine.test.ts \
   src/main/data/migration/v2/diagnostics/__tests__/MigrationDatabaseDiagnostics.test.ts \
-  src/main/data/migration/v2/diagnostics/__tests__/MigrationDatabaseDiagnostics.integration.test.ts
+  src/main/data/migration/v2/diagnostics/__tests__/MigrationDatabaseDiagnostics.integration.test.ts \
+  src/main/data/migration/v2/diagnostics/__tests__/MigrationDatabaseDiagnostics.process.integration.test.ts \
+  src/main/data/migration/v2/diagnostics/__tests__/migrationDatabaseDiagnosticsSchemas.test.ts \
+  src/main/data/migration/v2/diagnostics/__tests__/migrationDatabaseDiagnosticsBarrel.test.ts
+pnpm exec vitest run --project scripts scripts/__tests__/migration-diagnostics-child-bundling.test.ts
 ```
 
-- [ ] **步骤 3：实现 Worker/host**
+- [ ] **步骤 3：实现 child/host/lease 与 build contract**
 
-版本、限额和完整 v1 expected-object 集合只存在于纯 `.mjs` protocol 常量模块；host workerData 只传 `{ databaseFile }`，worker 不接受调用方 allowlist/policy。Worker 用 `new Database(file, { readonly: true, fileMustExist: true })` 和 `query_only = ON`。L0 仅文件状态/大小桶/header write-version 与 sidecar 固定状态；L1 仅固定 expected/missing/extra object 类型计数与列数桶；L2 执行 `PRAGMA quick_check(20)` 和有界 FK check，映射固定类别并删除 rowid/fkid/原文。每步发 typed message，finally close。Host timeout 后 terminate，顶层标记 timeout 并仅保留已完成 step。
+版本、限额和完整 v1 expected-object 集合只存在于纯 `.mjs` protocol 常量模块；host 通过 `?modulePath` 获取固定 child asset，用 `spawn(process.execPath, [childEntry], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'pipe', 'ipc'], windowsHide: true, shell: false })` 启动。DB path/identity 只在 versioned ready 后经 IPC 发送，不进入 argv/env/stdout/stderr；child 不接受调用方 SQL/allowlist/policy。Child 用 `new Database(file, { readonly: true, fileMustExist: true })` 和 `query_only = ON`。L0 仅文件状态/大小桶/header write-version 与 sidecar 固定状态；L1 仅固定 expected/missing/extra object 类型计数与列数桶；L2 执行 `PRAGMA quick_check(20)` 和有界 FK check，映射固定类别并删除 rowid/fkid/原文。每步发 typed message，finally close。Host timeout 后 SIGKILL，并等待 exit 后才返回顶层 timeout 与真实 step prefix；final 必须等 L0/L1/L2 完整有序且逐层深一致。
 
-WAL 契约采用“保留 L1/L2”：若主 header 为 WAL，或任一 sidecar 存在，则 SQLite constructor 前必须确认 `-wal` 与 `-shm` 均已存在且 `lstat` 为 regular/non-symlink；否则 L1/L2 固定 `wal_sidecars_unavailable`，不得创建 sidecar。完整 live pair 允许 readonly/query-only 读取当前 committed WAL snapshot。诊断前后 main DB 与 WAL 的 existence/size/hash/mtime 必须不变；已有 SHM 仅保证仍为 regular file，允许 SQLite 更新协调缓存的 hash/mtime，不声明 forensic zero-mutation。
+WAL 契约采用 callback lease：`MigrationDbService` 存 databaseFile，仅在 writer open、未 closeRequested、DB/WAL/SHM 全部为 regular/non-symlink 时捕获三者 dev/ino 并同步增加 active lease；close 在 active lease 时只记 pending，最后 callback finally 才真实幂等关闭。Child 在 SQLite open 前后核对 identity；不一致则 L1/L2 固定 `identity_mismatch` 且无 data。无 lease（initialize 失败、engine closed、sidecar 不安全）只运行 L0，绝不 construct SQLite，completion 固定 `lease_unavailable`。此契约消除 app 自身 close/checkpoint TOCTOU；不防外部恶意原子替换，检测到 identity 漂移即丢弃 L1/L2。诊断前后 main DB 与 WAL 的 existence/size/hash/mtime 必须不变；已有 SHM 仅保证仍为 regular file，允许 SQLite 更新协调缓存的 hash/mtime，不声明 forensic zero-mutation。
+
+Main build 删除 `lib.entry`，改为单一 `rollupOptions.input: main.ts`，保持 `inlineDynamicImports`/external/manualChunks 语义，并显式设置 `entryFileNames: 'main.js'` 与 `format: 'cjs'`。`format` 不能省略：`lib.entry` 原先隐式提供 CJS，改为 Rollup input 后 electron-vite 会在构建开始前拒绝未指定格式。构建测试和真实产物必须确认 `main.js` + 独立 child chunk、child 中 `better-sqlite3` external，且无 logger/Zod/main services。
 
 - [ ] **步骤 4：重复三次稳定性测试**
 
 ```bash
 for run in 1 2 3; do
   pnpm exec vitest run --project main \
-    src/main/data/migration/v2/diagnostics/__tests__/MigrationDatabaseDiagnostics.integration.test.ts || exit 1
+    src/main/data/migration/v2/diagnostics/__tests__/MigrationDatabaseDiagnostics.integration.test.ts \
+    src/main/data/migration/v2/diagnostics/__tests__/MigrationDatabaseDiagnostics.process.integration.test.ts || exit 1
 done
+pnpm exec electron-vite build
 ```
 
-预期：三次 PASS，无 native crash。若强制终止 better-sqlite3 Worker 触发 native finalizer 崩溃，停止实施并报告 blocker；不得把查询搬回 Main 线程。
+预期：三次 PASS，无 native crash；真实 native-query fixture 在短 grace 内被 SIGKILL 并释放 WAL reader。若子进程 kill 后不产生 exit，停止实施并报告 blocker；不得假装释放 lease，也不得把查询搬回 Main 线程。
 
 - [ ] **步骤 5：提交**
 
 ```bash
-git add src/main/data/migration/v2/diagnostics
-git commit --signoff -m "feat(data-migration): inspect failed databases read-only"
+git add electron.vite.config.ts scripts/__tests__/migration-diagnostics-child-bundling.test.ts \
+  src/main/data/migration/v2/core src/main/data/migration/v2/diagnostics \
+  docs/superpowers/specs/2026-07-18-migration-diagnostics-bundle-design.md \
+  docs/superpowers/plans/2026-07-19-migration-diagnostics-strict.md
+git commit --signoff -m "fix(data-migration): isolate database diagnostics"
 ```
 
 ## 任务 5：严格 A ZIP 与隐私扫描
@@ -364,7 +378,7 @@ git commit --signoff -m "feat(data-migration): download strict diagnostics on fa
 
 - [ ] **步骤 1：运行同一高优先级 fixture matrix**
 
-覆盖 DB open/corrupt/schema/constraint、超长 string/JSON/blob、source parse、路径不可写、renderer crash/hang、重试/恢复、DB worker/archive 部分失败。每包必须识别 category、gate/migrator、phase；不得用增加原始文本补缺口。
+覆盖 DB open/corrupt/schema/constraint、超长 string/JSON/blob、source parse、路径不可写、renderer crash/hang、重试/恢复、DB process/archive 部分失败。每包必须识别 category、gate/migrator、phase；不得用增加原始文本补缺口。
 
 - [ ] **步骤 2：执行迁移窗口交互 smoke 与 ZIP 解压检查**
 
@@ -408,5 +422,5 @@ git merge --ff-only codex/migration-diagnostics-strict
 - 第 10 节超长数据：任务 1、3、8。
 - 第 11 节四项与 1 MiB：任务 5、8。
 - 第 13 节保存/支持：任务 5–7。
-- 第 16 节 unit/worker/integration/privacy/full verification：任务 1–8。
+- 第 16 节 unit/process/integration/privacy/full verification：任务 1–8。
 - 公共类型和 channel 名称在全文一致；没有实现占位符。

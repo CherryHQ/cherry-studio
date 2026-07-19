@@ -76,7 +76,7 @@ describe('migrationDiagnosticEventSchema', () => {
       'sqlite_constraint',
       'sqlite_schema',
       'source_parse',
-      'worker_timeout',
+      'process_timeout',
       'archive_write'
     ])
   })

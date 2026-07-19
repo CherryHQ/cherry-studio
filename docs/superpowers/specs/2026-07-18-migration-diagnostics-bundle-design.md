@@ -77,9 +77,11 @@ The renderer continues to use the existing migration-specific IPC channels becau
 
 Migration diagnostics will follow this pattern but remain a separate implementation. Restore and migration diagnostics have different schemas, lifecycle, retention, and ownership, so generalizing the restore journal is not justified.
 
-### 5.3 Worker isolation
+### 5.3 Killable process isolation
 
-The repository already uses `?nodeWorker` workers for bounded main-process work. Database diagnostics use the same approach so the main process can terminate a hung check. The worker must not instantiate `LoggerService`, which is main-thread-only.
+`worker_threads.Worker.terminate()` cannot interrupt a synchronous native `better-sqlite3` call: it waits for the native query to return. Database diagnostics therefore run in a dedicated child-process asset imported through Electron Vite's `?modulePath`. The host launches the fixed asset with the Electron executable in Node mode, sends the database path and fixed file identities over IPC only after a versioned `ready` message, and never places them in argv, environment variables, stdout, or stderr. A hard timeout sends `SIGKILL`, then keeps the database lease and waits for the real `exit` event before returning. The child must not instantiate `LoggerService`, use `console`, or launch descendants.
+
+The main build uses one Rollup input for `main.ts`, explicitly retains CJS output, and emits the child as a separate hashed asset. `better-sqlite3` remains external in that child; Zod, logger code, lifecycle services, and the main-process service graph must not enter its bundle.
 
 ### 5.4 Existing redaction is local, not global
 
@@ -125,13 +127,21 @@ No single implementation is safe for arbitrary application logs. Existing tests 
 - Writes a sibling `.partial` file at the user-selected destination and atomically renames it on success.
 - Cleans up `.partial` output on failure.
 
-#### MigrationDatabaseDiagnosticsWorker
+#### MigrationDatabaseDiagnosticsChild
 
 - Opens the target database read-only.
 - Runs independent bounded diagnostic steps.
 - Returns a typed result only.
-- Is terminated by the coordinator after a hard timeout.
+- Is killed with `SIGKILL` after a hard timeout; the host waits for process exit.
 - Cannot prevent the rest of the bundle from being saved.
+
+#### MigrationDbService diagnostics lease
+
+- Owns the migration writer and database path.
+- Grants full L1/L2 diagnostics only through a callback-scoped opaque lease.
+- Fixes the database, WAL, and SHM device/inode identities for the child.
+- Defers an idempotent `close()` until the last diagnostics callback observes child exit.
+- Returns unavailable instead of exposing the SQLite connection or a manual release handle.
 
 #### MigrationLogCollector
 
@@ -152,7 +162,7 @@ No single implementation is safe for arbitrary application logs. Existing tests 
 4. Gate, engine, migrators, and window management record allowlisted state transitions.
 5. A failure surface offers the same save operation.
 6. The user chooses a destination; Scheme B first requires privacy confirmation.
-7. The builder snapshots structured state, launches database diagnostics, and optionally collects and redacts logs.
+7. The builder snapshots structured state and asks `MigrationEngine` to collect database diagnostics. L0 always runs; L1/L2 run only inside a live `MigrationDbService` lease. Scheme B may additionally collect and redact logs.
 8. The builder validates, truncates by uncompressed-byte budget, archives, and atomically publishes the ZIP.
 9. The app offers external email, reveal-in-folder, and copy-address actions.
 10. The journal remains available through retries and is deleted only after migration succeeds.
@@ -257,7 +267,7 @@ The recovered retry remains part of the same session with a new attempt ID.
 
 ## 9. Read-only database diagnostics
 
-No external `.sql` file is shipped or presented to the user. The worker owns a versioned set of named, read-only diagnostic steps.
+No external `.sql` file is shipped or presented to the user. The isolated child owns a versioned set of named, read-only diagnostic steps.
 
 ### 9.1 L0: file and header
 
@@ -273,13 +283,18 @@ No absolute path or raw header bytes are included.
 
 ### 9.2 WAL snapshot and mutation boundary
 
-L1/L2 remain available for a live WAL database, but only under an explicit pre-open contract:
+L1/L2 remain available for a live WAL database only while the app's migration writer grants an explicit callback lease:
 
-- if the main header reports WAL write mode, or either sidecar is observed, both `-wal` and `-shm` must already exist as regular, non-symlink files;
-- an incomplete, inaccessible, or unsafe sidecar pair returns fixed `wal_sidecars_unavailable` L1/L2 failures before constructing the SQLite connection, and diagnostics must not create either sidecar;
-- a complete live pair may be opened with `readonly`, `fileMustExist`, and `query_only`, so diagnostics observe the writer's current committed WAL snapshot;
+- `MigrationDbService` grants the lease only while its SQLite writer is open, close has not been requested, and the database, `-wal`, and `-shm` are all regular non-symlink files;
+- the lease records device/inode identities for all three files, increments an active count synchronously, and retains the writer from child spawn through normal exit or hard-kill exit;
+- `close()` becomes an idempotent deferred close while a lease is active; the last callback's `finally` performs the pending close;
+- the child checks all three identities immediately before and immediately after its read-only SQLite open. A mismatch returns fixed `identity_mismatch` L1/L2 failures without diagnostic data;
+- if no safe lease is available because initialization failed, the engine is closed, close was requested, or sidecars are incomplete/unsafe, diagnostics run L0 only, never construct SQLite, and return fixed `lease_unavailable` completion;
+- a valid lease opens with `readonly`, `fileMustExist`, and `query_only`, so diagnostics observe the writer's current committed WAL snapshot;
 - the main database and WAL file contents, size, hash, and modification time must remain unchanged;
 - SQLite may update the already-existing SHM coordination cache while serving the reader. SHM hash and modification time are therefore not invariant, and this feature does not claim forensic zero-mutation semantics.
+
+The lease closes the app-owned writer TOCTOU: app shutdown cannot delete the sidecars between L0 and SQLite open. It does not claim to prevent a malicious external process from atomically replacing files. Device/inode mismatch is detected and L1/L2 are discarded, but defending against a hostile filesystem would require a snapshot or file-descriptor-based SQLite design outside this feature.
 
 ### 9.3 L1: structure metadata
 
@@ -299,11 +314,11 @@ After a read-only open:
 - known application object identifiers may be retained, while unknown identifiers map to `unknown`;
 - output count and byte caps applied.
 
-Worker-produced levels report `success`, `failed`, or `truncated`. The host separately reports overall `completed`, `failed`, or `timed_out` completion and preserves only the real level prefix received before a terminal worker failure; it does not fabricate unfinished level failures.
+Child-produced levels report `success`, `failed`, or `truncated`. The host separately reports overall `completed`, `failed`, or `timed_out` completion and preserves only the real ordered level prefix received before a terminal process failure; it does not fabricate unfinished levels. A final message is accepted only after L0, L1, and L2 have arrived in order and all three are deeply identical to the saved prefix.
 
 ### 9.5 Explicit exclusions
 
-The diagnostic worker does not execute:
+The diagnostic child does not execute:
 
 - business-row `SELECT` or sampling;
 - `COUNT(*)` business volume queries;
@@ -312,7 +327,7 @@ The diagnostic worker does not execute:
 - default full `integrity_check`;
 - repair, mutation, checkpoint, vacuum, or attachment copying.
 
-SQLite documents `quick_check` as faster than `integrity_check`, with a result-row limit rather than a time limit. The worker timeout remains necessary:
+SQLite documents `quick_check` as faster than `integrity_check`, with a result-row limit rather than a time limit. The process timeout remains necessary. On expiry the host sends `SIGKILL` and does not return, close the writer, or release its WAL lease until the child emits `exit`:
 
 - <https://www.sqlite.org/pragma.html#pragma_integrity_check>
 - <https://www.sqlite.org/fileformat.html#the_database_header>
@@ -505,7 +520,7 @@ Scheme A wins by default if it covers every high-priority fixture. Scheme B is s
 - Scheme B interval, module, and level selection;
 - every redaction rule and documented non-guarantee.
 
-### 16.2 Database worker tests
+### 16.2 Database process and lease tests
 
 Use `setupTestDatabase()` with production migrations for components that read SQLite. Cover:
 
@@ -515,7 +530,9 @@ Use `setupTestDatabase()` with production migrations for components that read SQ
 - truncated/corrupted file copy;
 - unreadable file;
 - per-step output truncation;
-- worker timeout and termination;
+- confirmed in-flight native query, hard `SIGKILL`, observed exit, and subsequent writer commit/checkpoint/integrity;
+- callback lease identity capture, L0-after-close race, deferred close, and no-lease L0-only fallback;
+- child input/ready/final protocol closure and complete-prefix deep consistency;
 - partial step failure while the bundle still succeeds.
 
 Do not hand-write production table DDL in tests.

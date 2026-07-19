@@ -12,7 +12,7 @@ export const MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS = 64
  * Version 1 of the complete expected SQLite schema surface.
  *
  * This pure runtime module is shared by the host schemas and the raw Node
- * worker. Keep the list here so the worker cannot receive a caller-defined
+ * isolated child. Keep the list here so the child cannot receive a caller-defined
  * allowlist and its bundle does not need Zod or any main-process service.
  */
 export const EXPECTED_MIGRATION_DATABASE_OBJECTS = Object.freeze(

@@ -57,6 +57,8 @@ import path from 'path'
 import {
   type ClassifiedMigrationError,
   classifyMigrationError,
+  type MigrationDatabaseDiagnosticResult,
+  type MigrationDatabaseDiagnostics,
   type MigrationDiagnosticEventInput
 } from '../diagnostics'
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
@@ -142,6 +144,17 @@ export class MigrationEngine {
   close(): void {
     this.migrationDb?.close()
     this.migrationDb = null
+  }
+
+  async collectDatabaseDiagnostics(
+    diagnostics: MigrationDatabaseDiagnostics
+  ): Promise<MigrationDatabaseDiagnosticResult> {
+    const databaseFile = this.paths.databaseFile
+    const migrationDb = this.migrationDb
+    if (migrationDb === null) return diagnostics.inspect(databaseFile)
+
+    const inspected = await migrationDb.withDiagnosticsLease((lease) => diagnostics.inspectWithLease(lease))
+    return inspected.kind === 'leased' ? inspected.value : diagnostics.inspect(databaseFile)
   }
 
   private getDb(): DbType {
