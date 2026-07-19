@@ -340,6 +340,7 @@ export class FileMigrator extends BaseMigrator {
       logger.info('FileMigrator.execute completed', { processed, total: this.preparedEntries.length })
       return { success: true, processedCount: processed }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('FileMigrator.execute failed', error as Error)
       return {
         success: false,

@@ -125,6 +125,7 @@ export class NoteMigrator extends BaseMigrator {
 
       return { success: true, processedCount: this.preparedRows.length }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Execute failed', error as Error)
       return {
         success: false,

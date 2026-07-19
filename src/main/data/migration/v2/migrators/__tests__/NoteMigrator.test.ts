@@ -122,6 +122,43 @@ describe('NoteMigrator', () => {
     expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
   })
 
+  it('preserves a COMMIT-boundary classification and clears it after a successful retry', async () => {
+    const canary = 'PRIVATE_COMMIT_PATH_/Users/alice/cherrystudio.sqlite'
+    const sqliteError = Object.assign(new Error(canary), { code: 'SQLITE_TOOBIG' })
+    const run = vi.fn()
+    const tx = {
+      insert: () => ({
+        values: () => ({
+          onConflictDoUpdate: () => ({ run })
+        })
+      })
+    }
+    const transaction = vi
+      .fn((operation: (tx: unknown) => void) => operation(tx))
+      .mockImplementationOnce((operation: (tx: unknown) => void) => {
+        operation(tx)
+        throw sqliteError
+      })
+    const ctx = createTestContext(
+      { note: { notesPath: '/notes', starredPaths: ['/notes/a.md'], expandedPaths: [] } },
+      { transaction }
+    ) as any
+    await migrator.prepare(ctx)
+
+    const failed = await migrator.executeWithDiagnostics(ctx)
+    const retried = await migrator.executeWithDiagnostics(ctx)
+
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(failed).toMatchObject({
+      result: { success: false, processedCount: 0, error: canary },
+      failureClassification: { category: 'database_write', code: 'sqlite_too_big', causeDepth: 0 }
+    })
+    expect(JSON.stringify(failed.failureClassification)).not.toContain(canary)
+    expect(ctx.diagnostics.recordEvent).not.toHaveBeenCalled()
+    expect(retried).toEqual({ result: { success: true, processedCount: 1 } })
+    expect(retried).not.toHaveProperty('failureClassification')
+  })
+
   it('should trim legacy paths before migration', async () => {
     const ctx = createTestContext(
       {

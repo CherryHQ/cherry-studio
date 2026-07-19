@@ -148,6 +148,7 @@ export class McpServerMigrator extends BaseMigrator {
 
       return { success: true, processedCount: processed }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Execute failed', error as Error)
       return {
         success: false,

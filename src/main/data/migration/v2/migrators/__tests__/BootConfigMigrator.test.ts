@@ -110,22 +110,29 @@ describe('BootConfigMigrator', () => {
       expect(mockBootConfigPersist).toHaveBeenCalled()
     })
 
-    it('returns { success: false } when persisting boot config fails', async () => {
+    it('preserves a fixed classification when persisting boot config fails and clears it on retry', async () => {
       const migrator = await createMigrator()
       const ctx = createMockContext({
         legacyHomeConfig: { '/Applications/Cherry Studio.app/exe': '/Volumes/Ext/Data' }
       })
+      const canary = 'PRIVATE_BOOT_CONFIG_PATH_/Users/alice/boot-config.json'
 
       await migrator.prepare(ctx)
 
       mockBootConfigPersist.mockImplementationOnce(() => {
-        throw new Error('ENOSPC: no space left on device')
+        throw Object.assign(new Error(canary), { code: 'ENOSPC' })
       })
 
-      const executed = await migrator.execute()
+      const failed = await migrator.executeWithDiagnostics(ctx)
+      const retried = await migrator.executeWithDiagnostics(ctx)
 
-      expect(executed.success).toBe(false)
-      expect(executed.error).toContain('ENOSPC')
+      expect(failed).toMatchObject({
+        result: { success: false, error: canary },
+        failureClassification: { category: 'filesystem', code: 'disk_full', causeDepth: 0 }
+      })
+      expect(JSON.stringify(failed.failureClassification)).not.toContain(canary)
+      expect(retried).toEqual({ result: expect.objectContaining({ success: true }) })
+      expect(retried).not.toHaveProperty('failureClassification')
     })
 
     it('skips the configfile source when reader returns null (no v1 config file)', async () => {

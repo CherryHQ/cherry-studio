@@ -261,6 +261,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
       return { success: true, processedCount: processed }
     } catch (error) {
+      this.capturePhaseFailure(error)
       // The WebP files are written before the tx; unlink them so a rolled-back
       // transaction leaves no orphans behind for the retry.
       await unlinkPreparedImages(logoFiles)

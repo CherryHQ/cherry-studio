@@ -569,6 +569,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         processedCount: processedProviders
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       // Unlink any logo WebP written before the tx failed — no orphans on retry.
       await unlinkPreparedImages(providerLogoFiles)
       const phaseError = createPhaseError(

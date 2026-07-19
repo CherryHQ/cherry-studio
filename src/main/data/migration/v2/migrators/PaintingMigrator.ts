@@ -245,6 +245,7 @@ export class PaintingMigrator extends BaseMigrator {
         processedCount: paintings.length
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Execute failed', error as Error)
       return {
         success: false,

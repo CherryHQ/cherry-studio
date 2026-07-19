@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
 import { KnowledgeMigrator } from '../../migrators/KnowledgeMigrator'
 import { McpServerMigrator } from '../../migrators/McpServerMigrator'
+import { NoteMigrator } from '../../migrators/NoteMigrator'
 import { PromptMigrator } from '../../migrators/PromptMigrator'
 import { createMigrationContext } from '../MigrationContext'
 import { MigrationDbService } from '../MigrationDbService'
@@ -267,6 +268,67 @@ describe('MigrationEngine', () => {
       code: 'sqlite_too_big',
       causeDepth: 0
     })
+  })
+
+  it('preserves a real COMMIT-boundary failure in the execute phase and terminal event', async () => {
+    const canary = 'PRIVATE_COMMIT_CANARY_/Users/alice/cherrystudio.sqlite'
+    const original = Object.assign(new Error(canary), { code: 'SQLITE_TOOBIG' })
+    const run = vi.fn()
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoUpdate: vi.fn(() => ({ run }))
+        }))
+      }))
+    }
+    const context = {
+      sources: {
+        reduxState: {
+          getCategory: vi.fn(() => ({
+            notesPath: '/notes',
+            starredPaths: ['/notes/a.md'],
+            expandedPaths: []
+          }))
+        }
+      },
+      db: {
+        transaction: vi.fn((operation: (tx: unknown) => void) => {
+          operation(tx)
+          throw original
+        })
+      },
+      diagnostics,
+      logger: { error: vi.fn() }
+    }
+    vi.mocked(createMigrationContext).mockResolvedValueOnce(context as never)
+    engine.registerMigrators([new NoteMigrator()])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining(canary) })
+    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
+      scope: 'migrator',
+      phase: 'execute',
+      state: 'failed',
+      category: 'database_write',
+      code: 'sqlite_too_big',
+      causeDepth: 0,
+      migratorId: 'note'
+    })
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
+      scope: 'engine',
+      phase: 'finalize',
+      state: 'failed',
+      category: 'database_write',
+      code: 'sqlite_too_big',
+      causeDepth: 0
+    })
+    const serializedDiagnostics = JSON.stringify({
+      events: diagnostics.recordEvent.mock.calls,
+      terminal: diagnostics.finishAttempt.mock.calls
+    })
+    expect(serializedDiagnostics).not.toContain(canary)
   })
 
   it('preserves a real prepare exception classification after the migrator converts it to a failed result', async () => {

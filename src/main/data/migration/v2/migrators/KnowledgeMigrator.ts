@@ -1008,6 +1008,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         warnings: this.warnings.length > 0 ? this.warnings : undefined
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('KnowledgeMigrator.execute failed', error as Error)
       return {
         success: false,

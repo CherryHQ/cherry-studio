@@ -145,6 +145,7 @@ export class PromptMigrator extends BaseMigrator {
       logger.info('Prompt migration completed', { processedCount: rows.length })
       return { success: true, processedCount: rows.length }
     } catch (error) {
+      this.capturePhaseFailure(error)
       const err = wrapExecuteError(error, stamped, rows.length)
       logger.error('Execute failed', err)
       // The transaction rolled back; no partial rows remain committed.

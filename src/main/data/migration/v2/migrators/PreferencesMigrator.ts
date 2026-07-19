@@ -298,6 +298,7 @@ export class PreferencesMigrator extends BaseMigrator {
         processedCount: this.preparedItems.length
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       // Unlink any avatar WebP written before the tx failed — no orphan on retry.
       await unlinkPreparedImages(avatarFiles)
       logger.error('Execute failed', error as Error)

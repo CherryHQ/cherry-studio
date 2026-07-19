@@ -176,6 +176,7 @@ export class BootConfigMigrator extends BaseMigrator {
         processedCount
       }
     } catch (error) {
+      this.capturePhaseFailure(error)
       logger.error('Execute failed', error as Error)
       return {
         success: false,
