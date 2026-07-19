@@ -118,7 +118,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       const outputPath = await ipcApi.request('file.select_save', {
         defaultPath: defaultName,
         filters: [{ name: t('settings.data.backup.v2.file_filter'), extensions: ['cbu'] }],
-        title: t('backup.confirm.button')
+        title: t('settings.data.backup.v2.export.save_dialog_title')
       })
       if (runId !== runIdRef.current) return
       if (!outputPath) {

@@ -5675,6 +5675,7 @@
               "verify": "Verifying backup…"
             },
             "running": "Backing up…",
+            "save_dialog_title": "Save Backup",
             "selecting": "Choose where to save the backup…",
             "starting": "Starting backup…",
             "success": "Backup completed."

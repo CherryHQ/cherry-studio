@@ -5663,6 +5663,7 @@
               "verify": "[to be translated]:Verifying backup…"
             },
             "running": "[to be translated]:Backing up…",
+            "save_dialog_title": "Guardar copia de seguridad",
             "selecting": "[to be translated]:Choose where to save the backup…",
             "starting": "[to be translated]:Starting backup…",
             "success": "[to be translated]:Backup completed."

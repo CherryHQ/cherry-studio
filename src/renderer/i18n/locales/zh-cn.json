@@ -5675,6 +5675,7 @@
               "verify": "正在校验备份…"
             },
             "running": "正在备份…",
+            "save_dialog_title": "保存备份",
             "selecting": "请选择备份保存位置…",
             "starting": "正在启动备份…",
             "success": "备份完成。"
