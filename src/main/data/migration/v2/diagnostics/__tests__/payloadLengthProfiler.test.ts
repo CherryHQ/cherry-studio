@@ -193,11 +193,11 @@ describe('profilePayloadLengths', () => {
     expect(result.traversal).toBe('truncated')
   })
 
-  it('checks the deadline after collecting plain-object property names', () => {
+  it('checks the deadline before traversing plain-object properties', () => {
     let clockReads = 0
     vi.spyOn(performance, 'now').mockImplementation(() => (++clockReads >= 5 ? 6 : 0))
 
-    const result = profilePayloadLengths([{ metadata: {} }], {
+    const result = profilePayloadLengths([{ metadata: { value: 'private' } }], {
       target: 'file_entry',
       fields: ['metadata']
     })
@@ -226,6 +226,60 @@ describe('profilePayloadLengths', () => {
     expect(getterCalls).toBe(0)
     expect(result.traversal).toBe('truncated')
     expect(result.slots[0]).toMatchObject({ kind: 'json', traversal: 'truncated' })
+  })
+
+  it('bounds descriptor work for ultra-wide objects without snapshotting all property names', () => {
+    let getterCalls = 0
+    const metadata: Record<string, unknown> = {}
+    Object.defineProperty(metadata, 'secret', {
+      enumerable: true,
+      get() {
+        getterCalls += 1
+        return 'private'
+      }
+    })
+    for (let index = 0; index < 10_000; index++) metadata[`wide${index}`] = index
+
+    const descriptorSpy = vi.spyOn(Object, 'getOwnPropertyDescriptor')
+    const propertyNamesSpy = vi.spyOn(Object, 'getOwnPropertyNames')
+    const result = profilePayloadLengths([{ metadata }], {
+      target: 'file_entry',
+      fields: ['metadata']
+    })
+    const metadataDescriptorCalls = descriptorSpy.mock.calls.filter(([target]) => target === metadata).length
+
+    expect(propertyNamesSpy).not.toHaveBeenCalled()
+    expect(metadataDescriptorCalls).toBeLessThanOrEqual(1_024)
+    expect(getterCalls).toBe(0)
+    expect(result.traversal).toBe('truncated')
+    expect(result.slots[0]).toMatchObject({ kind: 'json', traversal: 'truncated' })
+  })
+
+  it('ignores inherited enumerable pollution without executing its getter', () => {
+    const descriptor = {
+      target: 'file_entry',
+      fields: ['metadata']
+    } as const satisfies PayloadProfileDescriptor
+    const baseline = profilePayloadLengths([{ metadata: { own: 'value' } }], descriptor)
+    let getterCalls = 0
+    let result: ReturnType<typeof profilePayloadLengths>
+
+    Object.defineProperty(Object.prototype, '__payloadProfilerPollution__', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        getterCalls += 1
+        return 'private'
+      }
+    })
+    try {
+      result = profilePayloadLengths([{ metadata: { own: 'value' } }], descriptor)
+    } finally {
+      Reflect.deleteProperty(Object.prototype, '__payloadProfilerPollution__')
+    }
+
+    expect(getterCalls).toBe(0)
+    expect(result).toEqual(baseline)
   })
 
   it('skips accessors without executing them', () => {

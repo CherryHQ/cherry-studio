@@ -48,6 +48,7 @@ interface SlotAccumulator {
 
 const payloadSlotSet = new Set<string>(PAYLOAD_PROFILE_SLOTS)
 const payloadTargetSet = new Set<string>(PAYLOAD_PROFILE_TARGETS)
+const objectHasOwn = Object.hasOwn
 const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype)
 const typedArrayTagGetter = Object.getOwnPropertyDescriptor(typedArrayPrototype, Symbol.toStringTag)?.get
 const typedArrayByteLengthGetter = Object.getOwnPropertyDescriptor(typedArrayPrototype, 'byteLength')?.get
@@ -173,14 +174,6 @@ function ownDataDescriptor(value: object, key: PropertyKey): PropertyDescriptor 
   }
 }
 
-function ownPropertyNames(value: object): readonly string[] | undefined {
-  try {
-    return Object.getOwnPropertyNames(value)
-  } catch {
-    return undefined
-  }
-}
-
 function uint8ArrayByteLength(value: unknown): number | undefined {
   if (!ArrayBuffer.isView(value)) return undefined
   try {
@@ -293,20 +286,19 @@ function measureJson(
       }
     }
   } else {
-    const names = ownPropertyNames(value)
-    if (!names) {
-      context.truncated = true
-      truncated = true
-    } else if (deadlineExceeded(context)) {
-      truncated = true
-    } else {
-      let includedProperties = 0
-      for (const name of names) {
+    let includedProperties = 0
+    try {
+      for (const name in value) {
         if (context.nodes >= MAX_NODES) {
           context.truncated = true
           truncated = true
           break
         }
+        if (deadlineExceeded(context)) {
+          truncated = true
+          break
+        }
+        if (!objectHasOwn(value, name)) continue
         const descriptor = ownDataDescriptor(value, name)
         if (deadlineExceeded(context)) {
           truncated = true
@@ -330,6 +322,9 @@ function measureJson(
           break
         }
       }
+    } catch {
+      context.truncated = true
+      truncated = true
     }
   }
 
