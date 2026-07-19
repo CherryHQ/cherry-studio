@@ -32,14 +32,14 @@ import { ipcApi } from '@renderer/ipc'
 await ipcApi.request('file.<action>', input)   // route 为 dot-snake：namespace.action
 ```
 
-RFC §7.2 用 camelCase 记概念方法（`getMetadata`、`createInternalEntry`），落到 IpcApi 是 dot-snake route（`file.get_metadata`、`file.create_internal_entry`）。**关键现状：当前 IpcApi 只有 11 条 file 路由，单项操作大多缺失、只有 batch 版**——所以 Reroute/Abolish 的改写不仅是换调用，多数还要**先新增单项路由**（schema + handler + preload 无关，走统一 IpcApi 通道）。
+RFC §7.2 用 camelCase 记概念方法（`getMetadata`、`createInternalEntry`），落到 IpcApi 是 dot-snake route（`file.get_metadata`、`file.create_internal_entry`）。**关键现状：当前 IpcApi 有 12 条 file 路由，单项操作大多仍缺失、只有 batch 版**（`get_metadata` 已在 C-1 补了单项，见下）——所以 Reroute/Abolish 的改写不仅是换调用，多数还要**先新增单项路由**（schema + handler + preload 无关，走统一 IpcApi 通道）。
 
 | §7.2 概念方法 | IpcApi route | 现状 |
 | --- | --- | --- |
 | `open` | `file.open` | ✅ 已存在（`FileHandle`） |
 | `showInFolder` | `file.show_in_folder` | ✅ 已存在（`FileHandle`） |
 | `rename` | `file.rename` | ✅ 已存在（entry-only） |
-| `getMetadata` | `file.get_metadata` | ⚠️ **需新增单项**（仅 `file.batch_get_metadata` 存在） |
+| `getMetadata` | `file.get_metadata` | ✅ **已新增单项**（C-1，2026-07-13；输出 `PhysicalFileMetadata \| null`） |
 | `getPhysicalPath` | `file.get_physical_path` | ⚠️ **需新增单项**（仅 `file.batch_get_physical_paths`） |
 | `createInternalEntry` | `file.create_internal_entry` | ⚠️ **需新增单项**（仅 `file.batch_create_internal_entries`） |
 | `select` | `file.select` | ⛔ **需新增** |

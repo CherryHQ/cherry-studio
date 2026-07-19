@@ -2,7 +2,9 @@
 
 > **本文档覆盖**：把仍搭在 **legacy Electron IPC transport**（`IpcChannel` 枚举 + `ipcMain.handle` / `this.ipcHandle` + 手写 preload `window.api.file.*` / `window.api.fs.*` / `window.api.openPath`）上的**所有 file IPC channel**，逐条列出**注册点、背后实现、renderer 消费者（file:line + 用途）**，作为迁移到 [IpcApi](../../../docs/references/ipc/ipc-overview.md) 的依据。
 >
-> **调研日期**：2026-07-03 · **对应分支**：`eurfelux/refactor/file-ipc`
+> **调研日期**：2026-07-03（§1 汇总计数刷新至 2026-07-19 合并 `origin/main` 后）· **对应分支**：`eurfelux/refactor/file-ipc`
+>
+> ⚠️ **点位快照**：§1 的汇总计数已按当前 HEAD 校正；正文中具体的 `file:line` 行号是调研时点值，合并 `origin/main` 后可能已漂移（尤其 preload 早期误记为 `index.ts`，实际文件为 `src/preload/preload.ts`，其内部行号亦可能变动）。
 >
 > **本文档 ≠ 目标设计**。这里只回答"**现在有哪些旧 file IPC、谁在消费**"，不定义新 channel 命名 / schema / 迁移分批。目标设计与方法签名重设计另见：
 >
@@ -21,9 +23,9 @@
 
 | 分组 | 注册点 | 注册方式 | 背后实现 | channel 数 | 说明 |
 | --- | --- | --- | --- | --- | --- |
-| **已迁移** ✅ | `src/main/ipc/handlers/file.ts` | IpcApi route | v2 `FileManager` | 11 | 已在新架构，见 §2 |
-| **Group A** ⚠️ | `src/main/services/file/FileManager.ts` `registerIpcHandlers()` | `this.ipcHandle(IpcChannel.*)` | v2 `FileManager` | 6 | v2 实现，但仍搭 legacy transport，见 §3 |
-| **Group B** ⚠️ | `src/main/ipc.ts` `registerIpc()` | `ipcMain.handle(IpcChannel.*)` | 见下（异质） | 30 | 见 §4 |
+| **已迁移** ✅ | `src/main/ipc/handlers/file.ts` | IpcApi route | v2 `FileManager` | 12 | 已在新架构，见 §2 |
+| **Group A** ⚠️ | `src/main/services/file/FileManager.ts` `registerIpcHandlers()` | `this.ipcHandle(IpcChannel.*)` | v2 `FileManager` | 5 | v2 实现，但仍搭 legacy transport，见 §3 |
+| **Group B** ⚠️ | `src/main/ipc.ts` `registerIpc()` | `ipcMain.handle(IpcChannel.*)` | 见下（异质） | 27 | 见 §4 |
 | 相邻（非本次范围） | `src/main/services/file/tree/DirectoryTreeManager.ts` | `this.ipcHandle` + `sender.send` | v2 tree module | 4 | file tree，见 §6 |
 
 **Group B 内部并非铁板一块**（迁移时不能当成一类处理）：
@@ -35,7 +37,7 @@
 | **B3** | v2 `tree/search`（`src/main/services/file/tree/search.ts`，ripgrep） | 2 | **已是 v2 实现**，只是搭在旧 transport 上 |
 | **B4** | 内联 `shell.openPath`（ipc.ts 内联，无 service） | 1 | `Open_Path` |
 
-**需要迁移的 legacy channel 合计 = Group A(6) + Group B(30) = 36 条。** 另有 preload-only 的 `getPathForFile`（`webUtils`，**不走 IPC**，无需迁移，但常与 file IPC 成对出现，见 §5）。
+**需要迁移的 legacy channel 合计 = Group A(5) + Group B(27) = 32 条。** 另有 preload-only 的 `getPathForFile`（`webUtils`，**不走 IPC**，无需迁移，但常与 file IPC 成对出现，见 §5）。
 
 ### 1.1 消费者热点（跨分组）
 
@@ -108,7 +110,7 @@
   - `src/renderer/utils/file/buildFileParts.ts:31` — 读复制后物理文件的真实 MIME（path handle），设 `FileUIPart.mediaType`
   - `src/renderer/hooks/useFileSize.ts:29` — 按绝对路径 handle 做 `fs.stat` 显示文件大小
 
-> **☠️ 三条死 channel（renderer 侧）**：`ensureExternalEntry` / `permanentDelete` / `runSweep` 在 preload 有绑定（`src/preload/index.ts:185,189,190`），但 `src/renderer/` 与 `packages/` 均无生产调用。`ensureExternalEntry` 仅剩 `SaveToKnowledgePopup.test.tsx:173` 一个从不被调用的 `vi.fn()`；`permanentDelete` 的 FilesPage 删除已改走 IpcApi `file.batch_permanent_delete`（见 `FilesPage.test.tsx:550-559`）；`runSweep` renderer 无任何引用。迁移时可直接**删除这三条 legacy channel + preload 绑定**，无需在 IpcApi 补对应单项路由。
+> **☠️ 三条死 channel（renderer 侧）**：`ensureExternalEntry` / `permanentDelete` / `runSweep` 在 preload 有绑定（`src/preload/preload.ts:185,189,190`），但 `src/renderer/` 与 `packages/` 均无生产调用。`ensureExternalEntry` 仅剩 `SaveToKnowledgePopup.test.tsx:173` 一个从不被调用的 `vi.fn()`；`permanentDelete` 的 FilesPage 删除已改走 IpcApi `file.batch_permanent_delete`（见 `FilesPage.test.tsx:550-559`）；`runSweep` renderer 无任何引用。迁移时可直接**删除这三条 legacy channel + preload 绑定**，无需在 IpcApi 补对应单项路由。
 
 > **主进程内部直调（非本次 IPC 消费者，仅备注）**：`FileManager` 的这些方法在主进程内也被直调（不走 preload/IPC）：`createInternalEntry` @ `src/main/ai/AiService.ts:551,579`、`src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts:168`；`permanentDelete` @ `imageGenerationJobHandler.ts:198`；`getMetadata` @ `src/main/features/fileProcessing/tasks/jobExecution.ts:142`。这些不受 IPC 迁移影响。
 
@@ -216,13 +218,13 @@ ipc.ts 里 `import { fileStorage as fileManager } from './services/FileStorage'`
 
 - `window.api.openPath`（5）：`hooks/useMiniAppPopup.ts:93`、`pages/settings/McpSettings/EnvironmentDependencies.tsx:157`、`pages/settings/DataSettings/BasicDataSettings.tsx:406`、`pages/settings/DataSettings/BasicDataSettings.tsx:408`、`pages/notes/hooks/useNotesMenu.tsx:177`
 
-> ⚠️ **`window.api.openPath`（`Open_Path`）与 `window.api.file.openPath`（`File_OpenPath`，见 B1）是两条不同 channel**，preload 分别映射（`index.ts:261` vs `index.ts:204`），主进程分别落到 `shell.openPath` 与 `FileStorage.openPath`。二者功能重复（都是"用系统默认程序打开路径"），迁移时可考虑合一，但**当前是独立 channel、独立消费者**，审计中分列。
+> ⚠️ **`window.api.openPath`（`Open_Path`）与 `window.api.file.openPath`（`File_OpenPath`，见 B1）是两条不同 channel**，preload 分别映射（`preload.ts:261` vs `preload.ts:204`），主进程分别落到 `shell.openPath` 与 `FileStorage.openPath`。二者功能重复（都是"用系统默认程序打开路径"），迁移时可考虑合一，但**当前是独立 channel、独立消费者**，审计中分列。
 
 ---
 
 ## 5. Preload-only（非 IPC）：`getPathForFile`
 
-`window.api.file.getPathForFile(file)` → `webUtils.getPathForFile(file)`（`src/preload/index.ts:214`），**同步、无 `ipcRenderer.invoke`**。不属于 IPC 迁移范围，但**几乎总与 file IPC 成对出现**（拿到 `File` 对象的本地路径后紧接 `file.get` / `isDirectory` / `readExternal`），建议按同一迁移单元对待。
+`window.api.file.getPathForFile(file)` → `webUtils.getPathForFile(file)`（`src/preload/preload.ts:214`），**同步、无 `ipcRenderer.invoke`**。不属于 IPC 迁移范围，但**几乎总与 file IPC 成对出现**（拿到 `File` 对象的本地路径后紧接 `file.get` / `isDirectory` / `readExternal`），建议按同一迁移单元对待。
 
 生产消费者（6）：`utils/input.ts:18`、`components/composer/paste/pasteHandling.ts:73`、`components/resource/dialogs/import/ImportSkillDialog.tsx:124`、`pages/translate/TranslatePage.tsx:612`、`pages/knowledge/components/AddKnowledgeItemDialog.tsx:43`、`pages/files/FilesPage.tsx:920`
 
@@ -247,7 +249,7 @@ ipc.ts 里 `import { fileStorage as fileManager } from './services/FileStorage'`
 
 > 以下是从审计事实直接推出的迁移相关观察，**非分批计划 / schema 设计**（那属于下一步）。
 
-1. **可直接删除（renderer 零消费）**：`File_EnsureExternalEntry`、`File_PermanentDelete`、`File_RunSweep`。前二者的能力已由 IpcApi 批量路由覆盖；`runSweep` 只在主进程内部用。删 channel + 删 preload 绑定（`index.ts:185,189,190`）即可，无需补单项 IpcApi 路由。
+1. **可直接删除（renderer 零消费）**：`File_EnsureExternalEntry`、`File_PermanentDelete`、`File_RunSweep`。前二者的能力已由 IpcApi 批量路由覆盖；`runSweep` 只在主进程内部用。删 channel + 删 preload 绑定（`preload.ts:185,189,190`）即可，无需补单项 IpcApi 路由。
 2. **`File_GetMetadata` 与 `file.batch_get_metadata` 语义重叠**且后者更完整（entry 分支已接通）。2 个生产消费者（`buildFileParts`、`useFileSize`）都是**单文件按 path handle** 查询——迁移时评估直接改走批量路由，还是新增单项 `file.get_metadata` IpcApi 路由。
 3. **B3（`listDirectory` / `listDirectoryEntries`）实现已是 v2**，迁移成本最低（只换 transport）。
 4. **B4 `Open_Path` 与 B1 `File_OpenPath` 功能重复**，迁移时可评估合一。
