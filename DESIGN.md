@@ -108,6 +108,7 @@ Links inherit `var(--color-primary)` for color and add an underline on hover. Th
 ### Floating Scrims
 No dedicated public `--color-glass`, `--color-glass-border`, `--color-glass-blur`, or `--color-overlay` aliases are exported today. Use the shared primitive defaults first:
 - Dialog overlay: use the shared `Dialog` overlay (`bg-black/50`) and customize only through `overlayClassName` when needed.
+- Window chrome: keep renderer-drawn window controls in the normal app-shell stacking order so every modal scrim covers and blocks them.
 - Floating panels: use `bg-popover`, `border-border`, and the appropriate shadow utility (`shadow-md` to `shadow-xl`) rather than a page-local glass token.
 - If a reusable translucent surface is needed, add/export a real token first and document it here in the same change.
 
