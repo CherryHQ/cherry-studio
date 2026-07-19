@@ -1,7 +1,6 @@
 import { Button, Dialog, DialogContent, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useDefaultModel } from '@renderer/hooks/useModel'
-import { AGENT_PROMPT, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -52,7 +51,6 @@ function WizardFooter({
   stepIndex,
   isLast,
   isSubmitting,
-  isRunning,
   onCancel,
   onBack,
   onNext,
@@ -62,7 +60,6 @@ function WizardFooter({
   stepIndex: number
   isLast: boolean
   isSubmitting: boolean
-  isRunning: boolean
   onCancel: () => void
   onBack: () => void
   onNext: () => void
@@ -71,7 +68,6 @@ function WizardFooter({
   const { t } = useTranslation()
   const [name, modelId] = useWatch({ control: form.control, name: ['name', 'modelId'] })
   const submitting = isSubmitting || form.formState.isSubmitting
-  const navigationLocked = submitting || isRunning
   const rootError = form.formState.errors.root?.message
   const basicValid = (name?.trim().length ?? 0) > 0 && Boolean(modelId)
   const canProceed = stepIndex !== 0 || basicValid
@@ -79,25 +75,20 @@ function WizardFooter({
   return (
     <div className="flex shrink-0 items-center justify-end gap-2 border-border-muted border-t px-6 py-3">
       {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
-      <Button
-        type="button"
-        variant="ghost"
-        disabled={navigationLocked}
-        className="text-muted-foreground"
-        onClick={onCancel}>
+      <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
       {stepIndex > 0 ? (
-        <Button type="button" variant="outline" disabled={navigationLocked} onClick={onBack}>
+        <Button type="button" variant="outline" disabled={submitting} onClick={onBack}>
           {t('library.config.dialogs.create.back')}
         </Button>
       ) : null}
       {isLast ? (
-        <Button type="button" loading={submitting} disabled={!basicValid || navigationLocked} onClick={onCreate}>
+        <Button type="button" loading={submitting} disabled={!basicValid} onClick={onCreate}>
           {t('library.config.dialogs.create.submit')}
         </Button>
       ) : (
-        <Button type="button" disabled={!canProceed || navigationLocked} onClick={onNext}>
+        <Button type="button" disabled={!canProceed} onClick={onNext}>
           {t('library.config.dialogs.create.next')}
         </Button>
       )}
@@ -134,7 +125,6 @@ export function ResourceCreateWizard({
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
-  const [isPromptActionRunning, setIsPromptActionRunning] = useState(false)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
@@ -144,7 +134,6 @@ export function ResourceCreateWizard({
   // to isSubmitting (not form values) keeps the shell off the field-edit re-render path.
   const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
   const submitting = isSubmitting || isFormSubmitting
-  const interactionLocked = submitting || isPromptActionRunning
 
   const steps = useMemo<{ id: StepId; label: string }[]>(() => {
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
@@ -162,7 +151,6 @@ export function ResourceCreateWizard({
     form.reset(getDefaultValues(kind))
     form.clearErrors()
     setStepIndex(0)
-    setIsPromptActionRunning(false)
   }, [form, kind, open])
 
   // Preference/model hydration may finish after the dialog opens. Seed only an
@@ -199,17 +187,13 @@ export function ResourceCreateWizard({
 
   const isLast = stepIndex === steps.length - 1
   const goNext = () => {
-    if (isPromptActionRunning) return
     if (stepIndex === 0) {
       const { name, modelId } = form.getValues()
       if (!(name.trim().length > 0 && modelId)) return
     }
     setStepIndex((index) => Math.min(index + 1, steps.length - 1))
   }
-  const goBack = () => {
-    if (isPromptActionRunning) return
-    setStepIndex((index) => Math.max(index - 1, 0))
-  }
+  const goBack = () => setStepIndex((index) => Math.max(index - 1, 0))
 
   const runPendingCloseAction = useCallback(() => {
     const action = pendingCloseActionRef.current
@@ -243,7 +227,6 @@ export function ResourceCreateWizard({
   }, [open, runPendingCloseAction])
 
   const handleCreate = form.handleSubmit(async (values) => {
-    if (isPromptActionRunning) return
     if (!values.modelId) return
     form.clearErrors('root')
     try {
@@ -269,13 +252,13 @@ export function ResourceCreateWizard({
   const currentStep = steps[stepIndex]
 
   return (
-    <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !interactionLocked && onOpenChange(nextOpen)}>
+    <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
       <DialogContent
         ref={setDialogContentElement}
-        closeOnOverlayClick={!interactionLocked}
+        closeOnOverlayClick={!submitting}
         size="xl"
         className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
-        onPointerDownOutside={(event) => interactionLocked && event.preventDefault()}>
+        onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — title */}
         <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
           <div className="min-w-0">
@@ -291,7 +274,7 @@ export function ResourceCreateWizard({
                 {steps.map((step, index) => {
                   const done = index < stepIndex
                   const active = index === stepIndex
-                  const clickable = index < stepIndex && !isPromptActionRunning
+                  const clickable = index < stepIndex
                   return (
                     <li key={step.id}>
                       <button
@@ -339,13 +322,7 @@ export function ResourceCreateWizard({
                   />
                 ) : null}
                 {currentStep.id === 'persona' ? (
-                  <PersonaStep
-                    form={form}
-                    portalContainer={dialogContentElement}
-                    emptyValueSystemPrompt={AGENT_PROMPT}
-                    existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
-                    onRunningChange={setIsPromptActionRunning}
-                  />
+                  <PersonaStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'knowledge' ? (
                   <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
@@ -361,7 +338,6 @@ export function ResourceCreateWizard({
               stepIndex={stepIndex}
               isLast={isLast}
               isSubmitting={isSubmitting}
-              isRunning={isPromptActionRunning}
               onCancel={() => onOpenChange(false)}
               onBack={goBack}
               onNext={goNext}

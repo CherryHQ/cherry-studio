@@ -391,7 +391,6 @@ export function EditDialogShell<TValues extends FieldValues>({
   setDialogContentElement,
   tabs,
   title,
-  interactionLocked = false,
   groupExpansion = 'collapsed',
   groupPresentation = 'grouped'
 }: {
@@ -400,7 +399,6 @@ export function EditDialogShell<TValues extends FieldValues>({
   form: UseFormReturn<TValues>
   groupExpansion?: EditDialogGroupExpansion
   groupPresentation?: EditDialogGroupPresentation
-  interactionLocked?: boolean
   onActiveTabChange: (tab: string) => void
   onOpenChange: (open: boolean) => void
   open: boolean
@@ -434,12 +432,10 @@ export function EditDialogShell<TValues extends FieldValues>({
   }, [activeTab, tabs])
 
   const handleTabValueChange = (value: string) => {
-    if (interactionLocked) return
     onActiveTabChange(resolveTabValue(tabs, value))
   }
 
   const toggleTabGroup = (tabId: string) => {
-    if (interactionLocked) return
     setExpandedGroupIds((current) => {
       const next = new Set(current)
       if (next.has(tabId)) {
@@ -452,16 +448,9 @@ export function EditDialogShell<TValues extends FieldValues>({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen && interactionLocked) return
-        onOpenChange(nextOpen)
-      }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContentElement}
-        closeOnOverlayClick={!interactionLocked}
-        onPointerDownOutside={(event) => interactionLocked && event.preventDefault()}
         className="flex h-[min(600px,70vh)] flex-col gap-0 p-0 sm:max-w-180 lg:max-w-200">
         <Form {...form}>
           {/* Clipping lives on the form (rounded-[inherit]), not DialogContent: the dialog's
@@ -496,7 +485,6 @@ export function EditDialogShell<TValues extends FieldValues>({
                             <MenuItem
                               label={child.label}
                               active={activeTab === child.id}
-                              disabled={interactionLocked}
                               className={railTabItemClassName}
                             />
                           </TabsTrigger>
@@ -510,7 +498,6 @@ export function EditDialogShell<TValues extends FieldValues>({
                           {hasChildren ? (
                             <MenuItem
                               label={tab.label}
-                              disabled={interactionLocked}
                               aria-expanded={groupExpanded}
                               onClick={() => toggleTabGroup(tab.id)}
                               className={submenuItemClassName}
@@ -528,7 +515,6 @@ export function EditDialogShell<TValues extends FieldValues>({
                               <MenuItem
                                 label={tab.label}
                                 active={activeTab === tab.id}
-                                disabled={interactionLocked}
                                 className={railTabItemClassName}
                               />
                             </TabsTrigger>
@@ -540,7 +526,6 @@ export function EditDialogShell<TValues extends FieldValues>({
                                   <MenuItem
                                     label={child.label}
                                     active={activeTab === child.id}
-                                    disabled={interactionLocked}
                                     className={railTabItemClassName}
                                   />
                                 </TabsTrigger>

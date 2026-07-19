@@ -209,27 +209,6 @@ describe('PromptPolishActions', () => {
     expect(mocks.fetchGenerate).toHaveBeenCalledTimes(1)
   })
 
-  it('reports action-running state to the owning flow', async () => {
-    const request = deferredResponse()
-    mocks.fetchGenerate.mockReturnValue(request.promise)
-    const onRunningChange = vi.fn()
-    render(
-      <PromptPolishActions
-        value="Original prompt"
-        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
-        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
-        onChange={vi.fn()}
-        onRunningChange={onRunningChange}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
-    expect(onRunningChange).toHaveBeenCalledWith(true)
-
-    await act(async () => request.resolve('Polished prompt'))
-    expect(onRunningChange).toHaveBeenLastCalledWith(false)
-  })
-
   it('rejects a result that changes duplicate protected placeholders', async () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Polished {{date}} for ${city}')
     render(<Harness initialValue="Draft {{date}} and {{date}} for ${city}" />)
@@ -314,21 +293,17 @@ describe('PromptPolishActions', () => {
     const request = deferredResponse()
     mocks.fetchGenerate.mockReturnValueOnce(request.promise)
     const onChange = vi.fn()
-    const onRunningChange = vi.fn()
     const view = render(
       <PromptPolishActions
         value="Original prompt"
         emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
         existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
         onChange={onChange}
-        onRunningChange={onRunningChange}
       />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
-    expect(onRunningChange).toHaveBeenCalledWith(true)
     view.unmount()
-    expect(onRunningChange).toHaveBeenLastCalledWith(false)
     await act(async () => request.resolve('Late polished prompt'))
 
     expect(onChange).not.toHaveBeenCalled()

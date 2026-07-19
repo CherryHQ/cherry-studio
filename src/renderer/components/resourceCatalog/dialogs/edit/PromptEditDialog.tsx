@@ -52,7 +52,6 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
   const { t } = useTranslation()
   const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isPromptActionRunning, setIsPromptActionRunning] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const promptEditorRef = useRef<PromptEditorFieldHandles | null>(null)
   const variablePlaceholder = t('settings.prompts.variablePlaceholder')
@@ -74,12 +73,11 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
       })
     } else {
       setIsSubmitting(false)
-      setIsPromptActionRunning(false)
     }
   }, [open, prompt])
 
   const handleOk = useCallback(async () => {
-    if (!canSave || isPromptActionRunning) {
+    if (!canSave) {
       return
     }
 
@@ -94,15 +92,15 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
     } finally {
       setIsSubmitting(false)
     }
-  }, [canSave, formData, isPromptActionRunning, onSave])
+  }, [canSave, formData, onSave])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
-      if (!nextOpen && !isPromptActionRunning) {
+      if (!nextOpen) {
         onCancel()
       }
     },
-    [isPromptActionRunning, onCancel]
+    [onCancel]
   )
 
   const handlePromptActionChange = useCallback((content: string) => {
@@ -137,7 +135,6 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
         emptyValueSystemPrompt={QUICK_PHRASE_GENERATION_SYSTEM_PROMPT}
         existingValueSystemPrompt={QUICK_PHRASE_POLISH_SYSTEM_PROMPT}
         onChange={handlePromptActionChange}
-        onRunningChange={setIsPromptActionRunning}
         disabled={isSaving}
       />
       <Tooltip content={t('library.config.prompt.insert_variable')}>
@@ -146,7 +143,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
           variant="ghost"
           aria-label={t('library.config.prompt.insert_variable')}
           onClick={handleInsertVariable}
-          disabled={isSaving || isPromptActionRunning}
+          disabled={isSaving}
           className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
           <Braces size={10} />
         </Button>
@@ -183,13 +180,10 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={isSaving || isPromptActionRunning}>
+          <Button variant="outline" onClick={onCancel} disabled={isSaving}>
             {t('common.cancel')}
           </Button>
-          <Button
-            onClick={() => void handleOk()}
-            loading={isSaving}
-            disabled={!canSave || isSaving || isPromptActionRunning}>
+          <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving}>
             {t('common.confirm')}
           </Button>
         </DialogFooter>

@@ -784,33 +784,18 @@ describe('edit dialogs', () => {
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
   })
 
-  it('pauses agent auto-save and blocks close and tab navigation while a prompt action is in flight', async () => {
-    let resolvePolish: (value: string) => void = () => undefined
-    fetchGenerateMock.mockReturnValueOnce(
-      new Promise<string>((resolve) => {
-        resolvePolish = resolve
-      })
-    )
+  it('allows closing and tab navigation while an agent prompt action is in flight', async () => {
+    fetchGenerateMock.mockReturnValueOnce(new Promise<string>(() => undefined))
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
-    fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'Draft changed instructions' } })
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    fireEvent.click(screen.getByRole('tab', { name: 'Basic' }))
+    selectTab('Basic')
 
-    await new Promise((resolve) => setTimeout(resolve, 700))
-    expect(updateAgentMock).not.toHaveBeenCalled()
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
-    expect(screen.getByRole('tab', { name: 'Prompt' })).toHaveAttribute('aria-selected', 'true')
-
-    await act(async () => resolvePolish('Polished changed instructions'))
-    await waitFor(() =>
-      expect(updateAgentMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({ instructions: 'Polished changed instructions' })
-      })
-    )
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(screen.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('keeps MCP catalog rows compact without detail text', async () => {
@@ -965,33 +950,18 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Manual assistant edit')
   })
 
-  it('pauses assistant auto-save and blocks close and tab navigation while a prompt action is in flight', async () => {
-    let resolvePolish: (value: string) => void = () => undefined
-    fetchGenerateMock.mockReturnValueOnce(
-      new Promise<string>((resolve) => {
-        resolvePolish = resolve
-      })
-    )
+  it('allows closing and tab navigation while an assistant prompt action is in flight', async () => {
+    fetchGenerateMock.mockReturnValueOnce(new Promise<string>(() => undefined))
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
-    fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'Draft assistant prompt' } })
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    fireEvent.click(screen.getByRole('tab', { name: 'Basic' }))
+    selectTab('Basic')
 
-    await new Promise((resolve) => setTimeout(resolve, 700))
-    expect(updateAssistantMock).not.toHaveBeenCalled()
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
-    expect(screen.getByRole('tab', { name: 'Prompt' })).toHaveAttribute('aria-selected', 'true')
-
-    await act(async () => resolvePolish('Polished assistant draft'))
-    await waitFor(() =>
-      expect(updateAssistantMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({ prompt: 'Polished assistant draft' })
-      })
-    )
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(screen.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('shows a polish failure toast for a non-empty assistant prompt', async () => {

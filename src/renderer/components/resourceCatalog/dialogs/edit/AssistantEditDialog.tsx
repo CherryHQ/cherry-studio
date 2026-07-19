@@ -23,13 +23,17 @@ import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
-import { getRandomTagColor, MCP_MODE_OPTIONS } from '@renderer/utils/resourceCatalog'
+import {
+  getRandomTagColor,
+  MCP_MODE_OPTIONS,
+  RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
+} from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
   diffAssistantSaveIntent,
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
-import { AGENT_PROMPT, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@shared/ai/prompts'
+import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -180,7 +184,6 @@ function AssistantEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
-  const [isPromptActionRunning, setIsPromptActionRunning] = useState(false)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -220,7 +223,6 @@ function AssistantEditDialogContent({
     setActiveTab('basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
-    setIsPromptActionRunning(false)
   }, [defaultValues, form, open, resource])
 
   const rootError = form.formState.errors.root?.message
@@ -261,7 +263,7 @@ function AssistantEditDialogContent({
   // baseline moves, but the values are unchanged, so this never re-fires from our
   // own save (prevents a save→refetch→save loop).
   const flush = useDebouncedAutoSave({
-    enabled: open && !isPromptActionRunning,
+    enabled: open,
     changeKey: canPersist ? JSON.stringify(values) : null,
     onSave: persist
   })
@@ -270,7 +272,6 @@ function AssistantEditDialogContent({
   // only close once it settles — so a failed final save stays visible instead of
   // being silently dropped, and we never race a second concurrent save.
   const handleOpenChange = (next: boolean) => {
-    if (!next && isPromptActionRunning) return
     if (next || !canPersist) {
       onOpenChange(next)
       return
@@ -289,7 +290,6 @@ function AssistantEditDialogContent({
       activeTab={activeTab}
       form={form}
       groupPresentation="inline"
-      interactionLocked={isPromptActionRunning}
       onActiveTabChange={setActiveTab}
       onOpenChange={handleOpenChange}
       open={open}
@@ -321,7 +321,6 @@ function AssistantEditDialogContent({
             resource={resource}
             modelName={modelLabels.modelId}
             portalContainer={dialogContentElement}
-            onRunningChange={setIsPromptActionRunning}
           />
         </TabsContent>
         {isAssistantToolTab(activeTab) ? (
@@ -441,14 +440,12 @@ function AssistantPromptField({
   form,
   resource,
   modelName,
-  portalContainer,
-  onRunningChange
+  portalContainer
 }: {
   form: UseFormReturn<AssistantEditFormValues>
   resource: AssistantEditDialogResource
   modelName: string | null
   portalContainer: HTMLElement | null
-  onRunningChange: (running: boolean) => void
 }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
@@ -475,7 +472,6 @@ function AssistantPromptField({
       emptyValueSystemPrompt={AGENT_PROMPT}
       existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
       onChange={handlePromptActionChange}
-      onRunningChange={onRunningChange}
     />
   )
 

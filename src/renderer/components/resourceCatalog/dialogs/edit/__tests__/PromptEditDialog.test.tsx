@@ -75,14 +75,12 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishAct
     emptyValueSystemPrompt,
     existingValueSystemPrompt,
     onChange,
-    onRunningChange,
     disabled
   }: {
     fallbackSource?: string
     emptyValueSystemPrompt: string
     existingValueSystemPrompt: string
     onChange: (value: string) => void
-    onRunningChange?: (running: boolean) => void
     disabled?: boolean
   }) => (
     <>
@@ -94,12 +92,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishAct
         disabled={disabled}
         onClick={() => onChange('Polished library prompt')}>
         library.config.prompt.polish
-      </button>
-      <button type="button" onClick={() => onRunningChange?.(true)}>
-        start prompt action
-      </button>
-      <button type="button" onClick={() => onRunningChange?.(false)}>
-        finish prompt action
       </button>
     </>
   )
@@ -277,39 +269,6 @@ describe('PromptEditDialog', () => {
     )
 
     expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toBeDisabled()
-  })
-
-  it('blocks saving and closing while a prompt action is in flight', async () => {
-    const user = userEvent.setup()
-    const onCancel = vi.fn()
-
-    render(
-      <PromptEditDialog
-        open
-        prompt={{
-          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
-          title: 'Old title',
-          content: 'Old content',
-          orderKey: 'a0',
-          createdAt: '2026-05-01T00:00:00.000Z',
-          updatedAt: '2026-05-01T00:00:00.000Z'
-        }}
-        onSave={vi.fn().mockResolvedValue(undefined)}
-        onCancel={onCancel}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: 'start prompt action' }))
-
-    expect(screen.getByRole('button', { name: 'common.confirm' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'common.cancel' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'library.config.prompt.insert_variable' })).toBeDisabled()
-    dialogHarness.onOpenChange?.(false)
-    expect(onCancel).not.toHaveBeenCalled()
-
-    await user.click(screen.getByRole('button', { name: 'finish prompt action' }))
-    dialogHarness.onOpenChange?.(false)
-    expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
   it('inserts variables at the current prompt editor selection', async () => {

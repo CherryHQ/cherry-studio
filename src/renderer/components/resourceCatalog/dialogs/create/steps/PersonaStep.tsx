@@ -7,6 +7,8 @@ import {
   PromptVariablesPopover
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
+import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
+import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { useState } from 'react'
 import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -16,22 +18,13 @@ import type { ResourceCreateWizardFormValues } from '../types'
 type PersonaStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
-  emptyValueSystemPrompt: string
-  existingValueSystemPrompt: string
-  onRunningChange: (running: boolean) => void
 }
 
 /**
  * Step 2 (shared by assistant + agent): the system prompt / persona. Just the
  * prompt editor — advanced settings stay in the edit dialog by design.
  */
-export function PersonaStep({
-  form,
-  portalContainer,
-  emptyValueSystemPrompt,
-  existingValueSystemPrompt,
-  onRunningChange
-}: PersonaStepProps) {
+export function PersonaStep({ form, portalContainer }: PersonaStepProps) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const name = useWatch({ control: form.control, name: 'name' })
@@ -47,13 +40,12 @@ export function PersonaStep({
               <PromptPolishActions
                 value={field.value}
                 fallbackSource={name}
-                emptyValueSystemPrompt={emptyValueSystemPrompt}
-                existingValueSystemPrompt={existingValueSystemPrompt}
+                emptyValueSystemPrompt={AGENT_PROMPT}
+                existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
                 onChange={(value) => {
                   field.onChange(value)
                   setResetPreviewKey((key) => key + 1)
                 }}
-                onRunningChange={onRunningChange}
               />
             }
             label={

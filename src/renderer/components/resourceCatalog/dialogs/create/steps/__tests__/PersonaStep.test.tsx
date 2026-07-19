@@ -40,28 +40,21 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishAct
     fallbackSource,
     emptyValueSystemPrompt,
     existingValueSystemPrompt,
-    onChange,
-    onRunningChange
+    onChange
   }: {
     fallbackSource?: string
     emptyValueSystemPrompt: string
     existingValueSystemPrompt: string
     onChange: (value: string) => void
-    onRunningChange: (running: boolean) => void
   }) => (
-    <>
-      <button
-        type="button"
-        data-fallback-source={fallbackSource}
-        data-empty-value-system-prompt={emptyValueSystemPrompt}
-        data-existing-value-system-prompt={existingValueSystemPrompt}
-        onClick={() => onChange('Polished persona prompt')}>
-        Polish prompt
-      </button>
-      <button type="button" onClick={() => onRunningChange(true)}>
-        Start polishing
-      </button>
-    </>
+    <button
+      type="button"
+      data-fallback-source={fallbackSource}
+      data-empty-value-system-prompt={emptyValueSystemPrompt}
+      data-existing-value-system-prompt={existingValueSystemPrompt}
+      onClick={() => onChange('Polished persona prompt')}>
+      Polish prompt
+    </button>
   )
 }))
 
@@ -72,17 +65,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
   PromptVariablesPopover: () => null
 }))
 
-function Harness({
-  name = '',
-  emptyValueSystemPrompt = 'empty-value-strategy',
-  existingValueSystemPrompt = 'existing-value-strategy',
-  onRunningChange = vi.fn()
-}: {
-  name?: string
-  emptyValueSystemPrompt?: string
-  existingValueSystemPrompt?: string
-  onRunningChange?: (running: boolean) => void
-}) {
+function Harness({ name = '' }: { name?: string }) {
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: {
       avatar: '💬',
@@ -97,13 +80,7 @@ function Harness({
 
   return (
     <Form {...form}>
-      <PersonaStep
-        form={form}
-        portalContainer={null}
-        emptyValueSystemPrompt={emptyValueSystemPrompt}
-        existingValueSystemPrompt={existingValueSystemPrompt}
-        onRunningChange={onRunningChange}
-      />
+      <PersonaStep form={form} portalContainer={null} />
     </Form>
   )
 }
@@ -122,17 +99,6 @@ describe('PersonaStep', () => {
     expect(screen.getByTestId('preview-reset-key')).toHaveTextContent('1')
   })
 
-  it('reports action-running state to the create wizard', async () => {
-    const user = userEvent.setup()
-    const onRunningChange = vi.fn()
-
-    render(<Harness onRunningChange={onRunningChange} />)
-
-    await user.click(screen.getByRole('button', { name: 'Start polishing' }))
-
-    expect(onRunningChange).toHaveBeenCalledWith(true)
-  })
-
   it('uses the resource name as the blank-prompt generation fallback', () => {
     render(<Harness name="Research Assistant" />)
 
@@ -142,18 +108,16 @@ describe('PersonaStep', () => {
     )
   })
 
-  it('forwards the owning flow prompt strategies', () => {
-    render(
-      <Harness emptyValueSystemPrompt="custom-empty-strategy" existingValueSystemPrompt="custom-existing-strategy" />
-    )
+  it('uses the resource prompt generation and polish strategies', () => {
+    render(<Harness />)
 
     expect(screen.getByRole('button', { name: 'Polish prompt' })).toHaveAttribute(
       'data-empty-value-system-prompt',
-      'custom-empty-strategy'
+      expect.stringContaining('You are a Prompt Generator.')
     )
     expect(screen.getByRole('button', { name: 'Polish prompt' })).toHaveAttribute(
       'data-existing-value-system-prompt',
-      'custom-existing-strategy'
+      expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.')
     )
   })
 })

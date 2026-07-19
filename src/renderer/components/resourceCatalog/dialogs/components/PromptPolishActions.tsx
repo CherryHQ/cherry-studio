@@ -20,7 +20,6 @@ type PromptPolishActionsProps = {
   emptyValueSystemPrompt: string
   existingValueSystemPrompt: string
   onChange: (value: string) => void
-  onRunningChange?: (running: boolean) => void
   disabled?: boolean
 }
 
@@ -44,7 +43,6 @@ export function PromptPolishActions({
   emptyValueSystemPrompt,
   existingValueSystemPrompt,
   onChange,
-  onRunningChange,
   disabled = false
 }: PromptPolishActionsProps) {
   const { t } = useTranslation()
@@ -59,23 +57,17 @@ export function PromptPolishActions({
   const actionLabel = t(usesFallback ? 'library.config.prompt.generate' : 'library.config.prompt.polish')
   const generationSourceRef = useRef(generationSource)
   const onChangeRef = useRef(onChange)
-  const onRunningChangeRef = useRef(onRunningChange)
 
   useLayoutEffect(() => {
     valueRef.current = value
     disabledRef.current = disabled
     generationSourceRef.current = generationSource
     onChangeRef.current = onChange
-    onRunningChangeRef.current = onRunningChange
-  }, [disabled, generationSource, onChange, onRunningChange, value])
+  }, [disabled, generationSource, onChange, value])
 
   useEffect(() => {
     return () => {
       requestIdRef.current += 1
-      if (inFlightRef.current) {
-        inFlightRef.current = false
-        onRunningChangeRef.current?.(false)
-      }
     }
   }, [])
 
@@ -113,7 +105,6 @@ export function PromptPolishActions({
     requestIdRef.current = requestId
     setRunning(true)
     setRestoreState(null)
-    onRunningChangeRef.current?.(true)
 
     try {
       const polished = await fetchGenerate({
@@ -162,7 +153,6 @@ export function PromptPolishActions({
       if (requestIdRef.current === requestId) {
         inFlightRef.current = false
         setRunning(false)
-        onRunningChangeRef.current?.(false)
       }
     }
   }

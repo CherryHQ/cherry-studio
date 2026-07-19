@@ -65,24 +65,10 @@ vi.mock('../steps/BasicInfoStep', () => ({
   )
 }))
 vi.mock('../steps/PersonaStep', () => ({
-  PersonaStep: ({
-    form,
-    onRunningChange
-  }: {
-    form: { setValue: (name: string, value: unknown) => void }
-    onRunningChange: (running: boolean) => void
-  }) => (
-    <>
-      <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
-        fill persona
-      </button>
-      <button type="button" onClick={() => onRunningChange(true)}>
-        start prompt action
-      </button>
-      <button type="button" onClick={() => onRunningChange(false)}>
-        finish prompt action
-      </button>
-    </>
+  PersonaStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
+    <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
+      fill persona
+    </button>
   )
 }))
 vi.mock('../steps/CapabilityStep', () => ({ CapabilityStep: () => <div /> }))
@@ -214,29 +200,6 @@ function mockDeferredAnimationFrames() {
 }
 
 describe('ResourceCreateWizard close protection', () => {
-  it('blocks overlay / Esc close while a prompt action is running, then releases once it settles', async () => {
-    const user = userEvent.setup()
-    const onOpenChange = vi.fn()
-
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
-
-    await user.click(screen.getByRole('button', { name: 'fill basic' }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: 'start prompt action' }))
-
-    expect(dialog.closeOnOverlayClick).toBe(false)
-    let prevented = false
-    dialog.onPointerDownOutside?.({ defaultPrevented: false, preventDefault: () => (prevented = true) })
-    expect(prevented).toBe(true)
-    dialog.onOpenChange?.(false)
-    expect(onOpenChange).not.toHaveBeenCalled()
-
-    await user.click(screen.getByRole('button', { name: 'finish prompt action' }))
-    expect(dialog.closeOnOverlayClick).toBe(true)
-    dialog.onOpenChange?.(false)
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-  })
-
   it('blocks overlay / Esc close while a submit is in flight, then releases once it settles', async () => {
     const user = userEvent.setup()
     let resolveSubmit: () => void = () => {}

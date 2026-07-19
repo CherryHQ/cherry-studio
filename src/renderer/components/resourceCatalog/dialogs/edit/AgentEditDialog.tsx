@@ -24,14 +24,15 @@ import {
   type AgentFormState,
   applyAgentFormPatch,
   buildInitialAgentFormState,
-  diffAgentSaveIntent
+  diffAgentSaveIntent,
+  RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
 import {
   CLAUDE_TOOL_CATEGORIES,
   type ClaudeToolCategory,
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
-import { AGENT_PROMPT, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@shared/ai/prompts'
+import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
@@ -209,7 +210,6 @@ function AgentEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
-  const [isPromptActionRunning, setIsPromptActionRunning] = useState(false)
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
@@ -266,7 +266,6 @@ function AgentEditDialogContent({
     setActiveTab('basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
-    setIsPromptActionRunning(false)
     setBaselineSkillIds([])
     setBaselineSkillAgentId(null)
   }, [defaultValues, form, open, resource])
@@ -318,7 +317,7 @@ function AgentEditDialogContent({
   // baseline moves, but the values are unchanged, so this never re-fires from our
   // own save (prevents a save→refetch→save loop).
   const flush = useDebouncedAutoSave({
-    enabled: open && !isPromptActionRunning,
+    enabled: open,
     changeKey: canPersist ? JSON.stringify(values) : null,
     onSave: persist
   })
@@ -327,7 +326,6 @@ function AgentEditDialogContent({
   // only close once it settles — so a failed final save stays visible instead of
   // being silently dropped, and we never race a second concurrent save.
   const handleOpenChange = (next: boolean) => {
-    if (!next && isPromptActionRunning) return
     if (next || !canPersist) {
       onOpenChange(next)
       return
@@ -345,7 +343,6 @@ function AgentEditDialogContent({
     <EditDialogShell
       activeTab={activeTab}
       form={form}
-      interactionLocked={isPromptActionRunning}
       onActiveTabChange={setActiveTab}
       onOpenChange={handleOpenChange}
       open={open}
@@ -373,11 +370,7 @@ function AgentEditDialogContent({
           forceMount
           hidden={activeTab !== 'prompt'}
           className="m-0 flex h-full min-h-0 flex-col">
-          <AgentPromptField
-            form={form}
-            portalContainer={dialogContentElement}
-            onRunningChange={setIsPromptActionRunning}
-          />
+          <AgentPromptField form={form} portalContainer={dialogContentElement} />
         </TabsContent>
         {isToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
@@ -605,12 +598,10 @@ function HeartbeatSettingsField({
 
 function AgentPromptField({
   form,
-  portalContainer,
-  onRunningChange
+  portalContainer
 }: {
   form: UseFormReturn<AgentEditFormValues>
   portalContainer: HTMLElement | null
-  onRunningChange: (running: boolean) => void
 }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
@@ -647,7 +638,6 @@ function AgentPromptField({
                 emptyValueSystemPrompt={AGENT_PROMPT}
                 existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
                 onChange={handlePromptActionChange}
-                onRunningChange={onRunningChange}
               />
             }
             minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
