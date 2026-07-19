@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
+import { ipcApi } from '@renderer/ipc'
 import { uuid } from '@renderer/utils/uuid'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useEffect, useRef } from 'react'
@@ -114,6 +115,10 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           input: targetPainting.inputFiles?.map((entry) => entry.id) ?? []
         }
       })
+      // The painting_file_ref role='input' now holds the draft inputs; drop the draft-window
+      // temp-session hold (keyed by the draft painting id) so those entries fall under normal
+      // GC once nothing else references them (file-entry-cleanup.md §4.1).
+      await ipcApi.request('file.release_temp_session', { sourceId: painting.id })
       cacheService.set(cacheKey, null)
       // Merge the freshly-generated output into the in-memory draft; do not
       // re-read from the DB record (which would drop params / mode again).

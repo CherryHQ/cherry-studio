@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
@@ -126,6 +127,10 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
             path: file.path as FilePath,
             cleanupPolicy: 'delete_when_unreferenced'
           })
+          // Hold the eagerly-materialized draft input with a cleanup-visible temp-session
+          // ref (keyed by paintingId) so the reaper can't reclaim it during the draft window
+          // before the painting persists its painting_file_ref role='input' (file-entry-cleanup.md §4.1).
+          await ipcApi.request('file.hold_temp_session', { fileEntryId: entry.id, sourceId: paintingId, role: 'input' })
           cache.set(file.fileTokenSourceId, entry)
           entries.push(entry)
         } catch (error) {

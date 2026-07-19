@@ -7,6 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePaintingComposerInputFiles } from '../usePaintingComposerInputFiles'
 
+const mockIpcRequest = vi.fn(async () => undefined)
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => mockIpcRequest(...args) } }))
+
 const makeEntry = (id: string, ext = 'png'): FileEntry =>
   ({ id, name: `${id}.${ext}`, ext, size: 100, origin: 'internal' }) as unknown as FileEntry
 
@@ -98,6 +101,13 @@ describe('usePaintingComposerInputFiles', () => {
       source: 'path',
       path: '/tmp/new.png',
       cleanupPolicy: 'delete_when_unreferenced'
+    })
+    // The eagerly-materialized draft input is held by a temp-session ref (keyed by
+    // paintingId) so the cleanup reaper can't reclaim it during the draft window.
+    expect(mockIpcRequest).toHaveBeenCalledWith('file.hold_temp_session', {
+      fileEntryId: 'fe-new',
+      sourceId: 'p3',
+      role: 'input'
     })
   })
 
