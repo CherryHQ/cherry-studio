@@ -3,11 +3,13 @@ import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
-  MigrationDatabaseDiagnosticResult,
+  MigrationDatabaseColumnCountBucket,
+  MigrationDatabaseCompletedDiagnosticResult,
   MigrationDatabaseDiagnosticStep,
   MigrationDatabaseDiagnosticsWorkerInput,
   MigrationDatabaseDiagnosticsWorkerMessage
 } from '../migrationDatabaseDiagnosticsSchemas'
+import { EXPECTED_MIGRATION_DATABASE_OBJECTS } from '../migrationDatabaseDiagnosticsSchemas'
 
 const workerModuleMocks = vi.hoisted(() => ({
   createWorker: vi.fn()
@@ -41,9 +43,21 @@ function makeL0Step(): MigrationDatabaseDiagnosticStep {
       fileKind: 'regular',
       sizeBucket: '4_kib_to_1_mib',
       mtimeAgeBucket: 'under_1_hour',
-      header: 'valid'
+      header: 'valid',
+      writeMode: 'rollback',
+      walSidecars: 'none'
     }
   }
+}
+
+function bucketColumnCount(count: number | undefined): MigrationDatabaseColumnCountBucket {
+  if (count === undefined) return 'unavailable'
+  if (count === 0) return '0'
+  if (count <= 5) return '1_to_5'
+  if (count <= 10) return '6_to_10'
+  if (count <= 20) return '11_to_20'
+  if (count <= 40) return '21_to_40'
+  return '41_plus'
 }
 
 function makeL1Step(): MigrationDatabaseDiagnosticStep {
@@ -59,7 +73,12 @@ function makeL1Step(): MigrationDatabaseDiagnosticStep {
         applicationId: 'unset',
         queryOnly: true
       },
-      objects: [],
+      objects: EXPECTED_MIGRATION_DATABASE_OBJECTS.map((object) => ({
+        id: object.id,
+        kind: object.kind,
+        status: 'ok' as const,
+        columnCountBucket: bucketColumnCount('columnCount' in object ? object.columnCount : undefined)
+      })),
       unknownObjects: []
     }
   }
@@ -86,10 +105,13 @@ function makeL2Step(): MigrationDatabaseDiagnosticStep {
   }
 }
 
-function makeResult(overrides: Partial<MigrationDatabaseDiagnosticResult> = {}): MigrationDatabaseDiagnosticResult {
+function makeResult(
+  overrides: Partial<MigrationDatabaseCompletedDiagnosticResult> = {}
+): MigrationDatabaseCompletedDiagnosticResult {
   return {
     version: 1,
     expectedSchemaVersion: 1,
+    completion: { status: 'completed' },
     l0: makeL0Step() as Extract<MigrationDatabaseDiagnosticStep, { level: 'l0' }>,
     l1: makeL1Step() as Extract<MigrationDatabaseDiagnosticStep, { level: 'l1' }>,
     l2: makeL2Step() as Extract<MigrationDatabaseDiagnosticStep, { level: 'l2' }>,
@@ -99,6 +121,12 @@ function makeResult(overrides: Partial<MigrationDatabaseDiagnosticResult> = {}):
 
 function emitMessage(worker: FakeWorker, message: MigrationDatabaseDiagnosticsWorkerMessage): void {
   worker.emit('message', message)
+}
+
+function emitAllSteps(worker: FakeWorker, result: MigrationDatabaseCompletedDiagnosticResult): void {
+  emitMessage(worker, { type: 'step', step: result.l0 })
+  emitMessage(worker, { type: 'step', step: result.l1 })
+  emitMessage(worker, { type: 'step', step: result.l2 })
 }
 
 async function flushPromises(): Promise<void> {
@@ -134,14 +162,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     emitMessage(worker, { type: 'result', result })
 
     await expect(inspection).resolves.toEqual(result)
-    expect(worker.options.workerData).toMatchObject({
-      databaseFile: '/Users/private/database.sqlite',
-      policy: {
-        version: 1,
-        expectedSchemaVersion: 1,
-        expectedObjects: expect.any(Array)
-      }
-    })
+    expect(worker.options.workerData).toEqual({ databaseFile: '/Users/private/database.sqlite' })
     expect(worker.unref).toHaveBeenCalledOnce()
     expect(worker.terminate).toHaveBeenCalledOnce()
   })
@@ -150,15 +171,16 @@ describe('MigrationDatabaseDiagnostics', () => {
     const diagnostics = new MigrationDatabaseDiagnostics({ createWorker: workerModuleMocks.createWorker })
     const inspection = diagnostics.inspect('/private/canary.sqlite')
     const worker = workers[0]
-    const l0 = makeL0Step()
+    const completed = makeResult()
 
-    emitMessage(worker, { type: 'step', step: l0 })
+    emitAllSteps(worker, completed)
     worker.emit('error', new Error('sk-secret /private/canary.sqlite'))
 
     const result = await inspection
-    expect(result.l0).toEqual(l0)
-    expect(result.l1).toEqual({ level: 'l1', status: 'failed', code: 'worker_error' })
-    expect(result.l2).toEqual({ level: 'l2', status: 'failed', code: 'worker_error' })
+    expect(result.completion).toEqual({ status: 'failed', code: 'worker_error' })
+    expect(result.l0).toEqual(completed.l0)
+    expect(result.l1).toEqual(completed.l1)
+    expect(result.l2).toEqual(completed.l2)
     expect(JSON.stringify(result)).not.toContain('sk-secret')
     expect(JSON.stringify(result)).not.toContain('/private/canary.sqlite')
   })
@@ -170,17 +192,20 @@ describe('MigrationDatabaseDiagnostics', () => {
     const diagnostics = new MigrationDatabaseDiagnostics({ createWorker: workerModuleMocks.createWorker })
     const inspection = diagnostics.inspect('/private/database.sqlite')
     const worker = workers[0]
+    const completed = makeResult()
 
+    emitAllSteps(worker, completed)
     worker.emit('exit', code)
 
     const result = await inspection
-    expect(result.l0).toEqual({ level: 'l0', status: 'failed', code: expected })
-    expect(result.l1).toEqual({ level: 'l1', status: 'failed', code: expected })
-    expect(result.l2).toEqual({ level: 'l2', status: 'failed', code: expected })
+    expect(result.completion).toEqual({ status: 'failed', code: expected })
+    expect(result.l0).toEqual(completed.l0)
+    expect(result.l1).toEqual(completed.l1)
+    expect(result.l2).toEqual(completed.l2)
     expect(worker.terminate).toHaveBeenCalledOnce()
   })
 
-  it('times out only unfinished steps and terminates a hung worker once', async () => {
+  it('keeps a timeout visible after all steps and terminates a hung worker once', async () => {
     vi.useFakeTimers()
     const diagnostics = new MigrationDatabaseDiagnostics({
       createWorker: workerModuleMocks.createWorker,
@@ -188,17 +213,16 @@ describe('MigrationDatabaseDiagnostics', () => {
     })
     const inspection = diagnostics.inspect('/private/database.sqlite')
     const worker = workers[0]
-    const l0 = makeL0Step()
-    const l1 = makeL1Step()
+    const completed = makeResult()
 
-    emitMessage(worker, { type: 'step', step: l0 })
-    emitMessage(worker, { type: 'step', step: l1 })
+    emitAllSteps(worker, completed)
     await vi.advanceTimersByTimeAsync(25)
 
     const result = await inspection
-    expect(result.l0).toEqual(l0)
-    expect(result.l1).toEqual(l1)
-    expect(result.l2).toEqual({ level: 'l2', status: 'timed_out', code: 'worker_timeout' })
+    expect(result.completion).toEqual({ status: 'timed_out', code: 'worker_timeout' })
+    expect(result.l0).toEqual(completed.l0)
+    expect(result.l1).toEqual(completed.l1)
+    expect(result.l2).toEqual(completed.l2)
     expect(worker.terminate).toHaveBeenCalledOnce()
   })
 
@@ -221,29 +245,48 @@ describe('MigrationDatabaseDiagnostics', () => {
   })
 
   it.each([
-    { name: 'malformed step', message: { type: 'step', step: { level: 'l0', rawError: 'secret-canary' } } },
     {
       name: 'final result with an extra path',
       message: { type: 'result', result: { ...makeResult(), databaseFile: '/Users/alice/secret.sqlite' } }
     },
     {
-      name: 'oversized message',
-      message: { type: 'unknown', payload: 'x'.repeat(MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES + 1) }
+      name: 'oversized final result',
+      message: {
+        type: 'result',
+        result: { ...makeResult(), payload: 'x'.repeat(MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES + 1) }
+      }
     }
-  ])('maps $name to a stable protocol result without leaking the payload', async ({ message }) => {
+  ])('preserves all steps and exposes protocol failure for a $name', async ({ message }) => {
+    const diagnostics = new MigrationDatabaseDiagnostics({ createWorker: workerModuleMocks.createWorker })
+    const inspection = diagnostics.inspect('/private/database.sqlite')
+    const worker = workers[0]
+    const completed = makeResult()
+
+    emitAllSteps(worker, completed)
+    worker.emit('message', message)
+
+    const result = await inspection
+    expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
+    expect(result.l0).toEqual(completed.l0)
+    expect(result.l1).toEqual(completed.l1)
+    expect(result.l2).toEqual(completed.l2)
+    const serialized = JSON.stringify(result)
+    expect(serialized).not.toContain('/Users/alice')
+  })
+
+  it('does not fabricate a failed diagnostic layer for a malformed step', async () => {
     const diagnostics = new MigrationDatabaseDiagnostics({ createWorker: workerModuleMocks.createWorker })
     const inspection = diagnostics.inspect('/private/database.sqlite')
     const worker = workers[0]
 
-    worker.emit('message', message)
+    worker.emit('message', { type: 'step', step: { level: 'l0', rawError: 'secret-canary' } })
 
     const result = await inspection
-    expect(result.l0).toEqual({ level: 'l0', status: 'failed', code: 'protocol_error' })
-    expect(result.l1).toEqual({ level: 'l1', status: 'failed', code: 'protocol_error' })
-    expect(result.l2).toEqual({ level: 'l2', status: 'failed', code: 'protocol_error' })
-    const serialized = JSON.stringify(result)
-    expect(serialized).not.toContain('secret-canary')
-    expect(serialized).not.toContain('/Users/alice')
+    expect(result).toMatchObject({ completion: { status: 'failed', code: 'protocol_error' } })
+    expect(result).not.toHaveProperty('l0')
+    expect(result).not.toHaveProperty('l1')
+    expect(result).not.toHaveProperty('l2')
+    expect(JSON.stringify(result)).not.toContain('secret-canary')
   })
 
   it('returns a stable result when construction or termination fails', async () => {
@@ -252,11 +295,11 @@ describe('MigrationDatabaseDiagnostics', () => {
         throw new Error('/private/path constructor secret')
       }
     })
-    await expect(constructorFailure.inspect('/private/database.sqlite')).resolves.toMatchObject({
-      l0: { level: 'l0', status: 'failed', code: 'worker_error' },
-      l1: { level: 'l1', status: 'failed', code: 'worker_error' },
-      l2: { level: 'l2', status: 'failed', code: 'worker_error' }
-    })
+    const constructorResult = await constructorFailure.inspect('/private/database.sqlite')
+    expect(constructorResult).toMatchObject({ completion: { status: 'failed', code: 'worker_error' } })
+    expect(constructorResult).not.toHaveProperty('l0')
+    expect(constructorResult).not.toHaveProperty('l1')
+    expect(constructorResult).not.toHaveProperty('l2')
 
     const diagnostics = new MigrationDatabaseDiagnostics({ createWorker: workerModuleMocks.createWorker })
     const inspection = diagnostics.inspect('/private/database.sqlite')
@@ -282,7 +325,9 @@ describe('MigrationDatabaseDiagnostics', () => {
 
     const [firstResult, secondResult] = await Promise.all([first, second])
     expect(firstResult.l0).toEqual(l0)
-    expect(secondResult.l0).toEqual({ level: 'l0', status: 'failed', code: 'worker_error' })
+    expect(firstResult.completion).toEqual({ status: 'failed', code: 'worker_error' })
+    expect(secondResult.completion).toEqual({ status: 'failed', code: 'worker_error' })
+    expect(secondResult).not.toHaveProperty('l0')
     expect(firstWorker.terminate).toHaveBeenCalledOnce()
     expect(secondWorker.terminate).toHaveBeenCalledOnce()
   })

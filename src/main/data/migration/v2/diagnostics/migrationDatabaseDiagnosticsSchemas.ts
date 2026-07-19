@@ -1,164 +1,27 @@
 import * as z from 'zod'
 
-export const MIGRATION_DATABASE_DIAGNOSTIC_VERSION = 1 as const
-export const MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION = 1 as const
-export const MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES = 65_536
-export const MIGRATION_DATABASE_DIAGNOSTIC_MAX_SCHEMA_OBJECTS = 160
-export const MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS = 256
-export const MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS = 64
+import {
+  EXPECTED_MIGRATION_DATABASE_OBJECTS,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_DATABASE_FILE_LENGTH,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS,
+  MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
+  MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION
+} from './migrationDatabaseDiagnosticsProtocol.mjs'
 
-/**
- * Version 1 of the complete expected SQLite schema surface.
- *
- * This is deliberately a checked-in allowlist. Runtime sqlite_schema rows are
- * compared with it, never added to it. SQLite-owned `sqlite_%` objects are the
- * only excluded names. FTS virtual and shadow tables are included explicitly so
- * a healthy production database has no unexplained unknown-object baseline.
- */
-export const EXPECTED_MIGRATION_DATABASE_OBJECTS = [
-  { id: 'agent_channel_agent_id_idx', kind: 'index' },
-  { id: 'agent_channel_session_id_idx', kind: 'index' },
-  { id: 'agent_channel_task_channel_id_idx', kind: 'index' },
-  { id: 'agent_channel_task_task_id_idx', kind: 'index' },
-  { id: 'agent_channel_type_idx', kind: 'index' },
-  { id: 'agent_global_skill_folder_name_unique', kind: 'index' },
-  { id: 'agent_global_skill_is_enabled_idx', kind: 'index' },
-  { id: 'agent_global_skill_source_idx', kind: 'index' },
-  { id: 'agent_name_idx', kind: 'index' },
-  { id: 'agent_order_key_idx', kind: 'index' },
-  {
-    id: 'agent_session_message_fts_identity_unique_index',
-    name: 'agent_session_message_fts_rowid_uniq',
-    kind: 'index'
-  },
-  { id: 'agent_session_message_session_created_id_idx', kind: 'index' },
-  { id: 'agent_session_message_status_idx', kind: 'index' },
-  { id: 'agent_session_order_key_idx', kind: 'index' },
-  { id: 'agent_session_updated_at_idx', kind: 'index' },
-  { id: 'agent_skill_agent_id_idx', kind: 'index' },
-  { id: 'agent_skill_skill_id_idx', kind: 'index' },
-  { id: 'agent_type_idx', kind: 'index' },
-  { id: 'agent_workspace_order_key_idx', kind: 'index' },
-  { id: 'agent_workspace_path_unique_idx', kind: 'index' },
-  { id: 'assistant_created_at_idx', kind: 'index' },
-  { id: 'assistant_order_key_idx', kind: 'index' },
-  { id: 'cmfr_entry_id_idx', kind: 'index' },
-  { id: 'cmfr_source_id_idx', kind: 'index' },
-  { id: 'cmfr_unique_idx', kind: 'index' },
-  { id: 'entity_tag_tag_id_idx', kind: 'index' },
-  { id: 'fe_created_at_idx', kind: 'index' },
-  { id: 'fe_deleted_at_idx', kind: 'index' },
-  { id: 'fe_external_path_idx', kind: 'index' },
-  { id: 'fe_external_path_lower_unique_idx', kind: 'index' },
-  { id: 'group_entity_type_order_key_idx', kind: 'index' },
-  { id: 'job_idempotency_key_partial_uq', kind: 'index' },
-  { id: 'job_parent_id_idx', kind: 'index' },
-  { id: 'job_queue_status_scheduled_at_idx', kind: 'index' },
-  { id: 'job_schedule_enabled_next_run_idx', kind: 'index' },
-  { id: 'job_schedule_id_finished_at_idx', kind: 'index' },
-  { id: 'job_schedule_type_idx', kind: 'index' },
-  { id: 'job_schedule_type_name_uq', kind: 'index' },
-  { id: 'job_status_idx', kind: 'index' },
-  { id: 'knowledge_item_baseId_id_unique', kind: 'index' },
-  { id: 'knowledge_item_base_group_created_idx', kind: 'index' },
-  { id: 'knowledge_item_base_type_created_idx', kind: 'index' },
-  { id: 'malfr_entry_id_idx', kind: 'index' },
-  { id: 'malfr_source_id_idx', kind: 'index' },
-  { id: 'mcp_server_is_active_idx', kind: 'index' },
-  { id: 'mcp_server_name_idx', kind: 'index' },
-  { id: 'mcp_server_sort_order_idx', kind: 'index' },
-  { id: 'message_fts_identity_unique_index', name: 'message_fts_rowid_uniq', kind: 'index' },
-  { id: 'message_parent_id_idx', kind: 'index' },
-  { id: 'message_status_idx', kind: 'index' },
-  { id: 'message_topic_created_idx', kind: 'index' },
-  { id: 'message_topic_root_uniq', kind: 'index' },
-  { id: 'mini_app_preset_mini_app_id_idx', kind: 'index' },
-  { id: 'mini_app_status_order_key_idx', kind: 'index' },
-  { id: 'note_root_path_path_unique_idx', kind: 'index' },
-  { id: 'painting_order_key_idx', kind: 'index' },
-  { id: 'pfr_entry_id_idx', kind: 'index' },
-  { id: 'pfr_source_id_idx', kind: 'index' },
-  { id: 'pfr_unique_idx', kind: 'index' },
-  { id: 'pin_entity_type_entity_id_unique_idx', kind: 'index' },
-  { id: 'pin_entity_type_order_key_idx', kind: 'index' },
-  { id: 'plfr_entry_id_idx', kind: 'index' },
-  { id: 'plfr_source_id_idx', kind: 'index' },
-  { id: 'prompt_order_key_idx', kind: 'index' },
-  { id: 'tag_name_unique', kind: 'index' },
-  { id: 'topic_assistant_id_idx', kind: 'index' },
-  { id: 'topic_order_key_idx', kind: 'index' },
-  { id: 'topic_updated_at_idx', kind: 'index' },
-  { id: 'translate_history_created_at_idx', kind: 'index' },
-  { id: 'translate_history_star_created_at_idx', kind: 'index' },
-  { id: 'user_model_preset_idx', kind: 'index' },
-  { id: 'user_model_provider_enabled_idx', kind: 'index' },
-  { id: 'user_model_provider_id_order_key_idx', kind: 'index' },
-  { id: 'user_model_provider_model_unique', kind: 'index' },
-  { id: 'user_provider_enabled_idx', kind: 'index' },
-  { id: 'user_provider_order_key_idx', kind: 'index' },
-  { id: 'user_provider_preset_idx', kind: 'index' },
-  { id: '__drizzle_migrations', kind: 'table', columnCount: 3 },
-  { id: 'agent', kind: 'table', columnCount: 14 },
-  { id: 'agent_channel', kind: 'table', columnCount: 12 },
-  { id: 'agent_channel_task', kind: 'table', columnCount: 2 },
-  { id: 'agent_global_skill', kind: 'table', columnCount: 13 },
-  { id: 'agent_mcp_server', kind: 'table', columnCount: 4 },
-  { id: 'agent_session', kind: 'table', columnCount: 10 },
-  { id: 'agent_session_message', kind: 'table', columnCount: 13 },
-  { id: 'agent_session_message_fts', kind: 'table', columnCount: 3 },
-  { id: 'agent_session_message_fts_config', kind: 'table', columnCount: 2 },
-  { id: 'agent_session_message_fts_data', kind: 'table', columnCount: 2 },
-  { id: 'agent_session_message_fts_docsize', kind: 'table', columnCount: 2 },
-  { id: 'agent_session_message_fts_idx', kind: 'table', columnCount: 3 },
-  { id: 'agent_skill', kind: 'table', columnCount: 5 },
-  { id: 'agent_workspace', kind: 'table', columnCount: 7 },
-  { id: 'app_state', kind: 'table', columnCount: 5 },
-  { id: 'assistant', kind: 'table', columnCount: 11 },
-  { id: 'assistant_knowledge_base', kind: 'table', columnCount: 4 },
-  { id: 'assistant_mcp_server', kind: 'table', columnCount: 4 },
-  { id: 'chat_message_file_ref', kind: 'table', columnCount: 6 },
-  { id: 'entity_tag', kind: 'table', columnCount: 5 },
-  { id: 'file_entry', kind: 'table', columnCount: 9 },
-  { id: 'group', kind: 'table', columnCount: 6 },
-  { id: 'job', kind: 'table', columnCount: 21 },
-  { id: 'job_schedule', kind: 'table', columnCount: 12 },
-  { id: 'knowledge_base', kind: 'table', columnCount: 17 },
-  { id: 'knowledge_item', kind: 'table', columnCount: 9 },
-  { id: 'mcp_server', kind: 'table', columnCount: 32 },
-  { id: 'message', kind: 'table', columnCount: 15 },
-  { id: 'message_fts', kind: 'table', columnCount: 3 },
-  { id: 'message_fts_config', kind: 'table', columnCount: 2 },
-  { id: 'message_fts_data', kind: 'table', columnCount: 2 },
-  { id: 'message_fts_docsize', kind: 'table', columnCount: 2 },
-  { id: 'message_fts_idx', kind: 'table', columnCount: 3 },
-  { id: 'mini_app', kind: 'table', columnCount: 14 },
-  { id: 'mini_app_logo_file_ref', kind: 'table', columnCount: 5 },
-  { id: 'note', kind: 'table', columnCount: 7 },
-  { id: 'painting', kind: 'table', columnCount: 7 },
-  { id: 'painting_file_ref', kind: 'table', columnCount: 6 },
-  { id: 'pin', kind: 'table', columnCount: 6 },
-  { id: 'preference', kind: 'table', columnCount: 5 },
-  { id: 'prompt', kind: 'table', columnCount: 6 },
-  { id: 'provider_logo_file_ref', kind: 'table', columnCount: 5 },
-  { id: 'tag', kind: 'table', columnCount: 5 },
-  { id: 'topic', kind: 'table', columnCount: 10 },
-  { id: 'translate_history', kind: 'table', columnCount: 8 },
-  { id: 'translate_language', kind: 'table', columnCount: 5 },
-  { id: 'user_model', kind: 'table', columnCount: 27 },
-  { id: 'user_provider', kind: 'table', columnCount: 14 },
-  { id: 'agent_session_message_ad', kind: 'trigger' },
-  { id: 'agent_session_message_ai', kind: 'trigger' },
-  { id: 'agent_session_message_au', kind: 'trigger' },
-  { id: 'message_ad', kind: 'trigger' },
-  { id: 'message_ai', kind: 'trigger' },
-  { id: 'message_au', kind: 'trigger' }
-] as const
+export {
+  EXPECTED_MIGRATION_DATABASE_OBJECTS,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_DATABASE_FILE_LENGTH,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_SCHEMA_OBJECTS,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_SCHEMA_ROWS_SCANNED,
+  MIGRATION_DATABASE_DIAGNOSTIC_QUICK_CHECK_RESULT_LIMIT,
+  MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
+  MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION
+} from './migrationDatabaseDiagnosticsProtocol.mjs'
 
-type ExpectedObjectId = (typeof EXPECTED_MIGRATION_DATABASE_OBJECTS)[number]['id']
-const expectedObjectIds = EXPECTED_MIGRATION_DATABASE_OBJECTS.map((object) => object.id) as [
-  ExpectedObjectId,
-  ...ExpectedObjectId[]
-]
+const expectedObjectIds = EXPECTED_MIGRATION_DATABASE_OBJECTS.map((object) => object.id) as [string, ...string[]]
 
 export const migrationDatabaseExpectedObjectIdSchema = z.enum(expectedObjectIds)
 export const migrationDatabaseObjectKindSchema = z.enum(['table', 'index', 'trigger', 'view'])
@@ -187,47 +50,22 @@ export const migrationDatabaseFailureCodeSchema = z.enum([
   'permission_denied',
   'not_regular_file',
   'not_database',
+  'wal_sidecars_unavailable',
   'read_failed',
   'open_failed',
-  'query_failed',
+  'query_failed'
+])
+export const migrationDatabaseCompletionFailureCodeSchema = z.enum([
+  'invalid_input',
   'worker_error',
   'worker_exit',
   'worker_no_result',
-  'worker_timeout',
   'protocol_error'
 ])
 
-export const migrationDatabaseExpectedObjectDefinitionSchema = z
-  .object({
-    id: migrationDatabaseExpectedObjectIdSchema,
-    name: z
-      .string()
-      .regex(/^[A-Za-z0-9_]+$/)
-      .max(128)
-      .optional(),
-    kind: migrationDatabaseObjectKindSchema,
-    columnCount: z.number().int().min(0).max(512).optional()
-  })
-  .strict()
-
-export const migrationDatabaseWorkerPolicySchema = z
-  .object({
-    version: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_VERSION),
-    expectedSchemaVersion: z.literal(MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION),
-    maxMessageBytes: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES),
-    maxSchemaObjects: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_MAX_SCHEMA_OBJECTS),
-    maxForeignKeyRows: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS),
-    maxForeignKeyGroups: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS),
-    expectedObjects: z
-      .array(migrationDatabaseExpectedObjectDefinitionSchema)
-      .length(EXPECTED_MIGRATION_DATABASE_OBJECTS.length)
-  })
-  .strict()
-
 export const migrationDatabaseDiagnosticsWorkerInputSchema = z
   .object({
-    databaseFile: z.string().min(1).max(32_768),
-    policy: migrationDatabaseWorkerPolicySchema
+    databaseFile: z.string().min(1).max(MIGRATION_DATABASE_DIAGNOSTIC_MAX_DATABASE_FILE_LENGTH)
   })
   .strict()
 
@@ -255,9 +93,67 @@ export const migrationDatabaseL0DataSchema = z
       '31_to_365_days',
       'over_365_days'
     ]),
-    header: z.enum(['unavailable', 'insufficient', 'valid', 'invalid'])
+    header: z.enum(['unavailable', 'insufficient', 'valid', 'invalid']),
+    writeMode: z.enum(['unavailable', 'rollback', 'wal', 'unknown']),
+    walSidecars: z.enum(['none', 'complete', 'wal_only', 'shm_only', 'unsafe', 'unavailable'])
   })
   .strict()
+  .superRefine((data, ctx) => {
+    if (data.fileKind === 'missing') {
+      if (data.exists) {
+        ctx.addIssue({ code: 'custom', message: 'A missing database file cannot exist', path: ['exists'] })
+      }
+      for (const field of ['sizeBucket', 'mtimeAgeBucket', 'header', 'writeMode'] as const) {
+        if (data[field] !== 'unavailable') {
+          ctx.addIssue({ code: 'custom', message: 'Missing-file metadata must be unavailable', path: [field] })
+        }
+      }
+      return
+    }
+
+    if (!data.exists) {
+      ctx.addIssue({ code: 'custom', message: 'A present database file must exist', path: ['exists'] })
+    }
+    if (data.fileKind === 'regular') {
+      if (data.sizeBucket === 'unavailable') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A regular database file must have a size bucket',
+          path: ['sizeBucket']
+        })
+      }
+      if (data.header !== 'valid' && data.writeMode !== 'unavailable') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'An unreadable SQLite header cannot expose its write mode',
+          path: ['writeMode']
+        })
+      }
+      return
+    }
+
+    if (data.sizeBucket !== 'unavailable') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A non-regular file cannot expose a byte-size bucket',
+        path: ['sizeBucket']
+      })
+    }
+    if (data.header !== 'unavailable') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A non-regular file cannot expose a SQLite header result',
+        path: ['header']
+      })
+    }
+    if (data.writeMode !== 'unavailable') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A non-regular file cannot expose a SQLite write mode',
+        path: ['writeMode']
+      })
+    }
+  })
 
 export const migrationDatabaseL1ObjectSchema = z
   .object({
@@ -280,22 +176,7 @@ export const migrationDatabaseL1DataSchema = z
         queryOnly: z.literal(true)
       })
       .strict(),
-    objects: z
-      .array(migrationDatabaseL1ObjectSchema)
-      .max(MIGRATION_DATABASE_DIAGNOSTIC_MAX_SCHEMA_OBJECTS)
-      .superRefine((objects, ctx) => {
-        const ids = new Set<string>()
-        for (const [index, object] of objects.entries()) {
-          if (ids.has(object.id)) {
-            ctx.addIssue({
-              code: 'custom',
-              message: 'Expected database object IDs must be unique',
-              path: [index, 'id']
-            })
-          }
-          ids.add(object.id)
-        }
-      }),
+    objects: z.array(migrationDatabaseL1ObjectSchema).length(EXPECTED_MIGRATION_DATABASE_OBJECTS.length),
     unknownObjects: z
       .array(
         z
@@ -308,6 +189,84 @@ export const migrationDatabaseL1DataSchema = z
       .max(5)
   })
   .strict()
+  .superRefine((data, ctx) => {
+    const definitionsById = new Map(EXPECTED_MIGRATION_DATABASE_OBJECTS.map((object) => [object.id, object]))
+    const ids = new Set<string>()
+    for (const [index, object] of data.objects.entries()) {
+      if (ids.has(object.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Expected database object IDs must be unique',
+          path: ['objects', index, 'id']
+        })
+      }
+      ids.add(object.id)
+
+      const definition = definitionsById.get(object.id)
+      if (definition === undefined) continue
+      if (object.kind !== definition.kind) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Expected database object kind does not match its fixed definition',
+          path: ['objects', index, 'kind']
+        })
+      }
+
+      const expectedColumnCount = 'columnCount' in definition ? definition.columnCount : undefined
+      if (expectedColumnCount === undefined) {
+        if (object.status === 'column_mismatch') {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Objects without columns cannot have a column mismatch',
+            path: ['objects', index, 'status']
+          })
+        }
+        if (object.columnCountBucket !== 'unavailable') {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Objects without columns cannot expose a column-count bucket',
+            path: ['objects', index, 'columnCountBucket']
+          })
+        }
+        continue
+      }
+
+      if (object.status === 'missing' || object.status === 'type_mismatch') {
+        if (object.columnCountBucket !== 'unavailable') {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Unavailable object columns must use the unavailable bucket',
+            path: ['objects', index, 'columnCountBucket']
+          })
+        }
+      } else if (object.columnCountBucket === 'unavailable') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Observed table columns require a count bucket',
+          path: ['objects', index, 'columnCountBucket']
+        })
+      }
+    }
+
+    const unknownKinds = new Set<string>()
+    for (const [index, object] of data.unknownObjects.entries()) {
+      if (unknownKinds.has(object.kind)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Unknown database object kinds must be unique',
+          path: ['unknownObjects', index, 'kind']
+        })
+      }
+      unknownKinds.add(object.kind)
+      if (object.countBucket === '0') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Unknown database object summaries cannot have a zero count',
+          path: ['unknownObjects', index, 'countBucket']
+        })
+      }
+    }
+  })
 
 export const migrationDatabaseL2DataSchema = z
   .object({
@@ -339,6 +298,114 @@ export const migrationDatabaseL2DataSchema = z
       .strict()
   })
   .strict()
+  .superRefine((data, ctx) => {
+    const quick = data.quickCheck
+    if (quick.outcome === 'ok') {
+      if (quick.issueCountBucket !== '0') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A successful quick check cannot report issues',
+          path: ['quickCheck', 'issueCountBucket']
+        })
+      }
+      if (quick.categories.length !== 0) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A successful quick check cannot report categories',
+          path: ['quickCheck', 'categories']
+        })
+      }
+      if (quick.truncated) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A successful quick check cannot be truncated',
+          path: ['quickCheck', 'truncated']
+        })
+      }
+    } else {
+      if (quick.issueCountBucket === '0') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Quick-check issues require a nonzero count',
+          path: ['quickCheck', 'issueCountBucket']
+        })
+      }
+      if (quick.categories.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Quick-check issues require a fixed category',
+          path: ['quickCheck', 'categories']
+        })
+      }
+    }
+    if (new Set(quick.categories).size !== quick.categories.length) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Quick-check categories must be unique',
+        path: ['quickCheck', 'categories']
+      })
+    }
+
+    const foreignKeys = data.foreignKeys
+    if (foreignKeys.outcome === 'ok') {
+      if (foreignKeys.scannedCountBucket !== '0') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A successful foreign-key check cannot scan violations',
+          path: ['foreignKeys', 'scannedCountBucket']
+        })
+      }
+      if (foreignKeys.violations.length !== 0) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A successful foreign-key check cannot report violations',
+          path: ['foreignKeys', 'violations']
+        })
+      }
+      if (foreignKeys.truncated) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A successful foreign-key check cannot be truncated',
+          path: ['foreignKeys', 'truncated']
+        })
+      }
+    } else {
+      if (foreignKeys.scannedCountBucket === '0') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Foreign-key violations require a nonzero scanned count',
+          path: ['foreignKeys', 'scannedCountBucket']
+        })
+      }
+      if (foreignKeys.violations.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Foreign-key violations require a fixed summary group',
+          path: ['foreignKeys', 'violations']
+        })
+      }
+    }
+
+    const pairs = new Set<string>()
+    for (const [index, violation] of foreignKeys.violations.entries()) {
+      const pair = `${violation.childObjectId}\0${violation.parentObjectId}`
+      if (pairs.has(pair)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Foreign-key summary object pairs must be unique',
+          path: ['foreignKeys', 'violations', index]
+        })
+      }
+      pairs.add(pair)
+      if (violation.countBucket === '0') {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Foreign-key summary groups cannot have a zero count',
+          path: ['foreignKeys', 'violations', index, 'countBucket']
+        })
+      }
+    }
+  })
 
 function createStepSchema<TLevel extends 'l0' | 'l1' | 'l2', TData extends z.ZodType>(
   level: TLevel,
@@ -354,39 +421,85 @@ function createStepSchema<TLevel extends 'l0' | 'l1' | 'l2', TData extends z.Zod
         code: migrationDatabaseFailureCodeSchema,
         data: dataSchema.optional()
       })
-      .strict(),
-    z
-      .object({
-        level: z.literal(level),
-        status: z.literal('timed_out'),
-        code: z.literal('worker_timeout')
-      })
       .strict()
   ])
 }
 
 export const migrationDatabaseL0StepSchema = createStepSchema('l0', migrationDatabaseL0DataSchema)
 export const migrationDatabaseL1StepSchema = createStepSchema('l1', migrationDatabaseL1DataSchema)
-export const migrationDatabaseL2StepSchema = createStepSchema('l2', migrationDatabaseL2DataSchema)
+export const migrationDatabaseL2StepSchema = createStepSchema('l2', migrationDatabaseL2DataSchema).superRefine(
+  (step, ctx) => {
+    if (step.status !== 'success' && step.status !== 'truncated') return
+    const nestedTruncated = step.data.quickCheck.truncated || step.data.foreignKeys.truncated
+    if (step.status === 'success' && nestedTruncated) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A successful L2 step cannot contain truncated checks',
+        path: ['status']
+      })
+    }
+    if (step.status === 'truncated' && !nestedTruncated) {
+      ctx.addIssue({ code: 'custom', message: 'A truncated L2 step requires a truncated check', path: ['status'] })
+    }
+  }
+)
 export const migrationDatabaseDiagnosticStepSchema = z.union([
   migrationDatabaseL0StepSchema,
   migrationDatabaseL1StepSchema,
   migrationDatabaseL2StepSchema
 ])
 
-export const migrationDatabaseDiagnosticResultSchema = z
+export const migrationDatabaseCompletedDiagnosticResultSchema = z
   .object({
     version: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_VERSION),
     expectedSchemaVersion: z.literal(MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION),
+    completion: z.object({ status: z.literal('completed') }).strict(),
     l0: migrationDatabaseL0StepSchema,
     l1: migrationDatabaseL1StepSchema,
     l2: migrationDatabaseL2StepSchema
   })
   .strict()
 
+const migrationDatabaseFailedDiagnosticResultSchema = z
+  .object({
+    version: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_VERSION),
+    expectedSchemaVersion: z.literal(MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION),
+    completion: z.object({ status: z.literal('failed'), code: migrationDatabaseCompletionFailureCodeSchema }).strict(),
+    l0: migrationDatabaseL0StepSchema.optional(),
+    l1: migrationDatabaseL1StepSchema.optional(),
+    l2: migrationDatabaseL2StepSchema.optional()
+  })
+  .strict()
+
+const migrationDatabaseTimedOutDiagnosticResultSchema = z
+  .object({
+    version: z.literal(MIGRATION_DATABASE_DIAGNOSTIC_VERSION),
+    expectedSchemaVersion: z.literal(MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION),
+    completion: z.object({ status: z.literal('timed_out'), code: z.literal('worker_timeout') }).strict(),
+    l0: migrationDatabaseL0StepSchema.optional(),
+    l1: migrationDatabaseL1StepSchema.optional(),
+    l2: migrationDatabaseL2StepSchema.optional()
+  })
+  .strict()
+
+export const migrationDatabaseDiagnosticResultSchema = z
+  .union([
+    migrationDatabaseCompletedDiagnosticResultSchema,
+    migrationDatabaseFailedDiagnosticResultSchema,
+    migrationDatabaseTimedOutDiagnosticResultSchema
+  ])
+  .superRefine((result, ctx) => {
+    if ('l2' in result && result.l2 !== undefined && (!('l1' in result) || result.l1 === undefined)) {
+      ctx.addIssue({ code: 'custom', message: 'L2 requires a completed L1 prefix', path: ['l2'] })
+    }
+    if ('l1' in result && result.l1 !== undefined && (!('l0' in result) || result.l0 === undefined)) {
+      ctx.addIssue({ code: 'custom', message: 'L1 requires a completed L0 prefix', path: ['l1'] })
+    }
+  })
+
 export const migrationDatabaseDiagnosticsWorkerMessageSchema = z.union([
   z.object({ type: z.literal('step'), step: migrationDatabaseDiagnosticStepSchema }).strict(),
-  z.object({ type: z.literal('result'), result: migrationDatabaseDiagnosticResultSchema }).strict()
+  z.object({ type: z.literal('result'), result: migrationDatabaseCompletedDiagnosticResultSchema }).strict()
 ])
 
 export type MigrationDatabaseExpectedObjectId = z.infer<typeof migrationDatabaseExpectedObjectIdSchema>
@@ -395,8 +508,8 @@ export type MigrationDatabaseUnknownObjectKind = z.infer<typeof migrationDatabas
 export type MigrationDatabaseCountBucket = z.infer<typeof migrationDatabaseCountBucketSchema>
 export type MigrationDatabaseColumnCountBucket = z.infer<typeof migrationDatabaseColumnCountBucketSchema>
 export type MigrationDatabaseFailureCode = z.infer<typeof migrationDatabaseFailureCodeSchema>
-export type MigrationDatabaseExpectedObjectDefinition = z.infer<typeof migrationDatabaseExpectedObjectDefinitionSchema>
-export type MigrationDatabaseWorkerPolicy = z.infer<typeof migrationDatabaseWorkerPolicySchema>
+export type MigrationDatabaseCompletionFailureCode = z.infer<typeof migrationDatabaseCompletionFailureCodeSchema>
+export type MigrationDatabaseExpectedObjectDefinition = (typeof EXPECTED_MIGRATION_DATABASE_OBJECTS)[number]
 export type MigrationDatabaseDiagnosticsWorkerInput = z.infer<typeof migrationDatabaseDiagnosticsWorkerInputSchema>
 export type MigrationDatabaseL0Data = z.infer<typeof migrationDatabaseL0DataSchema>
 export type MigrationDatabaseL1Data = z.infer<typeof migrationDatabaseL1DataSchema>
@@ -405,5 +518,10 @@ export type MigrationDatabaseL0Step = z.infer<typeof migrationDatabaseL0StepSche
 export type MigrationDatabaseL1Step = z.infer<typeof migrationDatabaseL1StepSchema>
 export type MigrationDatabaseL2Step = z.infer<typeof migrationDatabaseL2StepSchema>
 export type MigrationDatabaseDiagnosticStep = z.infer<typeof migrationDatabaseDiagnosticStepSchema>
+export type MigrationDatabaseCompletedDiagnosticResult = z.infer<
+  typeof migrationDatabaseCompletedDiagnosticResultSchema
+>
+export type MigrationDatabaseFailedDiagnosticResult = z.infer<typeof migrationDatabaseFailedDiagnosticResultSchema>
+export type MigrationDatabaseTimedOutDiagnosticResult = z.infer<typeof migrationDatabaseTimedOutDiagnosticResultSchema>
 export type MigrationDatabaseDiagnosticResult = z.infer<typeof migrationDatabaseDiagnosticResultSchema>
 export type MigrationDatabaseDiagnosticsWorkerMessage = z.infer<typeof migrationDatabaseDiagnosticsWorkerMessageSchema>

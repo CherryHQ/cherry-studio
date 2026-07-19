@@ -233,7 +233,7 @@ git commit --signoff -m "feat(data-migration): record bounded failure context"
 
 - [ ] **步骤 1：写 fake Worker 和生产 DB integration 失败测试**
 
-Fake Worker 覆盖增量 L0/L1、error、exit、3 秒 timeout、terminate once、listener cleanup。Integration 使用 `setupTestDatabase()`，覆盖 healthy、schema mismatch、FK violation、截断副本、unreadable、step truncation；不手写 production DDL。
+Fake Worker 覆盖增量 L0/L1/L2、final 缺失/非法/超限、error、exit、3 秒 timeout、terminate once、listener cleanup，并断言顶层 completion 保留真实 partial prefix、不伪造未完成层。Integration 使用 `setupTestDatabase()`，覆盖 healthy、missing DB、schema mismatch、FK violation、截断副本、unreadable、step truncation；不手写 production DDL。另覆盖 live writer + WAL-only schema marker、WAL 缺 SHM、clean WAL header 无 sidecars，以及 timeout/terminate 后 writer 继续 commit/checkpoint。
 
 - [ ] **步骤 2：运行并确认 FAIL**
 
@@ -245,7 +245,9 @@ pnpm exec vitest run --project main \
 
 - [ ] **步骤 3：实现 Worker/host**
 
-Worker 用 `new Database(file, { readonly: true, fileMustExist: true })` 和 `query_only = ON`。L0 仅文件状态/大小桶/header；L1 仅 allowlisted expected/missing/extra object ID 与列数桶；L2 执行 `PRAGMA quick_check(20)` 和 FK check，映射固定类别并删除 rowid/fkid/原文。每步发 typed message，finally close。Host timeout 后 terminate 并保留已完成 step。
+版本、限额和完整 v1 expected-object 集合只存在于纯 `.mjs` protocol 常量模块；host workerData 只传 `{ databaseFile }`，worker 不接受调用方 allowlist/policy。Worker 用 `new Database(file, { readonly: true, fileMustExist: true })` 和 `query_only = ON`。L0 仅文件状态/大小桶/header write-version 与 sidecar 固定状态；L1 仅固定 expected/missing/extra object 类型计数与列数桶；L2 执行 `PRAGMA quick_check(20)` 和有界 FK check，映射固定类别并删除 rowid/fkid/原文。每步发 typed message，finally close。Host timeout 后 terminate，顶层标记 timeout 并仅保留已完成 step。
+
+WAL 契约采用“保留 L1/L2”：若主 header 为 WAL，或任一 sidecar 存在，则 SQLite constructor 前必须确认 `-wal` 与 `-shm` 均已存在且 `lstat` 为 regular/non-symlink；否则 L1/L2 固定 `wal_sidecars_unavailable`，不得创建 sidecar。完整 live pair 允许 readonly/query-only 读取当前 committed WAL snapshot。诊断前后 main DB 与 WAL 的 existence/size/hash/mtime 必须不变；已有 SHM 仅保证仍为 regular file，允许 SQLite 更新协调缓存的 hash/mtime，不声明 forensic zero-mutation。
 
 - [ ] **步骤 4：重复三次稳定性测试**
 

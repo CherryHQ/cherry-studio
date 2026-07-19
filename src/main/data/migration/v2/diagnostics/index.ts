@@ -6,11 +6,14 @@ export type {
 export { MigrationDatabaseDiagnostics } from './MigrationDatabaseDiagnostics'
 export type {
   MigrationDatabaseColumnCountBucket,
+  MigrationDatabaseCompletedDiagnosticResult,
+  MigrationDatabaseCompletionFailureCode,
   MigrationDatabaseCountBucket,
   MigrationDatabaseDiagnosticResult,
   MigrationDatabaseDiagnosticStep,
   MigrationDatabaseExpectedObjectDefinition,
   MigrationDatabaseExpectedObjectId,
+  MigrationDatabaseFailedDiagnosticResult,
   MigrationDatabaseFailureCode,
   MigrationDatabaseL0Data,
   MigrationDatabaseL0Step,
@@ -19,6 +22,7 @@ export type {
   MigrationDatabaseL2Data,
   MigrationDatabaseL2Step,
   MigrationDatabaseObjectKind,
+  MigrationDatabaseTimedOutDiagnosticResult,
   MigrationDatabaseUnknownObjectKind
 } from './migrationDatabaseDiagnosticsSchemas'
 export {

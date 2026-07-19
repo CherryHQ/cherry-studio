@@ -1,20 +1,18 @@
 import type { EventEmitter } from 'node:events'
 
 import type {
+  MigrationDatabaseCompletionFailureCode,
   MigrationDatabaseDiagnosticResult,
   MigrationDatabaseDiagnosticStep,
   MigrationDatabaseDiagnosticsWorkerInput,
-  MigrationDatabaseFailureCode,
+  MigrationDatabaseFailedDiagnosticResult,
   MigrationDatabaseL0Step,
   MigrationDatabaseL1Step,
-  MigrationDatabaseL2Step
+  MigrationDatabaseL2Step,
+  MigrationDatabaseTimedOutDiagnosticResult
 } from './migrationDatabaseDiagnosticsSchemas'
 import {
-  EXPECTED_MIGRATION_DATABASE_OBJECTS,
-  MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS,
-  MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS,
   MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES,
-  MIGRATION_DATABASE_DIAGNOSTIC_MAX_SCHEMA_OBJECTS,
   MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
   MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION,
   migrationDatabaseDiagnosticsWorkerInputSchema,
@@ -53,34 +51,23 @@ interface CompletedSteps {
   l2?: MigrationDatabaseL2Step
 }
 
-function createFailedStep<TLevel extends 'l0' | 'l1' | 'l2'>(
-  level: TLevel,
-  code: MigrationDatabaseFailureCode
-): { readonly level: TLevel; readonly status: 'failed'; readonly code: MigrationDatabaseFailureCode } {
-  return { level, status: 'failed', code }
-}
-
-function createTimedOutStep<TLevel extends 'l0' | 'l1' | 'l2'>(
-  level: TLevel
-): { readonly level: TLevel; readonly status: 'timed_out'; readonly code: 'worker_timeout' } {
-  return { level, status: 'timed_out', code: 'worker_timeout' }
-}
-
-function createPartialResult(
+function createTerminalResult(
   completed: CompletedSteps,
-  status: 'failed' | 'timed_out',
-  code: MigrationDatabaseFailureCode
+  completion:
+    | { readonly status: 'failed'; readonly code: MigrationDatabaseCompletionFailureCode }
+    | { readonly status: 'timed_out'; readonly code: 'worker_timeout' }
 ): MigrationDatabaseDiagnosticResult {
-  const fallback = <TLevel extends 'l0' | 'l1' | 'l2'>(level: TLevel) =>
-    status === 'timed_out' ? createTimedOutStep(level) : createFailedStep(level, code)
-
-  return {
+  const base = {
     version: MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
     expectedSchemaVersion: MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION,
-    l0: completed.l0 ?? fallback('l0'),
-    l1: completed.l1 ?? fallback('l1'),
-    l2: completed.l2 ?? fallback('l2')
+    ...completed
   }
+  if (completion.status === 'failed') {
+    const result: MigrationDatabaseFailedDiagnosticResult = { ...base, completion }
+    return result
+  }
+  const result: MigrationDatabaseTimedOutDiagnosticResult = { ...base, completion }
+  return result
 }
 
 function getMessageByteLength(message: unknown): number | null {
@@ -99,18 +86,7 @@ function isExpectedIncrement(completed: CompletedSteps, step: MigrationDatabaseD
 }
 
 function createWorkerInput(databaseFile: string): MigrationDatabaseDiagnosticsWorkerInput | null {
-  const input = migrationDatabaseDiagnosticsWorkerInputSchema.safeParse({
-    databaseFile,
-    policy: {
-      version: MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
-      expectedSchemaVersion: MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION,
-      maxMessageBytes: MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES,
-      maxSchemaObjects: MIGRATION_DATABASE_DIAGNOSTIC_MAX_SCHEMA_OBJECTS,
-      maxForeignKeyRows: MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS,
-      maxForeignKeyGroups: MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS,
-      expectedObjects: EXPECTED_MIGRATION_DATABASE_OBJECTS.map((object) => ({ ...object }))
-    }
-  })
+  const input = migrationDatabaseDiagnosticsWorkerInputSchema.safeParse({ databaseFile })
   return input.success ? input.data : null
 }
 
@@ -136,13 +112,13 @@ export class MigrationDatabaseDiagnostics {
 
   inspect(databaseFile: string): Promise<MigrationDatabaseDiagnosticResult> {
     const input = createWorkerInput(databaseFile)
-    if (input === null) return Promise.resolve(createPartialResult({}, 'failed', 'invalid_input'))
+    if (input === null) return Promise.resolve(createTerminalResult({}, { status: 'failed', code: 'invalid_input' }))
 
     let worker: MigrationDatabaseDiagnosticsWorkerLike
     try {
       worker = this.createWorker({ workerData: input })
     } catch {
-      return Promise.resolve(createPartialResult({}, 'failed', 'worker_error'))
+      return Promise.resolve(createTerminalResult({}, { status: 'failed', code: 'worker_error' }))
     }
 
     return new Promise((resolve) => {
@@ -172,8 +148,8 @@ export class MigrationDatabaseDiagnostics {
         resolve(result)
       }
 
-      const finishFailed = (code: MigrationDatabaseFailureCode): void => {
-        finish(createPartialResult(completed, 'failed', code))
+      const finishFailed = (code: MigrationDatabaseCompletionFailureCode): void => {
+        finish(createTerminalResult(completed, { status: 'failed', code }))
       }
 
       function handleMessage(message: unknown): void {
@@ -211,7 +187,7 @@ export class MigrationDatabaseDiagnostics {
       }
 
       const timeout = setTimeout(
-        () => finish(createPartialResult(completed, 'timed_out', 'worker_timeout')),
+        () => finish(createTerminalResult(completed, { status: 'timed_out', code: 'worker_timeout' })),
         this.timeoutMs
       )
       timeout.unref()

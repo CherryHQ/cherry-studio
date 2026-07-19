@@ -266,10 +266,22 @@ Without opening SQLite:
 - existence and regular-file status;
 - size bucket and modification time;
 - SQLite header validity when enough bytes are available.
+- the header write-version as a fixed `rollback` / `wal` / `unknown` / `unavailable` value;
+- the `-wal` / `-shm` pair as a fixed sidecar-state value, using `lstat` without following symlinks.
 
 No absolute path or raw header bytes are included.
 
-### 9.2 L1: structure metadata
+### 9.2 WAL snapshot and mutation boundary
+
+L1/L2 remain available for a live WAL database, but only under an explicit pre-open contract:
+
+- if the main header reports WAL write mode, or either sidecar is observed, both `-wal` and `-shm` must already exist as regular, non-symlink files;
+- an incomplete, inaccessible, or unsafe sidecar pair returns fixed `wal_sidecars_unavailable` L1/L2 failures before constructing the SQLite connection, and diagnostics must not create either sidecar;
+- a complete live pair may be opened with `readonly`, `fileMustExist`, and `query_only`, so diagnostics observe the writer's current committed WAL snapshot;
+- the main database and WAL file contents, size, hash, and modification time must remain unchanged;
+- SQLite may update the already-existing SHM coordination cache while serving the reader. SHM hash and modification time are therefore not invariant, and this feature does not claim forensic zero-mutation semantics.
+
+### 9.3 L1: structure metadata
 
 After a read-only open:
 
@@ -278,7 +290,7 @@ After a read-only open:
 - known expected object status;
 - counts by type for unknown objects, without unknown object names or raw schema SQL.
 
-### 9.3 L2: bounded integrity
+### 9.4 L2: bounded integrity
 
 - `PRAGMA quick_check(20)`;
 - `PRAGMA foreign_key_check`;
@@ -287,9 +299,9 @@ After a read-only open:
 - known application object identifiers may be retained, while unknown identifiers map to `unknown`;
 - output count and byte caps applied.
 
-Each level independently reports `success`, `failed`, `timed_out`, or `truncated`.
+Worker-produced levels report `success`, `failed`, or `truncated`. The host separately reports overall `completed`, `failed`, or `timed_out` completion and preserves only the real level prefix received before a terminal worker failure; it does not fabricate unfinished level failures.
 
-### 9.4 Explicit exclusions
+### 9.5 Explicit exclusions
 
 The diagnostic worker does not execute:
 

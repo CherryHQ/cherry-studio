@@ -32,6 +32,8 @@ vi.mock('../migrationDatabaseDiagnosticsWorker?nodeWorker', () => ({
 import { MigrationDatabaseDiagnostics } from '../MigrationDatabaseDiagnostics'
 import {
   EXPECTED_MIGRATION_DATABASE_OBJECTS,
+  type MigrationDatabaseCompletedDiagnosticResult,
+  type MigrationDatabaseDiagnosticResult,
   migrationDatabaseDiagnosticResultSchema
 } from '../migrationDatabaseDiagnosticsSchemas'
 
@@ -39,8 +41,35 @@ function sha256(file: string): string {
   return createHash('sha256').update(readFileSync(file)).digest('hex')
 }
 
+function fileFingerprint(file: string):
+  | { readonly exists: false }
+  | {
+      readonly exists: true
+      readonly regular: boolean
+      readonly size: number
+      readonly mtimeMs: number
+      readonly hash: string
+    } {
+  if (!existsSync(file)) return { exists: false }
+  const stats = lstatSync(file)
+  return {
+    exists: true,
+    regular: stats.isFile() && !stats.isSymbolicLink(),
+    size: stats.size,
+    mtimeMs: stats.mtimeMs,
+    hash: sha256(file)
+  }
+}
+
 function sidecarState(file: string): Record<string, boolean> {
   return Object.fromEntries(['-wal', '-shm', '-journal'].map((suffix) => [suffix, existsSync(`${file}${suffix}`)]))
+}
+
+function expectCompleted(
+  result: MigrationDatabaseDiagnosticResult
+): asserts result is MigrationDatabaseCompletedDiagnosticResult {
+  expect(result.completion.status).toBe('completed')
+  if (result.completion.status !== 'completed') throw new Error('Expected the real worker to complete')
 }
 
 describe('MigrationDatabaseDiagnostics integration', () => {
@@ -58,6 +87,9 @@ describe('MigrationDatabaseDiagnostics integration', () => {
   function copyProductionDatabase(name: string): string {
     const destination = join(fixtureDir, name)
     copyFileSync(dbh.sqlite.name, destination)
+    const fixture = new Database(destination)
+    fixture.pragma('journal_mode = DELETE')
+    fixture.close()
     return destination
   }
 
@@ -71,6 +103,7 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     }
 
     const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
 
     expect(migrationDatabaseDiagnosticResultSchema.parse(result)).toEqual(result)
     expect(result.l0).toMatchObject({ status: 'success', data: { fileKind: 'regular', header: 'valid' } })
@@ -104,6 +137,156 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     renameSync(renamed, databaseFile)
   })
 
+  it('reports a missing database without creating it or any SQLite sidecar', async () => {
+    const databaseFile = join(fixtureDir, 'missing.sqlite')
+
+    const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
+
+    expect(result.l0).toEqual({
+      level: 'l0',
+      status: 'success',
+      data: {
+        exists: false,
+        fileKind: 'missing',
+        sizeBucket: 'unavailable',
+        mtimeAgeBucket: 'unavailable',
+        header: 'unavailable',
+        writeMode: 'unavailable',
+        walSidecars: 'none'
+      }
+    })
+    expect(result.l1).toEqual({ level: 'l1', status: 'failed', code: 'open_failed' })
+    expect(result.l2).toEqual({ level: 'l2', status: 'failed', code: 'open_failed' })
+    expect(existsSync(databaseFile)).toBe(false)
+    expect(sidecarState(databaseFile)).toEqual({ '-wal': false, '-shm': false, '-journal': false })
+  })
+
+  it('reads a live WAL snapshot while preserving the main database and WAL files', async () => {
+    const databaseFile = copyProductionDatabase('live-wal.sqlite')
+    const walFile = `${databaseFile}-wal`
+    const shmFile = `${databaseFile}-shm`
+    const writer = new Database(databaseFile)
+
+    try {
+      expect(writer.pragma('journal_mode = WAL', { simple: true })).toBe('wal')
+      writer.pragma('wal_autocheckpoint = 0')
+      writer.exec('CREATE INDEX wal_visibility_marker_idx ON preference(key)')
+      const before = {
+        main: fileFingerprint(databaseFile),
+        wal: fileFingerprint(walFile),
+        shm: fileFingerprint(shmFile)
+      }
+      expect(before.main).toMatchObject({ exists: true, regular: true })
+      expect(before.wal).toMatchObject({ exists: true, regular: true })
+      expect(before.shm).toMatchObject({ exists: true, regular: true })
+
+      const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+      expectCompleted(result)
+
+      expect(result.l0).toMatchObject({
+        status: 'success',
+        data: { writeMode: 'wal', walSidecars: 'complete' }
+      })
+      expect(result.l1.status).toBe('success')
+      if (result.l1.status === 'success' || result.l1.status === 'truncated') {
+        expect(result.l1.data.unknownObjects).toContainEqual({ kind: 'index', countBucket: '1' })
+      }
+      expect(fileFingerprint(databaseFile)).toEqual(before.main)
+      expect(fileFingerprint(walFile)).toEqual(before.wal)
+      expect(fileFingerprint(shmFile)).toMatchObject({ exists: true, regular: true })
+
+      expect(() => writer.exec('CREATE INDEX wal_after_diagnostics_idx ON preference(value)')).not.toThrow()
+      expect(() => writer.pragma('wal_checkpoint(PASSIVE)')).not.toThrow()
+    } finally {
+      writer.close()
+    }
+  })
+
+  it('does not open a database when a WAL exists without SHM', async () => {
+    const databaseFile = copyProductionDatabase('wal-without-shm.sqlite')
+    const walFile = `${databaseFile}-wal`
+    const shmFile = `${databaseFile}-shm`
+    writeFileSync(walFile, Buffer.from('bounded-wal-canary'))
+    const before = { main: fileFingerprint(databaseFile), wal: fileFingerprint(walFile) }
+
+    const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
+
+    expect(result.l0).toMatchObject({
+      status: 'success',
+      data: { walSidecars: 'wal_only' }
+    })
+    expect(result.l1).toEqual({ level: 'l1', status: 'failed', code: 'wal_sidecars_unavailable' })
+    expect(result.l2).toEqual({ level: 'l2', status: 'failed', code: 'wal_sidecars_unavailable' })
+    expect(fileFingerprint(databaseFile)).toEqual(before.main)
+    expect(fileFingerprint(walFile)).toEqual(before.wal)
+    expect(existsSync(shmFile)).toBe(false)
+  })
+
+  it.each(['wal', 'shm'] as const)('rejects a symlinked %s sidecar before opening SQLite', async (unsafeKind) => {
+    const databaseFile = copyProductionDatabase(`unsafe-${unsafeKind}-sidecar.sqlite`)
+    const target = join(fixtureDir, `${unsafeKind}-sidecar-target`)
+    const walFile = `${databaseFile}-wal`
+    const shmFile = `${databaseFile}-shm`
+    writeFileSync(target, Buffer.from('sidecar-target-canary'))
+    if (unsafeKind === 'wal') {
+      symlinkSync(target, walFile)
+      writeFileSync(shmFile, Buffer.from('regular-shm-canary'))
+    } else {
+      writeFileSync(walFile, Buffer.from('regular-wal-canary'))
+      symlinkSync(target, shmFile)
+    }
+
+    const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
+
+    expect(result.l0).toMatchObject({ status: 'success', data: { walSidecars: 'unsafe' } })
+    expect(result.l1).toEqual({ level: 'l1', status: 'failed', code: 'wal_sidecars_unavailable' })
+    expect(result.l2).toEqual({ level: 'l2', status: 'failed', code: 'wal_sidecars_unavailable' })
+    expect(lstatSync(unsafeKind === 'wal' ? walFile : shmFile).isSymbolicLink()).toBe(true)
+  })
+
+  it('does not open a clean WAL-mode database when no sidecars exist', async () => {
+    const databaseFile = copyProductionDatabase('clean-wal-header.sqlite')
+    const fixture = new Database(databaseFile)
+    expect(fixture.pragma('journal_mode = WAL', { simple: true })).toBe('wal')
+    fixture.pragma('wal_checkpoint(TRUNCATE)')
+    fixture.close()
+    expect(sidecarState(databaseFile)).toMatchObject({ '-wal': false, '-shm': false })
+    const before = fileFingerprint(databaseFile)
+
+    const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
+
+    expect(result.l0).toMatchObject({
+      status: 'success',
+      data: { writeMode: 'wal', walSidecars: 'none' }
+    })
+    expect(result.l1).toEqual({ level: 'l1', status: 'failed', code: 'wal_sidecars_unavailable' })
+    expect(result.l2).toEqual({ level: 'l2', status: 'failed', code: 'wal_sidecars_unavailable' })
+    expect(fileFingerprint(databaseFile)).toEqual(before)
+    expect(sidecarState(databaseFile)).toMatchObject({ '-wal': false, '-shm': false })
+  })
+
+  it('allows a live WAL writer to commit and checkpoint after host timeout termination', async () => {
+    const databaseFile = copyProductionDatabase('wal-timeout.sqlite')
+    const writer = new Database(databaseFile)
+
+    try {
+      expect(writer.pragma('journal_mode = WAL', { simple: true })).toBe('wal')
+      writer.pragma('wal_autocheckpoint = 0')
+      writer.exec('CREATE INDEX wal_timeout_before_idx ON preference(key)')
+
+      const result = await new MigrationDatabaseDiagnostics({ timeoutMs: 1 }).inspect(databaseFile)
+      expect(result.completion).toEqual({ status: 'timed_out', code: 'worker_timeout' })
+      expect(() => writer.exec('CREATE INDEX wal_timeout_after_idx ON preference(value)')).not.toThrow()
+      expect(() => writer.pragma('wal_checkpoint(PASSIVE)')).not.toThrow()
+    } finally {
+      writer.close()
+    }
+  })
+
   it('reports a missing expected object from a production-schema copy', async () => {
     const databaseFile = copyProductionDatabase('schema-mismatch.sqlite')
     const fixture = new Database(databaseFile)
@@ -111,6 +294,7 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     fixture.close()
 
     const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
 
     expect(result.l1.status).toBe('success')
     if (result.l1.status === 'success' || result.l1.status === 'truncated') {
@@ -134,6 +318,7 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     fixture.close()
 
     const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
 
     expect(result.l2.status).toBe('success')
     if (result.l2.status === 'success' || result.l2.status === 'truncated') {
@@ -152,6 +337,7 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     writeFileSync(databaseFile, readFileSync(dbh.sqlite.name).subarray(0, 8))
 
     const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
 
     expect(result.l0).toMatchObject({ status: 'success', data: { header: 'insufficient' } })
     expect(result.l1).toMatchObject({ status: 'failed', code: 'not_database' })
@@ -167,6 +353,7 @@ describe('MigrationDatabaseDiagnostics integration', () => {
 
       try {
         const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+        expectCompleted(result)
         expect(result.l0).toMatchObject({ status: 'failed', code: 'permission_denied' })
         expect(result.l1).toMatchObject({ status: 'failed', code: 'permission_denied' })
         expect(result.l2).toMatchObject({ status: 'failed', code: 'permission_denied' })
@@ -187,6 +374,7 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     }
 
     const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
 
     expect(lstatSync(databaseFile).isFile()).toBe(false)
     expect(result.l0).toMatchObject({ status: 'success', data: { exists: true, fileKind: 'not_regular' } })
@@ -201,6 +389,7 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     fixture.close()
 
     const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
 
     expect(result.l1.status).toBe('success')
     if (result.l1.status === 'success' || result.l1.status === 'truncated') {
@@ -225,10 +414,15 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     fixture.close()
 
     const result = await new MigrationDatabaseDiagnostics().inspect(databaseFile)
+    expectCompleted(result)
 
     expect(result.l2.status).toBe('truncated')
     if (result.l2.status === 'truncated') {
-      expect(result.l2.data.foreignKeys).toMatchObject({ outcome: 'violations', truncated: true })
+      expect(result.l2.data.foreignKeys).toMatchObject({
+        outcome: 'violations',
+        scannedCountBucket: '101_to_256',
+        truncated: true
+      })
       expect(result.l2.data.foreignKeys.violations.length).toBeLessThanOrEqual(64)
     }
     expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThanOrEqual(64 * 1024)
@@ -279,5 +473,44 @@ describe('MigrationDatabaseDiagnostics integration', () => {
     })
     expect(JSON.stringify(messages)).not.toContain(pathCanary)
     expect(JSON.stringify(messages)).not.toContain(payloadCanary)
+  })
+
+  it('does not accept a caller-supplied arbitrary safe schema ID', async () => {
+    const databaseFile = join(fixtureDir, 'arbitrary-policy.sqlite')
+    const worker = new Worker(
+      `${process.cwd()}/src/main/data/migration/v2/diagnostics/migrationDatabaseDiagnosticsWorker.ts`,
+      {
+        workerData: {
+          databaseFile,
+          policy: {
+            version: 1,
+            expectedSchemaVersion: 1,
+            maxMessageBytes: 65_536,
+            maxSchemaObjects: 160,
+            maxForeignKeyRows: 256,
+            maxForeignKeyGroups: 64,
+            expectedObjects: [{ id: 'arbitrary_but_safe_id', kind: 'index' }]
+          }
+        },
+        execArgv: ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON']
+      }
+    )
+    const messages: unknown[] = []
+    await new Promise<void>((resolve, reject) => {
+      worker.on('message', (message) => messages.push(message))
+      worker.once('error', reject)
+      worker.once('exit', (code) => (code === 0 ? resolve() : reject(new Error(`worker exit ${code}`))))
+    })
+
+    const finalMessage = messages.find(
+      (message): message is { type: 'result'; result: unknown } =>
+        message !== null && typeof message === 'object' && 'type' in message && message.type === 'result'
+    )
+    expect(finalMessage?.result).toMatchObject({
+      l0: { status: 'failed', code: 'invalid_input' },
+      l1: { status: 'failed', code: 'invalid_input' },
+      l2: { status: 'failed', code: 'invalid_input' }
+    })
+    expect(existsSync(databaseFile)).toBe(false)
   })
 })

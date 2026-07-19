@@ -3,10 +3,21 @@ import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 
 import Database from 'better-sqlite3'
 
+import {
+  EXPECTED_MIGRATION_DATABASE_OBJECTS,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_DATABASE_FILE_LENGTH,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES,
+  MIGRATION_DATABASE_DIAGNOSTIC_MAX_SCHEMA_ROWS_SCANNED,
+  MIGRATION_DATABASE_DIAGNOSTIC_QUICK_CHECK_RESULT_LIMIT,
+  MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
+  MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION
+} from './migrationDatabaseDiagnosticsProtocol.mjs'
 import type {
   MigrationDatabaseColumnCountBucket,
+  MigrationDatabaseCompletedDiagnosticResult,
   MigrationDatabaseCountBucket,
-  MigrationDatabaseDiagnosticResult,
   MigrationDatabaseDiagnosticStep,
   MigrationDatabaseDiagnosticsWorkerInput,
   MigrationDatabaseDiagnosticsWorkerMessage,
@@ -18,22 +29,15 @@ import type {
   MigrationDatabaseL1Step,
   MigrationDatabaseL2Data,
   MigrationDatabaseL2Step,
-  MigrationDatabaseUnknownObjectKind,
-  MigrationDatabaseWorkerPolicy
+  MigrationDatabaseUnknownObjectKind
 } from './migrationDatabaseDiagnosticsSchemas'
 
 const SQLITE_HEADER = Buffer.from('SQLite format 3\0', 'binary')
 const SQLITE_HEADER_BYTES = SQLITE_HEADER.byteLength
-const MAX_SCHEMA_ROWS_SCANNED = 2_048
-const QUICK_CHECK_RESULT_LIMIT = 20
+const SQLITE_WRITE_VERSION_OFFSET = 18
+const SQLITE_HEADER_PROBE_BYTES = SQLITE_WRITE_VERSION_OFFSET + 1
 const HOUR_MS = 60 * 60 * 1_000
 const DAY_MS = 24 * HOUR_MS
-const WORKER_POLICY_VERSION = 1
-const WORKER_MAX_MESSAGE_BYTES = 65_536
-const WORKER_MAX_SCHEMA_OBJECTS = 160
-const WORKER_MAX_FOREIGN_KEY_ROWS = 256
-const WORKER_MAX_FOREIGN_KEY_GROUPS = 64
-const SAFE_OBJECT_NAME = /^[A-Za-z0-9_]+$/
 
 interface SqliteSchemaRow {
   readonly type?: unknown
@@ -66,133 +70,25 @@ function getOwnNumber(value: unknown, property: string): number | undefined {
     : undefined
 }
 
-function hasOwnProperty(value: object, property: string): boolean {
-  return Object.getOwnPropertyDescriptor(value, property) !== undefined
-}
-
-function getOwnValue(value: unknown, property: string): unknown {
-  if (value === null || typeof value !== 'object') return undefined
-  const descriptor = Object.getOwnPropertyDescriptor(value, property)
-  return descriptor && 'value' in descriptor ? descriptor.value : undefined
-}
-
 function hasOnlyKeys(value: object, allowedKeys: readonly string[]): boolean {
   const allowed = new Set(allowedKeys)
   return Object.keys(value).every((key) => allowed.has(key))
 }
 
-function isPositiveInteger(value: number | undefined): value is number {
-  return value !== undefined && Number.isSafeInteger(value) && value > 0
-}
-
 function validateWorkerInput(value: unknown): MigrationDatabaseDiagnosticsWorkerInput | undefined {
   try {
-    if (value === null || typeof value !== 'object' || !hasOnlyKeys(value, ['databaseFile', 'policy'])) {
+    if (value === null || typeof value !== 'object' || !hasOnlyKeys(value, ['databaseFile'])) {
       return undefined
     }
     const databaseFile = getOwnString(value, 'databaseFile')
-    const rawPolicy = getOwnValue(value, 'policy')
     if (
       databaseFile === undefined ||
       databaseFile.length === 0 ||
-      databaseFile.length > 32_768 ||
-      rawPolicy === null ||
-      typeof rawPolicy !== 'object' ||
-      !hasOnlyKeys(rawPolicy, [
-        'version',
-        'expectedSchemaVersion',
-        'maxMessageBytes',
-        'maxSchemaObjects',
-        'maxForeignKeyRows',
-        'maxForeignKeyGroups',
-        'expectedObjects'
-      ])
+      databaseFile.length > MIGRATION_DATABASE_DIAGNOSTIC_MAX_DATABASE_FILE_LENGTH
     ) {
       return undefined
     }
-
-    const version = getOwnNumber(rawPolicy, 'version')
-    const expectedSchemaVersion = getOwnNumber(rawPolicy, 'expectedSchemaVersion')
-    const maxMessageBytes = getOwnNumber(rawPolicy, 'maxMessageBytes')
-    const maxSchemaObjects = getOwnNumber(rawPolicy, 'maxSchemaObjects')
-    const maxForeignKeyRows = getOwnNumber(rawPolicy, 'maxForeignKeyRows')
-    const maxForeignKeyGroups = getOwnNumber(rawPolicy, 'maxForeignKeyGroups')
-    const rawExpectedObjects = getOwnValue(rawPolicy, 'expectedObjects')
-    if (
-      version !== WORKER_POLICY_VERSION ||
-      expectedSchemaVersion !== WORKER_POLICY_VERSION ||
-      !isPositiveInteger(maxMessageBytes) ||
-      !isPositiveInteger(maxSchemaObjects) ||
-      !isPositiveInteger(maxForeignKeyRows) ||
-      !isPositiveInteger(maxForeignKeyGroups) ||
-      !Array.isArray(rawExpectedObjects)
-    ) {
-      return undefined
-    }
-
-    const clampedMaxMessageBytes = Math.min(maxMessageBytes, WORKER_MAX_MESSAGE_BYTES)
-    const clampedMaxSchemaObjects = Math.min(maxSchemaObjects, WORKER_MAX_SCHEMA_OBJECTS)
-    const clampedMaxForeignKeyRows = Math.min(maxForeignKeyRows, WORKER_MAX_FOREIGN_KEY_ROWS)
-    const clampedMaxForeignKeyGroups = Math.min(maxForeignKeyGroups, WORKER_MAX_FOREIGN_KEY_GROUPS)
-    if (rawExpectedObjects.length === 0 || rawExpectedObjects.length > clampedMaxSchemaObjects) return undefined
-
-    const ids = new Set<string>()
-    const names = new Set<string>()
-    const expectedObjects: MigrationDatabaseWorkerPolicy['expectedObjects'] = []
-    for (const rawObject of rawExpectedObjects) {
-      if (
-        rawObject === null ||
-        typeof rawObject !== 'object' ||
-        !hasOnlyKeys(rawObject, ['id', 'name', 'kind', 'columnCount'])
-      ) {
-        return undefined
-      }
-      const id = getOwnString(rawObject, 'id')
-      const explicitName = getOwnString(rawObject, 'name')
-      const kind = getOwnString(rawObject, 'kind')
-      const columnCount = getOwnNumber(rawObject, 'columnCount')
-      const hasExplicitName = hasOwnProperty(rawObject, 'name')
-      const hasColumnCount = hasOwnProperty(rawObject, 'columnCount')
-      if (
-        id === undefined ||
-        id.length === 0 ||
-        id.length > 128 ||
-        !SAFE_OBJECT_NAME.test(id) ||
-        (hasExplicitName && explicitName === undefined) ||
-        (explicitName !== undefined &&
-          (explicitName.length === 0 || explicitName.length > 128 || !SAFE_OBJECT_NAME.test(explicitName))) ||
-        (hasColumnCount && columnCount === undefined) ||
-        (kind !== 'table' && kind !== 'index' && kind !== 'trigger' && kind !== 'view') ||
-        ((kind === 'table' || kind === 'view') &&
-          (columnCount === undefined || !Number.isSafeInteger(columnCount) || columnCount < 0 || columnCount > 512)) ||
-        ((kind === 'index' || kind === 'trigger') && columnCount !== undefined)
-      ) {
-        return undefined
-      }
-      const schemaName = explicitName ?? id
-      if (ids.has(id) || names.has(schemaName)) return undefined
-      ids.add(id)
-      names.add(schemaName)
-      expectedObjects.push({
-        id: id as MigrationDatabaseExpectedObjectId,
-        ...(explicitName === undefined ? {} : { name: explicitName }),
-        kind,
-        ...(columnCount === undefined ? {} : { columnCount })
-      })
-    }
-
-    return {
-      databaseFile,
-      policy: {
-        version: WORKER_POLICY_VERSION,
-        expectedSchemaVersion: WORKER_POLICY_VERSION,
-        maxMessageBytes: clampedMaxMessageBytes as MigrationDatabaseWorkerPolicy['maxMessageBytes'],
-        maxSchemaObjects: clampedMaxSchemaObjects as MigrationDatabaseWorkerPolicy['maxSchemaObjects'],
-        maxForeignKeyRows: clampedMaxForeignKeyRows as MigrationDatabaseWorkerPolicy['maxForeignKeyRows'],
-        maxForeignKeyGroups: clampedMaxForeignKeyGroups as MigrationDatabaseWorkerPolicy['maxForeignKeyGroups'],
-        expectedObjects
-      }
-    }
+    return { databaseFile }
   } catch {
     return undefined
   }
@@ -261,7 +157,40 @@ function bucketMtime(mtimeMs: number, nowMs: number): MigrationDatabaseL0Data['m
   return 'over_365_days'
 }
 
+type SidecarFileState = 'missing' | 'regular' | 'unsafe' | 'unavailable'
+
+function inspectSidecarFile(file: string): SidecarFileState {
+  try {
+    const stats = lstatSync(file)
+    return stats.isFile() && !stats.isSymbolicLink() ? 'regular' : 'unsafe'
+  } catch (error) {
+    return getErrorCode(error) === 'ENOENT' ? 'missing' : 'unavailable'
+  }
+}
+
+function inspectWalSidecars(databaseFile: string): MigrationDatabaseL0Data['walSidecars'] {
+  const wal = inspectSidecarFile(`${databaseFile}-wal`)
+  const shm = inspectSidecarFile(`${databaseFile}-shm`)
+  if (wal === 'unavailable' || shm === 'unavailable') return 'unavailable'
+  if (wal === 'unsafe' || shm === 'unsafe') return 'unsafe'
+  if (wal === 'regular' && shm === 'regular') return 'complete'
+  if (wal === 'regular') return 'wal_only'
+  if (shm === 'regular') return 'shm_only'
+  return 'none'
+}
+
+function sqliteWriteMode(header: Buffer, bytesRead: number): MigrationDatabaseL0Data['writeMode'] {
+  if (bytesRead < SQLITE_HEADER_PROBE_BYTES || !header.subarray(0, SQLITE_HEADER_BYTES).equals(SQLITE_HEADER)) {
+    return 'unavailable'
+  }
+  const writeVersion = header[SQLITE_WRITE_VERSION_OFFSET]
+  if (writeVersion === 1) return 'rollback'
+  if (writeVersion === 2) return 'wal'
+  return 'unknown'
+}
+
 function inspectFile(databaseFile: string): MigrationDatabaseL0Step {
+  const walSidecars = inspectWalSidecars(databaseFile)
   let stats
   try {
     stats = lstatSync(databaseFile)
@@ -275,7 +204,9 @@ function inspectFile(databaseFile: string): MigrationDatabaseL0Step {
           fileKind: 'missing',
           sizeBucket: 'unavailable',
           mtimeAgeBucket: 'unavailable',
-          header: 'unavailable'
+          header: 'unavailable',
+          writeMode: 'unavailable',
+          walSidecars
         }
       }
     }
@@ -291,7 +222,9 @@ function inspectFile(databaseFile: string): MigrationDatabaseL0Step {
         fileKind: 'not_regular',
         sizeBucket: 'unavailable',
         mtimeAgeBucket: bucketMtime(stats.mtimeMs, Date.now()),
-        header: 'unavailable'
+        header: 'unavailable',
+        writeMode: 'unavailable',
+        walSidecars
       }
     }
   }
@@ -301,7 +234,9 @@ function inspectFile(databaseFile: string): MigrationDatabaseL0Step {
     fileKind: 'regular',
     sizeBucket: bucketSize(stats.size),
     mtimeAgeBucket: bucketMtime(stats.mtimeMs, Date.now()),
-    header: stats.size < SQLITE_HEADER_BYTES ? 'insufficient' : 'unavailable'
+    header: stats.size < SQLITE_HEADER_BYTES ? 'insufficient' : 'unavailable',
+    writeMode: 'unavailable',
+    walSidecars
   }
   if (stats.size < SQLITE_HEADER_BYTES) return { level: 'l0', status: 'success', data }
 
@@ -316,9 +251,15 @@ function inspectFile(databaseFile: string): MigrationDatabaseL0Step {
         data: { ...data, fileKind: 'not_regular', sizeBucket: 'unavailable', header: 'unavailable' }
       }
     }
-    const header = Buffer.alloc(SQLITE_HEADER_BYTES)
-    const bytesRead = readSync(descriptor, header, 0, SQLITE_HEADER_BYTES, 0)
-    data.header = bytesRead < SQLITE_HEADER_BYTES ? 'insufficient' : header.equals(SQLITE_HEADER) ? 'valid' : 'invalid'
+    const header = Buffer.alloc(SQLITE_HEADER_PROBE_BYTES)
+    const bytesRead = readSync(descriptor, header, 0, SQLITE_HEADER_PROBE_BYTES, 0)
+    data.header =
+      bytesRead < SQLITE_HEADER_BYTES
+        ? 'insufficient'
+        : header.subarray(0, SQLITE_HEADER_BYTES).equals(SQLITE_HEADER)
+          ? 'valid'
+          : 'invalid'
+    data.writeMode = sqliteWriteMode(header, bytesRead)
     return { level: 'l0', status: 'success', data }
   } catch (error) {
     return { level: 'l0', status: 'failed', code: mapErrorCode(error, 'read_failed'), data }
@@ -335,9 +276,11 @@ function inspectFile(databaseFile: string): MigrationDatabaseL0Step {
 
 function blockedDatabaseCode(l0: MigrationDatabaseL0Step): MigrationDatabaseFailureCode | undefined {
   if (l0.status === 'failed') return l0.code
-  if (l0.status === 'timed_out') return 'worker_timeout'
   if (l0.data.fileKind === 'missing') return 'open_failed'
   if (l0.data.fileKind !== 'regular') return 'not_regular_file'
+  if (l0.data.writeMode === 'wal' || l0.data.walSidecars !== 'none') {
+    if (l0.data.walSidecars !== 'complete') return 'wal_sidecars_unavailable'
+  }
   if (l0.data.header !== 'valid') return 'not_database'
   return undefined
 }
@@ -365,7 +308,6 @@ function normalizeObjectKind(value: unknown): MigrationDatabaseUnknownObjectKind
 
 function inspectStructure(
   database: Database.Database,
-  policy: MigrationDatabaseWorkerPolicy,
   expectedObjectsByName: ReadonlyMap<string, MigrationDatabaseExpectedObjectId>
 ): MigrationDatabaseL1Step {
   try {
@@ -374,8 +316,8 @@ function inspectStructure(
 
     const findObject = database.prepare('SELECT type FROM sqlite_schema WHERE name = ? LIMIT 1')
     const countColumns = database.prepare('SELECT count(*) AS count FROM pragma_table_xinfo(?)')
-    const objects: MigrationDatabaseL1Data['objects'] = policy.expectedObjects.map((expected) => {
-      const schemaName = 'name' in expected ? expected.name : expected.id
+    const objects: MigrationDatabaseL1Data['objects'] = EXPECTED_MIGRATION_DATABASE_OBJECTS.map((expected) => {
+      const schemaName = expected.name ?? expected.id
       const row = findObject.get(schemaName) as SqliteSchemaRow | undefined
       const actualKind = getOwnString(row, 'type')
       const hasColumns = 'columnCount' in expected
@@ -407,7 +349,7 @@ function inspectStructure(
       .iterate() as Iterable<SqliteSchemaRow>
     for (const row of schemaRows) {
       scanned += 1
-      if (scanned > MAX_SCHEMA_ROWS_SCANNED) {
+      if (scanned > MIGRATION_DATABASE_DIAGNOSTIC_MAX_SCHEMA_ROWS_SCANNED) {
         truncated = true
         break
       }
@@ -461,20 +403,21 @@ function knownObjectId(
 
 function inspectIntegrity(
   database: Database.Database,
-  policy: MigrationDatabaseWorkerPolicy,
   expectedObjectsByName: ReadonlyMap<string, MigrationDatabaseExpectedObjectId>
 ): MigrationDatabaseL2Step {
   try {
     const quickCategories = new Set<MigrationDatabaseL2Data['quickCheck']['categories'][number]>()
     let quickIssueCount = 0
-    const quickRows = database.prepare(`PRAGMA quick_check(${QUICK_CHECK_RESULT_LIMIT})`).iterate() as Iterable<unknown>
+    const quickRows = database
+      .prepare(`PRAGMA quick_check(${MIGRATION_DATABASE_DIAGNOSTIC_QUICK_CHECK_RESULT_LIMIT})`)
+      .iterate() as Iterable<unknown>
     for (const row of quickRows) {
       const value = getOwnString(row, 'quick_check')
       if (value === 'ok' && quickIssueCount === 0) continue
       quickIssueCount += 1
       quickCategories.add(value === undefined ? 'unknown' : quickCheckCategory(value))
     }
-    const quickTruncated = quickIssueCount >= QUICK_CHECK_RESULT_LIMIT
+    const quickTruncated = quickIssueCount >= MIGRATION_DATABASE_DIAGNOSTIC_QUICK_CHECK_RESULT_LIMIT
 
     const foreignKeyGroups = new Map<
       string,
@@ -488,9 +431,8 @@ function inspectIntegrity(
     let foreignKeysTruncated = false
     const foreignKeyRows = database.prepare('PRAGMA foreign_key_check').iterate() as Iterable<ForeignKeyRow>
     for (const row of foreignKeyRows) {
-      if (foreignKeyRowsScanned >= policy.maxForeignKeyRows) {
+      if (foreignKeyRowsScanned >= MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_ROWS) {
         foreignKeysTruncated = true
-        foreignKeyRowsScanned += 1
         break
       }
       foreignKeyRowsScanned += 1
@@ -499,7 +441,7 @@ function inspectIntegrity(
       const key = `${childObjectId}\0${parentObjectId}`
       const current = foreignKeyGroups.get(key)
       if (current) current.count += 1
-      else if (foreignKeyGroups.size < policy.maxForeignKeyGroups) {
+      else if (foreignKeyGroups.size < MIGRATION_DATABASE_DIAGNOSTIC_MAX_FOREIGN_KEY_GROUPS) {
         foreignKeyGroups.set(key, { childObjectId, parentObjectId, count: 1 })
       } else {
         foreignKeysTruncated = true
@@ -568,63 +510,64 @@ function runDiagnostics(): void {
     l0 = failedStep('l0', 'invalid_input')
     l1 = failedStep('l1', 'invalid_input')
     l2 = failedStep('l2', 'invalid_input')
-    postStep(l0, WORKER_MAX_MESSAGE_BYTES)
-    postStep(l1, WORKER_MAX_MESSAGE_BYTES)
-    postStep(l2, WORKER_MAX_MESSAGE_BYTES)
+    postStep(l0, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+    postStep(l1, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+    postStep(l2, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
     postMessage(
       {
         type: 'result',
         result: {
-          version: WORKER_POLICY_VERSION,
-          expectedSchemaVersion: WORKER_POLICY_VERSION,
+          version: MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
+          expectedSchemaVersion: MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION,
+          completion: { status: 'completed' },
           l0,
           l1,
           l2
         }
       },
-      WORKER_MAX_MESSAGE_BYTES
+      MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES
     )
     return
   } else {
-    const { policy } = input
     const expectedObjectsByName = new Map<string, MigrationDatabaseExpectedObjectId>(
-      policy.expectedObjects.map((object) => ['name' in object ? (object.name ?? object.id) : object.id, object.id])
+      EXPECTED_MIGRATION_DATABASE_OBJECTS.map((object) => [object.name ?? object.id, object.id])
     )
     l0 = inspectFile(input.databaseFile)
-    postStep(l0, policy.maxMessageBytes)
+    postStep(l0, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
     const blockedCode = blockedDatabaseCode(l0)
     if (blockedCode !== undefined) {
       l1 = failedStep('l1', blockedCode)
       l2 = failedStep('l2', blockedCode)
-      postStep(l1, policy.maxMessageBytes)
-      postStep(l2, policy.maxMessageBytes)
+      postStep(l1, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+      postStep(l2, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
     } else {
       try {
         database = new Database(input.databaseFile, { readonly: true, fileMustExist: true })
         database.pragma('query_only = ON')
-        l1 = inspectStructure(database, policy, expectedObjectsByName)
-        postStep(l1, policy.maxMessageBytes)
-        l2 = inspectIntegrity(database, policy, expectedObjectsByName)
-        postStep(l2, policy.maxMessageBytes)
+        l1 = inspectStructure(database, expectedObjectsByName)
+        postStep(l1, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+        l2 = inspectIntegrity(database, expectedObjectsByName)
+        postStep(l2, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
       } catch (error) {
         const code = mapErrorCode(error, 'open_failed')
         l1 = failedStep('l1', code)
         l2 = failedStep('l2', code)
-        postStep(l1, policy.maxMessageBytes)
-        postStep(l2, policy.maxMessageBytes)
+        postStep(l1, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
+        postStep(l2, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
       } finally {
         if (database?.open) database.close()
       }
     }
 
-    const result: MigrationDatabaseDiagnosticResult = {
-      version: policy.version,
-      expectedSchemaVersion: policy.expectedSchemaVersion,
+    const result: MigrationDatabaseCompletedDiagnosticResult = {
+      version: MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
+      expectedSchemaVersion: MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION,
+      completion: { status: 'completed' },
       l0,
       l1,
       l2
     }
-    postMessage({ type: 'result', result }, policy.maxMessageBytes)
+    postMessage({ type: 'result', result }, MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES)
   }
 }
 
