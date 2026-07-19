@@ -10,7 +10,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import { Check, Copy, TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -60,19 +60,37 @@ export const BinaryInstallErrorDialog: FC<{
 }> = ({ error, onOpenChange }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
+  const copyRequestId = useRef(0)
+  const copiedResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   // Retain the last error so the dialog keeps its content during the close animation.
   const lastError = useRef<BinaryOperationError>({ name: '', message: '', action: 'install' })
   if (error) lastError.current = error
 
+  useEffect(() => {
+    copyRequestId.current++
+    setCopied(false)
+    return () => {
+      if (copiedResetTimer.current) clearTimeout(copiedResetTimer.current)
+      copiedResetTimer.current = undefined
+    }
+  }, [error?.action, error?.message, error?.name])
+
   const copyError = () => {
+    const requestId = ++copyRequestId.current
+    if (copiedResetTimer.current) clearTimeout(copiedResetTimer.current)
+    copiedResetTimer.current = undefined
     navigator.clipboard.writeText(lastError.current.message).then(
       () => {
+        if (requestId !== copyRequestId.current) return
+        if (copiedResetTimer.current) clearTimeout(copiedResetTimer.current)
         setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+        copiedResetTimer.current = setTimeout(() => setCopied(false), 2000)
       },
       // A denied clipboard permission rejects the write — surface it instead of
       // leaving an unhandled rejection and a silently-uncopied error.
-      () => toast.error(t('common.copy_failed'))
+      () => {
+        if (requestId === copyRequestId.current) toast.error(t('common.copy_failed'))
+      }
     )
   }
 
