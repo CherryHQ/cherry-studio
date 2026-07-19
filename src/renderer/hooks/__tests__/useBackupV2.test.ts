@@ -28,7 +28,10 @@ describe('useBackupV2', () => {
         resolved = await result.current.startBackup('full', '/out/full.cbu')
       })
 
-      expect(ipcMocks.request).toHaveBeenCalledWith('backup.start_backup', { preset: 'full', outputPath: '/out/full.cbu' })
+      expect(ipcMocks.request).toHaveBeenCalledWith('backup.start_backup', {
+        preset: 'full',
+        outputPath: '/out/full.cbu'
+      })
       expect(resolved).toEqual({ backupId: 'bk-1', archivePath: '/out/full.cbu' })
       expect(result.current.loading).toBe(false)
       expect(result.current.archivePath).toBe('/out/full.cbu')
