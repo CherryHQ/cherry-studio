@@ -2454,6 +2454,80 @@
     },
     "user": "使用者"
   },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "此 HTML 檔案沒有內容。",
+        "title": "空檔案"
+      },
+      "mode": {
+        "label": "HTML 檢視模式",
+        "preview": "預覽",
+        "source": "來源"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "超過 {{limit}} MiB 的 HTML 檔案無法預覽。",
+        "title": "檔案太大"
+      }
+    },
+    "invalid_path": {
+      "description": "檔案預覽需要有效的絕對本機路徑。",
+      "title": "無法預覽此檔案"
+    },
+    "load_error": {
+      "description": "無法載入預覽內容。",
+      "title": "預覽失敗"
+    },
+    "loading": "載入預覽中...",
+    "markdown": {
+      "empty": {
+        "description": "這個 Markdown 檔案沒有內容。",
+        "title": "空檔案"
+      },
+      "mode": {
+        "label": "Markdown 檢視模式",
+        "preview": "預覽",
+        "source": "來源"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "Markdown 檔案大小超過 {{limit}} MiB 時無法預覽。",
+        "title": "檔案太大"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "使用預設應用程式開啟",
+        "description": "超過 {{limit}} MiB 的 PDF 檔案無法預覽。",
+        "open_error": "無法開啟此檔案",
+        "title": "檔案太大"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "此文字檔案沒有內容。",
+        "title": "空檔案"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "超過 {{limit}} MiB 的文字檔案無法預覽。",
+        "title": "檔案太大"
+      }
+    },
+    "unsupported": {
+      "action": "使用預設應用程式開啟",
+      "description": "此檔案類型尚無法預覽。",
+      "open_error": "無法開啟此檔案",
+      "title": "無法預覽"
+    }
+  },
   "files": {
     "actions": "操作",
     "all": "所有檔案",
@@ -6125,7 +6199,8 @@
           "downloading": "下載中…",
           "ready": "已就緒"
         },
-        "title": "本機模型"
+        "title": "本機模型",
+        "unsupported": "目前平台不支援本機模型。"
       },
       "notInstalled": "未安裝",
       "openBinariesDir": "開啟二進位檔案目錄",
@@ -6599,10 +6674,10 @@
       "user": "使用者"
     },
     "menuGroups": {
-      "automation": "自動化",
-      "capabilities": "能力與工具",
+      "automation": "效率",
+      "capabilities": "工具",
       "models": "模型",
-      "personal": "個人",
+      "personal": "偏好",
       "quickAccess": "快捷入口",
       "system": "系統"
     },
@@ -7759,6 +7834,8 @@
   },
   "tab": {
     "close": "關閉分頁",
+    "close_others": "關閉其他標籤頁",
+    "close_to_right": "關閉右側標籤頁",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
     "open_in_new_window": "在新視窗中開啟",

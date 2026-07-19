@@ -1,3 +1,4 @@
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useAnimationControls } from 'motion/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
@@ -7,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+  CHAT_CENTER_MIN_USABLE_WIDTH
 } from '../paneLayout'
 import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
 
@@ -143,7 +145,9 @@ describe('RightPaneHost', () => {
 
   it('uses the configured right pane default and minimum widths', () => {
     expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
-    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(280)
+    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(255)
+    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(460)
+    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
   })
 
   it('caps its width when reserving space for the conversation center', () => {
@@ -516,11 +520,11 @@ describe('RightPaneHost', () => {
         throw new Error('Expected resize handle')
       }
 
-      // The handle uses `invert: true`, so ArrowLeft grows the pane.
-      fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+      fireEvent.keyDown(handle, { key: 'Home' })
 
       expect(window.requestAnimationFrame).not.toHaveBeenCalled()
       expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+      expect(persistCacheMock.setWidth).toHaveBeenCalledWith(ARTIFACT_RIGHT_PANE_MIN_WIDTH)
     })
 
     it('cancels a pending rAF and does not update state after unmount', () => {

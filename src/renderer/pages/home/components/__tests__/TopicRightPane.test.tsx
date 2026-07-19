@@ -70,7 +70,7 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => {
     ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
     ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
     ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-    ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
+    ARTIFACT_RIGHT_PANE_MIN_WIDTH: 255,
     PersistentRightPaneHost: ({
       children,
       maximized,
