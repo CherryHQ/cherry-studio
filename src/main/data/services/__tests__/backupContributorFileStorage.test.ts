@@ -42,12 +42,13 @@ describe('FILE_STORAGE collectFileResources (collectFileEntryIds)', () => {
     expect(ids).toEqual(new Set(['f1', 'f2']))
   })
 
-  it('includes external entries (staging resolves their path; missing skipped later)', async () => {
-    await dbh.db
-      .insert(fileEntryTable)
-      .values([{ id: 'ext1', origin: 'external', name: 'x', externalPath: '/abs/path/x.txt' }])
+  it('excludes external entries (dangling by design — no blob copy on export)', async () => {
+    await dbh.db.insert(fileEntryTable).values([
+      { id: 'int1', origin: 'internal', name: 'a', size: 10 },
+      { id: 'ext1', origin: 'external', name: 'x', externalPath: '/abs/path/x.txt' }
+    ])
     const ids = await collectFileEntryIds(new BackupReadonlyDb(dbh.db))
-    expect(ids).toEqual(new Set(['ext1']))
+    expect(ids).toEqual(new Set(['int1']))
   })
 
   it('returns empty set when no file_entry rows exist', async () => {

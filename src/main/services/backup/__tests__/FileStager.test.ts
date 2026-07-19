@@ -147,7 +147,7 @@ describe('SqliteFileStager', () => {
     }
   })
 
-  it('stageKnowledge excludes .cherry/index.sqlite{,-wal,-shm} but keeps raw/ and other .cherry files', async () => {
+  it('stageKnowledge excludes .cherry/index.sqlite{,-wal,-shm} but keeps raw/index.sqlite and other .cherry files', async () => {
     const kbRoot = await mkdtemp(join(tmpdir(), 'cs-stager-kb-idx-'))
     const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-idx-'))
     try {
@@ -158,12 +158,15 @@ describe('SqliteFileStager', () => {
       await writeFile(join(kbRoot, 'kb1', '.cherry', 'index.sqlite-shm'), 'SHM')
       await writeFile(join(kbRoot, 'kb1', '.cherry', 'keep-me.txt'), 'meta')
       await writeFile(join(kbRoot, 'kb1', 'raw', 'source.md'), 'doc')
+      // User material named index.sqlite must NOT be excluded (path not under .cherry/).
+      await writeFile(join(kbRoot, 'kb1', 'raw', 'index.sqlite'), 'RAW_INDEX')
 
       const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), pathFileBlobs({}), kbRoot, '/unused')
       const r = await stager.stageKnowledge(new Set(['kb1']), dest)
 
       expect(r.bases).toEqual(['kb1'])
       expect(existsSync(join(dest, 'kb1', 'raw', 'source.md'))).toBe(true)
+      expect(existsSync(join(dest, 'kb1', 'raw', 'index.sqlite'))).toBe(true)
       expect(existsSync(join(dest, 'kb1', '.cherry', 'keep-me.txt'))).toBe(true)
       expect(existsSync(join(dest, 'kb1', '.cherry', 'index.sqlite'))).toBe(false)
       expect(existsSync(join(dest, 'kb1', '.cherry', 'index.sqlite-wal'))).toBe(false)

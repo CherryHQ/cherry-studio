@@ -12,9 +12,11 @@
 // (→ PAINTINGS, by sourceId→painting). Those junctions belong to their SOURCE
 // domains, NOT FILE_STORAGE — so this contributor owns file_entry only.
 //
-// The file BLOB itself (externalPath/size) is a file resource: a schema-only
-// restore re-creates the row but not the blob, so restoreResources must run before
-// DB import (C/D track TODO, like MCP_SERVERS dxtPath).
+// Internal blob bytes (origin='internal', under feature.files.data) are file
+// resources staged into the archive. External rows (absolute externalPath) are
+// dangling by design (architecture §5.1) — schema-only on export; no blob copy.
+// restoreResources must still run before DB import on restore (C/D track TODO,
+// like MCP_SERVERS dxtPath) to rehydrate whatever the archive carries.
 //
 // Preset: full only (lite-excluded — files are large blobs).
 
@@ -23,17 +25,20 @@ import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
 import { fileEntryTable } from '@main/data/db/schemas/file'
-import { isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 
 /**
- * Collect ids of non-soft-deleted file_entry rows — the export blob set. Both
- * internal (origin='internal', stored under feature.files.data) and external
- * (origin='external', absolute externalPath) entries are returned; staging
- * (ExportOrchestrator step 4) resolves each source path and skips any that are
- * missing/unreadable rather than failing the whole export.
+ * Collect ids of non-soft-deleted **internal** file_entry rows — the export blob
+ * set. Aligns with BackupService.sumInternalBlobBytes (origin='internal' only):
+ * external entries are not staged (dangling by design; architecture §5.1 L196).
+ * Staging (ExportOrchestrator step 4) resolves each id under feature.files.data
+ * and skips any that are missing/unreadable rather than failing the whole export.
  */
 export async function collectFileEntryIds(liveDb: BackupReadonlyDb): Promise<Set<string>> {
-  const rows = await liveDb.select().from(fileEntryTable).where(isNull(fileEntryTable.deletedAt))
+  const rows = await liveDb
+    .select()
+    .from(fileEntryTable)
+    .where(and(eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.deletedAt)))
   return new Set(rows.map((r) => r.id))
 }
 
@@ -73,9 +78,10 @@ export const FILE_STORAGE_CONTRIBUTOR = deepFreeze<BackupContributor>({
   //  The temp_session/chat_message/painting FileRefSourceType coverage (#11) lands with
   //  their source domains (TOPICS/PAINTINGS) + a temp_session runtime-owner, not here.
   operations: {
-    // Export blob set = non-deleted file_entry ids (internal + external). Staging
-    // resolves each id to its source path and copies the blob into files/<id>;
-    // a missing external source is skipped, not fatal.
+    // Export blob set = non-deleted internal file_entry ids only. External rows
+    // are not collected (dangling by design). Staging resolves each id under
+    // feature.files.data and copies the blob into files/<id>; a missing source
+    // is skipped, not fatal.
     collectFileResources: async (ctx) =>
       [...(await collectFileEntryIds(ctx.liveDb))].map((fileEntryId) => ({ kind: 'file-entry' as const, fileEntryId }))
   }

@@ -21,15 +21,21 @@ import { and, inArray, isNull } from 'drizzle-orm'
 const logger = loggerService.withContext('backup/FileStager')
 
 /**
- * Derived per-base vector index (+ WAL sidecars). Excluded from full export so a
- * concurrent WAL write cannot tear the archive; restore rebuilds via explicit
- * `knowledge.index-documents` enqueue (empty index does not auto-rebuild).
+ * Derived per-base vector index (+ WAL sidecars) under `<baseId>/.cherry/`.
+ * Basename set alone is not enough to exclude — user materials may also be named
+ * `index.sqlite` (e.g. `raw/index.sqlite`) and must be retained. Callers must
+ * combine with a `.cherry/` parent check (see {@link isExcludedKnowledgeIndexBasename}).
  */
 export const KNOWLEDGE_INDEX_SQLITE_BASENAMES = new Set(['index.sqlite', 'index.sqlite-wal', 'index.sqlite-shm'])
 
-/** True when `sourcePath`'s basename is an excluded knowledge index file. */
+/**
+ * True when `sourcePath` is the derived vector index under `<baseId>/.cherry/`
+ * (`index.sqlite` / `-wal` / `-shm`). `raw/index.sqlite` and other non-`.cherry`
+ * paths are kept as user materials.
+ */
 export function isExcludedKnowledgeIndexBasename(sourcePath: string): boolean {
-  return KNOWLEDGE_INDEX_SQLITE_BASENAMES.has(basename(sourcePath))
+  if (!KNOWLEDGE_INDEX_SQLITE_BASENAMES.has(basename(sourcePath))) return false
+  return basename(dirname(sourcePath)) === '.cherry'
 }
 
 /** True if `e` is a Node fs error with the given code (e.g. 'ENOENT' = source gone). */
@@ -221,10 +227,11 @@ export class SqliteFileStager implements FileStager {
       }
       const dest = join(destDir, baseId)
       await mkdir(dest, { recursive: true })
-      // R1: exclude derived `.cherry/index.sqlite{,-wal,-shm}` (exact basenames). Raw
-      // materials under `raw/` are retained; restore rebuilds the index via explicit
-      // `knowledge.index-documents` enqueue after promotion/relaunch (empty index does
-      // not auto-rebuild — see KnowledgeVectorStoreService.reportInvisibleIndexContents).
+      // R1: exclude derived `<baseId>/.cherry/index.sqlite{,-wal,-shm}` only (path +
+      // basename). User materials like `raw/index.sqlite` are retained; restore
+      // rebuilds the vector index via explicit `knowledge.index-documents` enqueue
+      // after promotion/relaunch (empty index does not auto-rebuild — see
+      // KnowledgeVectorStoreService.reportInvisibleIndexContents).
       try {
         await cp(src, dest, {
           recursive: true,
