@@ -39,13 +39,19 @@ This directory holds that pre-bootstrap work.
 
 Code belongs in `core/preboot/` if **all** are true:
 
-1. It must run before `application.bootstrap()` is called.
-2. It only depends on Electron `app` top-level APIs and synchronously-loaded
+1. It must run before `application.bootstrap()` is called. Running before
+   bootstrap is a **timing contract, not directory ownership** — this
+   criterion is necessary but never sufficient on its own.
+2. It is **non-removable**: the app cannot start correctly without it.
+   Removable capabilities — even ones whose execution must happen during
+   the preboot phase — live in their nature-home (e.g. `services/`) and
+   are invoked from `main.ts` at the right point in the preboot sequence.
+3. It only depends on Electron `app` top-level APIs and synchronously-loaded
    modules (e.g. `BootConfigService`, `loggerService`).
-3. It directly performs side effects on global state (paths, command-line
+4. It directly performs side effects on global state (paths, command-line
    switches, file relocations) — or is a pure helper that supports a
    side-effecting preboot operation.
-4. It does **not** depend on any lifecycle-managed service (anything
+5. It does **not** depend on any lifecycle-managed service (anything
    accessed via `application.get(...)`). This is the real hard
    constraint: async preboot code is allowed when necessary, but
    depending on services that only exist after `application.bootstrap()`
@@ -145,11 +151,27 @@ preboot/
 ├── chromiumFlags.ts     Chromium startup flags that must run before
 │                        app.whenReady()
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
-│                        webContents hardening
-├── backupRestoreGate.ts promotes a staged restored DB before v2MigrationGate;
-│                        fails fast only if recovery stranded the live DB
-├── v2MigrationGate.ts   v1→v2 migration decision gate; temporary until all
-│                        users have migrated off v1
+│                        webContents hardening (Document-Policy response
+│                        header and unresponsive renderer call-stack
+│                        collection)
+├── backupRestoreGate.ts
+│                        backup-restore gate; promotes a staged restored DB
+│                        (if any) at the top of startApp(), after the
+│                        single-instance lock and the frozen path registry,
+│                        before v2MigrationGate reads the DB. Thin shell that
+│                        never throws — except when recovery left no live DB
+│                        at all (booting on would create a fresh empty
+│                        database), where it fails fast instead. The
+│                        promotion logic lives in src/main/data/db/restore/
+│                        (same layering as v2MigrationGate → MigrationEngine).
+├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before
+│                        bootstrap. Calls resolveMigrationPaths() to
+│                        detect v1 legacy userData before engine init.
+│                        Temporary — scoped for deletion once all
+│                        users have migrated off v1. Its fat
+│                        orchestrating-gate shape is tolerated only
+│                        because it is throwaway — do not copy it for
+│                        permanent capabilities.
 └── __tests__/           unit tests for each sibling module
 ```
 

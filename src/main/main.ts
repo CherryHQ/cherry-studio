@@ -3,8 +3,10 @@
  *
  * DO NOT add new code here. If you feel the need to, you almost certainly
  * misunderstand the startup timing or service architecture. New services
- * belong in the lifecycle system (see core/lifecycle/); new preboot work
- * belongs in core/preboot/. This file is glue — it should only shrink.
+ * belong in the lifecycle system (see core/lifecycle/); non-removable
+ * preboot steps belong in core/preboot/; removable capabilities that must
+ * execute at preboot time belong in their nature-home (e.g. services/)
+ * and are invoked from here. This file is glue — it should only shrink.
  */
 
 // BootConfig must load before any other import (configures userData path)
