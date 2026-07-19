@@ -4,23 +4,59 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isLinux, isMac, isWin } from '@main/core/platform'
-import { commitUserDataRelocation } from '@main/core/preboot/userDataLocation'
+import { isWin } from '@main/core/platform'
+import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
-import { openUserDataRelocationWindow, type UserDataRelocationWindow } from '@main/services/relocationWindowService'
-import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
-import type {
-  RelocationProgress,
-  UserDataRelocationInspection,
-  UserDataRelocationValidationReason
-} from '@shared/types/relocation'
+import type { RelocationProgress } from '@shared/types/relocation'
 import { app } from 'electron'
 import * as z from 'zod'
 
-const logger = loggerService.withContext('UserDataRelocationGate')
-const ACTIVE_PROFILE_MARKERS = ['SingletonLock', 'SingletonSocket'] as const
+import type { FailedRelocation, PendingRelocation, RelocationState } from './types'
+import {
+  assertEffectiveSeparation,
+  assertEmptyDirectory,
+  assertRelocationPaths,
+  assertUserDataRelocationRequest,
+  invalid,
+  isErrno,
+  isPathInside,
+  normalizeForCompare,
+  pathEntryExists,
+  realPath,
+  relocationArtifactPaths,
+  resolveEffectivePath,
+  resolveExistingAncestor
+} from './validation'
+import { openUserDataRelocationWindow, type UserDataRelocationWindow } from './window'
+
+/**
+ * Execution face — the launch-time half of userData relocation.
+ *
+ * main.ts calls runUserDataRelocation() during preboot, right after the path
+ * registry is initialized and before any lifecycle service opens files under
+ * the source userData directory. Preboot timing imposes hard constraints on
+ * everything here: no lifecycle service exists yet (never `application.get()`),
+ * the dedicated window bypasses WindowManager, and an error escaping before
+ * the window exists would hard-exit with no UI and replay the still-pending
+ * request on every launch — so every failure path must degrade to a persisted
+ * failed state instead of throwing. See ./README.md.
+ */
+
+const logger = loggerService.withContext('UserDataRelocation')
+
+// Ownership marker dropped into every directory this task creates. Recovery
+// and rollback delete a tree recursively only when the marker matches the
+// task ID, so user data that happens to sit at an artifact path is never
+// removed.
 const RELOCATION_OWNER_MARKER = '.cherry-relocation-owner.json'
+// The copy lands in workPath/payload/, not in workPath itself: fsp.cp must be
+// the one to create its destination (see the cp call below), while the
+// recovery invariant needs the owner marker inside workPath before the first
+// payload byte lands. Two constraints, one directory level each.
 const RELOCATION_PAYLOAD_DIRNAME = 'payload'
+// The copy can transiently need more space than the source occupies
+// (allocation rounding, filesystem metadata), and filling the destination
+// volume to the last byte would break the app that boots from it.
 const FREE_SPACE_SAFETY_FACTOR = 1.2
 
 const relocationOwnerSchema = z.object({
@@ -28,51 +64,21 @@ const relocationOwnerSchema = z.object({
   taskId: z.string()
 })
 
-type RelocationState = NonNullable<BootConfigSchema['temp.user_data_relocation']>
-type PendingRelocation = Extract<RelocationState, { status: 'pending' }>
-type FailedRelocation = Extract<RelocationState, { status: 'failed' }>
-
-export type UserDataRelocationGateResult = 'handled' | 'skipped'
-
-class RelocationValidationError extends Error {
-  constructor(
-    readonly reason: UserDataRelocationValidationReason,
-    message: string
-  ) {
-    super(message)
-    this.name = 'RelocationValidationError'
-  }
-}
-
-export function inspectUserDataRelocationTarget(from: string, to: string): UserDataRelocationInspection {
-  try {
-    const { targetExists, targetEmpty } = assertRelocationPaths(from, to)
-    return { valid: true, targetExists, targetEmpty }
-  } catch (error) {
-    if (error instanceof RelocationValidationError) {
-      return { valid: false, reason: error.reason }
-    }
-    throw error
-  }
-}
-
-export function assertUserDataRelocationRequest(pending: PendingRelocation): void {
-  const inspection = assertRelocationPaths(pending.from, pending.to, { taskId: pending.taskId })
-  if (!pending.copy && !inspection.targetExists) {
-    invalid('target_missing', `switch target does not exist: ${pending.to}`)
-  }
-  if (pending.copy && !inspection.targetEmpty) {
-    invalid('target_not_empty', `copy target must be empty: ${pending.to}`)
-  }
-}
-
-export async function runUserDataRelocationGate(): Promise<UserDataRelocationGateResult> {
+/**
+ * Sole flow entry, called once per launch from main.ts. Returns 'handled'
+ * when this launch belongs to relocation (the caller must stop normal
+ * startup — the flow ends in a relaunch), 'skipped' when there is nothing
+ * to do and startup continues.
+ */
+export async function runUserDataRelocation(): Promise<'handled' | 'skipped'> {
   let relocation = readUserDataRelocationState()
   if (!relocation) return 'skipped'
 
-  // Only a pending copy needs the source tree quiescent. A failed-state launch
-  // just shows the error window, so it must not depend on the temp filesystem —
-  // otherwise a broken environment would also block the error explanation.
+  // Every pending relocation isolates sessionData (strictly only the copy
+  // needs the source tree quiescent — for a switch it is merely harmless).
+  // A failed-state launch just shows the error window, so it must not depend
+  // on the temp filesystem — otherwise a broken environment would also block
+  // the error explanation.
   if (relocation.status === 'pending') {
     relocation = prepareIsolatedSessionData(relocation)
   }
@@ -121,7 +127,8 @@ export async function runUserDataRelocationGate(): Promise<UserDataRelocationGat
       to: relocation.to,
       error: message
     })
-    // The filesystem has already been rolled back.
+    // The filesystem has already been rolled back (if the rollback itself
+    // failed, that failure is part of the message).
     persistFailedRelocation(relocation, message)
     publish(makeProgress('failed', relocation, 0, 0, message))
     if (relocationWindow.isUnavailable() || !relocationWindow.hasWindow()) restart()
@@ -130,6 +137,12 @@ export async function runUserDataRelocationGate(): Promise<UserDataRelocationGat
   return 'handled'
 }
 
+/**
+ * Redirect Chromium's sessionData to a throwaway per-task directory. Must
+ * complete before the first `app.whenReady()` await — once Chromium opens the
+ * profile it starts writing into the source tree, which would make the copy
+ * inconsistent.
+ */
 function prepareIsolatedSessionData(pending: PendingRelocation): RelocationState {
   try {
     const sessionRoot = application.getPath('app.temp', 'relocation-session')
@@ -166,6 +179,8 @@ function persistFailedRelocation(pending: PendingRelocation, message: string): F
 }
 
 function readUserDataRelocationState(): RelocationState | null {
+  // Unpackaged dev runs use the suffixed dev userData and never execute
+  // relocations (mirrors the request-side isPackaged gate in ipc/handlers).
   if (!app.isPackaged) return null
 
   // BootConfigService already validates this key against the shared zod schema
@@ -173,6 +188,9 @@ function readUserDataRelocationState(): RelocationState | null {
   const relocation = bootConfigService.get('temp.user_data_relocation')
   if (!relocation) return null
 
+  // A request whose `from` is not the userData this launch resolved was
+  // recorded under different conditions (executable moved, BootConfig copied
+  // to another machine). Executing it would relocate the wrong tree — discard.
   const currentUserDataPath = application.getPath('app.userdata')
   const currentUserData = normalizeForCompare(currentUserDataPath)
   if (normalizeForCompare(relocation.from) !== currentUserData) {
@@ -233,6 +251,11 @@ async function executeRelocation(
     const finalTargetEffective = resolveEffectivePath(pending.to)
     // Let Node own recursive copying. The filter only applies relocation-specific
     // exclusions and records links that must stop pointing at the old userData tree.
+    // fsp.cp with force:false + errorOnExist:true requires that payloadPath not
+    // exist — Node 24 patch releases disagree on what happens when it does
+    // (24.11 silently merges, 24.14 throws ERR_FS_CP_EEXIST), so the only
+    // portable contract is to let cp create its own destination. That is why
+    // the payload lives one level below the marker-carrying workPath.
     const symlinks: Array<{ source: string; target: string; type: 'dir' | 'file' | 'junction' | undefined }> = []
     await fsp.cp(pending.from, payloadPath, {
       recursive: true,
@@ -293,6 +316,9 @@ async function executeRelocation(
     publish(makeProgress('copying', pending, total, total))
 
     assertEffectiveSeparation(pending.from, workPath)
+    // Re-stamp the marker inside the payload before promotion: after the
+    // rename the promoted target itself must carry the marker, so a launch
+    // interrupted between promotion and commit can still prove ownership.
     await writeRelocationOwner(payloadPath, pending.taskId)
     await fsp.rename(payloadPath, pending.to)
     promoted = true
@@ -327,70 +353,43 @@ async function executeRelocation(
   }
 }
 
-function assertRelocationPaths(
-  fromValue: string,
-  toValue: string,
-  options: { allowRelocationArtifacts?: boolean; taskId?: string } = {}
-): { targetExists: boolean; targetEmpty: boolean } {
-  if (!path.isAbsolute(fromValue)) invalid('source_missing', `source must be an absolute path: ${fromValue}`)
-  if (!path.isAbsolute(toValue)) invalid('target_not_absolute', `target must be an absolute path: ${toValue}`)
+/**
+ * Persist the new location after the filesystem transaction completed. The
+ * two BootConfig writes — pin the target for this executable, clear the
+ * pending request — commit together in one persist(); on persist failure the
+ * in-memory state is restored before rethrowing, so a later flush cannot
+ * record a path whose filesystem transaction the caller rolls back (see the
+ * catch in executeRelocation).
+ */
+function commitUserDataRelocation(targetPath: string): void {
+  const canonicalTargetPath = canonicalizeUserDataPath(targetPath)
+  const exe = getNormalizedExecutablePath()
+  const current = bootConfigService.get('app.user_data_path') ?? {}
+  const relocation = bootConfigService.get('temp.user_data_relocation')
 
-  const from = normalizeForCompare(fromValue)
-  const to = normalizeForCompare(toValue)
-  if (from === to) invalid('same_path', `source and target are the same path: ${toValue}`)
-  if (isRootPath(toValue)) invalid('target_root', `target must not be a filesystem root: ${toValue}`)
-  if (isPathInside(to, from)) invalid('target_inside_source', `target is inside source: ${toValue}`)
-  if (isPathInside(from, to)) invalid('target_contains_source', `target contains source: ${toValue}`)
-
-  assertDirectory(fromValue, 'source', 'source_missing')
-  fs.accessSync(fromValue, fs.constants.R_OK)
-
-  const targetExists = pathEntryExists(toValue)
-  const targetAncestor = resolveExistingAncestor(toValue)
-  if (!fs.statSync(targetAncestor.path).isDirectory()) {
-    invalid('target_parent_unwritable', `target ancestor is not a directory: ${targetAncestor.path}`)
-  }
-
-  const fromReal = normalizeForCompare(realPath(fromValue))
-  const toEffective = normalizeForCompare(targetAncestor.effectivePath)
-  if (fromReal === toEffective) invalid('same_path', `source and target resolve to the same path: ${toValue}`)
-  if (isPathInside(toEffective, fromReal)) {
-    invalid('target_inside_source', `target real path is inside source: ${toValue}`)
-  }
-  if (isPathInside(fromReal, toEffective)) {
-    invalid('target_contains_source', `target real path contains source: ${toValue}`)
-  }
-
-  assertTargetIsNotProtected(toValue, toEffective)
+  bootConfigService.set('app.user_data_path', { ...current, [exe]: canonicalTargetPath })
+  bootConfigService.set('temp.user_data_relocation', null)
   try {
-    fs.accessSync(targetExists ? toValue : targetAncestor.path, fs.constants.W_OK)
-  } catch {
-    invalid('target_parent_unwritable', `target is not writable: ${toValue}`)
+    bootConfigService.persist()
+  } catch (error) {
+    bootConfigService.set('app.user_data_path', current)
+    bootConfigService.set('temp.user_data_relocation', relocation)
+    throw error
   }
 
-  let targetEmpty = true
-  if (targetExists) {
-    assertDirectory(toValue, 'target', 'target_not_directory')
-    const entries = fs.readdirSync(toValue)
-    targetEmpty = entries.length === 0
-    if (ACTIVE_PROFILE_MARKERS.some((marker) => entries.includes(marker))) {
-      invalid(
-        'target_in_use',
-        `target appears to be an active userData directory; close other Cherry Studio instances, or remove stale SingletonLock and SingletonSocket markers if none are running: ${toValue}`
-      )
-    }
-  }
-
-  if (options.taskId) {
-    const { workPath, asidePath } = relocationArtifactPaths(toValue, options.taskId)
-    if (!options.allowRelocationArtifacts && (pathEntryExists(workPath) || pathEntryExists(asidePath))) {
-      invalid('target_work_conflict', `relocation work paths already exist beside target: ${toValue}`)
-    }
-  }
-
-  return { targetExists, targetEmpty }
+  logger.info('userData relocation committed', { exe, targetPath: canonicalTargetPath })
 }
 
+/**
+ * Startup recovery after an interrupted copy. Decision surface, in order:
+ *   - owned work tree → delete it (never promoted, purely ours);
+ *   - owned target → delete it (promoted but not committed, so the source
+ *     is still the authoritative tree);
+ *   - aside present → it holds the pre-claim target: restore it, but only
+ *     while it is still empty and nothing unowned occupies the target.
+ * Anything unowned is preserved and fails the relocation safely; without a
+ * matching marker at most an empty directory is ever removed.
+ */
 async function recoverInterruptedCopy(pending: PendingRelocation): Promise<void> {
   const target = pending.to
   const { workPath, asidePath } = relocationArtifactPaths(target, pending.taskId)
@@ -416,6 +415,13 @@ async function recoverInterruptedCopy(pending: PendingRelocation): Promise<void>
   await fsp.rename(asidePath, target)
 }
 
+/**
+ * Rollback: drop the work tree, then the promoted target (only with a
+ * matching ownership marker), then restore the aside — the aside goes last
+ * so it is only moved back once nothing else occupies the target. Returns
+ * the rollback error instead of throwing so the caller can report the
+ * original failure and the rollback failure together.
+ */
 async function rollbackCopy(options: {
   target: string
   workPath: string
@@ -448,6 +454,13 @@ async function rollbackCopy(options: {
   }
 }
 
+/**
+ * Symlink policy: links resolving outside the copied tree are kept verbatim
+ * (except Windows junctions, which cannot stay relative and are re-anchored
+ * to their absolute resolution); links resolving inside the tree are
+ * rewritten to the final target so the copy never points back into the old
+ * userData. Relative in-tree links survive the whole-tree move as-is.
+ */
 async function rewriteSymlinkTarget(
   source: string,
   linkTarget: string,
@@ -478,6 +491,8 @@ async function rewriteSymlinkTarget(
   return linkTarget
 }
 
+// Symlinks count as zero bytes — the copy recreates the link itself, never
+// its referent.
 async function calculateTotalBytes(root: string, allowMissing = false): Promise<number> {
   let stat: Awaited<ReturnType<typeof fsp.lstat>>
   try {
@@ -533,48 +548,6 @@ function makeProgress(
   }
 }
 
-function assertEffectiveSeparation(source: string, target: string): void {
-  const sourceReal = normalizeForCompare(realPath(source))
-  const targetEffective = normalizeForCompare(resolveEffectivePath(target))
-  if (sourceReal === targetEffective || isPathInside(targetEffective, sourceReal)) {
-    throw new Error(`target real path is inside source: ${target}`)
-  }
-  if (isPathInside(sourceReal, targetEffective)) {
-    throw new Error(`target real path contains source: ${target}`)
-  }
-}
-
-function resolveEffectivePath(value: string): string {
-  return resolveExistingAncestor(value).effectivePath
-}
-
-function resolveExistingAncestor(value: string): { path: string; effectivePath: string } {
-  let cursor = path.resolve(value)
-  const missingParts: string[] = []
-  while (!pathEntryExists(cursor)) {
-    const parent = path.dirname(cursor)
-    if (parent === cursor) {
-      invalid('target_parent_unwritable', `no existing ancestor for target: ${value}`)
-    }
-    missingParts.unshift(path.basename(cursor))
-    cursor = parent
-  }
-  return { path: cursor, effectivePath: path.join(realPath(cursor), ...missingParts) }
-}
-
-function realPath(value: string): string {
-  return fs.realpathSync.native?.(value) ?? fs.realpathSync(value)
-}
-
-function relocationArtifactPaths(target: string, taskId: string): { workPath: string; asidePath: string } {
-  const parent = path.dirname(target)
-  const name = path.basename(target)
-  return {
-    workPath: path.join(parent, `.${name}.cherry-relocation-${taskId}-work`),
-    asidePath: path.join(parent, `.${name}.cherry-relocation-${taskId}-aside`)
-  }
-}
-
 async function writeRelocationOwner(directory: string, taskId: string): Promise<void> {
   await fsp.writeFile(
     path.join(directory, RELOCATION_OWNER_MARKER),
@@ -593,15 +566,10 @@ async function removeOwnedRelocationTree(directory: string, taskId: string): Pro
     await fsp.rm(directory, { recursive: true, force: true })
     return
   }
+  // Without a matching marker only an EMPTY directory may be removed — any
+  // content means the tree is not ours.
   assertEmptyDirectory(directory, 'relocation artifact has no matching ownership marker')
   await fsp.rmdir(directory)
-}
-
-function assertEmptyDirectory(directory: string, message: string): void {
-  assertDirectory(directory, 'relocation artifact', 'target_work_conflict')
-  if (fs.readdirSync(directory).length > 0) {
-    invalid('target_work_conflict', `${message}: ${directory}`)
-  }
 }
 
 function readJsonFile(file: string): unknown | null {
@@ -613,105 +581,8 @@ function readJsonFile(file: string): unknown | null {
   }
 }
 
-function assertTargetIsNotProtected(target: string, normalizedTarget: string): void {
-  const protectedApplicationTrees = [
-    application.getPath('app.temp', 'relocation-session'),
-    application.getPath('app.install'),
-    application.getPath('app.root'),
-    application.getPath('app.extra_resources'),
-    application.getPath('cherry.home')
-  ]
-  for (const protectedTree of protectedApplicationTrees) {
-    const normalizedProtected = normalizeForCompare(resolveEffectivePath(protectedTree))
-    if (
-      normalizedTarget === normalizedProtected ||
-      isPathInside(normalizedTarget, normalizedProtected) ||
-      isPathInside(normalizedProtected, normalizedTarget)
-    ) {
-      invalid('target_protected', `target overlaps a protected application or system directory: ${target}`)
-    }
-  }
-
-  const systemHome = application.getPath('sys.home')
-  const protectedExact = [
-    systemHome,
-    ...(isWin ? [path.dirname(systemHome)] : []),
-    application.getPath('sys.appdata'),
-    application.getPath('sys.temp'),
-    application.getPath('sys.downloads'),
-    application.getPath('sys.documents'),
-    application.getPath('sys.desktop'),
-    application.getPath('sys.music'),
-    application.getPath('sys.pictures'),
-    application.getPath('sys.videos')
-  ]
-  if (protectedExact.some((value) => normalizeForCompare(resolveEffectivePath(value)) === normalizedTarget)) {
-    invalid('target_protected', `target is a protected user or system directory: ${target}`)
-  }
-
-  const resolved = path.resolve(target)
-  const relative = path.relative(path.parse(resolved).root, resolved)
-  const segments = relative.split(path.sep).filter(Boolean)
-  const firstSegment = segments[0]?.toLowerCase()
-  const isWindowsSystemVolume =
-    isWin &&
-    normalizeForCompare(path.parse(resolved).root) ===
-      normalizeForCompare(path.parse(application.getPath('sys.appdata')).root)
-  const protectedTopLevel = isWindowsSystemVolume
-    ? ['windows', 'program files', 'program files (x86)', 'programdata', 'recovery', '$recycle.bin']
-    : isMac
-      ? ['system', 'library', 'applications', 'bin', 'sbin', 'usr', 'private']
-      : isLinux
-        ? ['bin', 'boot', 'dev', 'etc', 'lib', 'lib64', 'proc', 'root', 'run', 'sbin', 'sys', 'usr', 'var']
-        : []
-  if (segments.length === 1 && firstSegment && protectedTopLevel.includes(firstSegment)) {
-    invalid('target_protected', `target is a protected operating-system directory: ${target}`)
-  }
-}
-
-function assertDirectory(value: string, label: string, reason: UserDataRelocationValidationReason): void {
-  try {
-    if (!fs.statSync(value).isDirectory()) invalid(reason, `${label} is not a directory: ${value}`)
-  } catch (error) {
-    if (error instanceof RelocationValidationError) throw error
-    invalid(reason, `${label} directory does not exist or is inaccessible: ${value}`)
-  }
-}
-
-function pathEntryExists(value: string): boolean {
-  try {
-    fs.lstatSync(value)
-    return true
-  } catch (error) {
-    if (isErrno(error, 'ENOENT')) return false
-    throw error
-  }
-}
-
-function isRootPath(value: string): boolean {
-  const resolved = path.resolve(value)
-  return normalizeForCompare(resolved) === normalizeForCompare(path.parse(resolved).root)
-}
-
-function normalizeForCompare(value: string): string {
-  const resolved = path.resolve(value)
-  return isWin || isMac ? resolved.toLowerCase() : resolved
-}
-
-function isPathInside(child: string, parent: string): boolean {
-  const relative = path.relative(parent, child)
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
-}
-
 function clearRelocationState(): void {
   bootConfigService.set('temp.user_data_relocation', null)
+  // flush(), not persist(): failing to clear must never block the relaunch.
   bootConfigService.flush()
-}
-
-function invalid(reason: UserDataRelocationValidationReason, message: string): never {
-  throw new RelocationValidationError(reason, message)
-}
-
-function isErrno(error: unknown, code: string): error is NodeJS.ErrnoException {
-  return error instanceof Error && 'code' in error && error.code === code
 }

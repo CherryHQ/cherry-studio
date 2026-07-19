@@ -32,36 +32,13 @@ export function canonicalizeUserDataPath(userDataPath: string): string {
 }
 
 /**
- * Persist the new location only after the relocation gate has completed its
- * copy/switch transaction. Both writes are persisted together before relaunch.
- */
-export function commitUserDataRelocation(targetPath: string): void {
-  const canonicalTargetPath = canonicalizeUserDataPath(targetPath)
-  const exe = getNormalizedExecutablePath()
-  const current = bootConfigService.get('app.user_data_path') ?? {}
-  const relocation = bootConfigService.get('temp.user_data_relocation')
-
-  bootConfigService.set('app.user_data_path', { ...current, [exe]: canonicalTargetPath })
-  bootConfigService.set('temp.user_data_relocation', null)
-  try {
-    bootConfigService.persist()
-  } catch (error) {
-    // The filesystem transaction rolls back outside this helper. Restore the
-    // matching in-memory BootConfig transaction before its failed state is
-    // recorded, otherwise a later flush can commit a path that was rolled back.
-    bootConfigService.set('app.user_data_path', current)
-    bootConfigService.set('temp.user_data_relocation', relocation)
-    throw error
-  }
-
-  logger.info('userData relocation committed', { exe, targetPath: canonicalTargetPath })
-}
-
-/**
  * Resolve Electron's userData directory before the path registry is frozen.
  * Pending relocation is deliberately not executed here: after the source path
- * is resolved and its single-instance lock is acquired, userDataRelocationGate
- * owns validation, copy/switch, commit, progress UI, and relaunch.
+ * is resolved and its single-instance lock is acquired, the
+ * `services/userDataRelocation` domain owns validation, copy/switch, commit,
+ * progress UI, and relaunch (`runUserDataRelocation()` called from main.ts).
+ * The `app.user_data_path` mapping read below is written by that domain's
+ * commit step.
  *
  * Electron derives sessionData lazily from userData when no explicit
  * sessionData path was set. Keeping this setPath call before app.whenReady()

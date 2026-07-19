@@ -12,7 +12,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { RelocationProgress, RelocationStage } from '@shared/types/relocation'
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 
-const logger = loggerService.withContext('RelocationWindowService')
+const logger = loggerService.withContext('UserDataRelocationWindow')
 const CRITICAL_STAGES: ReadonlySet<RelocationStage> = new Set(['preparing', 'copying', 'committing'])
 const READY_TIMEOUT_MS = 30_000
 
@@ -90,7 +90,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
   }
 
   // The lifecycle IpcApiService has not started yet. This launch is exclusively
-  // owned by the relocation gate, so its scoped endpoint can safely occupy the
+  // owned by the relocation flow, so its scoped endpoint can safely occupy the
   // shared request channel until the window closes and the app relaunches.
   ipcMain.handle(IpcChannel.IpcApi_Request, handleRequest)
 

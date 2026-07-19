@@ -22,17 +22,6 @@ to build a frozen snapshot of the path registry by reading
 initialized **before** `application.bootstrap()` (which asserts the registry
 exists and refuses to start otherwise).
 
-The userData relocation gate runs after the path registry is initialized, so
-it can create its temporary Chromium profile under `app.temp` through
-`application.getPath()`. For a pending relocation it calls
-`app.setPath('sessionData', …)` synchronously before its first
-`await app.whenReady()`; if preparing that directory fails, the request is
-marked failed instead of crashing preboot (an escaped error would boot-loop:
-exit before any window, pending request replayed every launch). A failed-state
-launch only shows the error window and never touches the temp profile. A
-relocation-only launch never continues to lifecycle bootstrap, so that launch
-does not consume the registry's earlier `app.session` snapshot.
-
 This directory holds that pre-bootstrap work.
 
 ## Membership criteria
@@ -49,8 +38,8 @@ Code belongs in `core/preboot/` if **all** are true:
 3. It only depends on Electron `app` top-level APIs and synchronously-loaded
    modules (e.g. `BootConfigService`, `loggerService`).
 4. It directly performs side effects on global state (paths, command-line
-   switches, file relocations) — or is a pure helper that supports a
-   side-effecting preboot operation.
+   switches) — or is a pure helper that supports a side-effecting preboot
+   operation.
 5. It does **not** depend on any lifecycle-managed service (anything
    accessed via `application.get(...)`). This is the real hard
    constraint: async preboot code is allowed when necessary, but
@@ -91,11 +80,6 @@ without good reason.
 - **running** — steady state after `application.bootstrap()` returns and
   the main window is shown.
 
-The legacy file `src/main/bootstrap.ts` predates this vocabulary and uses
-the OS meaning of "bootstrap". It is kept on disk during the v2 transition
-as reference but is no longer imported anywhere; a follow-up cleanup PR
-will delete it.
-
 ### Term: "userData"
 
 Throughout `core/preboot/`, the word **userData** refers exclusively to
@@ -107,31 +91,7 @@ It does **not** mean "user data" in the colloquial sense (用户数据). The
 Electron userData directory contains a mix of user content
 (`cherrystudio.sqlite`, `Data/Files`, `Data/KnowledgeBase`, …) AND
 Chromium runtime state (`Network/`, `Partitions/`, `IndexedDB`,
-`Local Storage`, …) AND application logs (`logs/`). When this code talks
-about "copying userData", it means copying the **entire OS directory** as
-a single opaque tree — there is no curated "user content only" subset.
-
-v1 used to distinguish "occupied dirs" (`logs`, `Network`,
-`Partitions/webview/Network`, locked by the running process on Windows)
-from the rest of userData and copy them in two separate phases: the
-renderer copied the unlocked bulk while running, and the main process
-copied the occupied dirs during the next startup's narrow "no renderer
-yet" window. v2 abandons that distinction entirely — the whole directory
-is copied at startup **after** the previous process has fully exited.
-
-### Relocation safety model
-
-Relocation never merges into or clears an arbitrary directory. Copy mode
-accepts only a missing or empty target. A non-empty target may be selected
-only in switch mode; files already present there are left unchanged.
-
-Each copy request has a unique task ID. Temporary work trees and promoted
-targets carry an ownership marker for that task, and recovery removes a tree
-recursively only when the marker matches. Unknown files, targets without the
-matching marker, and non-empty aside directories are preserved and make the
-operation fail safely. Source descendants, source ancestors, filesystem roots,
-and protected operating-system or application paths are rejected before any
-target mutation.
+`Local Storage`, …) AND application logs (`logs/`).
 
 ## Layout
 
@@ -141,13 +101,9 @@ preboot/
 │                        second instances. Runs after userData resolution so
 │                        dev instances with different userData suffixes use
 │                        isolated locks.
-├── userDataLocation.ts  resolves userData (dev suffix or BootConfig), commits
-│                        completed relocations, and exports the shared
-│                        isUsableDataDir(p) validator used by v1→v2 migration
-├── userDataRelocationGate.ts
-│                        validates and executes a pending relocation after the
-│                        source lock, owns copy/switch/commit, drives progress,
-│                        and stops normal startup
+├── userDataLocation.ts  resolves userData (dev suffix or BootConfig) and
+│                        exports the shared isUsableDataDir(p) validator
+│                        used by v1→v2 migration
 ├── chromiumFlags.ts     Chromium startup flags that must run before
 │                        app.whenReady()
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
@@ -178,14 +134,10 @@ preboot/
 The directory is intentionally flat. New domains add a sibling file rather
 than a subdirectory.
 
-The dedicated preboot BrowserWindow is opened by
-`src/main/services/relocationWindowService.ts`. It lives in `services/`
-because opening and driving a window is an outward side effect. The module is
-stateless and returns one operation-scoped controller, so it is not a Manager.
-
 ### Development userData suffix
 
-Unpackaged development runs never read packaged BootConfig relocation state.
+Unpackaged development runs never read the BootConfig userData mapping
+(`app.user_data_path`).
 Instead, `userDataLocation.ts` appends a suffix to Electron's default
 userData directory before the path registry and single-instance lock are
 initialized. The default suffix is `Dev`.
@@ -217,8 +169,7 @@ import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 ```
 
 Each preboot module has its own timing contract (`userDataLocation` must run
-before `initPathRegistry`; `userDataRelocationGate` must set its temporary
-`sessionData` before `app.whenReady`; `chromiumFlags` must run before
+before `initPathRegistry`; `chromiumFlags` must run before
 `app.whenReady`).
 A barrel export would fold away which function lives in which module — and
 therefore which timing rules apply — making the preboot sequence in

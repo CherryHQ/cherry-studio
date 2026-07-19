@@ -30,7 +30,9 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       "portable) with independent user data locations — matching the v1 behavior",
       "of ~/.cherrystudio/config/config.json's `appDataPath` array.",
       '',
-      "Key: executable path (matches Electron's `app.getPath('exe')`).",
+      'Key: normalized executable path from getNormalizedExecutablePath() —',
+      "intentionally not `app.getPath('exe')` for Linux AppImage and Windows",
+      'portable builds, whose raw exe paths are unstable across launches.',
       'Value: absolute path to the chosen userData directory.',
       '',
       'Migrated from v1 ~/.cherrystudio/config/config.json on first v1→v2 run',
@@ -76,8 +78,9 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '',
       'Lifecycle:',
       '  - null: no relocation in progress (default).',
-      "  - { status: 'pending', taskId, from, to, copy }: an IPC handler",
-      '    wrote this request and the next preboot should execute it.',
+      "  - { status: 'pending', taskId, from, to, copy }: the relocation",
+      '    request face (services/userDataRelocation) wrote this request and',
+      '    the next preboot should execute it.',
       "  - { status: 'failed', taskId, from, to, copy, error, failedAt }:",
       '    a previous preboot attempt failed. The record stays in BootConfig',
       '    until the dedicated relocation window shows the error and the user',
@@ -88,7 +91,7 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       'The copy includes everything under that directory — user files,',
       'Chromium runtime state, logs, etc.',
       '',
-      'Consumer: src/main/core/preboot/userDataRelocationGate.ts'
+      'Consumer: src/main/services/userDataRelocation'
     ]
   }
 ]

@@ -25,7 +25,7 @@ const logger = loggerService.withContext('SingleInstance')
  *   - Packaged runs also resolve userData before this lock. That keeps
  *     the lock aligned with the final BootConfig/portable userData path,
  *     so a second packaged instance using the same data directory exits
- *     before relocation gate or bootstrap work begins. Pending userData
+ *     before relocation execution or bootstrap work begins. Pending userData
  *     relocation is intentionally handled after this lock, so two processes
  *     cannot copy/commit the same `temp.user_data_relocation`.
  *   - Does not depend on any lifecycle-managed service: `application.quit()`

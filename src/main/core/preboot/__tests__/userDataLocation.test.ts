@@ -430,56 +430,9 @@ describe('resolveUserDataLocation', () => {
     })
   })
 
-  describe('relocation state helpers', () => {
-    it('commitUserDataRelocation updates the executable mapping, clears temp state, and persists', async () => {
-      stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      const store = stubBootConfig({
-        'app.user_data_path': { '/other/exe': '/other/data' },
-        'temp.user_data_relocation': {
-          status: 'pending',
-          taskId: TASK_ID,
-          from: '/old/data',
-          to: '/new/data',
-          copy: true
-        }
-      })
-      stubFs()
-      const { commitUserDataRelocation } = await loadModule()
-
-      commitUserDataRelocation('/new/data')
-
-      expect(store['app.user_data_path']).toEqual({ '/other/exe': '/other/data', '/mock/exe': '/new/data' })
-      expect(store['temp.user_data_relocation']).toBeNull()
-      expect(bootConfigPersistMock).toHaveBeenCalled()
-    })
-
-    it('restores both BootConfig keys in memory when the relocation commit cannot be persisted', async () => {
-      stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      const pendingRelocation = {
-        status: 'pending' as const,
-        taskId: TASK_ID,
-        from: '/old/data',
-        to: '/new/data',
-        copy: true
-      }
-      const store = stubBootConfig({
-        'app.user_data_path': { '/mock/exe': '/old/data', '/other/exe': '/other/data' },
-        'temp.user_data_relocation': pendingRelocation
-      })
-      bootConfigPersistMock.mockImplementationOnce(() => {
-        throw new Error('disk full')
-      })
-      stubFs()
-      const { commitUserDataRelocation } = await loadModule()
-
-      expect(() => commitUserDataRelocation('/new/data')).toThrow('disk full')
-
-      expect(store['app.user_data_path']).toEqual({ '/mock/exe': '/old/data', '/other/exe': '/other/data' })
-      expect(store['temp.user_data_relocation']).toEqual(pendingRelocation)
-    })
-
+  // The BootConfig commit itself moved to services/userDataRelocation and is
+  // covered there (execution.test.ts) through the full relocation flow.
+  describe('relocation state handling', () => {
     it('resolveUserDataLocation does not execute a pending relocation', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })

@@ -1,35 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  appGetMock,
-  appGetPathMock,
-  assertRequestMock,
-  bootConfigGetMock,
-  bootConfigPersistMock,
-  bootConfigSetMock,
-  inspectTargetMock,
-  relaunchMock
-} = vi.hoisted(() => ({
+const { appGetMock, appGetPathMock, inspectTargetMock, relaunchMock, requestRelocationMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   appGetPathMock: vi.fn(),
-  assertRequestMock: vi.fn(),
-  bootConfigGetMock: vi.fn(),
-  bootConfigPersistMock: vi.fn(),
-  bootConfigSetMock: vi.fn(),
   inspectTargetMock: vi.fn(),
-  relaunchMock: vi.fn()
+  relaunchMock: vi.fn(),
+  requestRelocationMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
   application: { get: appGetMock, getPath: appGetPathMock, relaunch: relaunchMock }
 }))
-vi.mock('@main/core/preboot/userDataRelocationGate', () => ({
-  assertUserDataRelocationRequest: assertRequestMock,
-  inspectUserDataRelocationTarget: inspectTargetMock
-}))
-vi.mock('@main/core/preboot/userDataLocation', () => ({ canonicalizeUserDataPath: (value: string) => value }))
-vi.mock('@main/data/bootConfig', () => ({
-  bootConfigService: { get: bootConfigGetMock, persist: bootConfigPersistMock, set: bootConfigSetMock }
+vi.mock('@main/services/userDataRelocation', () => ({
+  inspectUserDataRelocationTarget: inspectTargetMock,
+  requestUserDataRelocation: requestRelocationMock
 }))
 vi.mock('electron', () => ({
   app: { getVersion: () => '1.0.0', isPackaged: true },
@@ -48,17 +32,11 @@ const appUpdaterService = {
 const preferenceService = {
   get: vi.fn()
 }
-let relocationState: unknown
 
 beforeEach(() => {
   vi.clearAllMocks()
   ;(app as { isPackaged: boolean }).isPackaged = true
-  relocationState = null
-  bootConfigGetMock.mockImplementation(() => relocationState)
-  bootConfigSetMock.mockImplementation((_key: string, value: unknown) => {
-    relocationState = value
-  })
-  appGetPathMock.mockImplementation((key: string) => (key === 'app.userdata' ? '/old/data' : '/mock/path'))
+  appGetPathMock.mockReturnValue('/mock/path')
   inspectTargetMock.mockReturnValue({ valid: true, targetExists: true, targetEmpty: true })
   appGetMock.mockImplementation((name: string) => {
     if (name === 'AppUpdaterService') return appUpdaterService
@@ -70,39 +48,18 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('appHandlers', () => {
-  it('inspects relocation targets through the gate validation', async () => {
+  it('inspects relocation targets through the domain validation', async () => {
     const result = await appHandlers['app.inspect_user_data_relocation']({ path: '/new/data' }, ctx)
 
-    expect(inspectTargetMock).toHaveBeenCalledWith('/old/data', '/new/data')
+    expect(inspectTargetMock).toHaveBeenCalledWith('/new/data')
     expect(result).toEqual({ valid: true, targetExists: true, targetEmpty: true })
   })
 
-  it('persists relocation directly through BootConfigService before relaunch', async () => {
+  it('delegates relocation requests to the domain in packaged builds', async () => {
     const result = await appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true }, ctx)
 
-    const pending = {
-      status: 'pending',
-      taskId: expect.any(String),
-      from: '/old/data',
-      to: '/new/data',
-      copy: true
-    }
-    expect(assertRequestMock).toHaveBeenCalledWith(pending)
-    expect(bootConfigSetMock).toHaveBeenCalledWith('temp.user_data_relocation', pending)
-    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
+    expect(requestRelocationMock).toHaveBeenCalledWith('/new/data', true)
     expect(result).toBeUndefined()
-  })
-
-  it('rejects relocation when the pending request cannot be persisted', async () => {
-    bootConfigPersistMock.mockImplementationOnce(() => {
-      throw new Error('disk full')
-    })
-
-    await expect(
-      appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true }, ctx)
-    ).rejects.toThrow('disk full')
-    expect(relocationState).toBeNull()
-    expect(bootConfigSetMock).toHaveBeenLastCalledWith('temp.user_data_relocation', null)
   })
 
   it('rejects relocation requests from unpackaged development runs', async () => {
@@ -111,7 +68,7 @@ describe('appHandlers', () => {
     await expect(
       appHandlers['app.request_user_data_relocation']({ path: '/new/data', copy: true }, ctx)
     ).rejects.toMatchObject({ code: 'USER_DATA_RELOCATION_UNAVAILABLE' })
-    expect(bootConfigSetMock).not.toHaveBeenCalled()
+    expect(requestRelocationMock).not.toHaveBeenCalled()
   })
 
   it('relaunches through IpcApi', async () => {

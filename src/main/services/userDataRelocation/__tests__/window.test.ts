@@ -17,7 +17,7 @@ vi.mock('electron', () => ({
   ipcMain: { handle: ipcHandleMock, removeHandler: ipcRemoveHandlerMock }
 }))
 
-import { openUserDataRelocationWindow } from '../relocationWindowService'
+import { openUserDataRelocationWindow } from '../window'
 
 interface MockWindow extends EventEmitter {
   webContents: EventEmitter & { send: ReturnType<typeof vi.fn> }
@@ -64,7 +64,7 @@ beforeEach(() => {
   browserWindowMock.mockReturnValue(window)
 })
 
-describe('relocationWindowService', () => {
+describe('userDataRelocation window', () => {
   it('does not silently replace an existing shared IpcApi handler', () => {
     ipcHandleMock.mockImplementationOnce(() => {
       throw new Error('Attempted to register a second handler')
