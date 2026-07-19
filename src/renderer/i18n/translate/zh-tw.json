@@ -2457,75 +2457,75 @@
   "file_preview": {
     "html": {
       "empty": {
-        "description": "此 HTML 檔案沒有內容。",
-        "title": "空檔案"
+        "description": "[to be translated]:This HTML file has no content.",
+        "title": "[to be translated]:Empty file"
       },
       "mode": {
-        "label": "HTML 檢視模式",
-        "preview": "預覽",
-        "source": "來源"
+        "label": "[to be translated]:HTML view mode",
+        "preview": "[to be translated]:Preview",
+        "source": "[to be translated]:Source"
       },
       "read_error": {
-        "title": "無法讀取此檔案"
+        "title": "[to be translated]:Couldn't read this file"
       },
       "too_large": {
-        "description": "超過 {{limit}} MiB 的 HTML 檔案無法預覽。",
-        "title": "檔案太大"
+        "description": "[to be translated]:HTML files larger than {{limit}} MiB cannot be previewed.",
+        "title": "[to be translated]:File is too large"
       }
     },
     "invalid_path": {
-      "description": "檔案預覽需要有效的絕對本機路徑。",
-      "title": "無法預覽此檔案"
+      "description": "[to be translated]:File preview requires a valid absolute local path.",
+      "title": "[to be translated]:Can't preview this file"
     },
     "load_error": {
-      "description": "無法載入預覽內容。",
-      "title": "預覽失敗"
+      "description": "[to be translated]:The preview content could not be loaded.",
+      "title": "[to be translated]:Preview failed"
     },
-    "loading": "載入預覽中...",
+    "loading": "[to be translated]:Loading preview...",
     "markdown": {
       "empty": {
-        "description": "這個 Markdown 檔案沒有內容。",
-        "title": "空檔案"
+        "description": "[to be translated]:This Markdown file has no content.",
+        "title": "[to be translated]:Empty file"
       },
       "mode": {
-        "label": "Markdown 檢視模式",
-        "preview": "預覽",
-        "source": "來源"
+        "label": "[to be translated]:Markdown view mode",
+        "preview": "[to be translated]:Preview",
+        "source": "[to be translated]:Source"
       },
       "read_error": {
-        "title": "無法讀取此檔案"
+        "title": "[to be translated]:Couldn't read this file"
       },
       "too_large": {
-        "description": "Markdown 檔案大小超過 {{limit}} MiB 時無法預覽。",
-        "title": "檔案太大"
+        "description": "[to be translated]:Markdown files larger than {{limit}} MiB cannot be previewed.",
+        "title": "[to be translated]:File is too large"
       }
     },
     "pdf": {
       "too_large": {
-        "action": "使用預設應用程式開啟",
-        "description": "超過 {{limit}} MiB 的 PDF 檔案無法預覽。",
-        "open_error": "無法開啟此檔案",
-        "title": "檔案太大"
+        "action": "[to be translated]:Open with default app",
+        "description": "[to be translated]:PDF files larger than {{limit}} MiB cannot be previewed.",
+        "open_error": "[to be translated]:Couldn't open this file",
+        "title": "[to be translated]:File is too large"
       }
     },
     "text": {
       "empty": {
-        "description": "此文字檔案沒有內容。",
-        "title": "空檔案"
+        "description": "[to be translated]:This text file has no content.",
+        "title": "[to be translated]:Empty file"
       },
       "read_error": {
-        "title": "無法讀取此檔案"
+        "title": "[to be translated]:Couldn't read this file"
       },
       "too_large": {
-        "description": "超過 {{limit}} MiB 的文字檔案無法預覽。",
-        "title": "檔案太大"
+        "description": "[to be translated]:Text files larger than {{limit}} MiB cannot be previewed.",
+        "title": "[to be translated]:File is too large"
       }
     },
     "unsupported": {
-      "action": "使用預設應用程式開啟",
-      "description": "此檔案類型尚無法預覽。",
-      "open_error": "無法開啟此檔案",
-      "title": "無法預覽"
+      "action": "[to be translated]:Open with default app",
+      "description": "[to be translated]:This file type cannot be previewed yet.",
+      "open_error": "[to be translated]:Couldn't open this file",
+      "title": "[to be translated]:Preview unavailable"
     }
   },
   "files": {
@@ -5644,8 +5644,43 @@
         "label": "應用程式日誌"
       },
       "backup": {
+        "legacy_local_unavailable": "[to be translated]:Legacy local backup controls are disabled. Use Backup / Restore above.",
         "skip_file_data_help": "備份時跳過圖片、知識庫等資料檔案，只備份聊天記錄與設定。可減少空間佔用並加快備份速度",
         "skip_file_data_title": "精簡備份",
+        "v2": {
+          "export": {
+            "cancel_timeout": "[to be translated]:Cancel timed out. The backup may still be running.",
+            "cancelled": "[to be translated]:Backup cancelled.",
+            "failure": "[to be translated]:Backup failed.",
+            "phase": {
+              "archive": "[to be translated]:Creating archive…",
+              "collect": "[to be translated]:Collecting data…",
+              "journal": "[to be translated]:Writing journal…",
+              "merge": "[to be translated]:Merging data…",
+              "preflight": "[to be translated]:Checking disk space…",
+              "quiesce": "[to be translated]:Quiescing services…",
+              "relaunch": "[to be translated]:Relaunching…",
+              "snapshot": "[to be translated]:Copying database…",
+              "verify": "[to be translated]:Verifying backup…"
+            },
+            "running": "[to be translated]:Backing up…",
+            "selecting": "[to be translated]:Choose where to save the backup…",
+            "starting": "[to be translated]:Starting backup…",
+            "success": "[to be translated]:Backup completed."
+          },
+          "file_filter": "[to be translated]:Cherry Backup",
+          "preset": {
+            "full": "[to be translated]:Full backup (all data)",
+            "lite": "[to be translated]:Lite backup (chat & settings, no knowledge/files)"
+          },
+          "restore": {
+            "confirm_content": "[to be translated]:Restoring will replace current data and relaunch the app. Continue?",
+            "failure": "[to be translated]:Restore failed.",
+            "pick_prompt": "[to be translated]:Select a .cbu backup archive to restore.",
+            "relaunching": "[to be translated]:Restore staged. The app is relaunching…",
+            "selected": "[to be translated]:Selected archive:"
+          }
+        },
         "v2_unavailable": "V2 備份還原尚未上線，敬請期待"
       },
       "clear_cache": {
@@ -7827,8 +7862,8 @@
   },
   "tab": {
     "close": "關閉分頁",
-    "close_others": "關閉其他標籤頁",
-    "close_to_right": "關閉右側標籤頁",
+    "close_others": "[to be translated]:Close Other Tabs",
+    "close_to_right": "[to be translated]:Close Tabs to the Right",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
     "open_in_new_window": "在新視窗中開啟",

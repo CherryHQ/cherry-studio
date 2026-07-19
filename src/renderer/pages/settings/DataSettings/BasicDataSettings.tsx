@@ -21,9 +21,31 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BackupPopup from './BackupPopup'
+import BackupExportV2Popup from './BackupExportV2Popup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
-import RestorePopup from './RestorePopup'
+import RestoreV2Popup from './RestoreV2Popup'
+import { isV2BackupExportReady, isV2BackupRestoreReady } from './V2BackupActionGate'
+
+/**
+ * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
+ * userData directory tree at startup (in `src/main/core/preboot/userDataLocation.ts`),
+ * after the previous process has fully exited and no file is locked. The
+ * distinction between "occupied" and "non-occupied" directories has no meaning
+ * in v2 — the entire tree is opaque and copied as one unit.
+ *
+ * Only used by the v1 in-process migration flow below, to be rewritten to the new
+ * BootConfig `temp.user_data_relocation` protocol. Remove this at the same time.
+ */
+const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
+
+type MigrationDialogState = {
+  title: React.ReactNode
+  className: string
+  PathsContent: React.FC
+  progress: number
+  status: 'active' | 'success'
+}
+
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
@@ -200,21 +222,31 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button
+              onClick={() => BackupExportV2Popup.show()}
+              variant="outline"
+              disabled={!isV2BackupExportReady()}
+              aria-disabled={!isV2BackupExportReady()}
+              data-testid="v2-backup-export-button">
+              <SaveIcon size={14} />
+              {t('settings.general.backup.button')}
+            </Button>
+            <Button
+              onClick={() => RestoreV2Popup.show()}
+              variant="outline"
+              disabled={!isV2BackupRestoreReady()}
+              aria-disabled={!isV2BackupRestoreReady()}
+              data-testid="v2-backup-restore-button">
+              <FolderOpen size={14} />
+              {t('settings.general.restore.button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+        <SettingDivider />
         <BackupUnavailableGate>
-          <SettingRow>
-            <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
-              <Button onClick={() => BackupPopup.show()} variant="outline">
-                <SaveIcon size={14} />
-                {t('settings.general.backup.button')}
-              </Button>
-              <Button onClick={() => RestorePopup.show()} variant="outline">
-                <FolderOpen size={14} />
-                {t('settings.general.restore.button')}
-              </Button>
-            </RowFlex>
-          </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
             <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
@@ -274,14 +306,16 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-          <RowFlex className="gap-1.25">
-            <Button onClick={reset} variant="destructive">
-              {t('settings.general.reset.title')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
+        {import.meta.env.DEV ? (
+          <SettingRow>
+            <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+            <RowFlex className="gap-1.25">
+              <Button onClick={() => void reset()} variant="destructive">
+                {t('settings.general.reset.title')}
+              </Button>
+            </RowFlex>
+          </SettingRow>
+        ) : null}
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.privacy.title')}</SettingTitle>

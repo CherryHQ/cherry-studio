@@ -1470,16 +1470,16 @@
         "unsupported_model": "Das aktuelle Modell unterstützt kein einstellbares Denken."
       },
       "toolbar": {
-        "customize": "Symbolleiste anpassen",
+        "customize": "[to be translated]:Customize toolbar",
         "drag": {
-          "cancelled": "Die Neuanordnung für {{name}} wurde abgebrochen.",
-          "dropped": "{{name}} wurde fallen gelassen.",
-          "instructions": "Um ein Element neu anzuordnen, drücken Sie die Leertaste oder Eingabetaste, um ein Werkzeug aufzuheben, verwenden Sie die Pfeiltasten, um es zu verschieben, und drücken Sie dann die Leertaste oder Eingabetaste, um es abzulegen, oder Escape, um abzubrechen.",
-          "over": "{{name}} zog über {{over}}.",
-          "picked_up": "{{name}} aufgenommen."
+          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
+          "dropped": "[to be translated]:{{name}} dropped.",
+          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "[to be translated]:{{name}} moved over {{over}}.",
+          "picked_up": "[to be translated]:Picked up {{name}}."
         },
-        "drag_handle": "Zum Neuanordnen {{name}} ziehen",
-        "restore_default": "Standard wiederherstellen"
+        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
+        "restore_default": "[to be translated]:Restore default"
       },
       "tools": {
         "collapse": "Falten",
@@ -1755,7 +1755,7 @@
     "thinking_tokens": "~{{tokens}} Tokens",
     "topics": {
       "auto_rename": "Themenname generieren",
-      "auto_rename_failed": "Fehler beim automatischen Generieren des Gesprächsnamens",
+      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
       "clear": {
         "title": "Nachrichten leeren"
       },
@@ -2457,75 +2457,75 @@
   "file_preview": {
     "html": {
       "empty": {
-        "description": "Diese HTML-Datei hat keinen Inhalt.",
-        "title": "Leere Datei"
+        "description": "[to be translated]:This HTML file has no content.",
+        "title": "[to be translated]:Empty file"
       },
       "mode": {
-        "label": "HTML-Ansichtsmodus",
-        "preview": "Vorschau",
-        "source": "Quelle"
+        "label": "[to be translated]:HTML view mode",
+        "preview": "[to be translated]:Preview",
+        "source": "[to be translated]:Source"
       },
       "read_error": {
-        "title": "Konnte diese Datei nicht lesen"
+        "title": "[to be translated]:Couldn't read this file"
       },
       "too_large": {
-        "description": "HTML-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
-        "title": "Datei ist zu groß"
+        "description": "[to be translated]:HTML files larger than {{limit}} MiB cannot be previewed.",
+        "title": "[to be translated]:File is too large"
       }
     },
     "invalid_path": {
-      "description": "Die Dateivorschau erfordert einen gültigen absoluten lokalen Pfad.",
-      "title": "Diese Datei kann nicht in der Vorschau angezeigt werden"
+      "description": "[to be translated]:File preview requires a valid absolute local path.",
+      "title": "[to be translated]:Can't preview this file"
     },
     "load_error": {
-      "description": "Der Vorschauinhalt konnte nicht geladen werden.",
-      "title": "Vorschau fehlgeschlagen"
+      "description": "[to be translated]:The preview content could not be loaded.",
+      "title": "[to be translated]:Preview failed"
     },
-    "loading": "Vorschau wird geladen...",
+    "loading": "[to be translated]:Loading preview...",
     "markdown": {
       "empty": {
-        "description": "Diese Markdown-Datei hat keinen Inhalt.",
-        "title": "Leere Datei"
+        "description": "[to be translated]:This Markdown file has no content.",
+        "title": "[to be translated]:Empty file"
       },
       "mode": {
-        "label": "Markdown-Ansichtsmodus",
-        "preview": "Vorschau",
-        "source": "Quelle"
+        "label": "[to be translated]:Markdown view mode",
+        "preview": "[to be translated]:Preview",
+        "source": "[to be translated]:Source"
       },
       "read_error": {
-        "title": "Konnte diese Datei nicht lesen"
+        "title": "[to be translated]:Couldn't read this file"
       },
       "too_large": {
-        "description": "Markdown-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
-        "title": "Datei ist zu groß"
+        "description": "[to be translated]:Markdown files larger than {{limit}} MiB cannot be previewed.",
+        "title": "[to be translated]:File is too large"
       }
     },
     "pdf": {
       "too_large": {
-        "action": "Mit Standard-App öffnen",
-        "description": "PDF-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
-        "open_error": "Konnte diese Datei nicht öffnen",
-        "title": "Die Datei ist zu groß"
+        "action": "[to be translated]:Open with default app",
+        "description": "[to be translated]:PDF files larger than {{limit}} MiB cannot be previewed.",
+        "open_error": "[to be translated]:Couldn't open this file",
+        "title": "[to be translated]:File is too large"
       }
     },
     "text": {
       "empty": {
-        "description": "Diese Textdatei hat keinen Inhalt.",
-        "title": "Leere Datei"
+        "description": "[to be translated]:This text file has no content.",
+        "title": "[to be translated]:Empty file"
       },
       "read_error": {
-        "title": "Konnte diese Datei nicht lesen"
+        "title": "[to be translated]:Couldn't read this file"
       },
       "too_large": {
-        "description": "Textdateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
-        "title": "Datei ist zu groß"
+        "description": "[to be translated]:Text files larger than {{limit}} MiB cannot be previewed.",
+        "title": "[to be translated]:File is too large"
       }
     },
     "unsupported": {
-      "action": "Mit Standard-App öffnen",
-      "description": "Dieser Dateityp kann noch nicht in der Vorschau angezeigt werden.",
-      "open_error": "Konnte diese Datei nicht öffnen",
-      "title": "Vorschau nicht verfügbar"
+      "action": "[to be translated]:Open with default app",
+      "description": "[to be translated]:This file type cannot be previewed yet.",
+      "open_error": "[to be translated]:Couldn't open this file",
+      "title": "[to be translated]:Preview unavailable"
     }
   },
   "files": {
@@ -3571,10 +3571,10 @@
       "title": "Bibliothek"
     },
     "skill_add": {
-      "add": "Fähigkeit hinzufügen",
+      "add": "[to be translated]:Add Skill",
       "local_import": "Lokaler Import",
       "online_search": "Online-Suche",
-      "system_search": "System-Suche"
+      "system_search": "[to be translated]:System search"
     },
     "skill_detail": {
       "created_at": "Erstellt",
@@ -3603,17 +3603,17 @@
     },
     "subtitle": "Verwalten Sie Ihre Assistenten, Agenten und Fähigkeiten",
     "system_skill": {
-      "conflict": "Namenskonflikt",
-      "description": "Auf diesem System bereits installierte Skills importieren.",
-      "empty_description": "Es wurden keine importierbaren Fähigkeiten in anderen Coding-Tools auf diesem Gerät gefunden.",
-      "empty_title": "Keine Fähigkeiten zum Importieren verfügbar",
-      "enable_success": "Aktiviert {{name}}",
-      "enabled": "Aktiviert",
-      "import": "Import",
-      "import_success": "Importierte {{name}}",
-      "imported": "Importiert",
-      "search_placeholder": "Systemfähigkeiten durchsuchen...",
-      "title": "Systemfähigkeiten"
+      "conflict": "[to be translated]:Name conflict",
+      "description": "[to be translated]:Import skills already installed on this system.",
+      "empty_description": "[to be translated]:No importable skills were found in other coding tools on this device.",
+      "empty_title": "[to be translated]:No skills available to import",
+      "enable_success": "[to be translated]:Enabled {{name}}",
+      "enabled": "[to be translated]:Enabled",
+      "import": "[to be translated]:Import",
+      "import_success": "[to be translated]:Imported {{name}}",
+      "imported": "[to be translated]:Imported",
+      "search_placeholder": "[to be translated]:Search system skills...",
+      "title": "[to be translated]:System skills"
     },
     "tag_picker": {
       "no_tags": "Noch keine Tags",
@@ -4788,7 +4788,7 @@
     "req_error_text": "Server ausgelastet oder Prompt enthält \"urheberrechtlich geschützte\" oder \"sensible Wörter\". Bitte erneut versuchen.",
     "req_error_token": "Bitte Token-Gültigkeit überprüfen",
     "required_field": "Pflichtfeld",
-    "revealing": "Enthüllung des generierten Bildes",
+    "revealing": "[to be translated]:Revealing generated image",
     "safety_tolerance": "Sicherheitstoleranz",
     "safety_tolerance_tip": "Höher = permissiverer Filter; 0 ist am strengsten, 6 ist am permissivsten",
     "seed": "Seed",
@@ -5643,8 +5643,43 @@
         "label": "Anwendungsprotokolle"
       },
       "backup": {
+        "legacy_local_unavailable": "[to be translated]:Legacy local backup controls are disabled. Use Backup / Restore above.",
         "skip_file_data_help": "Bilder und Wissensdatenbank-Dateien beim Backup überspringen, nur Chat-Verlauf und Einstellungen sichern. Spart Speicher und beschleunigt Backup",
         "skip_file_data_title": "Kompaktes Backup",
+        "v2": {
+          "export": {
+            "cancel_timeout": "[to be translated]:Cancel timed out. The backup may still be running.",
+            "cancelled": "[to be translated]:Backup cancelled.",
+            "failure": "[to be translated]:Backup failed.",
+            "phase": {
+              "archive": "[to be translated]:Creating archive…",
+              "collect": "[to be translated]:Collecting data…",
+              "journal": "[to be translated]:Writing journal…",
+              "merge": "[to be translated]:Merging data…",
+              "preflight": "[to be translated]:Checking disk space…",
+              "quiesce": "[to be translated]:Quiescing services…",
+              "relaunch": "[to be translated]:Relaunching…",
+              "snapshot": "[to be translated]:Copying database…",
+              "verify": "[to be translated]:Verifying backup…"
+            },
+            "running": "[to be translated]:Backing up…",
+            "selecting": "[to be translated]:Choose where to save the backup…",
+            "starting": "[to be translated]:Starting backup…",
+            "success": "[to be translated]:Backup completed."
+          },
+          "file_filter": "[to be translated]:Cherry Backup",
+          "preset": {
+            "full": "[to be translated]:Full backup (all data)",
+            "lite": "[to be translated]:Lite backup (chat & settings, no knowledge/files)"
+          },
+          "restore": {
+            "confirm_content": "[to be translated]:Restoring will replace current data and relaunch the app. Continue?",
+            "failure": "[to be translated]:Restore failed.",
+            "pick_prompt": "[to be translated]:Select a .cbu backup archive to restore.",
+            "relaunching": "[to be translated]:Restore staged. The app is relaunching…",
+            "selected": "[to be translated]:Selected archive:"
+          }
+        },
         "v2_unavailable": "Backup & Restore V2 ist noch nicht verfügbar. Bald erhältlich."
       },
       "clear_cache": {
@@ -7826,8 +7861,8 @@
   },
   "tab": {
     "close": "Tab schließen",
-    "close_others": "Andere Tabs schließen",
-    "close_to_right": "Tabs rechts schließen",
+    "close_others": "[to be translated]:Close Other Tabs",
+    "close_to_right": "[to be translated]:Close Tabs to the Right",
     "move_to_first": "Zum Anfang verschieben",
     "new": "Neuer Tab",
     "open_in_new_window": "In neuem Fenster öffnen",

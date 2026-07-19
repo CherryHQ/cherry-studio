@@ -5655,8 +5655,43 @@
         "label": "应用日志"
       },
       "backup": {
+        "legacy_local_unavailable": "旧版本地备份相关功能已停用，请使用上方的备份/恢复。",
         "skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
         "skip_file_data_title": "精简备份",
+        "v2": {
+          "export": {
+            "cancel_timeout": "取消超时。备份可能仍在进行。",
+            "cancelled": "备份已取消。",
+            "failure": "备份失败。",
+            "phase": {
+              "archive": "正在创建归档…",
+              "collect": "正在收集数据…",
+              "journal": "正在写入日志…",
+              "merge": "正在合并数据…",
+              "preflight": "正在检查磁盘空间…",
+              "quiesce": "正在静默服务…",
+              "relaunch": "正在重启…",
+              "snapshot": "正在复制数据库…",
+              "verify": "正在校验备份…"
+            },
+            "running": "正在备份…",
+            "selecting": "请选择备份保存位置…",
+            "starting": "正在启动备份…",
+            "success": "备份完成。"
+          },
+          "file_filter": "Cherry 备份",
+          "preset": {
+            "full": "完整备份（全部数据）",
+            "lite": "精简备份（聊天与设置，不含知识库/文件）"
+          },
+          "restore": {
+            "confirm_content": "恢复将替换当前数据并重启应用，是否继续？",
+            "failure": "恢复失败。",
+            "pick_prompt": "请选择要恢复的 .cbu 备份文件。",
+            "relaunching": "恢复已暂存，应用正在重启…",
+            "selected": "已选择的备份："
+          }
+        },
         "v2_unavailable": "V2 备份恢复尚未上线，敬请期待"
       },
       "clear_cache": {
