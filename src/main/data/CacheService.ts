@@ -23,6 +23,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
+import { validateSender } from '@main/core/security/validateSender'
 import type {
   InferSharedCacheValue,
   MainPersistCacheKey,
@@ -34,7 +35,7 @@ import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('CacheService')
@@ -774,6 +775,9 @@ export class CacheService extends BaseService {
   private registerIpcHandlers(): void {
     // Handle cache sync broadcast from renderer
     this.ipcOn(IpcChannel.Cache_Sync, (event, message: CacheSyncMessage) => {
+      // One-way channel: drop untrusted messages silently (no reply leg to carry an error).
+      if (!this.isTrustedSender(event, IpcChannel.Cache_Sync)) return
+
       const senderWindowId = BrowserWindow.fromWebContents(event.sender)?.id
 
       // Update Main's sharedCache when receiving shared type sync
@@ -810,10 +814,28 @@ export class CacheService extends BaseService {
     })
 
     // Handle getAllShared request for renderer initialization
-    this.ipcHandle(IpcChannel.Cache_GetAllShared, () => {
+    this.ipcHandle(IpcChannel.Cache_GetAllShared, (event) => {
+      if (!this.isTrustedSender(event, IpcChannel.Cache_GetAllShared)) {
+        throw new Error(`Rejected cache request from untrusted sender: ${IpcChannel.Cache_GetAllShared}`)
+      }
       return this.getAllShared()
     })
 
     logger.debug('Cache sync IPC handlers registered')
+  }
+
+  /**
+   * Source-trust gate for the Cache IPC channels: only the app's own top-level
+   * renderer frames pass (see `core/security/validateSender`; the ipcOn/ipcHandle sugar
+   * itself does not validate senders). Rejections are logged, not throttled —
+   * same stance as `IpcApiService.handleRequest`.
+   */
+  private isTrustedSender(event: IpcMainEvent | IpcMainInvokeEvent, channel: string): boolean {
+    if (validateSender(event)) return true
+    logger.warn(`Rejected cache message from untrusted sender: ${channel}`, {
+      senderType: event.sender?.getType(),
+      senderUrl: event.senderFrame?.url
+    })
+    return false
   }
 }

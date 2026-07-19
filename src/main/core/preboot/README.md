@@ -29,13 +29,19 @@ This directory holds that pre-bootstrap work.
 
 Code belongs in `core/preboot/` if **all** are true:
 
-1. It must run before `application.bootstrap()` is called.
-2. It only depends on Electron `app` top-level APIs and synchronously-loaded
+1. It must run before `application.bootstrap()` is called. Running before
+   bootstrap is a **timing contract, not directory ownership** — this
+   criterion is necessary but never sufficient on its own.
+2. It is **non-removable**: the app cannot start correctly without it.
+   Removable capabilities — even ones whose execution must happen during
+   the preboot phase — live in their nature-home (e.g. `services/`) and
+   are invoked from `main.ts` at the right point in the preboot sequence.
+3. It only depends on Electron `app` top-level APIs and synchronously-loaded
    modules (e.g. `BootConfigService`, `loggerService`).
-3. It directly performs side effects on global state (paths, command-line
+4. It directly performs side effects on global state (paths, command-line
    switches, file relocations) — or is a pure helper that supports a
    side-effecting preboot operation.
-4. It does **not** depend on any lifecycle-managed service (anything
+5. It does **not** depend on any lifecycle-managed service (anything
    accessed via `application.get(...)`). This is the real hard
    constraint: async preboot code is allowed when necessary, but
    depending on services that only exist after `application.bootstrap()`
@@ -169,7 +175,10 @@ preboot/
 │                        bootstrap. Calls resolveMigrationPaths() to
 │                        detect v1 legacy userData before engine init.
 │                        Temporary — scoped for deletion once all
-│                        users have migrated off v1.
+│                        users have migrated off v1. Its fat
+│                        orchestrating-gate shape is tolerated only
+│                        because it is throwaway — do not copy it for
+│                        permanent capabilities.
 └── __tests__/           unit tests for each sibling module
 ```
 
