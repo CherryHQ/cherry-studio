@@ -577,6 +577,54 @@ describe('ChatMigrator message block index', () => {
     vi.clearAllMocks()
   })
 
+  it('records bounded message content when SQLite rejects an oversized temporary-index write', async () => {
+    const canary = `PRIVATE_USER_MESSAGE_${'x'.repeat(90_000)}`
+    const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+    const oversizedBlock = { ...block('oversized', 'message-1'), content: canary }
+    const readInBatches = vi.fn(async (_batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
+      await onBatch([oversizedBlock])
+      return 1
+    })
+    const recordEvent = vi.fn()
+    const migrator = new ChatMigrator()
+    const internal = migrator as unknown as Record<string, unknown>
+    internal['blocksExist'] = true
+    const ctx = {
+      db: {
+        run: vi.fn(),
+        transaction: (operation: (tx: unknown) => void) =>
+          operation({
+            run: () => {
+              throw sqliteError
+            }
+          })
+      },
+      sources: {
+        dexieExport: {
+          createStreamReader: vi.fn().mockReturnValue({ readInBatches })
+        }
+      },
+      diagnostics: { recordEvent },
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+    } as unknown as MigrationContext
+    const prepareBlockIndex = internal['prepareBlockIndex'] as (ctx: MigrationContext) => Promise<void>
+
+    await expect(prepareBlockIndex.call(migrator, ctx)).rejects.toBe(sqliteError)
+
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'sqlite_too_big',
+        migratorId: 'chat',
+        payloadProfile: expect.objectContaining({
+          target: 'message',
+          slots: expect.arrayContaining([expect.objectContaining({ slot: 'payload', kind: 'string' })])
+        })
+      })
+    )
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_USER_MESSAGE')
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+  })
+
   it('resolves blocks from the temporary SQLite index without loading the full table into memory', async () => {
     const b1 = block('b1', 'u1')
     const b2 = block('b2', 'u1')

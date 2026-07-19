@@ -6,7 +6,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { DexieSettingsReader, type DexieSettingsRecord } from '../../utils/DexieSettingsReader'
@@ -32,7 +32,12 @@ interface SeedSources {
  * accepts. ElectronStore is stubbed to match the read-only contract on
  * `MigrationContext.sources.electronStore`.
  */
-function createTestContext(sources: SeedSources, db: unknown, filesDataDir?: string): MigrationContext {
+function createTestContext(
+  sources: SeedSources,
+  db: unknown,
+  filesDataDir?: string,
+  recordEvent = vi.fn()
+): MigrationContext {
   return {
     sources: {
       electronStore: {
@@ -57,7 +62,8 @@ function createTestContext(sources: SeedSources, db: unknown, filesDataDir?: str
       error: () => {},
       debug: () => {}
     },
-    paths: { filesDataDir }
+    paths: { filesDataDir },
+    diagnostics: { recordEvent }
   } as unknown as MigrationContext
 }
 
@@ -253,6 +259,46 @@ describe('PreferencesMigrator', () => {
   })
 
   describe('execute', () => {
+    it('records only bounded preference value shape when SQLite rejects an oversized row', async () => {
+      const recordEvent = vi.fn()
+      const canary = `PRIVATE_PREFERENCE_CANARY_${'x'.repeat(300_000)}`
+      const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+      const db = {
+        transaction: (operation: (tx: unknown) => void) =>
+          operation({
+            insert: () => ({
+              values: () => ({
+                run: () => {
+                  throw sqliteError
+                }
+              })
+            })
+          })
+      }
+      const ctx = createTestContext({ redux: { settings: { language: canary } } }, db, undefined, recordEvent)
+      await migrator.prepare(ctx)
+
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(false)
+      expect(recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scope: 'migrator',
+          phase: 'execute',
+          state: 'failed',
+          code: 'sqlite_too_big',
+          migratorId: 'preferences',
+          payloadProfile: expect.objectContaining({
+            target: 'preference',
+            maxProfiledRowByteLengthBucket: '262145+',
+            slots: [expect.objectContaining({ slot: 'value', kind: 'mixed' })]
+          })
+        })
+      )
+      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_PREFERENCE_CANARY')
+      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+    })
+
     it('writes rows with scope="default" and timestamps populated', async () => {
       const ctx = createTestContext({ redux: { settings: { language: 'zh-CN' } } }, dbh.db)
       const prep = await migrator.prepare(ctx)

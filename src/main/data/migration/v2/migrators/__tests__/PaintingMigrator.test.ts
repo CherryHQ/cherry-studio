@@ -62,7 +62,9 @@ function makeCtx(dbh: Dbh, paintingsState: Record<string, unknown>) {
         getCategory: vi.fn((name: string) => (name === 'paintings' ? paintingsState : undefined))
       }
     },
-    db: dbh.db
+    db: dbh.db,
+    diagnostics: { recordEvent: vi.fn() },
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
   } as never
 }
 
@@ -81,6 +83,44 @@ async function seedInternalFile(dbh: Dbh, id: string): Promise<void> {
 
 describe('PaintingMigrator painting_file_ref integration', () => {
   const dbh = setupTestDatabase()
+
+  it('records bounded painting lengths when SQLite rejects an oversized batch', async () => {
+    const canary = `PRIVATE_PAINTING_PROMPT_${'x'.repeat(90_000)}`
+    const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+    const migrator = new PaintingMigrator()
+    const ctx = makeCtx(dbh, {
+      dmxapi_paintings: [{ id: PAINTING_OUTPUT_ID, prompt: canary, files: [] }]
+    }) as any
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    ctx.db = {
+      transaction: (operation: (tx: unknown) => void) =>
+        operation({
+          insert: () => ({
+            values: () => ({
+              run: () => {
+                throw sqliteError
+              }
+            })
+          })
+        })
+    }
+
+    const result = await migrator.execute(ctx)
+
+    expect(result.success).toBe(false)
+    expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'sqlite_too_big',
+        migratorId: 'painting',
+        payloadProfile: expect.objectContaining({
+          target: 'painting',
+          slots: expect.arrayContaining([expect.objectContaining({ slot: 'prompt', kind: 'string' })])
+        })
+      })
+    )
+    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_PAINTING_PROMPT')
+    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+  })
 
   it('emits painting_file_ref rows for present file ids and inserts painting rows (happy path)', async () => {
     await seedInternalFile(dbh, FILE_PRESENT_OUTPUT_ID)

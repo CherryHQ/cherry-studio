@@ -72,7 +72,8 @@ function createMockContext(
       error: vi.fn(),
       debug: vi.fn()
     } as unknown as MigrationContext['logger'],
-    paths: {} as unknown as MigrationContext['paths']
+    paths: {} as unknown as MigrationContext['paths'],
+    diagnostics: { recordEvent: vi.fn() }
   }
 }
 
@@ -161,6 +162,42 @@ describe('PromptMigrator', () => {
   // ── execute ──────────────────────────────────────────────────────
 
   describe('execute', () => {
+    it('records bounded prompt lengths when SQLite rejects oversized content', async () => {
+      const canary = `PRIVATE_PROMPT_CANARY_${'x'.repeat(90_000)}`
+      const ctx = createMockContext({ tableData: [makePhrase({ content: canary })] })
+      const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((operation: (tx: unknown) => void) =>
+        operation({
+          insert: () => ({
+            values: () => ({
+              run: () => {
+                throw sqliteError
+              }
+            })
+          })
+        })
+      )
+      const migrator = new PromptMigrator()
+      await migrator.prepare(ctx)
+
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(false)
+      expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'sqlite_too_big',
+          migratorId: 'prompt',
+          payloadProfile: expect.objectContaining({
+            target: 'prompt',
+            slots: expect.arrayContaining([expect.objectContaining({ slot: 'content', kind: 'string' })])
+          })
+        })
+      )
+      expect(JSON.stringify((ctx.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)).not.toContain(
+        'PRIVATE_PROMPT_CANARY'
+      )
+    })
+
     it('should return immediately when no phrases prepared', async () => {
       const ctx = createMockContext({ tableExists: false })
       const migrator = new PromptMigrator()

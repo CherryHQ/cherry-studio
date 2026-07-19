@@ -54,8 +54,13 @@ import Store from 'electron-store'
 import fs from 'fs/promises'
 import path from 'path'
 
+import {
+  type ClassifiedMigrationError,
+  classifyMigrationError,
+  type MigrationDiagnosticEventInput
+} from '../diagnostics'
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
-import { createMigrationContext } from './MigrationContext'
+import { createMigrationContext, type MigrationAttemptDiagnostics } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
 
@@ -63,12 +68,29 @@ const logger = loggerService.withContext('MigrationEngine')
 
 const MIGRATION_V2_STATUS = 'migration_v2_status'
 
+const NOOP_MIGRATION_DIAGNOSTICS: MigrationAttemptDiagnostics = {
+  recordEvent: () => {},
+  finishAttempt: () => {},
+  complete: () => {}
+}
+
+class MigratorExecuteResultError extends Error {
+  constructor(
+    message: string,
+    readonly failureClassification?: ClassifiedMigrationError
+  ) {
+    super(message)
+    this.name = 'MigratorExecuteResultError'
+  }
+}
+
 export class MigrationEngine {
   private migrators: BaseMigrator[] = []
   private progressCallback?: (progress: MigrationProgress) => void
   private migrationDb: MigrationDbService | null = null
   private _paths: MigrationPaths | null = null
   private legacyDataConfirmed = false
+  private diagnostics: MigrationAttemptDiagnostics = NOOP_MIGRATION_DIAGNOSTICS
 
   get paths(): MigrationPaths {
     if (!this._paths) {
@@ -86,10 +108,32 @@ export class MigrationEngine {
    *   by needsMigration() so a redirected-but-electron-store-empty directory is
    *   never markCompleted-locked as a "fresh install".
    */
-  initialize(paths: MigrationPaths, legacyDataConfirmed = false): void {
+  initialize(
+    paths: MigrationPaths,
+    legacyDataConfirmed = false,
+    diagnostics: MigrationAttemptDiagnostics = NOOP_MIGRATION_DIAGNOSTICS
+  ): void {
     this._paths = paths
     this.legacyDataConfirmed = legacyDataConfirmed
-    this.migrationDb = MigrationDbService.create(paths)
+    this.diagnostics = diagnostics
+    this.recordDiagnosticEvent({
+      scope: 'database',
+      phase: 'initialize',
+      state: 'started',
+      code: 'unknown'
+    })
+    try {
+      this.migrationDb = MigrationDbService.create(paths)
+      this.recordDiagnosticEvent({
+        scope: 'database',
+        phase: 'initialize',
+        state: 'completed',
+        code: 'unknown'
+      })
+    } catch (error) {
+      this.recordClassifiedFailure('database', 'initialize', error)
+      throw error
+    }
   }
 
   /**
@@ -208,15 +252,18 @@ export class MigrationEngine {
       }
 
       // Safety check: verify new tables status before clearing
-      this.verifyAndClearNewTables()
+      await this.runDiagnosticBoundary('database', 'initialize', () => this.verifyAndClearNewTables())
 
       // Create migration context
-      const context = await createMigrationContext(
-        this.getDb(),
-        this.paths,
-        reduxData,
-        dexieExportPath,
-        localStorageExportPath
+      const context = await this.runDiagnosticBoundary('engine', 'initialize', () =>
+        createMigrationContext(
+          this.getDb(),
+          this.paths,
+          reduxData,
+          dexieExportPath,
+          localStorageExportPath,
+          this.diagnostics
+        )
       )
 
       for (let i = 0; i < this.migrators.length; i++) {
@@ -234,29 +281,55 @@ export class MigrationEngine {
         })
 
         // Phase 1: Prepare (includes dry-run validation)
-        const prepareResult = await migrator.prepare(context)
-        if (!prepareResult.success) {
-          const reason = prepareResult.error ?? prepareResult.warnings?.join(', ') ?? 'unknown reason'
-          throw new Error(`${migrator.name} prepare failed: ${reason}`)
-        }
+        const prepareResult = await this.runDiagnosticBoundary(
+          'migrator',
+          'prepare',
+          async () => {
+            const result = await migrator.prepare(context)
+            if (!result.success) {
+              const reason = result.error ?? result.warnings?.join(', ') ?? 'unknown reason'
+              throw new Error(`${migrator.name} prepare failed: ${reason}`)
+            }
+            return result
+          },
+          migrator.id
+        )
 
         logger.info(`${migrator.name} prepare completed`, { itemCount: prepareResult.itemCount })
 
         // Phase 2: Execute (each migrator manages its own transactions)
-        const executeResult = await migrator.execute(context)
-        if (!executeResult.success) {
-          throw new Error(`${migrator.name} execute failed: ${executeResult.error}`)
-        }
+        const executeResult = await this.runDiagnosticBoundary(
+          'migrator',
+          'execute',
+          async () => {
+            const { result, failureClassification } = await migrator.executeWithDiagnostics(context)
+            if (!result.success) {
+              throw new MigratorExecuteResultError(
+                `${migrator.name} execute failed: ${result.error}`,
+                failureClassification
+              )
+            }
+            return result
+          },
+          migrator.id
+        )
 
         logger.info(`${migrator.name} execute completed`, {
           processedCount: executeResult.processedCount
         })
 
         // Phase 3: Validate
-        const validateResult = await migrator.validate(context)
-
-        // Engine-level validation
-        this.validateMigratorResult(migrator, validateResult)
+        const validateResult = await this.runDiagnosticBoundary(
+          'migrator',
+          'validate',
+          async () => {
+            const result = await migrator.validate(context)
+            // Engine-level validation
+            this.validateMigratorResult(migrator, result)
+            return result
+          },
+          migrator.id
+        )
 
         logger.info(`${migrator.name} validation passed`, { stats: validateResult.stats })
 
@@ -283,10 +356,20 @@ export class MigrationEngine {
       }
 
       // Verify FK integrity after all inserts (FK was off during bulk inserts)
-      this.verifyForeignKeys()
+      await this.runDiagnosticBoundary('database', 'validate', () => this.verifyForeignKeys())
 
       // Mark migration completed
-      await this.markCompleted()
+      await this.runDiagnosticBoundary('database', 'finalize', () => this.markCompleted())
+
+      const attemptFinished = this.finishDiagnosticAttempt('completed', {
+        scope: 'engine',
+        phase: 'finalize',
+        state: 'completed',
+        code: 'unknown'
+      })
+      if (attemptFinished) {
+        this.completeDiagnostics()
+      }
 
       // Cleanup temporary files
       await this.cleanupTempFiles(dexieExportPath)
@@ -306,13 +389,43 @@ export class MigrationEngine {
         totalDuration: Date.now() - startTime
       }
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error))
+      // Classify while the original thrown value is still intact and before the
+      // migration-status write, whose own failure must remain secondary.
+      const originalClassification = this.classifyDiagnosticError(error)
+      const err = this.normalizeDisplayError(error)
       const errorMessage = err.message
 
       logger.error('Migration failed', err)
 
-      // Mark migration as failed with error details
-      await this.markFailed(errorMessage)
+      // Mark migration as failed with error details. A secondary status-write
+      // error is recorded independently and never replaces the migration error.
+      this.recordDiagnosticEvent({
+        scope: 'database',
+        phase: 'finalize',
+        state: 'started',
+        code: 'unknown'
+      })
+      try {
+        await this.markFailed(errorMessage)
+        this.recordDiagnosticEvent({
+          scope: 'database',
+          phase: 'finalize',
+          state: 'completed',
+          code: 'unknown'
+        })
+      } catch (statusError) {
+        logger.error('Failed to persist migration failure status', statusError as Error)
+        this.recordClassifiedFailure('database', 'finalize', statusError)
+      }
+
+      this.finishDiagnosticAttempt('failed', {
+        scope: 'engine',
+        phase: 'finalize',
+        state: 'failed',
+        category: originalClassification.category,
+        code: originalClassification.code,
+        causeDepth: originalClassification.causeDepth
+      })
 
       return {
         success: false,
@@ -320,6 +433,98 @@ export class MigrationEngine {
         totalDuration: Date.now() - startTime,
         error: errorMessage
       }
+    }
+  }
+
+  private async runDiagnosticBoundary<T>(
+    scope: MigrationDiagnosticEventInput['scope'],
+    phase: MigrationDiagnosticEventInput['phase'],
+    operation: () => T | Promise<T>,
+    migratorId?: string
+  ): Promise<T> {
+    this.recordDiagnosticEvent({
+      scope,
+      phase,
+      state: 'started',
+      code: 'unknown',
+      ...(migratorId ? { migratorId } : {})
+    })
+    try {
+      const result = await operation()
+      this.recordDiagnosticEvent({
+        scope,
+        phase,
+        state: 'completed',
+        code: 'unknown',
+        ...(migratorId ? { migratorId } : {})
+      })
+      return result
+    } catch (error) {
+      this.recordClassifiedFailure(scope, phase, error, migratorId)
+      throw error
+    }
+  }
+
+  private recordClassifiedFailure(
+    scope: MigrationDiagnosticEventInput['scope'],
+    phase: MigrationDiagnosticEventInput['phase'],
+    error: unknown,
+    migratorId?: string
+  ): void {
+    const classification = this.classifyDiagnosticError(error)
+    this.recordDiagnosticEvent({
+      scope,
+      phase,
+      state: 'failed',
+      category: classification.category,
+      code: classification.code,
+      causeDepth: classification.causeDepth,
+      ...(migratorId ? { migratorId } : {})
+    })
+  }
+
+  private recordDiagnosticEvent(input: MigrationDiagnosticEventInput): void {
+    try {
+      this.diagnostics.recordEvent(input)
+    } catch {
+      logger.error('Failed to record bounded migration diagnostic event')
+    }
+  }
+
+  private classifyDiagnosticError(error: unknown): ClassifiedMigrationError {
+    if (error instanceof MigratorExecuteResultError && error.failureClassification) {
+      return error.failureClassification
+    }
+    return classifyMigrationError(error)
+  }
+
+  private finishDiagnosticAttempt(
+    outcome: 'completed' | 'failed',
+    terminalInput: MigrationDiagnosticEventInput
+  ): boolean {
+    try {
+      this.diagnostics.finishAttempt(outcome, terminalInput)
+      return true
+    } catch {
+      logger.error('Failed to record bounded migration diagnostic terminal event')
+      return false
+    }
+  }
+
+  private completeDiagnostics(): void {
+    try {
+      this.diagnostics.complete()
+    } catch {
+      logger.error('Failed to clean up completed migration diagnostics')
+    }
+  }
+
+  private normalizeDisplayError(error: unknown): Error {
+    if (error instanceof Error) return error
+    try {
+      return new Error(String(error))
+    } catch {
+      return new Error('Unknown migration error')
     }
   }
 

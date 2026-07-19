@@ -69,7 +69,9 @@ function createContext(
     },
     db,
     sharedData: new Map(),
-    paths: { filesDataDir }
+    paths: { filesDataDir },
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    diagnostics: { recordEvent: vi.fn() }
   } as unknown as MigrationContext
 }
 
@@ -178,6 +180,87 @@ describe('ProviderModelMigrator', () => {
   })
 
   describe('execute', () => {
+    it('records bounded provider lengths when SQLite rejects an oversized row', async () => {
+      const endpointCanary = `https://PRIVATE_PROVIDER_ENDPOINT_${'x'.repeat(90_000)}`
+      const apiKeyCanary = `PRIVATE_PROVIDER_API_KEY_${'x'.repeat(90_000)}`
+      const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [{ ...makeProvider('oversized'), apiHost: endpointCanary, apiKey: apiKeyCanary }]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const originalDb = migrationContext.db
+      migrationContext.db = new Proxy(originalDb, {
+        get(target, property) {
+          if (property === 'transaction') {
+            return (operation: (tx: any) => unknown) =>
+              target.transaction((tx) => {
+                const diagnosedTx = new Proxy(tx, {
+                  get(txTarget, txProperty) {
+                    if (txProperty !== 'insert') return Reflect.get(txTarget, txProperty, txTarget)
+                    return (table: unknown) => {
+                      const insert = txTarget.insert(table as never)
+                      return new Proxy(insert, {
+                        get(insertTarget, insertProperty) {
+                          if (insertProperty !== 'values')
+                            return Reflect.get(insertTarget, insertProperty, insertTarget)
+                          return (rows: unknown) => {
+                            const values = insertTarget.values(rows as never)
+                            const providerId = (rows as { providerId?: string }).providerId
+                            if (providerId !== 'oversized') return values
+                            return new Proxy(values, {
+                              get(valuesTarget, valuesProperty) {
+                                if (valuesProperty === 'run') {
+                                  return () => {
+                                    throw sqliteError
+                                  }
+                                }
+                                return Reflect.get(valuesTarget, valuesProperty, valuesTarget)
+                              }
+                            })
+                          }
+                        }
+                      })
+                    }
+                  }
+                })
+                return operation(diagnosedTx)
+              })
+          }
+          const value = Reflect.get(target, property, target)
+          return typeof value === 'function' ? value.bind(target) : value
+        }
+      })
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(false)
+      expect(migrationContext.diagnostics.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'sqlite_too_big',
+          migratorId: 'provider_model',
+          payloadProfile: expect.objectContaining({
+            target: 'user_provider',
+            slots: expect.arrayContaining([
+              expect.objectContaining({ slot: 'endpointConfigs', kind: 'json' }),
+              expect.objectContaining({ slot: 'apiKeys', kind: 'json' })
+            ])
+          })
+        })
+      )
+      expect(
+        JSON.stringify((migrationContext.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)
+      ).not.toContain('PRIVATE_PROVIDER_ENDPOINT')
+      expect(
+        JSON.stringify((migrationContext.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)
+      ).not.toContain('PRIVATE_PROVIDER_API_KEY')
+      expect(
+        JSON.stringify((migrationContext.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)
+      ).not.toContain('/Users/alice')
+    })
+
     it('returns success with zero count when no providers', async () => {
       const migrationContext = createContext(dbh.db, { llm: {} })
       await migrator.prepare(migrationContext)

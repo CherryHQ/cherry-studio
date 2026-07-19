@@ -117,7 +117,7 @@ pnpm exec vitest run --project main \
 
 - [ ] **步骤 3：实现最小代码**
 
-所有 schema `.strict()`；错误只输出固定 category/code/causeDepth，unknown 不调用 `String()`/`toString()`。Profiler 只读 descriptor 声明的顶层 slot，最长深度 8、最多 1,024 节点、64 字段、5 ms；长度仅映射到 `0`、`1-256`、`257-4096`、`4097-65536`、`65537-262144`、`262145+`。
+所有 schema `.strict()`；错误只输出固定 category/code/causeDepth，unknown 不调用 `String()`/`toString()`。Profiler 只读 descriptor 声明的顶层 slot，最长深度 8、最多 1,024 节点、64 字段、5 ms；长度仅映射到 `0`、`1-256`、`257-4096`、`4097-65536`、`65537-262144`、`262145+`。先按首尾交替顺序做 O(1) 浅层扫描（字符串 `.length`、typed array `byteLength`，达到最大桶即饱和），再在剩余预算内精确计算小字符串 UTF-8 和有界 JSON，避免前部慢行耗尽预算后漏掉尾部超长值。
 
 ```ts
 export const migrationErrorCodeSchema = z.enum([
@@ -202,22 +202,22 @@ pnpm exec vitest run --project main \
 
 | 文件 | target | 仅统计 slot |
 |---|---|---|
-| `PreferencesMigrator.ts` | `preference` | `value` |
-| `AssistantMigrator.ts` | `assistant`, `assistant_relation` | `name`, `prompt`, `description` |
+| `PreferencesMigrator.ts` | `preference`, `file_entry` | `value`; `name`, `externalPath` |
+| `AssistantMigrator.ts` | `assistant`, `assistant_relation` | `name`, `prompt`, `description`; relation/tag 写入仅 `name` |
 | `McpServerMigrator.ts` | `mcp_server` | `name`, `command`, `args`, `env` |
-| `ProviderModelMigrator.ts` | `user_provider`, `user_model` | `name`, `apiHost`, `apiKey`, `config` |
-| `MiniAppMigrator.ts` | `mini_app` | `name`, `url`, `logo` |
-| `FileMigrator.ts` | `file_entry` | `name`, `path`, `metadata` |
-| `KnowledgeMigrator.ts` | `knowledge_base`, `knowledge_item` | `name`, `content`, `metadata` |
-| `ChatMigrator.ts` | `topic`, `message`, `file_ref`, `pin` | `name`, `content`, `metadata` |
-| `PaintingMigrator.ts` | `painting`, `file_ref` | `prompt`, `negativePrompt`, `metadata` |
-| `TranslateMigrator.ts` | `translate_language`, `translate_history` | `name`, `sourceText`, `targetText` |
-| `PromptMigrator.ts` | `prompt` | `name`, `content` |
-| `NoteMigrator.ts` | `note` | `title`, `content` |
-| `AgentsMigrator.ts` | `agent_task`, `agent_message`, `agent_relation` | `title`, `content`, `metadata` |
-| `KnowledgeVectorMigrator.ts` | `knowledge_vector_status` | `error`, `metadata` |
+| `ProviderModelMigrator.ts` | `user_provider`, `user_model`, `file_entry` | provider 的 `name`, `endpointConfigs`, `apiKeys`, `authConfig`, `apiFeatures`, `providerSettings`, `logoKey`; model 的 `name`, `description`, `capabilities`, `inputModalities`, `outputModalities`, `endpointTypes`, `customEndpointUrl`, `reasoning`, `parameters`, `pricing`, `notes`, `userOverrides`; file entry 的 `name`, `externalPath` |
+| `MiniAppMigrator.ts` | `mini_app`, `file_entry` | `name`, `url`, `logoKey`, `background`, `supportedRegions`, `configuration`, `nameKey`; file entry 的 `name`, `externalPath` |
+| `FileMigrator.ts` | `file_entry` | `name`, `externalPath` |
+| `KnowledgeMigrator.ts` | `knowledge_base`, `knowledge_item` | `name`, `chunkSeparator`; `data` |
+| `ChatMigrator.ts` | `topic`, `message`, `file_ref`, `pin` | `name`; message 的 `data`, `searchableText`, `messageSnapshot`, `stats`; 临时 block 索引的实际 `payload`; 纯引用写入不统计 slot |
+| `PaintingMigrator.ts` | `painting`, `file_ref` | `prompt`; 纯引用写入不统计 slot |
+| `TranslateMigrator.ts` | `translate_language`, `translate_history` | `value`, `emoji`; `sourceText`, `targetText` |
+| `PromptMigrator.ts` | `prompt` | `content` |
+| `NoteMigrator.ts` | `note` | `rootPath`, `path` |
+| `AgentsMigrator.ts` | `agent_task`, `agent_message`, `agent_workspace`, `agent_relation` | task 的 `name`, `trigger`, `jobInputTemplate`, `catchUpPolicy`, `metadata`; message 的 `data`, `searchableText`, `messageSnapshot`, `stats`; workspace 的 `name`, `path`; 纯引用写入不统计 slot |
+| `KnowledgeVectorMigrator.ts` | `knowledge_vector_status` | `error`, `data` |
 
-`logoMigration.ts` 的 file entry 也经 helper。原始 `INSERT ... SELECT` 只记录固定 source/phase/category，不伪造内存 profile。每个被改 migrator 增加一条 `SQLITE_TOOBIG` 测试。
+slot 必须是传给 SQLite 的实际顶层字段，不为旧字段名建立隐式别名。`logoMigration.ts` 的 file entry 也经 helper。原始 `INSERT ... SELECT` 只记录固定 source/phase/category，不伪造内存 profile。每个被改 migrator 增加一条 `SQLITE_TOOBIG` 测试。
 
 - [ ] **步骤 4：运行所有 migration v2 main tests，预期 PASS；提交**
 

@@ -24,6 +24,7 @@ import Database from 'better-sqlite3'
 import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { PayloadProfileDescriptor } from '../diagnostics'
 import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
@@ -42,6 +43,16 @@ import {
 import { legacyModelToUniqueId, resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('KnowledgeMigrator')
+
+const KNOWLEDGE_BASE_PROFILE = {
+  target: 'knowledge_base',
+  fields: ['name', 'chunkSeparator']
+} as const satisfies PayloadProfileDescriptor
+
+const KNOWLEDGE_ITEM_PROFILE = {
+  target: 'knowledge_item',
+  fields: ['data']
+} as const satisfies PayloadProfileDescriptor
 
 const ITEM_INSERT_BATCH_SIZE = 200
 const LOOKUP_STREAM_BATCH_SIZE = 200
@@ -931,12 +942,16 @@ export class KnowledgeMigrator extends BaseMigrator {
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
         ctx.db.transaction((tx) => {
-          tx.insert(knowledgeBaseTable).values(base).run()
+          this.runDiagnosedWrite(ctx, KNOWLEDGE_BASE_PROFILE, [base], () =>
+            tx.insert(knowledgeBaseTable).values(base).run()
+          )
           transactionProcessed += 1
 
           for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
             const batch = baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
-            tx.insert(knowledgeItemTable).values(batch).run()
+            this.runDiagnosedWrite(ctx, KNOWLEDGE_ITEM_PROFILE, batch, () =>
+              tx.insert(knowledgeItemTable).values(batch).run()
+            )
             transactionProcessed += batch.length
           }
 

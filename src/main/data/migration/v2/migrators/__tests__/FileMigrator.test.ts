@@ -100,6 +100,7 @@ function createMockContext(rows: FileMetadata[], overrides: Record<string, unkno
     sharedData: new Map<string, unknown>(),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     paths: { userData: MOCK_USER_DATA },
+    diagnostics: { recordEvent: vi.fn() },
     ...overrides
   }
 
@@ -133,6 +134,35 @@ describe('FileMigrator registration', () => {
 describe('FileMigrator id preservation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('records bounded file-entry lengths when SQLite rejects an oversized batch', async () => {
+    const canary = `PRIVATE_FILE_NAME_${'x'.repeat(90_000)}`
+    const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+    const { ctx, insertValues } = createMockContext([makeInternalRow({ name: canary, origin_name: canary })])
+    insertValues.mockReturnValue({
+      run: () => {
+        throw sqliteError
+      }
+    })
+    const migrator = new FileMigrator()
+    await migrator.prepare(ctx as never)
+
+    const result = await migrator.execute(ctx as never)
+
+    expect(result.success).toBe(false)
+    expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'sqlite_too_big',
+        migratorId: 'file',
+        payloadProfile: expect.objectContaining({
+          target: 'file_entry',
+          slots: expect.arrayContaining([expect.objectContaining({ slot: 'name', kind: 'string' })])
+        })
+      })
+    )
+    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_FILE_NAME')
+    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
   })
 
   it('preserves v7 ids verbatim into file_entry', async () => {

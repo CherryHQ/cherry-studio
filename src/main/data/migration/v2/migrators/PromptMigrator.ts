@@ -17,10 +17,16 @@ import { PROMPT_CONTENT_MAX } from '@shared/data/types/prompt'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { PayloadProfileDescriptor } from '../diagnostics'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('PromptMigrator')
+
+const PROMPT_PROFILE = {
+  target: 'prompt',
+  fields: ['content']
+} as const satisfies PayloadProfileDescriptor
 
 type PromptInsertRow = typeof promptTable.$inferInsert
 
@@ -132,7 +138,7 @@ export class PromptMigrator extends BaseMigrator {
       }
 
       db.transaction((tx) => {
-        tx.insert(promptTable).values(rows).run()
+        this.runDiagnosedWrite(ctx, PROMPT_PROFILE, rows, () => tx.insert(promptTable).values(rows).run())
       })
 
       logger.info('Prompt migration completed', { processedCount: rows.length })

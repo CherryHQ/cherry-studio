@@ -39,6 +39,7 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       error: vi.fn(),
       debug: vi.fn()
     },
+    diagnostics: { recordEvent: vi.fn() },
     insertedRows
   }
 }
@@ -165,6 +166,42 @@ describe('McpServerMigrator', () => {
   })
 
   describe('execute', () => {
+    it('records bounded MCP payload lengths when SQLite rejects an oversized batch', async () => {
+      const canary = `PRIVATE_MCP_KEY_${'x'.repeat(300_000)}`
+      const ctx = createMockContext({
+        mcp: { servers: [{ id: 'oversized', name: 'server', type: 'stdio', env: { SECRET: canary } }] }
+      })
+      const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+      ctx.db.transaction = vi.fn((operation: (tx: unknown) => void) =>
+        operation({
+          insert: () => ({
+            values: () => ({
+              run: () => {
+                throw sqliteError
+              }
+            })
+          })
+        })
+      )
+      await migrator.prepare(ctx as any)
+
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(false)
+      expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'sqlite_too_big',
+          migratorId: 'mcp_server',
+          payloadProfile: expect.objectContaining({
+            target: 'mcp_server',
+            slots: expect.arrayContaining([expect.objectContaining({ slot: 'env', kind: 'json' })])
+          })
+        })
+      )
+      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_MCP_KEY')
+      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+    })
+
     it('should insert servers into database', async () => {
       const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
       await migrator.prepare(ctx as any)

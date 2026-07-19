@@ -33,6 +33,7 @@ import type { ApiFeatures, EndpointConfig } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { PayloadProfileDescriptor } from '../diagnostics'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
@@ -50,6 +51,34 @@ const logger = loggerService.withContext('ProviderModelMigrator')
 
 const BATCH_SIZE = 100
 const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'tokenflux'])
+
+const USER_PROVIDER_PROFILE = {
+  target: 'user_provider',
+  fields: ['name', 'endpointConfigs', 'apiKeys', 'authConfig', 'apiFeatures', 'providerSettings', 'logoKey']
+} as const satisfies PayloadProfileDescriptor
+
+const USER_MODEL_PROFILE = {
+  target: 'user_model',
+  fields: [
+    'name',
+    'description',
+    'capabilities',
+    'inputModalities',
+    'outputModalities',
+    'endpointTypes',
+    'customEndpointUrl',
+    'reasoning',
+    'parameters',
+    'pricing',
+    'notes',
+    'userOverrides'
+  ]
+} as const satisfies PayloadProfileDescriptor
+
+const FILE_ENTRY_PROFILE = {
+  target: 'file_entry',
+  fields: ['name', 'externalPath']
+} as const satisfies PayloadProfileDescriptor
 
 const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
   prepare: 'provider_model_prepare_failed',
@@ -451,7 +480,9 @@ export class ProviderModelMigrator extends BaseMigrator {
         // needs them); the ref rows themselves go in after the owner rows exist
         // (their `source_id` FK needs the provider), below.
         for (const logoFile of providerLogoFiles) {
-          insertPreparedImageEntryTx(tx, logoFile)
+          this.runDiagnosedWrite(ctx, FILE_ENTRY_PROFILE, [logoFile.fileEntry], () =>
+            insertPreparedImageEntryTx(tx, logoFile)
+          )
         }
 
         const [lastProvider] = tx
@@ -473,7 +504,9 @@ export class ProviderModelMigrator extends BaseMigrator {
         for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
           const provider = this.providers[providerIndex]
           const providerRow = providerRows[providerIndex]
-          tx.insert(userProviderTable).values(providerRow).run()
+          this.runDiagnosedWrite(ctx, USER_PROVIDER_PROFILE, [providerRow], () =>
+            tx.insert(userProviderTable).values(providerRow).run()
+          )
           processedProviders++
 
           // Model dedup + invalid-id filtering happens in prepare(); use the
@@ -489,7 +522,9 @@ export class ProviderModelMigrator extends BaseMigrator {
             const batch = modelRows.slice(modelIndex, modelIndex + BATCH_SIZE)
 
             if (batch.length > 0) {
-              tx.insert(userModelTable).values(batch).run()
+              this.runDiagnosedWrite(ctx, USER_MODEL_PROFILE, batch, () =>
+                tx.insert(userModelTable).values(batch).run()
+              )
               processedModels += batch.length
             }
           }

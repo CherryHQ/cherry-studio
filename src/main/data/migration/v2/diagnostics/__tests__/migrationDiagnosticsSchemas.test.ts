@@ -4,6 +4,7 @@ import {
   MIGRATION_ERROR_CODES,
   migrationDiagnosticEventSchema,
   migrationDiagnosticsSessionSchema,
+  PAYLOAD_PROFILE_SLOTS,
   payloadLengthProfileSchema
 } from '../migrationDiagnosticsSchemas'
 
@@ -20,6 +21,26 @@ const validEvent = {
 describe('migrationDiagnosticEventSchema', () => {
   it('accepts only the fixed event fields', () => {
     expect(migrationDiagnosticEventSchema.parse(validEvent)).toEqual(validEvent)
+  })
+
+  it('accepts only bounded error classification metadata', () => {
+    expect(
+      migrationDiagnosticEventSchema.parse({
+        ...validEvent,
+        category: 'database_write',
+        causeDepth: 4
+      })
+    ).toEqual({
+      ...validEvent,
+      category: 'database_write',
+      causeDepth: 4
+    })
+    expect(
+      migrationDiagnosticEventSchema.safeParse({ ...validEvent, category: 'dynamic-category', causeDepth: 0 }).success
+    ).toBe(false)
+    expect(
+      migrationDiagnosticEventSchema.safeParse({ ...validEvent, category: 'database_write', causeDepth: 5 }).success
+    ).toBe(false)
   })
 
   it.each(['rawError', 'message', 'stack', 'unknownKey'])('rejects the arbitrary %s field', (field) => {
@@ -58,6 +79,27 @@ describe('migrationDiagnosticEventSchema', () => {
       'worker_timeout',
       'archive_write'
     ])
+  })
+
+  it('uses fixed real insert fields for payload profiles', () => {
+    expect(PAYLOAD_PROFILE_SLOTS).toEqual(
+      expect.arrayContaining([
+        'data',
+        'searchableText',
+        'endpointConfigs',
+        'apiKeys',
+        'providerSettings',
+        'rootPath',
+        'externalPath',
+        'logoKey',
+        'value',
+        'emoji',
+        'jobInputTemplate'
+      ])
+    )
+    expect(PAYLOAD_PROFILE_SLOTS).not.toEqual(
+      expect.arrayContaining(['apiHost', 'apiKey', 'config', 'logo', 'negativePrompt', 'title'])
+    )
   })
 
   it('rejects unknown keys in nested payload profiles and slot variants', () => {

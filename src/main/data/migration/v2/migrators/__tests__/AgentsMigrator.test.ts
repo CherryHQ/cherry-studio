@@ -212,6 +212,41 @@ describe('AgentsMigrator', () => {
     expect(executed.some((stmt) => stmt?.startsWith('DELETE FROM agent'))).toBe(false)
   })
 
+  it('records only fixed classification when an INSERT SELECT is too large', async () => {
+    const sqliteError = Object.assign(new Error('PRIVATE_AGENT_CONTENT_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+    const run = vi.fn((statement) => {
+      const rawSql = statement.queryChunks[0]?.value?.[0]
+      if (typeof rawSql === 'string' && rawSql.startsWith('INSERT INTO agent ')) {
+        throw sqliteError
+      }
+    })
+    const recordEvent = vi.fn()
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
+    await migrator.prepare(createMigrationContext())
+
+    const migrationContext = createMigrationContext({
+      db: { run },
+      diagnostics: { recordEvent },
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+    })
+    await expect(migrator.execute(migrationContext)).rejects.toBe(sqliteError)
+
+    expect(recordEvent).toHaveBeenCalledWith({
+      scope: 'migrator',
+      phase: 'execute',
+      state: 'failed',
+      category: 'database_write',
+      code: 'sqlite_too_big',
+      causeDepth: 0,
+      migratorId: 'agents'
+    })
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_AGENT_CONTENT')
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('INSERT INTO')
+  })
+
   it('validate fails when imported table counts are lower than the expected filtered counts', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
@@ -389,7 +424,7 @@ describe('AgentsMigrator', () => {
         { agentId: 'agent-1', oldMcpId: 'mcp-b' },
         { agentId: 'agent-2', oldMcpId: 'mcp-a' }
       ])
-      const onConflictDoNothing = vi.fn().mockResolvedValue(undefined)
+      const onConflictDoNothing = vi.fn().mockReturnValue({ run: vi.fn() })
       const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
       const insert = vi.fn().mockReturnValue({ values: valuesFn })
       const mapping = new Map([
@@ -420,7 +455,7 @@ describe('AgentsMigrator', () => {
         { agentId: 'agent-1', oldMcpId: 'mcp-a' },
         { agentId: 'agent-1', oldMcpId: 'mcp-gone' }
       ])
-      const onConflictDoNothing = vi.fn().mockResolvedValue(undefined)
+      const onConflictDoNothing = vi.fn().mockReturnValue({ run: vi.fn() })
       const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
       const insert = vi.fn().mockReturnValue({ values: valuesFn })
       const mapping = new Map([['mcp-a', 'new-a']])

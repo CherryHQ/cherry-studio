@@ -67,7 +67,8 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn()
-    }
+    },
+    diagnostics: { recordEvent: vi.fn() }
   }
 }
 
@@ -424,6 +425,42 @@ describe('AssistantMigrator', () => {
   })
 
   describe('execute', () => {
+    it('records bounded assistant lengths when SQLite rejects an oversized batch', async () => {
+      const canary = `PRIVATE_ASSISTANT_PROMPT_${'x'.repeat(90_000)}`
+      const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+      const ctx = createMockContext({
+        assistants: { assistants: [{ id: 'oversized', name: 'Assistant', prompt: canary }], presets: [] }
+      })
+      ctx.db.transaction = vi.fn((operation: (tx: unknown) => void) =>
+        operation({
+          insert: () => ({
+            values: () => ({
+              run: () => {
+                throw sqliteError
+              }
+            })
+          })
+        })
+      ) as any
+      await migrator.prepare(ctx as any)
+
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(false)
+      expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'sqlite_too_big',
+          migratorId: 'assistant',
+          payloadProfile: expect.objectContaining({
+            target: 'assistant',
+            slots: expect.arrayContaining([expect.objectContaining({ slot: 'prompt', kind: 'string' })])
+          })
+        })
+      )
+      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_ASSISTANT_PROMPT')
+      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+    })
+
     it('should insert assistants into database', async () => {
       const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
       ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))

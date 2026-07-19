@@ -12,9 +12,15 @@ import { SafeExtSchema } from '@shared/types/file'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { PayloadProfileDescriptor } from '../diagnostics'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('FileMigrator')
+
+const FILE_ENTRY_PROFILE = {
+  target: 'file_entry',
+  fields: ['name', 'externalPath']
+} as const satisfies PayloadProfileDescriptor
 
 const BATCH_SIZE = 500
 const VALIDATE_SAMPLE_LIMIT = 10
@@ -317,7 +323,7 @@ export class FileMigrator extends BaseMigrator {
         const batch = this.preparedEntries.slice(i, i + BATCH_SIZE)
 
         ctx.db.transaction((tx) => {
-          tx.insert(fileEntryTable).values(batch).run()
+          this.runDiagnosedWrite(ctx, FILE_ENTRY_PROFILE, batch, () => tx.insert(fileEntryTable).values(batch).run())
         })
 
         processed += batch.length

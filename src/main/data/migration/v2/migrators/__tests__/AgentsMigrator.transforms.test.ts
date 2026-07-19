@@ -7,6 +7,8 @@ import { eq, sql } from 'drizzle-orm'
 import { validate as isUuid } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import type { PayloadLengthProfile, PayloadProfileDescriptor } from '../../diagnostics'
+import { profilePayloadLengths } from '../../diagnostics'
 import { importLegacySessionMessages } from '../AgentsMigrator'
 import { createEmptyAgentsSchemaInfo } from '../mappings/AgentsDbMappings'
 
@@ -63,7 +65,10 @@ describe('importLegacySessionMessages', () => {
     insertedSessions.push(id)
   }
 
-  async function importLegacyRows(rows: LegacyMessageRow[]): Promise<number> {
+  async function importLegacyRows(
+    rows: LegacyMessageRow[],
+    diagnoseWrite?: <T>(descriptor: PayloadProfileDescriptor, rows: readonly unknown[], write: () => T) => T
+  ): Promise<number> {
     dbh.db.run(sql.raw("ATTACH DATABASE ':memory:' AS agents_legacy"))
     try {
       dbh.db.run(
@@ -101,7 +106,7 @@ describe('importLegacySessionMessages', () => {
         columns: new Set(['id', 'session_id', 'role', 'content', 'agent_session_id', 'created_at', 'updated_at'])
       }
 
-      return await importLegacySessionMessages(dbh.db, schemaInfo)
+      return await importLegacySessionMessages(dbh.db, schemaInfo, undefined, diagnoseWrite)
     } finally {
       dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
     }
@@ -138,6 +143,41 @@ describe('importLegacySessionMessages', () => {
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hello' }] })
     expect(JSON.stringify(row.data)).not.toContain('"message"')
     expect(row.runtimeResumeToken).toBe('sdk-1')
+  })
+
+  it('profiles the actual agent message data field without retaining its value', async () => {
+    await seedSession('s-diagnostics')
+    const canary = `PRIVATE_AGENT_MESSAGE_${'x'.repeat(10_000)}`
+    const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+    let profile: PayloadLengthProfile | undefined
+    const diagnoseWrite = <T>(descriptor: PayloadProfileDescriptor, rows: readonly unknown[], write: () => T): T => {
+      void write
+      profile = profilePayloadLengths(rows, descriptor)
+      throw sqliteError
+    }
+
+    await expect(
+      importLegacyRows(
+        [
+          {
+            id: 4,
+            sessionId: 's-diagnostics',
+            role: 'user',
+            content: { parts: [{ type: 'text', text: canary }] }
+          }
+        ],
+        diagnoseWrite
+      )
+    ).rejects.toBe(sqliteError)
+
+    expect(profile).toEqual(
+      expect.objectContaining({
+        target: 'agent_message',
+        slots: expect.arrayContaining([expect.objectContaining({ slot: 'data', kind: 'json' })])
+      })
+    )
+    expect(JSON.stringify(profile)).not.toContain('PRIVATE_AGENT_MESSAGE')
+    expect(JSON.stringify(profile)).not.toContain('/Users/alice')
   })
 
   it('converts legacy block envelopes during import without a second pass', async () => {

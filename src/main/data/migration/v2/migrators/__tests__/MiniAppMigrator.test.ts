@@ -7,7 +7,7 @@ import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { MiniAppMigrator } from '../MiniAppMigrator'
@@ -36,7 +36,8 @@ function createTestContext(reduxData: Record<string, unknown> = {}, db: any) {
       error: () => {},
       debug: () => {}
     } as any,
-    paths: {} as any
+    paths: {} as any,
+    diagnostics: { recordEvent: vi.fn() }
   }
 }
 
@@ -297,6 +298,48 @@ describe('MiniAppMigrator', () => {
   })
 
   describe('execute', () => {
+    it('records bounded mini-app lengths when SQLite rejects an oversized batch', async () => {
+      const canary = `PRIVATE_MINI_APP_LOGO_${'x'.repeat(90_000)}`
+      const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+      const ctx = createTestContext(
+        {
+          minapps: {
+            enabled: [{ id: 'oversized', name: 'Oversized logo', url: 'https://example.com', logo: canary }]
+          }
+        },
+        dbh.db
+      ) as any
+      await migrator.prepare(ctx)
+      ctx.db = {
+        transaction: (operation: (tx: unknown) => void) =>
+          operation({
+            insert: () => ({
+              values: () => ({
+                run: () => {
+                  throw sqliteError
+                }
+              })
+            })
+          })
+      }
+
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(false)
+      expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'sqlite_too_big',
+          migratorId: 'miniapp',
+          payloadProfile: expect.objectContaining({
+            target: 'mini_app',
+            slots: expect.arrayContaining([expect.objectContaining({ slot: 'logoKey', kind: 'string' })])
+          })
+        })
+      )
+      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_MINI_APP_LOGO')
+      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+    })
+
     it('should return success with 0 when no prepared rows', async () => {
       const ctx = createTestContext({}, dbh.db) as any
       const result = await migrator.execute(ctx)

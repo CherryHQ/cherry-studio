@@ -193,6 +193,28 @@ describe('profilePayloadLengths', () => {
     expect(result.traversal).toBe('truncated')
   })
 
+  it('finds a trailing oversized string before spending the deadline on exact UTF-8 measurements', () => {
+    const expensiveButBelowThreshold = '你'.repeat(65_536)
+    const rows = [
+      ...Array.from({ length: 128 }, () => ({ content: expensiveButBelowThreshold })),
+      { content: 'x'.repeat(262_145) }
+    ]
+
+    const result = profilePayloadLengths(rows, messageContent)
+
+    expect(result.traversal).toBe('truncated')
+    expect(result.maxProfiledRowByteLengthBucket).toBe('262145+')
+    expect(result.slots).toEqual([
+      {
+        slot: 'content',
+        kind: 'string',
+        totalByteLengthBucket: '262145+',
+        maxCharLengthBucket: '262145+',
+        maxByteLengthBucket: '262145+'
+      }
+    ])
+  })
+
   it('checks the deadline before traversing plain-object properties', () => {
     let clockReads = 0
     vi.spyOn(performance, 'now').mockImplementation(() => (++clockReads >= 5 ? 6 : 0))

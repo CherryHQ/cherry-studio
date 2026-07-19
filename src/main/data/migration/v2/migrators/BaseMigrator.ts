@@ -8,6 +8,12 @@ import { getTableName, sql } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import {
+  type ClassifiedMigrationError,
+  classifyMigrationError,
+  type PayloadProfileDescriptor,
+  profilePayloadLengths
+} from '../diagnostics'
 
 export interface ProgressMessage {
   message: string
@@ -32,6 +38,9 @@ export abstract class BaseMigrator {
   // Progress callback for UI updates
   protected onProgress?: (progress: number, progressMessage: ProgressMessage) => void
 
+  /** Fixed metadata from the latest diagnosed write failure in the current execute attempt. */
+  private diagnosedWriteFailure?: ClassifiedMigrationError
+
   /**
    * Set progress callback for reporting progress to UI
    */
@@ -54,6 +63,66 @@ export abstract class BaseMigrator {
    */
   protected reportProgress(progress: number, message: string, i18nMessage?: I18nMessage): void {
     this.onProgress?.(progress, { message, i18nMessage })
+  }
+
+  /**
+   * Run one existing synchronous write boundary and capture only bounded shape
+   * metadata if it throws. The helper deliberately does not own a transaction,
+   * await the callback, clone rows, or inspect error text.
+   */
+  protected runDiagnosedWrite<T>(
+    ctx: MigrationContext,
+    descriptor: PayloadProfileDescriptor,
+    rows: readonly unknown[],
+    write: () => T
+  ): T {
+    try {
+      return write()
+    } catch (error) {
+      const classification = classifyMigrationError(error)
+      this.diagnosedWriteFailure = classification
+      try {
+        ctx.diagnostics?.recordEvent({
+          scope: 'migrator',
+          phase: 'execute',
+          state: 'failed',
+          category: classification.category,
+          code: classification.code,
+          causeDepth: classification.causeDepth,
+          migratorId: this.id,
+          payloadProfile: profilePayloadLengths(rows, descriptor)
+        })
+      } catch {
+        ctx.logger?.error('Failed to record bounded migration write diagnostics')
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Execute with fixed failure metadata available to the main-process engine.
+   *
+   * Migrators currently return display strings for many fatal write failures,
+   * which discards the original SQLite code. This wrapper preserves only the
+   * bounded classification and always clears it between attempts.
+   */
+  async executeWithDiagnostics(ctx: MigrationContext): Promise<{
+    result: ExecuteResult
+    failureClassification?: ClassifiedMigrationError
+  }> {
+    this.diagnosedWriteFailure = undefined
+    try {
+      const result = await this.execute(ctx)
+      if (result.success || this.diagnosedWriteFailure === undefined) return { result }
+      return { result, failureClassification: this.diagnosedWriteFailure }
+    } finally {
+      this.diagnosedWriteFailure = undefined
+    }
+  }
+
+  /** Clear a diagnosed failure after an explicitly non-fatal, best-effort write. */
+  protected clearNonterminalDiagnosedFailure(): void {
+    this.diagnosedWriteFailure = undefined
   }
 
   /**

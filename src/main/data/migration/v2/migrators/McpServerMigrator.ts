@@ -17,10 +17,16 @@ import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { PayloadProfileDescriptor } from '../diagnostics'
 import { BaseMigrator } from './BaseMigrator'
 import { type McpServerTransformResult, transformMcpServer } from './mappings/McpServerMappings'
 
 const logger = loggerService.withContext('McpServerMigrator')
+
+const MCP_SERVER_PROFILE = {
+  target: 'mcp_server',
+  fields: ['name', 'command', 'args', 'env']
+} as const satisfies PayloadProfileDescriptor
 
 export class McpServerMigrator extends BaseMigrator {
   readonly id = 'mcp_server'
@@ -119,7 +125,7 @@ export class McpServerMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         for (let i = 0; i < rows.length; i += BATCH_SIZE) {
           const batch = rows.slice(i, i + BATCH_SIZE)
-          tx.insert(mcpServerTable).values(batch).run()
+          this.runDiagnosedWrite(ctx, MCP_SERVER_PROFILE, batch, () => tx.insert(mcpServerTable).values(batch).run())
           processed += batch.length
         }
       })

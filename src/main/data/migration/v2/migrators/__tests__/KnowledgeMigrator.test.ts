@@ -1909,6 +1909,110 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     expect(result.error).toContain('insert failed')
   })
 
+  it('records bounded knowledge-base lengths when SQLite rejects an oversized row', async () => {
+    const canary = `PRIVATE_KNOWLEDGE_NAME_${'x'.repeat(90_000)}`
+    const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [
+      {
+        id: 'kb-oversized',
+        name: canary,
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      }
+    ]
+    migrator.preparedItems = []
+
+    const values = vi.fn().mockReturnValue({
+      run: () => {
+        throw sqliteError
+      }
+    })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert: vi.fn().mockReturnValue({ values }), update: createUpdateMock() })
+    })
+    const recordEvent = vi.fn()
+
+    const result = await migrator.execute({
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) },
+      sharedData: new Map(),
+      diagnostics: { recordEvent },
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+    } as any)
+
+    expect(result.success).toBe(false)
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'sqlite_too_big',
+        migratorId: 'knowledge',
+        payloadProfile: expect.objectContaining({
+          target: 'knowledge_base',
+          slots: expect.arrayContaining([expect.objectContaining({ slot: 'name', kind: 'string' })])
+        })
+      })
+    )
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_KNOWLEDGE_NAME')
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+  })
+
+  it('records the real knowledge item data field when an oversized item insert fails', async () => {
+    const canary = `PRIVATE_KNOWLEDGE_CONTENT_${'x'.repeat(90_000)}`
+    const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [
+      {
+        id: 'kb-data',
+        name: 'Knowledge data',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      }
+    ]
+    migrator.preparedItems = [
+      {
+        id: 'item-data',
+        baseId: 'kb-data',
+        groupId: null,
+        type: 'note',
+        data: { source: canary, noteId: 'note-data' },
+        status: 'completed',
+        error: null
+      }
+    ]
+
+    let writeCount = 0
+    const values = vi.fn().mockReturnValue({
+      run: () => {
+        writeCount += 1
+        if (writeCount === 2) throw sqliteError
+      }
+    })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert: vi.fn().mockReturnValue({ values }), update: createUpdateMock() })
+    })
+    const recordEvent = vi.fn()
+
+    const result = await migrator.execute({
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) },
+      sharedData: new Map(),
+      diagnostics: { recordEvent },
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+    } as any)
+
+    expect(result.success).toBe(false)
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'sqlite_too_big',
+        migratorId: 'knowledge',
+        payloadProfile: expect.objectContaining({
+          target: 'knowledge_item',
+          slots: expect.arrayContaining([expect.objectContaining({ slot: 'data', kind: 'json' })])
+        })
+      })
+    )
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_KNOWLEDGE_CONTENT')
+    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+  })
+
   it('execute uses one transaction per prepared knowledge base', async () => {
     const migrator = new KnowledgeMigrator() as any
     migrator.preparedBases = [

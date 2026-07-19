@@ -181,9 +181,11 @@ function createDbMock({
   const updateCalls: Array<{ values: Record<string, unknown> }> = []
   const update = vi.fn(() => ({
     set: vi.fn((values: Record<string, unknown>) => ({
-      where: vi.fn(async () => {
-        updateCalls.push({ values })
-      })
+      where: vi.fn(() => ({
+        run: vi.fn(() => {
+          updateCalls.push({ values })
+        })
+      }))
     }))
   }))
 
@@ -1038,6 +1040,41 @@ describe('KnowledgeVectorMigrator', () => {
   })
 
   describe('execute + validate', () => {
+    it('records bounded fixed status metadata when a degradation update is too large', async () => {
+      const sqliteError = Object.assign(new Error('PRIVATE_VECTOR_PATH_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+      const recordEvent = vi.fn()
+      const migrator = new KnowledgeVectorMigrator() as any
+      migrator.directoryItemsToDegrade.add('item-oversized')
+      const migrationCtx = {
+        db: {
+          update: vi.fn(() => ({
+            set: vi.fn(() => ({
+              where: vi.fn(() => {
+                throw sqliteError
+              })
+            }))
+          }))
+        },
+        diagnostics: { recordEvent },
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+      }
+
+      await migrator.flushDirectoryDegradations(migrationCtx)
+
+      expect(recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'sqlite_too_big',
+          migratorId: 'knowledge_vector',
+          payloadProfile: expect.objectContaining({
+            target: 'knowledge_vector_status',
+            slots: expect.arrayContaining([expect.objectContaining({ slot: 'error', kind: 'string' })])
+          })
+        })
+      )
+      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_VECTOR_PATH')
+      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+    })
+
     it('rebuilds a file material into the 9-table store with byte-identical reused vectors', async () => {
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
@@ -1363,9 +1400,11 @@ describe('KnowledgeVectorMigrator', () => {
       // Make the degrade UPDATE fail at execute time so flushDirectoryDegradations records a warning.
       migrationCtx.db.update = vi.fn(() => ({
         set: vi.fn(() => ({
-          where: vi.fn(async () => {
-            throw new Error('disk I/O error')
-          })
+          where: vi.fn(() => ({
+            run: vi.fn(() => {
+              throw new Error('disk I/O error')
+            })
+          }))
         }))
       })) as any
 
@@ -2374,7 +2413,11 @@ describe('KnowledgeVectorMigrator', () => {
       // Fail the snapshot-pin UPDATE — the only db.update a url base issues — after the store is built.
       migrationCtx.db.update = vi.fn(() => ({
         set: vi.fn(() => ({
-          where: vi.fn().mockRejectedValue(new Error('pin update failed'))
+          where: vi.fn(() => ({
+            run: vi.fn(() => {
+              throw new Error('pin update failed')
+            })
+          }))
         }))
       })) as any
 

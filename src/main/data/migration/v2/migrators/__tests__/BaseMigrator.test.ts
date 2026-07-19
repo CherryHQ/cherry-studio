@@ -4,9 +4,11 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
+import type { PayloadProfileDescriptor } from '../../diagnostics'
+import * as payloadProfiler from '../../diagnostics/payloadLengthProfiler'
 import { BaseMigrator } from '../BaseMigrator'
 
 /**
@@ -22,7 +24,8 @@ class ProbeMigrator extends BaseMigrator {
   async prepare(): Promise<PrepareResult> {
     return { success: true, itemCount: 0 }
   }
-  async execute(): Promise<ExecuteResult> {
+  async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    void ctx
     return { success: true, processedCount: 0 }
   }
   async validate(): Promise<ValidateResult> {
@@ -30,6 +33,39 @@ class ProbeMigrator extends BaseMigrator {
   }
   checkOwnedForeignKeys(db: MigrationContext['db'], tables: Parameters<BaseMigrator['assertOwnedForeignKeys']>[1]) {
     return this.assertOwnedForeignKeys(db, tables)
+  }
+  diagnosedWrite<T>(
+    ctx: MigrationContext,
+    descriptor: PayloadProfileDescriptor,
+    rows: readonly unknown[],
+    write: () => T
+  ): T {
+    return this.runDiagnosedWrite(ctx, descriptor, rows, write)
+  }
+}
+
+class ExecuteCaptureProbeMigrator extends ProbeMigrator {
+  constructor(private readonly outcome: 'failed' | 'best_effort_success' | 'best_effort_then_unrelated') {
+    super()
+  }
+
+  override async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    const original = Object.assign(new Error('private diagnosed failure'), { code: 'SQLITE_TOOBIG' })
+    try {
+      this.runDiagnosedWrite(ctx, { target: 'message', fields: ['content'] }, [{ content: 'PRIVATE_VALUE' }], () => {
+        throw original
+      })
+    } catch {
+      if (this.outcome === 'best_effort_success') {
+        return { success: true, processedCount: 1 }
+      }
+      if (this.outcome === 'best_effort_then_unrelated') {
+        ;(this as unknown as { clearNonterminalDiagnosedFailure(): void }).clearNonterminalDiagnosedFailure()
+        return { success: false, processedCount: 0, error: 'unrelated failure' }
+      }
+      return { success: false, processedCount: 0, error: 'diagnosed failure' }
+    }
+    throw new Error('Test write unexpectedly completed')
   }
 }
 
@@ -51,9 +87,10 @@ async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], id:
   await db.insert(agentSessionTable).values({ id, agentId, name: 'S', workspaceId, orderKey: 'a0' })
 }
 
+const probe = new ProbeMigrator()
+
 describe('BaseMigrator.assertOwnedForeignKeys', () => {
   const dbh = setupTestDatabase()
-  const probe = new ProbeMigrator()
 
   it('throws when an owned table has an unsatisfied foreign key', async () => {
     // FK=OFF lets us stage a dangling reference, mirroring the migration window.
@@ -87,5 +124,127 @@ describe('BaseMigrator.assertOwnedForeignKeys', () => {
 
     // Only agentTable is passed → the agent_session violation is out of scope here.
     expect(probe.checkOwnedForeignKeys(dbh.db, [agentTable])).toBeUndefined()
+  })
+})
+
+describe('BaseMigrator.runDiagnosedWrite', () => {
+  const descriptor = { target: 'message', fields: ['content'] } as const satisfies PayloadProfileDescriptor
+
+  function createMigrationRun(recordEvent = vi.fn()): MigrationContext {
+    return {
+      diagnostics: { recordEvent },
+      logger: { error: vi.fn() },
+      db: { transaction: vi.fn() }
+    } as unknown as MigrationContext
+  }
+
+  it('returns the exact synchronous write result without profiling or opening a transaction', () => {
+    const migrationRun = createMigrationRun()
+    const rows = Object.freeze([{ content: 'private-value' }])
+    const profileSpy = vi.spyOn(payloadProfiler, 'profilePayloadLengths')
+    const result = { inserted: 1 }
+
+    expect(probe.diagnosedWrite(migrationRun, descriptor, rows, () => result)).toBe(result)
+    expect(profileSpy).not.toHaveBeenCalled()
+    expect(migrationRun.diagnostics.recordEvent).not.toHaveBeenCalled()
+    expect(migrationRun.db.transaction).not.toHaveBeenCalled()
+  })
+
+  it('profiles only on failure and rethrows the original SQLITE_TOOBIG object unchanged', () => {
+    const recordEvent = vi.fn()
+    const migrationRun = createMigrationRun(recordEvent)
+    const canary = `PRIVATE_MESSAGE_CANARY_${'x'.repeat(300_000)}`
+    const rows = [{ content: canary }]
+    const profileSpy = vi.spyOn(payloadProfiler, 'profilePayloadLengths')
+    const original = Object.assign(new Error(`secret stack ${canary.slice(0, 40)}`), {
+      code: 'SQLITE_TOOBIG'
+    })
+
+    let thrown: unknown
+    try {
+      probe.diagnosedWrite(migrationRun, descriptor, rows, () => {
+        throw original
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBe(original)
+    expect(profileSpy).toHaveBeenCalledOnce()
+    expect(profileSpy).toHaveBeenCalledWith(rows, descriptor)
+    expect(recordEvent).toHaveBeenCalledOnce()
+    expect(recordEvent).toHaveBeenCalledWith({
+      scope: 'migrator',
+      phase: 'execute',
+      state: 'failed',
+      category: 'database_write',
+      code: 'sqlite_too_big',
+      causeDepth: 0,
+      migratorId: 'probe',
+      payloadProfile: expect.objectContaining({
+        target: 'message',
+        rowCountBucket: '1',
+        slots: [expect.objectContaining({ slot: 'content', kind: 'string' })]
+      })
+    })
+    const serialized = JSON.stringify(recordEvent.mock.calls)
+    expect(serialized).not.toContain('PRIVATE_MESSAGE_CANARY')
+    expect(serialized).not.toContain('secret stack')
+  })
+
+  it('keeps the migration error authoritative when the diagnostics sink fails', () => {
+    const diagnosticsFailure = new Error('journal unavailable')
+    const migrationRun = createMigrationRun(
+      vi.fn(() => {
+        throw diagnosticsFailure
+      })
+    )
+    const original = Object.assign(new Error('original private database error'), { code: 'SQLITE_TOOBIG' })
+
+    expect(() =>
+      probe.diagnosedWrite(migrationRun, descriptor, [{ content: 'PRIVATE_VALUE' }], () => {
+        throw original
+      })
+    ).toThrow(original)
+    expect(migrationRun.logger.error).toHaveBeenCalledWith('Failed to record bounded migration write diagnostics')
+  })
+
+  it('returns only the fixed write classification beside a failed execute result', async () => {
+    const migrationRun = createMigrationRun()
+    const migrator = new ExecuteCaptureProbeMigrator('failed')
+
+    const diagnosed = await (
+      migrator as unknown as {
+        executeWithDiagnostics(ctx: MigrationContext): Promise<{
+          result: ExecuteResult
+          failureClassification?: { category: string; code: string; causeDepth: number }
+        }>
+      }
+    ).executeWithDiagnostics(migrationRun)
+
+    expect(diagnosed).toEqual({
+      result: { success: false, processedCount: 0, error: 'diagnosed failure' },
+      failureClassification: { category: 'database_write', code: 'sqlite_too_big', causeDepth: 0 }
+    })
+    expect(JSON.stringify(diagnosed)).not.toContain('private diagnosed failure')
+    expect(JSON.stringify(diagnosed)).not.toContain('PRIVATE_VALUE')
+  })
+
+  it('drops a swallowed best-effort classification when execute succeeds', async () => {
+    const migrationRun = createMigrationRun()
+    const migrator = new ExecuteCaptureProbeMigrator('best_effort_success')
+
+    const diagnosed = await (migrator as any).executeWithDiagnostics(migrationRun)
+
+    expect(diagnosed).toEqual({ result: { success: true, processedCount: 1 } })
+  })
+
+  it('does not attribute a cleared best-effort classification to a later unrelated failure', async () => {
+    const migrationRun = createMigrationRun()
+    const migrator = new ExecuteCaptureProbeMigrator('best_effort_then_unrelated')
+
+    const diagnosed = await (migrator as any).executeWithDiagnostics(migrationRun)
+
+    expect(diagnosed).toEqual({ result: { success: false, processedCount: 0, error: 'unrelated failure' } })
   })
 })

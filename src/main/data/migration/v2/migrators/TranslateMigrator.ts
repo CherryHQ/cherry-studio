@@ -21,9 +21,20 @@ import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } fr
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { PayloadProfileDescriptor } from '../diagnostics'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('TranslateMigrator')
+
+const TRANSLATE_LANGUAGE_PROFILE = {
+  target: 'translate_language',
+  fields: ['value', 'emoji']
+} as const satisfies PayloadProfileDescriptor
+
+const TRANSLATE_HISTORY_PROFILE = {
+  target: 'translate_history',
+  fields: ['sourceText', 'targetText']
+} as const satisfies PayloadProfileDescriptor
 
 const HISTORY_BATCH_SIZE = 100
 
@@ -193,7 +204,9 @@ export class TranslateMigrator extends BaseMigrator {
 
         if (newLanguageRecords.length > 0) {
           db.transaction((tx) => {
-            tx.insert(translateLanguageTable).values(newLanguageRecords).run()
+            this.runDiagnosedWrite(ctx, TRANSLATE_LANGUAGE_PROFILE, newLanguageRecords, () =>
+              tx.insert(translateLanguageTable).values(newLanguageRecords).run()
+            )
           })
           processedCount += newLanguageRecords.length
         }
@@ -234,7 +247,9 @@ export class TranslateMigrator extends BaseMigrator {
         db.transaction((tx) => {
           for (let i = 0; i < newHistoryRecords.length; i += HISTORY_BATCH_SIZE) {
             const batch = newHistoryRecords.slice(i, i + HISTORY_BATCH_SIZE)
-            tx.insert(translateHistoryTable).values(batch).run()
+            this.runDiagnosedWrite(ctx, TRANSLATE_HISTORY_PROFILE, batch, () =>
+              tx.insert(translateHistoryTable).values(batch).run()
+            )
 
             const historyProcessed = Math.min(i + HISTORY_BATCH_SIZE, newHistoryRecords.length)
             const progress = Math.round(((processedCount + historyProcessed) / totalCount) * 100)

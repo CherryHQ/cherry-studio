@@ -412,6 +412,17 @@ function descriptorSlots(descriptor: PayloadProfileDescriptor, context: Traversa
   return slots
 }
 
+function fairRowIndex(step: number, rowCount: number): number {
+  const offset = Math.floor(step / 2)
+  return step % 2 === 0 ? offset : rowCount - 1 - offset
+}
+
+function markDeadlineTruncation(accumulators: readonly SlotAccumulator[]): void {
+  for (const accumulator of accumulators) {
+    if (accumulator.kinds.has('string') || accumulator.kinds.has('json')) accumulator.truncated = true
+  }
+}
+
 export function profilePayloadLengths(
   rows: readonly unknown[],
   descriptor: PayloadProfileDescriptor
@@ -426,21 +437,67 @@ export function profilePayloadLengths(
   let profiledBytes = 0
   let maxProfiledRowBytes = 0
 
-  for (const row of rows) {
-    if (deadlineExceeded(context)) break
-    let rowBytes = 0
-    let stopAfterRow = false
-
+  shallowRows: for (let step = 0; step < rows.length; step++) {
+    if (deadlineExceeded(context)) {
+      markDeadlineTruncation(accumulators)
+      break
+    }
+    const row = rows[fairRowIndex(step, rows.length)]
     if (row === null || row === undefined) continue
     if (!isObjectLike(row) || isArray(row) || !isPlainObject(row)) {
       for (const accumulator of accumulators) accumulator.kinds.add('unsupported')
       continue
     }
 
+    let knownRowBytes = 0
     for (const accumulator of accumulators) {
       if (deadlineExceeded(context)) {
-        stopAfterRow = true
-        break
+        markDeadlineTruncation(accumulators)
+        break shallowRows
+      }
+      const descriptor = ownDataDescriptor(row, accumulator.slot)
+      if (!descriptor || descriptor.value === null || descriptor.value === undefined) continue
+      const value = descriptor.value
+      const byteLength = uint8ArrayByteLength(value)
+
+      if (typeof value === 'string') {
+        accumulator.kinds.add('string')
+        accumulator.stringMaxChars = Math.max(accumulator.stringMaxChars, Math.min(LENGTH_SATURATION, value.length))
+        if (value.length >= LENGTH_SATURATION) {
+          accumulator.stringTotalBytes = LENGTH_SATURATION
+          accumulator.stringMaxBytes = LENGTH_SATURATION
+          profiledBytes = LENGTH_SATURATION
+          knownRowBytes = LENGTH_SATURATION
+        }
+      } else if (byteLength !== undefined) {
+        accumulator.kinds.add('bytes')
+        const bytes = Math.min(LENGTH_SATURATION, byteLength)
+        accumulator.bytesTotal = saturatingAdd(accumulator.bytesTotal, bytes)
+        accumulator.bytesMax = Math.max(accumulator.bytesMax, bytes)
+        profiledBytes = saturatingAdd(profiledBytes, bytes)
+        knownRowBytes = saturatingAdd(knownRowBytes, bytes)
+      } else if (isArray(value) || (isObjectLike(value) && isPlainObject(value))) {
+        accumulator.kinds.add('json')
+      } else {
+        accumulator.kinds.add('unsupported')
+      }
+
+      maxProfiledRowBytes = Math.max(maxProfiledRowBytes, knownRowBytes)
+    }
+  }
+
+  deepRows: for (const row of rows) {
+    if (deadlineExceeded(context)) {
+      markDeadlineTruncation(accumulators)
+      break
+    }
+    if (row === null || row === undefined || !isObjectLike(row) || isArray(row) || !isPlainObject(row)) continue
+
+    let rowBytes = 0
+    for (const accumulator of accumulators) {
+      if (deadlineExceeded(context)) {
+        markDeadlineTruncation(accumulators)
+        break deepRows
       }
       const descriptor = ownDataDescriptor(row, accumulator.slot)
       if (!descriptor || descriptor.value === null || descriptor.value === undefined) continue
@@ -449,21 +506,19 @@ export function profilePayloadLengths(
       let fieldBytes = 0
 
       if (typeof value === 'string') {
-        accumulator.kinds.add('string')
-        const measured = measureUtf8(value, context)
-        accumulator.stringTotalBytes = saturatingAdd(accumulator.stringTotalBytes, measured.bytes)
-        accumulator.stringMaxChars = Math.max(accumulator.stringMaxChars, Math.min(LENGTH_SATURATION, value.length))
-        accumulator.stringMaxBytes = Math.max(accumulator.stringMaxBytes, measured.bytes)
-        accumulator.truncated ||= !measured.complete
-        fieldBytes = measured.bytes
+        if (value.length >= LENGTH_SATURATION) {
+          fieldBytes = LENGTH_SATURATION
+        } else {
+          const measured = measureUtf8(value, context)
+          accumulator.stringTotalBytes = saturatingAdd(accumulator.stringTotalBytes, measured.bytes)
+          accumulator.stringMaxBytes = Math.max(accumulator.stringMaxBytes, measured.bytes)
+          accumulator.truncated ||= !measured.complete
+          fieldBytes = measured.bytes
+          profiledBytes = saturatingAdd(profiledBytes, measured.bytes)
+        }
       } else if (byteLength !== undefined) {
-        accumulator.kinds.add('bytes')
-        const bytes = Math.min(LENGTH_SATURATION, byteLength)
-        accumulator.bytesTotal = saturatingAdd(accumulator.bytesTotal, bytes)
-        accumulator.bytesMax = Math.max(accumulator.bytesMax, bytes)
-        fieldBytes = bytes
+        fieldBytes = Math.min(LENGTH_SATURATION, byteLength)
       } else if (isArray(value) || (isObjectLike(value) && isPlainObject(value))) {
-        accumulator.kinds.add('json')
         const measured = measureJson(value, 0, new Set(), context)
         accumulator.jsonTotalBytes = saturatingAdd(accumulator.jsonTotalBytes, measured.serializedBytes)
         accumulator.jsonMaxBytes = Math.max(accumulator.jsonMaxBytes, measured.serializedBytes)
@@ -471,20 +526,12 @@ export function profilePayloadLengths(
         accumulator.jsonMaxStringBytes = Math.max(accumulator.jsonMaxStringBytes, measured.maxStringByteLength)
         accumulator.truncated ||= measured.truncated
         fieldBytes = measured.serializedBytes
-      } else {
-        accumulator.kinds.add('unsupported')
+        profiledBytes = saturatingAdd(profiledBytes, measured.serializedBytes)
       }
 
       rowBytes = saturatingAdd(rowBytes, fieldBytes)
-      if (context.truncated && deadlineExceeded(context)) {
-        stopAfterRow = true
-        break
-      }
+      maxProfiledRowBytes = Math.max(maxProfiledRowBytes, rowBytes)
     }
-
-    profiledBytes = saturatingAdd(profiledBytes, rowBytes)
-    maxProfiledRowBytes = Math.max(maxProfiledRowBytes, rowBytes)
-    if (stopAfterRow) break
   }
 
   return {

@@ -1,7 +1,7 @@
 import { noteTable } from '@data/db/schemas/note'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { NoteMigrator } from '../NoteMigrator'
@@ -25,7 +25,8 @@ function createTestContext(reduxData: Record<string, unknown>, db: any) {
       error: () => {},
       debug: () => {}
     } as any,
-    paths: {} as any
+    paths: {} as any,
+    diagnostics: { recordEvent: vi.fn() }
   }
 }
 
@@ -76,6 +77,49 @@ describe('NoteMigrator', () => {
       isStarred: false,
       isExpanded: true
     })
+  })
+
+  it('records a bounded note profile when SQLite rejects an oversized row', async () => {
+    const canary = `PRIVATE_NOTE_PATH_${'x'.repeat(300_000)}`
+    const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
+    const db = {
+      transaction: (operation: (tx: unknown) => void) =>
+        operation({
+          insert: () => ({
+            values: () => ({
+              onConflictDoUpdate: () => ({
+                run: () => {
+                  throw sqliteError
+                }
+              })
+            })
+          })
+        })
+    }
+    const ctx = createTestContext(
+      { note: { notesPath: '/notes', starredPaths: [canary], expandedPaths: [] } },
+      db
+    ) as any
+    await migrator.prepare(ctx)
+
+    const result = await migrator.execute(ctx)
+
+    expect(result.success).toBe(false)
+    expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'sqlite_too_big',
+        migratorId: 'note',
+        payloadProfile: expect.objectContaining({
+          target: 'note',
+          slots: [
+            expect.objectContaining({ slot: 'rootPath', kind: 'string' }),
+            expect.objectContaining({ slot: 'path', kind: 'string' })
+          ]
+        })
+      })
+    )
+    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_NOTE_PATH')
+    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
   })
 
   it('should trim legacy paths before migration', async () => {

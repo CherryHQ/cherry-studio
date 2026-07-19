@@ -76,6 +76,7 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { PayloadProfileDescriptor } from '../diagnostics'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
@@ -96,6 +97,31 @@ import {
 import { resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('ChatMigrator')
+
+const TOPIC_PROFILE = {
+  target: 'topic',
+  fields: ['name']
+} as const satisfies PayloadProfileDescriptor
+
+const MESSAGE_PROFILE = {
+  target: 'message',
+  fields: ['data', 'searchableText', 'messageSnapshot', 'stats']
+} as const satisfies PayloadProfileDescriptor
+
+const MESSAGE_BLOCK_PROFILE = {
+  target: 'message',
+  fields: ['payload']
+} as const satisfies PayloadProfileDescriptor
+
+const FILE_REF_PROFILE = {
+  target: 'file_ref',
+  fields: []
+} as const satisfies PayloadProfileDescriptor
+
+const PIN_PROFILE = {
+  target: 'pin',
+  fields: []
+} as const satisfies PayloadProfileDescriptor
 
 /**
  * Batch size for processing topics
@@ -749,8 +775,11 @@ export class ChatMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         for (const block of blocks) {
           if (!block?.id) continue
-          tx.run(
-            sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${block.id}, ${JSON.stringify(block)})`
+          const indexedBlock = { payload: JSON.stringify(block) }
+          this.runDiagnosedWrite(ctx, MESSAGE_BLOCK_PROFILE, [indexedBlock], () =>
+            tx.run(
+              sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${block.id}, ${indexedBlock.payload})`
+            )
           )
           indexed += 1
         }
@@ -1157,19 +1186,20 @@ export class ChatMigrator extends BaseMigrator {
       // its single connection), so this batch can insert self-referencing message.parentId
       // rows that resolve within the batch. assertOwnedForeignKeys() below verifies the result.
       db.transaction((tx) => {
-        tx.insert(topicTable)
-          .values(batch.map((d) => d.topic))
-          .run()
+        const topicRows = batch.map((data) => data.topic)
+        this.runDiagnosedWrite(ctx, TOPIC_PROFILE, topicRows, () => tx.insert(topicTable).values(topicRows).run())
         for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-          tx.insert(messageTable)
-            .values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
-            .run()
+          const messageBatch = batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
+          this.runDiagnosedWrite(ctx, MESSAGE_PROFILE, messageBatch, () =>
+            tx.insert(messageTable).values(messageBatch).run()
+          )
         }
         if (batchFileRefRows.length > 0) {
           for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {
-            tx.insert(chatMessageFileRefTable)
-              .values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
-              .run()
+            const fileRefBatch = batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE)
+            this.runDiagnosedWrite(ctx, FILE_REF_PROFILE, fileRefBatch, () =>
+              tx.insert(chatMessageFileRefTable).values(fileRefBatch).run()
+            )
           }
         }
       })
@@ -1211,7 +1241,9 @@ export class ChatMigrator extends BaseMigrator {
           let count = 0
           for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
             const batch = pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
-            const result = tx.insert(pinTable).values(batch).onConflictDoNothing().returning({ id: pinTable.id }).all()
+            const result = this.runDiagnosedWrite(ctx, PIN_PROFILE, batch, () =>
+              tx.insert(pinTable).values(batch).onConflictDoNothing().returning({ id: pinTable.id }).all()
+            )
             count += result.length
           }
           return count
