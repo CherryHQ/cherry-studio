@@ -88,36 +88,25 @@ function Harness({ name = '' }: { name?: string }) {
 afterEach(cleanup)
 
 describe('PersonaStep', () => {
-  it('writes the polished prompt back to the create form', async () => {
+  it('wires prompt generation and polish into the create form', async () => {
     const user = userEvent.setup()
 
-    render(<Harness />)
-
-    await user.click(screen.getByRole('button', { name: 'Polish prompt' }))
-
-    expect(screen.getByLabelText('persona-prompt')).toHaveValue('Polished persona prompt')
-    expect(screen.getByTestId('preview-reset-key')).toHaveTextContent('1')
-  })
-
-  it('uses the resource name as the blank-prompt generation fallback', () => {
     render(<Harness name="Research Assistant" />)
 
-    expect(screen.getByRole('button', { name: 'Polish prompt' })).toHaveAttribute(
-      'data-fallback-source',
-      'Research Assistant'
-    )
-  })
-
-  it('uses the resource prompt generation and polish strategies', () => {
-    render(<Harness />)
-
-    expect(screen.getByRole('button', { name: 'Polish prompt' })).toHaveAttribute(
+    const action = screen.getByRole('button', { name: 'Polish prompt' })
+    expect(action).toHaveAttribute('data-fallback-source', 'Research Assistant')
+    expect(action).toHaveAttribute(
       'data-empty-value-system-prompt',
       expect.stringContaining('You are a Prompt Generator.')
     )
-    expect(screen.getByRole('button', { name: 'Polish prompt' })).toHaveAttribute(
+    expect(action).toHaveAttribute(
       'data-existing-value-system-prompt',
       expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.')
     )
+
+    await user.click(action)
+
+    expect(screen.getByLabelText('persona-prompt')).toHaveValue('Polished persona prompt')
+    expect(screen.getByTestId('preview-reset-key')).toHaveTextContent('1')
   })
 })

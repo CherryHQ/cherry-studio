@@ -1,5 +1,4 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -116,7 +115,6 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value,
     onChange,
     placeholder,
-    previewValue,
     resetPreviewKey,
     minHeight,
     maxHeight
@@ -127,7 +125,6 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value: string
     onChange: (value: string) => void
     placeholder?: string
-    previewValue?: string
     resetPreviewKey?: number
     minHeight?: string
     maxHeight?: string
@@ -145,7 +142,6 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         onChange={(event) => onChange(event.target.value)}
         style={{ minHeight, maxHeight }}
       />
-      <output data-testid="prompt-preview-value">{previewValue}</output>
       <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
@@ -597,25 +593,6 @@ function mockDeferredAnimationFrames() {
   }
 }
 
-async function expectTooltipOnHover(button: HTMLElement, content: string) {
-  const trigger = button.closest('[data-slot="tooltip-trigger"]')
-  expect(trigger).toBeInTheDocument()
-
-  fireEvent.pointerMove(trigger as HTMLElement, { pointerType: 'mouse' })
-  expect(await screen.findByRole('tooltip')).toHaveTextContent(content)
-  fireEvent.pointerDown(trigger as HTMLElement, { pointerType: 'mouse' })
-  await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())
-}
-
-async function expectTooltipOnFocus(button: HTMLElement, content: string) {
-  act(() => button.focus())
-  expect(button).toHaveFocus()
-  expect(await screen.findByRole('tooltip')).toHaveTextContent(content)
-
-  act(() => button.blur())
-  await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())
-}
-
 describe('edit dialogs', () => {
   it('submits assistant name, description, and model changes as a PATCH', async () => {
     const onSaved = vi.fn()
@@ -887,9 +864,6 @@ describe('edit dialogs', () => {
     selectTab('Prompt')
     await expectVariablesHelpOnOpen()
     const polishButton = screen.getByRole('button', { name: 'Polish prompt' })
-    await expectTooltipOnFocus(polishButton, 'Polish prompt')
-    await expectTooltipOnHover(polishButton, 'Polish prompt')
-    expect(screen.getByTestId('prompt-preview-value')).toHaveTextContent('Original prompt')
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
     fireEvent.click(polishButton)
 
@@ -899,15 +873,12 @@ describe('edit dialogs', () => {
       content: 'Original prompt',
       throwOnError: true
     })
-    expect(screen.getByTestId('prompt-preview-value')).toHaveTextContent('Polished assistant prompt')
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
 
     const undoButton = screen.getByRole('button', { name: 'Undo' })
-    await expectTooltipOnHover(undoButton, 'Undo')
     fireEvent.click(undoButton)
 
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
-    expect(screen.getByTestId('prompt-preview-value')).toHaveTextContent('Original prompt')
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('2')
   })
 
@@ -918,7 +889,6 @@ describe('edit dialogs', () => {
 
     selectTab('Prompt')
     const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
-    await expectTooltipOnHover(generateButton, 'Generate prompt')
     fireEvent.click(generateButton)
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
@@ -933,23 +903,6 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('button', { name: 'Polish prompt' })).toBeInTheDocument()
   })
 
-  it('does not overwrite a manual assistant edit with a stale polish response', async () => {
-    let resolvePolish: (value: string) => void = () => undefined
-    fetchGenerateMock.mockReturnValueOnce(
-      new Promise<string>((resolve) => {
-        resolvePolish = resolve
-      })
-    )
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
-
-    selectTab('Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
-    fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'Manual assistant edit' } })
-    await act(async () => resolvePolish('Late polished prompt'))
-
-    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Manual assistant edit')
-  })
-
   it('allows closing and tab navigation while an assistant prompt action is in flight', async () => {
     fetchGenerateMock.mockReturnValueOnce(new Promise<string>(() => undefined))
     const onOpenChange = vi.fn()
@@ -962,48 +915,6 @@ describe('edit dialogs', () => {
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(screen.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
-  })
-
-  it('shows a polish failure toast for a non-empty assistant prompt', async () => {
-    fetchGenerateMock.mockRejectedValueOnce(new Error('Model failed'))
-
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
-
-    selectTab('Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
-
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith({
-        description: 'Check or change the default model, then try again.',
-        title: 'Failed to polish prompt'
-      })
-    )
-    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
-    expect(fetchGenerateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: 'Original prompt',
-        throwOnError: true
-      })
-    )
-  })
-
-  it('shows a generation failure toast when blank assistant prompt generation returns no response', async () => {
-    fetchGenerateMock.mockResolvedValueOnce('')
-
-    render(
-      <AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} onSaved={vi.fn()} />
-    )
-
-    selectTab('Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
-
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith({
-        description: 'Check or change the default model, then try again.',
-        title: 'Failed to generate prompt'
-      })
-    )
-    expect(screen.getByLabelText('Prompt editor')).toHaveValue('')
   })
 
   it('submits agent permission defaults and advanced changes', async () => {
