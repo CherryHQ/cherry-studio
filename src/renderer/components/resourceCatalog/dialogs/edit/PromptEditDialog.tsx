@@ -16,6 +16,25 @@ import { Braces } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+const QUICK_PHRASE_POLISH_SYSTEM_PROMPT = [
+  'You are a user-prompt editor. Improve the supplied reusable user message without changing its intent or behavior.',
+  'Keep it as a user-authored request or instruction.',
+  'Do not convert it into a system prompt or introduce an assistant persona.',
+  'Keep the output in the same language as the input.',
+  'Preserve all requirements, constraints, Markdown structure, code, URLs, and output-format instructions.',
+  'Preserve every placeholder token verbatim, including tokens shaped like {{name}} and ${name}; keep duplicate occurrences.',
+  'Return only the polished quick phrase with no explanation, wrapper, or code fence.'
+].join('\n')
+
+const QUICK_PHRASE_GENERATION_SYSTEM_PROMPT = [
+  'You are a user-prompt writer. Create a reusable user message or instruction from the supplied title.',
+  'Do not turn it into a system prompt or describe assistant behavior unless the title explicitly asks for that.',
+  'Keep the output in the same language as the input.',
+  'Preserve all requirements, constraints, Markdown structure, code, URLs, and output-format instructions.',
+  'Preserve every placeholder token verbatim, including tokens shaped like {{name}} and ${name}; keep duplicate occurrences.',
+  'Return only the generated quick phrase with no explanation, wrapper, or code fence.'
+].join('\n')
+
 interface FormData {
   title: string
   content: string
@@ -33,7 +52,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
   const { t } = useTranslation()
   const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isPolishing, setIsPolishing] = useState(false)
+  const [isPromptActionRunning, setIsPromptActionRunning] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const promptEditorRef = useRef<PromptEditorFieldHandles | null>(null)
   const variablePlaceholder = t('settings.prompts.variablePlaceholder')
@@ -55,12 +74,12 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
       })
     } else {
       setIsSubmitting(false)
-      setIsPolishing(false)
+      setIsPromptActionRunning(false)
     }
   }, [open, prompt])
 
   const handleOk = useCallback(async () => {
-    if (!canSave || isPolishing) {
+    if (!canSave || isPromptActionRunning) {
       return
     }
 
@@ -75,16 +94,21 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
     } finally {
       setIsSubmitting(false)
     }
-  }, [canSave, formData, isPolishing, onSave])
+  }, [canSave, formData, isPromptActionRunning, onSave])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
-      if (!nextOpen) {
+      if (!nextOpen && !isPromptActionRunning) {
         onCancel()
       }
     },
-    [onCancel]
+    [isPromptActionRunning, onCancel]
   )
+
+  const handlePromptActionChange = useCallback((content: string) => {
+    setFormData((current) => ({ ...current, content }))
+    setResetPreviewKey((key) => key + 1)
+  }, [])
 
   const appendVariable = useCallback(() => {
     setFormData((current) => {
@@ -110,8 +134,10 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
       <PromptPolishActions
         value={formData.content}
         fallbackSource={formData.title}
-        onChange={(content) => setFormData((current) => ({ ...current, content }))}
-        onPolishingChange={setIsPolishing}
+        emptyValueSystemPrompt={QUICK_PHRASE_GENERATION_SYSTEM_PROMPT}
+        existingValueSystemPrompt={QUICK_PHRASE_POLISH_SYSTEM_PROMPT}
+        onChange={handlePromptActionChange}
+        onRunningChange={setIsPromptActionRunning}
         disabled={isSaving}
       />
       <Tooltip content={t('library.config.prompt.insert_variable')}>
@@ -120,7 +146,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
           variant="ghost"
           aria-label={t('library.config.prompt.insert_variable')}
           onClick={handleInsertVariable}
-          disabled={isSaving}
+          disabled={isSaving || isPromptActionRunning}
           className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
           <Braces size={10} />
         </Button>
@@ -157,10 +183,13 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+          <Button variant="outline" onClick={onCancel} disabled={isSaving || isPromptActionRunning}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving || isPolishing}>
+          <Button
+            onClick={() => void handleOk()}
+            loading={isSaving}
+            disabled={!canSave || isSaving || isPromptActionRunning}>
             {t('common.confirm')}
           </Button>
         </DialogFooter>

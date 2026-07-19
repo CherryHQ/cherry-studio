@@ -9,22 +9,6 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('PromptPolishActions')
 const PROTECTED_PROMPT_TOKEN_PATTERN = /\{\{[^{}\r\n]+\}\}|\$\{[^{}\r\n]+\}/g
 
-const PROMPT_POLISH_SYSTEM_PROMPT = [
-  'You are a prompt editor. Improve the supplied prompt without changing its intent or behavior.',
-  'Keep the output in the same language as the input.',
-  'Preserve all requirements, constraints, Markdown structure, code, URLs, and output-format instructions.',
-  'Preserve every placeholder token verbatim, including tokens shaped like {{name}} and ${name}; keep duplicate occurrences.',
-  'Return only the polished prompt with no explanation, wrapper, or code fence.'
-].join('\n')
-
-const PROMPT_GENERATE_SYSTEM_PROMPT = [
-  'You are a prompt writer. Create a useful system prompt from the supplied name or title.',
-  'Keep the output in the same language as the input.',
-  'Preserve all requirements, constraints, Markdown structure, code, URLs, and output-format instructions.',
-  'Preserve every placeholder token verbatim, including tokens shaped like {{name}} and ${name}; keep duplicate occurrences.',
-  'Return only the generated prompt with no explanation, wrapper, or code fence.'
-].join('\n')
-
 type RestoreState = {
   original: string
   polished: string
@@ -33,8 +17,10 @@ type RestoreState = {
 type PromptPolishActionsProps = {
   value: string
   fallbackSource?: string
+  emptyValueSystemPrompt: string
+  existingValueSystemPrompt: string
   onChange: (value: string) => void
-  onPolishingChange?: (polishing: boolean) => void
+  onRunningChange?: (running: boolean) => void
   disabled?: boolean
 }
 
@@ -55,12 +41,14 @@ function preservesProtectedPromptTokens(original: string, polished: string): boo
 export function PromptPolishActions({
   value,
   fallbackSource,
+  emptyValueSystemPrompt,
+  existingValueSystemPrompt,
   onChange,
-  onPolishingChange,
+  onRunningChange,
   disabled = false
 }: PromptPolishActionsProps) {
   const { t } = useTranslation()
-  const [polishing, setPolishing] = useState(false)
+  const [running, setRunning] = useState(false)
   const [restoreState, setRestoreState] = useState<RestoreState | null>(null)
   const inFlightRef = useRef(false)
   const requestIdRef = useRef(0)
@@ -68,22 +56,22 @@ export function PromptPolishActions({
   const disabledRef = useRef(disabled)
   const usesFallback = !value.trim()
   const generationSource = usesFallback ? (fallbackSource?.trim() ?? '') : value
-  const systemPrompt = usesFallback ? PROMPT_GENERATE_SYSTEM_PROMPT : PROMPT_POLISH_SYSTEM_PROMPT
+  const actionLabel = t(usesFallback ? 'library.config.prompt.generate' : 'library.config.prompt.polish')
   const generationSourceRef = useRef(generationSource)
   const onChangeRef = useRef(onChange)
-  const onPolishingChangeRef = useRef(onPolishingChange)
+  const onRunningChangeRef = useRef(onRunningChange)
   valueRef.current = value
   disabledRef.current = disabled
   generationSourceRef.current = generationSource
   onChangeRef.current = onChange
-  onPolishingChangeRef.current = onPolishingChange
+  onRunningChangeRef.current = onRunningChange
 
   useEffect(() => {
     return () => {
       requestIdRef.current += 1
       if (inFlightRef.current) {
         inFlightRef.current = false
-        onPolishingChangeRef.current?.(false)
+        onRunningChangeRef.current?.(false)
       }
     }
   }, [])
@@ -94,28 +82,39 @@ export function PromptPolishActions({
     }
   }, [restoreState, value])
 
-  const failureToast = {
-    title: t('library.config.prompt.polish_failed_title'),
-    description: t('library.config.prompt.polish_failed_description')
-  }
-
   const canUndo = restoreState?.polished === value
+  const undoDisabled = disabled || running
+  const actionDisabled = disabled || running || !generationSource
 
   const handlePolish = async () => {
     if (disabled || inFlightRef.current || !generationSource) return
 
     const original = value
     const source = generationSource
+    const requestUsesFallback = usesFallback
+    const requestSystemPrompt = requestUsesFallback ? emptyValueSystemPrompt : existingValueSystemPrompt
+    const failureToast = {
+      title: t(
+        requestUsesFallback
+          ? 'library.config.prompt.generate_failed_title'
+          : 'library.config.prompt.polish_failed_title'
+      ),
+      description: t(
+        requestUsesFallback
+          ? 'library.config.prompt.generate_failed_description'
+          : 'library.config.prompt.polish_failed_description'
+      )
+    }
     const requestId = requestIdRef.current + 1
     inFlightRef.current = true
     requestIdRef.current = requestId
-    setPolishing(true)
+    setRunning(true)
     setRestoreState(null)
-    onPolishingChangeRef.current?.(true)
+    onRunningChangeRef.current?.(true)
 
     try {
       const polished = await fetchGenerate({
-        prompt: systemPrompt,
+        prompt: requestSystemPrompt,
         content: source,
         throwOnError: true
       })
@@ -154,19 +153,19 @@ export function PromptPolishActions({
       }
 
       const cause = error instanceof Error ? error : new Error(String(error))
-      logger.error('Failed to polish prompt', cause)
+      logger.error(`Failed to ${requestUsesFallback ? 'generate' : 'polish'} prompt`, cause)
       toast.error(failureToast)
     } finally {
       if (requestIdRef.current === requestId) {
         inFlightRef.current = false
-        setPolishing(false)
-        onPolishingChangeRef.current?.(false)
+        setRunning(false)
+        onRunningChangeRef.current?.(false)
       }
     }
   }
 
   const handleUndo = () => {
-    if (!restoreState || !canUndo || disabled || polishing) return
+    if (!restoreState || !canUndo || disabled || running) return
 
     onChangeRef.current(restoreState.original)
     setRestoreState(null)
@@ -180,22 +179,22 @@ export function PromptPolishActions({
             type="button"
             variant="outline"
             aria-label={t('common.undo')}
+            aria-disabled={undoDisabled}
             onClick={handleUndo}
-            disabled={disabled || polishing}
-            className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0">
+            className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
             <Undo2 size={10} />
           </Button>
         </Tooltip>
       ) : null}
-      <Tooltip content={t('library.config.prompt.polish')}>
+      <Tooltip content={actionLabel}>
         <Button
           type="button"
           variant="outline"
-          aria-label={t('library.config.prompt.polish')}
+          aria-label={actionLabel}
+          aria-disabled={actionDisabled}
           onClick={() => void handlePolish()}
-          disabled={disabled || polishing || !generationSource}
-          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-          {polishing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
+          {running ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
         </Button>
       </Tooltip>
     </>

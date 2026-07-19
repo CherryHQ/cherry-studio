@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type * as LucideReact from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +13,7 @@ const dialogHarness = vi.hoisted(() => ({
 let promptEditorElement: HTMLTextAreaElement | null = null
 
 function MockPromptEditorField(props: any) {
-  const { ref, value, onChange, placeholder, actions } = props
+  const { ref, value, onChange, placeholder, actions, resetPreviewKey } = props
 
   if (ref) {
     ref.current = {
@@ -41,6 +42,7 @@ function MockPromptEditorField(props: any) {
       />
       <button type="button">common.preview</button>
       <span>library.config.prompt.tokens_label</span>
+      <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
 }
@@ -58,7 +60,8 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [14]
 }))
 
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof LucideReact>()),
   Braces: () => <span />
 }))
 
@@ -69,25 +72,34 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions', () => ({
   PromptPolishActions: ({
     fallbackSource,
+    emptyValueSystemPrompt,
+    existingValueSystemPrompt,
     onChange,
-    onPolishingChange,
+    onRunningChange,
     disabled
   }: {
     fallbackSource?: string
+    emptyValueSystemPrompt: string
+    existingValueSystemPrompt: string
     onChange: (value: string) => void
-    onPolishingChange?: (polishing: boolean) => void
+    onRunningChange?: (running: boolean) => void
     disabled?: boolean
   }) => (
     <>
       <button
         type="button"
         data-fallback-source={fallbackSource}
+        data-empty-value-system-prompt={emptyValueSystemPrompt}
+        data-existing-value-system-prompt={existingValueSystemPrompt}
         disabled={disabled}
         onClick={() => onChange('Polished library prompt')}>
         library.config.prompt.polish
       </button>
-      <button type="button" onClick={() => onPolishingChange?.(true)}>
-        start prompt polishing
+      <button type="button" onClick={() => onRunningChange?.(true)}>
+        start prompt action
+      </button>
+      <button type="button" onClick={() => onRunningChange?.(false)}>
+        finish prompt action
       </button>
     </>
   )
@@ -212,9 +224,11 @@ describe('PromptEditDialog', () => {
       />
     )
 
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
     await user.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
 
     expect(screen.getByLabelText('prompt-editor')).toHaveValue('Polished library prompt')
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
 
     await user.click(screen.getByRole('button', { name: 'common.confirm' }))
 
@@ -247,6 +261,14 @@ describe('PromptEditDialog', () => {
       'data-fallback-source',
       'Old title'
     )
+    expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toHaveAttribute(
+      'data-empty-value-system-prompt',
+      expect.stringContaining('reusable user message or instruction')
+    )
+    expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toHaveAttribute(
+      'data-existing-value-system-prompt',
+      expect.stringContaining('Do not convert it into a system prompt or introduce an assistant persona.')
+    )
   })
 
   it('disables prompt polishing while saving', () => {
@@ -257,8 +279,9 @@ describe('PromptEditDialog', () => {
     expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toBeDisabled()
   })
 
-  it('disables saving while prompt polishing is in flight', async () => {
+  it('blocks saving and closing while a prompt action is in flight', async () => {
     const user = userEvent.setup()
+    const onCancel = vi.fn()
 
     render(
       <PromptEditDialog
@@ -272,13 +295,21 @@ describe('PromptEditDialog', () => {
           updatedAt: '2026-05-01T00:00:00.000Z'
         }}
         onSave={vi.fn().mockResolvedValue(undefined)}
-        onCancel={vi.fn()}
+        onCancel={onCancel}
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'start prompt polishing' }))
+    await user.click(screen.getByRole('button', { name: 'start prompt action' }))
 
     expect(screen.getByRole('button', { name: 'common.confirm' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'common.cancel' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'library.config.prompt.insert_variable' })).toBeDisabled()
+    dialogHarness.onOpenChange?.(false)
+    expect(onCancel).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'finish prompt action' }))
+    dialogHarness.onOpenChange?.(false)
+    expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
   it('inserts variables at the current prompt editor selection', async () => {

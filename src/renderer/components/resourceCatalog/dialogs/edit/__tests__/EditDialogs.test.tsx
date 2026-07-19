@@ -116,6 +116,8 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value,
     onChange,
     placeholder,
+    previewValue,
+    resetPreviewKey,
     minHeight,
     maxHeight
   }: {
@@ -125,6 +127,8 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value: string
     onChange: (value: string) => void
     placeholder?: string
+    previewValue?: string
+    resetPreviewKey?: number
     minHeight?: string
     maxHeight?: string
   }) => (
@@ -141,6 +145,8 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         onChange={(event) => onChange(event.target.value)}
         style={{ minHeight, maxHeight }}
       />
+      <output data-testid="prompt-preview-value">{previewValue}</output>
+      <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
 }))
@@ -591,6 +597,25 @@ function mockDeferredAnimationFrames() {
   }
 }
 
+async function expectTooltipOnHover(button: HTMLElement, content: string) {
+  const trigger = button.closest('[data-slot="tooltip-trigger"]')
+  expect(trigger).toBeInTheDocument()
+
+  fireEvent.pointerMove(trigger as HTMLElement, { pointerType: 'mouse' })
+  expect(await screen.findByRole('tooltip')).toHaveTextContent(content)
+  fireEvent.pointerDown(trigger as HTMLElement, { pointerType: 'mouse' })
+  await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())
+}
+
+async function expectTooltipOnFocus(button: HTMLElement, content: string) {
+  act(() => button.focus())
+  expect(button).toHaveFocus()
+  expect(await screen.findByRole('tooltip')).toHaveTextContent(content)
+
+  act(() => button.blur())
+  await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())
+}
+
 describe('edit dialogs', () => {
   it('submits assistant name, description, and model changes as a PATCH', async () => {
     const onSaved = vi.fn()
@@ -723,12 +748,11 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished agent instructions'))
-    expect(fetchGenerateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: 'Original instructions',
-        throwOnError: true
-      })
-    )
+    expect(fetchGenerateMock).toHaveBeenCalledWith({
+      prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
+      content: 'Original instructions',
+      throwOnError: true
+    })
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
@@ -742,36 +766,44 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
-    const polishButton = screen.getByRole('button', { name: 'Polish prompt' })
-    expect(polishButton).toBeEnabled()
-    fireEvent.click(polishButton)
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
+    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    expect(generateButton).toBeEnabled()
+    fireEvent.click(generateButton)
 
     await waitFor(() =>
       expect(fetchGenerateMock).toHaveBeenCalledWith(
         expect.objectContaining({
+          prompt: expect.stringContaining('You are a Prompt Generator.'),
           content: 'Alpha Agent',
           throwOnError: true
         })
       )
     )
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated agent instructions')
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
   })
 
-  it('pauses agent auto-save while prompt polishing is in flight', async () => {
+  it('pauses agent auto-save and blocks close and tab navigation while a prompt action is in flight', async () => {
     let resolvePolish: (value: string) => void = () => undefined
     fetchGenerateMock.mockReturnValueOnce(
       new Promise<string>((resolve) => {
         resolvePolish = resolve
       })
     )
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
     fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'Draft changed instructions' } })
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Basic' }))
 
     await new Promise((resolve) => setTimeout(resolve, 700))
     expect(updateAgentMock).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(screen.getByRole('tab', { name: 'Prompt' })).toHaveAttribute('aria-selected', 'true')
 
     await act(async () => resolvePolish('Polished changed instructions'))
     await waitFor(() =>
@@ -863,31 +895,117 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('generates and restores assistant prompts inside the dialog', async () => {
+  it('polishes and restores assistant prompts through the shared action', async () => {
+    fetchGenerateMock.mockResolvedValueOnce('Polished assistant prompt')
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
     await expectVariablesHelpOnOpen()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
+    const polishButton = screen.getByRole('button', { name: 'Polish prompt' })
+    await expectTooltipOnFocus(polishButton, 'Polish prompt')
+    await expectTooltipOnHover(polishButton, 'Polish prompt')
+    expect(screen.getByTestId('prompt-preview-value')).toHaveTextContent('Original prompt')
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
+    fireEvent.click(polishButton)
 
-    await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished assistant prompt'))
+    expect(fetchGenerateMock).toHaveBeenCalledWith({
+      prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
+      content: 'Original prompt',
+      throwOnError: true
+    })
+    expect(screen.getByTestId('prompt-preview-value')).toHaveTextContent('Polished assistant prompt')
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
+
+    const undoButton = screen.getByRole('button', { name: 'Undo' })
+    await expectTooltipOnHover(undoButton, 'Undo')
+    fireEvent.click(undoButton)
 
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
+    expect(screen.getByTestId('prompt-preview-value')).toHaveTextContent('Original prompt')
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('2')
   })
 
-  it('shows a toast when assistant prompt generation fails', async () => {
+  it('generates an assistant prompt from its name when the prompt is blank', async () => {
+    render(
+      <AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} onSaved={vi.fn()} />
+    )
+
+    selectTab('Prompt')
+    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    await expectTooltipOnHover(generateButton, 'Generate prompt')
+    fireEvent.click(generateButton)
+
+    await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
+    expect(fetchGenerateMock).toHaveBeenCalledWith({
+      prompt: expect.stringContaining('You are a Prompt Generator.'),
+      content: 'Alpha Assistant',
+      throwOnError: true
+    })
+    expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
+      'Create a useful system prompt from the supplied name or title.'
+    )
+    expect(screen.getByRole('button', { name: 'Polish prompt' })).toBeInTheDocument()
+  })
+
+  it('does not overwrite a manual assistant edit with a stale polish response', async () => {
+    let resolvePolish: (value: string) => void = () => undefined
+    fetchGenerateMock.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolvePolish = resolve
+      })
+    )
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'Manual assistant edit' } })
+    await act(async () => resolvePolish('Late polished prompt'))
+
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Manual assistant edit')
+  })
+
+  it('pauses assistant auto-save and blocks close and tab navigation while a prompt action is in flight', async () => {
+    let resolvePolish: (value: string) => void = () => undefined
+    fetchGenerateMock.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolvePolish = resolve
+      })
+    )
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    fireEvent.change(screen.getByLabelText('Prompt editor'), { target: { value: 'Draft assistant prompt' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Basic' }))
+
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(screen.getByRole('tab', { name: 'Prompt' })).toHaveAttribute('aria-selected', 'true')
+
+    await act(async () => resolvePolish('Polished assistant draft'))
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ prompt: 'Polished assistant draft' })
+      })
+    )
+  })
+
+  it('shows a polish failure toast for a non-empty assistant prompt', async () => {
     fetchGenerateMock.mockRejectedValueOnce(new Error('Model failed'))
 
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith({
         description: 'Check or change the default model, then try again.',
-        title: 'Failed to generate prompt'
+        title: 'Failed to polish prompt'
       })
     )
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
@@ -899,10 +1017,12 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('shows a toast when assistant prompt generation returns no response', async () => {
+  it('shows a generation failure toast when blank assistant prompt generation returns no response', async () => {
     fetchGenerateMock.mockResolvedValueOnce('')
 
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(
+      <AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} onSaved={vi.fn()} />
+    )
 
     selectTab('Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
@@ -913,7 +1033,7 @@ describe('edit dialogs', () => {
         title: 'Failed to generate prompt'
       })
     )
-    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('')
   })
 
   it('submits agent permission defaults and advanced changes', async () => {

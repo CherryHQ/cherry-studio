@@ -19,15 +19,18 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
   PromptEditorField: ({
     actions,
     value,
-    onChange
+    onChange,
+    resetPreviewKey
   }: {
     actions?: ReactNode
     value: string
     onChange: (value: string) => void
+    resetPreviewKey?: number
   }) => (
     <div>
       {actions}
       <textarea aria-label="persona-prompt" value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+      <output data-testid="preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
 }))
@@ -35,18 +38,27 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions', () => ({
   PromptPolishActions: ({
     fallbackSource,
+    emptyValueSystemPrompt,
+    existingValueSystemPrompt,
     onChange,
-    onPolishingChange
+    onRunningChange
   }: {
     fallbackSource?: string
+    emptyValueSystemPrompt: string
+    existingValueSystemPrompt: string
     onChange: (value: string) => void
-    onPolishingChange: (polishing: boolean) => void
+    onRunningChange: (running: boolean) => void
   }) => (
     <>
-      <button type="button" data-fallback-source={fallbackSource} onClick={() => onChange('Polished persona prompt')}>
+      <button
+        type="button"
+        data-fallback-source={fallbackSource}
+        data-empty-value-system-prompt={emptyValueSystemPrompt}
+        data-existing-value-system-prompt={existingValueSystemPrompt}
+        onClick={() => onChange('Polished persona prompt')}>
         Polish prompt
       </button>
-      <button type="button" onClick={() => onPolishingChange(true)}>
+      <button type="button" onClick={() => onRunningChange(true)}>
         Start polishing
       </button>
     </>
@@ -62,10 +74,14 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
 
 function Harness({
   name = '',
-  onPolishingChange = vi.fn()
+  emptyValueSystemPrompt = 'empty-value-strategy',
+  existingValueSystemPrompt = 'existing-value-strategy',
+  onRunningChange = vi.fn()
 }: {
   name?: string
-  onPolishingChange?: (polishing: boolean) => void
+  emptyValueSystemPrompt?: string
+  existingValueSystemPrompt?: string
+  onRunningChange?: (running: boolean) => void
 }) {
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: {
@@ -81,7 +97,13 @@ function Harness({
 
   return (
     <Form {...form}>
-      <PersonaStep form={form} portalContainer={null} onPolishingChange={onPolishingChange} />
+      <PersonaStep
+        form={form}
+        portalContainer={null}
+        emptyValueSystemPrompt={emptyValueSystemPrompt}
+        existingValueSystemPrompt={existingValueSystemPrompt}
+        onRunningChange={onRunningChange}
+      />
     </Form>
   )
 }
@@ -97,17 +119,18 @@ describe('PersonaStep', () => {
     await user.click(screen.getByRole('button', { name: 'Polish prompt' }))
 
     expect(screen.getByLabelText('persona-prompt')).toHaveValue('Polished persona prompt')
+    expect(screen.getByTestId('preview-reset-key')).toHaveTextContent('1')
   })
 
-  it('reports polishing state to the create wizard', async () => {
+  it('reports action-running state to the create wizard', async () => {
     const user = userEvent.setup()
-    const onPolishingChange = vi.fn()
+    const onRunningChange = vi.fn()
 
-    render(<Harness onPolishingChange={onPolishingChange} />)
+    render(<Harness onRunningChange={onRunningChange} />)
 
     await user.click(screen.getByRole('button', { name: 'Start polishing' }))
 
-    expect(onPolishingChange).toHaveBeenCalledWith(true)
+    expect(onRunningChange).toHaveBeenCalledWith(true)
   })
 
   it('uses the resource name as the blank-prompt generation fallback', () => {
@@ -116,6 +139,21 @@ describe('PersonaStep', () => {
     expect(screen.getByRole('button', { name: 'Polish prompt' })).toHaveAttribute(
       'data-fallback-source',
       'Research Assistant'
+    )
+  })
+
+  it('forwards the owning flow prompt strategies', () => {
+    render(
+      <Harness emptyValueSystemPrompt="custom-empty-strategy" existingValueSystemPrompt="custom-existing-strategy" />
+    )
+
+    expect(screen.getByRole('button', { name: 'Polish prompt' })).toHaveAttribute(
+      'data-empty-value-system-prompt',
+      'custom-empty-strategy'
+    )
+    expect(screen.getByRole('button', { name: 'Polish prompt' })).toHaveAttribute(
+      'data-existing-value-system-prompt',
+      'custom-existing-strategy'
     )
   })
 })

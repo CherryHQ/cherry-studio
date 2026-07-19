@@ -31,6 +31,7 @@ import {
   type ClaudeToolCategory,
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
+import { AGENT_PROMPT, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
@@ -208,7 +209,7 @@ function AgentEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
-  const [isPromptPolishing, setIsPromptPolishing] = useState(false)
+  const [isPromptActionRunning, setIsPromptActionRunning] = useState(false)
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
@@ -265,7 +266,7 @@ function AgentEditDialogContent({
     setActiveTab('basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
-    setIsPromptPolishing(false)
+    setIsPromptActionRunning(false)
     setBaselineSkillIds([])
     setBaselineSkillAgentId(null)
   }, [defaultValues, form, open, resource])
@@ -317,7 +318,7 @@ function AgentEditDialogContent({
   // baseline moves, but the values are unchanged, so this never re-fires from our
   // own save (prevents a save→refetch→save loop).
   const flush = useDebouncedAutoSave({
-    enabled: open && !isPromptPolishing,
+    enabled: open && !isPromptActionRunning,
     changeKey: canPersist ? JSON.stringify(values) : null,
     onSave: persist
   })
@@ -326,7 +327,7 @@ function AgentEditDialogContent({
   // only close once it settles — so a failed final save stays visible instead of
   // being silently dropped, and we never race a second concurrent save.
   const handleOpenChange = (next: boolean) => {
-    if (!next && isPromptPolishing) return
+    if (!next && isPromptActionRunning) return
     if (next || !canPersist) {
       onOpenChange(next)
       return
@@ -344,6 +345,7 @@ function AgentEditDialogContent({
     <EditDialogShell
       activeTab={activeTab}
       form={form}
+      interactionLocked={isPromptActionRunning}
       onActiveTabChange={setActiveTab}
       onOpenChange={handleOpenChange}
       open={open}
@@ -374,7 +376,7 @@ function AgentEditDialogContent({
           <AgentPromptField
             form={form}
             portalContainer={dialogContentElement}
-            onPolishingChange={setIsPromptPolishing}
+            onRunningChange={setIsPromptActionRunning}
           />
         </TabsContent>
         {isToolTab(activeTab) ? (
@@ -604,44 +606,55 @@ function HeartbeatSettingsField({
 function AgentPromptField({
   form,
   portalContainer,
-  onPolishingChange
+  onRunningChange
 }: {
   form: UseFormReturn<AgentEditFormValues>
   portalContainer: HTMLElement | null
-  onPolishingChange: (polishing: boolean) => void
+  onRunningChange: (running: boolean) => void
 }) {
   const { t } = useTranslation()
+  const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const name = useWatch({ control: form.control, name: 'name' })
 
   return (
     <FormField
       control={form.control}
       name="instructions"
-      render={({ field }) => (
-        <PromptEditorField
-          label={
-            <FieldLabelWithHelp
-              label={t('library.config.agent.field.instructions.label')}
-              helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
-              formLabel={false}
-            />
-          }
-          value={field.value}
-          onChange={field.onChange}
-          placeholder={t('library.config.agent.field.instructions.placeholder')}
-          fill
-          actions={
-            <PromptPolishActions
-              value={field.value}
-              fallbackSource={name}
-              onChange={field.onChange}
-              onPolishingChange={onPolishingChange}
-            />
-          }
-          minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
-          maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
-        />
-      )}
+      render={({ field }) => {
+        const handlePromptActionChange = (instructions: string) => {
+          field.onChange(instructions)
+          setResetPreviewKey((key) => key + 1)
+        }
+
+        return (
+          <PromptEditorField
+            label={
+              <FieldLabelWithHelp
+                label={t('library.config.agent.field.instructions.label')}
+                helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+                formLabel={false}
+              />
+            }
+            value={field.value}
+            onChange={field.onChange}
+            placeholder={t('library.config.agent.field.instructions.placeholder')}
+            resetPreviewKey={resetPreviewKey}
+            fill
+            actions={
+              <PromptPolishActions
+                value={field.value}
+                fallbackSource={name}
+                emptyValueSystemPrompt={AGENT_PROMPT}
+                existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+                onChange={handlePromptActionChange}
+                onRunningChange={onRunningChange}
+              />
+            }
+            minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
+            maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+          />
+        )
+      }}
     />
   )
 }

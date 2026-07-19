@@ -68,19 +68,25 @@ vi.mock('../steps/BasicInfoStep', async () => {
 vi.mock('../steps/PersonaStep', () => ({
   PersonaStep: ({
     form,
-    onPolishingChange
+    emptyValueSystemPrompt,
+    existingValueSystemPrompt,
+    onRunningChange
   }: {
     form: { setValue: (name: string, value: unknown) => void }
-    onPolishingChange: (polishing: boolean) => void
+    emptyValueSystemPrompt: string
+    existingValueSystemPrompt: string
+    onRunningChange: (running: boolean) => void
   }) => (
     <>
+      <output data-testid="persona-empty-value-strategy">{emptyValueSystemPrompt}</output>
+      <output data-testid="persona-existing-value-strategy">{existingValueSystemPrompt}</output>
       <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
         fill persona
       </button>
-      <button type="button" onClick={() => onPolishingChange(true)}>
+      <button type="button" onClick={() => onRunningChange(true)}>
         start polishing
       </button>
-      <button type="button" onClick={() => onPolishingChange(false)}>
+      <button type="button" onClick={() => onRunningChange(false)}>
         finish polishing
       </button>
     </>
@@ -226,7 +232,8 @@ describe('ResourceCreateWizard', () => {
 
   it('keeps persona navigation disabled while prompt polishing is in flight', async () => {
     const user = userEvent.setup()
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+    const onOpenChange = vi.fn()
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -234,9 +241,38 @@ describe('ResourceCreateWizard', () => {
 
     expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'library.config.dialogs.create.back' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: CANCEL })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: CANCEL }))
+    expect(onOpenChange).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'finish polishing' }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+  })
+
+  it('selects generation for an empty assistant prompt and polishing for an existing prompt', async () => {
+    const user = userEvent.setup()
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+
+    expect(screen.getByTestId('persona-empty-value-strategy')).toHaveTextContent('## Role:')
+    expect(screen.getByTestId('persona-existing-value-strategy')).toHaveTextContent(
+      'Improve the supplied system prompt without changing its intent or authority.'
+    )
+  })
+
+  it('selects generation for empty agent instructions and polishing for existing instructions', async () => {
+    const user = userEvent.setup()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+
+    expect(screen.getByTestId('persona-empty-value-strategy')).toHaveTextContent('## Role:')
+    expect(screen.getByTestId('persona-existing-value-strategy')).toHaveTextContent(
+      'Improve the supplied system prompt without changing its intent or authority.'
+    )
   })
 
   it('shows the capability step (not knowledge) for the agent kind', async () => {

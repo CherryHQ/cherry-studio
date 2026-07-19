@@ -46,6 +46,15 @@ You are a Prompt Generator. You will integrate user input information into a str
 As [role name], with [list skills], strictly adhering to [list constraints], using default [select language] to talk with users, welcome users in a friendly manner. Then introduce yourself and prompt the user for input.
 `
 
+export const RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT = [
+  'Improve the supplied system prompt without changing its intent or authority.',
+  'Preserve roles, goals, constraints, tool instructions, workflows, and output requirements.',
+  'Do not replace its structure or force it into a predefined template.',
+  'Keep the output in the same language as the input.',
+  'Preserve Markdown, code, URLs, and every placeholder token verbatim, including tokens shaped like {{name}} and ${name}; keep duplicate occurrences.',
+  'Return only the polished system prompt with no explanation, wrapper, or code fence.'
+].join('\n')
+
 export const SUMMARIZE_PROMPT =
   "You are an assistant skilled in conversation. You need to summarize the user's conversation into a title within 10 words. The language of the title should be consistent with the user's primary language. Do not use punctuation marks or other special symbols"
 

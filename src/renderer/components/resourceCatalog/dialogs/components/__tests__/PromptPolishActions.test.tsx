@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +8,10 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   toastError: vi.fn()
 }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  return importOriginal<typeof CherryStudioUi>()
+})
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: mocks.loggerError }) }
@@ -21,10 +26,13 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: (key: string) => (key === 'common.undo' ? 'Undo' : key) })
 }))
 
 import { PromptPolishActions } from '../PromptPolishActions'
+
+const TEST_GENERATE_SYSTEM_PROMPT = 'Generate a test prompt from the supplied title.'
+const TEST_EXISTING_SYSTEM_PROMPT = 'Rewrite an existing test prompt as a structured persona.'
 
 function Harness({
   initialValue = 'Draft {{date}} for ${city}',
@@ -37,7 +45,13 @@ function Harness({
 
   return (
     <>
-      <PromptPolishActions value={value} fallbackSource={fallbackSource} onChange={setValue} />
+      <PromptPolishActions
+        value={value}
+        fallbackSource={fallbackSource}
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={setValue}
+      />
       <button type="button" onClick={() => setValue('Manual edit')}>
         manual edit
       </button>
@@ -57,6 +71,25 @@ function deferredResponse() {
   return { promise, resolve }
 }
 
+async function expectTooltipOnHover(button: HTMLElement, content: string) {
+  const trigger = button.closest('[data-slot="tooltip-trigger"]')
+  expect(trigger).toBeInTheDocument()
+
+  fireEvent.pointerMove(trigger as HTMLElement, { pointerType: 'mouse' })
+  expect(await screen.findByRole('tooltip')).toHaveTextContent(content)
+  fireEvent.pointerDown(trigger as HTMLElement, { pointerType: 'mouse' })
+  await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())
+}
+
+async function expectTooltipOnFocus(button: HTMLElement, content: string) {
+  act(() => button.focus())
+  expect(button).toHaveFocus()
+  expect(await screen.findByRole('tooltip')).toHaveTextContent(content)
+
+  act(() => button.blur())
+  await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument())
+}
+
 beforeEach(() => {
   mocks.fetchGenerate.mockReset()
   mocks.loggerError.mockReset()
@@ -64,30 +97,48 @@ beforeEach(() => {
 })
 
 describe('PromptPolishActions', () => {
-  it('polishes through the default-model generation path and supports one-step undo', async () => {
+  it('defines the undo tooltip in the human-authored locale catalogs', async () => {
+    const [{ default: enUS }, { default: zhCN }] = await Promise.all([
+      import('@renderer/i18n/locales/en-us.json'),
+      import('@renderer/i18n/locales/zh-cn.json')
+    ])
+
+    expect((enUS.common as Record<string, unknown>).undo).toBe('Undo')
+    expect((zhCN.common as Record<string, unknown>).undo).toBe('撤销')
+  })
+
+  it('rewrites an existing prompt with the caller-provided strategy and supports one-step undo', async () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Polished {{date}} for ${city}')
     render(<Harness />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+    const polishButton = screen.getByRole('button', { name: 'library.config.prompt.polish' })
+    await expectTooltipOnFocus(polishButton, 'library.config.prompt.polish')
+    await expectTooltipOnHover(polishButton, 'library.config.prompt.polish')
+    fireEvent.click(polishButton)
 
     await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('Polished {{date}} for ${city}'))
     expect(mocks.fetchGenerate).toHaveBeenCalledWith({
-      prompt: expect.stringContaining('Improve the supplied prompt without changing its intent or behavior.'),
+      prompt: TEST_EXISTING_SYSTEM_PROMPT,
       content: 'Draft {{date}} for ${city}',
       throwOnError: true
     })
-    expect(mocks.fetchGenerate.mock.calls[0][0].prompt).not.toContain(
-      'Create a useful system prompt from the supplied name or title.'
-    )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.undo' }))
+    const undoButton = screen.getByRole('button', { name: 'Undo' })
+    await expectTooltipOnFocus(undoButton, 'Undo')
+    await expectTooltipOnHover(undoButton, 'Undo')
+    fireEvent.click(undoButton)
     expect(screen.getByTestId('value')).toHaveTextContent('Draft {{date}} for ${city}')
   })
 
-  it('keeps the action visible but disabled when both prompt and fallback source are blank', () => {
+  it('keeps the unavailable generate action tooltip accessible by hover and keyboard focus', async () => {
     render(<Harness initialValue="   " />)
 
-    expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toBeDisabled()
+    const generateButton = screen.getByRole('button', { name: 'library.config.prompt.generate' })
+    expect(generateButton).toHaveAttribute('aria-disabled', 'true')
+    expect(generateButton).not.toBeDisabled()
+    await expectTooltipOnFocus(generateButton, 'library.config.prompt.generate')
+    await expectTooltipOnHover(generateButton, 'library.config.prompt.generate')
+    fireEvent.click(generateButton)
     expect(mocks.fetchGenerate).not.toHaveBeenCalled()
   })
 
@@ -95,21 +146,22 @@ describe('PromptPolishActions', () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Generated agent instructions')
     render(<Harness initialValue="" fallbackSource="Alpha Agent" />)
 
-    const polishButton = screen.getByRole('button', { name: 'library.config.prompt.polish' })
-    expect(polishButton).toBeEnabled()
-    fireEvent.click(polishButton)
+    const generateButton = screen.getByRole('button', { name: 'library.config.prompt.generate' })
+    expect(generateButton).toBeEnabled()
+    await expectTooltipOnFocus(generateButton, 'library.config.prompt.generate')
+    await expectTooltipOnHover(generateButton, 'library.config.prompt.generate')
+    fireEvent.click(generateButton)
 
     await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('Generated agent instructions'))
+    const polishButton = screen.getByRole('button', { name: 'library.config.prompt.polish' })
+    expect(polishButton).toBeInTheDocument()
     expect(mocks.fetchGenerate).toHaveBeenCalledWith({
-      prompt: expect.stringContaining('Create a useful system prompt from the supplied name or title.'),
+      prompt: TEST_GENERATE_SYSTEM_PROMPT,
       content: 'Alpha Agent',
       throwOnError: true
     })
-    expect(mocks.fetchGenerate.mock.calls[0][0].prompt).not.toContain(
-      'Improve the supplied prompt without changing its intent or behavior.'
-    )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.undo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(screen.getByTestId('value')).toBeEmptyDOMElement()
   })
 
@@ -121,13 +173,10 @@ describe('PromptPolishActions', () => {
 
     await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('回答务必简洁、清晰。'))
     expect(mocks.fetchGenerate).toHaveBeenCalledWith({
-      prompt: expect.stringContaining('Improve the supplied prompt without changing its intent or behavior.'),
+      prompt: TEST_EXISTING_SYSTEM_PROMPT,
       content: '回答要简洁',
       throwOnError: true
     })
-    expect(mocks.fetchGenerate.mock.calls[0][0].prompt).not.toContain(
-      'Create a useful system prompt from the supplied name or title.'
-    )
   })
 
   it('matches the assistant circular action style', () => {
@@ -151,17 +200,25 @@ describe('PromptPolishActions', () => {
     expect(mocks.fetchGenerate).toHaveBeenCalledTimes(1)
   })
 
-  it('reports polishing state to the owning flow', async () => {
+  it('reports action-running state to the owning flow', async () => {
     const request = deferredResponse()
     mocks.fetchGenerate.mockReturnValue(request.promise)
-    const onPolishingChange = vi.fn()
-    render(<PromptPolishActions value="Original prompt" onChange={vi.fn()} onPolishingChange={onPolishingChange} />)
+    const onRunningChange = vi.fn()
+    render(
+      <PromptPolishActions
+        value="Original prompt"
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={vi.fn()}
+        onRunningChange={onRunningChange}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
-    expect(onPolishingChange).toHaveBeenCalledWith(true)
+    expect(onRunningChange).toHaveBeenCalledWith(true)
 
     await act(async () => request.resolve('Polished prompt'))
-    expect(onPolishingChange).toHaveBeenLastCalledWith(false)
+    expect(onRunningChange).toHaveBeenLastCalledWith(false)
   })
 
   it('rejects a result that changes duplicate protected placeholders', async () => {
@@ -210,31 +267,59 @@ describe('PromptPolishActions', () => {
     expect(screen.getByTestId('value')).toHaveTextContent('Original prompt')
   })
 
+  it('uses the generation failure toast for a fallback request', async () => {
+    mocks.fetchGenerate.mockRejectedValueOnce(new Error('model failed'))
+    render(<Harness initialValue="" fallbackSource="Alpha Agent" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.generate' }))
+
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith({
+        title: 'library.config.prompt.generate_failed_title',
+        description: 'library.config.prompt.generate_failed_description'
+      })
+    )
+    expect(screen.getByTestId('value')).toBeEmptyDOMElement()
+  })
+
   it('does not create undo state when the polished result is unchanged', async () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Original prompt')
     const onChange = vi.fn()
-    render(<PromptPolishActions value="Original prompt" onChange={onChange} />)
+    render(
+      <PromptPolishActions
+        value="Original prompt"
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={onChange}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
     await waitFor(() => expect(mocks.fetchGenerate).toHaveBeenCalledTimes(1))
 
     expect(onChange).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'common.undo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
   })
 
   it('ignores a late response after unmount', async () => {
     const request = deferredResponse()
     mocks.fetchGenerate.mockReturnValueOnce(request.promise)
     const onChange = vi.fn()
-    const onPolishingChange = vi.fn()
+    const onRunningChange = vi.fn()
     const view = render(
-      <PromptPolishActions value="Original prompt" onChange={onChange} onPolishingChange={onPolishingChange} />
+      <PromptPolishActions
+        value="Original prompt"
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={onChange}
+        onRunningChange={onRunningChange}
+      />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
-    expect(onPolishingChange).toHaveBeenCalledWith(true)
+    expect(onRunningChange).toHaveBeenCalledWith(true)
     view.unmount()
-    expect(onPolishingChange).toHaveBeenLastCalledWith(false)
+    expect(onRunningChange).toHaveBeenLastCalledWith(false)
     await act(async () => request.resolve('Late polished prompt'))
 
     expect(onChange).not.toHaveBeenCalled()
@@ -244,10 +329,24 @@ describe('PromptPolishActions', () => {
     const request = deferredResponse()
     mocks.fetchGenerate.mockReturnValueOnce(request.promise)
     const onChange = vi.fn()
-    const view = render(<PromptPolishActions value="Original prompt" onChange={onChange} />)
+    const view = render(
+      <PromptPolishActions
+        value="Original prompt"
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={onChange}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
-    view.rerender(<PromptPolishActions value="Manual edit" onChange={onChange} />)
+    view.rerender(
+      <PromptPolishActions
+        value="Manual edit"
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={onChange}
+      />
+    )
     await act(async () => request.resolve('Late polished prompt'))
 
     expect(onChange).not.toHaveBeenCalled()
@@ -257,10 +356,26 @@ describe('PromptPolishActions', () => {
     const request = deferredResponse()
     mocks.fetchGenerate.mockReturnValueOnce(request.promise)
     const onChange = vi.fn()
-    const view = render(<PromptPolishActions value="" fallbackSource="Alpha Agent" onChange={onChange} />)
+    const view = render(
+      <PromptPolishActions
+        value=""
+        fallbackSource="Alpha Agent"
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={onChange}
+      />
+    )
 
-    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
-    view.rerender(<PromptPolishActions value="" fallbackSource="Beta Agent" onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.generate' }))
+    view.rerender(
+      <PromptPolishActions
+        value=""
+        fallbackSource="Beta Agent"
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={onChange}
+      />
+    )
     await act(async () => request.resolve('Generated Alpha instructions'))
 
     expect(onChange).not.toHaveBeenCalled()
@@ -270,10 +385,25 @@ describe('PromptPolishActions', () => {
     const request = deferredResponse()
     mocks.fetchGenerate.mockReturnValueOnce(request.promise)
     const onChange = vi.fn()
-    const view = render(<PromptPolishActions value="Original prompt" onChange={onChange} />)
+    const view = render(
+      <PromptPolishActions
+        value="Original prompt"
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={onChange}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
-    view.rerender(<PromptPolishActions value="Original prompt" onChange={onChange} disabled />)
+    view.rerender(
+      <PromptPolishActions
+        value="Original prompt"
+        emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+        existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+        onChange={onChange}
+        disabled
+      />
+    )
     await act(async () => request.resolve('Late polished prompt'))
 
     expect(onChange).not.toHaveBeenCalled()
@@ -284,12 +414,12 @@ describe('PromptPolishActions', () => {
     render(<Harness initialValue="Original prompt" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
-    await screen.findByRole('button', { name: 'common.undo' })
+    await screen.findByRole('button', { name: 'Undo' })
     fireEvent.click(screen.getByRole('button', { name: 'manual edit' }))
 
-    expect(screen.queryByRole('button', { name: 'common.undo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'restore polished value' }))
-    expect(screen.queryByRole('button', { name: 'common.undo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
   })
 })
