@@ -44,8 +44,33 @@ export async function isTextByContent(target: FilePath): Promise<boolean> {
 }
 
 /**
- * Detect file type from extension, upgrading an extension-unknown file
- * (`FILE_TYPE.OTHER`) to `TEXT` when its content sniffs as text.
+ * Detect a file's `FileType`, **extension-first**.
+ *
+ * The extension is authoritative for every recognized type (image, video,
+ * audio, document, text, …). A content sniff (`isTextByContent`) runs ONLY as a
+ * fallback when the extension is unknown (`FILE_TYPE.OTHER`), to upgrade
+ * extension-less / uncommon text files (custom config/log formats users bring
+ * from many domains) to `TEXT` so they can be attached and previewed as text.
+ *
+ * ## Extension wins on mismatch (deliberate)
+ *
+ * When a file's bytes contradict its extension, the extension decides — content
+ * is never sniffed for a recognized extension:
+ * - binary bytes under a recognized text extension (e.g. a binary blob named
+ *   `foo.txt`) → `TEXT`, not sniffed.
+ * - text bytes under a recognized non-text extension (e.g. a text file named
+ *   `foo.png`) → the extension's type (`IMAGE`), not `TEXT`.
+ *
+ * This trades a rare, usually-pathological misclassification for skipping a
+ * content read on every recognized file. It is a deliberate change from the
+ * legacy `File_IsTextFile`, which content-sniffed unconditionally. The blast
+ * radius is bounded at the two consumers of this classification: the
+ * attach/translate gate (`renderer/utils/file.ts` `isSupportedFile`) consults
+ * its extension allowlist *before* this type, and the artifact preview gate
+ * (`useIsTextFile`) is size-capped and visual-only — a mismatch degrades a
+ * preview at worst, it cannot corrupt data or read an unbounded binary as text.
+ * Callers that genuinely need content-based detection should call
+ * `isTextByContent` directly instead.
  */
 export async function getFileType(target: FilePath): Promise<FileType> {
   const ext = path.extname(target)

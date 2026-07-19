@@ -52,6 +52,20 @@ describe('getFileType', () => {
     await writeFile(f, TEXT_SAMPLE)
     expect(await getFileType(f as FilePath)).toBe('text')
   })
+
+  // Extension wins on mismatch (deliberate — see getFileType's contract). A
+  // recognized extension is never content-sniffed, so the bytes are ignored.
+  it('keeps a recognized text extension as "text" even when the content is binary', async () => {
+    const f = path.join(tmp, 'mislabeled.txt')
+    await writeFile(f, BINARY_SAMPLE)
+    expect(await getFileType(f as FilePath)).toBe('text')
+  })
+
+  it('keeps a recognized non-text extension even when the content is text', async () => {
+    const f = path.join(tmp, 'mislabeled.png')
+    await writeFile(f, TEXT_SAMPLE)
+    expect(await getFileType(f as FilePath)).toBe('image')
+  })
 })
 
 describe('isTextByContent', () => {

@@ -19,6 +19,10 @@ interface UseIsTextFileOptions {
  * `isbinaryfile` + chardet content sniff. Callers that render a known-binary
  * format specially (e.g. PDF or Office documents) can pass `enabled: false` to
  * skip the check and receive a synchronous `binary` state.
+ *
+ * Classification is extension-first: a file whose bytes contradict its
+ * extension is classified by the extension, not sniffed (see `getFileType`).
+ * A mismatch only picks which preview renders — it never corrupts data.
  */
 export function useIsTextFile(
   workspacePath: string | null | undefined,
