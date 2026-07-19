@@ -48,7 +48,6 @@ import {
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 
-
 /** Renderer-facing export request (renderer passes preset + path; service fills the rest). */
 export interface BackupV2StartOptions {
   /** 'full' = all 14 domains + blobs; 'lite' = 10 domains (excludes KNOWLEDGE / PAINTINGS / FILE_STORAGE / TRANSLATE_HISTORY), no blobs. */
