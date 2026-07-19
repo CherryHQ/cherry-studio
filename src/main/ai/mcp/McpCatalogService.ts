@@ -73,6 +73,14 @@ export class McpCatalogService extends BaseService {
   /** Single-flights `warmToolsCache` refreshes per serverId so concurrent sessions warming
    *  the same server at once don't each open a connection to it. */
   private readonly warmRefreshInFlight = new Map<string, Promise<void>>()
+  /**
+   * Servers whose most recent refresh attempt failed without leaving a usable (populated or
+   * legitimately-empty) snapshot. `listToolsWithStatus` reads this to report `fresh: false`,
+   * which is what lets the registry mark a namespace as NOT refreshed (so stale tools survive)
+   * and broadcast the `mcp.server.tools_stale` warning for a genuine disconnect. A server is
+   * removed from this set as soon as any refresh succeeds (including a successful empty one).
+   */
+  private readonly staleServers = new Set<string>()
 
   /**
    * Fires when a server's `mcp.tools.<serverId>` shared-cache **content** actually changes
@@ -100,7 +108,6 @@ export class McpCatalogService extends BaseService {
       application.get('McpRuntimeService').onToolListChanged(({ serverId }) => {
         void this.refreshTools(serverId).catch((error) => {
           logger.warn('Failed to refresh tools after tool list changed notification', { serverId, error })
-          this.clearSharedToolsCache(serverId)
         })
       })
     )
@@ -144,6 +151,7 @@ export class McpCatalogService extends BaseService {
   }
 
   public clearSharedToolsCache(serverId: string): void {
+    this.staleServers.delete(serverId)
     this.writeToolsCache(serverId, [])
   }
 
@@ -211,13 +219,58 @@ export class McpCatalogService extends BaseService {
 
     try {
       const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
+      this.staleServers.delete(server.id)
       this.writeToolsCache(server.id, tools)
       this.runtimeService().setServerStatus(server.id, 'connected')
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
     } catch (error) {
       this.runtimeService().setServerStatus(server.id, 'error', error)
+      // Preserve last-known-good data: if a prior snapshot exists, leave it untouched and only
+      // mark the server stale so consumers skip eviction and surface a warning. On a COLD failure
+      // (no prior snapshot) write an empty sentinel so the cache-only hot path reads `[]` instead of
+      // `undefined` — otherwise every later AI request re-kicks a warm and reconnects to / restarts a
+      // dead server. The cold sentinel is distinct from a successful empty refresh (which removes the
+      // stale mark); the sole difference is the `staleServers` flag, which `listToolsWithStatus` reads.
+      const cacheService = application.get('CacheService')
+      const prior = cacheService.getShared(mcpToolsCacheKey(server.id)) as McpTool[] | undefined
+      this.staleServers.add(server.id)
+      if (prior === undefined) {
+        this.writeToolsCache(server.id, [])
+      }
       throw error
     }
+  }
+
+  /**
+   * Cache-only read that also reports whether the returned snapshot is *fresh* — i.e. it
+   * came from a successful refresh (live or a populated/stale-free cache), as opposed to
+   * a cold miss (`undefined`) or a failed refresh with no usable snapshot. `fresh: false`
+   * is the signal the registry uses to (a) keep last-known-good tools registered instead
+   * of evicting them and (b) broadcast `mcp.server.tools_stale` for a genuine disconnect.
+   *
+   * A *successful empty* refresh is `fresh: true` even though `tools === []`: the server
+   * really has no tools (or the user disabled its last one), so the registry must treat the
+   * namespace as refreshed and drop the now-removed/disabled entries. The only `fresh: false`
+   * cases are cold (never warmed) and post-failure-with-no-prior-snapshot.
+   */
+  public listToolsWithStatus(serverId: string, options: ListToolsOptions = {}): { tools: McpTool[]; fresh: boolean } {
+    const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
+    // `undefined` = never warmed (distinct from a warmed-but-empty/dead server that holds `[]`).
+    // Kick a one-shot, non-blocking refresh so the next read is populated; dead servers keep
+    // their `[]` and are not re-probed here. Routed through the single-flighted warm so a kick
+    // racing an in-flight session warm doesn't open a second connection to the same server.
+    if (cached === undefined) void this.warmToolsCache(serverId)
+    const tools = cached ?? []
+    // Cold miss, or a recent refresh failure that left no usable snapshot → not fresh.
+    const fresh = cached !== undefined && !this.staleServers.has(serverId)
+    if (options.includeDisabled || tools.length === 0) return { tools, fresh }
+    let server: McpServer | undefined
+    try {
+      server = this.getServerById(serverId)
+    } catch {
+      server = undefined
+    }
+    return { tools: server ? tools.filter((tool) => !isMcpToolDisabledBySource(server, tool)) : tools, fresh }
   }
 
   /**
@@ -232,21 +285,7 @@ export class McpCatalogService extends BaseService {
    * the next one.
    */
   public listTools(serverId: string, options: ListToolsOptions = {}): McpTool[] {
-    const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
-    // `undefined` = never warmed (distinct from a warmed-but-empty/dead server that holds `[]`).
-    // Kick a one-shot, non-blocking refresh so the next read is populated; dead servers keep
-    // their `[]` and are not re-probed here. Routed through the single-flighted warm so a kick
-    // racing an in-flight session warm doesn't open a second connection to the same server.
-    if (cached === undefined) void this.warmToolsCache(serverId)
-    const tools = cached ?? []
-    if (options.includeDisabled || tools.length === 0) return tools
-    let server: McpServer | undefined
-    try {
-      server = this.getServerById(serverId)
-    } catch {
-      server = undefined
-    }
-    return server ? tools.filter((tool) => !isMcpToolDisabledBySource(server, tool)) : tools
+    return this.listToolsWithStatus(serverId, options).tools
   }
 
   /**

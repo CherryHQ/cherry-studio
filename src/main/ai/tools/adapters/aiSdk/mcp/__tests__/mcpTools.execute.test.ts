@@ -7,11 +7,12 @@ const listTools = vi.fn()
 const list = vi.fn()
 const getById = vi.fn()
 const callTool = vi.fn<(req: unknown) => Promise<McpCallToolResponse>>()
+const broadcast = vi.fn()
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    McpCatalogService: { listTools },
+    McpCatalogService: { listTools, listToolsWithStatus: listTools },
     McpRuntimeService: { callTool }
   } as Record<string, unknown>)
 })
@@ -20,8 +21,9 @@ vi.mock('@application', async () => {
   return {
     application: {
       get: (name: string) => {
-        if (name === 'McpCatalogService') return { listTools }
+        if (name === 'McpCatalogService') return { listTools, listToolsWithStatus: listTools }
         if (name === 'McpRuntimeService') return { callTool }
+        if (name === 'IpcApiService') return { broadcast }
         throw new Error(`unexpected service: ${name}`)
       }
     }
@@ -53,7 +55,7 @@ function activeServer(id: string, disabledAutoApproveTools: string[] = []) {
 /** Register a single tool via the production sync path and return its SDK execute fn. */
 async function registerToolExecute(reg: ToolRegistry) {
   list.mockReturnValue({ items: [activeServer('s1')] })
-  listTools.mockReturnValue([mcpTool('s1', 't')])
+  listTools.mockReturnValue({ tools: [mcpTool('s1', 't')], fresh: true })
   await syncMcpToolsToRegistry(reg)
   const entry = reg.getByName('mcp__s1__t')
   if (!entry) throw new Error('expected mcp__s1__t to be registered')
