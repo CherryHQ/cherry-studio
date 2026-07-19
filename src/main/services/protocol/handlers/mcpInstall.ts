@@ -50,7 +50,8 @@ export function handleMcpProtocolUrl(url: URL) {
       // }
       // cherrystudio://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
 
-      const data = params.get('servers')
+      // URLSearchParams decodes literal + as space, but standard base64 uses +.
+      const data = params.get('servers')?.replaceAll(' ', '+')
 
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')
