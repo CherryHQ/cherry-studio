@@ -11,6 +11,7 @@
  * The pass is fully silent (no user surface) and has no volume-based abort —
  * see spec §5.3 for why reclaiming a large legitimate candidate set is correct.
  */
+import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { loggerService } from '@logger'
 import type { FileEntry } from '@shared/data/types/file'
 import type { EntryCleanupSummary } from '@shared/types/file'
@@ -28,7 +29,7 @@ export const ENTRY_CLEANUP_GRACE_MS = 60 * 60 * 1000
 export const ENTRY_CLEANUP_BATCH_LIMIT = 100
 
 export interface EntryCleanupReport {
-  readonly outcome: 'completed' | 'failed'
+  readonly outcome: 'completed' | 'skipped' | 'failed'
   readonly candidates: number
   readonly deleted: number
   readonly skippedTempRefs: number
@@ -46,6 +47,23 @@ type CandidateOutcome = { kind: 'deleted'; entry: FileEntry } | { kind: 'refs-re
 
 export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryCleanupReport> {
   const startedAt = Date.now()
+  // A staged restore holds the DB in a protected window: mutating file_entry or
+  // unlinking blobs now could invalidate the live DB fingerprint or race the
+  // pending promotion. Both orphan-sweep passes gate on this (orphanSweep.ts); the
+  // scan-based cleanup must too. Report a truthful `skipped`, not a fake completed.
+  if (hasPendingRestore()) {
+    return finish({
+      outcome: 'skipped',
+      candidates: 0,
+      deleted: 0,
+      skippedTempRefs: 0,
+      skippedRefsReappeared: 0,
+      gonePinned: 0,
+      failed: 0,
+      unlinkFailures: 0,
+      durationMs: Date.now() - startedAt
+    })
+  }
   try {
     const candidates = deps.fileEntryService.countCleanupCandidates(ENTRY_CLEANUP_GRACE_MS)
     if (candidates === 0) {
@@ -154,6 +172,7 @@ function finish(report: EntryCleanupReport, rawError?: unknown): EntryCleanupRep
   const payload = { event: 'file-entry-cleanup', ...report }
   switch (report.outcome) {
     case 'completed':
+    case 'skipped':
       logger.info('file-entry-cleanup', payload)
       break
     case 'failed': {
@@ -177,6 +196,8 @@ export function summariseEntryCleanup(report: EntryCleanupReport): EntryCleanupS
       return { outcome: 'failed', ...base }
     case 'completed':
       return { outcome: 'completed', ...base }
+    case 'skipped':
+      return { outcome: 'skipped', ...base }
     default:
       return assertNever(report.outcome)
   }

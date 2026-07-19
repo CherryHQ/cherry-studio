@@ -99,4 +99,5 @@ export type OrphanReport =
  */
 export type EntryCleanupSummary =
   | { readonly outcome: 'completed'; readonly candidates: number; readonly deleted: number }
+  | { readonly outcome: 'skipped'; readonly candidates: number; readonly deleted: number }
   | { readonly outcome: 'failed'; readonly candidates: number; readonly deleted: number }

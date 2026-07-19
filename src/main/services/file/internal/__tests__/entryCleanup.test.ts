@@ -27,6 +27,12 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+// The scan-based cleanup gates on a pending staged restore, like the orphan sweeps.
+const hasPendingRestoreMock = vi.fn((): boolean => false)
+vi.mock('@data/db/restore/restoreJournal', () => ({
+  hasPendingRestore: () => hasPendingRestoreMock()
+}))
+
 const { ENTRY_CLEANUP_BATCH_LIMIT, runEntryCleanup, summariseEntryCleanup } = await import('../entryCleanup')
 
 const HOUR = 60 * 60 * 1000
@@ -49,6 +55,7 @@ describe('entryCleanup', () => {
   let filesDir: string
 
   beforeEach(async () => {
+    hasPendingRestoreMock.mockReturnValue(false)
     MockMainDbServiceUtils.setDb(dbh.db)
     MockMainCacheServiceUtils.resetMocks()
     filesDir = await mkdtemp(path.join(tmpdir(), 'cherry-fm-entrycleanup-'))
@@ -158,6 +165,18 @@ describe('entryCleanup', () => {
     expect(report.deleted).toBe(1)
     expect(fileEntryService.findById(id)).toBeNull()
     await expect(stat(path.join(filesDir, `${id}.txt`))).rejects.toThrow(/ENOENT/)
+  })
+
+  it('skips the pass and reports skipped when a staged restore is pending, leaving candidates untouched', async () => {
+    hasPendingRestoreMock.mockReturnValue(true)
+    const id = nthId(1)
+    await seedInternal(id, 'delete_when_unreferenced')
+    const report = await runEntryCleanup(makeDeps())
+    expect(report.outcome).toBe('skipped')
+    expect(report.deleted).toBe(0)
+    // An otherwise-eligible auto zero-ref candidate survives because the pass stood aside.
+    expect(fileEntryService.findById(id)).not.toBeNull()
+    expect(summariseEntryCleanup(report).outcome).toBe('skipped')
   })
 
   it('preserves manual zero-ref entries', async () => {
