@@ -1273,6 +1273,7 @@
       "label": "Are you sure you want to backup data?"
     },
     "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "credentials_warning": "This backup includes API keys and provider credentials in plaintext. Store the archive securely.",
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",

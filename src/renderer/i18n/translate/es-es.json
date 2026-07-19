@@ -1470,16 +1470,16 @@
         "unsupported_model": "El modelo actual no admite razonamiento ajustable"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Personalizar barra de herramientas",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Reorden cancelado para {{name}}.",
+          "dropped": "{{name}} se ha caído.",
+          "instructions": "Para reordenar, presiona Espacio o Intro para recoger una herramienta, usa las teclas de flecha para moverla, luego Espacio o Intro para soltarla, o Escape para cancelar.",
+          "over": "{{name}} se movió por encima de {{over}}.",
+          "picked_up": "Recogí a {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Arrastrar para reordenar {{name}}",
+        "restore_default": "Restaurar valores predeterminados"
       },
       "tools": {
         "collapse": "Contraer",
@@ -1755,7 +1755,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Generar nombre de tema",
-      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
+      "auto_rename_failed": "No se pudo generar automáticamente el nombre de la conversación",
       "clear": {
         "title": "Limpiar mensajes"
       },
@@ -2457,75 +2457,75 @@
   "file_preview": {
     "html": {
       "empty": {
-        "description": "[to be translated]:This HTML file has no content.",
-        "title": "[to be translated]:Empty file"
+        "description": "Este archivo HTML no tiene contenido.",
+        "title": "Archivo vacío"
       },
       "mode": {
-        "label": "[to be translated]:HTML view mode",
-        "preview": "[to be translated]:Preview",
-        "source": "[to be translated]:Source"
+        "label": "Modo de vista HTML",
+        "preview": "Vista previa",
+        "source": "Fuente"
       },
       "read_error": {
-        "title": "[to be translated]:Couldn't read this file"
+        "title": "No se pudo leer este archivo"
       },
       "too_large": {
-        "description": "[to be translated]:HTML files larger than {{limit}} MiB cannot be previewed.",
-        "title": "[to be translated]:File is too large"
+        "description": "Los archivos HTML de más de {{limit}} MiB no se pueden previsualizar.",
+        "title": "El archivo es demasiado grande"
       }
     },
     "invalid_path": {
-      "description": "[to be translated]:File preview requires a valid absolute local path.",
-      "title": "[to be translated]:Can't preview this file"
+      "description": "La vista previa del archivo requiere una ruta local absoluta válida.",
+      "title": "No se puede previsualizar este archivo"
     },
     "load_error": {
-      "description": "[to be translated]:The preview content could not be loaded.",
-      "title": "[to be translated]:Preview failed"
+      "description": "No se pudo cargar el contenido de vista previa.",
+      "title": "Vista previa fallida"
     },
-    "loading": "[to be translated]:Loading preview...",
+    "loading": "Cargando vista previa...",
     "markdown": {
       "empty": {
-        "description": "[to be translated]:This Markdown file has no content.",
-        "title": "[to be translated]:Empty file"
+        "description": "Este archivo Markdown no tiene contenido.",
+        "title": "Archivo vacío"
       },
       "mode": {
-        "label": "[to be translated]:Markdown view mode",
-        "preview": "[to be translated]:Preview",
-        "source": "[to be translated]:Source"
+        "label": "Modo de vista Markdown",
+        "preview": "Vista previa",
+        "source": "Fuente"
       },
       "read_error": {
-        "title": "[to be translated]:Couldn't read this file"
+        "title": "No se pudo leer este archivo"
       },
       "too_large": {
-        "description": "[to be translated]:Markdown files larger than {{limit}} MiB cannot be previewed.",
-        "title": "[to be translated]:File is too large"
+        "description": "Los archivos Markdown de más de {{limit}} MiB no se pueden previsualizar.",
+        "title": "El archivo es demasiado grande"
       }
     },
     "pdf": {
       "too_large": {
-        "action": "[to be translated]:Open with default app",
-        "description": "[to be translated]:PDF files larger than {{limit}} MiB cannot be previewed.",
-        "open_error": "[to be translated]:Couldn't open this file",
-        "title": "[to be translated]:File is too large"
+        "action": "Abrir con la aplicación predeterminada",
+        "description": "Los archivos PDF de más de {{limit}} MiB no se pueden previsualizar.",
+        "open_error": "No se pudo abrir este archivo",
+        "title": "El archivo es demasiado grande"
       }
     },
     "text": {
       "empty": {
-        "description": "[to be translated]:This text file has no content.",
-        "title": "[to be translated]:Empty file"
+        "description": "Este archivo de texto no tiene contenido.",
+        "title": "Archivo vacío"
       },
       "read_error": {
-        "title": "[to be translated]:Couldn't read this file"
+        "title": "No se pudo leer este archivo"
       },
       "too_large": {
-        "description": "[to be translated]:Text files larger than {{limit}} MiB cannot be previewed.",
-        "title": "[to be translated]:File is too large"
+        "description": "Los archivos de texto mayores de {{limit}} MiB no se pueden previsualizar.",
+        "title": "El archivo es demasiado grande"
       }
     },
     "unsupported": {
-      "action": "[to be translated]:Open with default app",
-      "description": "[to be translated]:This file type cannot be previewed yet.",
-      "open_error": "[to be translated]:Couldn't open this file",
-      "title": "[to be translated]:Preview unavailable"
+      "action": "Abrir con la aplicación predeterminada",
+      "description": "Este tipo de archivo aún no se puede previsualizar.",
+      "open_error": "No se pudo abrir este archivo",
+      "title": "Vista previa no disponible"
     }
   },
   "files": {
@@ -3571,10 +3571,10 @@
       "title": "Biblioteca"
     },
     "skill_add": {
-      "add": "[to be translated]:Add Skill",
+      "add": "Añadir habilidad",
       "local_import": "Importación local",
       "online_search": "Búsqueda en línea",
-      "system_search": "[to be translated]:System search"
+      "system_search": "Búsqueda del sistema"
     },
     "skill_detail": {
       "created_at": "Creado",
@@ -3603,17 +3603,17 @@
     },
     "subtitle": "Gestiona tus asistentes, agentes y habilidades",
     "system_skill": {
-      "conflict": "[to be translated]:Name conflict",
-      "description": "[to be translated]:Import skills already installed on this system.",
-      "empty_description": "[to be translated]:No importable skills were found in other coding tools on this device.",
-      "empty_title": "[to be translated]:No skills available to import",
-      "enable_success": "[to be translated]:Enabled {{name}}",
-      "enabled": "[to be translated]:Enabled",
-      "import": "[to be translated]:Import",
-      "import_success": "[to be translated]:Imported {{name}}",
-      "imported": "[to be translated]:Imported",
-      "search_placeholder": "[to be translated]:Search system skills...",
-      "title": "[to be translated]:System skills"
+      "conflict": "Conflicto de nombres",
+      "description": "Importar habilidades ya instaladas en este sistema.",
+      "empty_description": "No se encontraron habilidades importables en otras herramientas de codificación en este dispositivo.",
+      "empty_title": "No hay habilidades disponibles para importar",
+      "enable_success": "Habilitado {{name}}",
+      "enabled": "Habilitado",
+      "import": "Importar",
+      "import_success": "Importado {{name}}",
+      "imported": "Importado",
+      "search_placeholder": "Buscar habilidades del sistema...",
+      "title": "Habilidades del sistema"
     },
     "tag_picker": {
       "no_tags": "Aún sin etiquetas",
@@ -4788,7 +4788,7 @@
     "req_error_text": "El servidor está ocupado o la indicación contiene palabras con derechos de autor o palabras sensibles. Por favor, inténtelo de nuevo.",
     "req_error_token": "Por favor, verifique la validez del token",
     "required_field": "Campo obligatorio",
-    "revealing": "[to be translated]:Revealing generated image",
+    "revealing": "Revelando imagen generada",
     "safety_tolerance": "Tolerancia de seguridad",
     "safety_tolerance_tip": "Más alto = filtro más permisivo; 0 es el más estricto, 6 es el más permisivo",
     "seed": "Semilla aleatoria",
@@ -5643,44 +5643,8 @@
         "label": "Registros de la aplicación"
       },
       "backup": {
-        "legacy_local_unavailable": "[to be translated]:Legacy local backup controls are disabled. Use Backup / Restore above.",
         "skip_file_data_help": "Omitir la copia de seguridad de archivos de datos como imágenes y bases de conocimiento durante la copia de seguridad, respaldando únicamente historial de chat y configuraciones. Reduce el uso de espacio y acelera el proceso de copia de seguridad",
         "skip_file_data_title": "Copia de seguridad reducida",
-        "v2": {
-          "export": {
-            "cancel_timeout": "[to be translated]:Cancel timed out. The backup may still be running.",
-            "cancelled": "[to be translated]:Backup cancelled.",
-            "failure": "[to be translated]:Backup failed.",
-            "phase": {
-              "archive": "[to be translated]:Creating archive…",
-              "collect": "[to be translated]:Collecting data…",
-              "journal": "[to be translated]:Writing journal…",
-              "merge": "[to be translated]:Merging data…",
-              "preflight": "[to be translated]:Checking disk space…",
-              "quiesce": "[to be translated]:Quiescing services…",
-              "relaunch": "[to be translated]:Relaunching…",
-              "snapshot": "[to be translated]:Copying database…",
-              "verify": "[to be translated]:Verifying backup…"
-            },
-            "running": "[to be translated]:Backing up…",
-            "save_dialog_title": "Guardar copia de seguridad",
-            "selecting": "[to be translated]:Choose where to save the backup…",
-            "starting": "[to be translated]:Starting backup…",
-            "success": "[to be translated]:Backup completed."
-          },
-          "file_filter": "[to be translated]:Cherry Backup",
-          "preset": {
-            "full": "[to be translated]:Full backup (all data)",
-            "lite": "[to be translated]:Lite backup (chat & settings, no knowledge/files)"
-          },
-          "restore": {
-            "confirm_content": "[to be translated]:Restoring will replace current data and relaunch the app. Continue?",
-            "failure": "[to be translated]:Restore failed.",
-            "pick_prompt": "[to be translated]:Select a .cbu backup archive to restore.",
-            "relaunching": "[to be translated]:Restore staged. The app is relaunching…",
-            "selected": "[to be translated]:Selected archive:"
-          }
-        },
         "v2_unavailable": "La copia de seguridad y restauración V2 aún no está disponible. Próximamente."
       },
       "clear_cache": {
@@ -7862,8 +7826,8 @@
   },
   "tab": {
     "close": "Cerrar pestaña",
-    "close_others": "[to be translated]:Close Other Tabs",
-    "close_to_right": "[to be translated]:Close Tabs to the Right",
+    "close_others": "Cerrar otras pestañas",
+    "close_to_right": "Cerrar pestañas a la derecha",
     "move_to_first": "Mover al primero",
     "new": "Nueva pestaña",
     "open_in_new_window": "Abrir en ventana nueva",

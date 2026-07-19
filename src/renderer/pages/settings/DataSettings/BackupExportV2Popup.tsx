@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   CircularProgress,
   Dialog,
@@ -197,6 +198,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         {phase === 'idle' && (
           <div className="flex flex-col gap-4">
             <div>{t('backup.content')}</div>
+            <Alert type="warning" showIcon message={t('backup.credentials_warning')} />
             <RadioGroup
               value={preset}
               onValueChange={(value) => setPreset(value as Preset)}

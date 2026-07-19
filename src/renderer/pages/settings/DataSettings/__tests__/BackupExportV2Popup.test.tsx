@@ -92,6 +92,7 @@ describe('BackupExportV2Popup', () => {
     await BackupExportV2Popup.show()
 
     // Default preset is full; radio group mocks may not wire onValueChange in unit tests.
+    expect(screen.getByText('backup.credentials_warning')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.data.backup.v2.preset.full')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.data.backup.v2.preset.lite')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'backup.confirm.button' }))
