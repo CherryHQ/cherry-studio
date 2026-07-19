@@ -65,6 +65,7 @@ export {
 export {
   registerMigrationIpcHandlers,
   resetMigrationData,
+  runMigrationDiagnosticSaveTransaction,
   setDataLocationNotice,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers

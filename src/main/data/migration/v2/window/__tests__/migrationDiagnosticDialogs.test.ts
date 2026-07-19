@@ -5,6 +5,7 @@ import { presentMigrationDiagnosticFailure, presentMigrationDiagnosticRecovery }
 
 const showMessageBoxMock = vi.mocked(dialog.showMessageBox)
 const showSaveDialogMock = vi.mocked(dialog.showSaveDialog)
+const runSaveTransactionImmediately = async <T>(operation: () => Promise<T>): Promise<T> => operation()
 
 describe('migrationDiagnosticDialogs', () => {
   beforeEach(() => {
@@ -20,7 +21,8 @@ describe('migrationDiagnosticDialogs', () => {
       locale: 'en-US',
       code: 'database_initialize_failed',
       retry: 'relaunch',
-      saveBundle
+      saveBundle,
+      runSaveTransaction: runSaveTransactionImmediately
     })
 
     expect(result).toBe('retry')
@@ -39,7 +41,8 @@ describe('migrationDiagnosticDialogs', () => {
       locale: 'en-US',
       code: 'migration_window_failed',
       retry: 'relaunch',
-      saveBundle
+      saveBundle,
+      runSaveTransaction: runSaveTransactionImmediately
     })
 
     expect(result).toBe('retry')
@@ -48,6 +51,47 @@ describe('migrationDiagnosticDialogs', () => {
     expect(failureDialog.buttons).toEqual(['Retry', 'Exit'])
     expect(failureDialog.buttons).not.toContain('Save diagnostic bundle')
     expect(failureDialog.detail).toContain('MIGRATION-DIAGNOSTIC-ARCHIVE-FAILED')
+  })
+
+  it('holds the native save transaction across destination selection and bundle creation', async () => {
+    showMessageBoxMock.mockResolvedValueOnce({ response: 0 } as never).mockResolvedValueOnce({ response: 1 } as never)
+    const order: string[] = []
+    showSaveDialogMock.mockImplementationOnce(async () => {
+      order.push('destination')
+      return { canceled: false, filePath: '/safe/diagnostics.zip' } as never
+    })
+    let resolveSave!: (result: { status: 'saved' }) => void
+    const saveBundle = vi.fn(() => {
+      order.push('bundle')
+      return new Promise<{ status: 'saved' }>((resolve) => {
+        resolveSave = resolve
+      })
+    })
+    const runSaveTransactionMock = vi.fn()
+    const runSaveTransaction = async <T>(operation: () => Promise<T>): Promise<T> => {
+      runSaveTransactionMock()
+      order.push('transaction:start')
+      const result = await operation()
+      order.push('transaction:end')
+      return result
+    }
+
+    const flow = presentMigrationDiagnosticFailure({
+      locale: 'en-US',
+      code: 'renderer_process_gone',
+      retry: 'relaunch',
+      saveBundle,
+      runSaveTransaction
+    })
+    await vi.waitFor(() => expect(saveBundle).toHaveBeenCalledTimes(1))
+    const orderWhilePending = [...order]
+
+    resolveSave({ status: 'saved' })
+    await expect(flow).resolves.toBe('exit')
+
+    expect(runSaveTransactionMock).toHaveBeenCalledTimes(1)
+    expect(orderWhilePending).toEqual(['transaction:start', 'destination', 'bundle'])
+    expect(order).toEqual(['transaction:start', 'destination', 'bundle', 'transaction:end'])
   })
 
   it('maps a thrown save operation to a stable summary without exposing the raw error', async () => {
@@ -59,7 +103,8 @@ describe('migrationDiagnosticDialogs', () => {
       locale: 'en-US',
       code: 'migration_status_probe_failed',
       retry: 'relaunch',
-      saveBundle
+      saveBundle,
+      runSaveTransaction: runSaveTransactionImmediately
     })
 
     expect(result).toBe('exit')
@@ -80,7 +125,8 @@ describe('migrationDiagnosticDialogs', () => {
         locale: 'en-US',
         code: 'database_initialize_failed',
         retry: 'relaunch',
-        saveBundle: vi.fn().mockResolvedValue({ status: 'failed', code: 'publish_failed' })
+        saveBundle: vi.fn().mockResolvedValue({ status: 'failed', code: 'publish_failed' }),
+        runSaveTransaction: runSaveTransactionImmediately
       })
     ).resolves.toBe('exit')
   })
@@ -110,7 +156,8 @@ describe('migrationDiagnosticDialogs', () => {
       code: 'legacy_data_location_unavailable',
       retry: 'relaunch',
       allowUseDefault: true,
-      saveBundle: vi.fn()
+      saveBundle: vi.fn(),
+      runSaveTransaction: runSaveTransactionImmediately
     })
 
     expect(result).toBe('use_default')

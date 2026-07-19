@@ -28,7 +28,10 @@ import { migrationWindowManager } from './MigrationWindowManager'
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 const SUPPORT_EMAIL = 'support@cherry-ai.com'
-const DIAGNOSTIC_SAVE_IN_PROGRESS_RESULT: MigrationDiagnosticSaveResult = Object.freeze({
+type MigrationDiagnosticSaveInProgressResult = Extract<MigrationDiagnosticSaveResult, { status: 'failed' }> & {
+  code: 'save_in_progress'
+}
+const DIAGNOSTIC_SAVE_IN_PROGRESS_RESULT: MigrationDiagnosticSaveInProgressResult = Object.freeze({
   status: 'failed',
   code: 'save_in_progress'
 })
@@ -46,7 +49,7 @@ interface DiagnosticRegistrationState {
 let inFlightMigration: Promise<MigrationResult> | null = null
 // Covers the complete user-visible save transaction: native dialog, bundle build, and path
 // publication. It intentionally outlives handler registrations so two windows cannot overlap.
-let diagnosticSaveInFlight: Promise<MigrationDiagnosticSaveResult> | null = null
+let diagnosticSaveInFlight: Promise<unknown> | null = null
 // Set once a deferred quit has been registered, so repeated confirmations while a migration
 // write is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
@@ -96,6 +99,7 @@ export function registerMigrationIpcHandlers(
     assertMigrationSender(event)
     if (
       activeDiagnosticRegistration !== diagnosticRegistration ||
+      inFlightMigration !== null ||
       currentProgress.stage !== 'introduction' ||
       diagnosticRegistration.rendererExportPhase !== null
     ) {
@@ -118,12 +122,8 @@ export function registerMigrationIpcHandlers(
 
   ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
     assertMigrationSender(event)
-    if (diagnosticSaveInFlight !== null) {
-      return DIAGNOSTIC_SAVE_IN_PROGRESS_RESULT
-    }
-
     const saveEpoch = diagnosticRegistration.epoch
-    const savePromise = (async (): Promise<MigrationDiagnosticSaveResult> => {
+    return runMigrationDiagnosticSaveTransaction(async (): Promise<MigrationDiagnosticSaveResult> => {
       const outcome = await saveMigrationDiagnosticBundleWithDialog(
         app.getLocale(),
         diagnosticCapabilities.saveDiagnosticBundle
@@ -137,15 +137,7 @@ export function registerMigrationIpcHandlers(
         diagnosticRegistration.lastSavedBundlePath = outcome.destination
       }
       return outcome.result
-    })()
-    diagnosticSaveInFlight = savePromise
-    try {
-      return await savePromise
-    } finally {
-      if (diagnosticSaveInFlight === savePromise) {
-        diagnosticSaveInFlight = null
-      }
-    }
+    })
   })
 
   ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event) => {
@@ -350,7 +342,10 @@ export function registerMigrationIpcHandlers(
   })
 
   // Retry migration
-  ipcMain.handle(MigrationIpcChannels.Retry, async () => {
+  ipcMain.handle(MigrationIpcChannels.Retry, async (event) => {
+    assertMigrationSender(event)
+    if (inFlightMigration !== null) return false
+
     try {
       clearRendererExportPhase(diagnosticRegistration)
       // Reset to the introduction stage so the user can re-trigger migration from its Start button.
@@ -437,7 +432,7 @@ export function registerMigrationIpcHandlers(
 /**
  * Unregister all migration IPC handlers
  */
-export function unregisterMigrationIpcHandlers(): void {
+export function unregisterMigrationIpcHandlers(options: { readonly preserveWriteDeferral?: boolean } = {}): void {
   logger.info('Unregistering migration IPC handlers')
 
   const channels = Object.values(MigrationIpcChannels)
@@ -445,10 +440,32 @@ export function unregisterMigrationIpcHandlers(): void {
     ipcMain.removeHandler(channel)
   }
 
-  migrationWindowManager.setQuitRequester(null)
-  migrationWindowManager.setWriteWaiter(null)
+  if (!options.preserveWriteDeferral) {
+    migrationWindowManager.setQuitRequester(null)
+    migrationWindowManager.setWriteWaiter(null)
+  }
   invalidateActiveDiagnosticRegistration()
   activeDiagnosticRegistration = null
+}
+
+export async function runMigrationDiagnosticSaveTransaction<T>(
+  operation: () => Promise<T>
+): Promise<T | MigrationDiagnosticSaveInProgressResult> {
+  if (diagnosticSaveInFlight !== null) {
+    return DIAGNOSTIC_SAVE_IN_PROGRESS_RESULT
+  }
+
+  // Install the guard before beginning the operation so a synchronous close or second save
+  // cannot slip between the transaction request and the native destination dialog.
+  const savePromise = Promise.resolve().then(operation)
+  diagnosticSaveInFlight = savePromise
+  try {
+    return await savePromise
+  } finally {
+    if (diagnosticSaveInFlight === savePromise) {
+      diagnosticSaveInFlight = null
+    }
+  }
 }
 
 function invalidateActiveDiagnosticRegistration(): void {

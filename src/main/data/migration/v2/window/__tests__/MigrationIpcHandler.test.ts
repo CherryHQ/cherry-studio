@@ -59,6 +59,7 @@ vi.mock('../MigrationWindowManager', () => ({
 import {
   registerMigrationIpcHandlers,
   resetMigrationData,
+  runMigrationDiagnosticSaveTransaction,
   setDataLocationNotice,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
@@ -437,7 +438,8 @@ describe('MigrationIpcHandler', () => {
       MigrationIpcChannels.SaveDiagnosticBundle,
       MigrationIpcChannels.OpenDiagnosticEmail,
       MigrationIpcChannels.ShowDiagnosticBundleInFolder,
-      MigrationIpcChannels.CopySupportEmail
+      MigrationIpcChannels.CopySupportEmail,
+      MigrationIpcChannels.Retry
     ] as const
 
     const foreignMainFrame = { id: 'foreign-main-frame', parent: null }
@@ -460,7 +462,7 @@ describe('MigrationIpcHandler', () => {
       await expect(invokeFrom(source, channel)).rejects.toThrow(/migration window/i)
     })
 
-    it('accepts all five sensitive channels only from the migration window top frame', async () => {
+    it('accepts all six sensitive channels only from the migration window top frame', async () => {
       await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
         status: 'saved',
@@ -469,6 +471,7 @@ describe('MigrationIpcHandler', () => {
       await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.CopySupportEmail)).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.Retry)).resolves.toBe(true)
     })
   })
 
@@ -587,6 +590,37 @@ describe('MigrationIpcHandler', () => {
 
       resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
       await migration
+    })
+
+    it('keeps Retry and renderer export failure inert until the active engine attempt reaches its terminal outcome', async () => {
+      let resolveRun!: (result: MigrationResult) => void
+      engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
+      await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(true)
+      const migration = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await vi.waitFor(() => expect(engineMock.run).toHaveBeenCalledTimes(1))
+      expect(lastProgress().stage).toBe('migration')
+      const progressCount = progressBroadcasts().length
+
+      const retryResult = await invoke(MigrationIpcChannels.Retry)
+      const progressAfterRetry = lastProgress()
+      const progressCountAfterRetry = progressBroadcasts().length
+      const secondStartResult = await invoke(MigrationIpcChannels.Start)
+      await expect(
+        invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/second-dexie' })
+      ).rejects.toThrow('Migration is already in progress.')
+      const reportErrorResult = await invoke(MigrationIpcChannels.ReportError, 'obsolete renderer failure')
+
+      resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+      await migration
+
+      expect(retryResult).toBe(false)
+      expect(progressCountAfterRetry).toBe(progressCount)
+      expect(progressAfterRetry.stage).toBe('migration')
+      expect(secondStartResult).toBe(false)
+      expect(diagnosticsStartMock).toHaveBeenCalledTimes(1)
+      expect(reportErrorResult).toBe(false)
+      expect(diagnosticsReportRendererExportFailureMock).not.toHaveBeenCalled()
+      expect(lastProgress()).toMatchObject({ stage: 'completed', overallProgress: 100 })
     })
 
     it('does not activate renderer export from the version-incompatible stage', async () => {
@@ -834,10 +868,23 @@ describe('MigrationIpcHandler', () => {
       expect(windowSetQuitRequesterMock).toHaveBeenCalledWith(expect.any(Function))
     })
 
-    it('clears the force-quit requester on unregister', () => {
+    it('clears the force-quit requester and write waiter on unregister', () => {
       windowSetQuitRequesterMock.mockClear()
+      windowSetWriteWaiterMock.mockClear()
       unregisterMigrationIpcHandlers()
       expect(windowSetQuitRequesterMock).toHaveBeenCalledWith(null)
+      expect(windowSetWriteWaiterMock).toHaveBeenCalledWith(null)
+    })
+
+    it('can remove IPC handlers while preserving native write deferral', () => {
+      windowSetQuitRequesterMock.mockClear()
+      windowSetWriteWaiterMock.mockClear()
+
+      unregisterMigrationIpcHandlers({ preserveWriteDeferral: true })
+
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith(MigrationIpcChannels.Start)
+      expect(windowSetQuitRequesterMock).not.toHaveBeenCalled()
+      expect(windowSetWriteWaiterMock).not.toHaveBeenCalled()
     })
 
     it('clears the pending close when the renderer cancels the close dialog', async () => {
@@ -955,6 +1002,30 @@ describe('MigrationIpcHandler', () => {
       await tick()
 
       expect(waiterSettled).toBe(true)
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers quit for a native diagnostic save transaction from before its operation starts', async () => {
+      let resolveSave!: (result: { status: 'saved' }) => void
+      let operationStarted = false
+      const nativeSave = runMigrationDiagnosticSaveTransaction(() => {
+        operationStarted = true
+        return new Promise<{ status: 'saved' }>((resolve) => {
+          resolveSave = resolve
+        })
+      })
+      const requestQuit = windowSetQuitRequesterMock.mock.calls.at(-1)?.[0] as () => boolean
+
+      expect(operationStarted).toBe(false)
+      expect(requestQuit()).toBe(false)
+      expect(windowConfirmQuitMock).not.toHaveBeenCalled()
+
+      await Promise.resolve()
+      expect(operationStarted).toBe(true)
+      resolveSave({ status: 'saved' })
+      await expect(nativeSave).resolves.toEqual({ status: 'saved' })
+      await tick()
+
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
     })
 

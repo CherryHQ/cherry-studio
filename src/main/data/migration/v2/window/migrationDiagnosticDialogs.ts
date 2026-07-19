@@ -32,6 +32,9 @@ export type MigrationDiagnosticNativeSaveResult =
 export type MigrationDiagnosticNativeDecision = 'retry' | 'use_default' | 'exit'
 
 type SaveBundle = (destination: string) => Promise<MigrationDiagnosticNativeSaveResult>
+type SaveInProgressResult = Extract<MigrationDiagnosticSaveResult, { status: 'failed' }> & { code: 'save_in_progress' }
+
+type MigrationDiagnosticSaveTransaction = <T>(operation: () => Promise<T>) => Promise<T | SaveInProgressResult>
 
 export interface MigrationDiagnosticFailureDialogState {
   readonly locale: string
@@ -39,6 +42,7 @@ export interface MigrationDiagnosticFailureDialogState {
   readonly retry: 'relaunch' | 'none'
   readonly allowUseDefault?: boolean
   readonly saveBundle: SaveBundle
+  readonly runSaveTransaction: MigrationDiagnosticSaveTransaction
 }
 
 export interface MigrationDiagnosticRecoveryDialogState {
@@ -204,7 +208,7 @@ export async function presentMigrationDiagnosticFailure(
     const selected = decisionOptions[response.response]?.decision ?? 'exit'
     if (selected !== 'save') return selected
 
-    const saved = await saveBundle(i18n, state.saveBundle)
+    const saved = await state.runSaveTransaction(() => saveBundle(i18n, state.saveBundle))
     if (saved === 'canceled') continue
     return presentSaveOutcome(i18n, saved, failureOptions(i18n, state, false))
   }

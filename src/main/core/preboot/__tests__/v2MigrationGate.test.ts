@@ -35,6 +35,7 @@ const migrationWindowCreateMock = vi.fn()
 const migrationWindowWaitForReadyMock = vi.fn()
 const registerMigrationIpcHandlersMock = vi.fn()
 const unregisterMigrationIpcHandlersMock = vi.fn()
+const runMigrationDiagnosticSaveTransactionMock = vi.fn()
 const resolveMigrationPathsMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const appQuitMock = vi.fn()
@@ -145,6 +146,7 @@ function stubMigrationV2(options: MigrationV2StubOptions = {}) {
       },
       registerMigrationIpcHandlers: registerMigrationIpcHandlersMock,
       unregisterMigrationIpcHandlers: unregisterMigrationIpcHandlersMock,
+      runMigrationDiagnosticSaveTransaction: runMigrationDiagnosticSaveTransactionMock,
       resolveMigrationPaths: resolveMigrationPathsMock,
       pinUserDataPath: pinUserDataPathMock,
       setVersionIncompatible: setVersionIncompatibleMock,
@@ -272,6 +274,7 @@ beforeEach(() => {
   migrationWindowWaitForReadyMock.mockReset().mockResolvedValue(undefined)
   registerMigrationIpcHandlersMock.mockReset()
   unregisterMigrationIpcHandlersMock.mockReset()
+  runMigrationDiagnosticSaveTransactionMock.mockReset().mockImplementation((operation) => operation())
   showErrorBoxMock.mockReset()
   appQuitMock.mockReset()
   appRelaunchMock.mockReset()
@@ -638,7 +641,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
-      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
+      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(2)
       expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
         expect.objectContaining({ code: 'migration_window_failed' })
       )
@@ -662,7 +665,7 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
+      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(2)
       expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
         expect.objectContaining({ code: 'migration_window_failed' })
       )
@@ -733,7 +736,7 @@ describe('runV2MigrationGate', () => {
       expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(closeMock).toHaveBeenCalledTimes(1)
-      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
+      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(2)
     })
 
     it('proceeds to migration window when version check passes', async () => {
@@ -1276,7 +1279,7 @@ describe('runV2MigrationGate', () => {
           expect(attempt?.outcome).toBe('failed')
           expect(attempt?.events.at(-1)?.state).toBe(attempt?.outcome)
           expect(recordEvent.mock.calls.filter(([event]) => event.state === 'failed')).toHaveLength(1)
-          expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
+          expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(2)
           expect(closeMock).toHaveBeenCalledTimes(1)
           expect(appQuitMock).toHaveBeenCalledTimes(decision === 'exit' ? 1 : 0)
           expect(appRelaunchMock).toHaveBeenCalledTimes(decision === 'retry' ? 1 : 0)
@@ -1334,6 +1337,41 @@ describe('runV2MigrationGate', () => {
         expect.objectContaining({ code: 'renderer_process_gone' })
       )
       expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps quit deferral installed while a native renderer-failure dialog can save diagnostics', async () => {
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.12',
+        versionLogExists: true
+      })
+      const order: string[] = []
+      unregisterMigrationIpcHandlersMock.mockImplementation(
+        (options?: { readonly preserveWriteDeferral?: boolean }) => {
+          order.push(options?.preserveWriteDeferral ? 'unregister:preserve' : 'unregister:clear')
+        }
+      )
+      let presenterState: Record<string, unknown> | undefined
+      presentDiagnosticFailureMock.mockImplementation(async (state: Record<string, unknown>) => {
+        presenterState = state
+        order.push('present')
+        return 'exit'
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+      const createCall = migrationWindowCreateMock.mock.calls[0]
+      expect(createCall).toBeDefined()
+      const callback = (createCall[0] as { onRendererFailure: RendererFailureCallback }).onRendererFailure
+
+      await callback('renderer_process_gone', Promise.resolve())
+
+      expect(presenterState?.['runSaveTransaction']).toBe(runMigrationDiagnosticSaveTransactionMock)
+      expect(order).toEqual(['unregister:preserve', 'present', 'unregister:clear'])
     })
 
     it('records an introduction crash marker and a fixed failed terminal before presenting native actions', async () => {

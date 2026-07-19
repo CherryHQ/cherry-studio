@@ -19,6 +19,7 @@ import {
   presentMigrationDiagnosticRecovery,
   registerMigrationIpcHandlers,
   resolveMigrationPaths,
+  runMigrationDiagnosticSaveTransaction,
   setDataLocationNotice,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
@@ -108,7 +109,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       code,
       retry: options.retry ?? 'relaunch',
       ...(options.allowUseDefault ? { allowUseDefault: true } : {}),
-      saveBundle: saveDiagnosticBundle
+      saveBundle: saveDiagnosticBundle,
+      runSaveTransaction: runMigrationDiagnosticSaveTransaction
     })
   }
 
@@ -276,8 +278,13 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   }
 
   const finishWindowFailure = async (code: MigrationDiagnosticNativeFailureCode): Promise<void> => {
-    unregisterMigrationIpcHandlers()
-    const decision = await presentFailure(code)
+    unregisterMigrationIpcHandlers({ preserveWriteDeferral: true })
+    let decision: MigrationDiagnosticNativeDecision
+    try {
+      decision = await presentFailure(code)
+    } finally {
+      unregisterMigrationIpcHandlers()
+    }
     if (engineInitialized) {
       migrationEngine.close()
       engineInitialized = false
