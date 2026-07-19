@@ -4,7 +4,6 @@ import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { isFunctionCallToolNameForServer } from '@shared/ai/tools/mcpToolName'
-import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
@@ -14,8 +13,6 @@ import type { ToolEntry } from '../types'
 import { mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
-
-const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
 
 function resolveActiveServerById(serverId: string): McpServer | undefined {
   // Direct point lookup instead of listing every active server on each tool call.
@@ -127,56 +124,46 @@ export async function syncMcpToolsToRegistry(
   const activeNamespaces = new Set(activeServers.map((s) => `mcp:${s.name}`))
 
   const freshNames = new Set<string>()
-  // Only namespaces whose `listTools` actually succeeded. A transient connection drop
-  // must NOT evict a still-active server's previously-registered tools — without this
-  // guard the eviction loop below sees every prior tool as `missing` and deregisters them.
+  // Only namespaces whose `listTools` came back *fresh* — a successful refresh (live, or a
+  // populated/stale-free cache), including a legitimately-empty one. A cold miss or a failed
+  // refresh with no usable snapshot must NOT evict a still-active server's previously-registered
+  // tools: the eviction loop below would otherwise see every prior tool as `missing` and
+  // deregister them, dropping the server from the model until the next warm. A successful empty
+  // refresh IS fresh, so it evicts removed/disabled tools as expected.
   const refreshedNamespaces = new Set<string>()
+  const ipcApi = application.get('IpcApiService')
   for (const server of targetServers) {
-    let enabledTools: McpTool[] = []
-    try {
-      enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
-    } catch (error) {
-      // Live fetch failed — fall back to cached tools so a transient failure
-      // doesn't silently drop the server's tools from the registry.
-      const cacheService = application.get('CacheService')
-      const cached = cacheService.getShared(mcpToolsCacheKey(server.id)) as McpTool[] | undefined
-      if (cached && cached.length > 0) {
-        enabledTools = cached
-        logger.warn('MCP server unavailable, using cached tool definitions', {
-          serverId: server.id,
-          serverName: server.name,
-          toolCount: cached.length,
-          error
-        })
-        // Notify renderer that tools are stale so user sees a warning.
-        application.get('IpcApiService').broadcast('mcp.server.tools_stale', {
-          serverId: server.id,
-          serverName: server.name,
-          toolCount: cached.length
-        })
-      } else {
-        logger.error('Failed to list MCP tools for server and no cache available', {
-          serverId: server.id,
-          serverName: server.name,
-          error
-        })
-      }
-    }
+    const { tools: enabledTools, fresh } = application
+      .get('McpCatalogService')
+      .listToolsWithStatus(server.id, { includeDisabled: false })
+
     for (const mcpTool of enabledTools) {
       reg.register(toEntry(mcpTool, server))
       freshNames.add(mcpTool.id)
     }
-    // Only mark as refreshed if we actually got tools (live or cached).
-    // An empty result from a dead server should not count as a successful refresh.
-    if (enabledTools.length > 0) {
+
+    if (fresh) {
       refreshedNamespaces.add(`mcp:${server.name}`)
+    } else if (enabledTools.length > 0) {
+      // Snapshot is stale (last refresh failed) but we still hold last-known-good tools — keep
+      // them registered and warn the user that the server is disconnected.
+      logger.warn('MCP server unavailable, using cached tool definitions', {
+        serverId: server.id,
+        serverName: server.name,
+        toolCount: enabledTools.length
+      })
+      ipcApi.broadcast('mcp.server.tools_stale', {
+        serverId: server.id,
+        serverName: server.name,
+        toolCount: enabledTools.length
+      })
     }
   }
 
   for (const entry of reg.getAll()) {
     if (!entry.namespace.startsWith('mcp:')) continue
     const serverDeactivated = !activeNamespaces.has(entry.namespace)
-    // Gate the in-scope eviction on a successful refresh, so a failed `listTools` leaves
+    // Gate the in-scope eviction on a fresh refresh, so a failed/stale `listTools` leaves
     // the prior snapshot intact. A truly deactivated server is still evicted regardless.
     const inSyncScope = targetNamespaces.has(entry.namespace) && refreshedNamespaces.has(entry.namespace)
     const missing = !freshNames.has(entry.name)
