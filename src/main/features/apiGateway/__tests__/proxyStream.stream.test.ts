@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /**
  * Exercises the streaming path of `processMessage`: the `ReadableStream` wiring,
  * the `SseListener` push → adapter/formatter → SSE-frame flow, terminal close,
- * and `signal`-driven abort. The AiStreamManager, provider lookup, and adapter
- * factories are stubbed; the real `SseListener` and `ReadableStream` glue run.
+ * startup commitment, and `signal`-driven abort. The AiStreamManager, provider
+ * lookup, and adapter factories are stubbed; the real listener/stream glue runs.
  */
 
 const { mockStreamPrompt, mockAbort, mockGetProvider, mockListModels, captured } = vi.hoisted(() => ({
@@ -94,30 +94,73 @@ async function readAll(stream: ReadableStream<Uint8Array> | null): Promise<strin
   return out
 }
 
-describe('processMessage (streaming)', () => {
-  it('returns a text/event-stream response and flushes adapter frames + done marker', async () => {
-    const res = await processMessage({
-      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
-      inputFormat: 'openai',
-      outputFormat: 'openai'
-    })
+async function startStreaming(signal?: AbortSignal) {
+  const response = processMessage({
+    params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
+    inputFormat: 'openai',
+    outputFormat: 'openai',
+    signal
+  })
+  await vi.waitFor(() => expect(captured.listener).toBeDefined())
+  return { response, listener: captured.listener! }
+}
 
+function commit(listener: StreamListener): void {
+  listener.onChunk({ type: 'text-delta', id: 't1', delta: 'hello' } as any)
+}
+
+describe('processMessage (streaming)', () => {
+  it('buffers protocol scaffolding until a semantic chunk, then flushes frames + done marker', async () => {
+    const { response, listener } = await startStreaming()
+
+    listener.onChunk({ type: 'start' } as any)
+    commit(listener)
+    await listener.onDone({} as any)
+
+    const res = await response
     expect(res.headers.get('Content-Type')).toBe('text/event-stream')
     expect(mockStreamPrompt).toHaveBeenCalledOnce()
-    expect(captured.listener).toBeDefined()
-
-    // Simulate AiStreamManager pushing a chunk then completing.
-    captured.listener!.onChunk({ type: 'text-delta', id: 't1', delta: 'hello' } as any)
-    await captured.listener!.onDone({} as any)
 
     const text = await readAll(res.body)
+    expect(text).toContain('"type":"start"')
     expect(text).toContain('"type":"text-delta"')
     expect(text).toContain('hello')
     expect(text).toContain('data: [DONE]')
   })
 
-  it('aborts the upstream stream when the request signal fires', async () => {
+  it.each([
+    'text-start',
+    'text-delta',
+    'text-end',
+    'reasoning-start',
+    'reasoning-delta',
+    'reasoning-end',
+    'tool-input-available',
+    'finish'
+  ])('commits on the semantic %s chunk', async (type) => {
+    const { response, listener } = await startStreaming()
+
+    listener.onChunk({ type, id: 'part-1' } as any)
+    const res = await response
+    await listener.onDone({} as any)
+
+    expect(res.headers.get('Content-Type')).toBe('text/event-stream')
+    await readAll(res.body)
+  })
+
+  it('returns a finalized empty successful stream when done arrives before a semantic chunk', async () => {
+    const { response, listener } = await startStreaming()
+
+    await listener.onDone({} as any)
+
+    const res = await response
+    await expect(readAll(res.body)).resolves.toBe('data: [DONE]\n\n')
+  })
+
+  it('does not start the upstream stream when the request is already aborted', async () => {
     const controller = new AbortController()
+    controller.abort()
+
     const res = await processMessage({
       params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
       inputFormat: 'openai',
@@ -125,12 +168,27 @@ describe('processMessage (streaming)', () => {
       signal: controller.signal
     })
 
-    expect(captured.listener).toBeDefined()
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+    await expect(readAll(res.body)).resolves.toBe('')
+  })
+
+  it('settles as an empty response when the client aborts before commitment', async () => {
+    const controller = new AbortController()
+    const { response } = await startStreaming(controller.signal)
+
     controller.abort()
 
+    const res = await response
     expect(mockAbort).toHaveBeenCalledOnce()
-    // Stream is closed after abort — reading drains to completion without hanging.
-    await expect(readAll(res.body)).resolves.toBeTypeOf('string')
+    await expect(readAll(res.body)).resolves.toBe('')
+  })
+
+  it('passes the 20-minute idle timeout to streamPrompt', async () => {
+    const { response, listener } = await startStreaming()
+    commit(listener)
+    await response
+
+    expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({ idleTimeoutMs: 20 * 60_000 })
   })
 
   it('returns JSON (not a stream) for non-streaming requests', async () => {
@@ -140,38 +198,32 @@ describe('processMessage (streaming)', () => {
       outputFormat: 'openai'
     })
 
-    // Non-streaming drives the listener to completion via onDone.
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
     await captured.listener!.onDone({} as any)
 
     const res = await resPromise
     expect(res.headers.get('Content-Type')).toBe('application/json')
-    const body = await res.json()
-    expect(body).toEqual({ done: true })
-  })
-
-  it('passes the 20-minute idle timeout to streamPrompt', async () => {
-    await processMessage({
-      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
-      inputFormat: 'openai',
-      outputFormat: 'openai'
-    })
-    // GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000.
-    expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({ idleTimeoutMs: 20 * 60_000 })
+    await expect(res.json()).resolves.toEqual({ done: true })
   })
 })
 
 describe('processMessage (error & pause)', () => {
-  it('streaming: a terminal error emits a dialect error frame, not the raw SerializedError', async () => {
-    const res = await processMessage({
-      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
-      inputFormat: 'openai',
-      outputFormat: 'openai'
-    })
-    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+  it('rejects the original provider error before semantic commitment', async () => {
+    const { response, listener } = await startStreaming()
+    const error = { name: 'AI_APICallError', message: 'Provider rejected the request', stack: null, statusCode: 400 }
 
-    // SerializedError-shaped terminal error with leaky AI-SDK extras.
-    void captured.listener!.onError({
+    listener.onChunk({ type: 'start' } as any)
+    void listener.onError({ status: 'error', error } as any)
+
+    await expect(response).rejects.toBe(error)
+  })
+
+  it('streaming: an error after commitment emits a dialect error frame, not the raw SerializedError', async () => {
+    const { response, listener } = await startStreaming()
+    commit(listener)
+    const res = await response
+
+    void listener.onError({
       status: 'error',
       error: {
         name: 'AI_APICallError',
@@ -187,22 +239,26 @@ describe('processMessage (error & pause)', () => {
     const text = await readAll(res.body)
     expect(text).toContain('"error"')
     expect(text).toContain('Provider rejected the request')
-    // None of the leaky fields are shipped to the client.
     expect(text).not.toContain('secret stack')
     expect(text).not.toContain('SECRET PROMPT')
     expect(text).not.toContain('secret body')
     expect(text).not.toContain('https://provider/v1')
   })
 
-  it('streaming: an idle-timeout pause emits a truncation error frame (not a clean [DONE])', async () => {
-    const res = await processMessage({
-      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
-      inputFormat: 'openai',
-      outputFormat: 'openai'
-    })
-    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+  it('rejects with a 504 when the stream pauses before semantic commitment', async () => {
+    const { response, listener } = await startStreaming()
 
-    await captured.listener!.onPaused({ status: 'paused' } as any)
+    await listener.onPaused({ status: 'paused' } as any)
+
+    await expect(response).rejects.toMatchObject({ status: 504 })
+  })
+
+  it('streaming: a pause after commitment emits a truncation error frame (not a clean [DONE])', async () => {
+    const { response, listener } = await startStreaming()
+    commit(listener)
+    const res = await response
+
+    await listener.onPaused({ status: 'paused' } as any)
 
     const text = await readAll(res.body)
     expect(text).toContain('"error"')
@@ -248,8 +304,8 @@ describe('processMessage (error & pause)', () => {
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
-    controller.abort() // sets `aborted` + resolves done
-    await captured.listener!.onPaused({ status: 'paused' } as any) // late pause is a no-op
+    controller.abort()
+    await captured.listener!.onPaused({ status: 'paused' } as any)
 
     const res = await resPromise
     expect(res.headers.get('Content-Type')).toBe('application/json')

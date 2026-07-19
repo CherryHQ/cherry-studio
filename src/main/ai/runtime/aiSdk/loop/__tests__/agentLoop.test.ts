@@ -14,6 +14,56 @@ describe('Agent', () => {
     vi.clearAllMocks()
   })
 
+  it('pairs a terminal API error with its original after an earlier tool error', async () => {
+    const toolError = new Error('Invalid tool input')
+    const apiError = new APICallError({
+      message: 'Upstream unavailable',
+      url: 'https://api.example.com/chat/completions',
+      requestBodyValues: {},
+      statusCode: 503,
+      responseHeaders: {},
+      responseBody: '',
+      isRetryable: true
+    })
+    const uiOnError = vi.fn((onError: (error: unknown) => string, error: unknown) => onError(error))
+    const cancelUiStream = vi.fn()
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: (options: { onError: (error: unknown) => string }) => {
+          const toolErrorText = uiOnError(options.onError, toolError)
+          const apiErrorText = uiOnError(options.onError, apiError)
+          return new ReadableStream({
+            start(controller) {
+              controller.enqueue({
+                type: 'tool-input-error',
+                toolCallId: 'tool-1',
+                toolName: 'search',
+                input: {},
+                errorText: toolErrorText
+              })
+              controller.enqueue({ type: 'error', errorText: apiErrorText })
+            },
+            cancel: cancelUiStream
+          })
+        }
+      })
+    })
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model'
+    })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'tool-input-error' }, done: false })
+    await expect(reader.read()).rejects.toBe(apiError)
+    expect(uiOnError).toHaveBeenCalledTimes(2)
+    expect(cancelUiStream).toHaveBeenCalledWith(apiError)
+  })
+
   it('swallows hooks.onError exceptions so they do not become unhandled rejections', async () => {
     const apiError = new APICallError({
       message: 'Insufficient balance',
@@ -456,6 +506,39 @@ describe('Agent', () => {
   })
 
   // ── onError returning 'retry' is not implemented: warn (not error) then abort the writer ──
+  it('aborts rather than closes when the read loop throws undefined', async () => {
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.error(undefined)
+            }
+          })
+      })
+    })
+
+    const closeSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'close')
+    const abortSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'abort')
+    try {
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model'
+      })
+
+      await expect(agent.stream([], new AbortController().signal).getReader().read()).rejects.toBeUndefined()
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(abortSpy).toHaveBeenCalledWith(undefined)
+      expect(closeSpy).not.toHaveBeenCalled()
+    } finally {
+      closeSpy.mockRestore()
+      abortSpy.mockRestore()
+    }
+  })
+
   it('logs a WARN (not error) and aborts when the composed onError returns "retry" (REGRESSION agent-loop-2)', async () => {
     const err = new Error('stream blew up')
     mockCreateAgent.mockResolvedValue({

@@ -80,6 +80,10 @@ vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({ openTab: vi.fn() })
 }))
 
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
+}))
+
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
   return {

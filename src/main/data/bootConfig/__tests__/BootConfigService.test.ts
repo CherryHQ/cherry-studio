@@ -375,22 +375,144 @@ describe('BootConfigService', () => {
       expect((service.getAll() as unknown as Record<string, unknown>)['unknown.key']).toBeUndefined()
     })
 
-    it('returns defaults for non-object input (array)', async () => {
+    it('returns defaults and records validation_error for non-object input (array)', async () => {
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(JSON.stringify([1, 2, 3]))
 
       const service = await createService()
 
       expect(service.getAll()).toEqual(DefaultBootConfig)
+      expect(service.getLoadError()?.type).toBe('validation_error')
     })
 
-    it('returns defaults for null input', async () => {
+    it('returns defaults and records validation_error for null input', async () => {
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(JSON.stringify(null))
 
       const service = await createService()
 
       expect(service.getAll()).toEqual(DefaultBootConfig)
+      expect(service.getLoadError()?.type).toBe('validation_error')
+    })
+  })
+
+  // ---------- schema validation on load ----------
+
+  describe('schema validation (via loadSync)', () => {
+    it('resets a wrong-typed boolean to default and records validation_error', async () => {
+      const stored = { 'app.disable_hardware_acceleration': 'yes' }
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
+
+      const service = await createService()
+
+      expect(service.get('app.disable_hardware_acceleration')).toBe(false)
+
+      const err = service.getLoadError()
+      expect(err?.type).toBe('validation_error')
+      expect(err?.invalidKeys).toEqual(['app.disable_hardware_acceleration'])
+      expect(err?.filePath).toBe(CONFIG_PATH)
+    })
+
+    it('keeps valid keys while resetting only the invalid ones', async () => {
+      const stored = {
+        'app.disable_hardware_acceleration': true,
+        'app.user_data_path': 42
+      }
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
+
+      const service = await createService()
+
+      expect(service.get('app.disable_hardware_acceleration')).toBe(true)
+      expect(service.get('app.user_data_path')).toEqual({})
+      expect(service.getLoadError()?.invalidKeys).toEqual(['app.user_data_path'])
+    })
+
+    it('rejects a user_data_path record with non-string values', async () => {
+      const stored = { 'app.user_data_path': { '/Applications/App': 123 } }
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
+
+      const service = await createService()
+
+      expect(service.get('app.user_data_path')).toEqual({})
+      expect(service.getLoadError()?.invalidKeys).toEqual(['app.user_data_path'])
+    })
+
+    it('rejects a pending relocation missing from/to', async () => {
+      const stored = { 'temp.user_data_relocation': { status: 'pending' } }
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
+
+      const service = await createService()
+
+      expect(service.get('temp.user_data_relocation')).toBeNull()
+      expect(service.getLoadError()?.invalidKeys).toEqual(['temp.user_data_relocation'])
+    })
+
+    it('rejects a relocation with an unknown status', async () => {
+      const stored = { 'temp.user_data_relocation': { status: 'running', from: '/a', to: '/b' } }
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
+
+      const service = await createService()
+
+      expect(service.get('temp.user_data_relocation')).toBeNull()
+      expect(service.getLoadError()?.invalidKeys).toEqual(['temp.user_data_relocation'])
+    })
+
+    it('accepts a well-formed pending relocation without recording an error', async () => {
+      const stored = { 'temp.user_data_relocation': { status: 'pending', from: '/a', to: '/b' } }
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
+
+      const service = await createService()
+
+      expect(service.get('temp.user_data_relocation')).toEqual({ status: 'pending', from: '/a', to: '/b' })
+      expect(service.hasLoadError()).toBe(false)
+    })
+  })
+
+  // ---------- schema validation on set ----------
+
+  describe('schema validation (via set)', () => {
+    it('throws on an invalid value and leaves state, save, and listeners untouched', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      const listener = vi.fn()
+      service.onChange('app.disable_hardware_acceleration', listener)
+
+      expect(() => service.set('app.disable_hardware_acceleration', 'yes' as never)).toThrow(
+        'Invalid boot config value'
+      )
+
+      expect(service.get('app.disable_hardware_acceleration')).toBe(false)
+      expect(listener).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(350)
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+    })
+
+    it('throws on a malformed relocation object', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+
+      expect(() => service.set('temp.user_data_relocation', { status: 'pending' } as never)).toThrow(
+        'Invalid boot config value'
+      )
+      expect(service.get('temp.user_data_relocation')).toBeNull()
+    })
+
+    it('accepts a valid relocation object', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+
+      const service = await createService()
+      service.set('temp.user_data_relocation', { status: 'pending', from: '/a', to: '/b' })
+
+      expect(service.get('temp.user_data_relocation')).toEqual({ status: 'pending', from: '/a', to: '/b' })
     })
   })
 
@@ -513,6 +635,63 @@ describe('BootConfigService', () => {
         value: DefaultBootConfig['app.disable_hardware_acceleration'],
         previousValue: true
       })
+    })
+  })
+
+  // ---------- repair ----------
+
+  describe('repair', () => {
+    it('persists valid keys, drops invalid ones, and clears the load error', async () => {
+      const stored = {
+        'app.disable_hardware_acceleration': 'yes',
+        'app.user_data_path': { '/exe': '/data' }
+      }
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
+
+      const service = await createService()
+      expect(service.getLoadError()?.type).toBe('validation_error')
+
+      service.repair()
+
+      const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string)
+      expect(written).toEqual({ 'app.user_data_path': { '/exe': '/data' } })
+      expect(service.hasLoadError()).toBe(false)
+    })
+
+    it('deletes the file when repair leaves only defaults', async () => {
+      const stored = { 'app.disable_hardware_acceleration': 'yes' }
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
+
+      const service = await createService()
+      service.repair()
+
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+      expect(mockFs.unlinkSync).toHaveBeenCalledWith(CONFIG_PATH)
+      expect(service.hasLoadError()).toBe(false)
+    })
+
+    it('throws on write failure, retaining the load error for a later retry', async () => {
+      const stored = {
+        'app.disable_hardware_acceleration': 'yes',
+        'app.user_data_path': { '/exe': '/data' }
+      }
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
+
+      const service = await createService()
+
+      mockFs.writeFileSync.mockImplementationOnce(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+      expect(() => service.repair()).toThrow('ENOSPC')
+      expect(service.getLoadError()?.type).toBe('validation_error')
+
+      // A later repair retries the write and succeeds.
+      service.repair()
+      expect(mockRenameSync).toHaveBeenCalledTimes(1)
+      expect(service.hasLoadError()).toBe(false)
     })
   })
 

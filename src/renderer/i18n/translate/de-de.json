@@ -887,6 +887,10 @@
           "description": "Verwaltet den In-App-Planer",
           "label": "Scheduler"
         },
+        "CherryGenerateImage": {
+          "description": "Erzeugt ein Bild aus einem Textprompt unter Verwendung Ihres konfigurierten Malmodells",
+          "label": "Bild generieren"
+        },
         "CherryKbManage": {
           "description": "Fügt Dokumente zu Ihren Wissensdatenbanken hinzu, löscht sie oder aktualisiert sie",
           "label": "Wissen verwalten"
@@ -1397,7 +1401,7 @@
         "title": "In Warteschlange ({{count}})"
       },
       "generate_image": "Bild generieren",
-      "generate_image_not_supported": "Modell unterstützt keine Bildgenerierung",
+      "generate_image_no_model": "Konfigurieren Sie ein Malmodell unter Einstellungen › Standardmodell",
       "knowledge_base": "Wissensdatenbank",
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein modellfähiges Modell oder aktivieren Sie die Prompt-Werkzeugnutzung",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "Das aktuelle Modell unterstützt kein einstellbares Denken."
       },
+      "toolbar": {
+        "customize": "Symbolleiste anpassen",
+        "drag": {
+          "cancelled": "Die Neuanordnung für {{name}} wurde abgebrochen.",
+          "dropped": "{{name}} wurde fallen gelassen.",
+          "instructions": "Um ein Element neu anzuordnen, drücken Sie die Leertaste oder Eingabetaste, um ein Werkzeug aufzuheben, verwenden Sie die Pfeiltasten, um es zu verschieben, und drücken Sie dann die Leertaste oder Eingabetaste, um es abzulegen, oder Escape, um abzubrechen.",
+          "over": "{{name}} zog über {{over}}.",
+          "picked_up": "{{name}} aufgenommen."
+        },
+        "drag_handle": "Zum Neuanordnen {{name}} ziehen",
+        "restore_default": "Standard wiederherstellen"
+      },
       "tools": {
         "collapse": "Falten",
         "collapse_in": "Zum Falten hinzufügen",
         "collapse_out": "Aus Falten entfernen",
         "expand": "Ausklappen",
         "file_not_found": "Datei nicht gefunden: {{path}}",
+        "generate_image": {
+          "failed": "Bildgenerierung fehlgeschlagen",
+          "generating": "Bild wird generiert…",
+          "title": "Generiertes Bild"
+        },
         "open_file": "Datei öffnen",
         "open_file_error": "Fehler beim Öffnen der Datei: {{path}}",
         "reveal_in_finder": "Im Finder anzeigen"
@@ -1734,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} Tokens",
     "topics": {
       "auto_rename": "Themenname generieren",
+      "auto_rename_failed": "Fehler beim automatischen Generieren des Gesprächsnamens",
       "clear": {
         "title": "Nachrichten leeren"
       },
@@ -2432,6 +2454,80 @@
     },
     "user": "Benutzer"
   },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Diese HTML-Datei hat keinen Inhalt.",
+        "title": "Leere Datei"
+      },
+      "mode": {
+        "label": "HTML-Ansichtsmodus",
+        "preview": "Vorschau",
+        "source": "Quelle"
+      },
+      "read_error": {
+        "title": "Konnte diese Datei nicht lesen"
+      },
+      "too_large": {
+        "description": "HTML-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
+        "title": "Datei ist zu groß"
+      }
+    },
+    "invalid_path": {
+      "description": "Die Dateivorschau erfordert einen gültigen absoluten lokalen Pfad.",
+      "title": "Diese Datei kann nicht in der Vorschau angezeigt werden"
+    },
+    "load_error": {
+      "description": "Der Vorschauinhalt konnte nicht geladen werden.",
+      "title": "Vorschau fehlgeschlagen"
+    },
+    "loading": "Vorschau wird geladen...",
+    "markdown": {
+      "empty": {
+        "description": "Diese Markdown-Datei hat keinen Inhalt.",
+        "title": "Leere Datei"
+      },
+      "mode": {
+        "label": "Markdown-Ansichtsmodus",
+        "preview": "Vorschau",
+        "source": "Quelle"
+      },
+      "read_error": {
+        "title": "Konnte diese Datei nicht lesen"
+      },
+      "too_large": {
+        "description": "Markdown-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
+        "title": "Datei ist zu groß"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Mit Standard-App öffnen",
+        "description": "PDF-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
+        "open_error": "Konnte diese Datei nicht öffnen",
+        "title": "Die Datei ist zu groß"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Diese Textdatei hat keinen Inhalt.",
+        "title": "Leere Datei"
+      },
+      "read_error": {
+        "title": "Konnte diese Datei nicht lesen"
+      },
+      "too_large": {
+        "description": "Textdateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
+        "title": "Datei ist zu groß"
+      }
+    },
+    "unsupported": {
+      "action": "Mit Standard-App öffnen",
+      "description": "Dieser Dateityp kann noch nicht in der Vorschau angezeigt werden.",
+      "open_error": "Konnte diese Datei nicht öffnen",
+      "title": "Vorschau nicht verfügbar"
+    }
+  },
   "files": {
     "actions": "Aktionen",
     "all": "Alle Dateien",
@@ -2779,6 +2875,7 @@
           "title": "Importiere eine einzelne Webseite"
         }
       },
+      "back_to_parent": "Zurück",
       "bulk": {
         "delete": "Löschen",
         "delete_confirm_description": "{{count}} ausgewählte Datenquellen löschen? Dies kann nicht rückgängig gemacht werden.",
@@ -2806,6 +2903,7 @@
         "title": "Laden Sie Ihre erste Datenquelle hoch"
       },
       "empty_description": "Noch keine Datenquellen",
+      "empty_folder": "Dieser Ordner ist leer",
       "filters": {
         "all": "Alle",
         "directory": "Ordner",
@@ -2838,9 +2936,9 @@
           "type": "Typ",
           "updated_at": "Aktualisiert"
         },
+        "open_row": "{{title}} öffnen",
         "select_all": "Alle auswählen",
-        "select_row": "Zeile auswählen",
-        "view_chunks_row": "Abschnitte anzeigen für {{title}}"
+        "select_row": "Zeile auswählen"
       },
       "toolbar": {
         "add": "Datenquelle hinzufügen"
@@ -2851,6 +2949,8 @@
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
+    "empty_action": "Wissensdatenbank erstellen",
+    "empty_description": "Sie haben noch keine Wissensdatenbanken. Erstellen Sie eine, um Ihre Dokumente zu organisieren und durchzusuchen.",
     "error": {
       "directory_not_migrated": "Ordnermigration fehlgeschlagen. Bitte löschen Sie ihn und laden Sie ihn erneut hoch.",
       "failed_base_unknown": "Diese Wissensbasis ist während der Migration fehlgeschlagen. Erstellen Sie sie neu und wählen Sie ein neues Einbettungsmodell.",
@@ -3471,8 +3571,10 @@
       "title": "Bibliothek"
     },
     "skill_add": {
+      "add": "Fähigkeit hinzufügen",
       "local_import": "Lokaler Import",
-      "online_search": "Online-Suche"
+      "online_search": "Online-Suche",
+      "system_search": "System-Suche"
     },
     "skill_detail": {
       "created_at": "Erstellt",
@@ -3500,6 +3602,19 @@
       "updated": "Nach Aktualisierung sortieren"
     },
     "subtitle": "Verwalten Sie Ihre Assistenten, Agenten und Fähigkeiten",
+    "system_skill": {
+      "conflict": "Namenskonflikt",
+      "description": "Auf diesem System bereits installierte Skills importieren.",
+      "empty_description": "Es wurden keine importierbaren Fähigkeiten in anderen Coding-Tools auf diesem Gerät gefunden.",
+      "empty_title": "Keine Fähigkeiten zum Importieren verfügbar",
+      "enable_success": "Aktiviert {{name}}",
+      "enabled": "Aktiviert",
+      "import": "Import",
+      "import_success": "Importierte {{name}}",
+      "imported": "Importiert",
+      "search_placeholder": "Systemfähigkeiten durchsuchen...",
+      "title": "Systemfähigkeiten"
+    },
     "tag_picker": {
       "no_tags": "Noch keine Tags",
       "placeholder": "Neuer Tag-Name..."
@@ -4673,6 +4788,7 @@
     "req_error_text": "Server ausgelastet oder Prompt enthält \"urheberrechtlich geschützte\" oder \"sensible Wörter\". Bitte erneut versuchen.",
     "req_error_token": "Bitte Token-Gültigkeit überprüfen",
     "required_field": "Pflichtfeld",
+    "revealing": "Enthüllung des generierten Bildes",
     "safety_tolerance": "Sicherheitstoleranz",
     "safety_tolerance_tip": "Höher = permissiverer Filter; 0 ist am strengsten, 6 ist am permissivsten",
     "seed": "Seed",
@@ -5330,7 +5446,7 @@
         "icon": {
           "error": "Ungültiger Symbolname, bitte Eingabe prüfen",
           "label": "Symbol",
-          "placeholder": "Lucide-Symbolnamen eingeben",
+          "placeholder": "Symbolname",
           "random": "Zufälliges Symbol",
           "tooltip": "Lucide-Symbolnamen sind kleingeschrieben, z. B. arrow-right",
           "view_all": "Alle Symbole anzeigen"
@@ -6075,7 +6191,8 @@
           "downloading": "Herunterladen…",
           "ready": "Bereit"
         },
-        "title": "Lokale Modelle"
+        "title": "Lokale Modelle",
+        "unsupported": "Lokale Modelle werden auf dieser Plattform nicht unterstützt."
       },
       "notInstalled": "Nicht installiert",
       "openBinariesDir": "Open binaries directory",
@@ -6549,10 +6666,10 @@
       "user": "Benutzer"
     },
     "menuGroups": {
-      "automation": "Automatisierung",
-      "capabilities": "Fähigkeiten & Tools",
+      "automation": "Effizienz",
+      "capabilities": "Tools",
       "models": "Modelle",
-      "personal": "Persönlich",
+      "personal": "Präferenzen",
       "quickAccess": "Schneller Zugriff",
       "system": "System"
     },
@@ -6827,6 +6944,8 @@
       },
       "more_actions": "Weitere Aktionen für die Modellliste",
       "not_enabled_models": "Deaktiviert",
+      "painting_model": "Malermodell",
+      "painting_model_description": "Modell für die Bildgenerierung",
       "provider_id": "Dienstanbieter-ID",
       "provider_key_add_confirm": "API-Schlüssel für {{provider}} hinzufügen?",
       "provider_key_add_failed_by_empty_data": "API-Schlüssel für Dienstanbieter hinzufügen fehlgeschlagen, Daten sind leer",
@@ -7707,6 +7826,8 @@
   },
   "tab": {
     "close": "Tab schließen",
+    "close_others": "Andere Tabs schließen",
+    "close_to_right": "Tabs rechts schließen",
     "move_to_first": "Zum Anfang verschieben",
     "new": "Neuer Tab",
     "open_in_new_window": "In neuem Fenster öffnen",

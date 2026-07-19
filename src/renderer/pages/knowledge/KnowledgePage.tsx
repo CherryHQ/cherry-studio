@@ -9,7 +9,7 @@ import KnowledgePageShell from './sections/KnowledgePageShell'
 
 const KnowledgePageContent = () => {
   const { t } = useTranslation()
-  const { bases, isLoading, selectedBase } = useKnowledgePage()
+  const { bases, filePreview, isLoading, selectedBase } = useKnowledgePage()
 
   // No knowledge bases yet → a dedicated full-screen empty page (no navigator) that
   // guides the user to create their first base. The create dialog still mounts via
@@ -20,7 +20,9 @@ const KnowledgePageContent = () => {
 
   return (
     <KnowledgePageShell>
-      <KnowledgePageNavigatorSection />
+      <div className={filePreview ? 'hidden' : 'contents'} hidden={Boolean(filePreview)}>
+        <KnowledgePageNavigatorSection />
+      </div>
       {selectedBase ? (
         <KnowledgePageDetailSection />
       ) : (

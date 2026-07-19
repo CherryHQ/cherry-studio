@@ -208,7 +208,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
       {
         id: 'quick-phrases',
         kind: 'panel',
-        sources: ['root-panel'],
+        sources: ['popover', 'root-panel'],
         order: 70,
         label: t('settings.prompts.title'),
         description: '',

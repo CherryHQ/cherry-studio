@@ -277,7 +277,14 @@ export async function buildClaudeCodeSessionSettings(
   const env = await buildEnvironment(provider, agent)
 
   // 3. Plugins
-  const plugins = await discoverPlugins(cwd, session.agentId)
+  const workspacePlugins = await discoverPlugins(cwd, session.agentId)
+  const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(agentConfig?.builtin_role)
+  const plugins = needsPrivateSkillPlugin
+    ? [
+        ...(workspacePlugins ?? []),
+        { type: 'local' as const, path: skillService.getSkillPluginDirectory(), skipMcpDiscovery: true }
+      ]
+    : workspacePlugins
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
@@ -683,11 +690,7 @@ async function buildToolPermissions(
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
-  const conditionContext: ClaudeToolContext | undefined = cwd
-    ? {
-        cwd
-      }
-    : undefined
+  const conditionContext: ClaudeToolContext | undefined = cwd ? { cwd } : undefined
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call
