@@ -340,7 +340,7 @@ export const migrationDiagnosticsSessionSchema = z
       ctx.addIssue({ code: 'custom', message: 'A session may have only one active attempt', path: ['attempts'] })
     }
     const newestAttempt = session.attempts.at(-1)
-    if (session.state === 'completed' && newestAttempt?.outcome !== 'completed') {
+    if (session.state === 'completed' && newestAttempt !== undefined && newestAttempt.outcome !== 'completed') {
       ctx.addIssue({
         code: 'custom',
         message: 'Completed session must end with a completed attempt',

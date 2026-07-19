@@ -518,4 +518,15 @@ describe('MigrationDiagnosticsCoordinator snapshot, save, and completion', () =>
     expect(existsSync(`${paths().diagnosticsJournalFile}.tmp`)).toBe(false)
     expect(existsSync(corrupt)).toBe(true)
   })
+
+  it('completes before any attempt and deletes the live journal', async () => {
+    const subject = coordinator()
+    subject.attachPaths(paths())
+
+    subject.complete()
+
+    expect((await subject.snapshot()).state).toBe('completed')
+    expect((await subject.snapshot()).attempts).toEqual([])
+    expect(existsSync(paths().diagnosticsJournalFile)).toBe(false)
+  })
 })
