@@ -72,7 +72,7 @@ File Module (src/main/services/file/)
 │
 │
 ├── utils/                ← file-module path/API helpers (not raw FS primitives)
-│     ├── pathResolver.ts       — FileEntry → physical AbsoluteFilePath resolution + external canonicalization
+│     ├── pathResolver.ts       — FileEntry → physical AbsoluteFilePath resolution
 │     └── metadata.ts           — path-arm PhysicalFileMetadata projection for File IPC dispatch
 │
 ├── versionCache.ts       ← LRU type definition; instance held as private field on FileManager
@@ -1051,7 +1051,7 @@ src/main/services/file/               -- file module
   danglingCache.ts                    -- singleton: external entry presence state
                                          exports: check / onFsEvent / addEntry / removeEntry
   utils/
-    pathResolver.ts                   -- FileEntry path resolution + external canonicalization
+    pathResolver.ts                   -- FileEntry path resolution
     metadata.ts                       -- path-arm PhysicalFileMetadata projection
   watcher/
     DirectoryWatcher.ts               -- chokidar wrapper primitive

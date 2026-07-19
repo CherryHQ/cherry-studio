@@ -55,7 +55,7 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 
 `fe_external_path_idx` (plain index on the raw `external_path`) backs byte-exact lookups (`findByExternalPath`, rename re-finds, path-resolution call sites). The functional index simultaneously serves the case-insensitive lookup path (`WHERE lower(externalPath) = lower(?)`) used by `findCaseInsensitivePeers` and enforces the uniqueness invariant — `ensureExternalEntry` MUST resolve case-collisions at the application layer before INSERT (see "Duplicate-entry detection on insert" below) because a DB-level rejection would otherwise surface as an opaque `SQLITE_CONSTRAINT`. Internal rows (`externalPath = NULL`) are exempt — SQLite treats multiple NULLs as distinct in a UNIQUE index.
 
-**Stored form of `externalPath` — byte-faithful**: `externalPath` is persisted **exactly as the OS handed it to us**, with only reachability-safe lexical cleanup (null-byte reject, `./`/`../`/repeated-separator collapse, trailing-separator trim). It is **not** Unicode-normalized, so the stored string always reaches the real file on every filesystem — including normalization-*sensitive* ones (Linux ext4/btrfs) where an NFC-rewritten path would not exist on disk (see [Rejected: Unicode (NFC) normalization](#rejected-unicode-nfc-normalization-of-externalpath) below). Uniqueness is therefore **byte-exact plus case-fold** only: the `lower()` functional index catches identical and case-different paths; it deliberately does not fold Unicode forms.
+**Stored form of `externalPath` — byte-faithful**: `externalPath` is persisted **exactly as the OS handed it to us**, with only lexical cleanup (null-byte reject, `./`/`../`/repeated-separator collapse, trailing-separator trim). It is **not** Unicode-normalized, so the stored string always reaches the real file on every filesystem — including normalization-*sensitive* ones (Linux ext4/btrfs) where an NFC-rewritten path would not exist on disk (see [Rejected: Unicode (NFC) normalization](#rejected-unicode-nfc-normalization-of-externalpath) below). Uniqueness is therefore **byte-exact plus case-fold** only: the `lower()` functional index catches identical and case-different paths; it deliberately does not fold Unicode forms.
 
 **Compile-time enforcement via the `AbsoluteFilePath` brand**: `AbsoluteFilePathSchema.parse()` returns a branded `AbsoluteFilePath` (Zod brand, zero runtime cost; see `src/shared/types/file/common.ts`), and the external-entry lookup/write surfaces (`findByExternalPath`, `setExternalPathAndName`) accept the narrower `CanonicalFilePath` produced by the `canonicalizeFilePath()` factory. Every DB read/write surface that filters by `externalPath` MUST accept the branded type, not a plain `string`, so a caller cannot pass an unvalidated raw path and silently miss all matches. (`AbsoluteFilePathSchema` only *validates the absolute-path shape* — it does not mutate the value; see [AbsoluteFilePath vs CanonicalFilePath](../../../src/shared/types/file/common.ts).)
 
@@ -67,33 +67,33 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 | External URL scheme / shell integration | ❌ | Same as above |
 | v1 migration (inherits Dexie stored values) | ❌ (inherits legacy value quality) | Canonicalize once during migration |
 
-**Normalization scope** (synchronous, no FS IO) — reachability-safe lexical cleanup only:
+**Normalization scope** (synchronous, no FS IO) — lexical cleanup only:
 - Null-byte rejection — `raw.includes('\0')` → throw, so poisoned paths never reach DB persistence (reject at the earliest boundary, not at use-time inside `resolvePhysicalPath`)
 - `path.resolve(raw)` → absolutize + eliminate `./` `../`
 - Trailing separator trimming
 - Windows: drive-letter case folding (`c:\` → `C:\`)
 
-Every step above is a filesystem no-op for *which file the path reaches* — the cleaned string still resolves to the same on-disk entry on every platform. **Unicode (NFC) normalization is deliberately NOT a step here** — see [Rejected](#rejected-unicode-nfc-normalization-of-externalpath) below.
+These steps are purely lexical (no FS IO). **Unicode (NFC) normalization is deliberately NOT a step here** — an NFC-rewritten NFD path would not exist on disk on normalization-*sensitive* filesystems, so byte-faithful storage is what keeps the stored path reachable (see [Rejected](#rejected-unicode-nfc-normalization-of-externalpath) below). The `./`/`../` collapse, by contrast, is *not* guaranteed to preserve the on-disk target across symlinks/junctions (`/a/link/../b` ≠ `/a/b` if `link` resolves elsewhere) — this cleanup is a lexical dedup-key normalizer, **not** a reachability/security primitive; use `fs.realpath` at the main-process boundary when true target equivalence matters.
 
 **Intentionally omitted** (deferred until concrete user feedback warrants the cost):
-- `fs.realpath` as a step *inside* `canonicalizeAbsolutePath` itself (would require async FS IO at every call site and a file-existence precondition). `fs.realpath` IS used on the `ensureExternalEntry` collision path described below — that is a per-collision probe, not a per-canonicalize step.
+- `fs.realpath` as a step *inside* `canonicalizeFilePath` itself (would require async FS IO at every call site and a file-existence precondition). `fs.realpath` IS used on the `ensureExternalEntry` collision path described below — that is a per-collision probe, not a per-canonicalize step.
 - Symlink target merging at canonicalize time
 - Windows 8.3 short-name resolution
 
-See the JSDoc for `canonicalizeAbsolutePath` in `src/shared/utils/file/canonicalize.ts` for the detailed contract.
+See the JSDoc for `canonicalizeFilePath` in `src/shared/utils/file/canonicalize.ts` for the detailed contract.
 
 #### Rejected: Unicode (NFC) normalization of `externalPath`
 
-An earlier design NFC-normalized `externalPath` (inside `canonicalizeAbsolutePath`) before persistence, so a file named with a decomposable character (`é` = `e` + combining acute vs the precomposed `é`) would dedup to one row on macOS. **This is deliberately rejected.** `externalPath` is stored byte-faithful (see "Stored form" above) and is never Unicode-normalized.
+An earlier design NFC-normalized `externalPath` (inside `canonicalizeFilePath`) before persistence, so a file named with a decomposable character (`é` = `e` + combining acute vs the precomposed `é`) would dedup to one row on macOS. **This is deliberately rejected.** `externalPath` is stored byte-faithful (see "Stored form" above) and is never Unicode-normalized.
 
 1. **Reachability (blocking).** On a normalization-*sensitive* filesystem (Linux ext4/btrfs, some SMB/NFS mounts) the directory entry stores exact bytes. NFC-normalizing an NFD-named file's path yields a string that does **not** exist on disk, so `ensureExternalEntry`'s `fs.stat`, the copy source, and `resolvePhysicalPath` all `ENOENT` — the file becomes unimportable and unreachable. Breaking Linux functionality to dedup on macOS is not an acceptable trade.
 2. **Unverified premise.** The "most common duplicate trigger for CJK users" justification was AI-authored in a comment; this v2 code has never shipped, and there is no observed evidence that this app's path sources (`showOpenDialog`, drag-drop, `fs.readdir`) ever surface the same file in divergent normalization forms.
 3. **Rare and cosmetic even on macOS.** A duplicate row needs a conjunction: the same file added more than once, through two ingestion routes that *disagree* on normalization, with a decomposable non-ASCII name, stored on disk in a divergent form. Even then APFS is normalization-insensitive, so both rows resolve to the *same* physical file — the harm is one extra, user-deletable list entry, not data loss or breakage. And the `fs.realpath` collision probe below does not catch it (NFD vs NFC are not `lower()` case-peers), so NFC-in-storage was the *sole* mechanism folding it — bought at the cost of item 1.
 4. **YAGNI.** Storage-time normalization plus its rule-evolution migration discipline is real, permanent complexity for an unverified, rare, cosmetic condition.
 
-If real NFD/NFC duplicates are ever *observed*, the correct fix is an FS-aware `fs.realpath` fold at the collision probe (run only when the file exists), **never** re-introducing Unicode normalization into `canonicalizeAbsolutePath` or the stored form.
+If real NFD/NFC duplicates are ever *observed*, the correct fix is an FS-aware `fs.realpath` fold at the collision probe (run only when the file exists), **never** re-introducing Unicode normalization into `canonicalizeFilePath` or the stored form.
 
-> **Residual normalization discipline.** What remains in `canonicalizeAbsolutePath` is the reachability-safe lexical cleanup listed under "Normalization scope". It does not depend on filesystem semantics, so it does not carry the "changing the rule desyncs historical rows, requiring a paired re-canonicalize migration" hazard that the rejected NFC step did. (v2 has no shipped data to migrate regardless — schemas and rows are pre-release throwaway.)
+> **Residual normalization discipline.** What remains in `canonicalizeFilePath` is the lexical cleanup listed under "Normalization scope". It does not depend on filesystem semantics, so it does not carry the "changing the rule desyncs historical rows, requiring a paired re-canonicalize migration" hazard that the rejected NFC step did. (v2 has no shipped data to migrate regardless — schemas and rows are pre-release throwaway.)
 
 #### Duplicate-entry detection on insert
 
@@ -1375,7 +1375,7 @@ This checklist is the canonical addition procedure. A PR introducing a new origi
 | Location | Change required |
 |---|---|
 | `src/main/services/file/utils/pathResolver.ts` → `resolvePhysicalPath` | Add the new `entry.origin` branch; decide storage layout |
-| `src/shared/utils/file/canonicalize.ts` → `canonicalizeAbsolutePath` (via the `canonicalizeFilePath()` factory) | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
+| `src/shared/utils/file/canonicalize.ts` → `canonicalizeFilePath()` | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
 
 ### 13.4 Behavior Policy Matrix
 
