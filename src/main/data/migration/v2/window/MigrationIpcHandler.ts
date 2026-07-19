@@ -45,9 +45,9 @@ let dataLocationNotice: string | null = null
 export function registerMigrationIpcHandlers(userDataPath: string): void {
   logger.info('Registering migration IPC handlers')
 
-  // Wire the window manager's force-quit escape hatch (crash / hang / repeated close) to the same
-  // write-deferral the ConfirmQuit handler uses, so those paths never terminate mid-write.
+  // Wire repeated-close quit deferral and native crash/hang waiting to the same in-flight write.
   migrationWindowManager.setQuitRequester(requestQuit)
+  migrationWindowManager.setWriteWaiter(waitForInFlightWrites)
 
   // Get user data path
   ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
@@ -294,6 +294,7 @@ export function unregisterMigrationIpcHandlers(): void {
   }
 
   migrationWindowManager.setQuitRequester(null)
+  migrationWindowManager.setWriteWaiter(null)
 }
 
 /**
@@ -331,6 +332,18 @@ function requestQuit(): boolean {
     })
   }
   return false
+}
+
+/**
+ * Settle the migration write that was active when a native crash/hang flow began.
+ * Rejections are deliberately settled, matching requestQuit(): the native flow
+ * still needs to let the user save diagnostics and exit after a failed write.
+ */
+async function waitForInFlightWrites(): Promise<void> {
+  const pending = inFlightMigration
+  if (pending !== null) {
+    await Promise.allSettled([pending])
+  }
 }
 
 /**

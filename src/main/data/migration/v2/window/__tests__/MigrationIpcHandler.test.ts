@@ -15,6 +15,7 @@ const windowRequestCloseMock = vi.hoisted(() => vi.fn())
 const windowSetStageMock = vi.hoisted(() => vi.fn())
 const windowConfirmQuitMock = vi.hoisted(() => vi.fn())
 const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
+const windowSetWriteWaiterMock = vi.hoisted(() => vi.fn())
 const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../../core/MigrationEngine', () => ({ migrationEngine: engineMock }))
@@ -28,6 +29,7 @@ vi.mock('../MigrationWindowManager', () => ({
     setStage: windowSetStageMock,
     confirmQuit: windowConfirmQuitMock,
     setQuitRequester: windowSetQuitRequesterMock,
+    setWriteWaiter: windowSetWriteWaiterMock,
     clearCloseConfirm: windowClearCloseConfirmMock
   }
 }))
@@ -84,6 +86,31 @@ describe('MigrationIpcHandler', () => {
 
     expect(stageAtRunStart).toBe('migration')
     expect(windowSetStageMock).toHaveBeenCalledWith('migration')
+  })
+
+  it('wires the native failure waiter to the same in-flight migration write', async () => {
+    let release!: (result: MigrationResult) => void
+    engineMock.run.mockImplementation(
+      () =>
+        new Promise<MigrationResult>((resolve) => {
+          release = resolve
+        })
+    )
+    const start = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await vi.waitFor(() => expect(engineMock.run).toHaveBeenCalledTimes(1))
+    const waiter = windowSetWriteWaiterMock.mock.calls.at(-1)?.[0] as (() => Promise<void>) | undefined
+    expect(waiter).toBeTypeOf('function')
+
+    let waiterSettled = false
+    const waiting = waiter!().then(() => {
+      waiterSettled = true
+    })
+    await Promise.resolve()
+    expect(waiterSettled).toBe(false)
+
+    release({ success: true, totalDuration: 1, migratorResults: [] })
+    await Promise.all([start, waiting])
+    expect(waiterSettled).toBe(true)
   })
 
   it('resets to the introduction stage on retry so the user can re-trigger migration', async () => {

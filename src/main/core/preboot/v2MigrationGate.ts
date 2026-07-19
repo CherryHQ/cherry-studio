@@ -1,12 +1,21 @@
 import { application } from '@application'
 import {
+  classifyMigrationError,
+  createMigrationDatabaseDiagnostics,
+  createMigrationDiagnosticBundleBuilder,
+  createMigrationDiagnosticsCoordinator,
   evaluateCandidateVersion,
   getAllMigrators,
-  getBlockMessage,
-  isSchemaOutOfSyncError,
+  type MigrationDiagnosticBundleSaveResult,
+  type MigrationDiagnosticNativeDecision,
+  type MigrationDiagnosticNativeFailureCode,
+  type MigrationDiagnosticNativeSaveResult,
   migrationEngine,
+  type MigrationRendererFailureReason,
   migrationWindowManager,
   pinUserDataPath,
+  presentMigrationDiagnosticFailure,
+  presentMigrationDiagnosticRecovery,
   registerMigrationIpcHandlers,
   resolveMigrationPaths,
   setDataLocationNotice,
@@ -14,274 +23,328 @@ import {
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
-import { isDev } from '@main/core/platform'
-import { app, dialog } from 'electron'
+import { app } from 'electron'
 
 const logger = loggerService.withContext('V2MigrationGate')
+
+const MEMORY_ONLY_DATABASE_DIAGNOSTICS = Object.freeze({
+  version: 1 as const,
+  expectedSchemaVersion: 1 as const,
+  completion: Object.freeze({ status: 'failed' as const, code: 'lease_unavailable' as const })
+})
 
 /**
  * Outcome of the v1→v2 migration gate.
  *
- * - `'skipped'`  : no migration needed; caller should continue with
- *                  `application.bootstrap()` as normal.
- * - `'handled'`  : the gate took over. Either a migration window is now
- *                  running (the user will drive migration through it and
- *                  the app will relaunch afterwards), or a fatal error
- *                  was surfaced via `dialog.showErrorBox` and
- *                  `application.quit()` has already been called. Either
- *                  way the caller MUST return immediately without
- *                  starting bootstrap.
+ * - `'skipped'`: no migration is needed; bootstrap may continue.
+ * - `'handled'`: the gate opened migration UI or handled a native decision;
+ *                the caller must not start bootstrap.
  */
 export type V2MigrationGateResult = 'handled' | 'skipped'
 
-/**
- * Surface a fatal "cannot persist userData location" error and quit.
- *
- * Reached when the strict `pinUserDataPath()` persist fails: the next launch
- * depends on that write, so continuing would relaunch into the old directory
- * and loop (or make migrated data appear lost). Stop loudly instead.
- */
-async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGateResult> {
-  logger.error('Failed to persist userData location; cannot continue', cause as Error)
-  await app.whenReady()
-  dialog.showErrorBox(
-    'Data Location Error - Application Cannot Start',
-    `Could not save the application data directory:\n\n  ${(cause as Error).message}\n\n` +
-      `Check that there is free disk space and that ~/.cherrystudio is writable, then try again. The application will now exit.`
-  )
-  application.quit()
+function toNativeSaveResult(
+  result: MigrationDiagnosticBundleSaveResult | { readonly status: 'failed'; readonly code: 'save_in_progress' }
+): MigrationDiagnosticNativeSaveResult {
+  if (result.status === 'saved') return { status: 'saved' }
+  if (result.code === 'save_in_progress') return result
+  if (result.code === 'publish_failed') return { status: 'failed', code: 'publish_failed' }
+  return { status: 'failed', code: 'archive_failed' }
+}
+
+function applyNativeDecision(decision: MigrationDiagnosticNativeDecision): V2MigrationGateResult {
+  if (decision === 'retry') {
+    application.relaunch()
+  } else {
+    application.quit()
+  }
   return 'handled'
 }
 
 /**
- * Decide whether the v1→v2 data migration must run before
- * `application.bootstrap()` is allowed to start.
- *
- * Timing contract:
- *   - Runs during preboot, but async (unlike most preboot modules). The
- *     `await` points are DB probes and the migration window's ready
- *     barrier — neither of which can be expressed synchronously.
- *   - Touches only a bare DB connection through `migrationEngine`; it
- *     does NOT depend on any lifecycle-managed service. This matches the
- *     "no `application.get(...)`" membership criterion in
- *     core/preboot/README.md.
- *   - Must complete (with either outcome) before
- *     `application.bootstrap()` is called. Bootstrap would otherwise
- *     start services against unmigrated data.
- *
- * This module is a temporary v2-transition artifact — once all users
- * have migrated off v1 the entire file can be deleted, hence the `v2`
- * prefix in both file name and exported function name.
+ * Decide whether the v1→v2 data migration must run before bootstrap.
+ * This is preboot code: it owns a scoped coordinator and never resolves a
+ * lifecycle-managed service.
  */
 export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
-  // Step 0: Resolve all migration-critical paths, including v1 legacy
-  // userData detection. This MUST run before migrationEngine.initialize()
-  // so that all subsequent path-dependent operations use the correct
-  // directory. See MigrationPaths.ts for the full resolution logic.
+  // This is deliberately the first business action. Path resolution itself can
+  // fail, so diagnostics must already exist in memory before it starts.
+  const diagnosticsCoordinator = createMigrationDiagnosticsCoordinator()
+  const bundleBuilder = createMigrationDiagnosticBundleBuilder()
+  const databaseDiagnostics = createMigrationDatabaseDiagnostics()
+  let resolvedPaths: ReturnType<typeof resolveMigrationPaths>['paths'] | null = null
+  let engineInitialized = false
+  let attemptActive = false
+  type DiagnosticEventInput = Parameters<(typeof diagnosticsCoordinator)['recordEvent']>[0]
+
+  const saveDiagnosticBundle = async (destination: string): Promise<MigrationDiagnosticNativeSaveResult> => {
+    try {
+      const result = await diagnosticsCoordinator.runSave((snapshot) =>
+        bundleBuilder.save({
+          destination,
+          snapshot,
+          collectDatabaseDiagnostics: () => {
+            if (resolvedPaths === null) return Promise.resolve(MEMORY_ONLY_DATABASE_DIAGNOSTICS)
+            return engineInitialized
+              ? migrationEngine.collectDatabaseDiagnostics(databaseDiagnostics)
+              : databaseDiagnostics.inspect(resolvedPaths.databaseFile)
+          }
+        })
+      )
+      return toNativeSaveResult(result)
+    } catch {
+      return { status: 'failed', code: 'snapshot_failed' }
+    }
+  }
+
+  const presentFailure = async (
+    code: MigrationDiagnosticNativeFailureCode,
+    options: { readonly allowUseDefault?: boolean; readonly retry?: 'relaunch' | 'none' } = {}
+  ): Promise<MigrationDiagnosticNativeDecision> => {
+    await app.whenReady()
+    return presentMigrationDiagnosticFailure({
+      locale: app.getLocale(),
+      code,
+      retry: options.retry ?? 'relaunch',
+      ...(options.allowUseDefault ? { allowUseDefault: true } : {}),
+      saveBundle: saveDiagnosticBundle
+    })
+  }
+
+  const beginAttempt = (trigger: 'initial' | 'recovered_retry'): boolean => {
+    try {
+      diagnosticsCoordinator.beginAttempt(trigger)
+      attemptActive = true
+      return true
+    } catch {
+      logger.error('Failed to begin migration diagnostic attempt')
+      return false
+    }
+  }
+
+  const recordEvent = (input: DiagnosticEventInput): void => {
+    if (!attemptActive) return
+    try {
+      diagnosticsCoordinator.recordEvent(input)
+    } catch {
+      logger.error('Failed to record bounded migration gate diagnostic event')
+    }
+  }
+
+  const finishFailedAttempt = (error: unknown, phase: DiagnosticEventInput['phase']): void => {
+    if (!attemptActive) return
+    const classified = classifyMigrationError(error)
+    recordEvent({
+      scope: 'gate',
+      phase,
+      state: 'failed',
+      category: classified.category,
+      code: classified.code,
+      causeDepth: classified.causeDepth
+    })
+    try {
+      diagnosticsCoordinator.finishAttempt('failed', {
+        scope: 'gate',
+        phase: 'finalize',
+        state: 'failed',
+        category: classified.category,
+        code: classified.code,
+        causeDepth: classified.causeDepth
+      })
+    } catch {
+      logger.error('Failed to finish bounded migration diagnostic attempt')
+    } finally {
+      attemptActive = false
+    }
+  }
+
+  const finishInterruptedAttempt = (code: 'unknown' | 'path_unavailable'): void => {
+    if (!attemptActive) return
+    try {
+      diagnosticsCoordinator.finishAttempt('interrupted', {
+        scope: 'gate',
+        phase: 'finalize',
+        state: 'interrupted',
+        code,
+        ...(code === 'path_unavailable' ? { category: 'filesystem' as const } : {})
+      })
+    } catch {
+      logger.error('Failed to interrupt bounded migration diagnostic attempt')
+    } finally {
+      attemptActive = false
+    }
+  }
+
+  const finishCompletedAttempt = (): void => {
+    if (!attemptActive) return
+    try {
+      diagnosticsCoordinator.finishAttempt('completed', {
+        scope: 'gate',
+        phase: 'finalize',
+        state: 'completed',
+        code: 'unknown'
+      })
+    } catch {
+      logger.error('Failed to finish completed migration diagnostic attempt')
+    } finally {
+      attemptActive = false
+    }
+  }
+
   let resolved: ReturnType<typeof resolveMigrationPaths>
   try {
     resolved = resolveMigrationPaths()
+    resolvedPaths = resolved.paths
   } catch (error) {
-    // resolveMigrationPaths()'s only throwing operation is the strict
-    // pinUserDataPath() persist on the redirect branch. Failing there means we
-    // cannot durably record which userData directory to use next launch — a
-    // silent continue would relaunch into the OLD location and loop.
-    return quitWithDataLocationError(error)
+    beginAttempt('initial')
+    finishFailedAttempt(error, 'resolve_paths')
+    return applyNativeDecision(await presentFailure('path_resolution_failed'))
   }
-  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolved
 
-  // Legacy custom path found but inaccessible (e.g. external drive not
-  // mounted, or a stale abandoned entry). Silently falling back to the default
-  // path would run an empty-data migration and markCompleted-lock it, making
-  // user data appear permanently lost. Offer three ways out so the user is
-  // never stuck in a retry loop when the directory will never come back.
-  if (inaccessibleLegacyPath) {
-    logger.warn('Legacy userData path inaccessible, prompting user', { inaccessibleLegacyPath })
+  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolved
+  try {
+    diagnosticsCoordinator.attachPaths(paths)
+  } catch (error) {
+    beginAttempt('initial')
+    finishFailedAttempt(error, 'resolve_paths')
+    return applyNativeDecision(await presentFailure('diagnostics_journal_failed'))
+  }
+
+  let attemptTrigger: 'initial' | 'recovered_retry' = 'initial'
+  if (diagnosticsCoordinator.recovered) {
     await app.whenReady()
-    const { response } = await dialog.showMessageBox({
-      type: 'warning',
-      title: 'Custom Data Directory Inaccessible',
-      message:
-        `Your previous data was stored at:\n${inaccessibleLegacyPath}\n\n` +
-        'This directory is currently inaccessible — an external drive may not be mounted.\n\n' +
-        '• Retry after reconnecting it.\n' +
-        '• Continue with a new default data directory (you can change it later in Settings).\n' +
-        '• Quit.',
-      buttons: ['Retry', 'Use Default Directory', 'Quit'],
-      defaultId: 0,
-      cancelId: 2
+    const recoveryDecision = await presentMigrationDiagnosticRecovery({
+      locale: app.getLocale(),
+      saveBundle: saveDiagnosticBundle
     })
-    if (response === 0) {
+    if (recoveryDecision === 'exit') {
+      application.quit()
+      return 'handled'
+    }
+    attemptTrigger = 'recovered_retry'
+  }
+
+  if (!beginAttempt(attemptTrigger)) {
+    return applyNativeDecision(await presentFailure('diagnostics_journal_failed'))
+  }
+  recordEvent({ scope: 'gate', phase: 'resolve_paths', state: 'completed', code: 'unknown' })
+
+  if (inaccessibleLegacyPath) {
+    recordEvent({
+      scope: 'gate',
+      phase: 'resolve_paths',
+      state: 'unavailable',
+      category: 'filesystem',
+      code: 'path_unavailable'
+    })
+    const decision = await presentFailure('legacy_data_location_unavailable', { allowUseDefault: true })
+    if (decision !== 'use_default') {
+      finishInterruptedAttempt('path_unavailable')
+      return applyNativeDecision(decision)
+    }
+    try {
+      pinUserDataPath(paths.userData)
+      recordEvent({ scope: 'gate', phase: 'resolve_paths', state: 'completed', code: 'unknown' })
+    } catch (error) {
+      finishFailedAttempt(error, 'resolve_paths')
+      return applyNativeDecision(await presentFailure('data_location_pin_failed'))
+    }
+  }
+
+  try {
+    migrationEngine.initialize(paths, legacyDataConfirmed, diagnosticsCoordinator)
+    engineInitialized = true
+    migrationEngine.registerMigrators(getAllMigrators())
+  } catch (error) {
+    logger.error('Migration database initialization failed')
+    finishFailedAttempt(error, 'initialize')
+    const decision = await presentFailure('database_initialize_failed')
+    if (engineInitialized) migrationEngine.close()
+    engineInitialized = false
+    return applyNativeDecision(decision)
+  }
+
+  let needsMigration: boolean
+  recordEvent({ scope: 'gate', phase: 'validate', state: 'started', code: 'unknown' })
+  try {
+    needsMigration = await migrationEngine.needsMigration()
+    recordEvent({ scope: 'gate', phase: 'validate', state: 'completed', code: 'unknown' })
+  } catch (error) {
+    logger.error('Migration status probe failed')
+    finishFailedAttempt(error, 'validate')
+    const decision = await presentFailure('migration_status_probe_failed')
+    migrationEngine.close()
+    engineInitialized = false
+    return applyNativeDecision(decision)
+  }
+
+  if (!needsMigration) {
+    migrationEngine.close()
+    engineInitialized = false
+    finishCompletedAttempt()
+    try {
+      diagnosticsCoordinator.complete()
+    } catch {
+      logger.error('Failed to clean a completed migration diagnostic journal')
+    }
+
+    if (userDataChanged) {
       application.relaunch()
       return 'handled'
     }
-    if (response === 2) {
-      application.quit()
-      return 'handled'
-    }
-    // response === 1: continue on the default directory. Pin it in boot-config
-    // so this prompt never fires again, then FALL THROUGH to the normal flow —
-    // userData already IS the default and the path registry is frozen there, so
-    // no relaunch is needed.
-    try {
-      pinUserDataPath(paths.userData)
-    } catch (error) {
-      return quitWithDataLocationError(error)
-    }
-    logger.info('User chose to continue with the default data directory', { defaultPath: paths.userData })
+    return 'skipped'
   }
 
-  let needsMigration = false
-
+  let versionEvaluation: ReturnType<typeof evaluateCandidateVersion>
   try {
-    logger.info('Checking if data migration v2 is needed')
-    migrationEngine.initialize(paths, legacyDataConfirmed)
-    migrationEngine.registerMigrators(getAllMigrators())
-    needsMigration = await migrationEngine.needsMigration()
-    logger.info('Migration status check result', { needsMigration })
+    versionEvaluation = evaluateCandidateVersion(paths.userData, app.getVersion())
   } catch (error) {
-    logger.error('Migration status check failed', error as Error)
-    await app.whenReady()
-
-    // Dev-only: when the disposable migration SQL is regenerated/deleted but
-    // the local DB is kept, drizzle re-runs CREATE TABLE on objects that
-    // already exist and throws "... already exists". Guide the developer to
-    // reset the local DB instead of the generic connectivity message. Never
-    // auto-delete, and never surface this in production — real users must not
-    // be told to delete their database.
-    if (isDev && isSchemaOutOfSyncError(error)) {
-      dialog.showErrorBox(
-        'Database Schema Out of Sync (Dev)',
-        `During v2 development (before release), the database schema can change at any time. ` +
-          `Your local database no longer matches the bundled migration SQL, so startup migration cannot continue.\n\n` +
-          `To fix this, delete the local database, then restart:\n\n` +
-          `  ${paths.databaseFile}\n\n` +
-          `Or run:\n  rm -f "${paths.databaseFile}"\n\n` +
-          `Then start the app again (pnpm dev).\n\n` +
-          `Original error: ${(error as Error).message}`
-      )
-      logger.error('Exiting application due to schema out of sync (dev)')
-      application.quit()
-      return 'handled'
-    }
-
-    // The error wasn't the unambiguous "object already exists" signal handled above. Anything else
-    // (e.g. a SQLITE_CONSTRAINT_* thrown from migrate() when a new constraint is incompatible with
-    // existing rows) is AMBIGUOUS: it may be incompatible legacy/dev data OR a genuine migration bug.
-    // So we never assert "delete the DB" here — in dev we surface both possibilities plus the path;
-    // in production we stay neutral and never tell a real user to delete their data.
-    if (isDev) {
-      dialog.showErrorBox(
-        'Migration Failed (Dev) - Application Cannot Start',
-        `Startup migration failed while applying schema changes:\n\n` +
-          `  ${(error as Error).message}\n\n` +
-          `In development this is usually one of:\n\n` +
-          `  1. Your local database predates a schema change (incompatible legacy data). ` +
-          `If this is throwaway dev data, reset it and restart:\n` +
-          `       rm -f "${paths.databaseFile}"\n\n` +
-          `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
-          `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
-          `with real data.\n\n` +
-          `The application will now exit.`
-      )
-    } else {
-      dialog.showErrorBox(
-        'Migration Failed - Application Cannot Start',
-        `Could not complete data migration:\n\n  ${(error as Error).message}\n\n` +
-          `The application will now exit. Please try again, and contact support if the problem persists.`
-      )
-    }
-    logger.error('Exiting application due to migration status check failure')
-    application.quit()
-    return 'handled'
+    finishFailedAttempt(error, 'validate')
+    const decision = await presentFailure('version_check_failed')
+    migrationEngine.close()
+    engineInitialized = false
+    return applyNativeDecision(decision)
   }
 
-  if (needsMigration) {
-    // Version compatibility gate: ensure the upgrade path is valid before
-    // showing the migration UI. This catches manual installs that bypassed
-    // the auto-updater's version filtering. evaluateCandidateVersion is the
-    // single assembler of the version.log existence/read/compatibility check,
-    // shared with the candidate selector so the two cannot drift.
-    const {
-      check: versionCheck,
-      previousVersion,
-      versionLogExists
-    } = evaluateCandidateVersion(paths.userData, app.getVersion())
+  const onRendererFailure = async (reason: MigrationRendererFailureReason): Promise<void> => {
+    const decision = await presentFailure(reason)
+    applyNativeDecision(decision)
+  }
 
-    logger.info('Version compatibility check', { currentVersion: app.getVersion(), previousVersion, versionLogExists })
-
-    if (versionCheck.outcome === 'block') {
-      logger.warn('Version compatibility check failed, showing version incompatible UI', {
-        reason: versionCheck.reason,
-        ...versionCheck.details
-      })
-
-      // Do NOT close the engine — the "skip migration" action needs it
-      // to write the completed status. Set the initial stage so the
-      // renderer picks it up via GetProgress on mount.
-      setVersionIncompatible(versionCheck.reason, versionCheck.details)
-      registerMigrationIpcHandlers(paths.userData)
-
-      try {
-        await app.whenReady()
-        migrationWindowManager.create()
-        await migrationWindowManager.waitForReady()
-        logger.info('Version incompatible window created successfully')
-        return 'handled'
-      } catch (windowError) {
-        // Fallback: if the window fails to create, use a plain dialog
-        logger.error('Failed to create version incompatible window, falling back to dialog', windowError as Error)
-        unregisterMigrationIpcHandlers()
-        migrationEngine.close()
-        dialog.showErrorBox('Version Upgrade Required', getBlockMessage(versionCheck.reason, versionCheck.details))
-        application.quit()
-        return 'handled'
-      }
-    }
-
-    // Surface the auto-recovered non-default data directory on the intro
-    // screen (fuzzy B1 fallback only). Must precede handler registration so the
-    // renderer reads it via GetProgress on mount.
-    if (dataLocation) setDataLocationNotice(dataLocation)
-
-    logger.info('Data Migration v2 needed, starting migration process')
+  const { check: versionCheck, previousVersion, versionLogExists } = versionEvaluation
+  logger.info('Version compatibility check', { previousVersion, versionLogExists })
+  if (versionCheck.outcome === 'block') {
+    setVersionIncompatible(versionCheck.reason, versionCheck.details)
     registerMigrationIpcHandlers(paths.userData)
-
     try {
       await app.whenReady()
-      migrationWindowManager.create()
+      migrationWindowManager.create({ onRendererFailure })
       await migrationWindowManager.waitForReady()
-      logger.info('Migration window created successfully')
       return 'handled'
-    } catch (migrationError) {
-      logger.error('Failed to start migration process', migrationError as Error)
+    } catch (error) {
+      logger.error('Version guidance window failed')
       unregisterMigrationIpcHandlers()
-      dialog.showErrorBox(
-        'Migration Required - Application Cannot Start',
-        `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
-      )
-      logger.error('Exiting application due to failed migration startup')
-      application.quit()
-      return 'handled'
+      finishFailedAttempt(error, 'initialize')
+      const decision = await presentFailure('version_window_failed')
+      migrationEngine.close()
+      engineInitialized = false
+      return applyNativeDecision(decision)
     }
   }
 
-  // Normal path: no migration needed. Release the bare DB handle so the
-  // lifecycle DbService can open its own connection when bootstrap runs.
-  migrationEngine.close()
-
-  // Edge case: userData was redirected from legacy config but migration is
-  // not needed (e.g. boot-config.json was manually deleted after a
-  // completed migration). The path registry was frozen with the Electron
-  // default during initPathRegistry(), creating an inconsistency with the
-  // app.setPath() call in resolveMigrationPaths(). Force a clean relaunch
-  // so resolveUserDataLocation() reads the pre-written boot-config.json
-  // and freezes the registry correctly.
-  if (userDataChanged) {
-    logger.info('Legacy userData resolved but migration not needed, relaunching for path consistency')
-    application.relaunch()
+  if (dataLocation) setDataLocationNotice(dataLocation)
+  registerMigrationIpcHandlers(paths.userData)
+  try {
+    await app.whenReady()
+    migrationWindowManager.create({ onRendererFailure })
+    await migrationWindowManager.waitForReady()
     return 'handled'
+  } catch (error) {
+    logger.error('Migration window failed')
+    unregisterMigrationIpcHandlers()
+    finishFailedAttempt(error, 'initialize')
+    const decision = await presentFailure('migration_window_failed')
+    migrationEngine.close()
+    engineInitialized = false
+    return applyNativeDecision(decision)
   }
-
-  return 'skipped'
 }

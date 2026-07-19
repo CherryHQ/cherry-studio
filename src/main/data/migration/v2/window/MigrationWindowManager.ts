@@ -23,6 +23,12 @@ function isCloseConfirmStage(stage: MigrationStage): boolean {
   return CLOSE_CONFIRM_BY_STAGE[stage]
 }
 
+export type MigrationRendererFailureReason = 'renderer_process_gone' | 'renderer_unresponsive'
+
+export interface MigrationWindowCreateOptions {
+  readonly onRendererFailure?: (reason: MigrationRendererFailureReason) => void | Promise<void>
+}
+
 export class MigrationWindowManager {
   private window: BrowserWindow | null = null
   // Guards the user-initiated-close handler so our own programmatic close()
@@ -39,6 +45,9 @@ export class MigrationWindowManager {
   // migration before quitting). Wired by registerMigrationIpcHandlers(); null only in
   // isolated tests, where nothing can be in flight so confirmQuit() is a safe fallback.
   private requestQuit: (() => boolean) | null = null
+  private waitForWrites: (() => Promise<void>) | null = null
+  private onRendererFailure: MigrationWindowCreateOptions['onRendererFailure'] = undefined
+  private rendererFailurePromise: Promise<void> | null = null
 
   /**
    * Check if migration window exists and is not destroyed
@@ -57,7 +66,7 @@ export class MigrationWindowManager {
   /**
    * Create and show the migration window
    */
-  create(): BrowserWindow {
+  create(options: MigrationWindowCreateOptions = {}): BrowserWindow {
     if (this.hasWindow()) {
       this.window!.show()
       return this.window!
@@ -70,6 +79,8 @@ export class MigrationWindowManager {
     this.programmaticClose = false
     this.currentStage = 'introduction'
     this.closeConfirmPending = false
+    this.onRendererFailure = options.onRendererFailure
+    this.rendererFailurePromise = null
 
     this.window = new BrowserWindow({
       width: 900,
@@ -115,16 +126,15 @@ export class MigrationWindowManager {
       app.quit()
     })
 
-    // Escape hatch for an unrecoverably wedged renderer: a crashed or hung renderer can never
-    // show the close-confirmation dialog, which would otherwise leave this app-gating window
-    // unclosable. Quit safely (via the write-deferral) on either signal.
+    // A crashed or hung renderer cannot present diagnostics itself. Route either signal into
+    // one native, write-safe failure flow; the promise guard deduplicates consecutive signals.
     this.window.webContents.on('render-process-gone', (_event, details) => {
-      logger.error('Migration renderer process gone; forcing safe quit', { reason: details.reason })
-      this.forceQuit(`render-process-gone:${details.reason}`)
+      logger.error('Migration renderer process gone; opening native failure flow', { reason: details.reason })
+      this.handleRendererFailure('renderer_process_gone')
     })
     this.window.webContents.on('unresponsive', () => {
-      logger.error('Migration renderer unresponsive; forcing safe quit')
-      this.forceQuit('unresponsive')
+      logger.error('Migration renderer unresponsive; opening native failure flow')
+      this.handleRendererFailure('renderer_unresponsive')
     })
 
     // Load the migration window.
@@ -215,6 +225,11 @@ export class MigrationWindowManager {
     this.requestQuit = fn
   }
 
+  /** Wait for migration writes before a native crash/hang save-or-exit flow. */
+  setWriteWaiter(fn: (() => Promise<void>) | null): void {
+    this.waitForWrites = fn
+  }
+
   /**
    * The renderer dismissed the in-flow close dialog without quitting (Continue / Esc / backdrop).
    * Drop the pending flag so the next close re-prompts instead of force-quitting.
@@ -237,6 +252,33 @@ export class MigrationWindowManager {
     } else {
       this.confirmQuit()
     }
+  }
+
+  private handleRendererFailure(reason: MigrationRendererFailureReason): void {
+    if (this.rendererFailurePromise !== null) return
+    const handler = this.onRendererFailure
+    if (handler === undefined) {
+      this.forceQuit(reason)
+      return
+    }
+
+    // Defer execution by one microtask so the guard is assigned before a
+    // callback can synchronously emit the other Electron failure signal.
+    const promise = Promise.resolve().then(async () => {
+      if (this.waitForWrites !== null) {
+        try {
+          await this.waitForWrites()
+        } catch {
+          logger.error('Failed while waiting for migration writes before native failure flow')
+        }
+      }
+      await handler(reason)
+    })
+    this.rendererFailurePromise = promise
+    void promise.catch(() => {
+      logger.error('Native migration renderer failure flow failed')
+      this.forceQuit('renderer-failure-flow')
+    })
   }
 
   /**

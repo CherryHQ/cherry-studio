@@ -189,6 +189,53 @@ describe('MigrationWindowManager', () => {
       expect(requester).toHaveBeenCalledTimes(1)
     })
 
+    it('shares one native failure callback across consecutive crash and hang signals', async () => {
+      const onRendererFailure = vi.fn().mockResolvedValue(undefined)
+      manager = new MigrationWindowManager()
+      manager.create({ onRendererFailure })
+
+      fakeWindow.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
+      fakeWindow.webContents.emit('unresponsive')
+      await vi.waitFor(() => expect(onRendererFailure).toHaveBeenCalledTimes(1))
+
+      expect(onRendererFailure).toHaveBeenCalledWith('renderer_process_gone')
+    })
+
+    it('sets the single-flight guard before invoking a re-entrant native failure callback', async () => {
+      let emittedReentrantSignal = false
+      const onRendererFailure = vi.fn(() => {
+        if (!emittedReentrantSignal) {
+          emittedReentrantSignal = true
+          fakeWindow.webContents.emit('unresponsive')
+        }
+      })
+      manager = new MigrationWindowManager()
+      manager.create({ onRendererFailure })
+
+      fakeWindow.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
+      await vi.waitFor(() => expect(onRendererFailure).toHaveBeenCalledTimes(1))
+    })
+
+    it('waits for the existing in-flight write seam before invoking the native failure callback', async () => {
+      let releaseWrite!: () => void
+      const pendingWrite = new Promise<void>((resolve) => {
+        releaseWrite = resolve
+      })
+      const waitForWrites = vi.fn(() => pendingWrite)
+      const onRendererFailure = vi.fn().mockResolvedValue(undefined)
+      manager = new MigrationWindowManager()
+      manager.setWriteWaiter(waitForWrites)
+      manager.create({ onRendererFailure })
+
+      fakeWindow.webContents.emit('unresponsive')
+      await Promise.resolve()
+      expect(waitForWrites).toHaveBeenCalledTimes(1)
+      expect(onRendererFailure).not.toHaveBeenCalled()
+
+      releaseWrite()
+      await vi.waitFor(() => expect(onRendererFailure).toHaveBeenCalledTimes(1))
+    })
+
     it('clears a stale pending close when the stage leaves and re-enters the in-flow set', () => {
       const requester = wireRequester()
       manager.setStage('migration')

@@ -19,6 +19,19 @@ export {
   V2_GATEWAY_VERSION
 } from './core/versionPolicy'
 export {
+  classifyMigrationError,
+  createMigrationDatabaseDiagnostics,
+  createMigrationDiagnosticBundleBuilder,
+  createMigrationDiagnosticsCoordinator,
+  type MigrationDiagnosticBundleSaveResult
+} from './migrationDiagnostics'
+export type {
+  MigrationDiagnosticNativeDecision,
+  MigrationDiagnosticNativeFailureCode,
+  MigrationDiagnosticNativeSaveResult
+} from './window/migrationDiagnosticDialogs'
+export type { MigrationRendererFailureReason } from './window/MigrationWindowManager'
+export {
   type ExecuteResult,
   type I18nMessage,
   type LocalStorageRecord,
@@ -41,6 +54,10 @@ export {
 export { getAllMigrators } from './migrators/migratorRegistry'
 
 // Window management
+export {
+  presentMigrationDiagnosticFailure,
+  presentMigrationDiagnosticRecovery
+} from './window/migrationDiagnosticDialogs'
 export {
   registerMigrationIpcHandlers,
   resetMigrationData,
