@@ -1,7 +1,9 @@
-import fs from 'node:fs'
+import { close as closeFileDescriptor, open as openFileDescriptor, type Stats } from 'node:fs'
+import type { FileHandle } from 'node:fs/promises'
+import { lstat, open, rename, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
-import { crc32 } from 'node:zlib'
+import { crc32, inflateRawSync } from 'node:zlib'
 
 import { ZipArchive } from 'archiver'
 import StreamZip from 'node-stream-zip'
@@ -59,9 +61,13 @@ const ZIP_LOCAL_FILE_HEADER_BYTES = 30
 const ZIP_DATA_DESCRIPTOR_BYTES = 16
 const ZIP_CENTRAL_FILE_HEADER_BYTES = 46
 const ZIP_END_OF_CENTRAL_DIRECTORY_BYTES = 22
+const ZIP_PRODUCTION_VERSION_MADE_BY = 0x032d
 const ZIP_PRODUCTION_VERSION_NEEDED = 20
 const ZIP_PRODUCTION_FLAGS = 0x0008
 const ZIP_PRODUCTION_METHOD = 8
+const ZIP_PRODUCTION_INTERNAL_ATTRIBUTES = 0
+const ZIP_PRODUCTION_EXTERNAL_ATTRIBUTES = 0x81a40020
+const MAX_FILE_CLOSE_ATTEMPTS = 2
 
 export interface MigrationDiagnosticArchiveEntry {
   readonly name: MigrationDiagnosticStrictEntryName
@@ -69,11 +75,6 @@ export interface MigrationDiagnosticArchiveEntry {
 }
 
 type CreateArchiveBuffer = (entries: readonly MigrationDiagnosticArchiveEntry[]) => Promise<Buffer>
-
-export interface MigrationDiagnosticBundleBuilderOptions {
-  readonly createArchiveBuffer?: CreateArchiveBuffer
-  readonly platform?: NodeJS.Platform
-}
 
 export interface MigrationDiagnosticBundleSaveInput {
   readonly destination: string
@@ -114,10 +115,16 @@ interface CanonicalZipCentralEntry {
   readonly name: Buffer
   readonly flags: number
   readonly method: number
+  readonly modifiedTime: number
   readonly crc: number
   readonly compressedBytes: number
   readonly uncompressedBytes: number
   readonly localOffset: number
+}
+
+interface InflateRawInfo {
+  readonly buffer: Buffer
+  readonly engine: { readonly bytesWritten: number }
 }
 
 function failed(
@@ -226,24 +233,29 @@ function omitLevelDetails(
 ): MigrationDatabaseDiagnosticsDocument | null {
   const step = document.levels[level]
   if (step === undefined || step.details.status !== 'included') return null
-  return migrationDatabaseDiagnosticsDocumentSchema.parse({
+  return {
     ...document,
     levels: {
       ...document.levels,
       [level]: { ...step, details: { status: 'omitted_for_size' } }
     }
-  })
+  } as MigrationDatabaseDiagnosticsDocument
+}
+
+function omitNextMigrationDatabaseDiagnosticDetailsUnchecked(
+  document: MigrationDatabaseDiagnosticsDocument
+): MigrationDatabaseDiagnosticsDocument | null {
+  for (const level of DATABASE_DETAIL_OMISSION_ORDER) {
+    const omitted = omitLevelDetails(document, level)
+    if (omitted !== null) return omitted
+  }
+  return null
 }
 
 export function omitNextMigrationDatabaseDiagnosticDetails(
   document: MigrationDatabaseDiagnosticsDocument
 ): MigrationDatabaseDiagnosticsDocument | null {
-  const validated = migrationDatabaseDiagnosticsDocumentSchema.parse(document)
-  for (const level of DATABASE_DETAIL_OMISSION_ORDER) {
-    const omitted = omitLevelDetails(validated, level)
-    if (omitted !== null) return omitted
-  }
-  return null
+  return omitNextMigrationDatabaseDiagnosticDetailsUnchecked(migrationDatabaseDiagnosticsDocumentSchema.parse(document))
 }
 
 function omittedDatabaseDetails(document: MigrationDatabaseDiagnosticsDocument): Array<'l2' | 'l1' | 'l0'> {
@@ -296,13 +308,13 @@ function createManifestCandidate(
   }
 }
 
-function serializeStructured(schema: { parse(value: unknown): unknown }, value: unknown): Buffer {
-  return Buffer.from(JSON.stringify(schema.parse(value)), 'utf8')
+function serializeStructured(schema: { parse(value: unknown): unknown }, value: unknown, strict: boolean): Buffer {
+  return Buffer.from(JSON.stringify(strict ? schema.parse(value) : value), 'utf8')
 }
 
-function serializeBundle(documents: SelectedDocuments): SerializedBundle {
-  const events = serializeStructured(migrationDiagnosticEventsDocumentSchema, documents.events)
-  const database = serializeStructured(migrationDatabaseDiagnosticsDocumentSchema, documents.database)
+function serializeBundle(documents: SelectedDocuments, strict: boolean): SerializedBundle {
+  const events = serializeStructured(migrationDiagnosticEventsDocumentSchema, documents.events, strict)
+  const database = serializeStructured(migrationDatabaseDiagnosticsDocumentSchema, documents.database, strict)
   const readme = Buffer.from(STRICT_README, 'utf8')
   const byteLengths: Record<MigrationDiagnosticStrictEntryName, number> = {
     'manifest.json': 0,
@@ -319,7 +331,9 @@ function serializeBundle(documents: SelectedDocuments): SerializedBundle {
     const total = events.byteLength + database.byteLength + readme.byteLength + manifestBuffer.byteLength
     if (byteLengths['manifest.json'] === manifestBuffer.byteLength && candidate.totalUncompressedBytes === total) {
       if (total <= MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES) {
-        manifest = migrationDiagnosticManifestSchema.parse(candidate)
+        manifest = strict
+          ? migrationDiagnosticManifestSchema.parse(candidate)
+          : (candidate as MigrationDiagnosticManifest)
         manifestBuffer = Buffer.from(JSON.stringify(manifest), 'utf8')
         if (
           manifest.entries[0]?.uncompressedBytes !== manifestBuffer.byteLength ||
@@ -344,34 +358,50 @@ function serializeBundle(documents: SelectedDocuments): SerializedBundle {
   throw new Error('manifest_fixed_point_failed')
 }
 
-function dropOldestIntermediateEvent(
-  document: MigrationDiagnosticEventsDocument
-): MigrationDiagnosticEventsDocument | null {
-  let selectedAttemptIndex = -1
-  let selectedEventIndex = -1
-  let selectedSequence = Number.POSITIVE_INFINITY
+interface IntermediateEventLocation {
+  readonly attemptIndex: number
+  readonly eventIndex: number
+  readonly sequence: number
+}
 
+function intermediateEventsInDropOrder(
+  document: MigrationDiagnosticEventsDocument
+): readonly IntermediateEventLocation[] {
+  const locations: IntermediateEventLocation[] = []
   for (const [attemptIndex, attempt] of document.attempts.entries()) {
     const terminalIndex = attempt.outcome === 'in_progress' ? -1 : attempt.events.length - 1
     for (const [eventIndex, event] of attempt.events.entries()) {
       if (eventIndex === terminalIndex) continue
-      if (event.sequence < selectedSequence) {
-        selectedAttemptIndex = attemptIndex
-        selectedEventIndex = eventIndex
-        selectedSequence = event.sequence
-      }
+      locations.push({ attemptIndex, eventIndex, sequence: event.sequence })
     }
   }
-  if (selectedAttemptIndex === -1 || selectedEventIndex === -1) return null
+  return locations.sort((left, right) => left.sequence - right.sequence)
+}
 
-  return migrationDiagnosticEventsDocumentSchema.parse({
+function dropOldestIntermediateEvents(
+  document: MigrationDiagnosticEventsDocument,
+  locations: readonly IntermediateEventLocation[],
+  count: number
+): MigrationDiagnosticEventsDocument {
+  const removed = new Set(
+    locations.slice(0, count).map(({ attemptIndex, eventIndex }) => `${attemptIndex}:${eventIndex}`)
+  )
+  return {
     ...document,
-    attempts: document.attempts.map((attempt, attemptIndex) =>
-      attemptIndex === selectedAttemptIndex
-        ? { ...attempt, events: attempt.events.filter((_event, eventIndex) => eventIndex !== selectedEventIndex) }
-        : attempt
-    )
-  })
+    attempts: document.attempts.map((attempt, attemptIndex) => ({
+      ...attempt,
+      events: attempt.events.filter((_event, eventIndex) => !removed.has(`${attemptIndex}:${eventIndex}`))
+    }))
+  }
+}
+
+function finalizeSelectedDocuments(documents: SelectedDocuments): SerializedBundle {
+  const serialized = serializeBundle(documents, true)
+  if (serialized.manifest === null || serialized.uncompressedBytes > MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES) {
+    throw new Error('manifest_validation_failed')
+  }
+  assertStrictMigrationDiagnosticUncompressedBudget(serialized.entries.map((entry) => entry.buffer))
+  return serialized
 }
 
 function selectDocumentsWithinBudget(
@@ -379,31 +409,51 @@ function selectDocumentsWithinBudget(
   database: MigrationDatabaseDiagnosticsDocument
 ): SerializedBundle | null {
   let documents: SelectedDocuments = { events, database, droppedIntermediateEvents: 0 }
-  for (;;) {
-    const serialized = serializeBundle(documents)
-    if (serialized.uncompressedBytes <= MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES) {
-      if (serialized.manifest === null) throw new Error('manifest_validation_failed')
-      assertStrictMigrationDiagnosticUncompressedBudget(serialized.entries.map((entry) => entry.buffer))
-      return serialized
-    }
-
-    const trimmedEvents = dropOldestIntermediateEvent(documents.events)
-    if (trimmedEvents !== null) {
-      documents = {
-        ...documents,
-        events: trimmedEvents,
-        droppedIntermediateEvents: documents.droppedIntermediateEvents + 1
-      }
-      continue
-    }
-
-    const trimmedDatabase = omitNextMigrationDatabaseDiagnosticDetails(documents.database)
-    if (trimmedDatabase !== null) {
-      documents = { ...documents, database: trimmedDatabase }
-      continue
-    }
-    return null
+  if (serializeBundle(documents, false).uncompressedBytes <= MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES) {
+    return finalizeSelectedDocuments(documents)
   }
+
+  const intermediateEvents = intermediateEventsInDropOrder(events)
+  if (intermediateEvents.length > 0) {
+    const allEventsDropped: SelectedDocuments = {
+      events: dropOldestIntermediateEvents(events, intermediateEvents, intermediateEvents.length),
+      database,
+      droppedIntermediateEvents: intermediateEvents.length
+    }
+    if (serializeBundle(allEventsDropped, false).uncompressedBytes <= MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES) {
+      let lowerBound = 1
+      let upperBound = intermediateEvents.length
+      while (lowerBound < upperBound) {
+        const candidateCount = Math.floor((lowerBound + upperBound) / 2)
+        const candidate: SelectedDocuments = {
+          events: dropOldestIntermediateEvents(events, intermediateEvents, candidateCount),
+          database,
+          droppedIntermediateEvents: candidateCount
+        }
+        if (serializeBundle(candidate, false).uncompressedBytes <= MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES) {
+          upperBound = candidateCount
+        } else {
+          lowerBound = candidateCount + 1
+        }
+      }
+      return finalizeSelectedDocuments({
+        events: dropOldestIntermediateEvents(events, intermediateEvents, lowerBound),
+        database,
+        droppedIntermediateEvents: lowerBound
+      })
+    }
+    documents = allEventsDropped
+  }
+
+  for (let omissionCount = 0; omissionCount < DATABASE_DETAIL_OMISSION_ORDER.length; omissionCount += 1) {
+    const trimmedDatabase = omitNextMigrationDatabaseDiagnosticDetailsUnchecked(documents.database)
+    if (trimmedDatabase === null) return null
+    documents = { ...documents, database: trimmedDatabase }
+    if (serializeBundle(documents, false).uncompressedBytes <= MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES) {
+      return finalizeSelectedDocuments(documents)
+    }
+  }
+  return null
 }
 
 export function assertStrictMigrationDiagnosticUncompressedBudget(buffers: readonly Buffer[]): number {
@@ -441,18 +491,6 @@ async function defaultCreateArchiveBuffer(entries: readonly MigrationDiagnosticA
   })
 }
 
-function isErrno(error: unknown, code: string): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
-}
-
-function unlinkOwnedPartial(file: string): void {
-  try {
-    fs.unlinkSync(file)
-  } catch (error) {
-    if (!isErrno(error, 'ENOENT')) throw error
-  }
-}
-
 function containsRange(buffer: Buffer, offset: number, length: number): boolean {
   return (
     Number.isSafeInteger(offset) &&
@@ -463,7 +501,14 @@ function containsRange(buffer: Buffer, offset: number, length: number): boolean 
   )
 }
 
-function validateCanonicalZipStructure(
+function copyArchiveEntries(
+  entries: readonly MigrationDiagnosticArchiveEntry[]
+): readonly MigrationDiagnosticArchiveEntry[] {
+  return entries.map((entry) => Object.freeze({ name: entry.name, buffer: Buffer.from(entry.buffer) }))
+}
+
+/** @internal Exported only for same-module contract tests; not re-exported by the diagnostics barrel. */
+export function validateCanonicalZipStructure(
   archive: Buffer,
   expectedEntries: readonly MigrationDiagnosticArchiveEntry[]
 ): boolean {
@@ -504,12 +549,15 @@ function validateCanonicalZipStructure(
       if (
         !containsRange(archive, centralCursor, ZIP_CENTRAL_FILE_HEADER_BYTES) ||
         archive.readUInt32LE(centralCursor) !== ZIP_CENTRAL_FILE_HEADER_SIGNATURE ||
+        archive.readUInt16LE(centralCursor + 4) !== ZIP_PRODUCTION_VERSION_MADE_BY ||
         archive.readUInt16LE(centralCursor + 6) !== ZIP_PRODUCTION_VERSION_NEEDED ||
         archive.readUInt16LE(centralCursor + 8) !== ZIP_PRODUCTION_FLAGS ||
         archive.readUInt16LE(centralCursor + 10) !== ZIP_PRODUCTION_METHOD ||
         archive.readUInt16LE(centralCursor + 30) !== 0 ||
         archive.readUInt16LE(centralCursor + 32) !== 0 ||
-        archive.readUInt16LE(centralCursor + 34) !== 0
+        archive.readUInt16LE(centralCursor + 34) !== 0 ||
+        archive.readUInt16LE(centralCursor + 36) !== ZIP_PRODUCTION_INTERNAL_ATTRIBUTES ||
+        archive.readUInt32LE(centralCursor + 38) !== ZIP_PRODUCTION_EXTERNAL_ATTRIBUTES
       ) {
         return false
       }
@@ -545,6 +593,7 @@ function validateCanonicalZipStructure(
         name,
         flags: archive.readUInt16LE(centralCursor + 8),
         method: archive.readUInt16LE(centralCursor + 10),
+        modifiedTime: archive.readUInt32LE(centralCursor + 12),
         crc: centralCrc,
         compressedBytes,
         uncompressedBytes,
@@ -555,7 +604,9 @@ function validateCanonicalZipStructure(
     if (centralCursor !== centralOffset + centralBytes) return false
 
     let localCursor = 0
-    for (const central of centralEntries) {
+    for (const [entryIndex, central] of centralEntries.entries()) {
+      const expected = expectedEntries[entryIndex]
+      if (expected === undefined) return false
       if (
         central.localOffset !== localCursor ||
         !containsRange(archive, localCursor, ZIP_LOCAL_FILE_HEADER_BYTES) ||
@@ -563,6 +614,7 @@ function validateCanonicalZipStructure(
         archive.readUInt16LE(localCursor + 4) !== ZIP_PRODUCTION_VERSION_NEEDED ||
         archive.readUInt16LE(localCursor + 6) !== central.flags ||
         archive.readUInt16LE(localCursor + 8) !== central.method ||
+        archive.readUInt32LE(localCursor + 10) !== central.modifiedTime ||
         archive.readUInt32LE(localCursor + 14) !== 0 ||
         archive.readUInt32LE(localCursor + 18) !== 0 ||
         archive.readUInt32LE(localCursor + 22) !== 0 ||
@@ -581,7 +633,17 @@ function validateCanonicalZipStructure(
         return false
       }
 
-      const descriptorOffset = localNameOffset + localNameBytes + central.compressedBytes
+      const compressedOffset = localNameOffset + localNameBytes
+      if (!containsRange(archive, compressedOffset, central.compressedBytes)) return false
+      const inflated = inflateRawSync(archive.subarray(compressedOffset, compressedOffset + central.compressedBytes), {
+        info: true,
+        maxOutputLength: expected.buffer.byteLength
+      }) as unknown as InflateRawInfo
+      if (inflated.engine.bytesWritten !== central.compressedBytes || !inflated.buffer.equals(expected.buffer)) {
+        return false
+      }
+
+      const descriptorOffset = compressedOffset + central.compressedBytes
       if (
         !containsRange(archive, descriptorOffset, ZIP_DATA_DESCRIPTOR_BYTES) ||
         archive.readUInt32LE(descriptorOffset) !== ZIP_DATA_DESCRIPTOR_SIGNATURE ||
@@ -599,6 +661,23 @@ function validateCanonicalZipStructure(
   }
 }
 
+/** @internal Keeps the validation oracle private from the archive producer. */
+export async function createCanonicalMigrationDiagnosticArchive(
+  entries: readonly MigrationDiagnosticArchiveEntry[],
+  createArchiveBuffer: CreateArchiveBuffer = defaultCreateArchiveBuffer
+): Promise<Buffer> {
+  const canonicalEntries = copyArchiveEntries(entries)
+  try {
+    const created = await createArchiveBuffer(copyArchiveEntries(canonicalEntries))
+    if (!Buffer.isBuffer(created)) throw new Error('archive_failed')
+    const archiveBuffer = Buffer.from(created)
+    if (!validateCanonicalZipStructure(archiveBuffer, canonicalEntries)) throw new Error('archive_failed')
+    return archiveBuffer
+  } catch {
+    throw new Error('archive_failed')
+  }
+}
+
 function isRegularZipEntry(metadata: StreamZip.ZipEntry): boolean {
   if (!metadata.isFile || metadata.isDirectory) return false
   const unixFileType = (metadata.attr >>> 16) & ZIP_UNIX_FILE_TYPE_MASK
@@ -607,22 +686,27 @@ function isRegularZipEntry(metadata: StreamZip.ZipEntry): boolean {
 
 async function validateArchive(
   archiveFile: string,
+  archiveBuffer: Buffer,
   expectedEntries: readonly MigrationDiagnosticArchiveEntry[]
 ): Promise<boolean> {
   let zip: InstanceType<typeof StreamZip.async> | undefined
+  let ownedDescriptor: number | undefined
+  let valid = false
+  let streamZipClosed = false
   try {
-    if (!validateCanonicalZipStructure(fs.readFileSync(archiveFile), expectedEntries)) return false
-    zip = new StreamZip.async({ file: archiveFile })
+    if (!validateCanonicalZipStructure(archiveBuffer, expectedEntries)) return false
+    ownedDescriptor = await openOwnedValidationDescriptor(archiveFile)
+    zip = new StreamZip.async({ fd: ownedDescriptor })
     const actualEntries = await zip.entries()
     const archiveComment: string | null = await zip.comment
-    if (archiveComment !== null && archiveComment !== '') return false
+    if (archiveComment !== null && archiveComment !== '') throw new Error('archive_invalid')
     const names = Object.keys(actualEntries)
     if (
       names.length !== expectedEntries.length ||
       names.some((name, index) => name !== expectedEntries[index]?.name) ||
       names.some((name) => name.includes('/') || name.includes('\\'))
     ) {
-      return false
+      throw new Error('archive_invalid')
     }
 
     const extracted: Buffer[] = []
@@ -634,27 +718,117 @@ async function validateArchive(
         metadata.encrypted ||
         ((metadata.comment as string | null) !== null && metadata.comment !== '')
       ) {
-        return false
+        throw new Error('archive_invalid')
       }
       const data = await zip.entryData(expected.name)
-      if (!data.equals(expected.buffer)) return false
+      if (!data.equals(expected.buffer)) throw new Error('archive_invalid')
       extracted.push(data)
     }
     assertStrictMigrationDiagnosticUncompressedBudget(extracted)
-    return true
+    valid = true
+  } catch {
+    valid = false
+  }
+  try {
+    if (zip !== undefined) {
+      await zip.close()
+      streamZipClosed = true
+    }
+  } catch {
+    streamZipClosed = false
+  }
+  if (ownedDescriptor !== undefined && !streamZipClosed) {
+    await closeOwnedValidationDescriptor(ownedDescriptor)
+  }
+  return valid && streamZipClosed
+}
+
+function openOwnedValidationDescriptor(file: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    openFileDescriptor(file, 'r', (error, descriptor) => {
+      if (error !== null) reject(error)
+      else resolve(descriptor)
+    })
+  })
+}
+
+function closeValidationDescriptorOnce(descriptor: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    closeFileDescriptor(descriptor, (error) => resolve(error === null))
+  })
+}
+
+async function closeOwnedValidationDescriptor(descriptor: number): Promise<boolean> {
+  for (let attempt = 0; attempt < MAX_FILE_CLOSE_ATTEMPTS; attempt += 1) {
+    if (await closeValidationDescriptorOnce(descriptor)) return true
+  }
+  return false
+}
+
+interface FileIdentity {
+  readonly dev: number
+  readonly ino: number
+}
+
+interface TrackedFileHandle {
+  readonly handle: FileHandle
+  closeAttempts: number
+  closeSucceeded: boolean
+}
+
+function trackFileHandle(handles: TrackedFileHandle[], handle: FileHandle): TrackedFileHandle {
+  const tracked = { handle, closeAttempts: 0, closeSucceeded: false }
+  handles.push(tracked)
+  return tracked
+}
+
+async function closeTrackedFileHandle(tracked: TrackedFileHandle): Promise<boolean> {
+  if (tracked.closeSucceeded) return true
+  if (tracked.closeAttempts >= MAX_FILE_CLOSE_ATTEMPTS) return false
+  tracked.closeAttempts += 1
+  try {
+    await tracked.handle.close()
+    tracked.closeSucceeded = true
   } catch {
     return false
-  } finally {
-    await zip?.close().catch(() => undefined)
+  }
+  return true
+}
+
+async function closeRemainingFileHandles(handles: readonly TrackedFileHandle[]): Promise<boolean> {
+  let allClosed = true
+  for (const handle of handles) {
+    while (!handle.closeSucceeded && handle.closeAttempts < MAX_FILE_CLOSE_ATTEMPTS) {
+      await closeTrackedFileHandle(handle)
+    }
+    if (!handle.closeSucceeded) allClosed = false
+  }
+  return allClosed
+}
+
+function identityFromStats(stats: Stats): FileIdentity | null {
+  return stats.isFile() ? { dev: stats.dev, ino: stats.ino } : null
+}
+
+function matchesIdentity(actual: { readonly dev: number; readonly ino: number }, expected: FileIdentity): boolean {
+  return actual.dev === expected.dev && actual.ino === expected.ino
+}
+
+async function pathMatchesOwnedRegularFile(file: string, identity: FileIdentity): Promise<boolean> {
+  try {
+    const stats = await lstat(file)
+    return stats.isFile() && matchesIdentity(stats, identity)
+  } catch {
+    return false
   }
 }
 
-function closeBestEffort(fd: number | undefined): void {
-  if (fd === undefined) return
+async function unlinkOwnedPartial(file: string, identity: FileIdentity): Promise<void> {
   try {
-    fs.closeSync(fd)
+    if (!(await pathMatchesOwnedRegularFile(file, identity))) return
+    await unlink(file)
   } catch {
-    // Preserve the first fixed publication failure.
+    // Cleanup is best effort; callers keep their fixed failure classification.
   }
 }
 
@@ -665,50 +839,70 @@ async function publishArchive(
   platform: NodeJS.Platform
 ): Promise<PublicationFailure | null> {
   const partial = `${destination}.partial`
-  let fd: number | undefined
-  let ownsPartial = false
+  const handles: TrackedFileHandle[] = []
+  let ownedIdentity: FileIdentity | null = null
   let publication: 'not_published' | 'published' = 'not_published'
   try {
-    fd = fs.openSync(partial, 'wx', 0o600)
-    ownsPartial = true
+    const writeHandle = trackFileHandle(handles, await open(partial, 'wx', 0o600))
+    ownedIdentity = identityFromStats(await writeHandle.handle.stat())
+    if (ownedIdentity === null) throw new Error('archive_partial_not_regular')
     let offset = 0
     while (offset < archiveBuffer.byteLength) {
-      const written = fs.writeSync(fd, archiveBuffer, offset, archiveBuffer.byteLength - offset)
-      if (written <= 0) throw new Error('archive_short_write')
-      offset += written
+      const { bytesWritten } = await writeHandle.handle.write(
+        archiveBuffer,
+        offset,
+        archiveBuffer.byteLength - offset,
+        offset
+      )
+      if (bytesWritten <= 0) throw new Error('archive_short_write')
+      offset += bytesWritten
     }
-    fs.fsyncSync(fd)
-    fs.closeSync(fd)
-    fd = undefined
+    await writeHandle.handle.sync()
+    if (!(await closeTrackedFileHandle(writeHandle))) throw new Error('archive_write_close_failed')
 
-    if (!(await validateArchive(partial, entries))) {
-      unlinkOwnedPartial(partial)
-      ownsPartial = false
+    const readHandle = trackFileHandle(handles, await open(partial, 'r'))
+    const readIdentity = identityFromStats(await readHandle.handle.stat())
+    if (readIdentity === null || !matchesIdentity(readIdentity, ownedIdentity)) {
+      await closeTrackedFileHandle(readHandle)
+      return { kind: 'publish', publication: 'not_published' }
+    }
+    const archiveOnDisk = await readHandle.handle.readFile()
+    const pathOwnedBeforeValidation = await pathMatchesOwnedRegularFile(partial, ownedIdentity)
+    const archiveValid = pathOwnedBeforeValidation && (await validateArchive(partial, archiveOnDisk, entries))
+    const pathOwnedAfterValidation = await pathMatchesOwnedRegularFile(partial, ownedIdentity)
+    const readClosed = await closeTrackedFileHandle(readHandle)
+    if (!pathOwnedAfterValidation) return { kind: 'publish', publication: 'not_published' }
+    if (!readClosed) {
+      const handlesClosed = await closeRemainingFileHandles(handles)
+      if (handlesClosed) await unlinkOwnedPartial(partial, ownedIdentity)
+      return { kind: 'archive', publication: 'not_published' }
+    }
+    if (!archiveValid) {
+      await unlinkOwnedPartial(partial, ownedIdentity)
       return { kind: 'archive', publication: 'not_published' }
     }
 
-    fs.renameSync(partial, destination)
-    ownsPartial = false
+    if (!(await pathMatchesOwnedRegularFile(partial, ownedIdentity))) {
+      return { kind: 'publish', publication: 'not_published' }
+    }
+    await rename(partial, destination)
     publication = 'published'
     if (platform !== 'win32') {
-      const directoryFd = fs.openSync(path.dirname(destination), 'r')
-      try {
-        fs.fsyncSync(directoryFd)
-      } finally {
-        fs.closeSync(directoryFd)
+      const directoryHandle = trackFileHandle(handles, await open(path.dirname(destination), 'r'))
+      await directoryHandle.handle.sync()
+      if (!(await closeTrackedFileHandle(directoryHandle))) {
+        return { kind: 'publish', publication: 'published' }
       }
     }
     return null
   } catch {
-    closeBestEffort(fd)
-    if (ownsPartial) {
-      try {
-        unlinkOwnedPartial(partial)
-      } catch {
-        // Do not replace the stable publication result with cleanup details.
-      }
+    const handlesClosed = await closeRemainingFileHandles(handles)
+    if (publication === 'not_published' && ownedIdentity !== null && handlesClosed) {
+      await unlinkOwnedPartial(partial, ownedIdentity)
     }
     return { kind: 'publish', publication }
+  } finally {
+    await closeRemainingFileHandles(handles)
   }
 }
 
@@ -724,14 +918,6 @@ function validDestination(destination: string): boolean {
 }
 
 export class MigrationDiagnosticBundleBuilder {
-  private readonly createArchiveBuffer: CreateArchiveBuffer
-  private readonly platform: NodeJS.Platform
-
-  constructor(options: MigrationDiagnosticBundleBuilderOptions = {}) {
-    this.createArchiveBuffer = options.createArchiveBuffer ?? defaultCreateArchiveBuffer
-    this.platform = options.platform ?? process.platform
-  }
-
   async save(input: MigrationDiagnosticBundleSaveInput): Promise<MigrationDiagnosticBundleSaveResult> {
     if (!validDestination(input.destination)) return failed('invalid_input')
 
@@ -757,14 +943,19 @@ export class MigrationDiagnosticBundleBuilder {
     if (serialized === null) return failed('budget_exceeded')
 
     let archiveBuffer: Buffer
+    const canonicalEntries = copyArchiveEntries(serialized.entries)
     try {
-      archiveBuffer = await this.createArchiveBuffer(serialized.entries)
-      if (!Buffer.isBuffer(archiveBuffer)) return failed('archive_failed')
+      archiveBuffer = await createCanonicalMigrationDiagnosticArchive(canonicalEntries)
     } catch {
       return failed('archive_failed')
     }
 
-    const publicationFailure = await publishArchive(input.destination, archiveBuffer, serialized.entries, this.platform)
+    const publicationFailure = await publishArchive(
+      input.destination,
+      archiveBuffer,
+      canonicalEntries,
+      process.platform
+    )
     if (publicationFailure !== null) {
       return failed(
         publicationFailure.kind === 'archive' ? 'archive_failed' : 'publish_failed',

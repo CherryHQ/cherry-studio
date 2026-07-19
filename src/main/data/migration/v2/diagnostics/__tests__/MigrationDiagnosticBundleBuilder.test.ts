@@ -1,13 +1,7 @@
-import fs, {
-  existsSync,
-  fsyncSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-  writeSync as actualWriteSync
-} from 'node:fs'
+import { existsSync, fstatSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import * as fs from 'node:fs'
+import type { FileHandle } from 'node:fs/promises'
+import * as fsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -18,15 +12,18 @@ vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof fs>()
   return {
     ...actual,
-    default: {
-      ...actual,
-      openSync: vi.fn(actual.openSync),
-      writeSync: vi.fn(actual.writeSync),
-      fsyncSync: vi.fn(actual.fsyncSync),
-      closeSync: vi.fn(actual.closeSync),
-      renameSync: vi.fn(actual.renameSync),
-      unlinkSync: vi.fn(actual.unlinkSync)
-    }
+    close: vi.fn(actual.close)
+  }
+})
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof fsPromises>()
+  return {
+    ...actual,
+    open: vi.fn(actual.open),
+    lstat: vi.fn(actual.lstat),
+    rename: vi.fn(actual.rename),
+    unlink: vi.fn(actual.unlink)
   }
 })
 
@@ -180,10 +177,32 @@ function parseJson<T>(entries: Map<string, Buffer>, name: string): T {
   return JSON.parse(entry.toString('utf8')) as T
 }
 
+function observeOpenedFileHandles(configure: (handle: FileHandle, index: number) => void = () => undefined) {
+  const handles: FileHandle[] = []
+  const open = vi.mocked(fsPromises.open)
+  const actualOpen = open.getMockImplementation()
+  if (actualOpen === undefined) throw new Error('Expected the real async open implementation')
+  open.mockImplementation(async (...args) => {
+    const handle = await actualOpen(...args)
+    const index = handles.length
+    handles.push(handle)
+    configure(handle, index)
+    return handle
+  })
+  return handles
+}
+
 let testDir = ''
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks()
+  const actualFs = await vi.importActual<typeof fs>('node:fs')
+  const actualFsPromises = await vi.importActual<typeof fsPromises>('node:fs/promises')
+  vi.mocked(fs.close).mockImplementation(actualFs.close)
+  vi.mocked(fsPromises.open).mockImplementation(actualFsPromises.open)
+  vi.mocked(fsPromises.lstat).mockImplementation(actualFsPromises.lstat)
+  vi.mocked(fsPromises.rename).mockImplementation(actualFsPromises.rename)
+  vi.mocked(fsPromises.unlink).mockImplementation(actualFsPromises.unlink)
   testDir = mkdtempSync(path.join(tmpdir(), 'cs-migration-diagnostic-bundle-unit-'))
 })
 
@@ -223,6 +242,80 @@ describe('strict bundle schemas and accounting', () => {
     expect(() => assertStrictMigrationDiagnosticUncompressedBudget([...exact, Buffer.from('x')])).toThrow(
       'budget_exceeded'
     )
+  })
+
+  it('rejects manifest component statuses that disagree with their truncation counters', async () => {
+    const destination = path.join(testDir, 'manifest-cross-fields.zip')
+    const result = await new MigrationDiagnosticBundleBuilder().save({
+      destination,
+      snapshot: failedSnapshot(),
+      collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
+    })
+    expect(result.status).toBe('saved')
+    const entries = await readZip(destination)
+    const manifest = migrationDiagnosticManifestSchema.parse(parseJson(entries, 'manifest.json'))
+
+    const invalidCandidates = [
+      {
+        ...manifest,
+        components: { ...manifest.components, migrationEvents: { status: 'complete' as const } },
+        truncation: { ...manifest.truncation, droppedIntermediateEvents: 1 }
+      },
+      {
+        ...manifest,
+        components: { ...manifest.components, migrationEvents: { status: 'truncated' as const } },
+        truncation: { ...manifest.truncation, droppedIntermediateEvents: 0 }
+      },
+      {
+        ...manifest,
+        components: {
+          ...manifest.components,
+          databaseDiagnostics: { ...manifest.components.databaseDiagnostics, details: 'complete' as const }
+        },
+        truncation: { ...manifest.truncation, omittedDatabaseDetails: ['l2' as const] }
+      },
+      {
+        ...manifest,
+        components: {
+          ...manifest.components,
+          databaseDiagnostics: { ...manifest.components.databaseDiagnostics, details: 'truncated' as const }
+        },
+        truncation: { ...manifest.truncation, omittedDatabaseDetails: [] }
+      }
+    ]
+
+    for (const candidate of invalidCandidates) {
+      expect(migrationDiagnosticManifestSchema.safeParse(candidate).success).toBe(false)
+    }
+  })
+
+  it('requires generated attempt IDs to match their exact ordered ordinals', async () => {
+    const destination = path.join(testDir, 'attempt-ordinals.zip')
+    const result = await new MigrationDiagnosticBundleBuilder().save({
+      destination,
+      snapshot: failedSnapshot(),
+      collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
+    })
+    expect(result.status).toBe('saved')
+    const entries = await readZip(destination)
+    const events = migrationDiagnosticEventsDocumentSchema.parse(parseJson(entries, 'migration-events.json'))
+    const manifest = migrationDiagnosticManifestSchema.parse(parseJson(entries, 'manifest.json'))
+
+    expect(
+      migrationDiagnosticEventsDocumentSchema.safeParse({
+        ...events,
+        attempts: events.attempts.map((attempt) => ({ ...attempt, id: 'attempt-2' }))
+      }).success
+    ).toBe(false)
+    expect(
+      migrationDiagnosticManifestSchema.safeParse({
+        ...manifest,
+        session: {
+          ...manifest.session,
+          attempts: manifest.session.attempts.map((attempt) => ({ ...attempt, id: 'attempt-2' }))
+        }
+      }).success
+    ).toBe(false)
   })
 
   it('rejects a nonterminal event after a terminal event and out-of-order sequences', async () => {
@@ -322,6 +415,7 @@ describe('strict bundle manifest and deterministic selection', () => {
   })
 
   it('drops the oldest intermediate events deterministically and retains every true terminal event', async () => {
+    const stringify = vi.spyOn(JSON, 'stringify')
     const maximumProfile: PayloadLengthProfile = {
       target: 'message',
       rowCountBucket: '101-1000',
@@ -374,13 +468,23 @@ describe('strict bundle manifest and deterministic selection', () => {
     expect(Buffer.byteLength(JSON.stringify(snapshot), 'utf8')).toBeGreaterThan(MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES)
 
     const destinations = [path.join(testDir, 'truncate-a.zip'), path.join(testDir, 'truncate-b.zip')]
-    for (const destination of destinations) {
+    for (const [destinationIndex, destination] of destinations.entries()) {
+      const startedAt = performance.now()
       const result = await new MigrationDiagnosticBundleBuilder().save({
         destination,
         snapshot,
         collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
       })
       expect(result.status).toBe('saved')
+      if (destinationIndex === 0) {
+        const selectionSerializations = stringify.mock.calls.filter(([value]) => {
+          if (typeof value !== 'object' || value === null) return false
+          return 'attempts' in value || 'diagnosticVersion' in value || ('policy' in value && value.policy === 'strict')
+        })
+        expect(selectionSerializations.length).toBeLessThanOrEqual(80)
+        expect(performance.now() - startedAt).toBeLessThan(1_500)
+        stringify.mockClear()
+      }
     }
 
     const first = await readZip(destinations[0])
@@ -428,35 +532,183 @@ describe('strict bundle publication', () => {
 
     expect(result).toEqual({ status: 'failed', code: 'invalid_input', publication: 'not_published' })
     expect(existsSync(`${destination}.partial`)).toBe(false)
-    expect(vi.mocked(fs.openSync)).not.toHaveBeenCalled()
+    expect(vi.mocked(fsPromises.open)).not.toHaveBeenCalled()
   })
 
-  it('uses exact .partial + 0600 and file fsync -> rename -> POSIX directory fsync', async () => {
-    const destination = path.join(testDir, 'atomic.zip')
-    const result = await new MigrationDiagnosticBundleBuilder({ platform: 'darwin' }).save({
+  it('keeps the event loop responsive while delayed asynchronous file I/O is pending', async () => {
+    const destination = path.join(testDir, 'async-responsive.zip')
+    const open = vi.mocked(fsPromises.open)
+    const actualOpen = open.getMockImplementation()
+    if (actualOpen === undefined) throw new Error('Expected the real async open implementation')
+    let delayedOpenObserved = false
+    open.mockImplementationOnce(async (...args) => {
+      delayedOpenObserved = true
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      return actualOpen(...args)
+    })
+    let timerTicks = 0
+    const timer = setInterval(() => {
+      timerTicks += 1
+    }, 1)
+    const startedAt = performance.now()
+
+    const result = await new MigrationDiagnosticBundleBuilder().save({
+      destination,
+      snapshot: failedSnapshot(),
+      collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
+    })
+    clearInterval(timer)
+
+    expect(result.status).toBe('saved')
+    expect(delayedOpenObserved).toBe(true)
+    expect(timerTicks).toBeGreaterThanOrEqual(2)
+    expect(performance.now() - startedAt).toBeGreaterThanOrEqual(20)
+  })
+
+  it('does not unlink a replacement that appears while its owned partial is being validated', async () => {
+    const destination = path.join(testDir, 'replacement-race.zip')
+    const partial = `${destination}.partial`
+    const replacement = Buffer.from('UNOWNED_REPLACEMENT')
+    const open = vi.mocked(fsPromises.open)
+    const actualOpen = open.getMockImplementation()
+    if (actualOpen === undefined) throw new Error('Expected the real async open implementation')
+    open.mockImplementationOnce((...args) => actualOpen(...args))
+    open.mockImplementationOnce(async (...args) => {
+      const handle = await actualOpen(...args)
+      const actualReadFile = handle.readFile.bind(handle)
+      vi.spyOn(handle, 'readFile').mockImplementationOnce(async () => {
+        const original = await actualReadFile()
+        rmSync(partial)
+        writeFileSync(partial, replacement, { mode: 0o600 })
+        return original
+      })
+      return handle
+    })
+
+    const result = await new MigrationDiagnosticBundleBuilder().save({
       destination,
       snapshot: failedSnapshot(),
       collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
     })
 
-    expect(result.status).toBe('saved')
-    const open = vi.mocked(fs.openSync)
-    const write = vi.mocked(fs.writeSync)
-    const fsync = vi.mocked(fs.fsyncSync)
-    const close = vi.mocked(fs.closeSync)
-    const rename = vi.mocked(fs.renameSync)
-    const partial = `${destination}.partial`
-    expect(open.mock.calls[0]).toEqual([partial, 'wx', 0o600])
-    expect(open.mock.invocationCallOrder[0]).toBeLessThan(write.mock.invocationCallOrder[0])
-    expect(write.mock.invocationCallOrder[0]).toBeLessThan(fsync.mock.invocationCallOrder[0])
-    expect(fsync.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[0])
-    expect(close.mock.invocationCallOrder[0]).toBeLessThan(rename.mock.invocationCallOrder[0])
-    expect(rename).toHaveBeenCalledWith(partial, destination)
-    expect(open.mock.calls.at(-1)).toEqual([testDir, 'r'])
-    expect(rename.mock.invocationCallOrder[0]).toBeLessThan(fsync.mock.invocationCallOrder.at(-1) ?? 0)
-    if (process.platform !== 'win32') expect(statSync(destination).mode & 0o777).toBe(0o600)
-    expect(existsSync(partial)).toBe(false)
+    expect.soft(result).toEqual({ status: 'failed', code: 'publish_failed', publication: 'not_published' })
+    expect.soft(existsSync(destination)).toBe(false)
+    expect.soft(existsSync(partial)).toBe(true)
+    if (existsSync(partial)) expect(readFileSync(partial)).toEqual(replacement)
   })
+
+  it('requires the node-stream validation reader to close successfully', async () => {
+    const destination = path.join(testDir, 'stream-close.zip')
+    const close = vi.mocked(fs.close)
+    const actualClose = close.getMockImplementation()
+    if (actualClose === undefined) throw new Error('Expected the real async descriptor close implementation')
+    close.mockImplementationOnce(((_fd: number, callback: (error?: NodeJS.ErrnoException | null) => void) => {
+      callback(new Error('RAW_CLOSE_PRIVATE_ERROR'))
+    }) as typeof fs.close)
+    vi.spyOn(StreamZip.async.prototype, 'close').mockRejectedValueOnce(new Error('STREAM_CLOSE_PRIVATE_ERROR'))
+
+    const result = await new MigrationDiagnosticBundleBuilder().save({
+      destination,
+      snapshot: failedSnapshot(),
+      collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
+    })
+
+    expect(result).toEqual({ status: 'failed', code: 'archive_failed', publication: 'not_published' })
+    expect(JSON.stringify(result)).not.toMatch(/STREAM_CLOSE_PRIVATE_ERROR|RAW_CLOSE_PRIVATE_ERROR/)
+    expect(close).toHaveBeenCalledTimes(2)
+    const validationFd = close.mock.calls[0]?.[0]
+    if (validationFd === undefined) throw new Error('Expected an owned validation descriptor')
+    expect(() => fstatSync(validationFd)).toThrow()
+    expect(existsSync(destination)).toBe(false)
+    expect(existsSync(`${destination}.partial`)).toBe(false)
+  })
+
+  it.each([
+    ['write', 1, 'publish_failed', 'not_published'],
+    ['read', 2, 'archive_failed', 'not_published'],
+    ['directory', 3, 'publish_failed', 'published']
+  ] as const)(
+    'reports a fixed result when the asynchronous %s handle close fails',
+    async (label, failingOpenOrdinal, code, publication) => {
+      if (label === 'directory' && process.platform === 'win32') return
+      const destination = path.join(testDir, `async-${label}-close.zip`)
+      const open = vi.mocked(fsPromises.open)
+      const actualOpen = open.getMockImplementation()
+      if (actualOpen === undefined) throw new Error('Expected the real async open implementation')
+      let failingHandle: FileHandle | undefined
+      for (let ordinal = 1; ordinal <= failingOpenOrdinal; ordinal += 1) {
+        open.mockImplementationOnce(async (...args) => {
+          const handle = await actualOpen(...args)
+          if (ordinal === failingOpenOrdinal) {
+            failingHandle = handle
+            const actualClose = handle.close.bind(handle)
+            vi.spyOn(handle, 'close')
+              .mockRejectedValueOnce(new Error(`${label.toUpperCase()}_CLOSE_PRIVATE_ERROR`))
+              .mockImplementationOnce(actualClose)
+          }
+          return handle
+        })
+      }
+
+      const result = await new MigrationDiagnosticBundleBuilder().save({
+        destination,
+        snapshot: failedSnapshot(),
+        collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
+      })
+
+      expect(result).toEqual({ status: 'failed', code, publication })
+      expect(JSON.stringify(result)).not.toContain('CLOSE_PRIVATE_ERROR')
+      expect(existsSync(destination)).toBe(publication === 'published')
+      if (publication === 'published') expect(existsSync(`${destination}.partial`)).toBe(false)
+      if (failingHandle === undefined) throw new Error('Expected a failing handle')
+      expect(failingHandle.close).toHaveBeenCalledTimes(2)
+      await expect(failingHandle.stat()).rejects.toMatchObject({ code: 'EBADF' })
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'uses exact .partial + 0600 and file fsync -> rename -> POSIX directory fsync',
+    async () => {
+      const destination = path.join(testDir, 'atomic.zip')
+      const handles = observeOpenedFileHandles((handle) => {
+        vi.spyOn(handle, 'write')
+        vi.spyOn(handle, 'sync')
+        vi.spyOn(handle, 'close')
+      })
+      const result = await new MigrationDiagnosticBundleBuilder().save({
+        destination,
+        snapshot: failedSnapshot(),
+        collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
+      })
+
+      expect(result.status).toBe('saved')
+      const open = vi.mocked(fsPromises.open)
+      const rename = vi.mocked(fsPromises.rename)
+      const writeHandle = handles[0]
+      const readHandle = handles[1]
+      const directoryHandle = handles[2]
+      if (writeHandle === undefined || readHandle === undefined || directoryHandle === undefined) {
+        throw new Error('Expected write, read, and directory handles')
+      }
+      const write = vi.mocked(writeHandle.write)
+      const fileSync = vi.mocked(writeHandle.sync)
+      const writeClose = vi.mocked(writeHandle.close)
+      const readClose = vi.mocked(readHandle.close)
+      const directorySync = vi.mocked(directoryHandle.sync)
+      const partial = `${destination}.partial`
+      expect(open.mock.calls[0]).toEqual([partial, 'wx', 0o600])
+      expect(open.mock.invocationCallOrder[0]).toBeLessThan(write.mock.invocationCallOrder[0])
+      expect(write.mock.invocationCallOrder[0]).toBeLessThan(fileSync.mock.invocationCallOrder[0])
+      expect(fileSync.mock.invocationCallOrder[0]).toBeLessThan(writeClose.mock.invocationCallOrder[0])
+      expect(writeClose.mock.invocationCallOrder[0]).toBeLessThan(readClose.mock.invocationCallOrder[0])
+      expect(readClose.mock.invocationCallOrder[0]).toBeLessThan(rename.mock.invocationCallOrder[0])
+      expect(rename).toHaveBeenCalledWith(partial, destination)
+      expect(open.mock.calls.at(-1)).toEqual([testDir, 'r'])
+      expect(rename.mock.invocationCallOrder[0]).toBeLessThan(directorySync.mock.invocationCallOrder[0])
+      if (process.platform !== 'win32') expect(statSync(destination).mode & 0o777).toBe(0o600)
+      expect(existsSync(partial)).toBe(false)
+    }
+  )
 
   it('atomically replaces an existing destination only after a complete archive is ready', async () => {
     const destination = path.join(testDir, 'replace.zip')
@@ -475,10 +727,16 @@ describe('strict bundle publication', () => {
 
   it('continues writing from the returned offset after a short write', async () => {
     const destination = path.join(testDir, 'short-write.zip')
-    const write = vi.mocked(fs.writeSync)
-    const shortWrite = (fd: number, buffer: Uint8Array, offset: number, length: number): number =>
-      actualWriteSync(fd, buffer, offset, Math.max(1, Math.floor(length / 2)))
-    write.mockImplementationOnce(shortWrite as typeof fs.writeSync)
+    const handles = observeOpenedFileHandles((handle, index) => {
+      if (index !== 0) return
+      const actualWrite = handle.write.bind(handle)
+      vi.spyOn(handle, 'write').mockImplementationOnce((async (
+        buffer: Buffer,
+        offset: number,
+        length: number,
+        position: number
+      ) => actualWrite(buffer, offset, Math.max(1, Math.floor(length / 2)), position)) as FileHandle['write'])
+    })
 
     const result = await new MigrationDiagnosticBundleBuilder().save({
       destination,
@@ -487,13 +745,21 @@ describe('strict bundle publication', () => {
     })
 
     expect(result.status).toBe('saved')
-    expect(write.mock.calls.length).toBeGreaterThan(1)
+    const writeHandle = handles[0]
+    if (writeHandle === undefined) throw new Error('Expected a write handle')
+    expect(vi.mocked(writeHandle.write).mock.calls.length).toBeGreaterThan(1)
     expect(readFileSync(destination).subarray(0, 2).toString()).toBe('PK')
   })
 
   it('treats a zero-byte write as a publication failure and removes its owned partial', async () => {
     const destination = path.join(testDir, 'zero-write.zip')
-    vi.mocked(fs.writeSync).mockImplementationOnce(() => 0)
+    observeOpenedFileHandles((handle, index) => {
+      if (index !== 0) return
+      vi.spyOn(handle, 'write').mockImplementationOnce((async (buffer: Buffer) => ({
+        bytesWritten: 0,
+        buffer
+      })) as FileHandle['write'])
+    })
 
     const result = await new MigrationDiagnosticBundleBuilder().save({
       destination,
@@ -506,54 +772,56 @@ describe('strict bundle publication', () => {
     expect(existsSync(`${destination}.partial`)).toBe(false)
   })
 
-  it.each([
-    [
-      'write',
-      () =>
-        vi.mocked(fs.writeSync).mockImplementationOnce(() => {
-          throw new Error('WRITE_SECRET')
+  it.each(['write', 'file fsync', 'rename'] as const)(
+    'keeps the old destination and removes its owned partial on %s failure',
+    async (label) => {
+      const destination = path.join(testDir, `failure-${label}.zip`)
+      writeFileSync(destination, 'old-content')
+      let writeFailureHandle: FileHandle | undefined
+      if (label === 'rename') {
+        vi.mocked(fsPromises.rename).mockRejectedValueOnce(new Error('RENAME_SECRET'))
+      } else {
+        observeOpenedFileHandles((handle, index) => {
+          if (index !== 0) return
+          if (label === 'write') {
+            writeFailureHandle = handle
+            const actualClose = handle.close.bind(handle)
+            vi.spyOn(handle, 'write').mockRejectedValueOnce(new Error('WRITE_SECRET'))
+            vi.spyOn(handle, 'close')
+              .mockRejectedValueOnce(new Error('WRITE_CLOSE_PRIVATE_ERROR'))
+              .mockImplementationOnce(actualClose)
+          } else {
+            vi.spyOn(handle, 'sync').mockRejectedValueOnce(new Error('FSYNC_SECRET'))
+          }
         })
-    ],
-    [
-      'file fsync',
-      () =>
-        vi.mocked(fs.fsyncSync).mockImplementationOnce(() => {
-          throw new Error('FSYNC_SECRET')
-        })
-    ],
-    [
-      'rename',
-      () =>
-        vi.mocked(fs.renameSync).mockImplementationOnce(() => {
-          throw new Error('RENAME_SECRET')
-        })
-    ]
-  ])('keeps the old destination and removes its owned partial on %s failure', async (_label, injectFailure) => {
-    const destination = path.join(testDir, `failure-${_label}.zip`)
-    writeFileSync(destination, 'old-content')
-    injectFailure()
+      }
 
-    const result = await new MigrationDiagnosticBundleBuilder().save({
-      destination,
-      snapshot: failedSnapshot(),
-      collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
-    })
+      const result = await new MigrationDiagnosticBundleBuilder().save({
+        destination,
+        snapshot: failedSnapshot(),
+        collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
+      })
 
-    expect(result).toEqual({ status: 'failed', code: 'publish_failed', publication: 'not_published' })
-    expect(JSON.stringify(result)).not.toMatch(/WRITE_SECRET|FSYNC_SECRET|RENAME_SECRET/)
-    expect(readFileSync(destination, 'utf8')).toBe('old-content')
-    expect(existsSync(`${destination}.partial`)).toBe(false)
-  })
+      expect(result).toEqual({ status: 'failed', code: 'publish_failed', publication: 'not_published' })
+      expect(JSON.stringify(result)).not.toMatch(/WRITE_SECRET|FSYNC_SECRET|RENAME_SECRET/)
+      expect(readFileSync(destination, 'utf8')).toBe('old-content')
+      expect(existsSync(`${destination}.partial`)).toBe(false)
+      if (label === 'write') {
+        if (writeFailureHandle === undefined) throw new Error('Expected the write failure handle')
+        expect(writeFailureHandle.close).toHaveBeenCalledTimes(2)
+        await expect(writeFailureHandle.stat()).rejects.toMatchObject({ code: 'EBADF' })
+      }
+    }
+  )
 
   it('reports a directory-fsync failure as already published and never rolls the archive back', async () => {
     const destination = path.join(testDir, 'dir-fsync.zip')
-    vi.mocked(fs.fsyncSync)
-      .mockImplementationOnce(fsyncSync)
-      .mockImplementationOnce(() => {
-        throw new Error('DIR_FSYNC_PRIVATE_ERROR')
-      })
+    if (process.platform === 'win32') return
+    observeOpenedFileHandles((handle, index) => {
+      if (index === 2) vi.spyOn(handle, 'sync').mockRejectedValueOnce(new Error('DIR_FSYNC_PRIVATE_ERROR'))
+    })
 
-    const result = await new MigrationDiagnosticBundleBuilder({ platform: 'darwin' }).save({
+    const result = await new MigrationDiagnosticBundleBuilder().save({
       destination,
       snapshot: failedSnapshot(),
       collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
@@ -581,16 +849,22 @@ describe('strict bundle publication', () => {
     expect(existsSync(destination)).toBe(false)
   })
 
-  it('skips directory fsync on Windows while keeping file fsync', async () => {
+  it.skipIf(process.platform !== 'win32')('skips directory fsync on Windows while keeping file fsync', async () => {
     const destination = path.join(testDir, 'windows.zip')
+    const handles = observeOpenedFileHandles((handle) => {
+      vi.spyOn(handle, 'sync')
+    })
 
-    const result = await new MigrationDiagnosticBundleBuilder({ platform: 'win32' }).save({
+    const result = await new MigrationDiagnosticBundleBuilder().save({
       destination,
       snapshot: failedSnapshot(),
       collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
     })
 
     expect(result.status).toBe('saved')
-    expect(vi.mocked(fs.fsyncSync)).toHaveBeenCalledTimes(1)
+    expect(handles).toHaveLength(2)
+    const writeHandle = handles[0]
+    if (writeHandle === undefined) throw new Error('Expected a write handle')
+    expect(vi.mocked(writeHandle.sync)).toHaveBeenCalledTimes(1)
   })
 })

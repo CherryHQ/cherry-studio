@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import * as diagnostics from '../index'
 import {
   migrationDatabaseDiagnosticResultSchema,
   MigrationDatabaseDiagnostics,
@@ -13,5 +14,7 @@ describe('migration database diagnostics barrel', () => {
     expect(migrationDatabaseDiagnosticResultSchema).toBeDefined()
     expect(MigrationDiagnosticBundleBuilder).toBeTypeOf('function')
     expect(migrationDiagnosticManifestSchema).toBeDefined()
+    expect(diagnostics).not.toHaveProperty('createCanonicalMigrationDiagnosticArchive')
+    expect(diagnostics).not.toHaveProperty('validateCanonicalZipStructure')
   })
 })

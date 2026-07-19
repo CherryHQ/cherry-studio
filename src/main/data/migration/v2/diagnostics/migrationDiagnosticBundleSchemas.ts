@@ -34,13 +34,23 @@ export const migrationDiagnosticSafeAppVersionSchema = z.union([
 ])
 export const migrationDiagnosticSafeMigratorIdSchema = z.enum([...MIGRATION_DIAGNOSTIC_MIGRATOR_IDS, 'unknown'])
 
+const MIGRATION_DIAGNOSTIC_BUNDLE_ATTEMPT_IDS = Object.freeze(
+  Array.from({ length: MIGRATION_DIAGNOSTICS_MAX_ATTEMPTS }, (_, index) => `attempt-${index + 1}`)
+)
+const migrationDiagnosticBundleAttemptIdSchema = z
+  .string()
+  .refine(
+    (value) => MIGRATION_DIAGNOSTIC_BUNDLE_ATTEMPT_IDS.includes(value),
+    'Attempt ID must use a bounded generated ordinal'
+  )
+
 export const migrationDiagnosticBundleEventSchema = migrationDiagnosticEventSchema
   .omit({ attemptId: true, migratorId: true })
   .extend({ migratorId: migrationDiagnosticSafeMigratorIdSchema.optional() })
   .strict()
 
 const attemptCommonFields = {
-  id: z.string().regex(/^attempt-[1-5]$/),
+  id: migrationDiagnosticBundleAttemptIdSchema,
   trigger: migrationAttemptTriggerSchema,
   startedAt: z.string().datetime(),
   events: z.array(migrationDiagnosticBundleEventSchema).max(MIGRATION_DIAGNOSTICS_MAX_EVENTS)
@@ -125,6 +135,13 @@ export const migrationDiagnosticEventsDocumentSchema = z
     let previousSequence = -1
     let activeAttempts = 0
     for (const [attemptIndex, attempt] of document.attempts.entries()) {
+      if (attempt.id !== MIGRATION_DIAGNOSTIC_BUNDLE_ATTEMPT_IDS[attemptIndex]) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Attempt IDs must match their exact ordered ordinals',
+          path: ['attempts', attemptIndex, 'id']
+        })
+      }
       if (Date.parse(attempt.startedAt) < Date.parse(document.session.startedAt)) {
         ctx.addIssue({
           code: 'custom',
@@ -248,7 +265,7 @@ export const migrationDatabaseDiagnosticsDocumentSchema = z
 const manifestAttemptSchema = z.discriminatedUnion('outcome', [
   z
     .object({
-      id: z.string().regex(/^attempt-[1-5]$/),
+      id: migrationDiagnosticBundleAttemptIdSchema,
       trigger: migrationAttemptTriggerSchema,
       startedAt: z.string().datetime(),
       outcome: z.literal('in_progress')
@@ -256,7 +273,7 @@ const manifestAttemptSchema = z.discriminatedUnion('outcome', [
     .strict(),
   z
     .object({
-      id: z.string().regex(/^attempt-[1-5]$/),
+      id: migrationDiagnosticBundleAttemptIdSchema,
       trigger: migrationAttemptTriggerSchema,
       startedAt: z.string().datetime(),
       outcome: z.enum(['completed', 'failed', 'interrupted']),
@@ -308,6 +325,15 @@ export const migrationDiagnosticManifestSchema = z
   })
   .strict()
   .superRefine((manifest, ctx) => {
+    for (const [attemptIndex, attempt] of manifest.session.attempts.entries()) {
+      if (attempt.id !== MIGRATION_DIAGNOSTIC_BUNDLE_ATTEMPT_IDS[attemptIndex]) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Manifest attempt IDs must match their exact ordered ordinals',
+          path: ['session', 'attempts', attemptIndex, 'id']
+        })
+      }
+    }
     for (const [index, expected] of MIGRATION_DIAGNOSTIC_STRICT_ENTRIES.entries()) {
       if (manifest.entries[index]?.name !== expected) {
         ctx.addIssue({ code: 'custom', message: 'Manifest entries must use the fixed order', path: ['entries', index] })
@@ -326,6 +352,22 @@ export const migrationDiagnosticManifestSchema = z
         break
       }
       previousOmissionIndex = omissionIndex
+    }
+    const hasDroppedEvents = manifest.truncation.droppedIntermediateEvents > 0
+    if ((manifest.components.migrationEvents.status === 'truncated') !== hasDroppedEvents) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Migration event status must agree with the dropped event count',
+        path: ['components', 'migrationEvents', 'status']
+      })
+    }
+    const hasOmittedDatabaseDetails = manifest.truncation.omittedDatabaseDetails.length > 0
+    if ((manifest.components.databaseDiagnostics.details === 'truncated') !== hasOmittedDatabaseDetails) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Database detail status must agree with the omission list',
+        path: ['components', 'databaseDiagnostics', 'details']
+      })
     }
     const sum = manifest.entries.reduce((total, entry) => total + entry.uncompressedBytes, 0)
     if (sum !== manifest.totalUncompressedBytes) {

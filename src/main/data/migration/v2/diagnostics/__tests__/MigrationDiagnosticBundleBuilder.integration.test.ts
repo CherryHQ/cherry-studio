@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -9,9 +9,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { MigrationDatabaseDiagnosticResult } from '../migrationDatabaseDiagnosticsSchemas'
 import {
+  createCanonicalMigrationDiagnosticArchive,
   MIGRATION_DIAGNOSTIC_STRICT_ENTRIES,
   MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES,
-  MigrationDiagnosticBundleBuilder
+  type MigrationDiagnosticArchiveEntry,
+  MigrationDiagnosticBundleBuilder,
+  validateCanonicalZipStructure
 } from '../MigrationDiagnosticBundleBuilder'
 import {
   migrationDatabaseDiagnosticsDocumentSchema,
@@ -254,6 +257,15 @@ function mutateFirstLocalHeader(archive: Buffer, mutate: (copy: Buffer, localOff
   return copy
 }
 
+function mutateFirstCentralHeader(archive: Buffer, mutate: (copy: Buffer, centralOffset: number) => void): Buffer {
+  const layout = parseProductionZipLayout(archive)
+  const first = layout.entries[0]
+  if (first === undefined) throw new Error('Expected a production central entry')
+  const copy = Buffer.from(archive)
+  mutate(copy, first.centralOffset)
+  return copy
+}
+
 function firstDescriptorOffset(archive: Buffer): number {
   const layout = parseProductionZipLayout(archive)
   const second = layout.entries[1]
@@ -263,6 +275,18 @@ function firstDescriptorOffset(archive: Buffer): number {
     throw new Error('Expected the signed production data descriptor')
   }
   return descriptorOffset
+}
+
+function addIgnoredByteToFirstDeclaredCompressedSegment(archive: Buffer): Buffer {
+  const layout = parseProductionZipLayout(archive)
+  const first = layout.entries[0]
+  if (first === undefined) throw new Error('Expected a first production entry')
+  const descriptorOffset = firstDescriptorOffset(archive)
+  const compressedBytes = archive.readUInt32LE(first.centralOffset + 20)
+  const mutated = insertBeforeCentral(archive, descriptorOffset, Buffer.from([0]), descriptorOffset)
+  mutated.writeUInt32LE(compressedBytes + 1, first.centralOffset + 1 + 20)
+  mutated.writeUInt32LE(compressedBytes + 1, descriptorOffset + 1 + 8)
+  return mutated
 }
 
 async function mutateProductionZip(
@@ -284,25 +308,20 @@ afterEach(() => {
 
 type ArchiveMutation = (archive: Buffer) => Buffer
 
+function canonicalValidationEntries(): readonly MigrationDiagnosticArchiveEntry[] {
+  return MIGRATION_DIAGNOSTIC_STRICT_ENTRIES.map((name) => ({
+    name,
+    buffer: Buffer.from(`canonical payload for ${name}`, 'utf8')
+  }))
+}
+
 async function expectInjectedArchiveRejected(
-  label: string,
+  _label: string,
   createArchiveBuffer: (entries: ReadonlyArray<readonly [string, Buffer]>) => Promise<Buffer>
 ): Promise<void> {
-  const destination = path.join(testDir, `malicious-${label.replaceAll(/[^a-z0-9]+/gi, '-')}.zip`)
-  const builder = new MigrationDiagnosticBundleBuilder({
-    createArchiveBuffer: async (entries) =>
-      createArchiveBuffer(entries.map((entry) => [entry.name, entry.buffer] as const))
-  })
-
-  const result = await builder.save({
-    destination,
-    snapshot: snapshotWithCanaries(['attempt']),
-    collectDatabaseDiagnostics: async () => databaseUnavailable()
-  })
-
-  expect(result).toEqual({ status: 'failed', code: 'archive_failed', publication: 'not_published' })
-  expect(existsSync(destination)).toBe(false)
-  expect(existsSync(`${destination}.partial`)).toBe(false)
+  const entries = canonicalValidationEntries()
+  const archive = await createArchiveBuffer(entries.map((entry) => [entry.name, entry.buffer] as const))
+  expect(validateCanonicalZipStructure(archive, entries)).toBe(false)
 }
 
 describe('strict diagnostic ZIP integration', () => {
@@ -337,6 +356,21 @@ describe('strict diagnostic ZIP integration', () => {
       if (readme === undefined) throw new Error('Expected README entry')
       return customZip([...entries, readme])
     })
+  })
+
+  it('rejects an archive factory mutation instead of trusting its mutable validation oracle', async () => {
+    const entries = canonicalValidationEntries()
+    await expect(
+      createCanonicalMigrationDiagnosticArchive(entries, async (factoryEntries) => {
+        const readme = factoryEntries.find((entry) => entry.name === 'README.txt')
+        if (readme === undefined) throw new Error('Expected README entry')
+        readme.buffer[0] ^= 1
+        return customZip(factoryEntries.map((entry) => [entry.name, entry.buffer] as const))
+      })
+    ).rejects.toThrow('archive_failed')
+    expect(entries.find((entry) => entry.name === 'README.txt')?.buffer.toString('utf8')).toBe(
+      'canonical payload for README.txt'
+    )
   })
 
   it.each<readonly [string, ArchiveMutation]>([
@@ -452,6 +486,45 @@ describe('strict diagnostic ZIP integration', () => {
     ]
   ])('rejects local/central metadata disagreement from %s', async (label, mutate) => {
     await expectInjectedArchiveRejected(label, (entries) => mutateProductionZip(entries, mutate))
+  })
+
+  it('rejects ignored physical bytes inside a declared raw-deflate segment', async () => {
+    await expectInjectedArchiveRejected('ignored-deflate-tail', (entries) =>
+      mutateProductionZip(entries, addIgnoredByteToFirstDeclaredCompressedSegment)
+    )
+  })
+
+  it.each<readonly [string, ArchiveMutation]>([
+    [
+      'version-made-by',
+      (archive) =>
+        mutateFirstCentralHeader(archive, (copy, offset) => {
+          copy.writeUInt16LE(0, offset + 4)
+        })
+    ],
+    [
+      'internal attributes',
+      (archive) =>
+        mutateFirstCentralHeader(archive, (copy, offset) => {
+          copy.writeUInt16LE(1, offset + 36)
+        })
+    ],
+    [
+      'external attributes',
+      (archive) =>
+        mutateFirstCentralHeader(archive, (copy, offset) => {
+          copy.writeUInt32LE(1, offset + 38)
+        })
+    ],
+    [
+      'central timestamp',
+      (archive) =>
+        mutateFirstCentralHeader(archive, (copy, offset) => {
+          copy.writeUInt16LE(copy.readUInt16LE(offset + 12) ^ 1, offset + 12)
+        })
+    ]
+  ])('rejects producer-impossible %s metadata', async (label, mutate) => {
+    await expectInjectedArchiveRejected(`producer-${label}`, (entries) => mutateProductionZip(entries, mutate))
   })
 
   it.each<readonly [string, ArchiveMutation]>([
@@ -581,25 +654,10 @@ describe('strict diagnostic ZIP integration', () => {
     }
   })
 
-  it('rejects an archive containing an extra or traversal entry and removes the exact partial', async () => {
-    const destination = path.join(testDir, 'malicious.zip')
-    const builder = new MigrationDiagnosticBundleBuilder({
-      createArchiveBuffer: async (entries) =>
-        customZip([
-          ...entries.map((entry) => [entry.name, entry.buffer] as const),
-          ['../escape.txt', Buffer.from('TRAVERSAL_CANARY')]
-        ])
-    })
-
-    const result = await builder.save({
-      destination,
-      snapshot: snapshotWithCanaries(['attempt']),
-      collectDatabaseDiagnostics: async () => databaseUnavailable()
-    })
-
-    expect(result).toEqual({ status: 'failed', code: 'archive_failed', publication: 'not_published' })
-    expect(existsSync(destination)).toBe(false)
-    expect(existsSync(`${destination}.partial`)).toBe(false)
+  it('rejects an archive containing an extra or traversal entry', async () => {
+    await expectInjectedArchiveRejected('extra-traversal', async (entries) =>
+      customZip([...entries, ['../escape.txt', Buffer.from('TRAVERSAL_CANARY')]])
+    )
   })
 
   it.each([
@@ -616,40 +674,15 @@ describe('strict diagnostic ZIP integration', () => {
       (entries: ReadonlyArray<readonly [string, Buffer]>) => customZip(entries, { replaceReadmeWithSymlink: true })
     ]
   ])('rejects an archive containing a %s entry or metadata', async (_label, createArchive) => {
-    const destination = path.join(testDir, `malicious-${_label}.zip`)
-    const builder = new MigrationDiagnosticBundleBuilder({
-      createArchiveBuffer: async (entries) => createArchive(entries.map((entry) => [entry.name, entry.buffer] as const))
-    })
-
-    const result = await builder.save({
-      destination,
-      snapshot: snapshotWithCanaries(['attempt']),
-      collectDatabaseDiagnostics: async () => databaseUnavailable()
-    })
-
-    expect(result).toEqual({ status: 'failed', code: 'archive_failed', publication: 'not_published' })
-    expect(existsSync(destination)).toBe(false)
-    expect(existsSync(`${destination}.partial`)).toBe(false)
+    await expectInjectedArchiveRejected(_label, createArchive)
   })
 
   it('returns a fixed archive failure without writing partial or echoing the raw archiver error', async () => {
-    const destination = path.join(testDir, 'archive-error.zip')
-    const builder = new MigrationDiagnosticBundleBuilder({
-      createArchiveBuffer: async () => {
-        throw new Error('ARCHIVER_PRIVATE_ERROR_/Users/alice')
-      }
+    const entries = canonicalValidationEntries()
+    const result = createCanonicalMigrationDiagnosticArchive(entries, async () => {
+      throw new Error('ARCHIVER_PRIVATE_ERROR_/Users/alice')
     })
-
-    const result = await builder.save({
-      destination,
-      snapshot: snapshotWithCanaries(['attempt']),
-      collectDatabaseDiagnostics: async () => databaseUnavailable()
-    })
-
-    expect(result).toEqual({ status: 'failed', code: 'archive_failed', publication: 'not_published' })
-    expect(JSON.stringify(result)).not.toContain('ARCHIVER_PRIVATE_ERROR')
-    expect(existsSync(destination)).toBe(false)
-    expect(existsSync(`${destination}.partial`)).toBe(false)
+    await expect(result).rejects.toThrow(/^archive_failed$/)
   })
 
   it('does not package database, WAL, SHM, journal, or migration-export contents present beside destination', async () => {
