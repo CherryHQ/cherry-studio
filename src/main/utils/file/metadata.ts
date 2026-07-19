@@ -32,12 +32,15 @@ export async function isTextByContent(target: FilePath): Promise<boolean> {
 
     const length = 8 * KB
     const fileHandle = await open(target, 'r')
-    const buffer = Buffer.alloc(length)
-    const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
-    await fileHandle.close()
-
-    const matches = chardet.analyse(buffer.subarray(0, bytesRead))
-    return matches.length > 0 && matches[0].confidence > 0.8
+    try {
+      const buffer = Buffer.alloc(length)
+      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
+      const matches = chardet.analyse(buffer.subarray(0, bytesRead))
+      return matches.length > 0 && matches[0].confidence > 0.8
+    } finally {
+      // Close on every path — a throwing read must not leak the descriptor.
+      await fileHandle.close()
+    }
   } catch {
     return false
   }
