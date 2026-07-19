@@ -123,6 +123,9 @@ function stubMigrationV2(options: MigrationV2StubOptions = {}) {
     const { classifyMigrationError } = await vi.importActual<{
       classifyMigrationError(error: unknown): ClassifiedMigrationError
     }>('@data/migration/v2/diagnostics/migrationErrorClassifier')
+    const { createMigrationWindowFailureClaim } = await vi.importActual<{
+      createMigrationWindowFailureClaim: typeof import('@data/migration/v2/window/MigrationWindowManager').createMigrationWindowFailureClaim
+    }>('@data/migration/v2/window/MigrationWindowManager')
     return {
       migrationEngine: {
         initialize: initializeMock,
@@ -145,6 +148,7 @@ function stubMigrationV2(options: MigrationV2StubOptions = {}) {
       setDataLocationNotice: setDataLocationNoticeMock,
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       classifyMigrationError,
+      createMigrationWindowFailureClaim,
       createMigrationDiagnosticsCoordinator: () =>
         options.diagnosticsCoordinator ?? new MigrationDiagnosticsCoordinatorMock(),
       createMigrationDiagnosticBundleBuilder: () => new MigrationDiagnosticBundleBuilderMock(),
@@ -1012,6 +1016,123 @@ describe('runV2MigrationGate', () => {
         expect(appQuitMock).toHaveBeenCalledTimes(1)
       }
     )
+
+    describe.each([
+      {
+        route: 'version guidance',
+        loadFailureCode: 'version_window_failed',
+        decision: 'exit',
+        configure: () => {
+          needsMigrationMock.mockResolvedValue(true)
+          evaluateCandidateVersionMock.mockReturnValue({
+            check: { outcome: 'block', reason: 'no_version_log', details: { requiredVersion: '1.9.12' } },
+            previousVersion: null,
+            versionLogExists: false
+          })
+        }
+      },
+      {
+        route: 'migration',
+        loadFailureCode: 'migration_window_failed',
+        decision: 'retry',
+        configure: () => {
+          needsMigrationMock.mockResolvedValue(true)
+          evaluateCandidateVersionMock.mockReturnValue({
+            check: { outcome: 'pass' },
+            previousVersion: '1.9.12',
+            versionLogExists: true
+          })
+        }
+      }
+    ] as const)('$route native load/renderer failure race', ({ loadFailureCode, decision, configure }) => {
+      it.each(['renderer-first', 'load-first'] as const)(
+        'claims one native failure operation when signals arrive %s',
+        async (order) => {
+          configure()
+          const coordinator = await createMemoryDiagnosticsCoordinator()
+          const recordEvent = vi.spyOn(coordinator, 'recordEvent')
+          const finishAttempt = vi.spyOn(coordinator, 'finishAttempt')
+          let rejectLoad!: (error: Error) => void
+          const loadPromise = new Promise<void>((_resolve, reject) => {
+            rejectLoad = reject
+          })
+          const nativeWindow = makeGateWindow(() => loadPromise)
+          stubElectron(() => nativeWindow)
+          const windowManager = await createRealMigrationWindowManager()
+          stubMigrationV2({ diagnosticsCoordinator: coordinator, migrationWindowManager: windowManager })
+          stubApplication()
+
+          let resolveDecision!: (decision: 'exit' | 'retry') => void
+          const decisionPending = new Promise<'exit' | 'retry'>((resolve) => {
+            resolveDecision = resolve
+          })
+          let bundleSaved = false
+          presentDiagnosticFailureMock.mockImplementation(
+            async (state: { saveBundle: (path: string) => Promise<unknown> }) => {
+              if (!bundleSaved) {
+                bundleSaved = true
+                await state.saveBundle('/safe/migration-diagnostics.zip')
+              }
+              return decisionPending
+            }
+          )
+
+          const { runV2MigrationGate } = await loadModule()
+          const gateResult = runV2MigrationGate()
+          await vi.waitFor(() => expect(nativeWindow.loadFile).toHaveBeenCalledTimes(1))
+
+          const loadError = new Error('PRIVATE_LOAD_FAILURE_/Users/alice/api-key=sk-private')
+          const rendererDetails = {
+            reason: 'crashed',
+            details: 'PRIVATE_ELECTRON_DETAILS_/Users/alice/model-key=secret'
+          }
+          if (order === 'renderer-first') {
+            nativeWindow.webContents.emit('render-process-gone', {}, rendererDetails)
+            rejectLoad(loadError)
+          } else {
+            rejectLoad(loadError)
+            await vi.waitFor(() => expect(presentDiagnosticFailureMock).toHaveBeenCalledTimes(1))
+            nativeWindow.webContents.emit('render-process-gone', {}, rendererDetails)
+          }
+
+          await vi.waitFor(() => expect(diagnosticBundleSaveMock).toHaveBeenCalledTimes(1))
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          const presenterCallsBeforeDecision = presentDiagnosticFailureMock.mock.calls.length
+          resolveDecision(decision)
+          const result = await gateResult
+          await new Promise<void>((resolve) => setImmediate(resolve))
+
+          const expectedFailureCode = order === 'renderer-first' ? 'renderer_process_gone' : loadFailureCode
+          const expectedEventCode = order === 'renderer-first' ? 'renderer_process_gone' : 'unknown'
+          const snapshot = await coordinator.snapshot()
+          const attempt = snapshot.attempts.at(-1)
+          const failedEvents = attempt?.events.filter((event) => event.state === 'failed') ?? []
+          const bundleInput = diagnosticBundleSaveMock.mock.calls[0]?.[0] as { snapshot: unknown }
+
+          expect(result).toBe('handled')
+          expect(presenterCallsBeforeDecision).toBe(1)
+          expect(presentDiagnosticFailureMock).toHaveBeenCalledTimes(1)
+          expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
+            expect.objectContaining({ code: expectedFailureCode })
+          )
+          expect(finishAttempt).toHaveBeenCalledTimes(1)
+          expect(failedEvents).toHaveLength(2)
+          expect(failedEvents[0]).toEqual(expect.objectContaining({ code: expectedEventCode }))
+          expect(failedEvents.at(-1)).toEqual(expect.objectContaining({ code: expectedEventCode }))
+          expect(attempt?.outcome).toBe('failed')
+          expect(attempt?.events.at(-1)?.state).toBe(attempt?.outcome)
+          expect(recordEvent.mock.calls.filter(([event]) => event.state === 'failed')).toHaveLength(1)
+          expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
+          expect(closeMock).toHaveBeenCalledTimes(1)
+          expect(appQuitMock).toHaveBeenCalledTimes(decision === 'exit' ? 1 : 0)
+          expect(appRelaunchMock).toHaveBeenCalledTimes(decision === 'retry' ? 1 : 0)
+          expect(JSON.stringify(snapshot)).not.toContain('PRIVATE_LOAD_FAILURE')
+          expect(JSON.stringify(snapshot)).not.toContain('PRIVATE_ELECTRON_DETAILS')
+          expect(JSON.stringify(bundleInput.snapshot)).not.toContain('PRIVATE_LOAD_FAILURE')
+          expect(JSON.stringify(bundleInput.snapshot)).not.toContain('PRIVATE_ELECTRON_DETAILS')
+        }
+      )
+    })
 
     it('routes a pin failure through the typed presenter without exposing the raw failure', async () => {
       resolveMigrationPathsMock.mockReturnValue({

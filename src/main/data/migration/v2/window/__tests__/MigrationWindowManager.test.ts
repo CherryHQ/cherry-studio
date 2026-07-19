@@ -2,7 +2,7 @@ import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migratio
 import { app, BrowserWindow } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MigrationWindowManager } from '../MigrationWindowManager'
+import { createMigrationWindowFailureClaim, MigrationWindowManager } from '../MigrationWindowManager'
 
 const platformState = vi.hoisted(() => ({ isDev: false, isMac: false }))
 
@@ -16,6 +16,31 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 type FakeWindow = ReturnType<typeof makeFakeWindow>
+
+describe('createMigrationWindowFailureClaim', () => {
+  it.each(['synchronous throw', 'asynchronous rejection'] as const)(
+    'settles the shared completion after a winner %s without invoking the loser',
+    async (failureMode) => {
+      const failureClaim = createMigrationWindowFailureClaim()
+      const error = new Error('winner failed')
+      const winnerOperation = vi.fn(() => {
+        if (failureMode === 'synchronous throw') throw error
+        return Promise.reject(error)
+      })
+      const loserOperation = vi.fn()
+
+      const winner = failureClaim.claim(winnerOperation)
+      const loser = failureClaim.claim(loserOperation)
+
+      expect(winner.claimed).toBe(true)
+      expect(loser.claimed).toBe(false)
+      expect(loser.completion).toBe(winner.completion)
+      await expect(loser.completion).rejects.toBe(error)
+      expect(winnerOperation).toHaveBeenCalledTimes(1)
+      expect(loserOperation).not.toHaveBeenCalled()
+    }
+  )
+})
 
 /**
  * Minimal BrowserWindow stand-in. Captures `on(event, cb)` handlers so tests can drive the
@@ -140,6 +165,26 @@ describe('MigrationWindowManager', () => {
       await ready
       expect(readySettled).toBe(true)
       expect(currentWindow.webContents.once).not.toHaveBeenCalled()
+    })
+
+    it('ignores renderer failure signals from a closed window after recreation', async () => {
+      const oldWindow = fakeWindow
+      const oldRendererFailure = vi.fn().mockResolvedValue(undefined)
+      manager = new MigrationWindowManager()
+      manager.create({ onRendererFailure: oldRendererFailure })
+      oldWindow.emit('closed')
+
+      const currentWindow = makeFakeWindow()
+      const currentRendererFailure = vi.fn().mockResolvedValue(undefined)
+      vi.mocked(BrowserWindow).mockImplementationOnce(() => currentWindow as unknown as BrowserWindow)
+      manager.create({ onRendererFailure: currentRendererFailure })
+
+      oldWindow.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
+      currentWindow.webContents.emit('unresponsive')
+      await vi.waitFor(() => expect(currentRendererFailure).toHaveBeenCalledTimes(1))
+
+      expect(oldRendererFailure).not.toHaveBeenCalled()
+      expect(currentRendererFailure).toHaveBeenCalledWith('renderer_unresponsive', expect.any(Promise))
     })
   })
 

@@ -25,7 +25,45 @@ function isCloseConfirmStage(stage: MigrationStage): boolean {
 
 export type MigrationRendererFailureReason = 'renderer_process_gone' | 'renderer_unresponsive'
 
+export type MigrationWindowFailureOperation = () => void | Promise<void>
+
+export interface MigrationWindowFailureClaimResult {
+  readonly claimed: boolean
+  readonly completion: Promise<void>
+}
+
+export interface MigrationWindowFailureClaim {
+  claim(operation: MigrationWindowFailureOperation): MigrationWindowFailureClaimResult
+}
+
+export function createMigrationWindowFailureClaim(): MigrationWindowFailureClaim {
+  let completion: Promise<void> | null = null
+
+  return {
+    claim(operation) {
+      if (completion !== null) {
+        return { claimed: false, completion }
+      }
+
+      let resolveCompletion!: () => void
+      let rejectCompletion!: (error: unknown) => void
+      completion = new Promise<void>((resolve, reject) => {
+        resolveCompletion = resolve
+        rejectCompletion = reject
+      })
+
+      try {
+        void Promise.resolve(operation()).then(resolveCompletion, rejectCompletion)
+      } catch (error) {
+        rejectCompletion(error)
+      }
+      return { claimed: true, completion }
+    }
+  }
+}
+
 export interface MigrationWindowCreateOptions {
+  readonly failureClaim?: MigrationWindowFailureClaim
   readonly onRendererFailure?: (
     reason: MigrationRendererFailureReason,
     writesSettled: Promise<void>
@@ -85,6 +123,7 @@ export class MigrationWindowManager {
     this.closeConfirmPending = false
     this.onRendererFailure = options.onRendererFailure
     this.rendererFailurePromise = null
+    const failureClaim = options.failureClaim ?? createMigrationWindowFailureClaim()
 
     const window = new BrowserWindow({
       width: 900,
@@ -135,11 +174,11 @@ export class MigrationWindowManager {
     // one native, write-safe failure flow; the promise guard deduplicates consecutive signals.
     window.webContents.on('render-process-gone', (_event, details) => {
       logger.error('Migration renderer process gone; opening native failure flow', { reason: details.reason })
-      this.handleRendererFailure('renderer_process_gone')
+      this.handleRendererFailure(window, failureClaim, 'renderer_process_gone')
     })
     window.webContents.on('unresponsive', () => {
       logger.error('Migration renderer unresponsive; opening native failure flow')
-      this.handleRendererFailure('renderer_unresponsive')
+      this.handleRendererFailure(window, failureClaim, 'renderer_unresponsive')
     })
 
     // Load the migration window.
@@ -267,43 +306,40 @@ export class MigrationWindowManager {
     }
   }
 
-  private handleRendererFailure(reason: MigrationRendererFailureReason): void {
-    if (this.rendererFailurePromise !== null) return
+  private handleRendererFailure(
+    window: BrowserWindow,
+    failureClaim: MigrationWindowFailureClaim,
+    reason: MigrationRendererFailureReason
+  ): void {
+    if (this.window !== window || this.rendererFailurePromise !== null) return
     const handler = this.onRendererFailure
     if (handler === undefined) {
       this.forceQuit(reason)
       return
     }
 
-    let resolveFlight!: () => void
-    let rejectFlight!: (error: unknown) => void
-    const flight = new Promise<void>((resolve, reject) => {
-      resolveFlight = resolve
-      rejectFlight = reject
-    })
-    this.rendererFailurePromise = flight
-
-    // The waiter starts in the next microtask. The callback therefore gets one
-    // synchronous phase to persist its fixed marker before any migration write
-    // can settle and publish its terminal event.
-    const writesSettled = Promise.resolve().then(async () => {
-      if (this.waitForWrites !== null) {
-        try {
-          await this.waitForWrites()
-        } catch {
-          logger.error('Failed while waiting for migration writes before native failure flow')
+    let writesSettled: Promise<void> | null = null
+    const claimed = failureClaim.claim(() => {
+      // The waiter starts in the next microtask. The callback therefore gets one
+      // synchronous phase to persist its fixed marker before any migration write
+      // can settle and publish its terminal event.
+      writesSettled = Promise.resolve().then(async () => {
+        if (this.waitForWrites !== null) {
+          try {
+            await this.waitForWrites()
+          } catch {
+            logger.error('Failed while waiting for migration writes before native failure flow')
+          }
         }
-      }
+      })
+      return handler(reason, writesSettled)
     })
+    this.rendererFailurePromise = claimed.completion
+    if (!claimed.claimed) return
 
-    try {
-      void Promise.resolve(handler(reason, writesSettled)).then(resolveFlight, rejectFlight)
-    } catch (error) {
-      rejectFlight(error)
-    }
-    void flight.catch(async () => {
+    void claimed.completion.catch(async () => {
       logger.error('Native migration renderer failure flow failed')
-      await writesSettled
+      if (writesSettled !== null) await writesSettled
       this.forceQuit('renderer-failure-flow')
     })
   }

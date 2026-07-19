@@ -30,7 +30,11 @@ export type {
   MigrationDiagnosticNativeFailureCode,
   MigrationDiagnosticNativeSaveResult
 } from './window/migrationDiagnosticDialogs'
-export type { MigrationRendererFailureReason } from './window/MigrationWindowManager'
+export {
+  createMigrationWindowFailureClaim,
+  type MigrationRendererFailureReason,
+  type MigrationWindowFailureClaim
+} from './window/MigrationWindowManager'
 export {
   type ExecuteResult,
   type I18nMessage,

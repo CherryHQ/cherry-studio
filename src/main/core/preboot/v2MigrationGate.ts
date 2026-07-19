@@ -4,6 +4,7 @@ import {
   createMigrationDatabaseDiagnostics,
   createMigrationDiagnosticBundleBuilder,
   createMigrationDiagnosticsCoordinator,
+  createMigrationWindowFailureClaim,
   evaluateCandidateVersion,
   getAllMigrators,
   type MigrationDiagnosticBundleSaveResult,
@@ -211,6 +212,16 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     }
   }
 
+  const finishWindowFailure = async (code: MigrationDiagnosticNativeFailureCode): Promise<void> => {
+    unregisterMigrationIpcHandlers()
+    const decision = await presentFailure(code)
+    if (engineInitialized) {
+      migrationEngine.close()
+      engineInitialized = false
+    }
+    applyNativeDecision(decision)
+  }
+
   let resolved: ReturnType<typeof resolveMigrationPaths>
   try {
     resolved = resolveMigrationPaths()
@@ -326,6 +337,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     return applyNativeDecision(decision)
   }
 
+  const windowFailureClaim = createMigrationWindowFailureClaim()
   const onRendererFailure = async (
     reason: MigrationRendererFailureReason,
     writesSettled: Promise<void>
@@ -341,8 +353,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     })
     await writesSettled
     await finishActiveRendererFailureAttempt(reason)
-    const decision = await presentFailure(reason)
-    applyNativeDecision(decision)
+    await finishWindowFailure(reason)
   }
 
   const { check: versionCheck, previousVersion, versionLogExists } = versionEvaluation
@@ -352,17 +363,17 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     registerMigrationIpcHandlers(paths.userData)
     try {
       await app.whenReady()
-      migrationWindowManager.create({ onRendererFailure })
+      migrationWindowManager.create({ failureClaim: windowFailureClaim, onRendererFailure })
       await migrationWindowManager.waitForReady()
       return 'handled'
     } catch (error) {
-      logger.error('Version guidance window failed')
-      unregisterMigrationIpcHandlers()
-      finishFailedAttempt(error, 'initialize')
-      const decision = await presentFailure('version_window_failed')
-      migrationEngine.close()
-      engineInitialized = false
-      return applyNativeDecision(decision)
+      const failure = windowFailureClaim.claim(async () => {
+        logger.error('Version guidance window failed')
+        finishFailedAttempt(error, 'initialize')
+        await finishWindowFailure('version_window_failed')
+      })
+      await failure.completion
+      return 'handled'
     }
   }
 
@@ -370,16 +381,16 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   registerMigrationIpcHandlers(paths.userData)
   try {
     await app.whenReady()
-    migrationWindowManager.create({ onRendererFailure })
+    migrationWindowManager.create({ failureClaim: windowFailureClaim, onRendererFailure })
     await migrationWindowManager.waitForReady()
     return 'handled'
   } catch (error) {
-    logger.error('Migration window failed')
-    unregisterMigrationIpcHandlers()
-    finishFailedAttempt(error, 'initialize')
-    const decision = await presentFailure('migration_window_failed')
-    migrationEngine.close()
-    engineInitialized = false
-    return applyNativeDecision(decision)
+    const failure = windowFailureClaim.claim(async () => {
+      logger.error('Migration window failed')
+      finishFailedAttempt(error, 'initialize')
+      await finishWindowFailure('migration_window_failed')
+    })
+    await failure.completion
+    return 'handled'
   }
 }
