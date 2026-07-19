@@ -890,7 +890,10 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
-      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      if (name === 'JobManager')
+        return { enqueue, enqueueTx: (_tx: any, ...a: any[]) => enqueue(...a), cancel: vi.fn() }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
     })
 
@@ -941,7 +944,10 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
-      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      if (name === 'JobManager')
+        return { enqueue, enqueueTx: (_tx: any, ...a: any[]) => enqueue(...a), cancel: vi.fn() }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
     })
 
@@ -978,7 +984,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
       if (name === 'JobManager') {
         return {
-          enqueue: vi.fn().mockReturnValue({
+          enqueueTx: () => ({
             id: 'job-1',
             snapshot: {},
             finished: Promise.resolve({ status: 'failed', output: null, error: { message: 'vendor exploded' } })
@@ -986,6 +992,8 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
           cancel: vi.fn()
         }
       }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
     })
 
@@ -1010,7 +1018,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
       if (name === 'JobManager') {
         return {
-          enqueue: vi.fn().mockReturnValue({
+          enqueueTx: () => ({
             id: 'job-1',
             snapshot: {},
             finished: Promise.resolve({ status: 'cancelled', output: null, error: null })
@@ -1018,6 +1026,8 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
           cancel
         }
       }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
     })
 
@@ -1044,13 +1054,14 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       snapshot: {},
       finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
     })
-    // Capture the job_file_ref insert chain (getDb().insert(table).values(rows).run()).
+    // Capture the job_file_ref insert chain (tx.insert(table).values(rows).run()).
     const refInsertValues = vi.fn().mockReturnValue({ run: vi.fn() })
     const refInsert = vi.fn().mockReturnValue({ values: refInsertValues })
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') return { createInternalEntry }
-      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
-      if (name === 'DbService') return { getDb: () => ({ insert: refInsert }) }
+      if (name === 'JobManager')
+        return { enqueue, enqueueTx: (_tx: any, ...a: any[]) => enqueue(...a), cancel: vi.fn() }
+      if (name === 'DbService') return { withWriteTx: (fn: any) => fn({ insert: refInsert }) }
       return undefined
     })
 
@@ -1089,15 +1100,17 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       if (name === 'FileManager') {
         return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'in-1' }), permanentDelete }
       }
-      // enqueue fails after the temp input entry was already created → the entry is in
+      // enqueueTx fails after the temp input entry was already created → the entry is in
       // no payload, so generateImageViaJob's setup catch must delete it.
       if (name === 'JobManager')
         return {
-          enqueue: vi.fn().mockImplementation(() => {
+          enqueueTx: () => {
             throw new Error('enqueue boom')
-          }),
+          },
           cancel: vi.fn()
         }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
     })
 
@@ -1110,6 +1123,45 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         inputImages: ['data:image/png;base64,AAAA']
       })
     ).rejects.toThrow('enqueue boom')
+    expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
+
+  it('rolls the job back and reclaims inputs when the job_file_ref insert fails inside the tx', async () => {
+    const service = createService()
+    stubResolution(service)
+    const permanentDelete = vi.fn().mockResolvedValue(undefined)
+    // enqueueTx + the ref insert share one withWriteTx: a throwing ref insert aborts the
+    // whole tx, so the job INSERT never commits (real better-sqlite3 rollback) and the setup
+    // catch reclaims the already-created temp input — never an orphaned job with dropped refs.
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager')
+        return { createInternalEntry: vi.fn().mockResolvedValue({ id: 'in-1' }), permanentDelete }
+      if (name === 'JobManager')
+        return {
+          enqueueTx: () => ({ id: 'job-1', finished: Promise.resolve({ status: 'completed', output: { files: [] } }) }),
+          cancel: vi.fn()
+        }
+      if (name === 'DbService')
+        return {
+          withWriteTx: (fn: any) =>
+            fn({
+              insert: () => {
+                throw new Error('ref insert boom')
+              }
+            })
+        }
+      return undefined
+    })
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'edit',
+        paramValues: {},
+        inputImages: ['data:image/png;base64,AAAA'],
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+    ).rejects.toThrow('ref insert boom')
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
   })
 })
