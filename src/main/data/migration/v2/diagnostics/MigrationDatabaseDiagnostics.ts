@@ -41,10 +41,10 @@ export interface MigrationDatabaseDiagnosticsChildLike {
   readonly stderr: MigrationDatabaseDiagnosticsChildStderrLike | null
   on(event: 'message', listener: (message: unknown) => void): EventEmitter
   once(event: 'error', listener: (error: Error) => void): EventEmitter
-  once(event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void): EventEmitter
+  once(event: 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): EventEmitter
   removeListener(event: 'message', listener: (message: unknown) => void): EventEmitter
   removeListener(event: 'error', listener: (error: Error) => void): EventEmitter
-  removeListener(event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void): EventEmitter
+  removeListener(event: 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): EventEmitter
   send(message: MigrationDatabaseDiagnosticsChildInput, callback: (error: Error | null) => void): boolean
   kill(signal?: NodeJS.Signals): boolean
   unref(): void
@@ -204,11 +204,11 @@ export class MigrationDatabaseDiagnostics {
         clearTimeout(timeout)
         child.removeListener('message', handleMessage)
         child.removeListener('error', handleError)
-        child.removeListener('exit', handleExit)
+        child.removeListener('close', handleClose)
         child.stderr?.removeListener('data', handleStderr)
       }
 
-      const settleAfterExit = (result: MigrationDatabaseDiagnosticResult): void => {
+      const settleAfterClose = (result: MigrationDatabaseDiagnosticResult): void => {
         if (settled) return
         settled = true
         cleanup()
@@ -221,8 +221,8 @@ export class MigrationDatabaseDiagnostics {
         try {
           child.kill('SIGKILL')
         } catch {
-          // A thrown kill still waits for the process exit event. Releasing the
-          // diagnostics lease before observing exit would reopen the WAL race.
+          // A thrown kill still waits for the process close event. Releasing the
+          // diagnostics lease before stdio closes would reopen the WAL race.
         }
       }
 
@@ -310,21 +310,21 @@ export class MigrationDatabaseDiagnostics {
         stopFailed('process_error')
       }
 
-      const handleExit = (code: number | null, signal: NodeJS.Signals | null): void => {
+      const handleClose = (code: number | null, signal: NodeJS.Signals | null): void => {
         if (settled) return
         if (pendingResult !== undefined) {
-          settleAfterExit(pendingResult)
+          settleAfterClose(pendingResult)
           return
         }
         if (code === 0 && signal === null && pendingFinal !== undefined) {
-          settleAfterExit(pendingFinal)
+          settleAfterClose(pendingFinal)
           return
         }
         if (code === 0 && signal === null && input.mode === 'l0_only' && completed.l0 !== undefined) {
-          settleAfterExit(createTerminalResult(completed, { status: 'failed', code: 'lease_unavailable' }))
+          settleAfterClose(createTerminalResult(completed, { status: 'failed', code: 'lease_unavailable' }))
           return
         }
-        settleAfterExit(
+        settleAfterClose(
           createTerminalResult(completed, {
             status: 'failed',
             code: code === 0 && signal === null ? 'process_no_result' : 'process_exit'
@@ -338,7 +338,7 @@ export class MigrationDatabaseDiagnostics {
       timeout.unref()
       child.on('message', handleMessage)
       child.once('error', handleError)
-      child.once('exit', handleExit)
+      child.once('close', handleClose)
       child.stderr?.on('data', handleStderr)
       child.unref()
     })

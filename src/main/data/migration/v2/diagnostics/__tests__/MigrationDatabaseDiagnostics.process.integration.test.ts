@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { existsSync, lstatSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -105,7 +105,7 @@ describe('MigrationDatabaseDiagnostics isolated process integration', () => {
     rmSync(fixtureDir, { recursive: true, force: true })
   })
 
-  it('holds the lease across an engine close after L0 and releases it only after child exit', async () => {
+  it('holds the lease across an engine close after L0 and releases it only after child close', async () => {
     const paths = createPaths(fixtureDir)
     engine = new MigrationEngine()
     engine.initialize(paths)
@@ -144,11 +144,75 @@ describe('MigrationDatabaseDiagnostics isolated process integration', () => {
     child.emit('message', { type: 'step', step: result.l1 })
     child.emit('message', { type: 'step', step: result.l2 })
     child.emit('message', { type: 'result', result })
-    child.emit('exit', 0, null)
+    child.emit('close', 0, null)
 
     await expect(inspection).resolves.toEqual(result)
     expect(existsSync(walFile)).toBe(false)
     expect(existsSync(shmFile)).toBe(false)
+  })
+
+  it('bounds an asynchronous spawn failure, releases a deferred close, and cleans listeners', async () => {
+    const paths = createPaths(fixtureDir)
+    service = MigrationDbService.create(paths)
+    service.getDb().run(sql`CREATE INDEX async_spawn_failure_idx ON preference(key)`)
+    const walFile = `${paths.databaseFile}-wal`
+    const shmFile = `${paths.databaseFile}-shm`
+    expectRegular(walFile)
+    expectRegular(shmFile)
+
+    const missingExecutable = join(fixtureDir, 'private-spawn-canary-does-not-exist')
+    const lifecycleEvents: string[] = []
+    let spawnedChild: ChildProcess | undefined
+    const createChild: MigrationDatabaseDiagnosticsChildFactory = (_modulePath, options) => {
+      spawnedChild = spawn(missingExecutable, [], options)
+      const handleUnexpectedExit = (code: number | null, signal: NodeJS.Signals | null): void => {
+        lifecycleEvents.push(`exit:${code}:${signal}`)
+      }
+      spawnedChild.once('error', (error: NodeJS.ErrnoException) => {
+        lifecycleEvents.push(`error:${error.code}`)
+      })
+      spawnedChild.once('exit', handleUnexpectedExit)
+      spawnedChild.once('close', (code, signal) => {
+        spawnedChild?.removeListener('exit', handleUnexpectedExit)
+        lifecycleEvents.push(`close:${code}:${signal}`)
+      })
+      return spawnedChild
+    }
+    const diagnostics = new MigrationDatabaseDiagnostics({ createChild, timeoutMs: 50 })
+    const startedAt = Date.now()
+    const inspection = service.withDiagnosticsLease((lease) => diagnostics.inspectWithLease(lease))
+    const child = spawnedChild
+    if (child === undefined) throw new Error('Expected the real child process to be created')
+
+    service.close()
+    expectRegular(walFile)
+    expectRegular(shmFile)
+
+    let bound: NodeJS.Timeout | undefined
+    const outcome = await Promise.race([
+      inspection.then((value) => ({ kind: 'settled' as const, value })),
+      new Promise<{ readonly kind: 'hung' }>((resolve) => {
+        bound = setTimeout(() => resolve({ kind: 'hung' }), 500)
+        bound.unref()
+      })
+    ])
+    if (bound !== undefined) clearTimeout(bound)
+
+    expect(outcome.kind).toBe('settled')
+    if (outcome.kind !== 'settled') return
+    expect(Date.now() - startedAt).toBeLessThan(1_000)
+    expect(outcome.value.kind).toBe('leased')
+    if (outcome.value.kind !== 'leased') throw new Error('Expected a real diagnostics lease')
+    expect(lifecycleEvents).toEqual(['error:ENOENT', 'close:-2:null'])
+    expect(outcome.value.value.completion).toEqual({ status: 'failed', code: 'process_error' })
+    expect(JSON.stringify(outcome.value.value)).not.toMatch(/ENOENT|private-spawn-canary|migration-db-process-/)
+    expect(existsSync(walFile)).toBe(false)
+    expect(existsSync(shmFile)).toBe(false)
+    expect(child.listenerCount('message')).toBe(0)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+    expect(child.listenerCount('exit')).toBe(0)
+    expect(child.stderr?.listenerCount('data')).toBe(0)
   })
 
   it('SIGKILLs a confirmed in-flight native SQLite query, waits for exit, and releases its WAL reader', async () => {

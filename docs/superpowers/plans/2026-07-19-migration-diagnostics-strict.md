@@ -29,7 +29,7 @@
 - `src/main/data/migration/v2/diagnostics/MigrationDiagnosticsCoordinator.ts`：session/attempt 状态机、保留和 single-flight snapshot/save。
 - `src/main/data/migration/v2/diagnostics/migrationDatabaseDiagnosticsChild.ts`：L0/L1/L2 只读 SQLite isolated child entry。
 - `src/main/data/migration/v2/diagnostics/migrationDatabaseDiagnosticsLease.ts`：内部 opaque lease 与固定文件 identity。
-- `src/main/data/migration/v2/diagnostics/MigrationDatabaseDiagnostics.ts`：child-process host、SIGKILL/exit、partial result。
+- `src/main/data/migration/v2/diagnostics/MigrationDatabaseDiagnostics.ts`：child-process host、SIGKILL/close、partial result。
 - `src/main/data/migration/v2/diagnostics/MigrationDiagnosticBundleBuilder.ts`：四项 A 包、1 MiB 预算、`.partial` 原子发布。
 - `src/main/data/migration/v2/diagnostics/index.ts`：显式 re-export，无逻辑。
 - `src/main/data/migration/v2/diagnostics/__tests__/*`：上述单元与 integration 测试。
@@ -234,7 +234,7 @@ git commit --signoff -m "feat(data-migration): record bounded failure context"
 
 - [ ] **步骤 1：写 fake child、callback lease 和生产 DB integration 失败测试**
 
-Fake child 覆盖 ready 后才发送 DB path/identity、增量 L0/L1/L2、final 缺失/非法/超限/与 prefix 不一致、final 后 exit 前的任意额外消息、spawn/IPC/error/exit/kill throw、3 秒 timeout、SIGKILL once、等待真实 exit、listener cleanup，并断言顶层 completion 保留真实 partial prefix、不伪造未完成层。Lease 测试覆盖 active lease 时 close deferred、callback throw finally、closeRequested 拒绝新 lease、L0 后 engine.close 保留同一 WAL/SHM identity、child exit 后执行 pending close。Integration 使用 `setupTestDatabase()` 的 production DB，覆盖 healthy、missing DB、schema mismatch、FK violation、截断副本、unreadable、step truncation；不手写 production DDL。另覆盖 live writer + WAL-only schema marker、WAL 缺 SHM、clean WAL header 无 sidecars、identity mismatch，以及确认 native query 已进入后 timeout/SIGKILL/exit，随后 writer 继续 commit/checkpoint/integrity。
+Fake child 覆盖 ready 后才发送 DB path/identity、增量 L0/L1/L2、final 缺失/非法/超限/与 prefix 不一致、final 后 close 前的任意额外消息、spawn/IPC/error/close/kill throw、3 秒 timeout、SIGKILL once、等待真实 close、重复 close/晚到 error、listener cleanup，并断言顶层 completion 保留真实 partial prefix、不伪造未完成层。Lease 测试覆盖 active lease 时 close deferred、callback throw finally、closeRequested 拒绝新 lease、L0 后 engine.close 保留同一 WAL/SHM identity、child close 后执行 pending close。Integration 使用 `setupTestDatabase()` 的 production DB，覆盖 healthy、missing DB、schema mismatch、FK violation、截断副本、unreadable、step truncation；不手写 production DDL。另覆盖 live writer + WAL-only schema marker、WAL 缺 SHM、clean WAL header 无 sidecars、identity mismatch、异步 spawn `error→close` 无 `exit`，以及确认 native query 已进入后 timeout/SIGKILL/exit→close，随后 writer 继续 commit/checkpoint/integrity。
 
 - [ ] **步骤 2：运行并确认 FAIL**
 
@@ -252,7 +252,7 @@ pnpm exec vitest run --project scripts scripts/__tests__/migration-diagnostics-c
 
 - [ ] **步骤 3：实现 child/host/lease 与 build contract**
 
-版本、限额和完整 v1 expected-object 集合只存在于纯 `.mjs` protocol 常量模块；host 通过 `?modulePath` 获取固定 child asset，用 `spawn(process.execPath, [childEntry], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'pipe', 'ipc'], windowsHide: true, shell: false })` 启动。DB path/identity 只在 versioned ready 后经 IPC 发送，不进入 argv/env/stdout/stderr；child 不接受调用方 SQL/allowlist/policy。Child 用 `new Database(file, { readonly: true, fileMustExist: true })` 和 `query_only = ON`。L0 仅文件状态/大小桶/header write-version 与 sidecar 固定状态；L1 仅固定 expected/missing/extra object 类型计数与列数桶；L2 执行 `PRAGMA quick_check(20)` 和有界 FK check，映射固定类别并删除 rowid/fkid/原文。每步发 typed message，finally close。Host timeout 后 SIGKILL，并等待 exit 后才返回顶层 timeout 与真实 step prefix；final 必须等 L0/L1/L2 完整有序且逐层深一致。
+版本、限额和完整 v1 expected-object 集合只存在于纯 `.mjs` protocol 常量模块；host 通过 `?modulePath` 获取固定 child asset，用 `spawn(process.execPath, [childEntry], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'pipe', 'ipc'], windowsHide: true, shell: false })` 启动。DB path/identity 只在 versioned ready 后经 IPC 发送，不进入 argv/env/stdout/stderr；child 不接受调用方 SQL/allowlist/policy。Child 用 `new Database(file, { readonly: true, fileMustExist: true })` 和 `query_only = ON`。L0 仅文件状态/大小桶/header write-version 与 sidecar 固定状态；L1 仅固定 expected/missing/extra object 类型计数与列数桶；L2 执行 `PRAGMA quick_check(20)` 和有界 FK check，映射固定类别并删除 rowid/fkid/原文。每步发 typed message，finally close。Host timeout 后 SIGKILL，并等待 `close` 确认进程终止和 stdio drain 后才返回顶层 timeout 与真实 step prefix；final 必须等 L0/L1/L2 完整有序且逐层深一致。
 
 WAL 契约采用 callback lease：`MigrationDbService` 存 databaseFile，仅在 writer open、未 closeRequested、DB/WAL/SHM 全部为 regular/non-symlink 时捕获三者 dev/ino 并同步增加 active lease；close 在 active lease 时只记 pending，最后 callback finally 才真实幂等关闭。Child 在 SQLite open 前后核对 identity；不一致则 L1/L2 固定 `identity_mismatch` 且无 data。无 lease（initialize 失败、engine closed、sidecar 不安全）只运行 L0，绝不 construct SQLite，completion 固定 `lease_unavailable`。此契约消除 app 自身 close/checkpoint TOCTOU；不防外部恶意原子替换，检测到 identity 漂移即丢弃 L1/L2。诊断前后 main DB 与 WAL 的 existence/size/hash/mtime 必须不变；已有 SHM 仅保证仍为 regular file，允许 SQLite 更新协调缓存的 hash/mtime，不声明 forensic zero-mutation。
 
@@ -269,7 +269,7 @@ done
 pnpm exec electron-vite build
 ```
 
-预期：三次 PASS，无 native crash；真实 native-query fixture 在短 grace 内被 SIGKILL 并释放 WAL reader。若子进程 kill 后不产生 exit，停止实施并报告 blocker；不得假装释放 lease，也不得把查询搬回 Main 线程。
+预期：三次 PASS，无 native crash；真实 native-query fixture 在短 grace 内被 SIGKILL 并释放 WAL reader。若子进程 kill 后不产生 close，停止实施并报告 blocker；不得假装释放 lease，也不得把查询搬回 Main 线程。
 
 - [ ] **步骤 5：提交**
 

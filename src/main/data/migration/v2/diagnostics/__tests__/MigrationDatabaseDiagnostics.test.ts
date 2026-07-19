@@ -134,8 +134,8 @@ function emitAllSteps(child: FakeChild, result: MigrationDatabaseCompletedDiagno
   emitMessage(child, { type: 'step', step: result.l2 })
 }
 
-function emitExit(child: FakeChild, code: number | null = 0, signal: NodeJS.Signals | null = null): void {
-  child.emit('exit', code, signal)
+function emitClose(child: FakeChild, code: number | null = 0, signal: NodeJS.Signals | null = null): void {
+  child.emit('close', code, signal)
 }
 
 async function flushPromises(): Promise<void> {
@@ -185,11 +185,11 @@ describe('MigrationDatabaseDiagnostics', () => {
     const result = makeResult()
     emitAllSteps(child, result)
     emitMessage(child, { type: 'result', result })
-    emitExit(child)
+    emitClose(child)
     await expect(inspection).resolves.toEqual(result)
   })
 
-  it('waits for a clean child exit after a complete ordered and identical final result', async () => {
+  it('waits for a clean child close after a complete ordered and identical final result', async () => {
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
     let settled = false
     const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
@@ -206,9 +206,38 @@ describe('MigrationDatabaseDiagnostics', () => {
     expect(settled).toBe(false)
     expect(child.kill).not.toHaveBeenCalled()
 
-    emitExit(child)
+    emitClose(child)
     await expect(inspection).resolves.toEqual(result)
     expect(child.unref).toHaveBeenCalledOnce()
+  })
+
+  it('settles a final exactly once when close repeats and a captured error handler arrives late', async () => {
+    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
+    let settlementCount = 0
+    const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
+      settlementCount += 1
+      return result
+    })
+    const child = children[0]
+    const lateErrorHandler = child.listeners('error')[0] as ((error: Error) => void) | undefined
+    if (lateErrorHandler === undefined) throw new Error('Expected an error handler')
+    const result = makeResult()
+
+    emitReady(child)
+    emitAllSteps(child, result)
+    emitMessage(child, { type: 'result', result })
+    emitClose(child)
+    emitClose(child, 9)
+    lateErrorHandler(new Error('late-error-secret'))
+
+    await expect(inspection).resolves.toEqual(result)
+    await flushPromises()
+    expect(settlementCount).toBe(1)
+    expect(child.kill).not.toHaveBeenCalled()
+    expect(child.listenerCount('message')).toBe(0)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+    expect(child.stderr.listenerCount('data')).toBe(0)
   })
 
   it.each([
@@ -218,7 +247,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     },
     { caseName: 'unknown object', makeLateMessage: () => ({ type: 'unknown' }) },
     { caseName: 'arbitrary value', makeLateMessage: () => 'unexpected-after-final' }
-  ])('rejects a $caseName received after final but before exit', async ({ makeLateMessage }) => {
+  ])('rejects a $caseName received after final but before close', async ({ makeLateMessage }) => {
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
     let settled = false
     const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
@@ -236,7 +265,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
     await flushPromises()
     expect(settled).toBe(false)
-    emitExit(child, null, 'SIGKILL')
+    emitClose(child, null, 'SIGKILL')
 
     const result = await inspection
     expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
@@ -245,7 +274,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     expect(result.l2).toEqual(completed.l2)
   })
 
-  it('times out and kills a child that sends a complete final result but never exits', async () => {
+  it('times out and kills a child that sends a complete final result but never closes', async () => {
     vi.useFakeTimers()
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild, timeoutMs: 25 })
     let settled = false
@@ -263,7 +292,7 @@ describe('MigrationDatabaseDiagnostics', () => {
 
     expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
     expect(settled).toBe(false)
-    emitExit(child, null, 'SIGKILL')
+    emitClose(child, null, 'SIGKILL')
 
     const result = await inspection
     expect(result.completion).toEqual({ status: 'timed_out', code: 'process_timeout' })
@@ -281,7 +310,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     emitReady(child)
     expect(child.send.mock.calls[0][0]).toEqual({ mode: 'l0_only', databaseFile: '/private/database.sqlite' })
     emitMessage(child, { type: 'step', step: l0 })
-    emitExit(child)
+    emitClose(child)
 
     await expect(inspection).resolves.toEqual({
       version: 1,
@@ -291,7 +320,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     })
   })
 
-  it('rejects final-before-steps and waits for the killed child to exit', async () => {
+  it('rejects final-before-steps and waits for the killed child to close', async () => {
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
     let settled = false
     const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
@@ -306,7 +335,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     await flushPromises()
     expect(settled).toBe(false)
 
-    emitExit(child, null, 'SIGKILL')
+    emitClose(child, null, 'SIGKILL')
     const result = await inspection
     expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
     expect(result).not.toHaveProperty('l0')
@@ -322,7 +351,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     emitMessage(child, { type: 'step', step: completed.l0 })
     emitMessage(child, { type: 'step', step: completed.l1 })
     emitMessage(child, { type: 'result', result: completed })
-    emitExit(child, null, 'SIGKILL')
+    emitClose(child, null, 'SIGKILL')
 
     const result = await inspection
     expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
@@ -344,7 +373,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     emitReady(child)
     emitAllSteps(child, completed)
     emitMessage(child, { type: 'result', result: finalResult })
-    emitExit(child, null, 'SIGKILL')
+    emitClose(child, null, 'SIGKILL')
 
     const result = await inspection
     expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
@@ -353,7 +382,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     expect(result.l2).toEqual(completed.l2)
   })
 
-  it('SIGKILLs on timeout and does not resolve or release its caller before exit', async () => {
+  it('SIGKILLs on timeout and does not resolve or release its caller before close', async () => {
     vi.useFakeTimers()
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild, timeoutMs: 25 })
     let settled = false
@@ -371,7 +400,7 @@ describe('MigrationDatabaseDiagnostics', () => {
 
     expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
     expect(settled).toBe(false)
-    emitExit(child, null, 'SIGKILL')
+    emitClose(child, null, 'SIGKILL')
 
     const result = await inspection
     expect(result.completion).toEqual({ status: 'timed_out', code: 'process_timeout' })
@@ -380,7 +409,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     expect(result).not.toHaveProperty('l2')
   })
 
-  it('contains kill throws and still waits for a later observed exit', async () => {
+  it('contains kill throws and still waits for a later observed close', async () => {
     vi.useFakeTimers()
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild, timeoutMs: 25 })
     let settled = false
@@ -396,7 +425,7 @@ describe('MigrationDatabaseDiagnostics', () => {
     emitReady(child)
     await vi.advanceTimersByTimeAsync(25)
     expect(settled).toBe(false)
-    emitExit(child, null, 'SIGKILL')
+    emitClose(child, null, 'SIGKILL')
 
     await expect(inspection).resolves.toMatchObject({
       completion: { status: 'timed_out', code: 'process_timeout' }
@@ -418,7 +447,7 @@ describe('MigrationDatabaseDiagnostics', () => {
       emitMessage(child, { type: 'step', step: l0 })
       fail(child)
       expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
-      emitExit(child, null, 'SIGKILL')
+      emitClose(child, -2, null)
 
       const result = await inspection
       expect(result.completion).toEqual({ status: 'failed', code: 'process_error' })
@@ -430,7 +459,7 @@ describe('MigrationDatabaseDiagnostics', () => {
   it.each([
     { code: 9, expected: 'process_exit' as const },
     { code: 0, expected: 'process_no_result' as const }
-  ])('maps an unprompted exit code $code to $expected without killing again', async ({ code, expected }) => {
+  ])('maps an unprompted close code $code to $expected without killing again', async ({ code, expected }) => {
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
     const inspection = diagnostics.inspectWithLease(makeLease())
     const child = children[0]
@@ -438,7 +467,7 @@ describe('MigrationDatabaseDiagnostics', () => {
 
     emitReady(child)
     emitMessage(child, { type: 'step', step: l0 })
-    emitExit(child, code)
+    emitClose(child, code)
 
     const result = await inspection
     expect(result.completion).toEqual({ status: 'failed', code: expected })
@@ -459,7 +488,7 @@ describe('MigrationDatabaseDiagnostics', () => {
       type: 'result',
       result: { ...completed, payload: 'x'.repeat(MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES + 1) }
     })
-    emitExit(child, null, 'SIGKILL')
+    emitClose(child, null, 'SIGKILL')
 
     const result = await inspection
     expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
@@ -469,10 +498,10 @@ describe('MigrationDatabaseDiagnostics', () => {
     expect(JSON.stringify(result)).not.toContain('stderr-secret-canary')
     expect(child.listenerCount('message')).toBe(0)
     expect(child.listenerCount('error')).toBe(0)
-    expect(child.listenerCount('exit')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
     expect(child.stderr.listenerCount('data')).toBe(0)
     child.emit('message', { rawError: 'late-secret' })
-    emitExit(child, 8)
+    emitClose(child, 8)
     expect(child.kill).toHaveBeenCalledOnce()
   })
 
@@ -503,8 +532,8 @@ describe('MigrationDatabaseDiagnostics', () => {
     emitMessage(firstChild, { type: 'step', step: l0 })
     firstChild.emit('error', new Error('first failed'))
     secondChild.emit('error', new Error('second failed'))
-    emitExit(firstChild, null, 'SIGKILL')
-    emitExit(secondChild, null, 'SIGKILL')
+    emitClose(firstChild, null, 'SIGKILL')
+    emitClose(secondChild, null, 'SIGKILL')
 
     const [firstResult, secondResult] = await Promise.all([first, second])
     expect(firstResult.l0).toEqual(l0)

@@ -79,7 +79,7 @@ Migration diagnostics will follow this pattern but remain a separate implementat
 
 ### 5.3 Killable process isolation
 
-`worker_threads.Worker.terminate()` cannot interrupt a synchronous native `better-sqlite3` call: it waits for the native query to return. Database diagnostics therefore run in a dedicated child-process asset imported through Electron Vite's `?modulePath`. The host launches the fixed asset with the Electron executable in Node mode, sends the database path and fixed file identities over IPC only after a versioned `ready` message, and never places them in argv, environment variables, stdout, or stderr. A hard timeout sends `SIGKILL`, then keeps the database lease and waits for the real `exit` event before returning. The child must not instantiate `LoggerService`, use `console`, or launch descendants.
+`worker_threads.Worker.terminate()` cannot interrupt a synchronous native `better-sqlite3` call: it waits for the native query to return. Database diagnostics therefore run in a dedicated child-process asset imported through Electron Vite's `?modulePath`. The host launches the fixed asset with the Electron executable in Node mode, sends the database path and fixed file identities over IPC only after a versioned `ready` message, and never places them in argv, environment variables, stdout, or stderr. A hard timeout sends `SIGKILL`, then keeps the database lease until the real `close` event confirms process termination and stdio drain. `close`, rather than `exit`, is also required because an asynchronous spawn failure emits `error` followed by `close` without `exit`. The child must not instantiate `LoggerService`, use `console`, or launch descendants.
 
 The main build uses one Rollup input for `main.ts`, explicitly retains CJS output, and emits the child as a separate hashed asset. A main-only smoke build reuses the production main config, writes to a fresh temporary output directory, resolves the unique child asset reference from emitted `main.js`, and scans that referenced artifact. `better-sqlite3` remains external in that child; Zod, logger code, lifecycle services, and the main-process service graph must not enter its bundle.
 
@@ -132,7 +132,7 @@ No single implementation is safe for arbitrary application logs. Existing tests 
 - Opens the target database read-only.
 - Runs independent bounded diagnostic steps.
 - Returns a typed result only.
-- Is killed with `SIGKILL` after a hard timeout; the host waits for process exit.
+- Is killed with `SIGKILL` after a hard timeout; the host waits for process close.
 - Cannot prevent the rest of the bundle from being saved.
 
 #### MigrationDbService diagnostics lease
@@ -140,7 +140,7 @@ No single implementation is safe for arbitrary application logs. Existing tests 
 - Owns the migration writer and database path.
 - Grants full L1/L2 diagnostics only through a callback-scoped opaque lease.
 - Fixes the database, WAL, and SHM device/inode identities for the child.
-- Defers an idempotent `close()` until the last diagnostics callback observes child exit.
+- Defers an idempotent `close()` until the last diagnostics callback observes child close.
 - Returns unavailable instead of exposing the SQLite connection or a manual release handle.
 
 #### MigrationLogCollector
@@ -286,7 +286,7 @@ No absolute path or raw header bytes are included.
 L1/L2 remain available for a live WAL database only while the app's migration writer grants an explicit callback lease:
 
 - `MigrationDbService` grants the lease only while its SQLite writer is open, close has not been requested, and the database, `-wal`, and `-shm` are all regular non-symlink files;
-- the lease records device/inode identities for all three files, increments an active count synchronously, and retains the writer from child spawn through normal exit or hard-kill exit;
+- the lease records device/inode identities for all three files, increments an active count synchronously, and retains the writer from child spawn through normal close or hard-kill close;
 - `close()` becomes an idempotent deferred close while a lease is active; the last callback's `finally` performs the pending close;
 - the child checks all three identities immediately before and immediately after its read-only SQLite open. A mismatch returns fixed `identity_mismatch` L1/L2 failures without diagnostic data;
 - if no safe lease is available because initialization failed, the engine is closed, close was requested, or sidecars are incomplete/unsafe, diagnostics run L0 only, never construct SQLite, and return fixed `lease_unavailable` completion;
@@ -314,7 +314,7 @@ After a read-only open:
 - known application object identifiers may be retained, while unknown identifiers map to `unknown`;
 - output count and byte caps applied.
 
-Child-produced levels report `success`, `failed`, or `truncated`. The host separately reports overall `completed`, `failed`, or `timed_out` completion and preserves only the real ordered level prefix received before a terminal process failure; it does not fabricate unfinished levels. A final message is accepted only after L0, L1, and L2 have arrived in order and all three are deeply identical to the saved prefix. After that final message and before process exit, any additional IPC message—including a duplicate step, an unknown object, or an arbitrary value—is a `protocol_error`: the host sends `SIGKILL` once and retains the lease until the real exit event.
+Child-produced levels report `success`, `failed`, or `truncated`. The host separately reports overall `completed`, `failed`, or `timed_out` completion and preserves only the real ordered level prefix received before a terminal process failure; it does not fabricate unfinished levels. A final message is accepted only after L0, L1, and L2 have arrived in order and all three are deeply identical to the saved prefix. After that final message and before process close, any additional IPC message—including a duplicate step, an unknown object, or an arbitrary value—is a `protocol_error`: the host sends `SIGKILL` once and retains the lease until the real close event.
 
 ### 9.5 Explicit exclusions
 
@@ -327,7 +327,7 @@ The diagnostic child does not execute:
 - default full `integrity_check`;
 - repair, mutation, checkpoint, vacuum, or attachment copying.
 
-SQLite documents `quick_check` as faster than `integrity_check`, with a result-row limit rather than a time limit. The process timeout remains necessary. On expiry the host sends `SIGKILL` and does not return, close the writer, or release its WAL lease until the child emits `exit`:
+SQLite documents `quick_check` as faster than `integrity_check`, with a result-row limit rather than a time limit. The process timeout remains necessary. On expiry the host sends `SIGKILL` and does not return, close the writer, or release its WAL lease until the child emits `close` after process termination and stdio drain:
 
 - <https://www.sqlite.org/pragma.html#pragma_integrity_check>
 - <https://www.sqlite.org/fileformat.html#the_database_header>
@@ -530,7 +530,8 @@ Use `setupTestDatabase()` with production migrations for components that read SQ
 - truncated/corrupted file copy;
 - unreadable file;
 - per-step output truncation;
-- confirmed in-flight native query, hard `SIGKILL`, observed exit, and subsequent writer commit/checkpoint/integrity;
+- asynchronous spawn `error` followed by `close` without `exit`, bounded `process_error`, deferred writer close, and listener cleanup;
+- confirmed in-flight native query, hard `SIGKILL`, observed exit and close, and subsequent writer commit/checkpoint/integrity;
 - callback lease identity capture, L0-after-close race, deferred close, and no-lease L0-only fallback;
 - child input/ready/final protocol closure and complete-prefix deep consistency;
 - partial step failure while the bundle still succeeds.
