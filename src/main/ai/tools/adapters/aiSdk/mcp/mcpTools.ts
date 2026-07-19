@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { isFunctionCallToolNameForServer } from '@shared/ai/tools/mcpToolName'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
@@ -156,4 +156,23 @@ export async function syncMcpToolsToRegistry(
       reg.deregister(entry.name)
     }
   }
+}
+
+/**
+ * Resolve MCP tool IDs from all globally active servers — used as a fallback
+ * when no assistant is configured (e.g. Quick Assist with no `assistantId`).
+ * Respects per-server tool-disable policies.
+ */
+export async function resolveGlobalMcpToolIds(): Promise<string[]> {
+  const { items: activeServers } = mcpServerService.list({ isActive: true })
+  if (activeServers.length === 0) return []
+
+  const results = await Promise.allSettled(
+    activeServers.map(async (server) => {
+      const tools = application.get('McpCatalogService').listTools(server.id)
+      return tools.filter((tool) => !isMcpToolDisabledBySource(server, tool)).map((tool) => tool.id)
+    })
+  )
+
+  return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
 }
