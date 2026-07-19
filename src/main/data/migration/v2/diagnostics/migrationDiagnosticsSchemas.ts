@@ -12,6 +12,8 @@ export const MIGRATION_ERROR_CODES = [
   'sqlite_schema',
   'source_parse',
   'process_timeout',
+  'renderer_process_gone',
+  'renderer_unresponsive',
   'archive_write'
 ] as const
 

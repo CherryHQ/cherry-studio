@@ -190,6 +190,27 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     }
   }
 
+  const finishActiveRendererFailureAttempt = async (reason: MigrationRendererFailureReason): Promise<void> => {
+    try {
+      const snapshot = await diagnosticsCoordinator.snapshot()
+      if (snapshot.attempts.at(-1)?.outcome !== 'in_progress') {
+        attemptActive = false
+        return
+      }
+      diagnosticsCoordinator.finishAttempt('failed', {
+        scope: 'gate',
+        phase: 'finalize',
+        state: 'failed',
+        category: 'process',
+        code: reason
+      })
+    } catch {
+      logger.error('Failed to finish renderer failure diagnostic attempt')
+    } finally {
+      attemptActive = false
+    }
+  }
+
   let resolved: ReturnType<typeof resolveMigrationPaths>
   try {
     resolved = resolveMigrationPaths()
@@ -305,7 +326,21 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     return applyNativeDecision(decision)
   }
 
-  const onRendererFailure = async (reason: MigrationRendererFailureReason): Promise<void> => {
+  const onRendererFailure = async (
+    reason: MigrationRendererFailureReason,
+    writesSettled: Promise<void>
+  ): Promise<void> => {
+    // This runs synchronously before the manager starts its write waiter. If an
+    // engine write is active, its own terminal event will therefore remain last.
+    recordEvent({
+      scope: 'gate',
+      phase: 'finalize',
+      state: 'failed',
+      category: 'process',
+      code: reason
+    })
+    await writesSettled
+    await finishActiveRendererFailureAttempt(reason)
     const decision = await presentFailure(reason)
     applyNativeDecision(decision)
   }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { migrationDiagnosticBundleEventSchema } from '../migrationDiagnosticBundleSchemas'
 import {
   MIGRATION_ERROR_CODES,
   migrationDiagnosticEventSchema,
@@ -77,9 +78,34 @@ describe('migrationDiagnosticEventSchema', () => {
       'sqlite_schema',
       'source_parse',
       'process_timeout',
+      'renderer_process_gone',
+      'renderer_unresponsive',
       'archive_write'
     ])
   })
+
+  it.each(['renderer_process_gone', 'renderer_unresponsive'] as const)(
+    'accepts the fixed %s process marker in journal and strict bundle schemas without raw details',
+    (code) => {
+      const marker = {
+        ...validEvent,
+        scope: 'gate',
+        phase: 'finalize',
+        category: 'process',
+        code
+      } as const
+      expect(migrationDiagnosticEventSchema.parse(marker)).toEqual(marker)
+
+      const { attemptId: _attemptId, ...bundleMarker } = marker
+      expect(migrationDiagnosticBundleEventSchema.parse(bundleMarker)).toEqual(bundleMarker)
+      expect(
+        migrationDiagnosticBundleEventSchema.safeParse({
+          ...bundleMarker,
+          details: { reason: 'crashed', path: '/Users/private', message: 'secret' }
+        }).success
+      ).toBe(false)
+    }
+  )
 
   it('uses fixed real insert fields for payload profiles', () => {
     expect(PAYLOAD_PROFILE_SLOTS).toEqual(

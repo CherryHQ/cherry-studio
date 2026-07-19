@@ -1,8 +1,19 @@
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 import { app, BrowserWindow } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MigrationWindowManager } from '../MigrationWindowManager'
+
+const platformState = vi.hoisted(() => ({ isDev: false, isMac: false }))
+
+vi.mock('@main/core/platform', () => ({
+  get isDev() {
+    return platformState.isDev
+  },
+  get isMac() {
+    return platformState.isMac
+  }
+}))
 
 type FakeWindow = ReturnType<typeof makeFakeWindow>
 
@@ -20,8 +31,8 @@ function makeFakeWindow() {
     // programmatic-close guard path actually run in tests (e.g. during confirmQuit()).
     close: vi.fn(() => handlers['close']?.({ preventDefault: vi.fn() })),
     isDestroyed: vi.fn(() => false),
-    loadURL: vi.fn(),
-    loadFile: vi.fn(),
+    loadURL: vi.fn().mockResolvedValue(undefined),
+    loadFile: vi.fn().mockResolvedValue(undefined),
     once: vi.fn(),
     on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       handlers[event] = cb
@@ -47,6 +58,10 @@ describe('MigrationWindowManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.unstubAllEnvs()
+    vi.stubEnv('ELECTRON_RENDERER_URL', '')
+    platformState.isDev = false
+    platformState.isMac = false
     fakeWindow = makeFakeWindow()
     vi.mocked(BrowserWindow).mockImplementation(() => fakeWindow as unknown as BrowserWindow)
     // The global electron mock's `app` has no `quit`; provide one to observe quit attempts.
@@ -54,6 +69,78 @@ describe('MigrationWindowManager', () => {
     ;(app as unknown as { quit: typeof quitMock }).quit = quitMock
     manager = new MigrationWindowManager()
     manager.create()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  describe('window load lifecycle', () => {
+    it('propagates a production loadFile rejection through waitForReady without an unhandled rejection', async () => {
+      const loadError = new Error('missing migration renderer asset')
+      fakeWindow.loadFile.mockReset().mockImplementation(() => Promise.reject(loadError))
+      manager = new MigrationWindowManager()
+
+      manager.create()
+
+      await expect(manager.waitForReady()).rejects.toBe(loadError)
+      expect(fakeWindow.loadFile).toHaveBeenCalledTimes(1)
+      expect(fakeWindow.loadURL).not.toHaveBeenCalled()
+      expect(fakeWindow.webContents.once).not.toHaveBeenCalled()
+    })
+
+    it('propagates a development loadURL rejection through waitForReady', async () => {
+      platformState.isDev = true
+      vi.stubEnv('ELECTRON_RENDERER_URL', 'http://127.0.0.1:5173')
+      const loadError = new Error('migration dev server unavailable')
+      fakeWindow.loadURL.mockReset().mockImplementation(() => Promise.reject(loadError))
+      fakeWindow.loadFile.mockClear()
+      manager = new MigrationWindowManager()
+
+      manager.create()
+
+      await expect(manager.waitForReady()).rejects.toBe(loadError)
+      expect(fakeWindow.loadURL).toHaveBeenCalledWith('http://127.0.0.1:5173/windows/migrationV2/index.html')
+      expect(fakeWindow.loadFile).not.toHaveBeenCalled()
+    })
+
+    it('waits only for the recreated window and ignores the old window load promise', async () => {
+      let rejectOld!: (error: Error) => void
+      const oldLoad = new Promise<void>((_resolve, reject) => {
+        rejectOld = reject
+      })
+      void oldLoad.catch(() => undefined)
+      fakeWindow.loadFile.mockReset().mockReturnValue(oldLoad)
+      manager = new MigrationWindowManager()
+      manager.create()
+
+      fakeWindow.emit('closed')
+
+      let resolveCurrent!: () => void
+      const currentLoad = new Promise<void>((resolve) => {
+        resolveCurrent = resolve
+      })
+      const currentWindow = makeFakeWindow()
+      currentWindow.loadFile.mockReset().mockReturnValue(currentLoad)
+      vi.mocked(BrowserWindow).mockImplementationOnce(() => currentWindow as unknown as BrowserWindow)
+      manager.create()
+
+      let readySettled = false
+      const ready = manager.waitForReady().then(() => {
+        readySettled = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(readySettled).toBe(false)
+
+      rejectOld(new Error('stale load failed'))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(readySettled).toBe(false)
+
+      resolveCurrent()
+      await ready
+      expect(readySettled).toBe(true)
+      expect(currentWindow.webContents.once).not.toHaveBeenCalled()
+    })
   })
 
   it('minimizes the current window', () => {
@@ -198,7 +285,7 @@ describe('MigrationWindowManager', () => {
       fakeWindow.webContents.emit('unresponsive')
       await vi.waitFor(() => expect(onRendererFailure).toHaveBeenCalledTimes(1))
 
-      expect(onRendererFailure).toHaveBeenCalledWith('renderer_process_gone')
+      expect(onRendererFailure).toHaveBeenCalledWith('renderer_process_gone', expect.any(Promise))
     })
 
     it('sets the single-flight guard before invoking a re-entrant native failure callback', async () => {
@@ -216,24 +303,52 @@ describe('MigrationWindowManager', () => {
       await vi.waitFor(() => expect(onRendererFailure).toHaveBeenCalledTimes(1))
     })
 
-    it('waits for the existing in-flight write seam before invoking the native failure callback', async () => {
+    it('invokes the native failure callback before starting the write waiter and passes its settlement promise', async () => {
       let releaseWrite!: () => void
       const pendingWrite = new Promise<void>((resolve) => {
         releaseWrite = resolve
       })
-      const waitForWrites = vi.fn(() => pendingWrite)
-      const onRendererFailure = vi.fn().mockResolvedValue(undefined)
+      const order: string[] = []
+      const waitForWrites = vi.fn(() => {
+        order.push('wait-started')
+        return pendingWrite
+      })
+      let receivedWritesSettled: Promise<void> | undefined
+      const onRendererFailure = vi.fn((_reason: string, writesSettled?: Promise<void>) => {
+        order.push('marker-recorded')
+        receivedWritesSettled = writesSettled
+        return writesSettled
+      })
       manager = new MigrationWindowManager()
       manager.setWriteWaiter(waitForWrites)
       manager.create({ onRendererFailure })
 
       fakeWindow.webContents.emit('unresponsive')
+      expect(onRendererFailure).toHaveBeenCalledTimes(1)
+      expect(receivedWritesSettled).toBeInstanceOf(Promise)
+      expect(order).toEqual(['marker-recorded'])
+
       await Promise.resolve()
       expect(waitForWrites).toHaveBeenCalledTimes(1)
-      expect(onRendererFailure).not.toHaveBeenCalled()
+      expect(order).toEqual(['marker-recorded', 'wait-started'])
 
       releaseWrite()
+      await receivedWritesSettled
+    })
+
+    it('keeps asynchronous crash and hang re-entry on the same marker callback', async () => {
+      const onRendererFailure = vi.fn(async () => {
+        await Promise.resolve()
+        fakeWindow.webContents.emit('unresponsive')
+      })
+      manager = new MigrationWindowManager()
+      manager.create({ onRendererFailure })
+
+      fakeWindow.webContents.emit('render-process-gone', {}, { reason: 'crashed', raw: 'secret-details' })
       await vi.waitFor(() => expect(onRendererFailure).toHaveBeenCalledTimes(1))
+
+      expect(onRendererFailure).toHaveBeenCalledWith('renderer_process_gone', expect.any(Promise))
+      expect(JSON.stringify(onRendererFailure.mock.calls)).not.toContain('secret-details')
     })
 
     it('clears a stale pending close when the stage leaves and re-enters the in-flow set', () => {
