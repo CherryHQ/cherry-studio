@@ -1,5 +1,6 @@
 import fs, {
   existsSync,
+  linkSync,
   lstatSync,
   mkdtempSync,
   readdirSync,
@@ -24,6 +25,7 @@ vi.mock('node:fs', async (importOriginal) => {
       writeSync: vi.fn(actual.writeSync),
       fsyncSync: vi.fn(actual.fsyncSync),
       closeSync: vi.fn(actual.closeSync),
+      linkSync: vi.fn(actual.linkSync),
       renameSync: vi.fn(actual.renameSync)
     }
   }
@@ -163,6 +165,29 @@ describe('corrupt quarantine', () => {
     expect(readFileSync(collision, 'utf8')).toBe('existing')
     expect(readFileSync(quarantineFile, 'utf8')).toBe('new-corrupt')
     expect(existsSync(journalFile())).toBe(false)
+  })
+
+  it('atomically skips a destination created immediately before the first quarantine claim', () => {
+    const firstCandidate = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json')
+    const laterCandidate = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100001Z.json')
+    const racerCanary = 'racer-canary-must-not-be-overwritten'
+    const corruptJournal = 'new-corrupt-journal'
+    vi.mocked(fs.linkSync).mockImplementationOnce((existingPath, newPath) => {
+      writeFileSync(newPath, racerCanary, { flag: 'wx' })
+      linkSync(existingPath, newPath)
+    })
+    writeFileSync(journalFile(), corruptJournal)
+
+    const result = quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now, platform: 'darwin' })
+
+    expect(result).toBe(true)
+    expect(vi.mocked(fs.linkSync)).toHaveBeenCalledTimes(2)
+    expect(readFileSync(firstCandidate, 'utf8')).toBe(racerCanary)
+    expect(readFileSync(laterCandidate, 'utf8')).toBe(corruptJournal)
+    expect(existsSync(journalFile())).toBe(false)
+    expect(JSON.stringify(result)).not.toContain(testDir)
+    expect(JSON.stringify(result)).not.toContain(racerCanary)
+    expect(JSON.stringify(result)).not.toContain(corruptJournal)
   })
 
   it('keeps at most two matching regular copies and evicts the oldest when adding a third', () => {

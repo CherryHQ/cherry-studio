@@ -6,8 +6,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { MigrationPaths } from '../../core/MigrationPaths'
 import { MigrationDiagnosticsCoordinator } from '../MigrationDiagnosticsCoordinator'
-import { readMigrationDiagnosticsJournal, writeMigrationDiagnosticsJournal } from '../migrationDiagnosticsJournal'
-import type { MigrationDiagnosticEventInput, MigrationDiagnosticsSession } from '../migrationDiagnosticsSchemas'
+import {
+  MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES,
+  readMigrationDiagnosticsJournal,
+  writeMigrationDiagnosticsJournal
+} from '../migrationDiagnosticsJournal'
+import {
+  MIGRATION_DIAGNOSTICS_MAX_EVENTS,
+  type MigrationDiagnosticEventInput,
+  type MigrationDiagnosticsSession,
+  migrationDiagnosticsSessionSchema,
+  PAYLOAD_PROFILE_SLOTS,
+  type PayloadLengthProfile
+} from '../migrationDiagnosticsSchemas'
 
 let testDir = ''
 let now = new Date('2026-07-19T10:00:00.000Z')
@@ -51,6 +62,23 @@ function eventInput(overrides: Partial<MigrationDiagnosticEventInput> = {}): Mig
     code: 'unknown',
     ...overrides
   }
+}
+
+const MAXIMUM_SHAPE_PAYLOAD_PROFILE: PayloadLengthProfile = {
+  target: 'knowledge_vector_status',
+  rowCountBucket: '101-1000',
+  profiledByteLengthBucket: '65537-262144',
+  maxProfiledRowByteLengthBucket: '65537-262144',
+  traversal: 'truncated',
+  slots: Array.from({ length: 64 }, (_, index) => ({
+    slot: PAYLOAD_PROFILE_SLOTS[index % PAYLOAD_PROFILE_SLOTS.length] ?? 'value',
+    kind: 'json' as const,
+    totalSerializedByteLengthBucket: '65537-262144' as const,
+    maxSerializedByteLengthBucket: '65537-262144' as const,
+    maxStringLeafCharLengthBucket: '65537-262144' as const,
+    maxStringLeafByteLengthBucket: '65537-262144' as const,
+    traversal: 'truncated' as const
+  }))
 }
 
 function oldSession(overrides: Partial<MigrationDiagnosticsSession> = {}): MigrationDiagnosticsSession {
@@ -292,6 +320,41 @@ describe('MigrationDiagnosticsCoordinator attempts and retention', () => {
     expect(events.map((event) => event.sequence)).toEqual(
       [...events.map((event) => event.sequence)].sort((left, right) => left - right)
     )
+  })
+
+  it('independently enforces the 1 MiB limit for maximum-shape safe profiles', async () => {
+    expect(
+      Buffer.byteLength(JSON.stringify(MAXIMUM_SHAPE_PAYLOAD_PROFILE), 'utf8') * MIGRATION_DIAGNOSTICS_MAX_EVENTS
+    ).toBeGreaterThan(MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES)
+
+    const subject = coordinator()
+    for (let attemptIndex = 0; attemptIndex < 5; attemptIndex += 1) {
+      subject.beginAttempt(attemptIndex === 0 ? 'initial' : 'manual_retry')
+      for (let eventIndex = 0; eventIndex < 45; eventIndex += 1) {
+        subject.recordEvent(eventInput({ payloadProfile: MAXIMUM_SHAPE_PAYLOAD_PROFILE }))
+      }
+      subject.finishAttempt('failed', eventInput({ scope: 'gate', phase: 'finalize', state: 'failed' }))
+    }
+
+    const snapshot = await subject.snapshot()
+    const events = snapshot.attempts.flatMap((attempt) => attempt.events)
+    const sequences = events.map((event) => event.sequence)
+
+    expect(Buffer.byteLength(JSON.stringify(snapshot), 'utf8')).toBeLessThanOrEqual(
+      MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES
+    )
+    expect(snapshot.attempts).toHaveLength(5)
+    expect(events.length).toBeLessThanOrEqual(200)
+    expect(sequences).not.toContain(1)
+    expect(sequences).toContain(229)
+    expect(sequences.some((sequence, index) => index > 0 && sequence > sequences[index - 1] + 1)).toBe(true)
+    expect(sequences.every((sequence, index) => index === 0 || sequence > sequences[index - 1])).toBe(true)
+    expect(snapshot.attempts.map((attempt) => attempt.events.at(-1)?.sequence)).toEqual([46, 92, 138, 184, 230])
+    for (const attempt of snapshot.attempts) {
+      expect(attempt.events.at(-1)?.state).toBe('failed')
+      expect(attempt.events.at(-1)?.phase).toBe('finalize')
+    }
+    expect(migrationDiagnosticsSessionSchema.safeParse(snapshot).success).toBe(true)
   })
 })
 

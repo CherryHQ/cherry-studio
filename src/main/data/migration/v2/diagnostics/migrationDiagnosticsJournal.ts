@@ -187,22 +187,11 @@ function quarantinePattern(journalFile: string): RegExp {
   return new RegExp(`^${escapedBase.replace(/\\\.json$/, '')}\\.corrupt\\.${UTC_BASIC_TIMESTAMP_PATTERN}\\.json$`)
 }
 
-function quarantineCandidate(journalFile: string, now: Date): string {
+function quarantineCandidate(journalFile: string, now: Date, offsetSeconds: number): string {
   const directory = path.dirname(journalFile)
   const base = path.basename(journalFile, '.json')
-  for (let offsetSeconds = 0; offsetSeconds < 86_400; offsetSeconds += 1) {
-    const timestamp = formatUtcBasicTimestamp(new Date(now.getTime() + offsetSeconds * 1_000))
-    const candidate = path.join(directory, `${base}.corrupt.${timestamp}.json`)
-    try {
-      fs.lstatSync(candidate)
-    } catch (error) {
-      if (isErrno(error, 'ENOENT')) {
-        return candidate
-      }
-      throw error
-    }
-  }
-  throw new Error('No migration diagnostics quarantine filename is available')
+  const timestamp = formatUtcBasicTimestamp(new Date(now.getTime() + offsetSeconds * 1_000))
+  return path.join(directory, `${base}.corrupt.${timestamp}.json`)
 }
 
 export function garbageCollectMigrationDiagnosticsQuarantines(
@@ -265,8 +254,9 @@ export function quarantineCorruptMigrationDiagnosticsJournal(
   journalFile: string,
   options: QuarantineOperationOptions = {}
 ): boolean {
+  let stats: fs.Stats
   try {
-    fs.lstatSync(journalFile)
+    stats = fs.lstatSync(journalFile)
   } catch (error) {
     if (isErrno(error, 'ENOENT')) {
       return false
@@ -274,11 +264,34 @@ export function quarantineCorruptMigrationDiagnosticsJournal(
     throw error
   }
 
-  const quarantinedFile = quarantineCandidate(journalFile, options.now ?? new Date())
-  fs.renameSync(journalFile, quarantinedFile)
-  fsyncDirectory(path.dirname(journalFile), options.platform)
-  garbageCollectMigrationDiagnosticsQuarantines(journalFile, options)
-  return true
+  if (!stats.isFile()) {
+    return false
+  }
+
+  const directory = path.dirname(journalFile)
+  const now = options.now ?? new Date()
+  for (let offsetSeconds = 0; offsetSeconds < 86_400; offsetSeconds += 1) {
+    const quarantinedFile = quarantineCandidate(journalFile, now, offsetSeconds)
+    try {
+      fs.linkSync(journalFile, quarantinedFile)
+    } catch (error) {
+      if (isErrno(error, 'EEXIST')) {
+        continue
+      }
+      if (isErrno(error, 'ENOENT')) {
+        return false
+      }
+      throw error
+    }
+
+    fsyncDirectory(directory, options.platform)
+    unlinkIfPresent(journalFile)
+    fsyncDirectory(directory, options.platform)
+    garbageCollectMigrationDiagnosticsQuarantines(journalFile, options)
+    return true
+  }
+
+  throw new Error('No migration diagnostics quarantine filename is available')
 }
 
 export function cleanupMigrationDiagnosticsJournal(journalFile: string, options: JournalOperationOptions = {}): void {
