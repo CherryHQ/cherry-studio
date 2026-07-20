@@ -21,11 +21,6 @@ const __dirname = path.dirname(__filename)
 const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
-const COMPATIBILITY_SEMANTIC_LINES = [
-  '--color-primary-soft: color-mix(in srgb, var(--primary) 60%, transparent);',
-  '--color-primary-mute: color-mix(in srgb, var(--primary) 30%, transparent);'
-]
-
 const RADIUS_LINES = [
   '--radius-4xs: var(--cs-radius-4xs);',
   '--radius-3xs: var(--cs-radius-3xs);',
@@ -132,10 +127,7 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
     buildSection('Compatibility: Primitive Colors', toPrefixedMappings(inputs.primitiveColors, 'color-')),
     buildSection('Canonical Shadcn Colors', toColorMappings(SHADCN_COLOR_TOKENS)),
     buildSection('Cherry Studio Product Colors', toColorMappings(CHERRY_PRODUCT_COLOR_TOKENS, '--cs-')),
-    buildSection('Compatibility: Existing Semantic Colors', [
-      ...COMPATIBILITY_SEMANTIC_LINES,
-      ...toPrefixedMappings(compatibilitySemanticTokens, 'color-')
-    ]),
+    buildSection('Compatibility: Existing Semantic Colors', toPrefixedMappings(compatibilitySemanticTokens, 'color-')),
     buildSection('Compatibility: Existing Status Colors', toPrefixedMappings(compatibilityStatusTokens, 'color-')),
     buildSection('Spacing', SPACING_COMMENT_LINES),
     buildSection('Radius', RADIUS_LINES),

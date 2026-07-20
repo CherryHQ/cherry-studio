@@ -30,13 +30,13 @@
 .markdown h1 {
   margin-top: 0;
   font-size: 2em;
-  border-bottom: 0.5px solid var(--color-border);
+  border-bottom: 0.5px solid var(--border);
   padding-bottom: 0.3em;
 }
 
 .markdown h2 {
   font-size: 1.5em;
-  border-bottom: 0.5px solid var(--color-border);
+  border-bottom: 0.5px solid var(--border);
   padding-bottom: 0.3em;
 }
 
@@ -101,7 +101,8 @@
 }
 
 .markdown li::marker {
-  color: var(--color-foreground-muted);
+  /* 90% foreground × 4/9 preserves the previous 40% muted ink. */
+  color: color-mix(in srgb, var(--foreground) 44.4444%, transparent);
 }
 
 .markdown li > ul,
@@ -111,7 +112,7 @@
 
 .markdown hr {
   border: none;
-  border-top: 0.5px solid var(--color-border);
+  border-top: 0.5px solid var(--border);
   margin: 20px 0;
 }
 
@@ -178,7 +179,7 @@
   margin: 1.5em 0;
   padding: 1em 1.5em;
   background-color: var(--markdown-background-soft);
-  border-left: 4px solid var(--color-primary);
+  border-left: 4px solid var(--primary);
   border-radius: 0 8px 8px 0;
   font-style: italic;
   position: relative;
@@ -192,14 +193,14 @@
   border-radius: var(--table-border-radius);
   overflow: hidden;
   border-collapse: separate;
-  border: 0.5px solid var(--color-border);
+  border: 0.5px solid var(--border);
   border-spacing: 0;
 }
 
 .markdown th,
 .markdown td {
-  border-right: 0.5px solid var(--color-border);
-  border-bottom: 0.5px solid var(--color-border);
+  border-right: 0.5px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
   padding: 0.5em;
 }
 
@@ -230,7 +231,7 @@
 
 .markdown a,
 .markdown .link {
-  color: var(--color-primary);
+  color: var(--primary);
   text-decoration: none;
   cursor: pointer;
 }
@@ -297,7 +298,7 @@
   vertical-align: super;
   line-height: 0;
   margin: 0 2px;
-  color: var(--color-primary);
+  color: var(--primary);
   text-decoration: none;
 }
 
@@ -321,7 +322,7 @@
 }
 
 .footnotes a {
-  color: var(--color-primary);
+  color: var(--primary);
 }
 
 .footnotes ol {
@@ -349,7 +350,7 @@
   vertical-align: super;
   line-height: 0;
   margin-left: 5px;
-  color: var(--color-primary);
+  color: var(--primary);
   text-decoration: none;
 }
 

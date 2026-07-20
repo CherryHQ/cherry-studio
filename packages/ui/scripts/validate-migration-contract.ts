@@ -42,7 +42,10 @@ export interface MigrationContractSources {
   migrationRegistry: string
   legacyAliases: string
   rendererTheme: string
+  rendererStyles: Record<string, string>
 }
+
+type StyleSourceEntry = readonly [fileName: string, source: string]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -100,6 +103,22 @@ function parseMigrationRegistry(source: string): MigrationRegistry {
 
 function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '')
+}
+
+async function loadStyleSourceEntries(directory: string, repositoryRoot: string): Promise<StyleSourceEntry[]> {
+  const entries = await fs.readdir(directory, { withFileTypes: true })
+  const nestedEntries = await Promise.all(
+    entries.map(async (entry): Promise<StyleSourceEntry[]> => {
+      const entryPath = path.join(directory, entry.name)
+
+      if (entry.isDirectory()) return loadStyleSourceEntries(entryPath, repositoryRoot)
+      if (!entry.isFile() || !entry.name.endsWith('.css')) return []
+
+      return [[path.relative(repositoryRoot, entryPath), await fs.readFile(entryPath, 'utf8')]]
+    })
+  )
+
+  return nestedEntries.flat()
 }
 
 export function validateMigrationContractSources(sources: MigrationContractSources): void {
@@ -164,12 +183,22 @@ export function validateMigrationContractSources(sources: MigrationContractSourc
   if (/@theme(?:\s+inline)?\s*\{/.test(rendererTheme)) {
     throw new Error('[theme-contract] renderer theme must use the shared generated Tailwind adapter')
   }
+
+  for (const [fileName, source] of Object.entries(sources.rendererStyles)) {
+    const adapterVariable = stripComments(source).match(/--color-[a-z0-9-]+/)?.[0]
+
+    if (adapterVariable) {
+      throw new Error(
+        `[theme-contract] renderer stylesheet ${fileName} cannot use Tailwind adapter variable ${adapterVariable}; use runtime semantic variables directly`
+      )
+    }
+  }
 }
 
 export async function loadMigrationContractSources(
   repositoryRoot = DEFAULT_REPOSITORY_ROOT
 ): Promise<MigrationContractSources> {
-  const [migrationRegistry, legacyAliases, rendererTheme] = await Promise.all([
+  const [migrationRegistry, legacyAliases, rendererTheme, rendererStyleEntries] = await Promise.all([
     fs.readFile(path.join(repositoryRoot, 'packages/ui/src/styles/migrations/shadcn-v2.json'), 'utf8'),
     fs
       .readFile(path.join(repositoryRoot, 'src/renderer/assets/styles/legacy-vars.css'), 'utf8')
@@ -177,10 +206,16 @@ export async function loadMigrationContractSources(
         if (error.code === 'ENOENT') return ''
         throw error
       }),
-    fs.readFile(path.join(repositoryRoot, 'src/renderer/assets/styles/tailwind.css'), 'utf8')
+    fs.readFile(path.join(repositoryRoot, 'src/renderer/assets/styles/tailwind.css'), 'utf8'),
+    loadStyleSourceEntries(path.join(repositoryRoot, 'src/renderer'), repositoryRoot)
   ])
 
-  return { migrationRegistry, legacyAliases, rendererTheme }
+  return {
+    migrationRegistry,
+    legacyAliases,
+    rendererTheme,
+    rendererStyles: Object.fromEntries(rendererStyleEntries)
+  }
 }
 
 export async function validateMigrationContract(repositoryRoot = DEFAULT_REPOSITORY_ROOT): Promise<void> {

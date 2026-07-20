@@ -76,7 +76,7 @@ This contract includes:
 5. an explicit Tailwind CSS v4 `@theme inline` adapter;
 6. a machine-readable registry and syntax-aware exact-migration codemod;
 7. owner-local values for historical rendering that has no stable shared semantic role;
-8. renderer boundary checks that keep removed compatibility layers from returning.
+8. renderer boundary checks that keep removed compatibility layers and authored `--color-*` usage from returning.
 
 This contract does not include:
 
@@ -217,8 +217,9 @@ bg-success
 text-success-foreground
 ```
 
-`--color-*` is not a design source and runtime code must not write to it. Existing non-semantic palette utilities
-remain available during primitive cleanup, but new shared UI should prefer semantic utilities.
+`--color-*` is not a design source or an authored CSS API. Runtime code must neither write nor consume it;
+authored CSS references the official variable or stable product `--cs-*` role directly. Existing non-semantic
+palette utilities remain available during primitive cleanup, but new shared UI should prefer semantic utilities.
 
 ### 3.6 Internal ownership boundaries
 

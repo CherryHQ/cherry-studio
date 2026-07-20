@@ -4,10 +4,10 @@ Cherry Studio UI component library for React applications.
 
 ## ✨ Features
 
-- 🎨 **Design System**: Full Cherry Studio design tokens with 17 color families, 11 shades, and semantic theme mappings
+- 🎨 **Design System**: Cherry Studio primitive palettes, product semantics, and Shadcn-compatible theme mappings
 - 🌓 **Dark Mode**: Built-in light and dark theme support
 - 🚀 **Tailwind v4**: Built on top of the latest Tailwind CSS v4
-- 📦 **Flexible Imports**: Two style integration modes for different adoption paths
+- 📦 **Flexible Imports**: Three style integration modes for different adoption paths
 - 🔷 **TypeScript**: Complete type definitions and editor support
 - 🎯 **Low Collision**: CSS variable isolation without taking over app runtime state by default
 
@@ -47,14 +47,14 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 - ✅ Use standard Tailwind utility names directly (`bg-primary`, `bg-red-500`, `p-4`, `rounded-lg`)
 - ✅ Colors resolve to Cherry Studio design values
 - ✅ Uses Tailwind's standard numeric spacing scale
-- ✅ Includes the extended radius scale (`rounded-4xs` through `rounded-3xl`, plus `rounded-round`)
+- ✅ Includes Shadcn-derived radii through `rounded-4xl` plus `rounded-full`; smaller Cherry aliases remain available for compatibility
 - ⚠️ Overrides the default Tailwind theme contract for the imported app bundle
 
 **Example:**
 
 ```tsx
 <Button className="bg-primary text-red-500 p-4 rounded-lg">
-  {/* bg-primary -> Cherry Studio brand color */}
+  {/* bg-primary -> the current primary action semantic */}
   {/* text-red-500 -> Cherry Studio red-500 */}
   {/* p-4 -> Tailwind numeric spacing */}
   {/* rounded-lg -> semantic radius token */}
@@ -64,7 +64,7 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 <div className="rounded-xs">Small radius (0.125rem)</div>
 <div className="rounded-md">Medium radius (0.5rem)</div>
 <div className="rounded-xl">Large radius (0.875rem)</div>
-<div className="rounded-round">Full radius (999px)</div>
+<div className="rounded-full">Full radius (9999px)</div>
 ```
 
 #### Mode 2: Semantic CSS Contract
@@ -95,7 +95,7 @@ Import only primitives and existing foundation providers, then decide which valu
 
 /* Re-export only the parts you need */
 @theme inline {
-  --color-primary: var(--cs-primary); /* Use the Cherry Studio primary color */
+  --color-primary: var(--cs-brand-500); /* Adopt a Cherry Studio foundation value */
   --color-red-500: oklch(...); /* Keep your own red scale */
   --radius-lg: 1rem; /* Keep your own radius */
 }
@@ -104,7 +104,7 @@ Import only primitives and existing foundation providers, then decide which valu
 **Characteristics:**
 
 - ✅ Does not override the full Tailwind theme
-- ✅ Gives access to Cherry Studio foundation values (`var(--cs-primary)`, `var(--cs-red-500)`)
+- ✅ Gives access to Cherry Studio foundation values (`var(--cs-brand-500)`, `var(--cs-red-500)`)
 - ✅ Lets you choose what to adopt and what to keep
 - ✅ Works when you already own the semantic contract and only need selected Cherry Studio foundations
 - ⚠️ Does not expose the complete Shadcn or Cherry Studio product contract
@@ -113,7 +113,7 @@ Import only primitives and existing foundation providers, then decide which valu
 
 ```tsx
 {/* Use Cherry Studio tokens directly via CSS variables */}
-<button style={{ backgroundColor: 'var(--cs-primary)' }}>
+<button style={{ backgroundColor: 'var(--cs-brand-500)' }}>
   Use the Cherry Studio brand color
 </button>
 
@@ -125,7 +125,7 @@ Import only primitives and existing foundation providers, then decide which valu
 {/* Available CSS variables */}
 <div
   style={{
-    color: 'var(--cs-primary)', // Brand color
+    color: 'var(--cs-brand-500)', // Brand foundation value
     backgroundColor: 'var(--cs-red-500)', // Red-500
     borderRadius: 'var(--cs-radius-lg)', // Radius
   }}
@@ -145,7 +145,7 @@ To avoid mixing value sources, semantic variables, theme mappings, and runtime o
 2. Approved Cherry Studio product semantics use `--cs-*`, such as `--cs-success` and `--cs-background-subtle`
 3. Historical migration names are tooling-only and must not be recreated as runtime product variables
 4. Primitive and unclassified historical `--cs-*` variables remain internal value providers, not automatic public API
-5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; prefer the resulting semantic utilities in components
+5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; only the adapter owner declares `--color-*` inside `@theme`, while component, page, and other runtime CSS must neither declare nor consume it
 6. `--cs-theme-*` is a controlled host-written input, not a component-facing semantic role or Tailwind utility
 7. Component-, page-, and Electron-shell variables stay in their owning stylesheet and are not added to the shared contract merely because they are CSS custom properties
 
@@ -180,11 +180,11 @@ import { Button, Input } from '@cherrystudio/ui'
 function App() {
   return (
     <div>
-      <Button variant="primary" size="md">Click me</Button>
+      <Button variant="default" size="default">Click me</Button>
       <Input
         type="text"
         placeholder="Type here"
-        onChange={(value) => console.log(value)}
+        onChange={(event) => console.log(event.currentTarget.value)}
       />
     </div>
   )
@@ -198,7 +198,7 @@ function App() {
 import { Button } from '@cherrystudio/ui/components'
 
 // Utilities only
-import { cn, formatFileSize } from '@cherrystudio/ui/utils'
+import { DIALOG_CLOSE_DURATION_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
 ```
 
 ## Development
@@ -216,7 +216,7 @@ pnpm build
 # Type check
 pnpm type:check
 
-# Validate the variable graph, generated adapter, registry, and compatibility bridges
+# Validate the variable graph, generated adapter, registry, and renderer authored-CSS boundary
 pnpm theme:check
 
 # Run tests
@@ -324,58 +324,45 @@ A button component with multiple variants and sizes.
 
 **Props:**
 
-- `variant`: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
-- `size`: 'sm' | 'md' | 'lg'
-- `loading`: boolean
-- `fullWidth`: boolean
-- `leftIcon` / `rightIcon`: React.ReactNode
+- `variant`: `default` | `destructive` | `outline` | `secondary` | `emphasis` | `ghost` | `link`
+- `size`: `default` | `sm` | `lg` | `icon` | `icon-sm` | `icon-lg` | `icon-navbar`
+- `loading`, `loadingIcon`, `loadingIconClassName`: loading-state controls
+- `asChild`: render through Radix `Slot`
+- all standard React button props
 
 ### Input
 
-An input component with error handling and password visibility support.
+The Shadcn-compatible native input primitive.
 
 **Props:**
 
-- `type`: 'text' | 'password' | 'email' | 'number'
-- `error`: boolean
-- `errorMessage`: string
-- `onChange`: (value: string) => void
+- accepts standard React input props, including native `type`, `value`, and event-based `onChange`
+- use `aria-invalid` for invalid-state styling
+- use `className` for supported layout composition
 
 ## Hooks
 
-### useDebounce
+### useDndReorder
 
-Debounces state updates or callback execution.
+Keeps drag reordering correct when the rendered list is a filtered subset of the source list.
 
-### useLocalStorage
+### useDndState
 
-React hook wrapper for local storage.
-
-### useClickOutside
-
-Detects clicks outside an element.
-
-### useCopyToClipboard
-
-Copies text to the clipboard.
+Reads the active and hovered identifiers from the current dnd-kit context.
 
 ## Utilities
 
-### cn(...inputs)
+### toUndefinedIfNull(value)
 
-Class name merge helper built on top of `clsx`.
+Converts `null` to `undefined` at API boundaries.
 
-### formatFileSize(bytes)
+### toNullIfUndefined(value)
 
-Formats byte sizes into readable strings.
+Converts `undefined` to `null` at API boundaries.
 
-### debounce(func, delay)
+### DIALOG_CLOSE_DURATION_MS
 
-Debounce helper.
-
-### throttle(func, delay)
-
-Throttle helper.
+Shared duration for coordinating work with the Dialog close animation.
 
 ## License
 

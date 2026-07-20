@@ -140,9 +140,10 @@ When submitting PRs, please place components in the correct directory based on t
 - Host-written `--cs-theme-*` values are controlled inputs, not component-facing semantics or Tailwind colors
 - Component-, page-, and App Shell custom properties remain private to their owning stylesheet
 - Primitive and historical `--cs-*` variables remain internal migration sources unless explicitly allowlisted
-- Complete color palette: 17 colors × 11 shades each
+- Authored runtime CSS consumes official variables or stable product `--cs-*` roles directly; `--color-*` is generated Tailwind adapter output only
+- Primitive palettes use the shared `50` through `950` step convention
 - Token-level spacing values: `5xs` through `8xl` (16 levels); they are not a public Tailwind utility contract
-- Semantic radius system: `4xs` through `3xl` plus `round` (11 levels)
+- Canonical `--radius` input with derived `sm` through `4xl` and `full`; smaller and `round` aliases remain for compatibility
 - Full light/dark mode support
 - See [README.md](../README.md) for usage documentation
 

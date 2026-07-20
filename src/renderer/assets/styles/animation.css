@@ -38,10 +38,10 @@
     background-color: transparent;
   }
   10% {
-    background-color: var(--color-primary-mute);
+    background-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }
   70% {
-    background-color: var(--color-primary-mute);
+    background-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }
   100% {
     background-color: transparent;
@@ -171,7 +171,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 62%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 62%, transparent);
   content: '';
   pointer-events: none;
   animation: animation-resource-list-reveal-focus 1s ease-out both;
@@ -278,9 +278,14 @@
 }
 
 .animation-shimmer {
-  --color-shimmer-mid: var(--foreground);
-  --color-shimmer-end: color-mix(in srgb, var(--foreground) 25%, transparent);
-  background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
+  --animation-shimmer-mid: var(--foreground);
+  --animation-shimmer-end: color-mix(in srgb, var(--foreground) 25%, transparent);
+  background: linear-gradient(
+    to left,
+    var(--animation-shimmer-end),
+    var(--animation-shimmer-mid),
+    var(--animation-shimmer-end)
+  );
   background-size: 200% 100%;
   background-clip: text;
   -webkit-background-clip: text;

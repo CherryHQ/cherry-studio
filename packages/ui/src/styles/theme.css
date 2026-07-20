@@ -342,8 +342,6 @@
   /* ==================== */
   /* Compatibility: Existing Semantic Colors */
   /* ==================== */
-  --color-primary-soft: color-mix(in srgb, var(--primary) 60%, transparent);
-  --color-primary-mute: color-mix(in srgb, var(--primary) 30%, transparent);
   --color-primary-hover: var(--cs-primary-hover);
   --color-destructive-hover: var(--cs-destructive-hover);
   --color-foreground-secondary: var(--cs-foreground-secondary);

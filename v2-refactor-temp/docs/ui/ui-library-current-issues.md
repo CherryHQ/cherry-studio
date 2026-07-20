@@ -1,8 +1,12 @@
-# Cherry Studio UI Library Current Issues
+# Cherry Studio UI Library Issues Snapshot (2026-04-16)
 
 > 更新日期：2026-04-16
 > 范围：`packages/ui`
 > 目的：记录 `@cherrystudio/ui` 当前已识别出的架构问题，作为后续 v2 UI 收口与拆分的依据。
+>
+> **状态：历史快照。** 本文保留当时的问题背景，不再作为当前主题架构的事实来源。现行契约请以
+> [`packages/ui/docs/design-token-system.md`](../../../packages/ui/docs/design-token-system.md) 和
+> [`packages/ui/docs/variable-catalog.md`](../../../packages/ui/docs/variable-catalog.md) 为准。
 
 ## 背景
 
@@ -69,41 +73,19 @@
 
 如果一个公共 UI 包还默认允许旧技术栈存活，那么它就很难成为 v2 UI 重构的真正收口点。
 
-### 3. 主题系统的所有权不清晰
+### 3. 主题系统所有权（已解决）
 
-当前主题系统分散在多个位置：
+这份快照记录的问题已经由 Shadcn v2 变量契约收口。当前依赖方向为：
 
-1. `packages/ui/src/styles/tokens.css`
-2. `packages/ui/src/styles/theme.css`
-3. `src/renderer/assets/styles/tailwind.css`
-4. `src/renderer/hooks/useUserTheme.ts`
+1. `tokens/**` 提供 foundation 值
+2. `theme-input.css` 声明受控运行时输入
+3. `shadcn.css` 提供无前缀的官方语义变量
+4. `product.css` 提供经过审核的 `--cs-*` 产品语义
+5. 生成的 `theme.css` 只负责 Tailwind `@theme inline` 适配
 
-目前 renderer 直接导入：
-
-1. `../../../../../packages/ui/src/styles/theme.css`
-2. `../../../../../packages/ui/src/components/**/*.{js,ts,jsx,tsx}`
-
-这说明应用层依赖的是 UI 包内部源码路径，而不是包导出的稳定入口。
-
-同时，renderer 自己又在 `tailwind.css` 中补了一批 UI 包未收口的变量；`useUserTheme.ts` 也直接通过 DOM 写入：
-
-1. `--color-primary`
-2. `--primary`
-3. `--color-primary-soft`
-4. `--color-primary-mute`
-5. 字体变量
-
-结果是主题能力被拆散成 3 层：
-
-1. token 层
-2. theme 映射层
-3. runtime 覆写层
-
-但这三层目前没有明确的边界定义，导致以下问题：
-
-1. 某个变量应该归 UI 包还是归应用层维护，责任不清晰
-2. 新主题变量是否属于公开 contract，不明确
-3. 后续做主题切换、用户自定义主题、组件样式统一时，定位成本会持续变高
+Renderer 的 `tailwind.css` 只接入共享生成适配器，不再维护第二套主题变量。运行时主题逻辑只写
+`--cs-theme-*` 输入；手写 CSS 直接消费官方语义变量或稳定产品变量，不消费 `--color-*`。完整现行规则见
+本文开头链接的规范文档。
 
 ### 4. 文档、目录说明与真实结构漂移
 
@@ -335,7 +317,7 @@
 2. compatibility 组件边界说明
 3. 可移除的旧依赖列表
 
-#### Phase 3: 主题系统收口
+#### Phase 3: 主题系统收口（已完成）
 
 目标：
 
@@ -361,19 +343,13 @@
 2. theme 负责“语义映射”，不负责用户配置读写
 3. runtime override 只改 contract 明确开放的变量
 
-CSS 变量分层约定：
+实际落地约定：
 
-1. `--cs-*` 是 design token namespace，来源于 `tokens/*`
-2. `--color-*`、`--radius-*`、`--font-*` 是公开 theme contract，默认给组件和外部消费方使用
-3. `--cs-theme-*` 是 runtime override input，只用于运行时覆写入口
-4. `--primary` 这类变量属于 compatibility alias，只为兼容 shadcn / Tailwind 生态保留，不作为新代码首选
-
-外部消费规则：
-
-1. 普通业务包默认只依赖 `@cherrystudio/ui/styles/theme.css`
-2. 普通业务包优先使用 `--color-*` 等公开 contract，不直接绑定 `--cs-brand-500` 这类 primitive token
-3. 只有明确需要 token 层能力的设计系统配套包，才允许直接依赖 `@cherrystudio/ui/styles/tokens.css`
-4. 运行时主题逻辑只允许写入 `--cs-theme-*` 这类受控入口变量，不直接写派生后的 `--color-*` 结果变量
+1. 普通业务包默认依赖 `@cherrystudio/ui/styles/theme.css`，并优先使用语义 Tailwind 工具类
+2. 手写 CSS 使用无前缀的官方 Shadcn 变量或稳定的 `--cs-*` 产品变量
+3. `--color-*` 是生成的 Tailwind 适配层，不是运行时消费 API
+4. `--cs-theme-*` 是 runtime override input，只允许主题宿主写入
+5. 只有明确需要 foundation 能力的设计系统配套包才依赖 `@cherrystudio/ui/styles/tokens.css`
 
 阶段产出：
 

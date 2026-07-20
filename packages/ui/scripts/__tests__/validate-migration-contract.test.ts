@@ -43,4 +43,21 @@ describe('validateMigrationContractSources', () => {
       })
     ).toThrow('must use the shared generated Tailwind adapter')
   })
+
+  it.each(['.example { color: var(--color-primary); }', ':root { --color-example: var(--primary); }'])(
+    'keeps Tailwind adapter variables out of renderer styles',
+    async (rendererStyle) => {
+      const sources = await loadMigrationContractSources()
+
+      expect(() =>
+        validateMigrationContractSources({
+          ...sources,
+          rendererStyles: {
+            ...sources.rendererStyles,
+            'example.css': rendererStyle
+          }
+        })
+      ).toThrow('cannot use Tailwind adapter variable')
+    }
+  )
 })
