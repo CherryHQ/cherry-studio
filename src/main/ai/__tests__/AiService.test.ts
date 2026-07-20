@@ -890,8 +890,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
-      if (name === 'JobManager')
-        return { enqueue, enqueueTx: (_tx: any, ...a: any[]) => enqueue(...a), cancel: vi.fn() }
+      if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
       if (name === 'DbService')
         return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
@@ -944,8 +943,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
-      if (name === 'JobManager')
-        return { enqueue, enqueueTx: (_tx: any, ...a: any[]) => enqueue(...a), cancel: vi.fn() }
+      if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
       if (name === 'DbService')
         return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
       return undefined
@@ -1059,8 +1057,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     const refInsert = vi.fn().mockReturnValue({ values: refInsertValues })
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') return { createInternalEntry }
-      if (name === 'JobManager')
-        return { enqueue, enqueueTx: (_tx: any, ...a: any[]) => enqueue(...a), cancel: vi.fn() }
+      if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
       if (name === 'DbService') return { withWriteTx: (fn: any) => fn({ insert: refInsert }) }
       return undefined
     })
