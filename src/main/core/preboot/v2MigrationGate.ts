@@ -308,10 +308,23 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     }
   }
 
+  let rendererFailureObserved = false
+
+  const completeVersionGate = (): void => {
+    if (!attemptActive || rendererFailureObserved) return
+    finishCompletedAttempt()
+    try {
+      diagnosticsCoordinator.complete()
+    } catch {
+      logger.error('Failed to clean completed version-gate diagnostics')
+    }
+  }
+
   const migrationIpcDiagnosticCapabilities = {
     start: startRendererExport,
     reportRendererExportFailure: finishRendererExportFailure,
-    saveDiagnosticBundle
+    saveDiagnosticBundle,
+    completeVersionGate
   }
 
   const finishActiveRendererFailureAttempt = async (reason: MigrationRendererFailureReason): Promise<void> => {
@@ -505,6 +518,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     reason: MigrationRendererFailureReason,
     writesSettled: Promise<void>
   ): Promise<void> => {
+    rendererFailureObserved = true
     // This runs synchronously before the manager starts its write waiter. If an
     // engine write is active, its own terminal event will therefore remain last.
     recordEvent({

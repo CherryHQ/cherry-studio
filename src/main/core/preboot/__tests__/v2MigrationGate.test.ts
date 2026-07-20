@@ -270,6 +270,7 @@ interface RegisteredMigrationDiagnosticsCapabilities {
   start(): Promise<void>
   reportRendererExportFailure(): Promise<void>
   saveDiagnosticBundle(destination: string): Promise<unknown>
+  completeVersionGate(): void
 }
 
 function registeredDiagnosticsCapabilities(): RegisteredMigrationDiagnosticsCapabilities {
@@ -818,6 +819,45 @@ describe('runV2MigrationGate', () => {
       // No dialog or quit — the window handles user interaction
       expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(appQuitMock).not.toHaveBeenCalled()
+    })
+
+    it('completes version-gate diagnostics only when the guidance window closes normally', async () => {
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: {
+          outcome: 'block',
+          reason: 'v1_too_old',
+          details: { previousVersion: '1.5.0', requiredVersion: '1.9.0' }
+        },
+        previousVersion: '1.5.0',
+        versionLogExists: true
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+
+      expect(diagnosticsFinishAttemptMock).not.toHaveBeenCalled()
+      expect(diagnosticsCompleteMock).not.toHaveBeenCalled()
+
+      const capabilities = registeredDiagnosticsCapabilities()
+      expect(capabilities.completeVersionGate).toBeTypeOf('function')
+      capabilities.completeVersionGate()
+      capabilities.completeVersionGate()
+
+      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledTimes(1)
+      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledWith('completed', {
+        scope: 'gate',
+        phase: 'finalize',
+        state: 'completed',
+        code: 'unknown'
+      })
+      expect(diagnosticsCompleteMock).toHaveBeenCalledTimes(1)
+      expect(diagnosticsFinishAttemptMock.mock.invocationCallOrder[0]).toBeLessThan(
+        diagnosticsCompleteMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+      )
     })
 
     it('falls back to dialog when version_incompatible window fails to create', async () => {

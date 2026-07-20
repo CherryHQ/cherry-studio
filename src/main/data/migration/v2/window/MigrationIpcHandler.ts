@@ -39,6 +39,7 @@ const DIAGNOSTIC_SAVE_IN_PROGRESS_RESULT: MigrationDiagnosticSaveInProgressResul
 interface DiagnosticRegistrationState {
   epoch: number
   lastSavedBundlePath: string | null
+  versionGateCompleted: boolean
   rendererExportGeneration: number
   rendererExportPhase: {
     generation: number
@@ -59,6 +60,7 @@ export interface MigrationIpcDiagnosticCapabilities {
   start(): void | Promise<void>
   reportRendererExportFailure(): void | Promise<void>
   saveDiagnosticBundle(destination: string): Promise<MigrationDiagnosticNativeSaveResult>
+  completeVersionGate(): void
 }
 
 // Current migration progress
@@ -86,13 +88,15 @@ export function registerMigrationIpcHandlers(
   const diagnosticRegistration: DiagnosticRegistrationState = {
     epoch: 0,
     lastSavedBundlePath: null,
+    versionGateCompleted: false,
     rendererExportGeneration: 0,
     rendererExportPhase: null
   }
   activeDiagnosticRegistration = diagnosticRegistration
+  const requestRegisteredQuit = (): boolean => requestQuit(diagnosticRegistration, diagnosticCapabilities)
 
   // Wire repeated-close quit deferral and native crash/hang waiting to the same in-flight write.
-  migrationWindowManager.setQuitRequester(requestQuit)
+  migrationWindowManager.setQuitRequester(requestRegisteredQuit)
   migrationWindowManager.setWriteWaiter(waitForInFlightWrites)
 
   ipcMain.handle(MigrationIpcChannels.Start, async (event) => {
@@ -368,6 +372,7 @@ export function registerMigrationIpcHandlers(
   ipcMain.handle(MigrationIpcChannels.Cancel, async () => {
     try {
       logger.info('Migration cancelled by user')
+      completeVersionGateDiagnostics(diagnosticRegistration, diagnosticCapabilities)
       migrationWindowManager.close()
       app.quit()
       return true
@@ -419,7 +424,7 @@ export function registerMigrationIpcHandlers(
   // User confirmed quit from the renderer's in-flow close dialog. Returns true when quitting
   // immediately, false when deferred (an active write must settle first) — the renderer uses this
   // to show the "app will close when the current step finishes" notice.
-  ipcMain.handle(MigrationIpcChannels.ConfirmQuit, () => requestQuit())
+  ipcMain.handle(MigrationIpcChannels.ConfirmQuit, requestRegisteredQuit)
 
   // Renderer dismissed the in-flow close dialog without quitting (Continue / Esc / backdrop).
   // Drop the pending-close flag so the next close re-prompts instead of force-quitting.
@@ -517,13 +522,21 @@ function updateProgress(progress: MigrationProgress): void {
  * force-quit escape hatch (crash / hang / repeated close), so every quit path inherits the same
  * write-safety. The `quitScheduled` guard dedups repeated triggers into a single deferred quit.
  */
-function requestQuit(): boolean {
+function requestQuit(
+  registration: DiagnosticRegistrationState,
+  capabilities: MigrationIpcDiagnosticCapabilities
+): boolean {
   const pending: Promise<unknown>[] = []
   if (inFlightMigration) pending.push(inFlightMigration)
   if (diagnosticSaveInFlight) pending.push(diagnosticSaveInFlight)
 
-  if (pending.length === 0) {
+  const confirmQuit = (): void => {
+    completeVersionGateDiagnostics(registration, capabilities)
     migrationWindowManager.confirmQuit()
+  }
+
+  if (pending.length === 0) {
+    confirmQuit()
     return true
   }
 
@@ -531,10 +544,25 @@ function requestQuit(): boolean {
     quitScheduled = true
     logger.info('Quit requested during an active write; deferring until it settles')
     void Promise.allSettled(pending).then(() => {
-      migrationWindowManager.confirmQuit()
+      confirmQuit()
     })
   }
   return false
+}
+
+function completeVersionGateDiagnostics(
+  registration: DiagnosticRegistrationState,
+  capabilities: MigrationIpcDiagnosticCapabilities
+): void {
+  if (
+    activeDiagnosticRegistration !== registration ||
+    registration.versionGateCompleted ||
+    currentProgress.stage !== 'version_incompatible'
+  ) {
+    return
+  }
+  registration.versionGateCompleted = true
+  capabilities.completeVersionGate()
 }
 
 /**

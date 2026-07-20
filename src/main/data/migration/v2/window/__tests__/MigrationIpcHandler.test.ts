@@ -27,6 +27,7 @@ const windowGetMock = vi.hoisted(() => vi.fn())
 const diagnosticsStartMock = vi.hoisted(() => vi.fn())
 const diagnosticsReportRendererExportFailureMock = vi.hoisted(() => vi.fn())
 const diagnosticsSaveBundleMock = vi.hoisted(() => vi.fn())
+const diagnosticsCompleteVersionGateMock = vi.hoisted(() => vi.fn())
 const isSafeExternalUrlMock = vi.hoisted(() => vi.fn())
 const electronMocks = vi.hoisted(() => ({
   app: { getLocale: vi.fn(), quit: vi.fn() },
@@ -109,7 +110,8 @@ describe('MigrationIpcHandler', () => {
     registerMigrationIpcHandlers('/mock/userData', {
       start: diagnosticsStartMock,
       reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
-      saveDiagnosticBundle: diagnosticsSaveBundleMock
+      saveDiagnosticBundle: diagnosticsSaveBundleMock,
+      completeVersionGate: diagnosticsCompleteVersionGateMock
     })
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
   })
@@ -236,7 +238,8 @@ describe('MigrationIpcHandler', () => {
       registerMigrationIpcHandlers('/mock/userData', {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
-        saveDiagnosticBundle: diagnosticsSaveBundleMock
+        saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
 
@@ -257,7 +260,8 @@ describe('MigrationIpcHandler', () => {
       registerMigrationIpcHandlers('/mock/userData', {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
-        saveDiagnosticBundle: diagnosticsSaveBundleMock
+        saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
 
@@ -363,7 +367,8 @@ describe('MigrationIpcHandler', () => {
       registerMigrationIpcHandlers('/mock/userData', {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
-        saveDiagnosticBundle: diagnosticsSaveBundleMock
+        saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
 
@@ -550,7 +555,8 @@ describe('MigrationIpcHandler', () => {
       registerMigrationIpcHandlers('/mock/userData', {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
-        saveDiagnosticBundle: diagnosticsSaveBundleMock
+        saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
 
@@ -887,6 +893,34 @@ describe('MigrationIpcHandler', () => {
     it('forwards a confirmed quit to the window manager', async () => {
       await invoke(MigrationIpcChannels.ConfirmQuit)
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('completes version-gate diagnostics before the version guidance Cancel exits', async () => {
+      setVersionIncompatible('v1_too_old', { previousVersion: '1.0.0', requiredVersion: '1.9.12' })
+
+      await invoke(MigrationIpcChannels.Cancel)
+
+      expect(diagnosticsCompleteVersionGateMock).toHaveBeenCalledTimes(1)
+      expect(diagnosticsCompleteVersionGateMock.mock.invocationCallOrder[0]).toBeLessThan(
+        electronMocks.app.quit.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+      )
+    })
+
+    it('completes version-gate diagnostics before a confirmed native close', async () => {
+      setVersionIncompatible('v1_too_old', { previousVersion: '1.0.0', requiredVersion: '1.9.12' })
+
+      await invoke(MigrationIpcChannels.ConfirmQuit)
+
+      expect(diagnosticsCompleteVersionGateMock).toHaveBeenCalledTimes(1)
+      expect(diagnosticsCompleteVersionGateMock.mock.invocationCallOrder[0]).toBeLessThan(
+        windowConfirmQuitMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+      )
+    })
+
+    it('keeps diagnostics active when Cancel exits from a migration stage', async () => {
+      await invoke(MigrationIpcChannels.Cancel)
+
+      expect(diagnosticsCompleteVersionGateMock).not.toHaveBeenCalled()
     })
 
     it('pushes the live stage to the window manager on progress updates', async () => {
