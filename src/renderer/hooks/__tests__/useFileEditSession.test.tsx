@@ -264,7 +264,7 @@ describe('useFileEditSession', () => {
     }
   })
 
-  it('surfaces an IO save failure, keeps the draft for retry, and clears the error once a write lands', async () => {
+  it('surfaces an IO save failure, pauses autosave, and clears the error after an explicit retry', async () => {
     vi.useFakeTimers()
     try {
       ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
@@ -285,12 +285,45 @@ describe('useFileEditSession', () => {
       expect(result.current.conflict).toBe(false)
       expect(result.current.saveError).toBe(diskFull)
 
-      // The next keystroke re-triggers the writer; success clears the error.
+      // Further edits stay in memory without repeatedly hitting the same I/O
+      // failure. An explicit flush retries the latest draft.
+      ipcMocks.request.mockClear()
       act(() => result.current.setDraft('draft 2'))
-      ipcMocks.request.mockResolvedValueOnce(writeResult(2, 7))
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800)
       })
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+
+      ipcMocks.request.mockResolvedValueOnce(writeResult(2, 7))
+      await act(async () => {
+        await result.current.flush()
+      })
+      expect(result.current.isDirty).toBe(false)
+      expect(result.current.saveError).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('discards an unsaved draft after an IO save failure', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderSession()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      act(() => result.current.setDraft('unsaved'))
+      ipcMocks.request.mockRejectedValueOnce(new Error('disk full'))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+
+      act(() => result.current.discard())
+
+      expect(result.current.draft).toBe('hello\n')
+      expect(result.current.savedContent).toBe('hello\n')
       expect(result.current.isDirty).toBe(false)
       expect(result.current.saveError).toBeUndefined()
     } finally {

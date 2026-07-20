@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => {
 
   return {
     sessionStatus: 'ready' as string,
+    sessionIsDirty: false,
+    sessionSaveError: undefined as Error | undefined,
+    sessionDraft: 'saved content',
     currentContent: 'saved content',
     richEditorContent: 'edited rich content',
     sourceEditorContent: 'edited source content',
@@ -23,6 +26,7 @@ const mocks = vi.hoisted(() => {
     editorReady: vi.fn(),
     getNode: vi.fn(),
     setDraft: vi.fn(),
+    discardSession: vi.fn(),
     flushSession: vi.fn().mockResolvedValue(undefined),
     reloadSession: vi.fn().mockResolvedValue(undefined),
     notifyExternalChange: vi.fn(),
@@ -195,12 +199,14 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
   useFileEditSession: () => ({
     status: mocks.sessionStatus,
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
-    draft: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
-    isDirty: false,
+    draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
+    isDirty: mocks.sessionIsDirty,
     isSaving: false,
     conflict: false,
+    saveError: mocks.sessionSaveError,
     unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
     setDraft: mocks.setDraft,
+    discard: mocks.discardSession,
     reload: mocks.reloadSession,
     flush: mocks.flushSession,
     notifyExternalChange: mocks.notifyExternalChange
@@ -221,7 +227,7 @@ vi.mock('@renderer/services/NotesService', () => ({
 vi.mock('../NotesEditor', async () => {
   const React = await import('react')
 
-  function MockNotesEditor({ codeEditorRef, editorRef, onMarkdownChange }: any) {
+  function MockNotesEditor({ codeEditorRef, currentContent, editorRef, onMarkdownChange }: any) {
     React.useEffect(() => {
       codeEditorRef.current =
         mocks.mountedEditor === 'rich'
@@ -254,7 +260,7 @@ vi.mock('../NotesEditor', async () => {
       }
     }, [codeEditorRef, editorRef, onMarkdownChange])
 
-    return React.createElement('div', { 'data-testid': 'notes-editor' })
+    return React.createElement('div', { 'data-current-content': currentContent, 'data-testid': 'notes-editor' })
   }
 
   return {
@@ -267,7 +273,21 @@ vi.mock('../NotesSettings', () => ({
 }))
 
 vi.mock('../NotesSidebar', () => ({
-  default: () => null
+  default: ({ onSelectNode }: { onSelectNode: (node: typeof mocks.noteNode) => void }) => (
+    <button
+      type="button"
+      onClick={() =>
+        onSelectNode({
+          ...mocks.noteNode,
+          id: '/notes/other.md',
+          name: 'other',
+          treePath: '/other',
+          externalPath: '/notes/other.md'
+        })
+      }>
+      select other note
+    </button>
+  )
 }))
 
 import NotesPage from '../NotesPage'
@@ -276,6 +296,9 @@ describe('NotesPage print payloads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.sessionStatus = 'ready'
+    mocks.sessionIsDirty = false
+    mocks.sessionSaveError = undefined
+    mocks.sessionDraft = 'saved content'
     mocks.currentContent = 'saved content'
     mocks.richEditorContent = 'edited rich content'
     mocks.sourceEditorContent = 'edited source content'
@@ -444,5 +467,25 @@ describe('NotesPage print payloads', () => {
     render(<NotesPage />)
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('notes.load_failed'))
+  })
+
+  it('keeps a failed draft until the user confirms discarding it before leaving', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionSaveError = new Error('permission denied')
+    mocks.sessionDraft = 'unsaved draft'
+
+    render(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('notes.save_failure.description'))
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'unsaved draft')
+    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
+
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
+    expect(screen.getByRole('dialog')).toHaveTextContent('notes.save_failure.leave_title')
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save_failure.discard_and_continue' }))
+
+    expect(mocks.discardSession).toHaveBeenCalledOnce()
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
   })
 })

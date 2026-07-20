@@ -224,8 +224,9 @@
           "reload": "Reload file",
           "title": "File changed on disk"
         },
+        "discard": "Discard changes",
         "refresh_failed": "Unable to reload the latest file content.",
-        "save_failed": "Unable to save this file. Your edits are kept in the editor and saving will be retried.",
+        "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
         "unsaved": "Unsaved",
         "unsupported": "This file can be previewed but not safely edited here. Editing supports UTF-8 text files with consistent LF or CRLF line endings."
       },
@@ -4343,6 +4344,12 @@
     "save": "Save to Notes",
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
+    "save_failure": {
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused.",
+      "discard_and_continue": "Discard and continue",
+      "leave_description": "The note could not be saved. Leaving will permanently discard the current edits.",
+      "leave_title": "Discard unsaved note edits?"
+    },
     "search": {
       "both": "Name+Content",
       "content": "Content",

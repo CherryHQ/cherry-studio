@@ -68,6 +68,8 @@ export interface FileEditSession {
   unsupportedReason?: UnsupportedFileTextReason
   error?: Error
   setDraft: (next: string) => void
+  /** Drop the in-memory draft back to the last snapshot known to be on disk. */
+  discard: () => void
   /** Discard local edits, load disk content, resume autosave. */
   reload: () => Promise<void>
   /**
@@ -176,12 +178,12 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
           void mutate(keyOf(model.path), model.snapshot, { revalidate: false })
         } catch (writeError) {
           if (!(writeError instanceof IpcError) || writeError.code !== fileErrorCodes.STALE_VERSION) {
-            // I/O error (disk full, permissions…): surface it — `saveError` for
-            // the UI, and `flush()` will reject while the draft is unpersisted.
+            // I/O error (disk full, permissions…): surface it and pause
+            // autosave. The consumer decides whether to retry or discard.
             logger.error('Autosave failed', writeError as Error)
             model.lastWriteError = writeError as Error
             syncFromModel(model)
-            break // stop; the next keystroke re-triggers the writer
+            break
           }
           // Stale write — verify against disk before declaring a conflict
           // (VS Code's validateWriteFile content-equality escape).
@@ -287,10 +289,22 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
       if (!model) return
       model.draft = next
       setDraftState(next)
-      debouncedWrite(model)
+      // A persistent I/O failure must not turn every keystroke into another
+      // doomed write. Keep accepting edits in memory and wait for an explicit
+      // retry (`flush`) or discard from the consumer.
+      if (!model.lastWriteError) debouncedWrite(model)
     },
     [debouncedWrite]
   )
+
+  const discard = useCallback(() => {
+    const model = modelRef.current
+    if (!model) return
+    debouncedWrite.cancel()
+    model.draft = model.snapshot.content
+    model.lastWriteError = null
+    syncFromModel(model)
+  }, [debouncedWrite, syncFromModel])
 
   const reload = useCallback(async () => {
     const model = modelRef.current
@@ -386,6 +400,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
       unsupportedReason,
       error: error && !(error instanceof UnsupportedFileTextError) ? error : undefined,
       setDraft,
+      discard,
       reload,
       flush,
       notifyExternalChange
@@ -401,6 +416,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     conflict,
     saveError,
     setDraft,
+    discard,
     reload,
     flush,
     notifyExternalChange

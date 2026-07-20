@@ -16,12 +16,21 @@ import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
 const {
   buildAgentToolFlowProjectionMock,
+  fileSessionDiscardMock,
+  fileSessionFlushMock,
+  fileSessionState,
   fileTreeModelState,
   fileTreeModelStore,
   useArtifactFileTreeModelMock,
   useCommandHandlerMock
 } = vi.hoisted(() => ({
   buildAgentToolFlowProjectionMock: vi.fn(),
+  fileSessionDiscardMock: vi.fn(),
+  fileSessionFlushMock: vi.fn().mockResolvedValue(undefined),
+  fileSessionState: {
+    isDirty: false,
+    saveError: undefined as Error | undefined
+  },
   fileTreeModelState: {
     hasLoaded: false,
     nodeById: new Map<string, { kind: string }>()
@@ -197,12 +206,14 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
     status: 'idle',
     savedContent: '',
     draft: '',
-    isDirty: false,
+    isDirty: fileSessionState.isDirty,
     isSaving: false,
     conflict: false,
+    saveError: fileSessionState.saveError,
     setDraft: vi.fn(),
+    discard: fileSessionDiscardMock,
     reload: vi.fn(),
-    flush: vi.fn(),
+    flush: fileSessionFlushMock,
     notifyExternalChange: vi.fn()
   })
 }))
@@ -342,6 +353,8 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    fileSessionState.isDirty = false
+    fileSessionState.saveError = undefined
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
     fileTreeModelStore.listeners.clear()
@@ -778,6 +791,35 @@ describe('AgentRightPane', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+  })
+
+  it('blocks every controlled file switch after a save failure', () => {
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([
+      ['README.md', { kind: 'file' }],
+      ['src/deep.ts', { kind: 'file' }]
+    ])
+    const renderPane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fileSessionState.isDirty = true
+    fileSessionState.saveError = new Error('disk full')
+    rerender(renderPane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
   })
 
   it('closes the preview directly without a leave prompt', () => {

@@ -18,8 +18,9 @@ If the file changes on disk outside the editor and collides with local edits, a
 "File changed on disk" dialog offers **Reload** (discarding the in-progress
 edit); dismissing it keeps the draft in the editor with autosave paused until
 reload. If autosave fails (disk full, permissions), the edit stays in the
-editor, a toast warns, saving retries on the next keystroke, and navigation away
-from the unsaved draft is blocked.
+editor and automatic retries pause. Agent files can be retried or quickly
+discarded. Notes can keep being edited and retried; leaving requires explicit
+confirmation to discard the unsaved draft.
 
 ## Why this matters to the user
 

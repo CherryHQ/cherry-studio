@@ -1745,6 +1745,31 @@ describe('ArtifactPane', () => {
     expect(writtenText.replace(/\r\n/g, '')).not.toContain('\n')
   })
 
+  it('keeps a failed agent draft visible and supports quick discard', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new Error('disk full'))
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'unsaved draft\n' } })
+
+    const saveFailure = await screen.findByRole('alert', {}, { timeout: 3000 })
+    expect(saveFailure).toHaveTextContent('agent.preview_pane.edit.save_failed')
+    expect(screen.getByTestId('code-editor')).toHaveValue('unsaved draft\n')
+
+    fireEvent.click(within(saveFailure).getByRole('button', { name: 'agent.preview_pane.edit.discard' }))
+
+    await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('first\n'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('offers to reload the latest file after a stale write is rejected', async () => {
     mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
     mocks.fsReadText.mockResolvedValue('first\n')

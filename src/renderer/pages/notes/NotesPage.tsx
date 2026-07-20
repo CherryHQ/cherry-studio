@@ -1,4 +1,4 @@
-import { ConfirmDialog } from '@cherrystudio/ui'
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
@@ -95,7 +95,16 @@ const NotesPage: FC = () => {
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
 
   const fileSession = useFileEditSession(activeFilePath as FilePath | undefined)
-  const currentContent = fileSession.savedContent
+  const {
+    discard: discardFileDraft,
+    flush: flushFileDraft,
+    notifyExternalChange,
+    reload: reloadFileDraft,
+    setDraft: setFileDraft
+  } = fileSession
+  // Render from the in-memory draft so a failed save survives normal
+  // re-renders and editor-mode changes until retry or explicit discard.
+  const currentContent = fileSession.draft
   // `unsupported` (oversize / non-UTF-8 / mixed line endings) must block editing
   // like a load error — otherwise the note renders as an editable blank document
   // and input is silently discarded.
@@ -109,11 +118,38 @@ const NotesPage: FC = () => {
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [showConflict, setShowConflict] = useState(false)
+  const [showFailedSaveLeave, setShowFailedSaveLeave] = useState(false)
+  const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
+
+  const requestFileTransition = useCallback(
+    (transition: () => void) => {
+      if (fileSession.isDirty && fileSession.saveError) {
+        pendingFileTransitionRef.current = transition
+        setShowFailedSaveLeave(true)
+        return false
+      }
+      transition()
+      return true
+    },
+    [fileSession.isDirty, fileSession.saveError]
+  )
+
+  const handleDiscardAndContinue = useCallback(() => {
+    const transition = pendingFileTransitionRef.current
+    pendingFileTransitionRef.current = null
+    discardFileDraft()
+    transition?.()
+  }, [discardFileDraft])
+
+  const handleFailedSaveLeaveOpenChange = useCallback((open: boolean) => {
+    setShowFailedSaveLeave(open)
+    if (!open) pendingFileTransitionRef.current = null
+  }, [])
 
   const mergeTreeState = useCallback((nodes: NotesTreeNode[]): NotesTreeNode[] => {
     return nodes.map((node) => {
@@ -185,9 +221,9 @@ const NotesPage: FC = () => {
       }
       // The session debounces the autosave and captures the path internally, so
       // a file switch mid-flight can never write to the wrong file.
-      fileSession.setDraft(newMarkdown)
+      setFileDraft(newMarkdown)
     },
-    [activeFilePath, contentLoadError, fileSession.setDraft, t]
+    [activeFilePath, contentLoadError, setFileDraft, t]
   )
 
   useEffect(() => {
@@ -201,8 +237,8 @@ const NotesPage: FC = () => {
   }, [fileSession.conflict])
 
   // Autosave I/O failures (disk full, permissions…) — warn, throttled so a
-  // typing burst doesn't stack toasts. The draft stays in memory and every
-  // subsequent keystroke retries the write.
+  // typing burst doesn't stack toasts. The draft stays in memory and autosave
+  // remains paused until an explicit retry succeeds.
   const lastSaveFailureToastAtRef = useRef(0)
   useEffect(() => {
     if (!fileSession.saveError) return
@@ -211,6 +247,14 @@ const NotesPage: FC = () => {
     lastSaveFailureToastAtRef.current = now
     toast.error(t('notes.save_failed'))
   }, [fileSession.saveError, t])
+
+  const handleRetrySave = useCallback(async () => {
+    try {
+      await flushFileDraft()
+    } catch {
+      // The session keeps the current draft and error visible.
+    }
+  }, [flushFileDraft])
 
   useEffect(() => {
     if (contentLoadError) {
@@ -284,9 +328,9 @@ const NotesPage: FC = () => {
         activeFilePath,
         reason: 'Node not found in current tree'
       })
-      setActiveFilePath(undefined)
+      requestFileTransition(() => setActiveFilePath(undefined))
     }
-  }, [notesTree, activeFilePath, activeNode, setActiveFilePath])
+  }, [notesTree, activeFilePath, activeNode, requestFileTransition, setActiveFilePath])
 
   // Clear create/rename suppression once the new node appears in the tree.
   // Replaces a 500ms timer that could race chokidar on slow filesystems
@@ -317,13 +361,13 @@ const NotesPage: FC = () => {
       const normalized = normalizePathValue(payload.event.path)
       if (normalizePathValue(activePath) === normalized) {
         // The event mtime lets the session dismiss our own autosave echo without IPC.
-        fileSession.notifyExternalChange(payload.event.stats.mtime)
+        notifyExternalChange(payload.event.stats.mtime)
       }
     })
     return () => {
       unsubscribe()
     }
-  }, [notesPath, treeId, fileSession.notifyExternalChange])
+  }, [notesPath, treeId, notifyExternalChange])
 
   useEffect(() => {
     const editor = editorRef.current
@@ -487,8 +531,7 @@ const NotesPage: FC = () => {
     [getTargetFolderPath, refreshTree, setFolderExpandedByPath, t]
   )
 
-  // 创建笔记
-  const handleCreateNote = useCallback(
+  const createNote = useCallback(
     async (name: string, targetFolderId?: string) => {
       try {
         isCreatingNoteRef.current = true
@@ -514,6 +557,14 @@ const NotesPage: FC = () => {
       }
     },
     [getTargetFolderPath, refreshTree, setActiveFilePath, setFolderExpandedByPath, t]
+  )
+
+  // 创建笔记前先处理当前无法保存的草稿；用户取消时不创建空文件。
+  const handleCreateNote = useCallback(
+    async (name: string, targetFolderId?: string) => {
+      requestFileTransition(() => void createNote(name, targetFolderId))
+    },
+    [createNote, requestFileTransition]
   )
 
   const handleToggleExpanded = useCallback(
@@ -548,21 +599,17 @@ const NotesPage: FC = () => {
   const handleSelectNode = useCallback(
     async (node: NotesTreeNode) => {
       if (node.type === 'file') {
-        // Don't navigate away from a draft that could not be persisted —
-        // switching would detach the session and silently drop the edit.
-        if (fileSession.isDirty && fileSession.saveError) {
-          toast.error(t('notes.save_failed'))
-          return
-        }
         // Switching the active path re-reads the file through the session.
-        setActiveFilePath(node.externalPath)
-        setSelectedFolderId(null)
+        requestFileTransition(() => {
+          setActiveFilePath(node.externalPath)
+          setSelectedFolderId(null)
+        })
       } else if (node.type === 'folder') {
         setSelectedFolderId(node.id)
         handleToggleExpanded(node.id)
       }
     },
-    [fileSession.isDirty, fileSession.saveError, handleToggleExpanded, setActiveFilePath, t]
+    [handleToggleExpanded, requestFileTransition, setActiveFilePath]
   )
 
   // 删除节点
@@ -574,7 +621,7 @@ const NotesPage: FC = () => {
 
         // Persist any pending edit before removing the file so the session's
         // switch-flush can't resurrect a just-deleted path.
-        await fileSession.flush()
+        await flushFileDraft()
 
         const metadataSnapshot = getMetadataSnapshot(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
         await removePath(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
@@ -609,7 +656,7 @@ const NotesPage: FC = () => {
     },
     [
       activeFilePath,
-      fileSession.flush,
+      flushFileDraft,
       getMetadataSnapshot,
       notesTree,
       refreshTree,
@@ -634,7 +681,7 @@ const NotesPage: FC = () => {
         const oldPath = node.externalPath
         // Flush pending edits to the current path before it moves so the saved
         // content is carried through the rename (and no stale-path write races).
-        await fileSession.flush()
+        await flushFileDraft()
         const renamed = await renameEntry(node, newName)
 
         // Tell the tree primitive about the rename so it mutates the
@@ -687,7 +734,7 @@ const NotesPage: FC = () => {
     },
     [
       activeFilePath,
-      fileSession.flush,
+      flushFileDraft,
       notesTree,
       refreshTree,
       rewritePath,
@@ -820,7 +867,7 @@ const NotesPage: FC = () => {
 
         // Flush pending edits before the file moves so saved content is carried
         // through and no stale-path write races the move.
-        await fileSession.flush()
+        await flushFileDraft()
 
         if (sourceNode.type === 'file') {
           await window.api.file.move(sourceNode.externalPath, destinationPath)
@@ -860,7 +907,7 @@ const NotesPage: FC = () => {
     },
     [
       activeFilePath,
-      fileSession.flush,
+      flushFileDraft,
       notesPath,
       notesTree,
       refreshTree,
@@ -950,8 +997,10 @@ const NotesPage: FC = () => {
 
       if (needsSwitchFile) {
         // switch to target note first then scroll to line (the session re-reads)
-        pendingScrollRef.current = { lineNumber, lineContent }
-        setActiveFilePath(targetNode.externalPath)
+        requestFileTransition(() => {
+          pendingScrollRef.current = { lineNumber, lineContent }
+          setActiveFilePath(targetNode.externalPath)
+        })
       } else {
         const richEditor = editorRef.current
         const codeEditor = codeEditorRef.current
@@ -972,7 +1021,7 @@ const NotesPage: FC = () => {
     return () => {
       unsubscribe()
     }
-  }, [activeNode?.id, activeFilePath, notesTree, setActiveFilePath])
+  }, [activeNode?.id, activeFilePath, notesTree, requestFileTransition, setActiveFilePath])
 
   return (
     <div id="notes-page" className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
@@ -1013,6 +1062,21 @@ const NotesPage: FC = () => {
             onExpandPath={handleExpandPath}
             onRenameNode={handleRenameNode}
           />
+          {fileSession.saveError && (
+            <div
+              role="alert"
+              className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-bg px-3 py-2 text-error-text text-xs">
+              <span className="min-w-0 flex-1">{t('notes.save_failure.description')}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={fileSession.isSaving}
+                onClick={() => void handleRetrySave()}>
+                {t('common.retry')}
+              </Button>
+            </div>
+          )}
           <NotesEditor
             activeNodeId={activeNode?.id}
             currentContent={currentContent}
@@ -1034,11 +1098,21 @@ const NotesPage: FC = () => {
         destructive
         onConfirm={() => {
           setShowConflict(false)
-          void fileSession.reload().catch((error) => {
+          void reloadFileDraft().catch((error) => {
             logger.error('Failed to reload note after external change', error as Error)
             toast.error(t('notes.load_failed'))
           })
         }}
+      />
+      <ConfirmDialog
+        open={showFailedSaveLeave}
+        onOpenChange={handleFailedSaveLeaveOpenChange}
+        title={t('notes.save_failure.leave_title')}
+        description={t('notes.save_failure.leave_description')}
+        confirmText={t('notes.save_failure.discard_and_continue')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={handleDiscardAndContinue}
       />
     </div>
   )

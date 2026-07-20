@@ -34,7 +34,8 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
-import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
@@ -115,6 +116,7 @@ interface AgentRightPaneRuntime {
 
 interface AgentRightPaneFileState {
   editMode: AgentFileEditorMode
+  fileSession: FileEditSession
   previewFileSelection: ArtifactPaneFileSelection | null
   selectedFile: string | null
   fileTreeExpandedIds: ReadonlySet<string>
@@ -299,22 +301,40 @@ function AgentRightPaneStateProvider({
   const previousWorkspaceKeyRef = useRef(workspaceKey)
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
   const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
+  const editPath =
+    editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
+  const fileSession = useFileEditSession(editPath)
 
   useEffect(() => {
     setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tab: null }))
   }, [sessionId])
 
-  // Autosave means switching files never has "unsaved changes" to guard — the
-  // session flushes the previous file on path change. A new selection opens in
-  // preview mode.
+  const blockFailedSaveTransition = useCallback(() => {
+    if (!fileSession.isDirty || !fileSession.saveError) return false
+    toast.error(t('agent.preview_pane.edit.save_failed'))
+    return true
+  }, [fileSession.isDirty, fileSession.saveError, t])
+
+  // Every selection entry point (tree, artifact link, close, watcher cleanup)
+  // lands here, so a failed save cannot be bypassed by a controlled caller.
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null) => {
       if (isSameFileSelection(previewFileSelection, selection)) return
+      if (blockFailedSaveTransition()) return
       setEditMode('preview')
       setPreviewFileSelection(selection)
       setSelectedFile(selection && selection.workspacePath === workspacePath ? selection.filePath : null)
     },
-    [previewFileSelection, workspacePath]
+    [blockFailedSaveTransition, previewFileSelection, workspacePath]
+  )
+
+  const requestFileEditMode = useCallback(
+    (mode: AgentFileEditorMode) => {
+      if (mode === editMode) return
+      if (mode === 'preview' && blockFailedSaveTransition()) return
+      setEditMode(mode)
+    },
+    [blockFailedSaveTransition, editMode]
   )
 
   const replaceFlowTab = useCallback(
@@ -338,25 +358,27 @@ function AgentRightPaneStateProvider({
 
   useLayoutEffect(() => {
     if (previousWorkspaceKeyRef.current === workspaceKey) return
+    if (blockFailedSaveTransition()) return
     previousWorkspaceKeyRef.current = workspaceKey
     setEditMode('preview')
     setSelectedFile(null)
     setPreviewFileSelection(null)
     setFileTreeExpandedIds(new Set())
     setFileTreeSearchKeyword('')
-  }, [workspaceKey])
+  }, [blockFailedSaveTransition, workspaceKey])
 
   const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
 
   const fileState = useMemo<AgentRightPaneFileState>(
     () => ({
       editMode,
+      fileSession,
       previewFileSelection,
       selectedFile,
       fileTreeExpandedIds,
       fileTreeSearchKeyword
     }),
-    [editMode, fileTreeExpandedIds, fileTreeSearchKeyword, previewFileSelection, selectedFile]
+    [editMode, fileSession, fileTreeExpandedIds, fileTreeSearchKeyword, previewFileSelection, selectedFile]
   )
   const meta = useMemo<AgentRightPaneMeta>(
     () => ({
@@ -406,7 +428,7 @@ function AgentRightPaneStateProvider({
                 closeFilePreview={closeFilePreview}
                 requestFileSelection={requestFileSelection}
                 selectFile={selectFile}
-                setFileEditMode={setEditMode}
+                setFileEditMode={requestFileEditMode}
                 setFileTreeExpandedIds={setFileTreeExpandedIds}
                 setFileTreeSearchKeyword={setFileTreeSearchKeyword}>
                 {children}
@@ -429,11 +451,6 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
   const meta = useAgentRightPaneMeta()
   const panelState = useRightPanelState()
   const lastSelectableFileRef = useRef<string | null>(null)
-  const editPath =
-    state.editMode === 'edit' && state.previewFileSelection
-      ? getArtifactPaneSelectionPath(state.previewFileSelection)
-      : undefined
-  const fileSession = useFileEditSession(editPath)
   const model = useArtifactFileTreeModel({
     workspacePath: meta.workspacePath,
     treeOpen: meta.conversationState === 'ready' && active,
@@ -475,7 +492,7 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
       pdfLayoutPending={panelState.pdfLayoutPending}
       pdfLayoutRefreshKey={panelState.pdfLayoutRefreshKey}
       enableFileSearch
-      fileSession={fileSession}
+      fileSession={state.fileSession}
       editMode={state.editMode}
       onEditModeChange={actions.setFileEditMode}
       model={model}

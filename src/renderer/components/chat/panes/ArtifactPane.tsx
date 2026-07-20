@@ -585,8 +585,8 @@ export function ArtifactPaneView({
     onEditModeChange?.('preview')
   }, [editMode, fileSession?.status, fileSession?.unsupportedReason, onEditModeChange, t])
 
-  // Autosave I/O failure: the draft stays in the editor and retries on the next
-  // keystroke, but the user must know the file is not on disk yet.
+  // Autosave I/O failure: the draft stays in the editor and automatic retries
+  // pause until the user explicitly retries or discards it.
   useEffect(() => {
     if (fileSession?.saveError) toast.error(t('agent.preview_pane.edit.save_failed'))
   }, [fileSession?.saveError, t])
@@ -600,6 +600,8 @@ export function ArtifactPaneView({
   // the object changes on every keystroke and would drag the whole toolbar /
   // file-tree memo chain below with it.
   const fileSessionReload = fileSession?.reload
+  const fileSessionFlush = fileSession?.flush
+  const fileSessionDiscard = fileSession?.discard
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
@@ -774,6 +776,20 @@ export function ArtifactPaneView({
     }
   }, [fileSession, t])
 
+  const handleRetryFailedSave = useCallback(async () => {
+    if (!fileSessionFlush) return
+    try {
+      await fileSessionFlush()
+    } catch {
+      // The session keeps the latest error and draft visible for another retry
+      // or an explicit discard.
+    }
+  }, [fileSessionFlush])
+
+  const handleDiscardFailedSave = useCallback(() => {
+    fileSessionDiscard?.()
+  }, [fileSessionDiscard])
+
   const previewContent = overlaySelection ? (
     <ArtifactFilePreview
       workspacePath={overlaySelection.workspacePath}
@@ -857,6 +873,25 @@ export function ArtifactPaneView({
             {overlayActions}
           </div>
         </div>
+        {fileSession?.saveError && (
+          <div
+            role="alert"
+            className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-bg px-3 py-2 text-error-text text-xs">
+            <AlertCircle className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1">{t('agent.preview_pane.edit.save_failed')}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={fileSession.isSaving}
+              onClick={() => void handleRetryFailedSave()}>
+              {t('common.retry')}
+            </Button>
+            <Button type="button" variant="destructive" size="sm" onClick={handleDiscardFailedSave}>
+              {t('agent.preview_pane.edit.discard')}
+            </Button>
+          </div>
+        )}
         <div className={cn('min-h-0 flex-1', contentClassName)}>
           {canEditSelection && editorMode === 'edit' && fileSession?.status === 'ready' ? (
             <CodeEditor

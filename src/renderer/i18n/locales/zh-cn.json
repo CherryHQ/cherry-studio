@@ -224,8 +224,9 @@
           "reload": "重新加载文件",
           "title": "磁盘上的文件已发生变化"
         },
+        "discard": "放弃修改",
         "refresh_failed": "无法重新加载最新文件内容。",
-        "save_failed": "无法保存此文件。编辑内容仍保留在编辑器中，将自动重试保存。",
+        "save_failed": "无法保存此文件。自动保存已暂停，请重试或放弃修改。",
         "unsaved": "未保存",
         "unsupported": "此文件可以预览，但暂时无法在这里安全编辑。目前仅支持换行符统一为 LF 或 CRLF 的 UTF-8 文本文件。"
       },
@@ -4343,6 +4344,12 @@
     "save": "保存到笔记",
     "save_blocked_load_failed": "笔记加载失败，已阻止保存",
     "save_failed": "保存笔记失败",
+    "save_failure": {
+      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。",
+      "discard_and_continue": "放弃并继续",
+      "leave_description": "该笔记无法保存。离开将永久放弃当前编辑内容。",
+      "leave_title": "放弃未保存的笔记修改？"
+    },
     "search": {
       "both": "名称+内容",
       "content": "内容",
