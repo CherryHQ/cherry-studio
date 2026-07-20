@@ -71,9 +71,12 @@ describe('factoryResetGate ↔ pathRegistry conformance', () => {
     // 'cache.json' has no registry key — CacheService names it inline against
     // 'app.userdata' (see the reverse comment at its persistFilePath).
     expect(USER_DATA_WIPE).toContain('cache.json')
-    // 'Data.restore' has no registry key yet — LegacyBackupManager names it
-    // inline against the userData root as `${Data}.restore`.
+    // The `*.restore` staging sidecars have no registry keys — they are named
+    // inline by LegacyBackupManager's inert v1 restore path, which is slated
+    // for deletion (#17131); enrolling them would harden throwaway code.
     expect(USER_DATA_WIPE).toContain('Data.restore')
+    expect(USER_DATA_WIPE).toContain('IndexedDB.restore')
+    expect(USER_DATA_WIPE).toContain('Local Storage.restore')
   })
 
   it('USER_DATA_KEPT shields the model/toolchain trees the registry places under userData', () => {

@@ -29,7 +29,10 @@ const MAX_WIPE_ATTEMPTS = 2
  *
  * Cherry user state:
  * - `Data` — all business files (Files/Notes/KnowledgeBase/Workspace/…).
- * - `Data.restore` — LegacyBackupManager's pre-restore sidecar of `Data`.
+ * - `Data.restore` / `IndexedDB.restore` / `Local Storage.restore` —
+ *   staging sidecars written by LegacyBackupManager's v1 restore path
+ *   (inert since its startup consumer was removed; historical installs
+ *   may still carry them, holding full copies of user data).
  * - `cache.json` — main-process persist cache.
  * - `version.log` — LIVE v2 state (VersionService writes it every boot), and
  *   the first criterion of MigrationPaths.hasV1Data(): leaving it behind
@@ -53,6 +56,8 @@ const MAX_WIPE_ATTEMPTS = 2
 export const USER_DATA_WIPE = [
   'Data',
   'Data.restore',
+  'IndexedDB.restore',
+  'Local Storage.restore',
   'cache.json',
   'version.log',
   'restore-journal.json',
