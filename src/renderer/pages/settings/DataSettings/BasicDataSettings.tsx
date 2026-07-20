@@ -26,26 +26,6 @@ import { BackupUnavailableGate } from './BackupUnavailableGate'
 import RestoreV2Popup from './RestoreV2Popup'
 import { isV2BackupExportReady, isV2BackupRestoreReady } from './V2BackupActionGate'
 
-/**
- * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
- * userData directory tree at startup (in `src/main/core/preboot/userDataLocation.ts`),
- * after the previous process has fully exited and no file is locked. The
- * distinction between "occupied" and "non-occupied" directories has no meaning
- * in v2 — the entire tree is opaque and copied as one unit.
- *
- * Only used by the v1 in-process migration flow below, to be rewritten to the new
- * BootConfig `temp.user_data_relocation` protocol. Remove this at the same time.
- */
-const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
-
-type MigrationDialogState = {
-  title: React.ReactNode
-  className: string
-  PathsContent: React.FC
-  progress: number
-  status: 'active' | 'success'
-}
-
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
