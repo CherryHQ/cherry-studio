@@ -22,17 +22,20 @@ CSS property match.
 
 ## 2. Layer and entry map
 
-| Layer | Authored source | May depend on | Public entry |
+| Layer | Authored source | May depend on | Composition or public entry |
 | --- | --- | --- | --- |
 | Foundation values | `tokens/**` | primitives and other foundation values | `styles/tokens.css` |
-| Controlled runtime inputs | `theme-input.css` | foundation values | composed internally by `styles/contract.css` |
-| Official semantics | `shadcn.css` | foundation values and registered runtime inputs | `styles/contract.css` |
-| Product semantics | `product.css` plus approved foundation providers | official semantics and foundations | `styles/contract.css` |
+| Controlled runtime inputs | `theme-input.css` | foundation values | internal `contract.css` composition |
+| Official semantics | `shadcn.css` | foundation values and registered runtime inputs | internal `contract.css` composition |
+| Product semantics | `product.css` plus approved foundation providers | official semantics and foundations | internal `contract.css` composition |
 | Tailwind adapter | generated `theme.css` | official and product semantics | `styles/theme.css` |
 | Migration policy | `migrations/shadcn-v2.json` | official and product semantics | tooling only; no runtime layer |
 
 The shared dependency direction is one-way. A lower shared layer must never reference `--color-*`, host-local
 `--app-*`, or a legacy variable.
+
+`contract.css` is an internal composition layer, not an exported package entry. Consumers that need the complete
+contract use `styles/theme.css`.
 
 ## 3. Runtime inputs and local implementation variables
 
@@ -102,20 +105,19 @@ Stable product variables are allowed in new code when no official Shadcn role ex
 | Variable | Intended property and role |
 | --- | --- |
 | `--cs-background-subtle` | Very quiet product-wide surface background |
-| `--cs-background-subtle-foreground` | Content on the subtle surface |
 | `--cs-border-subtle` | Very quiet `border-color` |
 | `--cs-border-strong` | Higher-emphasis structural `border-color` |
 
 ### Feedback families
 
-Each family exposes a strong surface pair, a subtle surface pair, and a border:
+Each family exposes a strong accent, a subtle surface pair, and a border:
 
-| Intent | Strong pair | Subtle pair | Border |
+| Intent | Strong accent | Subtle pair | Border |
 | --- | --- | --- | --- |
-| Success | `--cs-success` / `--cs-success-foreground` | `--cs-success-subtle` / `--cs-success-subtle-foreground` | `--cs-success-border` |
-| Warning | `--cs-warning` / `--cs-warning-foreground` | `--cs-warning-subtle` / `--cs-warning-subtle-foreground` | `--cs-warning-border` |
-| Info | `--cs-info` / `--cs-info-foreground` | `--cs-info-subtle` / `--cs-info-subtle-foreground` | `--cs-info-border` |
-| Error | `--cs-error` / `--cs-error-foreground` | `--cs-error-subtle` / `--cs-error-subtle-foreground` | `--cs-error-border` |
+| Success | `--cs-success` | `--cs-success-subtle` / `--cs-success-subtle-foreground` | `--cs-success-border` |
+| Warning | `--cs-warning` | `--cs-warning-subtle` / `--cs-warning-subtle-foreground` | `--cs-warning-border` |
+| Info | `--cs-info` | `--cs-info-subtle` / `--cs-info-subtle-foreground` | `--cs-info-border` |
+| Error | `--cs-error` | `--cs-error-subtle` / `--cs-error-subtle-foreground` | `--cs-error-border` |
 
 Use `--destructive` for a dangerous action. Use the `--cs-error*` family for error feedback or validation state.
 
@@ -124,16 +126,19 @@ Use `--destructive` for a dangerous action. Use the `--cs-error*` family for err
 | Domain | Variables | Intended properties |
 | --- | --- | --- |
 | Rich-text links | `--cs-link` | Link `color` inside rendered content |
-| Code blocks | `--cs-code-block`, `--cs-code-block-foreground` | Block code `background-color` / `color` |
+| Code blocks | `--cs-code-block` | Block code `background-color` |
 | Inline code | `--cs-inline-code`, `--cs-inline-code-foreground` | Inline code `background-color` / `color` |
 | References | `--cs-reference`, `--cs-reference-foreground`, `--cs-reference-subtle` | Reference surface, content, and quiet surface variant |
 | Search highlights | `--cs-highlight`, `--cs-highlight-foreground`, `--cs-highlight-accent` | Match surface, content, and active-match surface |
-| User message | `--cs-chat-user`, `--cs-chat-user-foreground` | User-message surface and content |
-| Active sidebar row | `--cs-sidebar-active-bg`, `--cs-sidebar-active-foreground`, `--cs-sidebar-active-border` | Active surface, content, and border |
+| User message | `--cs-chat-user` | User-message surface |
+| Active sidebar row | `--cs-sidebar-active-bg`, `--cs-sidebar-active-border` | Active surface and border |
 | Sidebar glow | `--cs-sidebar-glow-bg`, `--cs-sidebar-glow-line` | Decorative glow fill and line only |
 
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
 utilities; custom-CSS domains such as rich text intentionally use `var(--cs-*)` directly.
+
+Unpaired product backgrounds retain the consuming component's existing semantic foreground. Add a shared
+foreground only after concrete consumers establish a repeated contrast invariant.
 
 ## 6. Historical migration names
 

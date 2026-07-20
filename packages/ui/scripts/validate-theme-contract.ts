@@ -287,6 +287,7 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
 
   const productVariables = new Set<string>(CHERRY_PRODUCT_VARIABLE_TOKENS)
   const shadcnVariables = new Set<string>(SHADCN_VARIABLE_TOKENS)
+  const shadcnVariableNames = new Set<string>(SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`))
   const canonicalColors = new Set<string>([...SHADCN_COLOR_TOKENS, ...CHERRY_PRODUCT_COLOR_TOKENS])
 
   for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
@@ -311,6 +312,30 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
     sources.statusColors,
     'tokens/colors/status.css'
   )
+
+  const shadcnRootDeclarations = buildDeclarationMap([['shadcn.css', sources.shadcn]], ':root')
+  assertRequiredDeclarations('Shadcn contract in shadcn.css', shadcnRootDeclarations, SHADCN_VARIABLE_TOKENS, '--')
+  for (const declaration of extractDeclarations(sources.shadcn, 'shadcn.css')) {
+    if (!shadcnVariableNames.has(declaration.name)) {
+      throw new Error(`[theme-contract] shadcn.css declares unregistered Shadcn variable ${declaration.name}`)
+    }
+  }
+
+  const productRootDeclarations = buildDeclarationMap(
+    [
+      ['tokens/colors/semantic.css', sources.semanticColors],
+      ['tokens/colors/status.css', sources.statusColors],
+      ['product.css', sources.product]
+    ],
+    ':root'
+  )
+  assertRequiredDeclarations(
+    'product contract in approved sources',
+    productRootDeclarations,
+    CHERRY_PRODUCT_VARIABLE_TOKENS,
+    '--cs-'
+  )
+
   assertSurfacePairs('Shadcn contract', SHADCN_SURFACE_PAIRS, shadcnVariables)
   assertSurfacePairs('product contract', CHERRY_PRODUCT_SURFACE_PAIRS, productVariables)
 

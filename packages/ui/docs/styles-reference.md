@@ -14,7 +14,7 @@ For variable selection, intended CSS properties, stability, and AI rules, use
 Runtime styles and design tokens live under `src/styles`:
 
 - [theme.css](../src/styles/theme.css)
-- [contract.css](../src/styles/contract.css)
+- [contract.css](../src/styles/contract.css) (internal composition layer; not a package export)
 - [theme-input.css](../src/styles/theme-input.css) (internal runtime-input layer composed by `contract.css`)
 - [shadcn.css](../src/styles/shadcn.css)
 - [product.css](../src/styles/product.css)
@@ -30,6 +30,7 @@ Runtime styles and design tokens live under `src/styles`:
 
 Do not consume files from `packages/ui/docs` at runtime.
 
-- Use `@cherrystudio/ui/styles/theme.css` or `@cherrystudio/ui/styles/tokens.css` for app and package integration.
+- Use the exported `@cherrystudio/ui/styles/theme.css` or `@cherrystudio/ui/styles/tokens.css` entries for app and
+  package integration.
 - Treat this document as reference only, not as part of the public runtime contract.
 - If you need to inspect shipped style outputs, check `dist/styles/` instead.

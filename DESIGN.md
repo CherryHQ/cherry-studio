@@ -27,7 +27,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 - Dual-mode system: fully specified light and dark tokens with true inversion (not just darkening)
 - Primary action color resolves through `var(--primary)`; do not introduce a separate page-local brand hue
 - Full semantic color set: `var(--destructive)` (red), `var(--cs-success)` (green), `var(--cs-warning)` (amber), `var(--cs-info)` (blue)
-- Stable feedback surface/foreground pairs plus borders for success, warning, info, and error
+- Stable feedback accents plus subtle surface/foreground pairs and borders for success, warning, info, and error
 - Border-radius scale derives from the canonical `--radius` input; use `rounded-none` for square corners and `rounded-full` for pills
 - Subtle borders via `var(--border)` (semi-transparent neutral) for structure, not decoration
 - Surfaces stack via color, not shadow: `var(--background)` → `var(--card)` → `var(--popover)`
@@ -105,10 +105,10 @@ exact migration treatment private to the owning component.
 - **Info**: `var(--cs-info)` — informational states, neutral highlights
 
 ### Semantic Status — Stable surface contract
-Use the stable strong or subtle surface pair plus its border for alerts, toast bodies, tags, and validation feedback.
-All four runtime families use the same shape: `--cs-{intent}`, `--cs-{intent}-foreground`,
-`--cs-{intent}-subtle`, `--cs-{intent}-subtle-foreground`, and `--cs-{intent}-border`. Tailwind exposes the
-corresponding utility names without the `cs-` prefix.
+Use the stable subtle surface pair plus its border for alerts, toast bodies, tags, and validation feedback. The
+base `--cs-{intent}` token is an accent for icons, text, or markers rather than a shared filled surface. All four
+runtime families expose `--cs-{intent}`, `--cs-{intent}-subtle`, `--cs-{intent}-subtle-foreground`, and
+`--cs-{intent}-border`; Tailwind exposes the corresponding utility names without the `cs-` prefix.
 
 The older `*-base`, `*-text`, `*-bg`, hover, and active outputs are compatibility providers. Do not introduce them
 in new component APIs.

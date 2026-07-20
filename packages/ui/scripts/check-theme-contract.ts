@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 import { buildThemeContractCss, loadThemeContractInputs } from './build-theme-css'
 import { validateMigrationContract } from './validate-migration-contract'
+import { validateThemeContract } from './validate-theme-contract'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -20,6 +21,8 @@ export async function checkThemeContract(
   stylesDir = DEFAULT_STYLES_DIR,
   repositoryRoot = DEFAULT_REPOSITORY_ROOT
 ): Promise<void> {
+  await validateThemeContract(stylesDir)
+
   const expectedThemeCss = buildThemeContractCss(await loadThemeContractInputs(stylesDir))
   const actualThemeCss = await fs.readFile(path.join(stylesDir, 'theme.css'), 'utf8')
 

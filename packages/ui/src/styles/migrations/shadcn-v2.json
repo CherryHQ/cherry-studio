@@ -16,7 +16,6 @@
     "resources/devtools/main-network/panel.css",
     "packages/ui/scripts/__tests__/**",
     "scripts/__tests__/check-legacy-css-vars.test.ts",
-    "scripts/__tests__/check-pr-style-reminders.test.ts",
     "**/dist/**",
     "**/node_modules/**",
     "**/*.snap"
@@ -185,7 +184,12 @@
       "target": null,
       "strategy": "review"
     },
-    { "source": "--chat-text-user", "target": "--cs-chat-user-foreground", "strategy": "exact" },
+    {
+      "source": "--chat-text-user",
+      "target": null,
+      "strategy": "review",
+      "reason": "The historical text role has no current runtime consumer; keep it local until a concrete paired surface requires promotion."
+    },
     { "source": "--list-item-border-radius", "target": null, "strategy": "review" },
     { "source": "--color-gray-1", "target": null, "strategy": "review" },
     { "source": "--color-gray-2", "target": null, "strategy": "review" },

@@ -7,13 +7,9 @@
  */
 
 :root {
-  /* Stable product-wide surface */
-  --cs-background-subtle-foreground: var(--foreground);
-
   /* Stable product domain: rich text and code */
   --cs-link: #1677ff;
   --cs-code-block: #e3e3e3;
-  --cs-code-block-foreground: var(--foreground);
   --cs-inline-code: rgba(0, 0, 0, 0.06);
   --cs-inline-code-foreground: rgb(218, 97, 92);
 
@@ -27,11 +23,9 @@
 
   /* Stable product domain: user-message surface */
   --cs-chat-user: rgba(0, 0, 0, 0.045);
-  --cs-chat-user-foreground: var(--foreground);
 
   /* Stable product domain: application shell effects */
   --cs-sidebar-active-bg: rgba(16, 185, 129, 0.08);
-  --cs-sidebar-active-foreground: var(--sidebar-foreground);
   --cs-sidebar-active-border: rgba(16, 185, 129, 0.15);
   --cs-sidebar-glow-bg: rgba(16, 185, 129, 0.25);
   --cs-sidebar-glow-line: rgba(16, 185, 129, 0.5);
@@ -53,7 +47,6 @@
 
   /* Stable product domain: user-message surface */
   --cs-chat-user: rgba(255, 255, 255, 0.08);
-  --cs-chat-user-foreground: var(--cs-black);
 
   /* Stable product domain: application shell effects */
   --cs-sidebar-active-bg: rgba(114, 255, 121, 0.05);

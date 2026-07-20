@@ -65,28 +65,23 @@ export const SHADCN_SURFACE_PAIRS = [
 export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   /* Shared product semantics */
   'background-subtle',
-  'background-subtle-foreground',
   'border-subtle',
   'border-strong',
 
   /* Feedback */
   'success',
-  'success-foreground',
   'success-subtle',
   'success-subtle-foreground',
   'success-border',
   'warning',
-  'warning-foreground',
   'warning-subtle',
   'warning-subtle-foreground',
   'warning-border',
   'info',
-  'info-foreground',
   'info-subtle',
   'info-subtle-foreground',
   'info-border',
   'error',
-  'error-foreground',
   'error-subtle',
   'error-subtle-foreground',
   'error-border',
@@ -94,7 +89,6 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   /* Product domains */
   'link',
   'code-block',
-  'code-block-foreground',
   'inline-code',
   'inline-code-foreground',
   'reference',
@@ -104,9 +98,7 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'highlight-foreground',
   'highlight-accent',
   'chat-user',
-  'chat-user-foreground',
   'sidebar-active-bg',
-  'sidebar-active-foreground',
   'sidebar-active-border',
   'sidebar-glow-bg',
   'sidebar-glow-line'
@@ -114,31 +106,25 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
 
 export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'background-subtle',
-  'background-subtle-foreground',
   'border-subtle',
   'border-strong',
   'sidebar-active-bg',
-  'sidebar-active-foreground',
   'sidebar-active-border',
   'sidebar-glow-bg',
   'sidebar-glow-line',
   'success',
-  'success-foreground',
   'success-subtle',
   'success-subtle-foreground',
   'success-border',
   'warning',
-  'warning-foreground',
   'warning-subtle',
   'warning-subtle-foreground',
   'warning-border',
   'info',
-  'info-foreground',
   'info-subtle',
   'info-subtle-foreground',
   'info-border',
   'error',
-  'error-foreground',
   'error-subtle',
   'error-subtle-foreground',
   'error-border'
@@ -194,19 +180,11 @@ export const COMPATIBILITY_COLOR_TOKENS = [
 ] as const
 
 export const CHERRY_PRODUCT_SURFACE_PAIRS = [
-  ['background-subtle', 'background-subtle-foreground'],
-  ['success', 'success-foreground'],
   ['success-subtle', 'success-subtle-foreground'],
-  ['warning', 'warning-foreground'],
   ['warning-subtle', 'warning-subtle-foreground'],
-  ['info', 'info-foreground'],
   ['info-subtle', 'info-subtle-foreground'],
-  ['error', 'error-foreground'],
   ['error-subtle', 'error-subtle-foreground'],
-  ['code-block', 'code-block-foreground'],
   ['inline-code', 'inline-code-foreground'],
   ['reference', 'reference-foreground'],
-  ['highlight', 'highlight-foreground'],
-  ['chat-user', 'chat-user-foreground'],
-  ['sidebar-active-bg', 'sidebar-active-foreground']
+  ['highlight', 'highlight-foreground']
 ] as const

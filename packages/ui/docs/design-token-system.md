@@ -57,12 +57,13 @@ semantic utilities
   (bg-background, bg-success, ...)
 ```
 
-The public entries reflect that graph: `tokens.css` exposes foundations, `contract.css` composes the internal
-runtime-input layer plus the semantic CSS contract, and generated `theme.css` adds the Tailwind adapter. Runtime
-inputs are included so the contract can resolve, but they are not public roles for component consumption.
+The supported package entries reflect that graph: `tokens.css` exposes foundations, while generated `theme.css`
+exposes the complete semantic contract and Tailwind adapter. Internal `contract.css` composes the runtime-input
+and semantic layers in dependency order; it is not a public consumer entry. Runtime inputs are included so the
+contract can resolve, but they are not public roles for component consumption.
 
 Deprecated aliases do not participate in this flow. The registry maps them directly to official or product
-semantics, while the codemod and lint guard prevent their reintroduction. Official and product semantic variables
+semantics, while the codemod and migration checker prevent their reintroduction. Official and product semantic variables
 must never point to `--color-*`, `--app-*`, or legacy variables.
 
 ## 2. Scope of the v2 contract
@@ -152,9 +153,9 @@ Product concepts that Shadcn does not define use the `--cs-*` namespace:
 ```text
 --cs-background-subtle
 --cs-success
---cs-success-foreground
+--cs-success-subtle
+--cs-success-subtle-foreground
 --cs-chat-user
---cs-chat-user-foreground
 ```
 
 Naming grammar:
@@ -167,7 +168,7 @@ Rules:
 
 - use a flat role only for product-wide semantics such as `--cs-success`;
 - include a domain for application concepts such as `--cs-chat-user`;
-- preserve surface/foreground pairs;
+- add a paired foreground only when current consumers require a shared contrast contract;
 - place state last, for example `--cs-chat-user-hover`;
 - reference official Shadcn variables when a product role should follow TweakCN themes;
 - do not encode palette names or add a token for a single use site;
@@ -214,7 +215,8 @@ text-muted-foreground
 border-border
 ring-ring
 bg-success
-text-success-foreground
+bg-success-subtle
+text-success-subtle-foreground
 ```
 
 `--color-*` is not a design source or an authored CSS API. Runtime code must neither write nor consume it;
@@ -316,7 +318,6 @@ with:
 
 ```text
 --cs-background-subtle
---cs-background-subtle-foreground
 --cs-border-subtle
 --cs-border-strong
 ```
@@ -330,22 +331,24 @@ The feedback intents are:
 --cs-error
 ```
 
-Each intent has the same shape:
+Each intent has the same consumer-backed shape:
 
 ```text
 --cs-{intent}
---cs-{intent}-foreground
 --cs-{intent}-subtle
 --cs-{intent}-subtle-foreground
 --cs-{intent}-border
 ```
 
-`destructive` and `error` are distinct. `destructive` styles a dangerous action; `error` communicates system
-feedback. They may share palette values without sharing semantics.
+The base intent is an accent color for icons, text, or markers rather than a shared filled surface. The subtle
+surface and foreground form the reusable feedback pair. `destructive` and `error` are distinct: `destructive`
+styles a dangerous action, while `error` communicates system feedback. They may share palette values without
+sharing semantics.
 
-Every stable product surface has a declared foreground in `CHERRY_PRODUCT_SURFACE_PAIRS`. A component using a
-product surface must use its paired foreground instead of guessing `foreground`, white, or black. Stable product
-variables may depend on official Shadcn variables or foundations, but never on historical names.
+`CHERRY_PRODUCT_SURFACE_PAIRS` lists only product surfaces with a concrete shared foreground contract. Other
+background roles deliberately keep text ownership with the consuming component until repeated usage proves a
+shared pair. Stable product variables may depend on official Shadcn variables or foundations, but never on
+historical names.
 
 Hover and active colors are component-state decisions. The shared contract does not multiply every intent into
 global `hover` and `active` variables.
@@ -448,8 +451,8 @@ contextual and review rules remain visible manual work.
 
 Run `pnpm styles:legacy-vars` for a strategy-labelled dry-run report, `pnpm styles:legacy-vars --fix` to apply exact
 replacements, or `pnpm styles:legacy-vars:strict` to fail when any non-preserved migration source remains. After a
-fix, contextual and review findings intentionally remain. The same registry also drives the ESLint reminder, so
-migration policy and enforcement cannot maintain separate hard-coded inventories.
+fix, contextual and review findings intentionally remain. Reporting and replacement share the same registry, so
+migration policy and the syntax-aware tooling do not maintain separate hard-coded inventories.
 
 ## 8. Governance
 
@@ -486,8 +489,8 @@ The generated contract must validate that:
 - the renderer theme entry cannot reintroduce legacy aliases, own host-local `--app-*` values, or add a second Tailwind adapter.
 
 Run `pnpm --filter @cherrystudio/ui theme:check` to validate the canonical graph, committed generated CSS,
-migration registry, and renderer boundary together. `theme:build` reruns the canonical graph validation before
-writing generated CSS, so an invalid graph cannot silently regenerate the adapter.
+migration registry, and renderer boundary together. `theme:build` is deliberately a pure generator that reads
+only the inputs needed for generated output; governance remains the responsibility of `theme:check`.
 
 ## 9. Delivery in this PR
 

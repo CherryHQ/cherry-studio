@@ -23,21 +23,17 @@
 
   /* Canonical Cherry Studio feedback contract */
   --cs-error: var(--cs-error-base);
-  --cs-error-foreground: var(--cs-white);
   --cs-error-subtle: var(--cs-error-bg);
   --cs-error-subtle-foreground: var(--cs-error-text);
 
-  --cs-success-foreground: var(--cs-neutral-950);
   --cs-success-subtle: var(--cs-success-bg);
   --cs-success-subtle-foreground: var(--cs-green-800);
   --cs-success-border: var(--cs-green-200);
 
-  --cs-warning-foreground: var(--cs-neutral-950);
   --cs-warning-subtle: var(--cs-warning-bg);
   --cs-warning-subtle-foreground: var(--cs-amber-800);
   --cs-warning-border: var(--cs-amber-200);
 
-  --cs-info-foreground: var(--cs-white);
   --cs-info-subtle: var(--cs-info-bg);
   --cs-info-subtle-foreground: var(--cs-blue-800);
   --cs-info-border: var(--cs-blue-200);
@@ -63,15 +59,12 @@
   --cs-info-bg: var(--cs-blue-900); /* oklch(0.39 0.13 265) */
 
   /* Canonical Cherry Studio feedback contract */
-  --cs-error-foreground: var(--cs-neutral-950);
-
   --cs-success-subtle-foreground: var(--cs-green-100);
   --cs-success-border: var(--cs-green-700);
 
   --cs-warning-subtle-foreground: var(--cs-amber-100);
   --cs-warning-border: var(--cs-amber-700);
 
-  --cs-info-foreground: var(--cs-neutral-950);
   --cs-info-subtle-foreground: var(--cs-blue-100);
   --cs-info-border: var(--cs-blue-700);
 }

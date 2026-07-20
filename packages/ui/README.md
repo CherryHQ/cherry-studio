@@ -7,7 +7,7 @@ Cherry Studio UI component library for React applications.
 - 🎨 **Design System**: Cherry Studio primitive palettes, product semantics, and Shadcn-compatible theme mappings
 - 🌓 **Dark Mode**: Built-in light and dark theme support
 - 🚀 **Tailwind v4**: Built on top of the latest Tailwind CSS v4
-- 📦 **Flexible Imports**: Three style integration modes for different adoption paths
+- 📦 **Flexible Imports**: Two style integration modes for different adoption paths
 - 🔷 **TypeScript**: Complete type definitions and editor support
 - 🎯 **Low Collision**: CSS variable isolation without taking over app runtime state by default
 
@@ -31,7 +31,7 @@ npm install motion react react-dom tailwindcss
 > `@cherrystudio/ui/styles/tokens.css`
 > `@cherrystudio/ui/styles/theme.css`
 >
-### Three Integration Modes
+### Two Integration Modes
 
 #### Mode 1: Full Theme Contract ✨
 
@@ -67,24 +67,7 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 <div className="rounded-full">Full radius (9999px)</div>
 ```
 
-#### Mode 2: Semantic CSS Contract
-
-Import the official Shadcn and Cherry Studio product variables without installing Tailwind mappings.
-
-```css
-/* app.css */
-@import '@cherrystudio/ui/styles/contract.css';
-```
-
-**Characteristics:**
-
-- ✅ Exposes official variables such as `--background`, `--primary`, and `--sidebar`
-- ✅ Exposes approved product variables such as `--cs-success` and `--cs-chat-user`
-- ✅ Includes controlled runtime inputs used by the semantic contract
-- ✅ Preserves the required foundation → runtime input → Shadcn → product import order
-- ✅ Works for CSS Modules, CSS-in-JS, and non-Tailwind consumers
-
-#### Mode 3: Selective Foundation Consumption 🎯
+#### Mode 2: Selective Foundation Consumption 🎯
 
 Import only primitives and existing foundation providers, then decide which values your design system exposes.
 
@@ -132,6 +115,10 @@ Import only primitives and existing foundation providers, then decide which valu
 />
 ```
 
+`src/styles/contract.css` is an internal composition layer used by the generated `theme.css` entry to preserve the
+foundation → runtime input → Shadcn → product import order. It is not a public package export or a supported
+consumer entry point.
+
 ### CSS Variable Rules
 
 The normative v2 architecture, Shadcn contract, and migration boundary are defined in
@@ -153,9 +140,8 @@ Default consumption rules:
 
 1. Regular application packages should depend on `@cherrystudio/ui/styles/theme.css` by default
 2. Components should prefer semantic utilities such as `bg-background`, `text-muted-foreground`, and `bg-success`; custom CSS may use the matching official or product variable
-3. Non-Tailwind consumers should depend on `@cherrystudio/ui/styles/contract.css`
-4. Only design-system-adjacent packages that explicitly need foundation-level access should depend on `@cherrystudio/ui/styles/tokens.css`
-5. Runtime theme logic should only write to registered inputs such as `--cs-theme-*`, not directly to official semantics or derived `--color-*` variables
+3. Only design-system-adjacent packages that explicitly need foundation-level access should depend on `@cherrystudio/ui/styles/tokens.css`
+4. Runtime theme logic should only write to registered inputs such as `--cs-theme-*`, not directly to official semantics or derived `--color-*` variables
 
 ### Shadcn CLI Ownership
 

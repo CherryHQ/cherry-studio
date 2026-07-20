@@ -8,7 +8,6 @@ import {
   COMPATIBILITY_STATUS_COLOR_TOKENS,
   SHADCN_COLOR_TOKENS
 } from './theme-contract'
-import { loadThemeContractSources, validateThemeContractSources } from './validate-theme-contract'
 
 export {
   CHERRY_PRODUCT_COLOR_TOKENS,
@@ -172,12 +171,15 @@ ${sections.join('\n\n')}
 }
 
 export async function loadThemeContractInputs(stylesDir = STYLES_DIR): Promise<ThemeContractInputs> {
-  const sources = await loadThemeContractSources(stylesDir)
-  validateThemeContractSources(sources)
+  const tokensDir = path.join(stylesDir, 'tokens')
+  const [primitiveColorsSource, typographySource] = await Promise.all([
+    fs.readFile(path.join(tokensDir, 'colors/primitive.css'), 'utf8'),
+    fs.readFile(path.join(tokensDir, 'typography.css'), 'utf8')
+  ])
 
   return {
-    primitiveColors: extractTokenNames(sources.primitiveColors),
-    typographyTokens: extractTokenNames(sources.typography)
+    primitiveColors: extractTokenNames(primitiveColorsSource),
+    typographyTokens: extractTokenNames(typographySource)
   }
 }
 

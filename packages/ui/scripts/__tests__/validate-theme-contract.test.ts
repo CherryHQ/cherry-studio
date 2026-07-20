@@ -59,11 +59,34 @@ describe('validateThemeContractSources', () => {
     expect(() => validateThemeContractSources(sources)).toThrow(/runtime input .* cannot depend on upper-layer/)
   })
 
+  it('requires official variables to be owned by shadcn.css', async () => {
+    const sources = await loadSources()
+    sources.shadcn = sources.shadcn.replace('  --background: var(--cs-background);\n', '')
+    sources.primitiveColors += '\n:root {\n  --background: var(--cs-background);\n}\n'
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/Shadcn contract in shadcn.css is missing/)
+  })
+
+  it('requires product variables to be owned by approved product sources', async () => {
+    const sources = await loadSources()
+    sources.product = sources.product.replace('  --cs-chat-user: rgba(0, 0, 0, 0.045);\n', '')
+    sources.primitiveColors += '\n:root {\n  --cs-chat-user: rgba(0, 0, 0, 0.045);\n}\n'
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/product contract in approved sources is missing/)
+  })
+
+  it('rejects unregistered variables in shadcn.css', async () => {
+    const sources = await loadSources()
+    sources.shadcn += '\n:root {\n  --success: hotpink;\n}\n'
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/declares unregistered Shadcn variable --success/)
+  })
+
   it('rejects variable cycles in a supported mode', async () => {
     const sources = await loadSources()
     sources.product = sources.product
-      .replace('--cs-code-block: #e3e3e3;', '--cs-code-block: var(--cs-code-block-foreground);')
-      .replace('--cs-code-block-foreground: var(--foreground);', '--cs-code-block-foreground: var(--cs-code-block);')
+      .replace('--cs-inline-code: rgba(0, 0, 0, 0.06);', '--cs-inline-code: var(--cs-inline-code-foreground);')
+      .replace('--cs-inline-code-foreground: rgb(218, 97, 92);', '--cs-inline-code-foreground: var(--cs-inline-code);')
 
     expect(() => validateThemeContractSources(sources)).toThrow(/light variable cycle/)
   })
