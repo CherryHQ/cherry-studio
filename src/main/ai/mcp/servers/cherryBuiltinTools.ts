@@ -21,6 +21,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '@main/ai/tools/generateImageTool'
 import {
   KNOWLEDGE_LIST_DESCRIPTION,
   KNOWLEDGE_MANAGE_DESCRIPTION,
@@ -36,10 +37,12 @@ import {
   searchKnowledge
 } from '@main/ai/tools/knowledgeLookup'
 import {
+  type ConfiguredPaintingModel,
   GENERATE_IMAGE_DESCRIPTION,
   generateImageFromPrompt,
   isPaintingError,
-  paintingModelOutput
+  paintingModelOutput,
+  resolveConfiguredPaintingModel
 } from '@main/ai/tools/painting'
 import {
   fetchWeb,
@@ -58,7 +61,6 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import {
   GENERATE_IMAGE_TOOL_NAME,
-  generateImageInputSchema,
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -165,13 +167,17 @@ const HANDLERS: Record<string, ToolHandler> = {
       const { artifacts } = reportArtifactsInputSchema.parse(args)
       return { type: 'text', value: `Recorded ${artifacts.length} artifact(s).` }
     }
-  },
-  [GENERATE_IMAGE_TOOL_NAME]: {
+  }
+}
+
+function createGenerateImageHandler(configuredModel: ConfiguredPaintingModel | null): ToolHandler {
+  const inputSchema = buildGenerateImageToolSchema(configuredModel?.support)
+  return {
     description: GENERATE_IMAGE_DESCRIPTION,
-    inputSchema: generateImageInputSchema,
+    inputSchema,
     run: async (args, signal) => {
-      const input = generateImageInputSchema.parse(args)
-      const result = await generateImageFromPrompt(input, signal)
+      const input = inputSchema.parse(args) as GenerateImageToolInput
+      const result = await generateImageFromPrompt(input, signal, configuredModel)
       const text = paintingModelOutput(result).value
       // On failure `result` is the model-facing note — text only, no image to attach.
       if (isPaintingError(result)) return { type: 'text', value: text }
@@ -179,6 +185,19 @@ const HANDLERS: Record<string, ToolHandler> = {
       return images.length > 0 ? { type: 'text+images', value: text, images } : { type: 'text', value: text }
     }
   }
+}
+
+function resolveHandlers(): Record<string, ToolHandler> {
+  return {
+    ...HANDLERS,
+    [GENERATE_IMAGE_TOOL_NAME]: createGenerateImageHandler(resolveConfiguredPaintingModel())
+  }
+}
+
+function resolveHandler(name: string): ToolHandler | undefined {
+  return name === GENERATE_IMAGE_TOOL_NAME
+    ? createGenerateImageHandler(resolveConfiguredPaintingModel())
+    : HANDLERS[name]
 }
 
 /**
@@ -224,7 +243,7 @@ function toMcpResult(output: ToolModelOutput): CallToolResult {
 }
 
 export function listCherryBuiltinTools(): Tool[] {
-  return Object.entries(HANDLERS).map(([name, handler]) => ({
+  return Object.entries(resolveHandlers()).map(([name, handler]) => ({
     name,
     description: handler.description,
     inputSchema: toMcpInputSchema(handler.inputSchema)
@@ -232,7 +251,7 @@ export function listCherryBuiltinTools(): Tool[] {
 }
 
 export async function callCherryBuiltinTool(name: string, args: unknown, signal: AbortSignal): Promise<CallToolResult> {
-  const handler = HANDLERS[name]
+  const handler = resolveHandler(name)
   if (!handler) {
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
   }

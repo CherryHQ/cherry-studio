@@ -151,6 +151,37 @@ describe('ToolRegistry', () => {
       expect(reg.selectActive(EMPTY_SCOPE).map((e) => e.name)).toEqual(['good'])
     })
 
+    it('materializes a request-scoped tool without mutating the registered entry', () => {
+      const reg = new ToolRegistry()
+      const staticTool = { description: 'static' } as unknown as Tool
+      const requestTool = { description: 'request' } as unknown as Tool
+      reg.register(
+        makeEntry({
+          name: 'dynamic',
+          tool: staticTool,
+          buildTool: (scope) => (scope.hasFileAttachments ? requestTool : staticTool)
+        })
+      )
+
+      expect(reg.selectActive({ ...EMPTY_SCOPE, hasFileAttachments: true })[0].tool).toBe(requestTool)
+      expect(reg.getByName('dynamic')?.tool).toBe(staticTool)
+    })
+
+    it('treats a thrown request-scoped builder as inactive — fail-closed', () => {
+      const reg = new ToolRegistry()
+      reg.register(makeEntry({ name: 'good' }))
+      reg.register(
+        makeEntry({
+          name: 'broken',
+          buildTool: () => {
+            throw new Error('boom')
+          }
+        })
+      )
+
+      expect(reg.selectActive(EMPTY_SCOPE).map((e) => e.name)).toEqual(['good'])
+    })
+
     it('returns entries in alphabetical order regardless of registration history', () => {
       // Cache-stable ordering: deregister + re-register must not shift entries
       // to the end of the iteration order.

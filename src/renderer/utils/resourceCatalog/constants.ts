@@ -33,6 +33,15 @@ export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
 
 export const RESOURCE_TYPE_ORDER: ResourceType[] = ['agent', 'assistant', 'skill', 'prompt']
 
+export const RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT = [
+  'Improve the supplied system prompt without changing its intent or authority.',
+  'Preserve roles, goals, constraints, tool instructions, workflows, and output requirements.',
+  'Do not replace its structure or force it into a predefined template.',
+  'Keep the output in the same language as the input.',
+  'Preserve Markdown, code, URLs, and every placeholder token verbatim, including tokens shaped like {{name}} and ${name}; keep duplicate occurrences.',
+  'Return only the polished system prompt with no explanation, wrapper, or code fence.'
+].join('\n')
+
 export const MCP_MODE_OPTIONS: {
   id: AssistantConfigMcpMode
   labelKey: string

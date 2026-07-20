@@ -24,18 +24,20 @@ import {
   type AgentFormState,
   applyAgentFormPatch,
   buildInitialAgentFormState,
-  diffAgentSaveIntent
+  diffAgentSaveIntent,
+  RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
 import {
   CLAUDE_TOOL_CATEGORIES,
   type ClaudeToolCategory,
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
+import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { ToolCase, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
+import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
@@ -54,6 +56,7 @@ import {
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AgentEditDialogProps = EditDialogBaseProps<AgentDetail> & {
   resource: AgentDetail | null
@@ -610,28 +613,47 @@ function AgentPromptField({
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
+  const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const name = useWatch({ control: form.control, name: 'name' })
 
   return (
     <FormField
       control={form.control}
       name="instructions"
-      render={({ field }) => (
-        <PromptEditorField
-          label={
-            <FieldLabelWithHelp
-              label={t('library.config.agent.field.instructions.label')}
-              helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
-              formLabel={false}
-            />
-          }
-          value={field.value}
-          onChange={field.onChange}
-          placeholder={t('library.config.agent.field.instructions.placeholder')}
-          fill
-          minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
-          maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
-        />
-      )}
+      render={({ field }) => {
+        const handlePromptActionChange = (instructions: string) => {
+          field.onChange(instructions)
+          setResetPreviewKey((key) => key + 1)
+        }
+
+        return (
+          <PromptEditorField
+            label={
+              <FieldLabelWithHelp
+                label={t('library.config.agent.field.instructions.label')}
+                helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+                formLabel={false}
+              />
+            }
+            value={field.value}
+            onChange={field.onChange}
+            placeholder={t('library.config.agent.field.instructions.placeholder')}
+            resetPreviewKey={resetPreviewKey}
+            fill
+            actions={
+              <PromptPolishActions
+                value={field.value}
+                fallbackSource={name}
+                emptyValueSystemPrompt={AGENT_PROMPT}
+                existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+                onChange={handlePromptActionChange}
+              />
+            }
+            minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
+            maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+          />
+        )
+      }}
     />
   )
 }

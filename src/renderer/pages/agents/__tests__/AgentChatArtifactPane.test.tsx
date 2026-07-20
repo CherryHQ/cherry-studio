@@ -90,7 +90,7 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 255,
   RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
     <section data-testid="session-right-pane" data-open={String(Boolean(open))}>
       {open ? children : null}
@@ -664,7 +664,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-width', '280')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-resizable', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '280')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '255')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '280')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-max-width', '720')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')

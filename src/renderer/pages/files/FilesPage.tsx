@@ -1031,6 +1031,8 @@ function FilesPage() {
               {isImageGrid ? (
                 <FileGrid
                   files={filteredFiles}
+                  scrollRef={contentScrollRef}
+                  onLayoutChange={maybeFillClientFilteredViewport}
                   onOpen={handleOpen}
                   onDelete={(id) => handleDelete(new Set([id]))}
                   isTrash={isTrash}
@@ -1042,6 +1044,7 @@ function FilesPage() {
               ) : (
                 <FileList
                   files={filteredFiles}
+                  scrollRef={contentScrollRef}
                   selectedIds={selectedIds}
                   onSelect={handleSelect}
                   onOpen={handleOpen}
