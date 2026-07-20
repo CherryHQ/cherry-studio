@@ -23,7 +23,7 @@ const DetailHeader = ({ base, onOpenRagConfig, onOpenRecallTest, onRebuild }: De
       <div className="flex min-w-0 items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="min-w-0 truncate font-bold text-2xl text-foreground leading-8">{base.name}</h1>
-          {base.status === 'failed' ? (
+          {base.status === 'failed' && (
             <Button
               type="button"
               variant="ghost"
@@ -35,14 +35,6 @@ const DetailHeader = ({ base, onOpenRagConfig, onOpenRecallTest, onRebuild }: De
                 {statusLabel}
               </Badge>
             </Button>
-          ) : (
-            <Badge
-              variant="outline"
-              className={`${statusBadgeClassNames[base.status]} shrink-0`}
-              aria-label={statusLabel}
-              title={statusLabel}>
-              {statusLabel}
-            </Badge>
           )}
         </div>
 

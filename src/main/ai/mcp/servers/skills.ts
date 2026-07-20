@@ -243,7 +243,7 @@ class SkillsServer {
     const results = skills.map((s) => ({
       name: s.name,
       folder: s.folderName,
-      path: skillService.getSkillDirectory(s.folderName),
+      path: skillService.getInstalledSkillDirectory(s),
       description: s.description ?? null,
       enabled: s.isEnabled
     }))

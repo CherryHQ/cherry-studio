@@ -18,9 +18,10 @@ import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
-import { registry } from '../../../tools/adapters/aiSdk/registry'
+import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
+import { resolveConfiguredPaintingModel } from '../../../tools/painting'
 import type { AiBaseRequest, CallOverrides } from '../../../types'
 import { filterStandardParams } from '../../../utils/modelParameters'
 import {
@@ -188,8 +189,10 @@ export async function resolveTools(
   }
 
   const hasAnyKnowledgeBase = resolveHasAnyKnowledgeBase()
+  const paintingModel = resolveConfiguredPaintingModel()
   const activeEntries = registry.selectActive({
     assistant,
+    paintingModel: paintingModel ?? undefined,
     mcpToolIds,
     hasFileAttachments,
     hasAnyKnowledgeBase,
@@ -210,7 +213,10 @@ export async function resolveTools(
       ...clientTools
     }
   }
-  const exposed = await applyDeferExposition(tools, registry, model.contextWindow)
+  // Meta-tools must see request-materialized entries rather than the process-wide static entries.
+  const requestRegistry = new ToolRegistry()
+  for (const entry of activeEntries) requestRegistry.register(entry)
+  const exposed = await applyDeferExposition(tools, requestRegistry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
 }
 

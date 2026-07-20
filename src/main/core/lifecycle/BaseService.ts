@@ -110,6 +110,12 @@ export abstract class BaseService {
    * Register an IPC handler (ipcMain.handle).
    * Automatically tracked and removed on service stop/destroy.
    * Returns a Disposable to manually unregister before service stop if needed.
+   *
+   * ⚠ No sender validation here: this sugar is deprecated (see
+   * ipc-migration-guide.md) and channels migrating to IpcApi get its
+   * `validateSender` gate instead. A channel that stays on this sugar and
+   * needs source trust must call `validateSender` explicitly in its handler,
+   * as PreferenceService/CacheService do.
    */
   protected ipcHandle(
     channel: string,
@@ -135,6 +141,8 @@ export abstract class BaseService {
    * Register an IPC event listener (ipcMain.on).
    * Automatically tracked and removed on service stop/destroy.
    * Returns a Disposable to manually unregister before service stop if needed.
+   *
+   * ⚠ No sender validation here — same stance as `ipcHandle` above.
    */
   protected ipcOn(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): Disposable {
     ipcMain.on(channel, listener)

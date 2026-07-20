@@ -11,14 +11,13 @@
  *
  * When a `treeId` is disposed and that builder's last consumer leaves, the
  * tear-down is deferred by `DISPOSE_GRACE_MS`. React commits effects in
- * order "deletions before insertions" within a single commit — when
- * `ArtifactPane` swaps between `Shell.Host` and `Shell.MaximizedOverlay`
- * (or a tab unmounts and immediately remounts) the unmount fires
+ * order "deletions before insertions" within a single commit — when a keyed
+ * consumer is replaced or a tab unmounts and immediately remounts, the unmount fires
  * `File_TreeDispose` for the old id and the mount fires `File_TreeCreate` for the
  * new id back-to-back. The grace window lets the new call grab the still-
  * warm builder instead of waiting on a fresh scan + watcher install.
  *
- * Renderer→main IPC sequence on a tab/maximize remount:
+ * Renderer→main IPC sequence on a same-commit consumer replacement:
  *   T0     unmount   File_TreeDispose(old)  → refcount=0, grace timer queued
  *   T0+ε   mount     File_TreeCreate(...)   → cancels timer, attaches as new consumer
  */

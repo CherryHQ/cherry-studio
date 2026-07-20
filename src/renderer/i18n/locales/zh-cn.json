@@ -193,7 +193,7 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
-      "welcome_title": "今天想聊点什么？"
+      "welcome_title": "今天想做点什么？"
     },
     "icon": {
       "type": "智能体图标"
@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "当前模型不支持调整推理强度"
       },
+      "toolbar": {
+        "customize": "自定义工具栏",
+        "drag": {
+          "cancelled": "已取消对 {{name}} 的重新排序。",
+          "dropped": "已放下 {{name}}。",
+          "instructions": "重新排序：按空格或回车拿起工具，用方向键移动，再按空格或回车放下，按 Esc 取消。",
+          "over": "{{name}} 移动到 {{over}} 上方。",
+          "picked_up": "已拿起 {{name}}。"
+        },
+        "drag_handle": "拖动以重新排序 {{name}}",
+        "restore_default": "恢复默认"
+      },
       "tools": {
         "collapse": "折叠",
         "collapse_in": "加入折叠",
@@ -1743,6 +1755,7 @@
     "thinking_tokens": "约 {{tokens}} tokens",
     "topics": {
       "auto_rename": "生成对话名",
+      "auto_rename_failed": "自动生成对话名失败",
       "clear": {
         "title": "清空消息"
       },
@@ -2266,6 +2279,7 @@
     "swap": "交换",
     "topics": "对话",
     "translate_text": "翻译文本",
+    "undo": "撤销",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "退订",
@@ -2440,6 +2454,80 @@
       "reasoning_truncated": "思维链无法分块，已截断"
     },
     "user": "用户"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "此 HTML 文件没有内容。",
+        "title": "文件为空"
+      },
+      "mode": {
+        "label": "HTML 查看模式",
+        "preview": "预览",
+        "source": "源码"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的 HTML 文件。",
+        "title": "文件过大"
+      }
+    },
+    "invalid_path": {
+      "description": "文件预览需要有效的本地绝对路径。",
+      "title": "无法预览此文件"
+    },
+    "load_error": {
+      "description": "无法加载此文件的预览内容。",
+      "title": "预览失败"
+    },
+    "loading": "正在加载预览...",
+    "markdown": {
+      "empty": {
+        "description": "此 Markdown 文件没有内容。",
+        "title": "文件为空"
+      },
+      "mode": {
+        "label": "Markdown 查看模式",
+        "preview": "预览",
+        "source": "源码"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的 Markdown 文件。",
+        "title": "文件过大"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "用默认应用打开",
+        "description": "无法预览大于 {{limit}} MiB 的 PDF 文件。",
+        "open_error": "无法打开此文件",
+        "title": "文件过大"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "此文本文件没有内容。",
+        "title": "文件为空"
+      },
+      "read_error": {
+        "title": "无法读取此文件"
+      },
+      "too_large": {
+        "description": "无法预览大于 {{limit}} MiB 的文本文件。",
+        "title": "文件过大"
+      }
+    },
+    "unsupported": {
+      "action": "用默认应用打开",
+      "description": "此文件类型暂不支持预览。",
+      "open_error": "无法打开此文件",
+      "title": "暂不支持预览"
+    }
   },
   "files": {
     "actions": "操作",
@@ -3328,6 +3416,11 @@
         "insert_variable": "插入变量",
         "label": "系统提示词",
         "placeholder": "输入对助手的要求，例如回答风格、角色设定或背景说明",
+        "polish": "润色提示词",
+        "polish_failed_description": "请检查或调整默认模型后重试。",
+        "polish_failed_title": "润色提示词失败",
+        "polish_variables_changed_description": "润色结果修改或遗漏了提示词变量，请重试。",
+        "polish_variables_changed_title": "无法应用润色结果",
         "title": "提示词",
         "tokens_label": "Tokens: ",
         "variables_description": "可在系统提示词中插入这些系统变量；每次助手回复前，系统会按当时的信息自动填写。",
@@ -3484,8 +3577,10 @@
       "title": "资源库"
     },
     "skill_add": {
+      "add": "添加 Skill",
       "local_import": "本地导入",
-      "online_search": "在线搜索"
+      "online_search": "在线搜索",
+      "system_search": "系统搜索"
     },
     "skill_detail": {
       "created_at": "创建时间",
@@ -3513,6 +3608,19 @@
       "updated": "按更新时间"
     },
     "subtitle": "管理你的助手、智能体与技能",
+    "system_skill": {
+      "conflict": "名称冲突",
+      "description": "导入系统中已经安装的 skill",
+      "empty_description": "未在这台设备的其他编程工具中找到可导入的 Skill。",
+      "empty_title": "没有可导入的 Skill",
+      "enable_success": "已启用 {{name}}",
+      "enabled": "已启用",
+      "import": "导入",
+      "import_success": "已导入 {{name}}",
+      "imported": "已导入",
+      "search_placeholder": "搜索系统 Skill...",
+      "title": "系统 Skill"
+    },
     "tag_picker": {
       "no_tags": "暂无标签",
       "placeholder": "新标签名..."
@@ -4686,6 +4794,7 @@
     "req_error_text": "服务器繁忙或提示词出现 \"版权词\" 和 \"敏感词\" ，请重试。",
     "req_error_token": "请检查令牌有效性",
     "required_field": "必填项",
+    "revealing": "正在呈现生成的图片",
     "safety_tolerance": "安全容忍度",
     "safety_tolerance_tip": "数值越高过滤越宽松，0 最严格，6 最宽松",
     "seed": "随机种子",
@@ -5343,7 +5452,7 @@
         "icon": {
           "error": "无效的图标名称，请检查输入",
           "label": "图标",
-          "placeholder": "输入 Lucide 图标名称",
+          "placeholder": "图标名称",
           "random": "随机图标",
           "tooltip": "Lucide 图标名称为小写，如 arrow-right",
           "view_all": "查看所有图标"
@@ -5524,16 +5633,17 @@
         "path_changed_without_copy": "路径已更改成功",
         "restart_notice": "应用可能会重启多次以应用更改",
         "select": "修改目录",
-        "select_error": "更改数据目录失败",
+        "select_error": "所选目录可能正被另一个 Cherry Studio 实例使用。请关闭其他实例后重试；若确认没有实例运行，请删除该目录中遗留的 SingletonLock 和 SingletonSocket 文件。",
         "select_error_in_app_path": "新路径与应用安装路径相同，请选择其他路径",
+        "select_error_protected_path": "所选路径受操作系统或 Cherry Studio 保护，请选择其他文件夹",
         "select_error_root_path": "新路径不能是根路径",
         "select_error_same_path": "新路径与旧路径相同，请选择其他路径",
         "select_error_write_permission": "新路径没有写入权限",
         "select_not_empty_dir": "新路径不为空",
-        "select_not_empty_dir_content": "新路径不为空，将覆盖新路径中的数据，有数据丢失和复制失败的风险，是否继续？",
         "select_success": "数据目录已更改，应用将重启以应用更改",
         "select_title": "更改应用数据目录",
-        "stop_quit_app_reason": "应用目前在迁移数据，不能退出"
+        "stop_quit_app_reason": "应用目前在迁移数据，不能退出",
+        "switch_existing_notice": "将直接使用这个非空目录，不会覆盖其中的现有文件。"
       },
       "app_logs": {
         "button": "打开日志",
@@ -6088,7 +6198,8 @@
           "downloading": "下载中…",
           "ready": "已就绪"
         },
-        "title": "本地模型"
+        "title": "本地模型",
+        "unsupported": "当前平台不支持本地模型。"
       },
       "notInstalled": "未安装",
       "openBinariesDir": "打开二进制文件目录",
@@ -6562,10 +6673,10 @@
       "user": "用户"
     },
     "menuGroups": {
-      "automation": "自动化",
-      "capabilities": "能力与工具",
+      "automation": "效率",
+      "capabilities": "工具",
       "models": "模型",
-      "personal": "个人",
+      "personal": "偏好",
       "quickAccess": "快捷入口",
       "system": "系统"
     },
@@ -6756,6 +6867,7 @@
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",
       "empty": "没有模型",
+      "empty_hint": "点击上方的获取模型列表按钮添加模型",
       "enabled_models": "已启用",
       "expand_all": "全部展开",
       "filter": {
@@ -7253,9 +7365,6 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
-      "openai": {
-        "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"
-      },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
       "reorder_failed": "调整服务商顺序失败",
@@ -7722,6 +7831,8 @@
   },
   "tab": {
     "close": "关闭标签页",
+    "close_others": "关闭其他标签页",
+    "close_to_right": "关闭右侧标签页",
     "move_to_first": "移到最左侧",
     "new": "新标签页",
     "open_in_new_window": "从新窗口打开",

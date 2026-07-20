@@ -212,6 +212,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeHost: () => null,
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
+  ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
   useComposerTokenReconcile: () => mocks.reconcileTokens,
   useComposerToolState: () => ({
     files: mocks.files ?? [],
@@ -417,6 +418,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
+      'chat.input.toolbar.pinned_tools': ['thinking', 'web-search'],
       'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
     }
     return [values[key]]
@@ -3206,6 +3208,218 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
+  it('prevents concurrent saves of the same edited message', async () => {
+    let resolveSave: () => void = () => undefined
+    const pendingSave = new Promise<void>((resolve) => {
+      resolveSave = resolve
+    })
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockReturnValue(pendingSave)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    let firstSubmission: void | Promise<void> = undefined
+    act(() => {
+      firstSubmission = mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })
+    })
+    await waitFor(() => {
+      expect(forkAndResend).toHaveBeenCalledTimes(1)
+      expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    })
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })
+    })
+    expect(forkAndResend).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveSave()
+      await firstSubmission
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
+  it('does not let an earlier edit save close a later editing session', async () => {
+    let resolveFirstSave: () => void = () => undefined
+    const firstSave = new Promise<void>((resolve) => {
+      resolveFirstSave = resolve
+    })
+    const forkAndResend = vi.fn().mockReturnValue(firstSave)
+    mocks.chatWrite = {
+      pause: vi.fn(),
+      editMessage: vi.fn().mockResolvedValue(undefined),
+      resend: vi.fn().mockResolvedValue(undefined),
+      forkAndResend
+    }
+    const firstMessage = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const secondMessage = {
+      ...firstMessage,
+      id: 'message-2'
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={firstMessage as any} parts={[{ type: 'text', text: 'first' }] as any} />
+        <StartEditingButton message={secondMessage as any} parts={[{ type: 'text', text: 'second' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(firstMessage.id))
+
+    let firstSubmission: void | Promise<void> = undefined
+    act(() => {
+      firstSubmission = mocks.surfaceProps?.onSendDraft({ text: 'first edited', tokens: [] })
+    })
+    await waitFor(() => {
+      expect(forkAndResend).toHaveBeenCalledTimes(1)
+      expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    })
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.editingState?.messageId).toBe(secondMessage.id)
+      expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    })
+
+    await act(async () => {
+      resolveFirstSave()
+      await firstSubmission
+    })
+
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(secondMessage.id)
+    expect(mocks.surfaceProps?.text).toBe('second')
+  })
+
+  it('saves an edited assistant reply without forking and removes derived translation parts', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'assistant-message-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const originalParts = [
+      { type: 'reasoning', text: 'reasoning' },
+      { type: 'text', text: 'old reply' },
+      { type: 'data-translation', data: { content: 'translated reply' } }
+    ] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={originalParts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await mocks.surfaceProps?.onSendDraft({ text: 'new reply', tokens: [] })
+
+    expect(editMessage).toHaveBeenCalledWith(message.id, [originalParts[0], { type: 'text', text: 'new reply' }])
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
+  it('does not save an assistant reply whose editable parts are separated by a tool call', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'assistant-message-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const originalParts = [
+      { type: 'text', text: 'before tool' },
+      { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+      { type: 'text', text: 'after tool' }
+    ] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={originalParts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
+
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('does not save an assistant reply whose text has provider metadata Composer cannot round-trip', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'assistant-message-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const originalParts = [
+      {
+        type: 'text',
+        text: 'signed reply',
+        providerMetadata: { google: { thoughtSignature: 'signature-1' } }
+      }
+    ] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={originalParts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
+
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
   it('does not fork and resend an edited file-only draft before the file token is reflected in the editor', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
@@ -3437,7 +3651,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.tokens).toEqual([])
   })
 
-  it('clears selected knowledge bases after sending a draft', async () => {
+  it('keeps selected knowledge bases after sending a draft', async () => {
     const knowledgeBase = {
       id: 'kb-1',
       name: 'Knowledge One',
@@ -3469,7 +3683,7 @@ describe('ChatComposer', () => {
         userMessageParts: [expect.objectContaining({ type: 'text', text: 'hello' })]
       })
     )
-    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
   })
 
   it('does not render stale knowledge tokens during same-topic assistant switches', () => {

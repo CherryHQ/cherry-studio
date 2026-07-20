@@ -4,35 +4,29 @@ import { List } from 'lucide-react'
 import { useCallback } from 'react'
 
 import { RESOURCE_PANE_TAB } from './resourcePane'
-import { type ShellTabShortcutOpenBehavior, useShellActions, useShellState } from './Shell'
+import { useRightPanelActions, useRightPanelState } from './RightPanel'
 
 export interface ResourcePaneCountButtonProps {
   label: string
   count: number
   className?: string
-  openBehavior?: ShellTabShortcutOpenBehavior
 }
 
-export function ResourcePaneCountButton({
-  label,
-  count,
-  className,
-  openBehavior = 'hide'
-}: ResourcePaneCountButtonProps) {
-  const { activeTab, maximized, open } = useShellState()
-  const { close, openTab } = useShellActions()
+export function ResourcePaneCountButton({ label, count, className }: ResourcePaneCountButtonProps) {
+  const state = useRightPanelState()
+  const actions = useRightPanelActions()
   const title = `${label} ${count}`
-  const togglesActive = openBehavior === 'toggle-active'
-  const active = open && activeTab === RESOURCE_PANE_TAB
+  const active = state.isActive(RESOURCE_PANE_TAB)
   const handleClick = useCallback(() => {
-    if (togglesActive && active) {
-      close()
+    if (active) {
+      actions.close()
       return
     }
-    openTab(RESOURCE_PANE_TAB)
-  }, [active, close, openTab, togglesActive])
+    actions.tryOpen(RESOURCE_PANE_TAB)
+  }, [actions, active])
 
-  if (maximized || (open && openBehavior === 'hide')) return null
+  if (!actions.canOpen(RESOURCE_PANE_TAB)) return null
+  if (state.presentationMaximized) return null
 
   return (
     <Tooltip content={title} delay={800}>
@@ -47,7 +41,7 @@ export function ResourcePaneCountButton({
           '[&_svg]:!size-3.5 [-webkit-app-region:none]',
           className
         )}
-        aria-pressed={togglesActive ? active : undefined}
+        aria-pressed={active}
         onClick={handleClick}>
         <List />
         <span>{label}</span>

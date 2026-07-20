@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   listSkills: vi.fn(),
   listLocalSkills: vi.fn(),
+  getSkillPluginDirectory: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createSdkMcpServerInstance: vi.fn(),
@@ -78,7 +79,11 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: { list: mocks.listSkills, listLocal: mocks.listLocalSkills }
+  skillService: {
+    list: mocks.listSkills,
+    listLocal: mocks.listLocalSkills,
+    getSkillPluginDirectory: mocks.getSkillPluginDirectory
+  }
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
@@ -215,6 +220,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.isWin = false
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkills.mockResolvedValue([])
+    mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
   })
 
   it('builds the SDK skill whitelist from the DB and workspace before returning settings', async () => {
@@ -683,6 +689,34 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
+  it('loads the private skill plugin for the built-in Assistant while keeping setting sources isolated', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'system-skill', isEnabled: true }])
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.settingSources).toEqual([])
+    expect(settings.plugins).toContainEqual({
+      type: 'local',
+      path: '/app/feature.agents.claude.root',
+      skipMcpDiscovery: true
+    })
+    expect(settings.skills).toContain('system-skill')
+  })
+
   it('injects and auto-approves Assistant MCP tools for a local assistant session', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -1014,6 +1048,19 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.settingSources).toEqual(['project', 'local'])
     })
 
+    it('loads the private skill mirror as a local plugin only for external CLI sessions', async () => {
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
+      )
+
+      expect(settings.plugins).toContainEqual({
+        type: 'local',
+        path: '/app/feature.agents.claude.root',
+        skipMcpDiscovery: true
+      })
+    })
+
     it('strips every inherited Anthropic credential channel and points CLAUDE_CONFIG_DIR at the shell config dir', async () => {
       mocks.getShellEnv.mockResolvedValue({
         ANTHROPIC_API_KEY: 'sk-shell',
@@ -1110,6 +1157,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'anthropic' } as never)
 
       expect(settings.env!.ANTHROPIC_API_KEY).toBe('sk-shell')
+      expect(settings.plugins).toBeUndefined()
     })
   })
 

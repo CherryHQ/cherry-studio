@@ -1,3 +1,5 @@
+import type * as UseCacheModule from '@renderer/data/hooks/useCache'
+import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -122,14 +124,11 @@ const tabsContextMocks = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
 const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
+const resourceEditDialogMocks = vi.hoisted(() => ({ renderHost: vi.fn() }))
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
-  useOptionalTabsContext: () => ({
-    openTab: tabsContextMocks.openTab,
-    setActiveTab: tabsContextMocks.setActiveTab,
-    tabs: tabsContextMocks.tabs
-  })
+  useOptionalTabsContext: () => tabsContextMocks
 }))
 
 vi.mock('@renderer/hooks/useWindowFrame', () => ({
@@ -137,8 +136,10 @@ vi.mock('@renderer/hooks/useWindowFrame', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
-  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
-    target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) => {
+    resourceEditDialogMocks.renderHost(target)
+    return target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+  }
 }))
 
 vi.mock('@renderer/pages/home/messages/TopicImageCaptureHost', () => ({
@@ -175,26 +176,51 @@ const topicStreamStatusMocks = vi.hoisted(() => ({
   statuses: new Map<string, { isFulfilled?: boolean; isPending?: boolean }>()
 }))
 
+const topicRowRenderMocks = vi.hoisted(() => ({
+  counts: new Map<string, number>()
+}))
+
+vi.mock('@renderer/hooks/chat/useTopicMenuActions', async () => {
+  const actual = await vi.importActual<typeof TopicMenuActionsHook>('@renderer/hooks/chat/useTopicMenuActions')
+
+  return {
+    ...actual,
+    useTopicMenuActions: (...args: Parameters<typeof actual.useTopicMenuActions>) => {
+      const topicId = args[0].topic.id
+      topicRowRenderMocks.counts.set(topicId, (topicRowRenderMocks.counts.get(topicId) ?? 0) + 1)
+      return actual.useTopicMenuActions(...args)
+    }
+  }
+})
+
 const cacheHookMocks = vi.hoisted(() => ({
   setCache: vi.fn(),
+  setters: new Map<string, (value: unknown) => void>(),
   values: new Map<string, unknown>()
 }))
 
-vi.mock('@data/hooks/useCache', () => ({
-  useCache: (key: string) => [
-    cacheHookMocks.values.get(key) ?? [],
-    (value: unknown) => {
-      cacheHookMocks.values.set(key, value)
-      cacheHookMocks.setCache(key, value)
+vi.mock('@data/hooks/useCache', async (importOriginal) => ({
+  // Real hook over the globally mocked cacheService: the stream-status tests
+  // seed that store via setShared and spy on its subscribe.
+  useSharedCacheSelector: (await importOriginal<typeof UseCacheModule>()).useSharedCacheSelector,
+  useCache: (key: string) => {
+    if (!cacheHookMocks.setters.has(key)) {
+      cacheHookMocks.setters.set(key, (value: unknown) => {
+        cacheHookMocks.values.set(key, value)
+        cacheHookMocks.setCache(key, value)
+      })
     }
-  ],
-  usePersistCache: (key: string) => [
-    cacheHookMocks.values.get(key),
-    (value: unknown) => {
-      cacheHookMocks.values.set(key, value)
-      cacheHookMocks.setCache(key, value)
+    return [cacheHookMocks.values.get(key) ?? [], cacheHookMocks.setters.get(key)]
+  },
+  usePersistCache: (key: string) => {
+    if (!cacheHookMocks.setters.has(key)) {
+      cacheHookMocks.setters.set(key, (value: unknown) => {
+        cacheHookMocks.values.set(key, value)
+        cacheHookMocks.setCache(key, value)
+      })
     }
-  ]
+    return [cacheHookMocks.values.get(key), cacheHookMocks.setters.get(key)]
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopic', async () => {
@@ -283,99 +309,102 @@ vi.mock('react-i18next', () => ({
     init: vi.fn(),
     type: '3rdParty'
   },
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => {
-      if (key === 'selector.common.pinned_title') return 'Pinned'
-      if (key === 'chat.topics.title') return 'Conversations'
-      if (key === 'chat.topics.list') return 'Conversation List'
-      if (key === 'chat.topics.display.title') return 'Display mode'
-      if (key === 'chat.topics.display.time') return 'Time'
-      if (key === 'chat.topics.display.assistant') return 'Assistant'
-      if (key === 'chat.topics.group.today') return 'Today'
-      if (key === 'chat.topics.group.yesterday') return 'Yesterday'
-      if (key === 'chat.topics.group.this_week') return 'This week'
-      if (key === 'chat.topics.group.earlier') return 'Earlier'
-      if (key === 'chat.topics.group.unknown_assistant') return 'Unlinked Assistant'
-      if (key === 'chat.topics.group.show_more') return 'Show more conversations'
-      if (key === 'chat.topics.group.collapse') return 'Collapse conversations'
-      if (key === 'chat.topics.group.collapse_all') return 'Collapse all'
-      if (key === 'chat.topics.group.expand_all') return 'Expand all'
-      if (key === 'chat.topics.move_to') return 'Move to'
-      if (key === 'chat.topics.search.placeholder') return 'Search conversations'
-      if (key === 'chat.topics.search.title') return 'Search conversations'
-      if (key === 'history.records.shortTitle') return 'History'
-      if (key === 'chat.topics.pin') return 'Pin Conversation'
-      if (key === 'chat.topics.unpin') return 'Unpin Conversation'
-      if (key === 'chat.topics.auto_rename') return 'Generate conversation name'
-      if (key === 'chat.topics.edit.title') return 'Edit conversation name'
-      if (key === 'settings.topic.position.label') return 'Conversation position'
-      if (key === 'settings.topic.position.left') return 'Left'
-      if (key === 'settings.topic.position.right') return 'Right'
-      if (key === 'chat.topics.empty.description')
-        return 'Create a chat and it will stay here so you can continue with its context later.'
-      if (key === 'chat.topics.empty.title') return 'No conversations'
-      if (key === 'assistants.edit.title') return 'Edit Assistant'
-      if (key === 'assistants.pin.title') return 'Pin Assistant'
-      if (key === 'assistants.unpin.title') return 'Unpin Assistant'
-      if (key === 'assistants.clear.menu_title') return 'Delete all assistant conversations'
-      if (key === 'assistants.delete.title') return 'Delete Assistant'
-      if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
-      if (key === 'assistants.icon.type') return 'Assistant icon'
-      if (key === 'chat.add.assistant.title') return 'Add Assistant'
-      if (key === 'assistants.tags.group_by') return 'Group by tag'
-      if (key === 'assistants.tags.ungroup') return 'Ungroup tags'
-      if (key === 'assistants.tags.untagged') return 'Untagged'
-      if (key === 'settings.assistant.icon.type.emoji') return 'Emoji'
-      if (key === 'settings.assistant.icon.type.model') return 'Model'
-      if (key === 'settings.assistant.icon.type.none') return 'None'
-      if (key === 'assistants.presets.manage.title') return 'Manage Assistants'
-      if (key === 'assistants.clear.title') return 'Clear conversations'
-      if (key === 'assistants.clear.content') return 'Delete all assistant conversations?'
-      if (key === 'chat.topics.clear.title') return 'Clear messages'
-      if (key === 'notes.save') return 'Save to notes'
-      if (key === 'chat.save.topic.knowledge.menu_title') return 'Save to knowledge base'
-      if (key === 'chat.save.topic.knowledge.title') return 'Save to knowledge base'
-      if (key === 'chat.topics.copy.title') return 'Copy'
-      if (key === 'chat.topics.copy.image') return 'Copy as Image'
-      if (key === 'chat.topics.copy.md') return 'Copy as Markdown'
-      if (key === 'chat.topics.copy.plain_text') return 'Copy as Plain Text'
-      if (key === 'chat.topics.export.title') return 'Export'
-      if (key === 'chat.topics.export.image') return 'Export as Image'
-      if (key === 'chat.topics.export.image_exporting_keep_page') return 'Exporting image. Please stay on this page.'
-      if (key === 'chat.topics.export.image_saved') return 'Image saved successfully'
-      if (key === 'chat.topics.export.failed') return 'Export failed'
-      if (key === 'chat.topics.export.md.label') return 'Export as Markdown'
-      if (key === 'chat.topics.export.md.reason') return 'Export as Markdown with Reasoning'
-      if (key === 'chat.topics.export.word') return 'Export as Word'
-      if (key === 'chat.topics.export.notion') return 'Export to Notion'
-      if (key === 'chat.topics.export.yuque') return 'Export to Yuque'
-      if (key === 'chat.topics.export.obsidian') return 'Export to Obsidian'
-      if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
-      if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
-      if (key === 'common.delete') return 'Delete'
-      if (key === 'common.delete_success') return 'Deleted'
-      if (key === 'common.delete_failed') return 'Delete failed'
-      if (key === 'common.more') return 'More'
-      if (key === 'common.open_in_new_tab') return 'Open in new tab'
-      if (key === 'tab.open_in_new_window') return 'Open in New Window'
-      if (key === 'common.cancel') return 'Cancel'
-      if (key === 'common.copy_failed') return 'Copy failed'
-      if (key === 'common.name') return 'Name'
-      if (key === 'common.required_field') return 'Required field'
-      if (key === 'common.save') return 'Save'
-      if (key === 'common.select_all') return 'Select All'
-      if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
-      if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Conversations'
-      if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} conversation(s)?`
-      if (key === 'chat.topics.manage.move.success') return `Moved ${options?.count ?? 0} conversation(s)`
-      if (key === 'chat.add.topic.title') return 'New Conversation'
-      if (key === 'chat.default.name') return 'Default Assistant'
-      if (key === 'common.prompt') return 'Prompt'
-      if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
-      if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
-      return key
+  useTranslation: (() => {
+    const value = {
+      t: (key: string, options?: Record<string, unknown>) => {
+        if (key === 'selector.common.pinned_title') return 'Pinned'
+        if (key === 'chat.topics.title') return 'Conversations'
+        if (key === 'chat.topics.list') return 'Conversation List'
+        if (key === 'chat.topics.display.title') return 'Display mode'
+        if (key === 'chat.topics.display.time') return 'Time'
+        if (key === 'chat.topics.display.assistant') return 'Assistant'
+        if (key === 'chat.topics.group.today') return 'Today'
+        if (key === 'chat.topics.group.yesterday') return 'Yesterday'
+        if (key === 'chat.topics.group.this_week') return 'This week'
+        if (key === 'chat.topics.group.earlier') return 'Earlier'
+        if (key === 'chat.topics.group.unknown_assistant') return 'Unlinked Assistant'
+        if (key === 'chat.topics.group.show_more') return 'Show more conversations'
+        if (key === 'chat.topics.group.collapse') return 'Collapse conversations'
+        if (key === 'chat.topics.group.collapse_all') return 'Collapse all'
+        if (key === 'chat.topics.group.expand_all') return 'Expand all'
+        if (key === 'chat.topics.move_to') return 'Move to'
+        if (key === 'chat.topics.search.placeholder') return 'Search conversations'
+        if (key === 'chat.topics.search.title') return 'Search conversations'
+        if (key === 'history.records.shortTitle') return 'History'
+        if (key === 'chat.topics.pin') return 'Pin Conversation'
+        if (key === 'chat.topics.unpin') return 'Unpin Conversation'
+        if (key === 'chat.topics.auto_rename') return 'Generate conversation name'
+        if (key === 'chat.topics.edit.title') return 'Edit conversation name'
+        if (key === 'settings.topic.position.label') return 'Conversation position'
+        if (key === 'settings.topic.position.left') return 'Left'
+        if (key === 'settings.topic.position.right') return 'Right'
+        if (key === 'chat.topics.empty.description')
+          return 'Create a chat and it will stay here so you can continue with its context later.'
+        if (key === 'chat.topics.empty.title') return 'No conversations'
+        if (key === 'assistants.edit.title') return 'Edit Assistant'
+        if (key === 'assistants.pin.title') return 'Pin Assistant'
+        if (key === 'assistants.unpin.title') return 'Unpin Assistant'
+        if (key === 'assistants.clear.menu_title') return 'Delete all assistant conversations'
+        if (key === 'assistants.delete.title') return 'Delete Assistant'
+        if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
+        if (key === 'assistants.icon.type') return 'Assistant icon'
+        if (key === 'chat.add.assistant.title') return 'Add Assistant'
+        if (key === 'assistants.tags.group_by') return 'Group by tag'
+        if (key === 'assistants.tags.ungroup') return 'Ungroup tags'
+        if (key === 'assistants.tags.untagged') return 'Untagged'
+        if (key === 'settings.assistant.icon.type.emoji') return 'Emoji'
+        if (key === 'settings.assistant.icon.type.model') return 'Model'
+        if (key === 'settings.assistant.icon.type.none') return 'None'
+        if (key === 'assistants.presets.manage.title') return 'Manage Assistants'
+        if (key === 'assistants.clear.title') return 'Clear conversations'
+        if (key === 'assistants.clear.content') return 'Delete all assistant conversations?'
+        if (key === 'chat.topics.clear.title') return 'Clear messages'
+        if (key === 'notes.save') return 'Save to notes'
+        if (key === 'chat.save.topic.knowledge.menu_title') return 'Save to knowledge base'
+        if (key === 'chat.save.topic.knowledge.title') return 'Save to knowledge base'
+        if (key === 'chat.topics.copy.title') return 'Copy'
+        if (key === 'chat.topics.copy.image') return 'Copy as Image'
+        if (key === 'chat.topics.copy.md') return 'Copy as Markdown'
+        if (key === 'chat.topics.copy.plain_text') return 'Copy as Plain Text'
+        if (key === 'chat.topics.export.title') return 'Export'
+        if (key === 'chat.topics.export.image') return 'Export as Image'
+        if (key === 'chat.topics.export.image_exporting_keep_page') return 'Exporting image. Please stay on this page.'
+        if (key === 'chat.topics.export.image_saved') return 'Image saved successfully'
+        if (key === 'chat.topics.export.failed') return 'Export failed'
+        if (key === 'chat.topics.export.md.label') return 'Export as Markdown'
+        if (key === 'chat.topics.export.md.reason') return 'Export as Markdown with Reasoning'
+        if (key === 'chat.topics.export.word') return 'Export as Word'
+        if (key === 'chat.topics.export.notion') return 'Export to Notion'
+        if (key === 'chat.topics.export.yuque') return 'Export to Yuque'
+        if (key === 'chat.topics.export.obsidian') return 'Export to Obsidian'
+        if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
+        if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
+        if (key === 'common.delete') return 'Delete'
+        if (key === 'common.delete_success') return 'Deleted'
+        if (key === 'common.delete_failed') return 'Delete failed'
+        if (key === 'common.more') return 'More'
+        if (key === 'common.open_in_new_tab') return 'Open in new tab'
+        if (key === 'tab.open_in_new_window') return 'Open in New Window'
+        if (key === 'common.cancel') return 'Cancel'
+        if (key === 'common.copy_failed') return 'Copy failed'
+        if (key === 'common.name') return 'Name'
+        if (key === 'common.required_field') return 'Required field'
+        if (key === 'common.save') return 'Save'
+        if (key === 'common.select_all') return 'Select All'
+        if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
+        if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Conversations'
+        if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} conversation(s)?`
+        if (key === 'chat.topics.manage.move.success') return `Moved ${options?.count ?? 0} conversation(s)`
+        if (key === 'chat.add.topic.title') return 'New Conversation'
+        if (key === 'chat.default.name') return 'Default Assistant'
+        if (key === 'common.prompt') return 'Prompt'
+        if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
+        if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
+        return key
+      }
     }
-  })
+    return () => value
+  })()
 }))
 
 import { cacheService } from '@data/CacheService'
@@ -651,6 +680,7 @@ describe('Topics', () => {
     vi.clearAllMocks()
     clearPendingTopicImageActionsForTest()
     topicStreamStatusMocks.statuses.clear()
+    topicRowRenderMocks.counts.clear()
     clearTopicStreamCache('topic-a', 'topic-b', 'topic-c', 'topic-d', 'topic-e')
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date(2026, 0, 3, 12))
@@ -1658,6 +1688,60 @@ describe('Topics', () => {
     expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a2-first' }))
   })
 
+  it('uses the pre-delete topic snapshot when refresh completes before deletion resolves', async () => {
+    const topics = [
+      createApiTopic({
+        id: 'topic-a1-first',
+        name: 'A1 First',
+        assistantId: 'assistant-1',
+        orderKey: 'a'
+      }),
+      createApiTopic({
+        id: 'topic-a1-second',
+        name: 'A1 Second',
+        assistantId: 'assistant-1',
+        orderKey: 'b'
+      })
+    ]
+    const assistantTopicsSource = createAssistantTopicsSource(topics)
+    let resolveDelete: (() => void) | undefined
+    topicDataMocks.deleteTopic.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+    const { onNewTopic, rerenderTopicList, setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' }),
+      assistantTopicsSource
+    })
+
+    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
+
+    const refreshedTopics = topics.filter((topic) => topic.id !== 'topic-a1-second')
+    Object.assign(assistantTopicsSource, {
+      pages: [{ items: refreshedTopics }],
+      topics: refreshedTopics
+    })
+    rerenderTopicList()
+    await act(async () => {
+      resolveDelete?.()
+    })
+
+    await vi.waitFor(() =>
+      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
+    )
+    expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
   it('opens a fresh topic for the assistant, not another assistant, when deleting its only topic in the modern sidebar', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -1774,6 +1858,72 @@ describe('Topics', () => {
     expect(screen.queryByText('2026/01/02 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2025/12/31 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText(/^Prompt:/)).not.toBeInTheDocument()
+  })
+
+  it('rerenders only the previous and next active topic rows when selection changes', () => {
+    const setPanePosition = vi.fn()
+    const exportMenuOptions = {
+      docx: true,
+      image: true,
+      joplin: true,
+      markdown: true,
+      markdown_reason: true,
+      notes: true,
+      notion: true,
+      obsidian: true,
+      plain_text: true,
+      siyuan: true,
+      yuque: true
+    }
+    let previousPreferenceKeys: unknown
+    let stableExportMenuOptions = exportMenuOptions
+    MockUsePreference.useMultiplePreferences.mockImplementation((keys) => {
+      if (keys !== previousPreferenceKeys) {
+        previousPreferenceKeys = keys
+        stableExportMenuOptions = { ...exportMenuOptions }
+      }
+      return [stableExportMenuOptions, vi.fn()] as never
+    })
+    cacheHookMocks.values.set('topic.renaming', [])
+    cacheHookMocks.values.set('topic.newly_renamed', [])
+    const topicPinsQuery = {
+      data: [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    }
+    const assistantPinsQuery = { ...topicPinsQuery }
+    const assistantsQuery = {
+      ...topicPinsQuery,
+      data: { items: [createAssistant()], total: 1 }
+    }
+    const emptyQuery = { ...topicPinsQuery, data: undefined }
+    mockUseQuery.mockImplementation((path, options) => {
+      if (path === '/assistants') return assistantsQuery
+      if (path !== '/pins') return emptyQuery
+
+      const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
+      return entityType === 'assistant' ? assistantPinsQuery : topicPinsQuery
+    })
+    const assistantTopicsSource = createAssistantTopicsSource(createTopicPageItems(3))
+    const { rerenderTopicList } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-1', name: 'Topic 1' }),
+      assistantTopicsSource,
+      onSetPanePosition: setPanePosition,
+      panePosition: 'left'
+    })
+    const initialRenderCounts = new Map(topicRowRenderMocks.counts)
+
+    rerenderTopicList(undefined, createRendererTopic({ id: 'topic-2', name: 'Topic 2' }))
+
+    expect(MockUsePreference.useMultiplePreferences.mock.calls.at(-1)?.[0]).toBe(
+      MockUsePreference.useMultiplePreferences.mock.calls[0][0]
+    )
+    expect(topicRowRenderMocks.counts.get('topic-1')).toBeGreaterThan(initialRenderCounts.get('topic-1') ?? 0)
+    expect(topicRowRenderMocks.counts.get('topic-2')).toBeGreaterThan(initialRenderCounts.get('topic-2') ?? 0)
+    expect(topicRowRenderMocks.counts.get('topic-3')).toBe(initialRenderCounts.get('topic-3'))
   })
 
   it('keeps inactive topic stream indicator visible and opens fulfilled topics', () => {
@@ -2599,6 +2749,7 @@ describe('Topics', () => {
   it('moves assistant group actions into the more menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     const { onCreateTopicAfterClear, onNewTopic, setActiveTopic } = renderTopicList()
+    expect(resourceEditDialogMocks.renderHost).not.toHaveBeenCalled()
 
     const assistantGroupButton = screen.getByRole('button', { name: 'Alpha Assistant' })
     const assistantHeader = assistantGroupButton.closest('div')
@@ -2617,13 +2768,15 @@ describe('Topics', () => {
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Edit Assistant' }))
     await vi.waitFor(() => expect(animationFrameCallbacks).toHaveLength(1))
-    act(() => {
+    await act(async () => {
       for (const callback of animationFrameCallbacks.splice(0)) {
         callback(0)
       }
     })
-    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
-    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-1')
+    const editDialogHost = await screen.findByTestId('resource-edit-dialog-host')
+    expect(editDialogHost).toHaveAttribute('data-kind', 'assistant')
+    expect(editDialogHost).toHaveAttribute('data-id', 'assistant-1')
+    expect(resourceEditDialogMocks.renderHost).toHaveBeenCalledOnce()
     expect(tabsContextMocks.openTab).not.toHaveBeenCalledWith(
       '/app/library?resourceType=assistant&action=edit&id=assistant-1',
       expect.anything()
