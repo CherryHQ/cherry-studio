@@ -64,8 +64,24 @@ describe('migration database SQLite child queries', () => {
     const missing = inspectMigrationDatabaseSqlite(path.join(testDir, 'missing.sqlite'))
     expect(missing).toEqual({ status: 'unavailable', reason: 'open_failed' })
 
-    const corrupt = path.join(testDir, 'corrupt.sqlite')
+    const corrupt = copyProductionDatabase('corrupt.sqlite')
     writeFileSync(corrupt, 'not a database')
     expect(inspectMigrationDatabaseSqlite(corrupt)).toEqual({ status: 'unavailable', reason: 'query_failed' })
+  })
+
+  it('reports a missing object role after the production schema loses a required table', () => {
+    const databaseFile = copyProductionDatabase('missing-schema-object.sqlite')
+    const database = new Database(databaseFile)
+    database.exec('DROP TABLE mcp_server')
+    database.close()
+
+    const result = inspectMigrationDatabaseSqlite(databaseFile)
+
+    expect(result).toMatchObject({ status: 'available', quickCheck: 'ok' })
+    if (result.status !== 'available') throw new Error('Expected the damaged production schema to remain readable')
+    expect(result.objects.find(({ role }) => role === 'mcp_server')).toEqual({
+      role: 'mcp_server',
+      status: 'missing_table'
+    })
   })
 })

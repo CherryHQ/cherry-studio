@@ -232,8 +232,8 @@ describe('McpServerMigrator', () => {
         }
       })
       await migrator.prepare(ctx as any)
-      const result = await migrator.execute(ctx as any)
-      expect(result).toStrictEqual({ success: true, processedCount: 4 })
+      const diagnosed = await migrator.executeWithDiagnostics(ctx as any)
+      expect(diagnosed).toStrictEqual({ result: { success: true, processedCount: 4 } })
       expect(ctx.insertedRows.map((row) => row.name)).toEqual(ctx.insertedRows.map((row) => row.id))
       expect(ctx.insertedRows.map((row) => row.name)).not.toEqual([
         'srv-no-name',
@@ -241,6 +241,22 @@ describe('McpServerMigrator', () => {
         'srv-whitespace-name',
         'srv-null-name'
       ])
+    })
+
+    it('normalizes an arbitrary legacy type to null without creating a fatal diagnostic', async () => {
+      const ctx = createMockContext({
+        mcp: { servers: [{ id: 'srv-arbitrary-type', name: 'legacy', type: 'PRIVATE_ARBITRARY_TYPE' }] }
+      })
+
+      const prepared = await migrator.prepareWithDiagnostics(ctx as any)
+      const executed = await migrator.executeWithDiagnostics(ctx as any)
+
+      expect(prepared).toStrictEqual({ result: { success: true, itemCount: 1, warnings: undefined } })
+      expect(executed).toStrictEqual({ result: { success: true, processedCount: 1 } })
+      expect(ctx.insertedRows).toEqual([expect.objectContaining({ type: null })])
+      expect(JSON.stringify({ prepared, executed, insertedRows: ctx.insertedRows })).not.toContain(
+        'PRIVATE_ARBITRARY_TYPE'
+      )
     })
 
     it('should handle empty servers gracefully', async () => {

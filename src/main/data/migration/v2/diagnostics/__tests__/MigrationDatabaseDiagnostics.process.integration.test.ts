@@ -10,13 +10,22 @@ import { MigrationDatabaseDiagnostics } from '../MigrationDatabaseDiagnostics'
 describe('MigrationDatabaseDiagnostics process containment', () => {
   const dbh = setupTestDatabase()
 
-  it('SIGKILLs a native SQLite hang and keeps the main-process file evidence', async () => {
+  it.each([
+    ['native SQLite hang', undefined],
+    ['partial child result followed by a native SQLite hang', 'partial']
+  ] as const)('SIGKILLs a %s and keeps the main-process file evidence', async (_scenario, fixtureMode) => {
     const fixture = `${process.cwd()}/src/main/data/migration/v2/diagnostics/__tests__/fixtures/nativeSqliteHangChild.mjs`
     let childKilled = false
     const diagnostics = new MigrationDatabaseDiagnostics({
       timeoutMs: 50,
       createChild: (_modulePath, options) => {
-        const child = spawn(process.execPath, [fixture], options)
+        const child = spawn(process.execPath, [fixture], {
+          ...options,
+          env: {
+            ...options.env,
+            ...(fixtureMode === undefined ? {} : { CHERRY_MIGRATION_DATABASE_DIAGNOSTICS_FIXTURE: fixtureMode })
+          }
+        })
         child.once('exit', (_code, signal) => {
           childKilled = signal === 'SIGKILL'
         })

@@ -1,13 +1,7 @@
 import Database from 'better-sqlite3'
 
-process.once('message', (input) => {
-  if (!input || typeof input !== 'object' || typeof input.databaseFile !== 'string') {
-    process.exitCode = 1
-    process.disconnect?.()
-    return
-  }
-
-  const database = new Database(input.databaseFile, { readonly: true, fileMustExist: true })
+function runNativeHang(databaseFile) {
+  const database = new Database(databaseFile, { readonly: true, fileMustExist: true })
   database.pragma('query_only = ON')
 
   // Intentionally much longer than the host timeout. This SQL exists only in
@@ -19,4 +13,21 @@ process.once('message', (input) => {
     .get()
   database.close()
   process.disconnect?.()
+}
+
+process.once('message', (input) => {
+  if (!input || typeof input !== 'object' || typeof input.databaseFile !== 'string') {
+    process.exitCode = 1
+    process.disconnect?.()
+    return
+  }
+
+  if (process.env.CHERRY_MIGRATION_DATABASE_DIAGNOSTICS_FIXTURE === 'partial') {
+    process.send?.({ type: 'result', result: { status: 'unavailable', reason: 'query_failed' } }, () =>
+      runNativeHang(input.databaseFile)
+    )
+    return
+  }
+
+  runNativeHang(input.databaseFile)
 })
