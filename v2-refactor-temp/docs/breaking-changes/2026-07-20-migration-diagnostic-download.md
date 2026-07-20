@@ -2,7 +2,7 @@
 title: Migration failures or warnings can save a diagnostic bundle
 category: data-migration
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#17184'
 date: 2026-07-20
 ---
 
@@ -24,5 +24,4 @@ Review and manually attach the ZIP when contacting Cherry Studio support.
 
 ## Notes for release manager
 
-This fragment describes the Scheme A privacy baseline. Scheme B comparison and the final single-policy production
-decision are still pending; update this wording if Scheme B is selected.
+This fragment describes the production strict-bundle privacy policy.
