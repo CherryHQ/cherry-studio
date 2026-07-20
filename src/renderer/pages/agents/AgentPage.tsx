@@ -117,7 +117,12 @@ function sortNewestSessions(sessions: AgentSessionEntity[]): AgentSessionEntity[
     const rightCreatedAt = Date.parse(right.createdAt)
     const leftMs = Number.isFinite(leftCreatedAt) ? leftCreatedAt : Number.NEGATIVE_INFINITY
     const rightMs = Number.isFinite(rightCreatedAt) ? rightCreatedAt : Number.NEGATIVE_INFINITY
-    return rightMs - leftMs
+    if (rightMs !== leftMs) return rightMs - leftMs
+    const leftUpdatedAt = Date.parse(left.updatedAt)
+    const rightUpdatedAt = Date.parse(right.updatedAt)
+    const leftUpdatedMs = Number.isFinite(leftUpdatedAt) ? leftUpdatedAt : Number.NEGATIVE_INFINITY
+    const rightUpdatedMs = Number.isFinite(rightUpdatedAt) ? rightUpdatedAt : Number.NEGATIVE_INFINITY
+    return rightUpdatedMs - leftUpdatedMs
   })
 }
 
@@ -172,6 +177,7 @@ const AgentPage = () => {
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   // Shared session facts plus bounded seed lookups for rails, restore, and placeholder reuse.
   const agentSessionsSource = useAgentSessionsSource({ enabled: !isMessageOnlyView })
+
   const { stats: sessionStats, loadLatestSession, loadSessionReuseCandidates } = agentSessionsSource
   // First-entry selection resumes the most-recently-active session. A dedicated `lastActivityAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full session history to paginate in nor
@@ -187,7 +193,6 @@ const AgentPage = () => {
   const { agents, isLoading: isAgentsLoading } = useAgents()
   const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => routeActiveSessionId)
-  const [rightPaneAgentScopeId, setRightPaneAgentScopeId] = useState<string | undefined>(undefined)
   const [isSelectedAgentScopeEmpty, setIsSelectedAgentScopeEmpty] = useState(false)
   const syncedRouteActiveSessionIdRef = useRef(routeActiveSessionId)
   // Classic-layout (rail) session-pane open state, cached on the agent surface's own key so it
@@ -254,6 +259,9 @@ const AgentPage = () => {
       : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
   const visibleSessionId = visibleSession?.id
   const visibleSessionAgentId = visibleSession?.agentId
+  const [rightPaneAgentScopeId, setRightPaneAgentScopeId] = useState<string | undefined>(
+    () => visibleSessionAgentId ?? undefined
+  )
   const activeSessionSelectionRef = useRef<AgentSessionEntity | null>(visibleSession)
   useEffect(() => {
     activeSessionSelectionRef.current = visibleSession
@@ -668,7 +676,7 @@ const AgentPage = () => {
       closeSurface()
       setResourceListOpen(true)
       // Locate (history / global search) should reveal the target in the right session pane. In modern layout
-      // this setter is a no-op; classic layout persists it for the next AgentChat remount.
+      // this setter is a no-op; classic layout feeds the explicit open intent into the stable AgentChat shell.
       setSessionPaneOpen(true)
       setMissingAgentSelection(false)
       setPendingLocateMessageId(messageId)
@@ -975,9 +983,8 @@ const AgentPage = () => {
         setActiveSessionId={setActiveSessionAndClearTransient}
       />
     )
-  // In classic layout the session list moves into the chat's right pane as a tab; AgentChat keeps the
-  // pane provider per-branch (its Shell meta is bound to per-session runtime, unlike Home), so the
-  // config is threaded into each branch rather than lifted to this page.
+  // In classic layout the session list moves into AgentChat's stable right-pane capability catalog.
+  // The config stays mounted while AgentChat swaps its conversation and center-surface content.
   const resourcePane: ResourcePaneConfig | null =
     isAgentResourceLayout && sessionListPosition === 'right'
       ? {

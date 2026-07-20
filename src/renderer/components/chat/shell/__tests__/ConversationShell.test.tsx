@@ -1,4 +1,9 @@
-import { Shell } from '@renderer/components/chat/panes/Shell'
+import {
+  RightPanel,
+  type RightPanelCapability,
+  RightPanelProvider,
+  RightPanelShortcut
+} from '@renderer/components/chat/panes/Shell'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
@@ -17,6 +22,7 @@ const shellProps = vi.hoisted(() => ({
     centerOverlay?: ReactNode
     centerTopOverlay?: ReactNode
     overlay?: ReactNode
+    rightPane?: ReactNode
   } | null
 }))
 
@@ -31,17 +37,21 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
       {children}
     </button>
   ),
-  Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  HorizontalScrollContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsTrigger: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
   Tooltip: ({ children }: { children: ReactNode }) => children
 }))
+
+const rightPanelCapabilities = [
+  {
+    component: () => <div>resource panel</div>,
+    resolve: () => ({
+      id: 'files',
+      instanceKey: 'files',
+      title: '对话',
+      readiness: 'ready' as const,
+      canMaximize: true
+    })
+  }
+] satisfies readonly RightPanelCapability<null>[]
 
 vi.mock('../ChatAppShell', () => ({
   ChatAppShell: (props: {
@@ -52,6 +62,7 @@ vi.mock('../ChatAppShell', () => ({
     centerOverlay?: ReactNode
     centerTopOverlay?: ReactNode
     overlay?: ReactNode
+    rightPane?: ReactNode
   }) => {
     shellProps.current = props
     return (
@@ -63,6 +74,7 @@ vi.mock('../ChatAppShell', () => ({
         {props.centerOverlay}
         {props.centerTopOverlay}
         {props.overlay}
+        {props.rightPane}
       </div>
     )
   }
@@ -252,26 +264,17 @@ describe('ConversationShell', () => {
 
   it('keeps the top-right tool visible while the docked right pane is open when requested', () => {
     const { container } = render(
-      <Shell defaultTab="files">
+      <RightPanelProvider capabilities={rightPanelCapabilities} scope={null} defaultPanelId="files">
         <ConversationShell
           topBar={<div data-testid="top-bar" />}
           topRightTool={
-            <Shell.TabShortcut
-              tab="files"
-              label="对话"
-              icon={<span data-testid="resource-shortcut-icon" />}
-              openBehavior="toggle-active"
-            />
+            <RightPanelShortcut tab="files" label="对话" icon={<span data-testid="resource-shortcut-icon" />} />
           }
           showTopRightToolWhenPaneOpen
           center={<div />}
         />
-        <Shell.Tabs>
-          <Shell.TabList canMaximize title="对话" showTabs={false}>
-            <Shell.Tab value="files">对话</Shell.Tab>
-          </Shell.TabList>
-        </Shell.Tabs>
-      </Shell>
+        <RightPanel />
+      </RightPanelProvider>
     )
 
     const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')

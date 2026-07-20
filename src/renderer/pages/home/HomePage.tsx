@@ -1,7 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { type ResourcePaneConfig, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
@@ -54,7 +54,7 @@ import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useLocation, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
-import type { FC, HTMLAttributes, ReactNode } from 'react'
+import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -926,15 +926,6 @@ const HomePage: FC = () => {
           )
         }
       : null
-  const renderWithRightPane = (content: ReactNode) => (
-    <TopicRightPane
-      resourcePane={resourcePane}
-      defaultOpen={topicPaneOpen}
-      onOpenChange={isAssistantResourceLayout ? setTopicPaneOpen : undefined}
-      revealRequest={topicRevealRequest}>
-      {content}
-    </TopicRightPane>
-  )
   const assistantPickerDialog = isAssistantResourceLayout ? (
     <AssistantConversationPickerDialog
       open={assistantPickerOpen}
@@ -947,30 +938,43 @@ const HomePage: FC = () => {
 
   const centerSurface = historyRecordsCenter ?? resourceCenter
 
-  return renderWithRightPane(
-    <Container id="home-page">
-      <ContentContainer $detached={isWindowFrame}>
-        <Chat
-          activeTopic={visibleTopic}
-          centerFallback={<ConversationCenterState state={isSelectedAssistantScopeEmpty ? 'empty' : 'loading'} />}
-          pane={pane}
-          paneOpen={effectiveShowSidebar}
-          panePosition={shellPanePosition}
-          centerSurface={centerSurface}
-          onPaneCollapse={() => setResourceListOpen(false)}
-          onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-          onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-          onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-          showResourceListControls={!isMessageOnlyView}
-          sidebarOpen={effectiveShowSidebar}
-          onSidebarToggle={toggleResourceListOpen}
-          locateMessageId={pendingLocateMessageId}
-          onLocateMessageHandled={handleLocateMessageHandled}
-          resourcePaneCount={topicResourcePaneCount}
-        />
-      </ContentContainer>
-      {assistantPickerDialog}
-    </Container>
+  // The provider, conversation shell, and viewport stay at one React ownership path while the center
+  // switches between loading, chat, history, and resource surfaces. Capability identity alone now
+  // decides whether a visited right-panel subtree survives.
+  return (
+    <TopicRightPane
+      resourcePane={resourcePane}
+      topicId={visibleTopic?.id}
+      topicName={visibleTopic?.name}
+      traceId={visibleTopic?.traceId}
+      present={!centerSurface}
+      defaultOpen={topicPaneOpen}
+      onOpenChange={isAssistantResourceLayout ? setTopicPaneOpen : undefined}
+      revealRequest={topicRevealRequest}>
+      <Container id="home-page">
+        <ContentContainer $detached={isWindowFrame}>
+          <Chat
+            activeTopic={visibleTopic}
+            centerFallback={<ConversationCenterState state={isSelectedAssistantScopeEmpty ? 'empty' : 'loading'} />}
+            centerSurface={centerSurface}
+            pane={pane}
+            paneOpen={effectiveShowSidebar}
+            panePosition={shellPanePosition}
+            onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+            onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+            onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+            showResourceListControls={!isMessageOnlyView}
+            sidebarOpen={effectiveShowSidebar}
+            onSidebarToggle={toggleResourceListOpen}
+            locateMessageId={pendingLocateMessageId}
+            onLocateMessageHandled={handleLocateMessageHandled}
+            resourcePaneCount={topicResourcePaneCount}
+          />
+        </ContentContainer>
+        {assistantPickerDialog}
+      </Container>
+    </TopicRightPane>
   )
 }
 

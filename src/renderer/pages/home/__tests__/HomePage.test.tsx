@@ -421,77 +421,78 @@ vi.mock('../Chat', () => ({
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
-  }) => (
-    <section data-testid="home-chat">
-      {centerSurface?.content ?? (
-        <>
-          {activeTopic ? (
-            <>
-              <output data-testid="active-topic">{activeTopic.id}</output>
-              <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
-              <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
-              <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
-              {showResourceListControls && onSidebarToggle && (
-                <button type="button" onClick={onSidebarToggle}>
-                  Toggle sidebar
-                </button>
-              )}
-              {resourcePaneCount && (
-                <output data-testid="resource-pane-count">
-                  {resourcePaneCount.label}:{resourcePaneCount.count}
-                </output>
-              )}
-              {onNewTopic && (
-                <button type="button" onClick={() => onNewTopic()}>
-                  New topic
-                </button>
-              )}
-              {onNewTopic && (
-                <button type="button" onClick={() => onNewTopic({ assistantId: 'assistant-2' })}>
-                  New topic with assistant 2
-                </button>
-              )}
-              {onNewTopic && (
-                <button type="button" onClick={() => onNewTopic({ assistantId: 'missing-assistant' })}>
-                  New topic with missing assistant
-                </button>
-              )}
-              {onCreateEmptyTopic && (
-                <button type="button" onClick={() => onCreateEmptyTopic({ assistantId: activeTopic.assistantId })}>
-                  Create empty topic from composer
-                </button>
-              )}
-              {onLocateMessageHandled && (
-                <button type="button" onClick={() => onLocateMessageHandled()}>
-                  Locate handled
-                </button>
-              )}
-            </>
-          ) : (
-            centerFallback
-          )}
-        </>
-      )}
-      <output data-testid="pane-open">{String(paneOpen)}</output>
-      <output data-testid="pane-position">{panePosition ?? ''}</output>
-      {onPaneCollapse && (
-        <button type="button" onClick={onPaneCollapse}>
-          Collapse pane
-        </button>
-      )}
-      {onPaneAutoCollapseChange && (
-        <>
-          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
-            Auto collapse pane
+  }) => {
+    const showConversation = Boolean(activeTopic && !centerSurface)
+
+    return (
+      <section data-testid="home-chat-shell">
+        <output data-testid="pane-open">{String(paneOpen)}</output>
+        <output data-testid="pane-position">{panePosition ?? ''}</output>
+        {centerSurface?.content}
+        {!centerSurface && !activeTopic && centerFallback}
+        {showConversation && activeTopic && (
+          <>
+            <output data-testid="active-topic">{activeTopic.id}</output>
+            <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
+            <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
+            <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+            {showResourceListControls && onSidebarToggle && (
+              <button type="button" onClick={onSidebarToggle}>
+                Toggle sidebar
+              </button>
+            )}
+            {resourcePaneCount && (
+              <output data-testid="resource-pane-count">
+                {resourcePaneCount.label}:{resourcePaneCount.count}
+              </output>
+            )}
+            {onNewTopic && (
+              <button type="button" onClick={() => onNewTopic()}>
+                New topic
+              </button>
+            )}
+            {onNewTopic && (
+              <button type="button" onClick={() => onNewTopic({ assistantId: 'assistant-2' })}>
+                New topic with assistant 2
+              </button>
+            )}
+            {onNewTopic && (
+              <button type="button" onClick={() => onNewTopic({ assistantId: 'missing-assistant' })}>
+                New topic with missing assistant
+              </button>
+            )}
+            {onCreateEmptyTopic && (
+              <button type="button" onClick={() => onCreateEmptyTopic({ assistantId: activeTopic.assistantId })}>
+                Create empty topic from composer
+              </button>
+            )}
+            {onLocateMessageHandled && (
+              <button type="button" onClick={() => onLocateMessageHandled()}>
+                Locate handled
+              </button>
+            )}
+          </>
+        )}
+        {onPaneCollapse && (
+          <button type="button" onClick={onPaneCollapse}>
+            Collapse pane
           </button>
-          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
-            Auto restore pane
-          </button>
-        </>
-      )}
-      {pane}
-    </section>
-  )
+        )}
+        {onPaneAutoCollapseChange && (
+          <>
+            <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+              Auto collapse pane
+            </button>
+            <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+              Auto restore pane
+            </button>
+          </>
+        )}
+        <div data-testid="topic-right-pane-viewport" />
+        {pane}
+      </section>
+    )
+  }
 }))
 
 vi.mock('../components/ChatNavbar', () => ({
@@ -608,16 +609,19 @@ vi.mock('../components/TopicRightPane', () => {
       children,
       defaultOpen,
       onOpenChange,
+      present,
       resourcePane
     }: {
       children: ReactNode
       defaultOpen?: boolean
       onOpenChange?: (open: boolean) => void
+      present?: boolean
       resourcePane?: { node?: ReactNode; label?: string } | null
     }) => (
       <div
         data-default-open={String(Boolean(defaultOpen))}
         data-default-tab={resourcePane ? 'resources' : 'branch'}
+        data-present={String(present !== false)}
         data-testid="topic-right-pane-provider">
         {onOpenChange && (
           <button type="button" onClick={() => onOpenChange(false)}>
@@ -629,14 +633,15 @@ vi.mock('../components/TopicRightPane', () => {
       </div>
     ),
     {
-      Host: () => <div data-testid="topic-right-pane-host" />,
-      MaximizedOverlay: () => <div data-testid="topic-right-pane-overlay" />,
+      Viewport: () => <div data-testid="topic-right-pane-viewport" />,
       Shortcuts: () => <button type="button">Topic right pane shortcuts</button>,
       Toggle: () => <button type="button">Toggle topic right pane</button>
     }
   )
 
-  return { TopicRightPane }
+  return {
+    TopicRightPane
+  }
 })
 
 vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
@@ -1037,12 +1042,26 @@ describe('HomePage', () => {
 
   it('renders the assistant resource view in the chat center', () => {
     render(<HomePage />)
+    const provider = screen.getByTestId('topic-right-pane-provider')
+    const viewport = screen.getByTestId('topic-right-pane-viewport')
+
+    expect(provider).toHaveAttribute('data-present', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
     expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
-    expect(screen.getByTestId('home-chat')).toBeInTheDocument()
+    expect(screen.getByTestId('home-chat-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('topic-right-pane-provider')).toBe(provider)
+    expect(screen.getByTestId('topic-right-pane-viewport')).toBe(viewport)
+    expect(provider).toHaveAttribute('data-present', 'false')
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select topic next' }))
+
+    expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
+    expect(screen.getByTestId('topic-right-pane-provider')).toBe(provider)
+    expect(screen.getByTestId('topic-right-pane-viewport')).toBe(viewport)
+    expect(provider).toHaveAttribute('data-present', 'true')
   })
 
   it('renders history records in the chat center and toggles them from the sidebar', () => {
@@ -1054,7 +1073,7 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
 
     expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
-    expect(screen.getByTestId('home-chat')).toBeInTheDocument()
+    expect(screen.getByTestId('home-chat-shell')).toBeInTheDocument()
     expect(screen.getByTestId('home-tabs')).toHaveAttribute('data-history-active', 'true')
     expect(screen.getByRole('textbox', { name: 'Topic sidebar query' })).toHaveValue('keep this query')
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
@@ -1141,7 +1160,7 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
-    const shell = screen.getByTestId('home-chat')
+    const shell = screen.getByTestId('home-chat-shell')
     expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true')
 
     const toolbarLeading = within(shell).getByTestId('resource-toolbar-leading')
@@ -1379,6 +1398,7 @@ describe('HomePage', () => {
         id: 'topic-real',
         assistantId: 'assistant-1',
         activeNodeId: 'node-1',
+        lastActivityAt: '2026-01-08T00:00:00.000Z',
         updatedAt: '2026-01-08T00:00:00.000Z'
       },
       // Empty placeholder with no assistant (the default/unassigned group).
@@ -1388,6 +1408,7 @@ describe('HomePage', () => {
         assistantId: undefined,
         name: '',
         activeNodeId: undefined,
+        lastActivityAt: '2026-01-06T00:00:00.000Z',
         updatedAt: '2026-01-06T00:00:00.000Z'
       }
     ]
@@ -1953,6 +1974,8 @@ describe('HomePage', () => {
 
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    const provider = screen.getByTestId('topic-right-pane-provider')
+    const viewport = screen.getByTestId('topic-right-pane-viewport')
 
     homeMocks.activeTopicLoading = false
     homeMocks.forceActiveTopicUndefined = false
@@ -1960,6 +1983,8 @@ describe('HomePage', () => {
     rerender(<HomePage />)
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
+    expect(screen.getByTestId('topic-right-pane-provider')).toBe(provider)
+    expect(screen.getByTestId('topic-right-pane-viewport')).toBe(viewport)
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 

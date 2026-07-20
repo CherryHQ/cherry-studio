@@ -419,9 +419,9 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../AgentChat', () => ({
   default: ({
+    centerSurface,
     activeSession,
     activeSessionLoading,
-    centerSurface,
     missingAgentSelection,
     onCreateEmptySession,
     onMissingAgentSelectionAgentChange,
@@ -441,9 +441,9 @@ vi.mock('../AgentChat', () => ({
     onPaneCollapse,
     onPaneAutoCollapseChange
   }: {
+    centerSurface?: { content?: ReactNode } | null
     activeSession?: { id: string } | null
     activeSessionLoading?: boolean
-    centerSurface?: { content?: ReactNode } | null
     missingAgentSelection?: boolean
     onCreateEmptySession?: (defaults?: {
       agentId?: string | null
@@ -467,7 +467,7 @@ vi.mock('../AgentChat', () => ({
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section data-testid="agent-chat">
-      {centerSurface?.content ?? (
+      {centerSurface ? null : (
         <>
           <output data-testid="active-session">{activeSession?.id ?? ''}</output>
           <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
@@ -531,6 +531,12 @@ vi.mock('../AgentChat', () => ({
         </button>
       )}
       {pane}
+      {centerSurface && (
+        <section data-testid="agent-conversation-page-shell">
+          <output data-testid="resource-pane-open">{String(paneOpen)}</output>
+          {centerSurface.content}
+        </section>
+      )}
     </section>
   )
 }))
@@ -1090,6 +1096,7 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
 
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
     expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
     expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
   })

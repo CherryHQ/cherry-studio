@@ -121,13 +121,14 @@ describe('Chat', () => {
     expect(conversationShellProps.current?.topRightTool).toBeTruthy()
   })
 
-  it('forwards an alternate center surface without replacing the chat shell', () => {
+  it('renders an alternate center surface without replacing the chat shell', () => {
     const centerSurface = { content: <div data-testid="history-center" /> }
 
     render(<Chat activeTopic={topic} centerSurface={centerSurface} />)
 
     expect(screen.getByTestId('conversation-shell')).toBeInTheDocument()
-    expect(conversationShellProps.current?.centerSurface).toBe(centerSurface)
+    expect(screen.getByTestId('history-center')).toBeInTheDocument()
+    expect(conversationShellProps.current?.topBar).toBeUndefined()
   })
 
   it('renders the fallback center in the same shell before a topic is available', () => {
