@@ -20,7 +20,6 @@ automation. Internal classes, DOM ancestry, and unmarked SVG drawing primitives 
 | `part:message-content` | Reusable component structure role | Stable public part selector |
 | `id:ui-3976699e5846d12a` | Registered exact source node | Stable across builds and unambiguous DOM-preserving moves |
 | `scope:message:m_817` | Runtime instance identity | Stable for that business entity |
-| `variant:bubble` | Visual/product variant | Changes when the variant changes |
 | `mode:fold` | Active layout or behavior mode | Changes with the active mode |
 | `state:complete` | Current state | Changes with runtime state |
 | `scope:window:main` | Renderer window identity | Stable for that window type |
@@ -187,6 +186,6 @@ the source contract; its owning renderer must expose a stable boundary or explic
 - Exact `id:` tokens identify a registered source node. They remain stable across formatting, copy changes, unchanged
   anchors, and unambiguous DOM-preserving moves. Ambiguous structural refactors may receive new IDs, and deleted IDs do
   not carry a permanent no-reuse guarantee.
-- Runtime state belongs in `state:`, `mode:`, or `variant:`; do not generate a new semantic ID for each state.
+- Runtime state belongs in `state:` or `mode:`; do not generate a new semantic ID for each state.
 - Tests and automation must query semantic/exact tokens, then use accessible roles for the intended interaction. The
   contract identifies nodes; it does not grant arbitrary script execution or bypass application permissions.
