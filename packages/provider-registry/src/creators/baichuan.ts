@@ -7,9 +7,10 @@ export default defineCreator({
   fetchModels: openaiCompatible('baichuan', 'BAICHUAN_API_KEY'),
   families: ['baichuan'],
   idPrefixes: ['baichuan'],
-  reasoningMembership: ['^baichuan-m[23]$'],
   reasoningFamilies: [
-    { pattern: 'baichuan-m2$', budget: { min: 0, max: 30000 } },
-    { pattern: 'baichuan-m3$', budget: { min: 0, max: 30000 } }
+    { pattern: 'baichuan-m2$', budget: { min: 0, max: 30000 }, template: true },
+    { pattern: 'baichuan-m3$', budget: { min: 0, max: 30000 }, template: true },
+    // Membership profile (no knobs).
+    { pattern: '^baichuan-m[23]$' }
   ]
 })

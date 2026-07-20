@@ -17,17 +17,16 @@ import type { ReasoningControl } from '../schemas/model'
 import { matchReasoningControls, matchTokenLimits } from './reasoning-families'
 import { REASONING_FAMILY_RULES } from './reasoning-families.gen'
 import { matchReasoningMembership } from './reasoning-membership'
-import { REASONING_MEMBERSHIP_PATTERNS } from './reasoning-membership.gen'
 
 /**
  * Is this id a reasoning model at all? The ingest MEMBERSHIP gate consulted
- * before `inferReasoningControls` supplies the knobs — some family rules
- * (e.g. the broad `^qwen` toggle) rely on it to not over-claim
- * non-reasoning siblings. Skip it when the model's REASONING capability is
- * already declared.
+ * before `inferReasoningControls` supplies the knobs. Membership is implied
+ * by the same rule table: PROFILE rules grant it, TEMPLATE rules (broad
+ * knob-shape carriers like the `^qwen` toggle) don't. Skip it when the
+ * model's REASONING capability is already declared.
  */
 export function inferReasoningMembership(rawModelId: string): boolean {
-  return matchReasoningMembership(rawModelId, REASONING_MEMBERSHIP_PATTERNS)
+  return matchReasoningMembership(rawModelId, REASONING_FAMILY_RULES)
 }
 
 /**

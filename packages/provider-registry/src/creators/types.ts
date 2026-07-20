@@ -39,25 +39,19 @@ export interface Creator {
    */
   webSearch?: string[]
   /**
-   * Curated reasoning-knob knowledge as DATA (no runtime regex module): family
-   * rules mapping THIS creator's id patterns to their native reasoning
-   * controls (effort vocabulary / thinking toggle / budget range). The
-   * generator uses them to fill/complete per-model `controls` when
+   * Curated reasoning knowledge as DATA (no runtime regex module): the single
+   * rule table for THIS creator's id patterns. PROFILE rules (default) assert
+   * "this SKU reasons" — with knobs (effort vocabulary / thinking toggle /
+   * budget range) or none (fixed reasoner) — and thereby feed the ingest
+   * membership gate; TEMPLATE rules (`template: true`) carry a knob shape for
+   * a deliberately broad family pattern without asserting membership. The
+   * generator uses the knob parts to fill/complete per-model `controls` when
    * models.dev's `reasoning_options` are missing or partial, and compiles the
-   * full rule list into `patterns/reasoning-families.gen.ts` for custom-model
+   * full table into `patterns/reasoning-families.gen.ts` for custom-model
    * inference at runtime. NEVER declare a reasoning format here — the wire
    * dialect follows the serving provider, not the model family.
    */
   reasoningFamilies?: ReasoningFamilyRule[]
-  /**
-   * Curated reasoning MEMBERSHIP as DATA: id patterns of THIS creator's
-   * SKUs that reason at all — the ingest gate consulted before
-   * `reasoningFamilies` supplies the knobs, for ids the catalog doesn't
-   * know. Vendor-specific patterns only; creator-agnostic id shapes
-   * (`\bthinking\b`, `-r\d`, …) live in the matcher's generic list.
-   * Compiled into `patterns/reasoning-membership.gen.ts`.
-   */
-  reasoningMembership?: string[]
   /** Hand-written models — always merged in and winning over the API/sources. */
   models?: CreatorModel[]
   /**

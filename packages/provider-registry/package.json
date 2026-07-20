@@ -13,7 +13,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json src/patterns/reasoning-families.gen.ts src/patterns/reasoning-membership.gen.ts",
+    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json src/patterns/reasoning-families.gen.ts",
     "generate:check": "tsx scripts/generate-catalog.ts --report"
   },
   "author": "Cherry Studio",

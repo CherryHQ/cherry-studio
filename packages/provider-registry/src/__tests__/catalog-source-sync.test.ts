@@ -21,9 +21,8 @@ import { describe, expect, it } from 'vitest'
 import { canonOf } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
-import { REASONING_MEMBERSHIP_PATTERNS } from '../patterns/reasoning-membership.gen'
 import { PROVIDERS } from '../providers'
-import { ReasoningFamilyRuleSchema, ReasoningMembershipPatternSchema } from '../schemas/model'
+import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const read = (f: string) => JSON.parse(readFileSync(join(dataDir, f), 'utf8'))
@@ -122,22 +121,6 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
       for (const rule of creator.reasoningFamilies ?? []) {
         const parsed = ReasoningFamilyRuleSchema.safeParse(rule)
         if (!parsed.success) problems.push(`${creator.id}: ${rule.pattern}`)
-      }
-    }
-    expect(problems).toEqual([])
-  })
-
-  it('reasoning-membership.gen.ts mirrors the creator reasoningMembership declarations exactly', () => {
-    const expected = CREATORS.flatMap((c) => c.reasoningMembership ?? [])
-    expect([...REASONING_MEMBERSHIP_PATTERNS]).toEqual(expected)
-  })
-
-  it('every creator reasoningMembership pattern is schema-valid', () => {
-    const problems: string[] = []
-    for (const creator of CREATORS) {
-      for (const pattern of creator.reasoningMembership ?? []) {
-        const parsed = ReasoningMembershipPatternSchema.safeParse(pattern)
-        if (!parsed.success) problems.push(`${creator.id}: ${pattern}`)
       }
     }
     expect(problems).toEqual([])

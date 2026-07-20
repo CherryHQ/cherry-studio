@@ -1,19 +1,23 @@
 /**
  * Zero-knowledge matcher for reasoning MEMBERSHIP — "is this id a reasoning
  * model at all?" (#16598). This is the ingest gate consulted BEFORE the knob
- * rules (`reasoning-families.ts`): family rules only say which knobs a
- * reasoning SKU has, and some (e.g. the broad `^qwen` toggle) rely on this
- * gate to not over-claim non-reasoning siblings.
+ * parts of the same rule table supply the knobs (`reasoning-families.ts`).
  *
- * Vendor knowledge lives as DATA in `Creator.reasoningMembership`
- * (creators/*.ts), compiled by generation into
- * `reasoning-membership.gen.ts`. This module only knows how to MATCH, plus
- * the creator-AGNOSTIC id shapes below (generic words like "thinking" are
- * not family knowledge).
+ * Membership is implied by the family rule table itself: any id matched by a
+ * PROFILE rule (one without `template: true`) is a reasoning SKU. TEMPLATE
+ * rules are deliberately broad knob-shape carriers (e.g. the `^qwen` toggle)
+ * and contribute nothing here — that separation is what lets a broad rule
+ * exist without over-claiming non-reasoning siblings.
+ *
+ * Vendor knowledge lives as DATA in `Creator.reasoningFamilies`
+ * (creators/*.ts), compiled by generation into `reasoning-families.gen.ts`.
+ * This module only knows how to MATCH, plus the creator-AGNOSTIC id shapes
+ * below (generic words like "thinking" are not family knowledge).
  *
  * Consumed at INGEST time only — runtime callers read the model's REASONING
  * capability / descriptor instead.
  */
+import type { ReasoningFamilyRule } from '../schemas/model'
 
 /**
  * Creator-agnostic id shapes that mark a reasoning model regardless of
@@ -57,12 +61,12 @@ function membershipBaseName(rawModelId: string): string {
   return base
 }
 
-/** Test an id against a membership pattern list (creator rules + generic shapes). */
-export function matchReasoningMembership(rawModelId: string, patterns: readonly string[]): boolean {
+/** Test an id against the rule table: profile rules + generic shapes grant membership. */
+export function matchReasoningMembership(rawModelId: string, rules: readonly ReasoningFamilyRule[]): boolean {
   const id = membershipBaseName(rawModelId)
   if (NON_REASONING_GUARD.test(id)) return false
   return (
-    patterns.some((pattern) => membershipRegex(pattern).test(id)) ||
+    rules.some((rule) => rule.template !== true && membershipRegex(rule.pattern).test(id)) ||
     GENERIC_REASONING_SHAPES.some((pattern) => membershipRegex(pattern).test(id))
   )
 }

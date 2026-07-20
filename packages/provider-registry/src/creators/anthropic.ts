@@ -7,12 +7,6 @@ export default defineCreator({
   fetchModels: anthropicModels(),
   modelsDevProviders: ['anthropic'],
   idPrefixes: ['claude'],
-  reasoningMembership: [
-    'claude-3-7-sonnet|claude-3\\.7-sonnet',
-    'claude-(?:sonnet|opus|haiku)-4',
-    // Post-4.5 generations (5+ / latest aliases / fable) — mirrors the adaptive family rule.
-    '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-[5-9](?!\\d)|(?:opus|sonnet|haiku)-latest|fable)'
-  ],
   reasoningFamilies: [
     // Adaptive-effort generations: 4.6+ minors, the 5.x/Fable line, and the
     // -latest aliases (which track the newest flagship).
@@ -23,27 +17,50 @@ export default defineCreator({
       toggle: true
     },
     // Pre-adaptive thinking SKUs: on/off + budget (tiers below).
-    { pattern: '^(?:anthropic\\.)?claude', toggle: true },
-    { pattern: '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@\\-:][\\w\\-:]+)?$', budget: { min: 1024, max: 128000 } },
-    { pattern: '(?:anthropic\\.)?claude-opus-4[.-]6(?:[@\\-:][\\w\\-:]+)?$', budget: { min: 1024, max: 128000 } },
+    { pattern: '^(?:anthropic\\.)?claude', toggle: true, template: true },
+    {
+      pattern: '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@\\-:][\\w\\-:]+)?$',
+      budget: { min: 1024, max: 128000 },
+      template: true
+    },
+    {
+      pattern: '(?:anthropic\\.)?claude-opus-4[.-]6(?:[@\\-:][\\w\\-:]+)?$',
+      budget: { min: 1024, max: 128000 },
+      template: true
+    },
     {
       pattern: '(?:anthropic\\.)?claude-(:?sonnet|haiku)-4[.-]6.*(?:-v\\d+:\\d+)?$',
-      budget: { min: 1024, max: 64000 }
+      budget: { min: 1024, max: 64000 },
+      template: true
     },
     {
       pattern: '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$',
-      budget: { min: 1024, max: 64000 }
+      budget: { min: 1024, max: 64000 },
+      template: true
     },
-    { pattern: '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$', budget: { min: 1024, max: 32000 } },
+    {
+      pattern: '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$',
+      budget: { min: 1024, max: 32000 },
+      template: true
+    },
     {
       pattern: '(?:anthropic\\.)?claude-sonnet-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$',
-      budget: { min: 1024, max: 64000 }
+      budget: { min: 1024, max: 64000 },
+      template: true
     },
     {
       pattern: '(?:anthropic\\.)?claude-opus-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$',
-      budget: { min: 1024, max: 32000 }
+      budget: { min: 1024, max: 32000 },
+      template: true
     },
-    { pattern: '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$', budget: { min: 1024, max: 64000 } }
+    {
+      pattern: '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$',
+      budget: { min: 1024, max: 64000 },
+      template: true
+    },
+    // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
+    { pattern: 'claude-3-7-sonnet|claude-3\\.7-sonnet' },
+    { pattern: 'claude-(?:sonnet|opus|haiku)-4' }
   ],
   webSearch: [
     'claude-opus-4',

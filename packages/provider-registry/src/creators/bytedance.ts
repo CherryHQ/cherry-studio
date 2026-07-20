@@ -5,10 +5,6 @@ export default defineCreator({
   name: 'ByteDance (Doubao)',
   families: ['doubao', 'seed'],
   idPrefixes: ['doubao', 'skylark'],
-  reasoningMembership: [
-    'doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\\d+)?|seed-2[.-]\\d(?:-[\\w-]+)?)(?:-[\\w-]+)*',
-    'seed-oss'
-  ],
   reasoningFamilies: [
     {
       pattern: 'doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]\\d|doubao-seed-1[.-]8',
@@ -26,7 +22,14 @@ export default defineCreator({
         'doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\\d+)?|seed-2[.-]\\d(?:-[\\w-]+)?)(?:-[\\w-]+)*',
       effort: ['none', 'high'],
       budget: { min: 0, max: 30720 }
-    }
+    },
+    // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
+    {
+      pattern:
+        'doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-thinking(?:-|$))|seed-code(?:-preview)?(?:-\\d+)?|seed-2[.-]\\d(?:-[\\w-]+)?)(?:-[\\w-]+)*'
+    },
+    { pattern: 'seed-oss' },
+    { pattern: '^seed-[12][.-]\\d' }
   ],
   // Doubao is proprietary with no clean public listing (only resellers on models.dev; sparse on OR),
   // and the Volcengine Ark API has no /models endpoint — so the current chat/vision line is hand-listed.
