@@ -317,7 +317,9 @@ export type RendererPersistCacheSchema = {
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
-  'ui.chat.right_pane_open': boolean
+  // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
+  // default; booleans preserve an explicit user choice across page re-entry.
+  'ui.chat.right_pane_open_override': boolean | null
   // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
   // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
   // Stores the flat list of collapsed section/group ids; empty = everything expanded.
@@ -327,9 +329,8 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
-  // Per-surface classic-layout right-pane open state (the agent counterpart of
-  // 'ui.chat.right_pane_open'); kept separate so the assistant and agent surfaces don't bleed.
-  'ui.agent.right_pane_open': boolean
+  // Kept separate so the assistant and agent surfaces don't bleed into each other.
+  'ui.agent.right_pane_open_override': boolean | null
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
@@ -354,13 +355,13 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
-  'ui.chat.right_pane_open': false,
+  'ui.chat.right_pane_open_override': null,
   'ui.topic.expansion.time': [],
   'ui.topic.expansion.assistant': null,
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
-  'ui.agent.right_pane_open': false,
+  'ui.agent.right_pane_open_override': null,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,

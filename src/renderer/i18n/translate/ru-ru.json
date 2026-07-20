@@ -1470,16 +1470,16 @@
         "unsupported_model": "Текущая модель не поддерживает регулируемое рассуждение"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Настроить панель инструментов",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Отменена перестановка для {{name}}.",
+          "dropped": "{{name}} отключён.",
+          "instructions": "Чтобы изменить порядок, нажмите Пробел или Enter, чтобы поднять инструмент, используйте клавиши со стрелками для перемещения, затем Пробел или Enter, чтобы опустить, или Escape для отмены.",
+          "over": "{{name}} переместился через {{over}}.",
+          "picked_up": "Подобран(а) {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Перетащите для изменения порядка {{name}}",
+        "restore_default": "Восстановить по умолчанию"
       },
       "tools": {
         "collapse": "Свернуть",
@@ -1755,7 +1755,7 @@
     "thinking_tokens": "~{{tokens}} токенов",
     "topics": {
       "auto_rename": "Автопереименование",
-      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
+      "auto_rename_failed": "Не удалось автоматически сгенерировать название беседы",
       "clear": {
         "title": "Очистить сообщения"
       },
@@ -2453,6 +2453,80 @@
       "reasoning_truncated": "Цепочка мыслей не может быть разбита на блоки, обрезана"
     },
     "user": "Пользователь"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Этот HTML-файл не содержит контента.",
+        "title": "Пустой файл"
+      },
+      "mode": {
+        "label": "Режим просмотра HTML",
+        "preview": "Предпросмотр",
+        "source": "Источник"
+      },
+      "read_error": {
+        "title": "Не удалось прочитать этот файл"
+      },
+      "too_large": {
+        "description": "HTML-файлы размером более {{limit}} МиБ не могут быть предпросмотрены.",
+        "title": "Файл слишком большой"
+      }
+    },
+    "invalid_path": {
+      "description": "Предварительный просмотр файла требует действительный абсолютный локальный путь.",
+      "title": "Не удается просмотреть этот файл"
+    },
+    "load_error": {
+      "description": "Не удалось загрузить содержимое предпросмотра.",
+      "title": "Предпросмотр не удался"
+    },
+    "loading": "Загрузка предварительного просмотра...",
+    "markdown": {
+      "empty": {
+        "description": "Этот файл Markdown не содержит контента.",
+        "title": "Пустой файл"
+      },
+      "mode": {
+        "label": "Режим просмотра Markdown",
+        "preview": "Предпросмотр",
+        "source": "Источник"
+      },
+      "read_error": {
+        "title": "Не удалось прочитать этот файл"
+      },
+      "too_large": {
+        "description": "Файлы Markdown размером более {{limit}} МиБ не могут быть предпросмотрены.",
+        "title": "Файл слишком большой"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Открыть с помощью приложения по умолчанию",
+        "description": "PDF-файлы размером более {{limit}} МиБ нельзя предварительно просмотреть.",
+        "open_error": "Не удалось открыть этот файл",
+        "title": "Файл слишком большой"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Этот текстовый файл не содержит содержимого.",
+        "title": "Пустой файл"
+      },
+      "read_error": {
+        "title": "Не удалось прочитать этот файл"
+      },
+      "too_large": {
+        "description": "Файлы размером более {{limit}} МиБ нельзя предварительно просмотреть.",
+        "title": "Файл слишком большой"
+      }
+    },
+    "unsupported": {
+      "action": "Открыть с помощью приложения по умолчанию",
+      "description": "Этот тип файла пока нельзя просмотреть.",
+      "open_error": "Не удалось открыть этот файл",
+      "title": "Предварительный просмотр недоступен"
+    }
   },
   "files": {
     "actions": "Действия",
@@ -3497,8 +3571,10 @@
       "title": "Библиотека"
     },
     "skill_add": {
+      "add": "Добавить навык",
       "local_import": "Локальный импорт",
-      "online_search": "Онлайн-поиск"
+      "online_search": "Онлайн-поиск",
+      "system_search": "Поиск системы"
     },
     "skill_detail": {
       "created_at": "Создано",
@@ -3526,6 +3602,19 @@
       "updated": "Сортировать по обновлению"
     },
     "subtitle": "Управляйте своими ассистентами, агентами и навыками",
+    "system_skill": {
+      "conflict": "Конфликт имён",
+      "description": "Импортировать навыки, уже установленные в этой системе.",
+      "empty_description": "На этом устройстве в других инструментах для кодирования не найдено импортируемых навыков.",
+      "empty_title": "Нет доступных навыков для импорта",
+      "enable_success": "Включено {{name}}",
+      "enabled": "Включено",
+      "import": "Импорт",
+      "import_success": "Импортировано {{name}}",
+      "imported": "Импортировано",
+      "search_placeholder": "Поиск системных навыков...",
+      "title": "Системные навыки"
+    },
     "tag_picker": {
       "no_tags": "Пока нет меток",
       "placeholder": "Новое имя тега..."
@@ -4699,6 +4788,7 @@
     "req_error_text": "Сервер перегружен или в запросе обнаружены «авторские» либо «чувствительные» слова. Пожалуйста, повторите попытку.",
     "req_error_token": "Пожалуйста, проверьте действительность токена",
     "required_field": "Обязательное поле",
+    "revealing": "Показ сгенерированного изображения",
     "safety_tolerance": "Допустимый предел безопасности",
     "safety_tolerance_tip": "Выше = более мягкий фильтр; 0 — самый строгий, 6 — самый мягкий",
     "seed": "Ключ генерации",
@@ -6101,7 +6191,8 @@
           "downloading": "Загрузка…",
           "ready": "Готов"
         },
-        "title": "Локальные модели"
+        "title": "Локальные модели",
+        "unsupported": "Локальные модели не поддерживаются на этой платформе."
       },
       "notInstalled": "Не установлено",
       "openBinariesDir": "Open binaries directory",
@@ -6575,10 +6666,10 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "automation": "Автоматизация",
-      "capabilities": "Возможности и инструменты",
+      "automation": "Эффективность",
+      "capabilities": "Инструменты",
       "models": "Модели",
-      "personal": "Личный",
+      "personal": "Предпочтения",
       "quickAccess": "Быстрый доступ",
       "system": "Система"
     },
@@ -7735,6 +7826,8 @@
   },
   "tab": {
     "close": "Закрыть вкладку",
+    "close_others": "Закрыть другие вкладки",
+    "close_to_right": "Закрыть вкладки справа",
     "move_to_first": "Перейти к первому",
     "new": "Новая вкладка",
     "open_in_new_window": "Открыть в новом окне",
