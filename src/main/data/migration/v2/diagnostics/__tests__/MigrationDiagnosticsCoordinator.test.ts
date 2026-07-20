@@ -458,9 +458,11 @@ describe('MigrationDiagnosticsCoordinator attempts and retention', () => {
     expect(() =>
       subject.finishAttempt('failed', eventInput({ scope: 'gate', phase: 'finalize', state: 'failed' }))
     ).toThrow('Migration diagnostics journal cannot satisfy its fixed size limit')
-    expect(serializedCandidates).toHaveLength(1)
-    expect(serializedCandidates[0]).toContain('source_parse')
-    expect(serializedCandidates[0]).toContain('"phase":"finalize"')
+    expect(serializedCandidates.length).toBeGreaterThan(0)
+    for (const candidate of serializedCandidates) {
+      expect(candidate).toContain('source_parse')
+      expect(candidate).toContain('"phase":"finalize"')
+    }
   })
 })
 

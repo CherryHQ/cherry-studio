@@ -157,7 +157,8 @@ function createBundleEvent(event: MigrationDiagnosticEvent) {
     ...(event.causeDepth === undefined ? {} : { causeDepth: event.causeDepth }),
     ...(event.migratorId === undefined ? {} : { migratorId: normalizeMigratorId(event.migratorId) }),
     ...(event.payloadProfile === undefined ? {} : { payloadProfile: event.payloadProfile }),
-    ...(event.versionGate === undefined ? {} : { versionGate: event.versionGate })
+    ...(event.versionGate === undefined ? {} : { versionGate: event.versionGate }),
+    ...(event.semanticEvidence === undefined ? {} : { semanticEvidence: event.semanticEvidence })
   }
 }
 

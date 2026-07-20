@@ -137,6 +137,25 @@ function terminalEvent(attemptId: string, sequence = 2) {
   }
 }
 
+function missingRequiredFieldEvent(attemptId: string, sequence = 1): MigrationDiagnosticEvent {
+  return {
+    sequence,
+    at: STARTED_AT,
+    attemptId,
+    scope: 'migrator',
+    phase: 'prepare',
+    state: 'warning',
+    code: 'missing_required_field',
+    category: 'source',
+    migratorId: 'mcp_server',
+    semanticEvidence: {
+      kind: 'missing_required_field',
+      fieldRole: 'source_id',
+      affectedCountBucket: '1'
+    }
+  }
+}
+
 function failedSnapshot(overrides: Partial<MigrationDiagnosticsSession> = {}): MigrationDiagnosticsSession {
   const attemptId = 'source-attempt-private-id'
   return {
@@ -216,6 +235,38 @@ afterEach(() => {
 })
 
 describe('strict bundle schemas and accounting', () => {
+  it('copies validated semantic evidence into migration-events.json', async () => {
+    const attemptId = 'semantic-evidence-private-attempt-id'
+    const snapshot = failedSnapshot({
+      attempts: [
+        {
+          id: attemptId,
+          trigger: 'initial',
+          startedAt: STARTED_AT,
+          outcome: 'failed',
+          endedAt: ENDED_AT,
+          events: [missingRequiredFieldEvent(attemptId), terminalEvent(attemptId)]
+        }
+      ]
+    })
+    const destination = path.join(testDir, 'semantic-evidence.zip')
+
+    const result = await new MigrationDiagnosticBundleBuilder().save({
+      destination,
+      snapshot,
+      collectDatabaseDiagnostics: async () => failedDatabaseDiagnostics()
+    })
+
+    expect(result.status).toBe('saved')
+    const entries = await readZip(destination)
+    const events = migrationDiagnosticEventsDocumentSchema.parse(parseJson(entries, 'migration-events.json'))
+    expect(events.attempts[0]?.events[0]?.semanticEvidence).toEqual({
+      kind: 'missing_required_field',
+      fieldRole: 'source_id',
+      affectedCountBucket: '1'
+    })
+  })
+
   it('copies a validated upgrade-path block context into migration-events.json', async () => {
     const attemptId = 'version-block-private-attempt-id'
     const versionGate = {
@@ -508,9 +559,10 @@ describe('strict bundle manifest and deterministic selection', () => {
         migratorId: 'chat',
         payloadProfile: maximumProfile
       }))
+      events.push(missingRequiredFieldEvent(id, ++sequence))
       events.push(
         ...Array.from(
-          { length: 9 },
+          { length: 8 },
           (): MigrationDiagnosticEvent => ({
             sequence: ++sequence,
             at: STARTED_AT,
@@ -577,9 +629,12 @@ describe('strict bundle manifest and deterministic selection', () => {
       [...retained.map((event) => event.sequence)].sort((left, right) => left - right)
     )
     expect(eventsDocument.attempts.map((attempt) => attempt.events.at(-1)?.sequence)).toEqual([40, 80, 120, 160, 200])
-    expect([30, 70, 110, 150, 190].every((sequence) => retained.some((event) => event.sequence === sequence))).toBe(
+    expect([31, 71, 111, 151, 191].every((sequence) => retained.some((event) => event.sequence === sequence))).toBe(
       true
     )
+    expect(
+      eventsDocument.attempts.map((attempt) => attempt.events.find((event) => event.semanticEvidence)?.sequence)
+    ).toEqual([31, 71, 111, 151, 191])
   })
 
   it('omits optional database details in the fixed l2 -> l1 -> l0 order without dropping statuses', () => {
