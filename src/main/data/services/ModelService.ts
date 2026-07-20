@@ -508,7 +508,28 @@ class ModelService {
       .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
       .all()
 
-    let models = rows.map(rowToRuntimeModel)
+    let models = this.enrichRowsFromRegistry(rows)
+
+    // Post-filter by capability (JSON array column, can't filter in SQL easily)
+    if (query.capability !== undefined) {
+      const cap = query.capability as ModelCapability
+      models = models.filter((m) => m.capabilities.includes(cap))
+    }
+
+    return models
+  }
+
+  /**
+   * Read-time registry enrichment shared by every row-serving read path
+   * (`list`, `getByKey`): recompute capabilities / imageGeneration and the
+   * reasoning descriptor (#16598) from the CURRENT registry, honoring
+   * `userOverrides`. Nothing is written back. Single-model consumers (the
+   * composer resolves the active model via `GET /models/:id`) must see the
+   * same view as the list — a stale stored descriptor otherwise starves
+   * them of registry updates.
+   */
+  private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
+    let models: Model[] = rows.map(rowToRuntimeModel)
     const capabilityOverrideModelIds = new Set(
       rows.filter((row) => row.userOverrides?.includes('capabilities')).map((row) => row.id)
     )
@@ -592,12 +613,6 @@ class ModelService {
       }
     })
 
-    // Post-filter by capability (JSON array column, can't filter in SQL easily)
-    if (query.capability !== undefined) {
-      const cap = query.capability as ModelCapability
-      models = models.filter((m) => m.capabilities.includes(cap))
-    }
-
     return models
   }
 
@@ -665,7 +680,7 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    return rowToRuntimeModel(row)
+    return this.enrichRowsFromRegistry([row])[0]
   }
 
   /**

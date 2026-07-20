@@ -942,6 +942,39 @@ describe('ModelService — reasoning descriptor enrichment', () => {
     expect(model.reasoning?.type).toBe('openai-chat')
   })
 
+  it('getByKey serves the same re-enriched descriptor as list (composer single-model path)', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('aihubmix', 'AiHubMix'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('aihubmix', 'claude-sonnet-5', {
+        presetModelId: 'claude-sonnet-5',
+        name: 'Claude Sonnet 5',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        // Stale stored descriptor: predates the vocabulary gaining 'auto'.
+        reasoning: {
+          type: 'openai-chat',
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max']
+        } as never
+      })
+    )
+
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'claude-sonnet-5',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max', 'auto'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max', 'auto']
+        }
+      } as any,
+      registryOverride: null
+    })
+
+    const model = modelService.getByKey('aihubmix', 'claude-sonnet-5')
+
+    expect(model.reasoning?.supportedEfforts).toContain('auto')
+  })
+
   it('respects a user reasoning override', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
     const userReasoning = { type: 'openai-chat' as const, supportedEfforts: ['low' as const] }
