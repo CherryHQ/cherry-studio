@@ -65,7 +65,12 @@ import {
   type MigrationDiagnosticLocation,
   type MigrationDiagnosticMigratorId
 } from '../diagnostics'
-import type { BaseMigrator, DiagnosedPhaseFailure, ProgressMessage } from '../migrators/BaseMigrator'
+import {
+  type BaseMigrator,
+  type DiagnosedPhaseFailure,
+  type ProgressMessage,
+  takeThrownDiagnosedPhaseFailure
+} from '../migrators/BaseMigrator'
 import { createMigrationContext, type MigrationAttemptDiagnostics } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
@@ -556,6 +561,8 @@ export class MigrationEngine {
     if (error instanceof MigratorResultError && error.failure !== undefined) {
       return error.failure
     }
+    const thrownFailure = takeThrownDiagnosedPhaseFailure(error)
+    if (thrownFailure !== undefined) return thrownFailure
     const classification = classifyMigrationError(error)
     return {
       classification,

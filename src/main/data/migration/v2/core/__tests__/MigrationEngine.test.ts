@@ -1,12 +1,14 @@
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
+import { BaseMigrator } from '../../migrators/BaseMigrator'
 import { KnowledgeMigrator } from '../../migrators/KnowledgeMigrator'
 import { McpServerMigrator } from '../../migrators/McpServerMigrator'
 import { NoteMigrator } from '../../migrators/NoteMigrator'
 import { PromptMigrator } from '../../migrators/PromptMigrator'
-import { createMigrationContext } from '../MigrationContext'
+import { createMigrationContext, type MigrationContext } from '../MigrationContext'
 import { MigrationDbService } from '../MigrationDbService'
 import { MigrationEngine } from '../MigrationEngine'
 import type { MigrationPaths } from '../MigrationPaths'
@@ -601,6 +603,54 @@ describe('MigrationEngine', () => {
       }
     })
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_FK_DISPLAY')
+  })
+
+  it('maps a thrown owned-table FK self-check through the real migrator wrapper', async () => {
+    class ThrowingForeignKeyMigrator extends BaseMigrator {
+      readonly id = 'agents'
+      readonly name = 'Agents'
+      readonly description = 'test owned-table validation'
+      readonly order = 1
+
+      reset(): void {}
+
+      async prepare() {
+        return { success: true, itemCount: 1 }
+      }
+
+      async execute(ctx: MigrationContext) {
+        this.assertOwnedForeignKeys(ctx.db, [agentSessionTable])
+        return { success: true, processedCount: 1 }
+      }
+
+      async validate() {
+        return { success: true, errors: [], stats: { sourceCount: 1, targetCount: 1, skippedCount: 0 } }
+      }
+    }
+
+    vi.mocked(createMigrationContext).mockResolvedValue({
+      db: {
+        all: vi.fn(() => [{ table: 'agent_session', rowid: 1, parent: 'PRIVATE_PARENT_TABLE', fkid: 0 }])
+      }
+    } as never)
+    engine.registerMigrators([new ThrowingForeignKeyMigrator()])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(false)
+    expect(diagnostics.finishAttempt).toHaveBeenCalledTimes(1)
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_invariant_failed',
+        scope: 'migrator',
+        phase: 'execute',
+        migratorId: 'agents',
+        errorCode: 'validation_foreign_key',
+        evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+      }
+    })
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_PARENT_TABLE')
   })
 
   it('clears diagnostics only after the completed status is persisted and the attempt is terminal', async () => {

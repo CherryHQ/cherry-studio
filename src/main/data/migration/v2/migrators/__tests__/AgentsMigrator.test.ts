@@ -24,6 +24,7 @@ vi.mock('@application', async () => {
 
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
 import { AgentsMigrator, backfillAgentOrderKeys, migrateAgentMcps } from '../AgentsMigrator'
+import { takeThrownDiagnosedPhaseFailure } from '../BaseMigrator'
 import { AGENTS_TABLE_MIGRATION_SPECS } from '../mappings/AgentsDbMappings'
 
 function createCounts() {
@@ -230,6 +231,53 @@ describe('AgentsMigrator', () => {
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
     })
     await expect(migrator.executeWithDiagnostics(migrationContext)).rejects.toBe(sqliteError)
+  })
+
+  it('preserves fixed foreign-key evidence when the actual owned-table self-check throws', async () => {
+    const run = vi.fn().mockReturnValue(undefined)
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue([]), where: vi.fn().mockResolvedValue([]) })
+    })
+    const update = vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    })
+    const del = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    const insert = vi.fn().mockReturnValue({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([]),
+        onConflictDoNothing: vi.fn().mockResolvedValue(undefined)
+      })
+    })
+    let violationReported = false
+    const all = vi.fn((statement) => {
+      const rawSql = statement.queryChunks[0]?.value?.[0]
+      if (!violationReported && typeof rawSql === 'string' && rawSql.startsWith('PRAGMA foreign_key_check')) {
+        violationReported = true
+        return [{ table: 'agent_session', rowid: 1, parent: 'PRIVATE_PARENT_TABLE', fkid: 0 }]
+      }
+      return []
+    })
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
+    await migrator.prepare(createMigrationContext())
+    const migrationContext = createMigrationContext({ db: { run, select, update, all, delete: del, insert } })
+
+    let thrown: unknown
+    try {
+      await migrator.executeWithDiagnostics(migrationContext)
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toMatchObject({ code: 'MIGRATION_FOREIGN_KEY' })
+    const diagnosedFailure = takeThrownDiagnosedPhaseFailure(thrown)
+    expect(diagnosedFailure).toEqual({
+      classification: { errorCode: 'validation_foreign_key' },
+      evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+    })
+    expect(JSON.stringify(diagnosedFailure)).not.toContain('PRIVATE_PARENT_TABLE')
+    expect(takeThrownDiagnosedPhaseFailure(thrown)).toBeUndefined()
   })
 
   it('validate fails when imported table counts are lower than the expected filtered counts', async () => {

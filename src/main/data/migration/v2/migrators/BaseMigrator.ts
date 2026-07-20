@@ -41,6 +41,24 @@ export interface DiagnosedPhaseResult<TResult> {
   failure?: DiagnosedPhaseFailure
 }
 
+const thrownDiagnosedPhaseFailures = new WeakMap<object, DiagnosedPhaseFailure>()
+
+function isObjectLike(value: unknown): value is object {
+  return (typeof value === 'object' && value !== null) || typeof value === 'function'
+}
+
+/**
+ * Consume fixed diagnostic metadata retained for an exception that deliberately
+ * crosses a migrator phase boundary. The WeakMap preserves the original thrown
+ * value and never adds enumerable diagnostic or private fields to it.
+ */
+export function takeThrownDiagnosedPhaseFailure(error: unknown): DiagnosedPhaseFailure | undefined {
+  if (!isObjectLike(error)) return undefined
+  const failure = thrownDiagnosedPhaseFailures.get(error)
+  thrownDiagnosedPhaseFailures.delete(error)
+  return failure
+}
+
 export abstract class BaseMigrator {
   // Metadata - must be implemented by subclasses
   abstract readonly id: MigrationDiagnosticMigratorId
@@ -154,6 +172,11 @@ export abstract class BaseMigrator {
       const result = await operation()
       if (result.success || this.diagnosedPhaseFailure === undefined) return { result }
       return { result, failure: this.diagnosedPhaseFailure }
+    } catch (error) {
+      if (this.diagnosedPhaseFailure !== undefined && isObjectLike(error)) {
+        thrownDiagnosedPhaseFailures.set(error, this.diagnosedPhaseFailure)
+      }
+      throw error
     } finally {
       this.diagnosedPhaseFailure = undefined
     }
