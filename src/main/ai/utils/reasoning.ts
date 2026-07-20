@@ -778,9 +778,13 @@ export function getAnthropicReasoningParams(
   }
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
+  const isAdaptiveClaude = isAnthropicModel(model) && hasEffortControl(model)
 
   if (!reasoningEffort || reasoningEffort === 'default') {
-    return {}
+    // default IS auto: adaptive-generation Claude gets the explicit
+    // "model decides" envelope (Opus 4.7/4.8 default to OFF without it);
+    // everywhere else, sending nothing is the auto behavior.
+    return isAdaptiveClaude ? { thinking: { type: 'adaptive', display: 'summarized' } } : {}
   }
 
   if (reasoningEffort === 'none') {
@@ -791,12 +795,12 @@ export function getAnthropicReasoningParams(
     }
   }
 
-  // 'auto' = let the API pick its default intensity — envelope only, no tier.
+  // Stale persisted 'auto' — same envelope-only semantics as default.
   const effort =
     reasoningEffort === 'auto' ? undefined : resolveNativeEffort(model, reasoningEffort, ANTHROPIC_EFFORT_TIERS)
 
   if (isAnthropicModel(model)) {
-    if (hasEffortControl(model)) {
+    if (isAdaptiveClaude) {
       const thinking = { type: 'adaptive', display: 'summarized' } as const
       return effort ? { thinking, effort } : { thinking }
     }
@@ -867,10 +871,6 @@ export function getGeminiReasoningParams(
 
   const reasoningEffort = assistant?.settings?.reasoning_effort as ReasoningEffortOption | undefined
 
-  if (!reasoningEffort || reasoningEffort === 'default') {
-    return {}
-  }
-
   // Vendor residue (dispatch defense): this builder only speaks the Gemini
   // thinkingConfig surface.
   if (!isGeminiModel(model) && !isHostedGemma4ThinkingModel(model)) {
@@ -878,6 +878,21 @@ export function getGeminiReasoningParams(
   }
 
   const limits = model.reasoning?.thinkingTokenLimits
+
+  if (!reasoningEffort || reasoningEffort === 'default') {
+    // default IS auto: dynamic thinking with VISIBLE thoughts. Sending
+    // nothing would leave include_thoughts off — the model still thinks but
+    // Cherry's thinking UI gets no text. Gemma keeps the bare default (its
+    // hosted surface has no dynamic mode).
+    if (isHostedGemma4ThinkingModel(model)) return {}
+    if (hasEffortControl(model)) {
+      return { thinkingConfig: { includeThoughts: true } }
+    }
+    if (limits?.min != null && limits.max != null) {
+      return { thinkingConfig: { includeThoughts: true, thinkingBudget: -1 } }
+    }
+    return {}
+  }
 
   if (hasEffortControl(model)) {
     // Vendor residue: hosted Gemma 4 has no hard-off — 'minimal' means
@@ -979,9 +994,11 @@ export function getBedrockReasoningParams(
   }
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
+  const isAdaptiveClaude = isAnthropicModel(model) && hasEffortControl(model)
 
   if (reasoningEffort === undefined || reasoningEffort === 'default') {
-    return {}
+    // default IS auto — see getAnthropicReasoningParams.
+    return isAdaptiveClaude ? { reasoningConfig: { type: 'adaptive' } } : {}
   }
 
   if (reasoningEffort === 'none') {
@@ -996,7 +1013,7 @@ export function getBedrockReasoningParams(
     return {}
   }
 
-  if (hasEffortControl(model)) {
+  if (isAdaptiveClaude) {
     const maxReasoningEffort =
       reasoningEffort === 'auto' ? undefined : resolveNativeEffort(model, reasoningEffort, ANTHROPIC_EFFORT_TIERS)
     return maxReasoningEffort

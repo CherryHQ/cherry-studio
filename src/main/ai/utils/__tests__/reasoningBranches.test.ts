@@ -451,6 +451,22 @@ describe('native adapter params — descriptor-driven (#16598)', () => {
       })
     })
 
+    it('default IS auto — adaptive claude gets the explicit envelope, others send nothing', () => {
+      expect(getAnthropicReasoningParams(a(), claude46)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' }
+      })
+      // Pre-adaptive claude and compat models keep the bare default.
+      expect(
+        getAnthropicReasoningParams(a(), model('anthropic', 'claude-sonnet-4-5', withLimits(1024, 64_000)))
+      ).toEqual({})
+      expect(
+        getAnthropicReasoningParams(
+          a(),
+          model('my-custom', 'deepseek-v4', withControls([{ kind: 'effort', values: ['none', 'high', 'max'] }]))
+        )
+      ).toEqual({})
+    })
+
     it('post-4.7 generation (fable) → native xhigh rides verbatim', () => {
       const fable = model(
         'anthropic',
@@ -555,6 +571,30 @@ describe('native adapter params — descriptor-driven (#16598)', () => {
       })
     })
 
+    it('default IS auto — dynamic thinking with visible thoughts', () => {
+      const flash = model(
+        'gemini',
+        'gemini-2.5-flash',
+        withControls([{ kind: 'toggle' }, { kind: 'budget', min: 0, max: 24_576 }], { min: 0, max: 24_576 })
+      )
+      expect(getGeminiReasoningParams(a(), flash)).toEqual({
+        thinkingConfig: { includeThoughts: true, thinkingBudget: -1 }
+      })
+      const pro3 = model(
+        'gemini',
+        'gemini-3-pro-preview',
+        withControls([{ kind: 'effort', values: ['low', 'high'] }], { min: 128, max: 32_768 })
+      )
+      expect(getGeminiReasoningParams(a(), pro3)).toEqual({ thinkingConfig: { includeThoughts: true } })
+      // Hosted gemma keeps the bare default (no dynamic mode on that surface).
+      const gemma = model(
+        'gemini',
+        'gemma-4-27b-it',
+        withControls([{ kind: 'effort', values: ['minimal', 'high'] }], { min: 1024, max: 30_720 })
+      )
+      expect(getGeminiReasoningParams(a(), gemma)).toEqual({})
+    })
+
     it('gemini 3 pro → none lands on the vocabulary floor (low)', () => {
       const m = model(
         'gemini',
@@ -624,6 +664,18 @@ describe('native adapter params — descriptor-driven (#16598)', () => {
       expect(getBedrockReasoningParams(a('high'), m)).toEqual({
         reasoningConfig: { type: 'enabled', budgetTokens: 51_404 }
       })
+    })
+
+    it('default IS auto — adaptive claude gets the bare adaptive config', () => {
+      const m = model(
+        'aws-bedrock',
+        'claude-opus-4-7',
+        withControls([{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }], { min: 1024, max: 128_000 })
+      )
+      expect(getBedrockReasoningParams(a(), m)).toEqual({ reasoningConfig: { type: 'adaptive' } })
+      expect(
+        getBedrockReasoningParams(a(), model('aws-bedrock', 'claude-sonnet-4-5', withLimits(1024, 64_000)))
+      ).toEqual({})
     })
   })
 

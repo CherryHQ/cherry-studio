@@ -13,9 +13,7 @@ export default defineCreator({
     {
       pattern:
         '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\\d)|(?:opus|sonnet|haiku)-latest|fable)',
-      // 'auto' = adaptive without an effort tier — the model decides (docs:
-      // adaptive-thinking); joins upstream vocabularies via the mode union.
-      effort: ['low', 'medium', 'high', 'max', 'auto'],
+      effort: ['low', 'medium', 'high', 'max'],
       toggle: true
     },
     // Pre-adaptive thinking SKUs: on/off + budget (tiers below).
