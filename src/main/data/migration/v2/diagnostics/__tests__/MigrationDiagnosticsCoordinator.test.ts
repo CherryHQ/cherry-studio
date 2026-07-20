@@ -1,4 +1,4 @@
-import fs, { existsSync, fsyncSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import fs, { existsSync, fsyncSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -10,7 +10,8 @@ vi.mock('node:fs', async (importOriginal) => {
     ...actual,
     default: {
       ...actual,
-      fsyncSync: vi.fn(actual.fsyncSync)
+      fsyncSync: vi.fn(actual.fsyncSync),
+      lstatSync: vi.fn(actual.lstatSync)
     }
   }
 })
@@ -48,7 +49,8 @@ function paths(): MigrationPaths {
     customMiniAppsFile: path.join(testDir, 'Data', 'Files', 'custom-minapps.json'),
     legacyConfigFile: path.join(testDir, '.cherrystudio', 'config', 'config.json'),
     migrationsFolder: path.join(testDir, 'migrations'),
-    diagnosticsJournalFile: path.join(testDir, 'migration-diagnostics-v1.json')
+    diagnosticsJournalFile: path.join(testDir, 'migration-diagnostics-v2.json'),
+    legacyDiagnosticsJournalFile: path.join(testDir, 'migration-diagnostics-v1.json')
   })
 }
 
@@ -122,6 +124,92 @@ function oldSession(overrides: Partial<MigrationDiagnosticsSession> = {}): Migra
   }
 }
 
+function legacySession(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    version: 1,
+    sessionId: 'legacy-session',
+    appVersion: '1.9.12',
+    platform: 'win32',
+    arch: 'x64',
+    startedAt: '2026-07-19T08:00:00.000Z',
+    state: 'active',
+    attempts: [
+      {
+        id: 'legacy-attempt',
+        trigger: 'initial',
+        startedAt: '2026-07-19T08:01:00.000Z',
+        outcome: 'in_progress',
+        events: [
+          {
+            sequence: 7,
+            at: '2026-07-19T08:03:00.000Z',
+            attemptId: 'legacy-attempt',
+            migratorId: 'future-v1-migrator',
+            scope: 'gate',
+            phase: 'validate',
+            state: 'unavailable',
+            code: 'upgrade_path_blocked',
+            category: 'source',
+            causeDepth: 2,
+            payloadProfile: {
+              target: 'preference',
+              rowCountBucket: '1',
+              profiledByteLengthBucket: '1-256',
+              maxProfiledRowByteLengthBucket: '1-256',
+              traversal: 'complete',
+              slots: [
+                {
+                  slot: 'value',
+                  kind: 'string',
+                  totalByteLengthBucket: '1-256',
+                  maxCharLengthBucket: '1-256',
+                  maxByteLengthBucket: '1-256'
+                }
+              ]
+            },
+            versionGate: {
+              reason: 'v1_too_old',
+              currentVersion: '2.0.0',
+              previousVersion: '1.8.0',
+              requiredVersion: '1.9.12',
+              gatewayVersion: null,
+              versionLog: 'present'
+            }
+          },
+          {
+            sequence: 8,
+            at: '2026-07-19T08:04:00.000Z',
+            attemptId: 'legacy-attempt',
+            scope: 'gate',
+            phase: 'validate',
+            state: 'unavailable',
+            code: 'upgrade_path_blocked',
+            versionGate: {
+              reason: 'no_version_log',
+              currentVersion: '2.0.0',
+              previousVersion: null,
+              requiredVersion: '1.9.12',
+              gatewayVersion: null,
+              versionLog: 'missing'
+            }
+          },
+          {
+            sequence: 9,
+            at: '2026-07-19T08:05:00.000Z',
+            attemptId: 'legacy-attempt',
+            migratorId: 'bootConfig',
+            scope: 'engine',
+            phase: 'execute',
+            state: 'started',
+            code: 'unknown'
+          }
+        ]
+      }
+    ],
+    ...overrides
+  }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   testDir = mkdtempSync(path.join(tmpdir(), 'cs-migration-diagnostics-coordinator-'))
@@ -173,6 +261,252 @@ describe('MigrationDiagnosticsCoordinator attachment and recovery', () => {
     expect((await subject.snapshot()).sessionId).toBe('old-session')
     const persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
     expect(persisted.kind === 'ok' && persisted.journal.sessionId).toBe('old-session')
+  })
+
+  it('upgrades a valid unfinished v1 journal through the strict allowlist before recovering it', async () => {
+    writeFileSync(paths().legacyDiagnosticsJournalFile, JSON.stringify(legacySession()), { mode: 0o600 })
+    const subject = coordinator()
+
+    subject.attachPaths(paths())
+
+    const snapshot = await subject.snapshot()
+    const legacyEvent = snapshot.attempts[0]?.events[0]
+    const missingMigratorEvent = snapshot.attempts[0]?.events[1]
+    const fixedMigratorEvent = snapshot.attempts[0]?.events[2]
+    expect(subject.recovered).toBe(true)
+    expect(snapshot.version).toBe(2)
+    expect(snapshot.sessionId).toBe('legacy-session')
+    expect(snapshot.state).toBe('failed')
+    expect(snapshot.attempts[0]?.outcome).toBe('interrupted')
+    expect(legacyEvent).toMatchObject({
+      sequence: 7,
+      at: '2026-07-19T08:03:00.000Z',
+      attemptId: 'legacy-attempt',
+      migratorId: 'unknown',
+      category: 'source',
+      causeDepth: 2,
+      versionGate: {
+        reason: 'v1_too_old',
+        directorySelectionRole: 'unknown',
+        versionLog: {
+          state: 'parsed',
+          validRecordCountBucket: 'unknown',
+          invalidRecordCountBucket: 'unknown'
+        }
+      }
+    })
+    expect(legacyEvent?.payloadProfile).toEqual(
+      (legacySession().attempts as Array<{ events: Array<{ payloadProfile: unknown }> }>)[0]?.events[0]?.payloadProfile
+    )
+    expect(legacyEvent).not.toHaveProperty('semanticEvidence')
+    expect(missingMigratorEvent).not.toHaveProperty('migratorId')
+    expect(missingMigratorEvent?.versionGate).toMatchObject({
+      directorySelectionRole: 'unknown',
+      versionLog: { state: 'missing' }
+    })
+    expect(fixedMigratorEvent?.migratorId).toBe('bootConfig')
+    expect(snapshot.attempts[0]?.events.at(-1)).toMatchObject({ sequence: 10, state: 'interrupted' })
+    expect(existsSync(paths().legacyDiagnosticsJournalFile)).toBe(false)
+    expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)).toEqual({ kind: 'ok', journal: snapshot })
+  })
+
+  it('publishes a valid completed v1 journal before replacing it with the fresh active v2 session', async () => {
+    const completed = legacySession({
+      state: 'completed',
+      attempts: [
+        {
+          id: 'legacy-completed-attempt',
+          trigger: 'initial',
+          startedAt: '2026-07-19T08:01:00.000Z',
+          outcome: 'completed',
+          endedAt: '2026-07-19T08:02:00.000Z',
+          events: [
+            {
+              sequence: 1,
+              at: '2026-07-19T08:02:00.000Z',
+              attemptId: 'legacy-completed-attempt',
+              scope: 'gate',
+              phase: 'finalize',
+              state: 'completed',
+              code: 'unknown'
+            }
+          ]
+        }
+      ]
+    })
+    writeFileSync(paths().legacyDiagnosticsJournalFile, JSON.stringify(completed), { mode: 0o600 })
+    const subject = coordinator()
+
+    subject.attachPaths(paths())
+
+    expect(subject.recovered).toBe(false)
+    expect((await subject.snapshot()).sessionId).toBe('random-1')
+    expect(existsSync(paths().legacyDiagnosticsJournalFile)).toBe(false)
+    const persisted = readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)
+    expect(persisted.kind === 'ok' && persisted.journal.sessionId).toBe('random-1')
+  })
+
+  it('upgrades a schema-valid v1 renderer failure with only fixed unknown compatibility evidence', async () => {
+    const canary = 'RENDERER_USER_CANARY_/Users/alice'
+    const rendererFailure = legacySession({
+      state: 'failed',
+      attempts: [
+        {
+          id: 'legacy-renderer-attempt',
+          trigger: 'initial',
+          startedAt: '2026-07-19T08:01:00.000Z',
+          outcome: 'failed',
+          endedAt: '2026-07-19T08:02:00.000Z',
+          events: [
+            {
+              sequence: 1,
+              at: '2026-07-19T08:02:00.000Z',
+              attemptId: 'legacy-renderer-attempt',
+              migratorId: canary,
+              scope: 'renderer_export',
+              phase: 'finalize',
+              state: 'failed',
+              code: 'source_parse',
+              category: 'source',
+              causeDepth: 4
+            }
+          ]
+        }
+      ]
+    })
+    writeFileSync(paths().legacyDiagnosticsJournalFile, JSON.stringify(rendererFailure), { mode: 0o600 })
+    const subject = coordinator()
+
+    subject.attachPaths(paths())
+
+    const snapshot = await subject.snapshot()
+    expect(subject.recovered).toBe(true)
+    expect(snapshot.attempts[0]?.events[0]).toEqual({
+      sequence: 1,
+      at: '2026-07-19T08:02:00.000Z',
+      attemptId: 'legacy-renderer-attempt',
+      migratorId: 'unknown',
+      scope: 'renderer_export',
+      phase: 'finalize',
+      state: 'failed',
+      code: 'unknown',
+      category: 'unknown',
+      semanticEvidence: {
+        kind: 'renderer_export_failure',
+        sourceRole: 'unknown',
+        operationRole: 'unknown'
+      }
+    })
+    expect(migrationDiagnosticsSessionSchema.safeParse(snapshot).success).toBe(true)
+    expect(existsSync(paths().legacyDiagnosticsJournalFile)).toBe(false)
+    expect(readdirSync(testDir).some((name) => name.startsWith('migration-diagnostics-v1.corrupt.'))).toBe(false)
+    expect(readFileSync(paths().diagnosticsJournalFile, 'utf8')).not.toContain(canary)
+  })
+
+  it('does not delete the only valid v1 journal when v2 publication fails', () => {
+    const serialized = JSON.stringify(legacySession())
+    writeFileSync(paths().legacyDiagnosticsJournalFile, serialized, { mode: 0o600 })
+    vi.mocked(fs.fsyncSync).mockImplementationOnce(() => {
+      throw new Error('publication-canary-/Users/alice')
+    })
+    const subject = coordinator()
+
+    expect(() => subject.attachPaths(paths())).toThrow('Migration diagnostics journal write failed before publication')
+
+    expect(readFileSync(paths().legacyDiagnosticsJournalFile, 'utf8')).toBe(serialized)
+    expect(existsSync(paths().diagnosticsJournalFile)).toBe(false)
+  })
+
+  it('retains v1 when v2 was renamed into place but publication durability is uncertain', () => {
+    const serialized = JSON.stringify(legacySession())
+    writeFileSync(paths().legacyDiagnosticsJournalFile, serialized, { mode: 0o600 })
+    vi.mocked(fs.fsyncSync)
+      .mockImplementationOnce(fsyncSync)
+      .mockImplementationOnce(() => {
+        throw new Error('directory-fsync-canary-/Users/alice')
+      })
+    const subject = coordinator()
+
+    expect(() => subject.attachPaths(paths())).toThrow('Migration diagnostics journal write failed after publication')
+
+    expect(readFileSync(paths().legacyDiagnosticsJournalFile, 'utf8')).toBe(serialized)
+    expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile).kind).toBe('ok')
+  })
+
+  it('quarantines invalid v1 without allowing its privacy canary into fresh v2 state', async () => {
+    const canary = 'INVALID_V1_SECRET_sk-user-/Users/alice'
+    writeFileSync(paths().legacyDiagnosticsJournalFile, JSON.stringify({ ...legacySession(), rawError: canary }), {
+      mode: 0o600
+    })
+    const subject = coordinator()
+
+    const result = subject.attachPaths(paths())
+
+    const snapshot = await subject.snapshot()
+    const persisted = readFileSync(paths().diagnosticsJournalFile, 'utf8')
+    expect(result).toBeUndefined()
+    expect(subject.recovered).toBe(false)
+    expect(snapshot.sessionId).toBe('random-1')
+    expect(JSON.stringify(snapshot)).not.toContain(canary)
+    expect(persisted).not.toContain(canary)
+    expect(readdirSync(testDir).some((name) => name.startsWith('migration-diagnostics-v1.corrupt.'))).toBe(true)
+  })
+
+  it('quarantines oversized v1 without allowing its privacy canary into fresh v2 state', async () => {
+    const canary = 'OVERSIZED_V1_SECRET_sk-user-/Users/alice'
+    const oversized = Buffer.alloc(MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES + 1, 'x')
+    oversized.set(Buffer.from(canary), 0)
+    writeFileSync(paths().legacyDiagnosticsJournalFile, oversized, { mode: 0o600 })
+    const subject = coordinator()
+
+    const result = subject.attachPaths(paths())
+
+    const snapshot = await subject.snapshot()
+    const persisted = readFileSync(paths().diagnosticsJournalFile, 'utf8')
+    expect(result).toBeUndefined()
+    expect(subject.recovered).toBe(false)
+    expect(JSON.stringify(snapshot)).not.toContain(canary)
+    expect(persisted).not.toContain(canary)
+    expect(readdirSync(testDir).some((name) => name.startsWith('migration-diagnostics-v1.corrupt.'))).toBe(true)
+  })
+
+  it('gives an existing valid v2 journal precedence without reading or modifying v1', async () => {
+    writeMigrationDiagnosticsJournal(paths().diagnosticsJournalFile, oldSession())
+    const legacyRaw = JSON.stringify({ ...legacySession(), precedenceCanary: 'must-remain-untouched' })
+    writeFileSync(paths().legacyDiagnosticsJournalFile, legacyRaw, { mode: 0o600 })
+    const subject = coordinator()
+    vi.mocked(fs.lstatSync).mockClear()
+
+    subject.attachPaths(paths())
+
+    expect(subject.recovered).toBe(true)
+    expect((await subject.snapshot()).sessionId).toBe('old-session')
+    expect(readFileSync(paths().legacyDiagnosticsJournalFile, 'utf8')).toBe(legacyRaw)
+    expect(vi.mocked(fs.lstatSync).mock.calls.some(([file]) => file === paths().legacyDiagnosticsJournalFile)).toBe(
+      false
+    )
+    expect(readdirSync(testDir).some((name) => name.startsWith('migration-diagnostics-v1.corrupt.'))).toBe(false)
+  })
+
+  it('quarantines corrupt v2 and starts fresh without falling back to valid v1', async () => {
+    const v2Canary = 'CORRUPT_V2_SECRET'
+    const legacyRaw = JSON.stringify(legacySession())
+    writeFileSync(paths().diagnosticsJournalFile, `{ "rawError": "${v2Canary}"`)
+    writeFileSync(paths().legacyDiagnosticsJournalFile, legacyRaw, { mode: 0o600 })
+    const subject = coordinator()
+    vi.mocked(fs.lstatSync).mockClear()
+
+    subject.attachPaths(paths())
+
+    const snapshot = await subject.snapshot()
+    expect(subject.recovered).toBe(false)
+    expect(snapshot.sessionId).toBe('random-1')
+    expect(readFileSync(paths().legacyDiagnosticsJournalFile, 'utf8')).toBe(legacyRaw)
+    expect(vi.mocked(fs.lstatSync).mock.calls.some(([file]) => file === paths().legacyDiagnosticsJournalFile)).toBe(
+      false
+    )
+    expect(readdirSync(testDir).some((name) => name.startsWith('migration-diagnostics-v2.corrupt.'))).toBe(true)
+    expect(readFileSync(paths().diagnosticsJournalFile, 'utf8')).not.toContain(v2Canary)
   })
 
   it('quarantines corrupt input and persists only the fresh safe session', async () => {
@@ -532,7 +866,7 @@ describe('MigrationDiagnosticsCoordinator snapshot, save, and completion', () =>
     subject.beginAttempt('initial')
     subject.finishAttempt('completed', eventInput({ scope: 'gate', phase: 'finalize', state: 'completed' }))
     writeFileSync(`${paths().diagnosticsJournalFile}.tmp`, 'stale')
-    const corrupt = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json')
+    const corrupt = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
     writeFileSync(corrupt, 'corrupt')
 
     subject.complete()

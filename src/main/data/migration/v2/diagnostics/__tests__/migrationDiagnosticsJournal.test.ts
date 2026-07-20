@@ -44,21 +44,42 @@ import {
   writeMigrationDiagnosticsJournal
 } from '../migrationDiagnosticsJournal'
 import type { MigrationDiagnosticsSession } from '../migrationDiagnosticsSchemas'
+import {
+  type MigrationDiagnosticsV1Session,
+  migrationDiagnosticsV1SessionSchema
+} from '../migrationDiagnosticsV1Schemas'
 
 let testDir = ''
 
 function journalFile(): string {
+  return path.join(testDir, 'migration-diagnostics-v2.json')
+}
+
+function legacyJournalFile(): string {
   return path.join(testDir, 'migration-diagnostics-v1.json')
 }
 
 function session(): MigrationDiagnosticsSession {
   return {
-    version: 1,
+    version: 2,
     sessionId: 'session-1',
     appVersion: '2.0.0',
     platform: 'darwin',
     arch: 'arm64',
     startedAt: '2026-07-19T10:00:00.000Z',
+    state: 'active',
+    attempts: []
+  }
+}
+
+function legacySession(): MigrationDiagnosticsV1Session {
+  return {
+    version: 1,
+    sessionId: 'legacy-session-1',
+    appVersion: '1.9.12',
+    platform: 'darwin',
+    arch: 'arm64',
+    startedAt: '2026-07-19T09:00:00.000Z',
     state: 'active',
     attempts: []
   }
@@ -98,6 +119,22 @@ describe('readMigrationDiagnosticsJournal', () => {
 
     expect(result).toEqual({ kind: 'corrupt', reason: 'oversized' })
     expect(JSON.stringify(result)).not.toContain(marker)
+  })
+
+  it('uses a caller-supplied strict schema without weakening content-free outcomes', () => {
+    writeFileSync(legacyJournalFile(), JSON.stringify(legacySession()), { mode: 0o600 })
+
+    expect(readMigrationDiagnosticsJournal(legacyJournalFile(), migrationDiagnosticsV1SessionSchema)).toEqual({
+      kind: 'ok',
+      journal: legacySession()
+    })
+
+    const canary = 'LEGACY_UNKNOWN_FIELD_CANARY_/Users/alice'
+    writeFileSync(legacyJournalFile(), JSON.stringify({ ...legacySession(), rawError: canary }), { mode: 0o600 })
+    const invalid = readMigrationDiagnosticsJournal(legacyJournalFile(), migrationDiagnosticsV1SessionSchema)
+
+    expect(invalid).toEqual({ kind: 'corrupt', reason: 'invalid' })
+    expect(JSON.stringify(invalid)).not.toContain(canary)
   })
 })
 
@@ -214,12 +251,12 @@ describe('corrupt quarantine', () => {
   const now = new Date('2026-07-19T10:00:00.000Z')
 
   it('uses a collision-safe UTC-basic filename without overwriting an existing copy', () => {
-    const collision = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json')
+    const collision = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
     writeFileSync(collision, 'existing')
     writeFileSync(journalFile(), 'new-corrupt')
 
     const quarantined = quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now, platform: 'darwin' })
-    const quarantineFile = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100001Z.json')
+    const quarantineFile = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100001Z.json')
 
     expect(quarantined).toBe(true)
     expect(readFileSync(collision, 'utf8')).toBe('existing')
@@ -228,8 +265,8 @@ describe('corrupt quarantine', () => {
   })
 
   it('atomically skips a destination created immediately before the first quarantine claim', () => {
-    const firstCandidate = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json')
-    const laterCandidate = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100001Z.json')
+    const firstCandidate = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
+    const laterCandidate = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100001Z.json')
     const racerCanary = 'racer-canary-must-not-be-overwritten'
     const corruptJournal = 'new-corrupt-journal'
     vi.mocked(fs.linkSync).mockImplementationOnce((existingPath, newPath) => {
@@ -251,7 +288,7 @@ describe('corrupt quarantine', () => {
   })
 
   it('tightens a permissive source inode to 0600 and durably syncs it before removing live', () => {
-    const quarantineFile = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json')
+    const quarantineFile = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
     writeFileSync(journalFile(), 'corrupt')
     chmodSync(journalFile(), 0o644)
     const link = vi.mocked(fs.linkSync)
@@ -279,8 +316,8 @@ describe('corrupt quarantine', () => {
   })
 
   it('keeps at most two matching regular copies and evicts the oldest when adding a third', () => {
-    const oldest = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260718T090000Z.json')
-    const newer = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T090000Z.json')
+    const oldest = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260718T090000Z.json')
+    const newer = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T090000Z.json')
     writeFileSync(oldest, 'oldest')
     writeFileSync(newer, 'newer')
     utimesSync(oldest, new Date('2026-07-18T09:00:00.000Z'), new Date('2026-07-18T09:00:00.000Z'))
@@ -288,7 +325,7 @@ describe('corrupt quarantine', () => {
     writeFileSync(journalFile(), 'newest')
 
     quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now })
-    const newest = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json')
+    const newest = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
 
     expect(existsSync(oldest)).toBe(false)
     expect(existsSync(newer)).toBe(true)
@@ -296,11 +333,11 @@ describe('corrupt quarantine', () => {
   })
 
   it('deletes an 8-day-old matching file but preserves 7-day, symlink, and unrelated files', () => {
-    const expired = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260711T100000Z.json')
-    const retained = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260712T100000Z.json')
+    const expired = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260711T100000Z.json')
+    const retained = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260712T100000Z.json')
     const target = path.join(testDir, 'outside-target.txt')
-    const symlink = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260710T100000Z.json')
-    const unrelated = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260711T100000Z.json.extra')
+    const symlink = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260710T100000Z.json')
+    const unrelated = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260711T100000Z.json.extra')
     writeFileSync(expired, 'expired')
     writeFileSync(retained, 'retained')
     writeFileSync(target, 'outside')
@@ -317,12 +354,27 @@ describe('corrupt quarantine', () => {
     expect(readFileSync(target, 'utf8')).toBe('outside')
     expect(existsSync(unrelated)).toBe(true)
   })
+
+  it('derives independent v1 and v2 quarantine basenames from the supplied journal file', () => {
+    writeFileSync(journalFile(), 'corrupt-v2')
+    writeFileSync(legacyJournalFile(), 'corrupt-v1')
+
+    quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now })
+    quarantineCorruptMigrationDiagnosticsJournal(legacyJournalFile(), { now })
+
+    expect(readFileSync(path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json'), 'utf8')).toBe(
+      'corrupt-v2'
+    )
+    expect(readFileSync(path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json'), 'utf8')).toBe(
+      'corrupt-v1'
+    )
+  })
 })
 
 describe('cleanupMigrationDiagnosticsJournal', () => {
   it('deletes only the live journal and exact tmp while preserving corrupt and unrelated files', () => {
-    const corrupt = path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json')
-    const unrelated = path.join(testDir, 'migration-diagnostics-v1.json.backup')
+    const corrupt = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
+    const unrelated = path.join(testDir, 'migration-diagnostics-v2.json.backup')
     writeFileSync(journalFile(), 'live')
     writeFileSync(`${journalFile()}.tmp`, 'tmp')
     writeFileSync(corrupt, 'corrupt')

@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import * as z from 'zod'
+
 import { type MigrationDiagnosticsSession, migrationDiagnosticsSessionSchema } from './migrationDiagnosticsSchemas'
 
 export const MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES = 1_048_576
@@ -9,10 +11,10 @@ const QUARANTINE_MAX_FILES = 2
 const QUARANTINE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1_000
 const UTC_BASIC_TIMESTAMP_PATTERN = '\\d{8}T\\d{6}Z'
 
-export type MigrationDiagnosticsJournalReadResult =
+export type MigrationDiagnosticsJournalReadResult<TJournal = MigrationDiagnosticsSession> =
   | { kind: 'none' }
   | { kind: 'corrupt'; reason: 'unreadable' | 'oversized' | 'invalid' }
-  | { kind: 'ok'; journal: MigrationDiagnosticsSession }
+  | { kind: 'ok'; journal: TJournal }
 
 export type MigrationDiagnosticsJournalWritePublication = 'not_published' | 'published'
 
@@ -125,7 +127,15 @@ function readBoundedFile(file: string): Buffer | 'oversized' | 'unreadable' {
   return buffer.subarray(0, offset)
 }
 
-export function readMigrationDiagnosticsJournal(journalFile: string): MigrationDiagnosticsJournalReadResult {
+export function readMigrationDiagnosticsJournal(journalFile: string): MigrationDiagnosticsJournalReadResult
+export function readMigrationDiagnosticsJournal<TJournal>(
+  journalFile: string,
+  schema: z.ZodType<TJournal>
+): MigrationDiagnosticsJournalReadResult<TJournal>
+export function readMigrationDiagnosticsJournal(
+  journalFile: string,
+  schema: z.ZodType<unknown> = migrationDiagnosticsSessionSchema
+): MigrationDiagnosticsJournalReadResult<unknown> {
   let stats: fs.Stats
   try {
     stats = fs.lstatSync(journalFile)
@@ -155,7 +165,7 @@ export function readMigrationDiagnosticsJournal(journalFile: string): MigrationD
     return { kind: 'corrupt', reason: 'invalid' }
   }
 
-  const validated = migrationDiagnosticsSessionSchema.safeParse(parsed)
+  const validated = schema.safeParse(parsed)
   return validated.success ? { kind: 'ok', journal: validated.data } : { kind: 'corrupt', reason: 'invalid' }
 }
 

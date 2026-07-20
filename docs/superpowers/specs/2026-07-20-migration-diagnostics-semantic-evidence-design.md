@@ -252,7 +252,7 @@ Journal attachment follows this order:
 
 1. Read v2 when present.
 2. Otherwise read v1 with a frozen v1 schema.
-3. Convert valid v1 fields to v2, using fixed `unknown` values for facts v1 did not record.
+3. Convert valid v1 fields to v2 without inferring specific facts v1 did not record; only when the v2 shape requires a field, fill a fixed `unknown` placeholder.
 4. Atomically publish v2, then remove v1.
 5. Route invalid, unreadable, or oversized v1 through the existing bounded quarantine behavior; never copy it into the support ZIP.
 

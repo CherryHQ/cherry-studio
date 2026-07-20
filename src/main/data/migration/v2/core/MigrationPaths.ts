@@ -59,8 +59,10 @@ export interface MigrationPaths {
   readonly agentWorkspacesDir: string
   /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
   readonly customMiniAppsFile: string
-  /** {userData}/migration-diagnostics-v1.json — crash-safe migration diagnostics journal. */
+  /** {userData}/migration-diagnostics-v2.json — active crash-safe migration diagnostics journal. */
   readonly diagnosticsJournalFile: string
+  /** {userData}/migration-diagnostics-v1.json — legacy journal read only for one-time v1→v2 upgrade. */
+  readonly legacyDiagnosticsJournalFile: string
 
   // ── Derived from cherryHome ──
 
@@ -216,7 +218,8 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
     agentWorkspacesDir: path.join(currentUserData, 'Data', 'Agents'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
-    diagnosticsJournalFile: path.join(currentUserData, 'migration-diagnostics-v1.json'),
+    diagnosticsJournalFile: path.join(currentUserData, 'migration-diagnostics-v2.json'),
+    legacyDiagnosticsJournalFile: path.join(currentUserData, 'migration-diagnostics-v1.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)

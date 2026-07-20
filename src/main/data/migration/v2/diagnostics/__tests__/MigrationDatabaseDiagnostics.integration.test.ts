@@ -76,7 +76,8 @@ function createPaths(databaseFile: string): MigrationPaths {
     legacyAgentDbFile: join(root, 'Data', 'agents.db'),
     agentWorkspacesDir: join(root, 'Data', 'Agents'),
     customMiniAppsFile: join(root, 'Data', 'Files', 'custom-minapps.json'),
-    diagnosticsJournalFile: join(root, 'migration-diagnostics-v1.json'),
+    diagnosticsJournalFile: join(root, 'migration-diagnostics-v2.json'),
+    legacyDiagnosticsJournalFile: join(root, 'migration-diagnostics-v1.json'),
     legacyConfigFile: join(root, 'config.json'),
     migrationsFolder: join(process.cwd(), 'migrations', 'sqlite-drizzle')
   }

@@ -31,6 +31,10 @@ import {
   type MigrationDiagnosticsSession,
   migrationDiagnosticsSessionSchema
 } from './migrationDiagnosticsSchemas'
+import {
+  migrationDiagnosticsV1SessionSchema,
+  upgradeMigrationDiagnosticsV1Session
+} from './migrationDiagnosticsV1Schemas'
 
 export interface MigrationDiagnosticsCoordinatorOptions {
   readonly appVersion?: string
@@ -151,7 +155,7 @@ export class MigrationDiagnosticsCoordinator {
     const existing = readMigrationDiagnosticsJournal(paths.diagnosticsJournalFile)
 
     if (existing.kind === 'none') {
-      writeMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, this.currentSession)
+      this.attachLegacyOrFresh(paths, now)
       return
     }
 
@@ -161,14 +165,42 @@ export class MigrationDiagnosticsCoordinator {
       return
     }
 
-    if (existing.journal.state === 'completed') {
+    this.adoptExistingSession(paths, existing.journal)
+  }
+
+  private attachLegacyOrFresh(paths: MigrationPaths, now: Date): void {
+    garbageCollectMigrationDiagnosticsQuarantines(paths.legacyDiagnosticsJournalFile, { now })
+    const legacy = readMigrationDiagnosticsJournal(
+      paths.legacyDiagnosticsJournalFile,
+      migrationDiagnosticsV1SessionSchema
+    )
+
+    if (legacy.kind === 'none') {
+      writeMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, this.currentSession)
+      return
+    }
+
+    if (legacy.kind === 'corrupt') {
+      quarantineCorruptMigrationDiagnosticsJournal(paths.legacyDiagnosticsJournalFile, { now })
+      writeMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, this.currentSession)
+      return
+    }
+
+    const upgraded = upgradeMigrationDiagnosticsV1Session(legacy.journal)
+    writeMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, upgraded)
+    cleanupMigrationDiagnosticsJournal(paths.legacyDiagnosticsJournalFile)
+    this.adoptExistingSession(paths, upgraded)
+  }
+
+  private adoptExistingSession(paths: MigrationPaths, existing: MigrationDiagnosticsSession): void {
+    if (existing.state === 'completed') {
       cleanupMigrationDiagnosticsJournal(paths.diagnosticsJournalFile)
       writeMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, this.currentSession)
       return
     }
 
     this.wasRecovered = true
-    this.currentSession = existing.journal
+    this.currentSession = existing
     this.closeRecoveredAttempt()
   }
 

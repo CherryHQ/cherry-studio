@@ -214,7 +214,7 @@ git commit --signoff -m "refactor(migration-diagnostics): centralize causal rete
 
 - [ ] 1. 先写失败测试：active 文件名是 `migration-diagnostics-v2.json`，legacy 文件名是 `migration-diagnostics-v1.json`；v2 存在时不读 v1；v2 不存在且 v1 有效时原子写 v2 后删除 v1。
 
-- [ ] 2. 写兼容失败测试：v1 arbitrary migrator ID 转成 `unknown`；旧 versionGate 转成 `directorySelectionRole: 'unknown'` 与 unknown count buckets；v1 不生成 semantic evidence；invalid/oversized v1 被 quarantine 且任何 canary 不进入 v2。
+- [ ] 2. 写兼容失败测试：v1 arbitrary migrator ID 转成 `unknown`；旧 versionGate 转成 `directorySelectionRole: 'unknown'` 与 unknown count buckets；v1 不推断具体 semantic evidence，仅在 v2 shape 强制的 renderer failure 上填 fixed unknown placeholder 并把 code/category 归一为 `unknown`；invalid/oversized v1 被 quarantine 且任何 canary 不进入 v2。
 
 - [ ] 3. 运行：
 
@@ -234,7 +234,7 @@ readonly diagnosticsJournalFile: string
 readonly legacyDiagnosticsJournalFile: string
 ```
 
-- [ ] 5. 冻结 v1 schema，只包含已发布 v1 字段。实现 `upgradeMigrationDiagnosticsV1Session`，逐字段 allowlist copy；不通过对象 spread 携带未知键。转换后的 session 必须再次由 v2 schema parse。
+- [ ] 5. 冻结 v1 schema，只包含已发布 v1 字段。实现 `upgradeMigrationDiagnosticsV1Session`，逐字段 allowlist copy；不通过对象 spread 携带未知键。v1 缺失的新事实不做具体推断；只有 v2 shape 强制时才填 fixed unknown placeholder。转换后的 session 必须再次由 v2 schema parse。
 
 - [ ] 6. Coordinator attach 顺序实现为：read v2；仅在 v2 `none` 时 read v1；valid v1 → write v2 → cleanup v1；corrupt v1 → quarantine v1 → write fresh v2。保留现有 recovered attempt close 行为。
 
