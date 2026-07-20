@@ -314,12 +314,24 @@ export class BackupService extends BaseService {
         admitArchive,
         quiesceWriters: async () => {
           // PARTIAL quiesce (this PR): set BACKUP_IN_PROGRESS so IPC mutations reject
-          // (DataApi/Preference/IpcApi gates) and hold a JobManager pause (#16925) so no
-          // scheduled job writes mid-restore. Best-effort in-flight AI/channel drain is
-          // deferred (needs #17014's pause API); the promotion gate (#16884) remains the
-          // correctness backstop. Full quiesce (a1 WindowManager hold) is a follow-up.
+          // (DataApi/Preference/IpcApi gates), then pause JobManager (#16925) and DRAIN
+          // its in-flight executions before createSnapshot. Pause alone gates NEW dispatch
+          // + croner but lets already-running handlers finish their writes, so
+          // drainInFlight MUST precede the snapshot (ImportOrchestrator §9 / #16850 Q3c /
+          // #16925). AI/channel in-flight drain needs #17014 (deferred); this covers
+          // scheduled jobs only. On drain timeout we log + proceed — partial quiesce is
+          // best-effort and the promotion gate (#16884) is the correctness backstop for
+          // any write that slipped past. Full quiesce (a1 WindowManager hold) is follow-up.
           setBackupInProgress(true)
-          this.restoreQuiesceHold = application.get('JobManager').pause('restore-quiesce')
+          const jobManager = application.get('JobManager')
+          this.restoreQuiesceHold = jobManager.pause('restore-quiesce')
+          const verdict = await jobManager.drainInFlight({ timeoutMs: 5000 })
+          if (verdict.stragglerIds.length > 0) {
+            logger.warn(
+              `restore quiesce drain timed out with ${verdict.stragglerIds.length} unsettled job(s); proceeding (promotion backstop)`,
+              { stragglerIds: verdict.stragglerIds }
+            )
+          }
         },
         mergeBackupIntoWork: (workSqlite, workDb, ctx) => {
           // Defensive belt: registry must be finalized in onInit. Unreachable in normal
@@ -346,11 +358,14 @@ export class BackupService extends BaseService {
       // so no in-flight state outlives the exit. The journal is already durable (committed
       // above), so skipping onStop is intentional: the preboot gate owns the next state.
       this.activeOperation = null
-      // Release partial-quiesce holds before relaunch — application.relaunch calls
-      // app.exit(0), which exits immediately and SKIPS the finally below, so the
-      // flag + JobManager hold MUST be cleared here. The next boot starts fresh; a
-      // leaked hold would keep jobs paused and the IPC gate rejecting writes forever.
-      this.releaseRestoreQuiesce()
+      // Do NOT release partial-quiesce holds here — application.relaunch → app.exit(0)
+      // (DEV shows a dialog then exits; prod re-execs + exits), so the flag + JobManager
+      // hold MUST stay live until process exit, keeping the write window closed across
+      // the relaunch gap. Process exit clears both (the module singleton dies; the
+      // refcounted pause hold releases via JobManager teardown). Releasing here would
+      // reopen IPC writes between release and exit (DEV dialog holds the process for
+      // seconds). Only the error path (finally below) releases, restoring writes when
+      // restore fails short of relaunch.
       this.triggerRelaunch()
       return { restoreId }
     } catch (e) {
