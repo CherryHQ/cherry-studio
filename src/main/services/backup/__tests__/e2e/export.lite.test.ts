@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { snapshotTo } from '@data/db/restore/snapshot'
 import { BACKUP_DOMAINS } from '@main/data/db/backup/domains'
 import { appStateTable } from '@main/data/db/schemas/appState'
 import { assistantTable } from '@main/data/db/schemas/assistant'
@@ -86,10 +87,8 @@ describe('e2e-export lite roundtrip', () => {
 
       const orch = new ExportOrchestrator({
         dbService: {
-          backupTo: async (destPath) => {
-            const { unlink } = await import('node:fs/promises')
-            await unlink(destPath).catch(() => {})
-            await dbh.sqlite.backup(destPath)
+          createSnapshot: (destPath) => {
+            snapshotTo(dbh.sqlite, destPath)
           }
         },
         registry: contributorManager.getRegistry(),

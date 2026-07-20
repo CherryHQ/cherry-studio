@@ -6,6 +6,7 @@ import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentGlobalSkillTable } from '@main/data/db/schemas/agentGlobalSkill'
 import { appStateTable } from '@main/data/db/schemas/appState'
 import { fileEntryTable } from '@main/data/db/schemas/file'
@@ -74,10 +75,8 @@ describe('e2e-export full roundtrip', () => {
 
       const orch = new ExportOrchestrator({
         dbService: {
-          backupTo: async (destPath) => {
-            const { unlink } = await import('node:fs/promises')
-            await unlink(destPath).catch(() => {})
-            await dbh.sqlite.backup(destPath)
+          createSnapshot: (destPath) => {
+            snapshotTo(dbh.sqlite, destPath)
           }
         },
         registry: contributorManager.getRegistry(),

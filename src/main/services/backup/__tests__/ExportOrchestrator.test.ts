@@ -1,9 +1,10 @@
 // Unit tests for ExportOrchestrator — .cbu production (full-preset, DB + blob slice).
-import { existsSync } from 'node:fs'
+import { copyFileSync, existsSync } from 'node:fs'
 import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { snapshotTo } from '@data/db/restore/snapshot'
 import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import { BACKUP_DOMAINS } from '@main/data/db/backup/domains'
 import { appStateTable } from '@main/data/db/schemas/appState'
@@ -78,7 +79,7 @@ function pathFileBlobs(lookup: Record<string, string>) {
 
 const newOrch = (dir: string, fixture: string) =>
   new ExportOrchestrator({
-    dbService: { backupTo: (destPath) => copyFile(fixture, destPath) },
+    dbService: { createSnapshot: (destPath) => copyFileSync(fixture, destPath) },
     registry: STUB_REGISTRY,
     tempDir: dir,
     fileBlobs: pathFileBlobs({}),
@@ -320,14 +321,12 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       await writeFile(join(notesRoot, 'note3.MD'), '# note 3')
 
       // Snapshot the live test DB (holds the seeded file_entry + knowledge_base) via
-      // DbService.backupTo; the orchestrator then opens its own read-only handle on
+      // DbService.createSnapshot; the orchestrator then opens its own read-only handle on
       // the snapshot so collect + stage agree with backup.sqlite.
       const orch = new ExportOrchestrator({
         dbService: {
-          backupTo: async (destPath) => {
-            const { unlink } = await import('node:fs/promises')
-            await unlink(destPath).catch(() => {})
-            await dbh.sqlite.backup(destPath)
+          createSnapshot: (destPath) => {
+            snapshotTo(dbh.sqlite, destPath)
           }
         },
         // Real registry: collectFileResources runs the actual contributor hooks
@@ -419,10 +418,8 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
 
       const orch = new ExportOrchestrator({
         dbService: {
-          backupTo: async (destPath) => {
-            const { unlink } = await import('node:fs/promises')
-            await unlink(destPath).catch(() => {})
-            await dbh.sqlite.backup(destPath)
+          createSnapshot: (destPath) => {
+            snapshotTo(dbh.sqlite, destPath)
           }
         },
         registry: contributorManager.getRegistry(),
@@ -513,10 +510,8 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
 
       const orch = new ExportOrchestrator({
         dbService: {
-          backupTo: async (destPath) => {
-            const { unlink } = await import('node:fs/promises')
-            await unlink(destPath).catch(() => {})
-            await dbh.sqlite.backup(destPath)
+          createSnapshot: (destPath) => {
+            snapshotTo(dbh.sqlite, destPath)
           }
         },
         registry: contributorManager.getRegistry(),
@@ -631,10 +626,8 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       // would otherwise abort an export that never stages notes.
       const orch = new ExportOrchestrator({
         dbService: {
-          backupTo: async (destPath) => {
-            const { unlink } = await import('node:fs/promises')
-            await unlink(destPath).catch(() => {})
-            await dbh.sqlite.backup(destPath)
+          createSnapshot: (destPath) => {
+            snapshotTo(dbh.sqlite, destPath)
           }
         },
         registry: contributorManager.getRegistry(),
@@ -758,7 +751,7 @@ describe('ExportOrchestrator rowScopes filter (AGENTS job_schedule partition)', 
       const fixture = join(dir, 'fixture.db')
       await makeJobScheduleDb(fixture)
       const orch = new ExportOrchestrator({
-        dbService: { backupTo: (destPath) => copyFile(fixture, destPath) },
+        dbService: { createSnapshot: (destPath) => copyFileSync(fixture, destPath) },
         registry: STUB_REGISTRY_WITH_ROWSCOPES,
         tempDir: dir,
         fileBlobs: pathFileBlobs({}),
@@ -819,7 +812,7 @@ describe('ExportOrchestrator notes body ↔ collect 1:1 (fs-catch)', () => {
       } as unknown as ReadonlyBackupRegistry
 
       const orch = new ExportOrchestrator({
-        dbService: { backupTo: (destPath) => copyFile(fixture, destPath) },
+        dbService: { createSnapshot: (destPath) => copyFileSync(fixture, destPath) },
         registry,
         tempDir: dir,
         fileBlobs: pathFileBlobs({}),

@@ -248,38 +248,17 @@ export class DbService extends BaseService {
 
   /**
    * Copy the live database into a fresh file via `VACUUM INTO` — a
-   * transaction-consistent snapshot taken on the live connection, used by the
-   * backup restore pipeline as its merge base (work.sqlite). The target must
-   * not exist. Synchronous and blocking by design (the restore flow blocks
-   * the UI). See src/main/data/db/restore/README.md.
+   * transaction-consistent snapshot taken on the live connection, used by both
+   * export (backup.sqlite in .cbu archives) and the restore merge base
+   * (work.sqlite, worktree #16714). The target must not exist. Synchronous and
+   * blocking by design (export + restore block until the snapshot completes).
+   * See src/main/data/db/restore/README.md.
    */
   public createSnapshot(targetPath: string): void {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
     snapshotTo(this.sqlite, targetPath)
-  }
-
-  /**
-   * Online page-by-page copy via better-sqlite3 `backup()` on the managed
-   * connection. Used directly by v2 export. Distinct from
-   * createSnapshot (`VACUUM INTO`, restore merge-base): this API must not open a
-   * second live connection (that bypasses ownership and can force backup restart
-   * when the managed connection writes).
-   */
-  public async backupTo(destPath: string): Promise<void> {
-    if (!this.isReady) {
-      throw new Error('Database is not initialized, please call init() first!')
-    }
-    // Ensure a fresh destination: sqlite's online backup can refuse a stale /
-    // different-format target. Export paths are unique; unlink is defensive.
-    try {
-      fs.unlinkSync(destPath)
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (code !== 'ENOENT') throw error
-    }
-    await this.sqlite.backup(destPath)
   }
 
   /**
