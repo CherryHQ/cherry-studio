@@ -417,7 +417,7 @@ describe('MigrationDiagnosticsCoordinator attachment and recovery', () => {
     expect(existsSync(paths().diagnosticsJournalFile)).toBe(false)
   })
 
-  it('retains v1 when v2 was renamed into place but publication durability is uncertain', () => {
+  it('retains upgraded memory and v1 when v2 was renamed into place but publication durability is uncertain', async () => {
     const serialized = JSON.stringify(legacySession())
     writeFileSync(paths().legacyDiagnosticsJournalFile, serialized, { mode: 0o600 })
     vi.mocked(fs.fsyncSync)
@@ -431,6 +431,56 @@ describe('MigrationDiagnosticsCoordinator attachment and recovery', () => {
 
     expect(readFileSync(paths().legacyDiagnosticsJournalFile, 'utf8')).toBe(serialized)
     expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile).kind).toBe('ok')
+    expect((await subject.snapshot()).sessionId).toBe('legacy-session')
+  })
+
+  it('keeps upgraded history in memory when legacy cleanup unlinks v1 before directory fsync fails', async () => {
+    const completedFailure = legacySession({
+      state: 'failed',
+      attempts: [
+        {
+          id: 'legacy-failed-attempt',
+          trigger: 'initial',
+          startedAt: '2026-07-19T08:01:00.000Z',
+          outcome: 'failed',
+          endedAt: '2026-07-19T08:02:00.000Z',
+          events: [
+            {
+              sequence: 7,
+              at: '2026-07-19T08:02:00.000Z',
+              attemptId: 'legacy-failed-attempt',
+              scope: 'gate',
+              phase: 'finalize',
+              state: 'failed',
+              code: 'unknown'
+            }
+          ]
+        }
+      ]
+    })
+    writeFileSync(paths().legacyDiagnosticsJournalFile, JSON.stringify(completedFailure), { mode: 0o600 })
+    vi.mocked(fs.fsyncSync)
+      .mockImplementationOnce(fsyncSync)
+      .mockImplementationOnce(fsyncSync)
+      .mockImplementationOnce(() => {
+        throw new Error('legacy-cleanup-directory-fsync-failed')
+      })
+    const subject = coordinator()
+
+    expect(() => subject.attachPaths(paths())).toThrow('legacy-cleanup-directory-fsync-failed')
+    expect(existsSync(paths().legacyDiagnosticsJournalFile)).toBe(false)
+
+    subject.beginAttempt('initial')
+    subject.finishAttempt('failed', eventInput({ scope: 'gate', phase: 'finalize', state: 'failed' }))
+
+    const snapshot = await subject.snapshot()
+    expect(snapshot.sessionId).toBe('legacy-session')
+    expect(snapshot.attempts).toHaveLength(2)
+    expect(snapshot.attempts[0]?.id).toBe('legacy-failed-attempt')
+    expect(snapshot.attempts[0]?.events[0]?.sequence).toBe(7)
+    expect(snapshot.attempts[1]).toMatchObject({ id: 'random-2', trigger: 'initial', outcome: 'failed' })
+    expect(snapshot.attempts[1]?.events.at(-1)?.sequence).toBe(8)
+    expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)).toEqual({ kind: 'ok', journal: snapshot })
   })
 
   it('quarantines invalid v1 without allowing its privacy canary into fresh v2 state', async () => {

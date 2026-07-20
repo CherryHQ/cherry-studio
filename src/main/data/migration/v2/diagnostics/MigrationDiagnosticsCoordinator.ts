@@ -187,15 +187,29 @@ export class MigrationDiagnosticsCoordinator {
     }
 
     const upgraded = upgradeMigrationDiagnosticsV1Session(legacy.journal)
-    writeMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, upgraded)
+    const freshSession = this.currentSession
+    try {
+      writeMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, upgraded)
+    } catch (error) {
+      if (error instanceof MigrationDiagnosticsJournalWriteError && error.publication === 'published') {
+        this.currentSession = upgraded
+      }
+      throw error
+    }
+    this.currentSession = upgraded
     cleanupMigrationDiagnosticsJournal(paths.legacyDiagnosticsJournalFile)
-    this.adoptExistingSession(paths, upgraded)
+    this.adoptExistingSession(paths, upgraded, freshSession)
   }
 
-  private adoptExistingSession(paths: MigrationPaths, existing: MigrationDiagnosticsSession): void {
+  private adoptExistingSession(
+    paths: MigrationPaths,
+    existing: MigrationDiagnosticsSession,
+    completedReplacement = this.currentSession
+  ): void {
     if (existing.state === 'completed') {
       cleanupMigrationDiagnosticsJournal(paths.diagnosticsJournalFile)
-      writeMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, this.currentSession)
+      writeMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, completedReplacement)
+      this.currentSession = completedReplacement
       return
     }
 

@@ -1,10 +1,25 @@
 import * as z from 'zod'
 
-import {
-  MIGRATION_DIAGNOSTIC_MIGRATOR_IDS,
-  type MigrationDiagnosticsSession,
-  migrationDiagnosticsSessionSchema
-} from './migrationDiagnosticsSchemas'
+import { type MigrationDiagnosticsSession, migrationDiagnosticsSessionSchema } from './migrationDiagnosticsSchemas'
+
+/** Frozen producer IDs from the published V1 contract; future V2 additions must remain unknown to V1 upgrades. */
+const MIGRATION_DIAGNOSTICS_V1_PRODUCER_MIGRATOR_IDS = Object.freeze([
+  'bootConfig',
+  'preferences',
+  'note',
+  'miniapp',
+  'mcp_server',
+  'provider_model',
+  'assistant',
+  'file',
+  'agents',
+  'knowledge',
+  'knowledge_vector',
+  'chat',
+  'painting',
+  'translate',
+  'prompt'
+] as const)
 
 const migrationDiagnosticsV1ErrorCodeSchema = z.enum([
   'unknown',
@@ -409,7 +424,7 @@ type MigrationDiagnosticsV1PayloadProfile = z.infer<typeof migrationDiagnosticsV
 type MigrationDiagnosticsV1PayloadSlotProfile = z.infer<typeof migrationDiagnosticsV1PayloadSlotProfileSchema>
 type MigrationDiagnosticsV1VersionGate = z.infer<typeof migrationDiagnosticsV1VersionGateSchema>
 
-const currentMigratorIds: ReadonlySet<string> = new Set(MIGRATION_DIAGNOSTIC_MIGRATOR_IDS)
+const v1ProducerMigratorIds: ReadonlySet<string> = new Set(MIGRATION_DIAGNOSTICS_V1_PRODUCER_MIGRATOR_IDS)
 
 function upgradePayloadSlot(slot: MigrationDiagnosticsV1PayloadSlotProfile) {
   switch (slot.kind) {
@@ -492,7 +507,7 @@ function upgradeEvent(event: MigrationDiagnosticsV1Event): Record<string, unknow
     code: isRendererExportFailure ? 'unknown' : event.code
   }
   if (event.migratorId !== undefined) {
-    upgraded.migratorId = currentMigratorIds.has(event.migratorId) ? event.migratorId : 'unknown'
+    upgraded.migratorId = v1ProducerMigratorIds.has(event.migratorId) ? event.migratorId : 'unknown'
   }
   if (isRendererExportFailure) {
     upgraded.category = 'unknown'
