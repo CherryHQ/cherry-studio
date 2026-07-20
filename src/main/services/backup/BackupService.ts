@@ -18,10 +18,11 @@
 // SLICE SCOPE: export (FULL + LITE presets, DB + file-blob archive) + restore staging
 // spine. The renderer triggers export via backup.start_backup; restore runs the
 // ImportOrchestrator spine (quiesce → fingerprint → snapshot → merge → migrate → seal →
-// stage → 2nd fingerprint → journal → relaunch) but is FAIL-CLOSED until write-quiesce
-// lands — quiesce throws, so no staged journal is written without it. MergeEngine
-// (SKIP/INSERT + junction + FTS) is wired; file-resource staging stays fail-closed.
-// performRestoreRecovery at startup GCs staging residue from a crashed prior restore.
+// stage → 2nd fingerprint → journal → relaunch). quiesce is PARTIAL (BACKUP_IN_PROGRESS
+// flag + JobManager.pause + best-effort drain; full quiesce a1/#17014 follow-up).
+// MergeEngine (SKIP/INSERT + junction + FTS) is wired; file-resource staging stays
+// fail-closed (no file blobs in the staged journal yet). performRestoreRecovery at
+// startup GCs staging residue from a crashed prior restore.
 
 import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
@@ -30,7 +31,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, type Disposable, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { isPathInside } from '@main/utils/legacyFile'
@@ -50,7 +51,6 @@ import {
   NewerOrDivergedBackupError,
   OutputPathExistsError,
   RestoreMergeNotImplementedError,
-  RestoreQuiesceNotImplementedError,
   RestoreStagingNotImplementedError,
   UnsupportedBackupFormatError
 } from './errors'
@@ -58,6 +58,7 @@ import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
 import { MergeEngine } from './merge'
+import { setBackupInProgress } from './quiesceGate'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -109,6 +110,13 @@ export class BackupService extends BaseService {
   private _onProgress?: Emitter<BackupProgressUpdate>
   /** The single active operation — export OR restore, mutually exclusive (null when idle). */
   private activeOperation: ActiveOperation | null = null
+  /**
+   * JobManager pause hold for the active restore's partial-quiesce window. Acquired
+   * in startRestore's quiesceWriters callback and released on any outcome (the
+   * success path disposes before relaunch, because application.relaunch → app.exit
+   * skips the finally). `undefined` outside a restore.
+   */
+  private restoreQuiesceHold?: Disposable
   /** Finalized contributor registry, available only in the current backup surface. */
   private registry?: ReturnType<typeof contributorManager.getRegistry>
   /**
@@ -299,12 +307,19 @@ export class BackupService extends BaseService {
         userData: application.getPath('app.userdata'),
         journalPath: application.getPath('feature.backup.restore.file'),
         // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — SKIP/INSERT +
-        // junction + FTS) are wired. quiesce + file-resource staging stay fail-closed stubs —
-        // restore is still unavailable until they land. quiesce throws before merge runs, so
-        // no product archive reaches the engine; staging returns [] (nothing to promote).
+        // junction + FTS) are wired. quiesce is PARTIAL (BACKUP_IN_PROGRESS flag +
+        // JobManager.pause + best-effort drain; full quiesce a1/#17014 is follow-up).
+        // File-resource staging stays a fail-closed stub — the staged journal carries no
+        // file blobs yet, so the preboot gate promotes only the DB.
         admitArchive,
         quiesceWriters: async () => {
-          throw new RestoreQuiesceNotImplementedError()
+          // PARTIAL quiesce (this PR): set BACKUP_IN_PROGRESS so IPC mutations reject
+          // (DataApi/Preference/IpcApi gates) and hold a JobManager pause (#16925) so no
+          // scheduled job writes mid-restore. Best-effort in-flight AI/channel drain is
+          // deferred (needs #17014's pause API); the promotion gate (#16884) remains the
+          // correctness backstop. Full quiesce (a1 WindowManager hold) is a follow-up.
+          setBackupInProgress(true)
+          this.restoreQuiesceHold = application.get('JobManager').pause('restore-quiesce')
         },
         mergeBackupIntoWork: (workSqlite, workDb, ctx) => {
           // Defensive belt: registry must be finalized in onInit. Unreachable in normal
@@ -331,11 +346,17 @@ export class BackupService extends BaseService {
       // so no in-flight state outlives the exit. The journal is already durable (committed
       // above), so skipping onStop is intentional: the preboot gate owns the next state.
       this.activeOperation = null
+      // Release partial-quiesce holds before relaunch — application.relaunch calls
+      // app.exit(0), which exits immediately and SKIPS the finally below, so the
+      // flag + JobManager hold MUST be cleared here. The next boot starts fresh; a
+      // leaked hold would keep jobs paused and the IPC gate rejecting writes forever.
+      this.releaseRestoreQuiesce()
       this.triggerRelaunch()
       return { restoreId }
     } catch (e) {
       throw this.toIpcError(e)
     } finally {
+      this.releaseRestoreQuiesce()
       if (this.activeOperation === active) this.activeOperation = null
     }
   }
@@ -348,6 +369,17 @@ export class BackupService extends BaseService {
    */
   private triggerRelaunch(): void {
     application.relaunch()
+  }
+
+  /**
+   * Clear BACKUP_IN_PROGRESS and release the JobManager pause hold. No-op when no
+   * quiesce is held. Called on both the success path (before relaunch, which skips
+   * the finally via app.exit) and the finally (error path), so the gate never sticks.
+   */
+  private releaseRestoreQuiesce(): void {
+    setBackupInProgress(false)
+    this.restoreQuiesceHold?.dispose()
+    this.restoreQuiesceHold = undefined
   }
 
   /**
