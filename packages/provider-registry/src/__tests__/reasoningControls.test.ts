@@ -93,7 +93,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     [
       'claude-opus-4-6',
       [
-        { kind: 'effort', values: ['low', 'medium', 'high', 'max'] },
+        { kind: 'effort', values: ['low', 'medium', 'high', 'max', 'auto'] },
         { kind: 'budget', min: 1024, max: 128_000 },
         { kind: 'toggle' }
       ]
@@ -126,9 +126,9 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     // ── new-generation forward coverage (both canonical-hyphen and API-dot ids) ──
     ['gpt-5.6', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }]],
     ['gpt-5-6', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }]],
-    ['claude-sonnet-5', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }]],
-    ['claude-opus-4-8', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }]],
-    ['claude-fable-5', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }]],
+    ['claude-sonnet-5', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max', 'auto'] }, { kind: 'toggle' }]],
+    ['claude-opus-4-8', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max', 'auto'] }, { kind: 'toggle' }]],
+    ['claude-fable-5', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max', 'auto'] }, { kind: 'toggle' }]],
     [
       'doubao-seed-2.1',
       [

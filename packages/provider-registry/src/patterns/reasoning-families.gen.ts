@@ -46,7 +46,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   {
     pattern:
       '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\\d)|(?:opus|sonnet|haiku)-latest|fable)',
-    effort: ['low', 'medium', 'high', 'max'],
+    effort: ['low', 'medium', 'high', 'max', 'auto'],
     toggle: true
   },
   { pattern: '^(?:anthropic\\.)?claude', toggle: true, template: true },

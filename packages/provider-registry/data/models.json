@@ -3398,7 +3398,7 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
+            "values": ["low", "medium", "high", "max", "auto"]
           },
           {
             "kind": "toggle"
@@ -3409,7 +3409,7 @@
             "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "supportedEfforts": ["low", "medium", "high", "max", "auto", "none"],
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
@@ -3568,13 +3568,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh", "max"]
+            "values": ["low", "medium", "high", "xhigh", "max", "auto"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "auto", "none"]
       }
     },
     {
@@ -3671,7 +3671,7 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
+            "values": ["low", "medium", "high", "max", "auto"]
           },
           {
             "kind": "toggle"
@@ -3682,7 +3682,7 @@
             "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "supportedEfforts": ["low", "medium", "high", "max", "auto", "none"],
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
@@ -3830,7 +3830,7 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh", "max"]
+            "values": ["low", "medium", "high", "xhigh", "max", "auto"]
           },
           {
             "kind": "toggle"
@@ -3841,7 +3841,7 @@
             "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"],
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "auto", "none"],
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
@@ -3881,13 +3881,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh", "max"]
+            "values": ["low", "medium", "high", "xhigh", "max", "auto"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "auto", "none"]
       }
     },
     {
@@ -4007,7 +4007,7 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
+            "values": ["low", "medium", "high", "max", "auto"]
           },
           {
             "kind": "budget",
@@ -4015,7 +4015,7 @@
             "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max"],
+        "supportedEfforts": ["low", "medium", "high", "max", "auto"],
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
@@ -4055,13 +4055,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh", "max"]
+            "values": ["low", "medium", "high", "xhigh", "max", "auto"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "auto", "none"]
       }
     },
     {
@@ -4104,13 +4104,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh"]
+            "values": ["low", "medium", "high", "xhigh", "auto"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "auto", "none"]
       }
     },
     {
@@ -4183,7 +4183,7 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh"]
+            "values": ["low", "medium", "high", "xhigh", "auto"]
           },
           {
             "kind": "toggle"
@@ -4194,7 +4194,7 @@
             "min": 1024
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "none"],
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "auto", "none"],
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
@@ -4224,13 +4224,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
+            "values": ["low", "medium", "high", "max", "auto"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "auto", "none"]
       }
     },
     {
@@ -4256,13 +4256,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
+            "values": ["low", "medium", "high", "max", "auto"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "auto", "none"]
       }
     },
     {
@@ -4288,13 +4288,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
+            "values": ["low", "medium", "high", "max", "auto"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "auto", "none"]
       }
     },
     {
@@ -4320,13 +4320,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
+            "values": ["low", "medium", "high", "max", "auto"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "auto", "none"]
       }
     },
     {
@@ -19910,5 +19910,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "b992c04df74c00be"
+  "version": "7ebf016f5a907a4c"
 }

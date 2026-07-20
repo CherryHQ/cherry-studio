@@ -13571,7 +13571,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.19
+          "perMillionTokens": 0.2
         },
         "input": {
           "currency": "USD",
@@ -13579,7 +13579,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.15
+          "perMillionTokens": 2.55
         }
       },
       "providerId": "openrouter"
@@ -13609,15 +13609,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.04784
+          "perMillionTokens": 0.18174
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2576
+          "perMillionTokens": 0.9786
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.8096
+          "perMillionTokens": 3.0756
         }
       },
       "providerId": "openrouter"
@@ -14778,16 +14778,16 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "nousresearch/hermes-3-llama-3.1-405b:free",
+      "apiModelId": "nousresearch/hermes-3-llama-3.1-405b",
       "modelId": "hermes-3-llama-3-1-405b",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1
         }
       },
       "providerId": "openrouter"
@@ -15300,31 +15300,31 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "meta-llama/llama-3.2-3b-instruct:free",
+      "apiModelId": "meta-llama/llama-3.2-3b-instruct",
       "modelId": "llama-3-2-3b-instruct",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.0509
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.335
         }
       },
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "meta-llama/llama-3.3-70b-instruct:free",
+      "apiModelId": "meta-llama/llama-3.3-70b-instruct",
       "modelId": "llama-3-3-70b-instruct",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.13
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.4
         }
       },
       "providerId": "openrouter"
@@ -16471,11 +16471,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2275
+          "perMillionTokens": 0.12
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.91
+          "perMillionTokens": 0.24
         }
       },
       "providerId": "openrouter"
@@ -16813,16 +16813,20 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "qwen/qwen3-coder:free",
+      "apiModelId": "qwen/qwen3-coder",
       "modelId": "qwen3-coder",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1
         }
       },
       "providerId": "openrouter"
@@ -16938,16 +16942,20 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "qwen/qwen3-next-80b-a3b-instruct:free",
+      "apiModelId": "qwen/qwen3-next-80b-a3b-instruct",
       "modelId": "qwen3-next-80b-a3b-instruct",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.1
         }
       },
       "providerId": "openrouter"
@@ -20567,5 +20575,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "9437063bdd141871"
+  "version": "024fc5161278bf0e"
 }

@@ -281,9 +281,25 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
       const limits = matchTokenLimits(m.id, familyRules)
       if (limits) controls.push({ kind: 'budget', min: limits.min, max: limits.max })
     }
-    if (!controls.some((c: { kind: string }) => c.kind === 'effort')) {
+    const declaredEffort = controls.find((c: { kind: string }) => c.kind === 'effort') as
+      | { kind: 'effort'; values: string[] }
+      | undefined
+    if (!declaredEffort) {
       const inferred = matchReasoningControls(m.id, familyRules)?.find((c) => c.kind === 'effort')
       if (inferred) controls.unshift(inferred)
+    } else {
+      // MODE union: 'none'/'auto' are switch modes, not intensity tiers —
+      // upstream vocabularies routinely omit them (e.g. claude's adaptive
+      // "model decides" mode). Family-rule modes join a declared vocabulary;
+      // declared INTENSITY tiers still win untouched.
+      const familyEffort = matchReasoningControls(m.id, familyRules)?.find((c) => c.kind === 'effort')
+      if (familyEffort && familyEffort.kind === 'effort') {
+        for (const mode of ['none', 'auto'] as const) {
+          if (familyEffort.values.includes(mode) && !declaredEffort.values.includes(mode)) {
+            declaredEffort.values.push(mode)
+          }
+        }
+      }
     }
   }
   // Reasoning normalization — `controls` is the source of truth: whenever a
