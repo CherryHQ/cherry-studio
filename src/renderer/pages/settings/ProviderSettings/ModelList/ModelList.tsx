@@ -2,7 +2,7 @@ import { ButtonGroup } from '@cherrystudio/ui'
 import React, { memo } from 'react'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
-import { useModelListHealth } from './modelListHealthContext'
+import { useModelListHealthRun } from './modelListHealthContext'
 import ProviderModelAdd from './ProviderModelAdd'
 import ProviderModelDownload from './ProviderModelDownload'
 import ProviderModelHealthCheck from './ProviderModelHealthCheck'
@@ -21,8 +21,8 @@ function ModelListContent({
   providerId: string
   modelPullGuideVersion?: number
 }) {
-  const health = useModelListHealth()
-  const disabled = health.isHealthChecking
+  const { isHealthChecking } = useModelListHealthRun()
+  const disabled = isHealthChecking
 
   return (
     <>

@@ -427,9 +427,7 @@ interface ArtifactPaneViewProps {
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   enableFileSearch?: boolean
-  /** The lifted directory-tree model. Owning it above the component lets the
-   *  agent right-pane survive the Host↔Overlay maximize remount without
-   *  rebuilding the tree. */
+  /** Directory-tree model owned by the surrounding artifact capability. */
   model: ArtifactFileTreeModel
   selectedFile: string | null
   onSelectedFileChange: (file: string | null) => void
@@ -782,9 +780,9 @@ export function ArtifactPaneView({
 
 /**
  * Standalone artifact pane: owns its own (optionally controlled) selection /
- * file-tree state and builds the tree model internally. The agent right-pane
- * instead lifts the model into a surviving provider and renders
- * `ArtifactPaneView` directly (so maximize/minimize doesn't rebuild the tree).
+ * file-tree state and builds the tree model internally. The agent files
+ * capability owns the same model and renders `ArtifactPaneView` directly; its
+ * stable capability instance survives close, tab, and layout changes.
  */
 const ArtifactPane = ({
   workspacePath,
@@ -854,7 +852,6 @@ const ArtifactPane = ({
     selectedFile,
     onExpandedIdsChange: setExpandedIdsState
   })
-  const { resetLazyChildren } = model
 
   // Reset transient state when the workspace changes.
   useEffect(() => {
@@ -862,7 +859,6 @@ const ArtifactPane = ({
     if (workspaceChanged) {
       if (!selectedFileControlled) setSelectedFile(null)
       if (!previewFileSelectionControlled) setInternalPreviewFileSelection(null)
-      resetLazyChildren()
     }
     previousWorkspacePathRef.current = workspacePath
 
@@ -879,7 +875,6 @@ const ArtifactPane = ({
     setExpandedIdsState,
     setFileSearchKeyword,
     setSelectedFile,
-    resetLazyChildren,
     workspacePath
   ])
 
