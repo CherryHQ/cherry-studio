@@ -814,10 +814,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(6)
+    // headlessInteractiveToolHook + headlessConfigMutationHook + skillInstallApprovalHook + disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(7)
 
-    const steerHook = preToolUse![5] as unknown as (input: {
+    const steerHook = preToolUse![6] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
 

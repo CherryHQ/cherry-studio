@@ -844,6 +844,30 @@ async function buildToolPermissions(
     }
   }
 
+  // Installing a skill clones and runs third-party code with full agent permissions, so it must never
+  // run unattended. `canUseTool` alone is not enough: bypassPermissions / acceptEdits skip it entirely
+  // and would auto-run install_skill. A PreToolUse hook fires in every permission mode, so enforce the
+  // gate here — deny outright when there is no one to approve (headless turns) or the session auto-runs
+  // tools (bypassPermissions / acceptEdits). In normal interactive modes this hook no-ops and the
+  // regular per-call approval (canUseTool) applies, since install_skill is not on the auto-approve list.
+  const AUTO_RUN_PERMISSION_MODES = new Set(['bypassPermissions', 'acceptEdits'])
+  const skillInstallApprovalHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'mcp__skills__install_skill') return {}
+    const headless = application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
+    const autoRuns = AUTO_RUN_PERMISSION_MODES.has(String(agentConfig?.permission_mode ?? ''))
+    if (!headless && !autoRuns) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'Installing a skill runs third-party code and requires interactive per-call approval, which this turn cannot provide (headless or auto-run permission mode). Ask the user to install it from Cherry Studio, or run in a mode that prompts for approval.'
+      }
+    }
+  }
+
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
   // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
   // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
@@ -906,6 +930,7 @@ async function buildToolPermissions(
           hooks: [
             headlessInteractiveToolHook,
             headlessConfigMutationHook,
+            skillInstallApprovalHook,
             disabledToolHook,
             dependencyIsolationHook,
             rtkRewriteHook,

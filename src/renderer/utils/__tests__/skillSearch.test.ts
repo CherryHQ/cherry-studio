@@ -4,9 +4,10 @@ import {
   ClawhubSkillDetailSchema,
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
+import { normalizeClaudePlugins } from '@shared/utils/skillMarketplace'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { normalizeClaudePlugins, searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
+import { searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'
 import clawhubDetailFixture from './fixtures/clawhub-detail.json'
 import clawhubSearchFixture from './fixtures/clawhub-search.json'

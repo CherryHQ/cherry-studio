@@ -3,13 +3,20 @@
 > Design doc. Status: approved, implementation in progress (PR-by-PR).
 >
 > **Update (PR #16726):** soul mode and its tool gating are gone — `soul_enabled`,
-> `SOUL_MODE_DISALLOWED_TOOLS`, and the PR-7 de-gating items below have landed,
-> **except** the `skills` MCP server: it remains defined but unmounted —
-> `buildMcpServers()` injects only `cherry-tools`, `agent-memory`, and assistant
-> tools. Wiring or removing `SkillsServer` is a separate decision.
+> `SOUL_MODE_DISALLOWED_TOOLS`, and the PR-7 de-gating items below have landed.
 > The `claw` server was renamed and merged into `cherry-tools`; the autonomy
 > tools' final names are `mcp__cherry-tools__cron/notify/config`. References to
 > `claw` / soul gating below are historical context, not current state.
+>
+> **Update (skill-install-visibility-sync):** the `skills` MCP server is now **wired
+> into every session** by `buildMcpServers()`, exposing two tools — `search_skills`
+> (read-only marketplace search, auto-approved) and `install_skill` (clones + installs
+> exactly one skill via `SkillService.install`, from a validated `install_source`).
+> `install_skill` is **not** auto-approved: it goes through per-call approval, and a
+> `skillInstallApprovalHook` PreToolUse hook additionally **denies** it in headless /
+> `bypassPermissions` / `acceptEdits` turns, so third-party code never runs unattended.
+> Skill *authoring* is not a tool — skill-creator writes files that `reconcileSkills`
+> catalogs. The "defined but unmounted / not yet wired" notes below are historical.
 
 ## Context
 
@@ -19,7 +26,7 @@ The Claude Code agent tool set is **hand-written and duplicated across 3+ drifti
 - `src/renderer/.../tools/agent/types.ts` — `AgentToolsType` (~29 names) + per-tool input/output types (type-only import from `@anthropic-ai/claude-agent-sdk/sdk-tools`).
 - `src/renderer/.../tools/agent/toolRendererRegistry.tsx` + icon/label switches in `ToolHeader.tsx`.
 - `src/shared/ai/claudecode/constants.ts` — `GLOBALLY_DISALLOWED_TOOLS`, `SOUL_MODE_DISALLOWED_TOOLS` (mode-gated, not tool-granular).
-- **In-process MCP servers**, each gated differently in `settingsBuilder.buildMcpServers()`: `cherry-tools` (always), `claw` (cron/notify/config — **soul only**), `agent-memory` (memory — **soul only**), `assistant` (assistant only), `skills` (**defined but wired nowhere**).
+- **In-process MCP servers**, each gated differently in `settingsBuilder.buildMcpServers()`: `cherry-tools` (always), `claw` (cron/notify/config — **soul only**), `agent-memory` (memory — **soul only**), `assistant` (assistant only), `skills` (**wired for every session** — `search_skills` + `install_skill`; see the update at the top).
 
 Goal: **one declarative registry** = single source of truth for policy (main), catalog UI (renderer), and chat rendering (renderer), covering **both SDK-native and in-process MCP tools**, classified **at tool granularity** (no all-or-nothing soul gating; some tools gated by **runtime conditions**). Plus: upgrade the SDK for the Workflow tool, make the toggle a real enable/disable, categorize + i18n the UI.
 
@@ -38,7 +45,7 @@ Goal: **one declarative registry** = single source of truth for policy (main), c
    - `Agent` + agent-teams (`SendMessage`/`TeamCreate`/`TeamDelete`) → **internal**. `Workflow` → **user**.
    - `ScheduleWakeup`/`RemoteTrigger`/`Monitor`/`PushNotification` → **disabled** (CLI-oriented).
    - `EnterWorktree`/`ExitWorktree` → **conditional** (`workspace-has-git`), pair-grouped.
-   - claw `cron` → **user**; `agent-memory` `memory` → **user**; `skills` → **internal** (defined but not yet wired); claw `notify` + `config` → **user** (no channel gate; `notify` self-degrades at call time when no channel is connected).
+   - claw `cron` → **user**; `agent-memory` `memory` → **user**; `skills` `search_skills`/`install_skill` → **internal**, wired for every session (`install_skill` also gated by a headless/auto-run PreToolUse deny hook); claw `notify` + `config` → **user** (no channel gate; `notify` self-degrades at call time when no channel is connected).
 
 ## Architecture — 3 layers
 
@@ -72,7 +79,7 @@ Approval metadata dropped (decision #4). `AgentToolsType` derived from the regis
 ### Layer 3 — policy & MCP injection (main)
 - `useAgentTools.ts` + `agentTools.ts` source descriptors from the registry.
 - `settingsBuilder.buildToolPermissions()` → `resolveDisallowedTools(agent, ctx)`.
-- `settingsBuilder.buildMcpServers()` injects `cherry-tools` and `agent-memory` for every session; per-tool policy is enforced by `disallowedTools`/hooks, not by mounting/unmounting the server. `skills` stays unmounted — `SkillsServer` is defined but injected nowhere.
+- `settingsBuilder.buildMcpServers()` injects `cherry-tools` and `agent-memory` for every session; per-tool policy is enforced by `disallowedTools`/hooks, not by mounting/unmounting the server. `skills` is injected for every session too (`search_skills` auto-approved; `install_skill` per-call approval + a headless/auto-run deny hook).
 
 ## Enable/disable model
 
@@ -128,7 +135,8 @@ Approval = `permission_mode` cards + read-only default-safe set. **Round-trip un
 | kb_search | cherry-tools | context | user | |
 | kb_list | cherry-tools | context | internal | |
 | memory | agent-memory | context | user | cross-session FACT.md/JOURNAL |
-| skills | skills | context | internal | defined but not yet wired (injected nowhere) |
+| search_skills | skills | context | internal | read-only marketplace search (auto-approved) |
+| install_skill | skills | context | internal | installs one marketplace skill; per-call approval + headless/auto-run deny hook |
 | cron | cherry-tools | orchestration | user | app scheduler (≠ SDK Cron*) |
 | notify | cherry-tools | orchestration | user | IM channel push; self-degrades at call time if no channel |
 | config | cherry-tools | orchestration | user | agent self-config (rename/channels) |
@@ -143,12 +151,12 @@ Future: media tools (image gen, audio/video) → `category:'media'`; notes → `
 - **PR-4 — edit-dialog UI: real enable/disable + category sections + cherry fold-in.** Toggle writes `disabledTools`; group by `category`; one switch per `pairGroup`; show only `exposure==='user'`; drop per-tool approve.
 - **PR-5 — i18n.** `agent.tools.<Key>.label/.description` in en/zh-cn/zh-tw; migrate `getAgentToolLabel`.
 - **PR-6 — render-registry unification + cleanup.** `TOOL_UI_BINDINGS` + registry-driven `ToolHeader`; delete `builtinTools.ts`.
-- **PR-7 — conditional exposure + in-process MCP de-soul-gating.** Introduce the `ctx` predicates (`workspace-has-git` via `.git` stat; `agent-has-channel` via `channelService`); enforce `conditional`. De-soul-gate cherry-tools/agent-memory by injecting them for every session and enforcing per-tool policy through `disallowedTools`/hooks; remove `SOUL_MODE_DISALLOWED_TOOLS` + soul server gates. (`skills` wiring deferred — `SkillsServer` stays defined-but-unmounted.) **Behavior change** — explicit before/after, tested.
+- **PR-7 — conditional exposure + in-process MCP de-soul-gating.** Introduce the `ctx` predicates (`workspace-has-git` via `.git` stat; `agent-has-channel` via `channelService`); enforce `conditional`. De-soul-gate cherry-tools/agent-memory by injecting them for every session and enforcing per-tool policy through `disallowedTools`/hooks; remove `SOUL_MODE_DISALLOWED_TOOLS` + soul server gates. (`skills` is now wired — see the skill-install-visibility-sync update at the top.) **Behavior change** — explicit before/after, tested.
 
 ## Risks
 
 - **`exposure:'disabled'` correctness (high):** WebSearch/WebFetch hard-disabled today; mis-encoding re-grants them. PR-2 snapshot assertion is the safety net.
 - **De-soul-gating + conditional (high):** PR-7 changes which agents see claw/memory/worktree. Must be explicit + tested; existing soul agents keep their tools; conditional predicates must be cheap (cache `.git` stat / channel count per session build).
-- **`skills` wiring (deferred):** not wired in this pass — `SkillsServer` stays unmounted. If/when wired, confirm marketplace install/authoring is safe to expose (internal = on for every agent).
+- **`skills` wiring (done):** wired in skill-install-visibility-sync. `search_skills` is read-only (auto-approved); `install_skill` runs third-party code, so it is per-call-approved AND denied by a PreToolUse hook in headless / `bypassPermissions` / `acceptEdits` turns. Install resolves the exact repo directory and refuses to overwrite builtin/system/local/other-source skills.
 - **Teams outside typed union:** `SendMessage`/`Team*` can't be union-guarded; need explicit `internal` entries + bindings or they fall to `UnknownToolRenderer`.
 - **Warm-query staleness (low):** `disabledTools`/`ctx` re-key the warm signature; applies next session, not mid-session.

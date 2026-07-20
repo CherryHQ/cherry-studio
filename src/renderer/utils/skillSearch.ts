@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
 import {
-  ClaudePluginsSearchResponseSchema,
   ClawhubSearchResponseSchema,
   type SkillSearchResult,
   type SkillSearchSource,
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
+import { normalizeClaudePlugins } from '@shared/utils/skillMarketplace'
 
 const logger = loggerService.withContext('skillSearch')
 
@@ -16,79 +16,11 @@ const CLAWHUB_API = 'https://clawhub.ai/api/v1/search'
 const REQUEST_TIMEOUT_MS = 15_000
 export const SKILL_SEARCH_FAILED_ERROR = 'skill_search_failed'
 
-function normalizeDirectoryPath(directoryPath: string | null | undefined): string | null {
-  const normalized = directoryPath
-    ?.split('/')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join('/')
-
-  return normalized || null
-}
-
-function getDirectoryPathFromGithubTreeUrl(
-  sourceUrl: string | null | undefined,
-  repoOwner: string,
-  repoName: string
-): string | null {
-  if (!sourceUrl) return null
-
-  try {
-    const url = new URL(sourceUrl)
-    const [owner, repo, type, branch, ...pathParts] = url.pathname
-      .split('/')
-      .filter(Boolean)
-      .map((part) => decodeURIComponent(part))
-
-    if (
-      url.hostname !== 'github.com' ||
-      owner?.toLowerCase() !== repoOwner.toLowerCase() ||
-      repo?.toLowerCase() !== repoName.toLowerCase() ||
-      type !== 'tree' ||
-      !branch ||
-      !['main', 'master'].includes(branch)
-    ) {
-      return null
-    }
-
-    return normalizeDirectoryPath(pathParts.join('/'))
-  } catch {
-    return null
-  }
-}
-
 // ===========================================================================
 // Normalizers: source-specific response → unified SkillSearchResult[]
+// (claude-plugins.dev normalizer lives in @shared/utils/skillMarketplace so the
+// main-process skills MCP builds identical install identifiers.)
 // ===========================================================================
-
-export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
-  const parsed = ClaudePluginsSearchResponseSchema.safeParse(raw)
-  if (!parsed.success) throw new Error('Invalid claude-plugins.dev search response')
-
-  return parsed.data.skills.flatMap((s) => {
-    const repoOwner = s.metadata?.repoOwner ?? ''
-    const repoName = s.metadata?.repoName ?? ''
-    const directoryPath =
-      normalizeDirectoryPath(s.metadata?.directoryPath) ??
-      getDirectoryPathFromGithubTreeUrl(s.sourceUrl, repoOwner, repoName)
-    // Skip entries without a resolvable install source (repo owner/name are
-    // required to clone, directoryPath is required to avoid ambiguous repo
-    // scans that may install a different skill).
-    if (!repoOwner || !repoName || !directoryPath) return []
-    return {
-      slug: s.id,
-      name: s.name,
-      description: s.description ?? null,
-      author: s.author ?? s.namespace ?? null,
-      stars: s.stars ?? 0,
-      downloads: s.installs ?? 0,
-      sourceRegistry: 'claude-plugins.dev' as SkillSearchSource,
-      sourceUrl: s.sourceUrl ?? `https://github.com/${repoOwner}/${repoName}/tree/main/${directoryPath}`,
-      // Encode sourceUrl directly so install can clone + resolve without the resolve API
-      installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`
-    }
-  })
-}
 
 function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
   const parsed = SkillsShSearchResponseSchema.safeParse(raw)
