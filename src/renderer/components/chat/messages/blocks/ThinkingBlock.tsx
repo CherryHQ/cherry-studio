@@ -1,5 +1,5 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
-import { type CSSProperties, memo, useEffect, useId, useMemo, useState } from 'react'
+import { memo, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
@@ -40,14 +40,10 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
   return (
     <div
       className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
-      style={
-        {
-          '--color-text': 'var(--color-foreground-muted)',
-          '--color-text-light': 'var(--color-foreground-muted)',
-          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-          fontSize
-        } as CSSProperties
-      }>
+      style={{
+        fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+        fontSize
+      }}>
       <ChatMarkdown block={block} />
     </div>
   )
