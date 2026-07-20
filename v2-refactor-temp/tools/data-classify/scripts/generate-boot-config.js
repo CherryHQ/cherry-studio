@@ -30,7 +30,9 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       "portable) with independent user data locations — matching the v1 behavior",
       "of ~/.cherrystudio/config/config.json's `appDataPath` array.",
       '',
-      "Key: executable path (matches Electron's `app.getPath('exe')`).",
+      'Key: normalized executable path from getNormalizedExecutablePath() —',
+      "intentionally not `app.getPath('exe')` for Linux AppImage and Windows",
+      'portable builds, whose raw exe paths are unstable across launches.',
       'Value: absolute path to the chosen userData directory.',
       '',
       'Migrated from v1 ~/.cherrystudio/config/config.json on first v1→v2 run',
@@ -45,11 +47,19 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
     zodType:
       'z\n' +
       '    .union([\n' +
-      "      z.object({ status: z.literal('pending'), from: z.string(), to: z.string() }),\n" +
       '      z.object({\n' +
-      "        status: z.literal('failed'),\n" +
+      "        status: z.literal('pending'),\n" +
+      '        taskId: z.uuid(),\n' +
       '        from: z.string(),\n' +
       '        to: z.string(),\n' +
+      '        copy: z.boolean()\n' +
+      '      }),\n' +
+      '      z.object({\n' +
+      "        status: z.literal('failed'),\n" +
+      '        taskId: z.uuid(),\n' +
+      '        from: z.string(),\n' +
+      '        to: z.string(),\n' +
+      '        copy: z.boolean(),\n' +
       '        error: z.string(),\n' +
       '        failedAt: z.string()\n' +
       '      })\n' +
@@ -68,20 +78,20 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '',
       'Lifecycle:',
       '  - null: no relocation in progress (default).',
-      "  - { status: 'pending', from, to }: an IPC handler wrote this request",
-      '    and the next preboot should execute the copy.',
-      "  - { status: 'failed', from, to, error, failedAt }: a previous preboot",
-      '    attempted the copy and it failed. The record stays in BootConfig',
-      '    until a renderer recovery flow lets the user retry, abandon, or',
-      '    investigate. The app continues running on the previous userData',
-      '    location until then.',
+      "  - { status: 'pending', taskId, from, to, copy }: the relocation",
+      '    request face (services/userDataRelocation) wrote this request and',
+      '    the next preboot should execute it.',
+      "  - { status: 'failed', taskId, from, to, copy, error, failedAt }:",
+      '    a previous preboot attempt failed. The record stays in BootConfig',
+      '    until the dedicated relocation window shows the error and the user',
+      '    explicitly abandons it by restarting on the previous userData path.',
       '',
       'Note: "userData" here means the Electron OS directory',
       "(app.getPath('userData')), not the colloquial sense of user content.",
       'The copy includes everything under that directory — user files,',
       'Chromium runtime state, logs, etc.',
       '',
-      'Consumer: src/main/core/preboot/userDataLocation.ts'
+      'Consumer: src/main/services/userDataRelocation'
     ]
   },
   {

@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, appGetPathMock, appRelaunchMock, bootConfigSetMock, bootConfigPersistMock } = vi.hoisted(() => ({
+const {
+  appGetMock,
+  appGetPathMock,
+  appRelaunchMock,
+  bootConfigSetMock,
+  bootConfigPersistMock,
+  inspectTargetMock,
+  requestRelocationMock
+} = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   appGetPathMock: vi.fn(),
   appRelaunchMock: vi.fn(),
   bootConfigSetMock: vi.fn(),
-  bootConfigPersistMock: vi.fn()
+  bootConfigPersistMock: vi.fn(),
+  inspectTargetMock: vi.fn(),
+  requestRelocationMock: vi.fn()
 }))
+
 vi.mock('@application', () => ({
   application: { get: appGetMock, getPath: appGetPathMock, relaunch: appRelaunchMock }
 }))
@@ -14,8 +25,18 @@ vi.mock('@main/data/bootConfig', () => ({
   bootConfigService: { set: bootConfigSetMock, persist: bootConfigPersistMock }
 }))
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+vi.mock('@main/services/userDataRelocation', () => ({
+  inspectUserDataRelocationTarget: inspectTargetMock,
+  requestUserDataRelocation: requestRelocationMock
+}))
+vi.mock('electron', () => ({
+  app: { getVersion: () => '1.0.0', isPackaged: true },
+  BrowserWindow: { getAllWindows: () => [] },
+  webContents: { getAllWebContents: () => [] },
+  dialog: { showMessageBox: vi.fn() }
+}))
 
-import { dialog } from 'electron'
+import { app, dialog } from 'electron'
 
 import { appHandlers } from '../app'
 
@@ -23,21 +44,54 @@ const appUpdaterService = {
   checkForUpdates: vi.fn(),
   quitAndInstall: vi.fn()
 }
+const preferenceService = {
+  get: vi.fn()
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
+  ;(app as { isPackaged: boolean }).isPackaged = true
+  appGetPathMock.mockReturnValue('/mock/path')
+  inspectTargetMock.mockReturnValue({ valid: true, targetEmpty: true })
   appGetMock.mockImplementation((name: string) => {
     if (name === 'AppUpdaterService') return appUpdaterService
+    if (name === 'PreferenceService') return preferenceService
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
 
-// app handlers ignore IpcContext (app-level, not window-scoped), so senderId is
-// irrelevant — pass a stable stub.
 const ctx = { senderId: 'w1' }
 
 describe('appHandlers', () => {
-  it('check_for_update triggers the AppUpdaterService check and resolves void (results arrive via events)', async () => {
+  it('inspects relocation targets through the domain validation', async () => {
+    const result = await appHandlers['app.user_data_relocation.inspect']({ path: '/new/data' }, ctx)
+
+    expect(inspectTargetMock).toHaveBeenCalledWith('/new/data')
+    expect(result).toEqual({ valid: true, targetEmpty: true })
+  })
+
+  it('delegates relocation requests to the domain in packaged builds', async () => {
+    const result = await appHandlers['app.user_data_relocation.request']({ path: '/new/data', copy: true }, ctx)
+
+    expect(requestRelocationMock).toHaveBeenCalledWith('/new/data', true)
+    expect(result).toBeUndefined()
+  })
+
+  it('rejects relocation requests from unpackaged development runs', async () => {
+    ;(app as { isPackaged: boolean }).isPackaged = false
+
+    await expect(
+      appHandlers['app.user_data_relocation.request']({ path: '/new/data', copy: true }, ctx)
+    ).rejects.toMatchObject({ code: 'USER_DATA_RELOCATION_UNAVAILABLE' })
+    expect(requestRelocationMock).not.toHaveBeenCalled()
+  })
+
+  it('relaunches through IpcApi', async () => {
+    await expect(appHandlers['app.relaunch'](undefined, ctx)).resolves.toBeUndefined()
+    expect(appRelaunchMock).toHaveBeenCalledOnce()
+  })
+
+  it('check_for_update triggers the AppUpdaterService check and resolves void', async () => {
     appUpdaterService.checkForUpdates.mockResolvedValue({ currentVersion: '1.0.0', updateInfo: null })
 
     const result = await appHandlers['app.updater.check_for_update'](undefined, ctx)
