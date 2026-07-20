@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
 import type { Disposable } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
-import { DataApiError, ErrorCode, toDataApiError } from '@shared/data/api/errors'
+// eslint-disable-next-line barrel/closed -- quiesceGate only; avoid pulling BackupService into DataApi load path
+import { isBackupInProgress } from '@main/services/backup/quiesceGate'
+import { DataApiError, ERROR_STATUS_MAP, ErrorCode, toDataApiError } from '@shared/data/api/errors'
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
@@ -50,6 +52,25 @@ export class IpcAdapter implements Disposable {
       // capability, so verify the caller before touching the request.
       if (!this.isTrustedSender(event, `request ${request?.method} ${request?.path}`)) {
         const error = new DataApiError(ErrorCode.PERMISSION_DENIED, 'Untrusted IPC sender', 403)
+        return {
+          id: request?.id ?? '',
+          status: error.status,
+          error: error.toJSON(),
+          metadata: {
+            duration: 0,
+            timestamp: Date.now()
+          }
+        }
+      }
+
+      // Partial restore quiesce: reject mutations while BACKUP_IN_PROGRESS is held.
+      // GET (read) stays open — snapshot reads are safe; merge runs on detached work.sqlite.
+      if (isBackupInProgress() && request.method !== 'GET') {
+        const error = new DataApiError(
+          ErrorCode.BACKUP_IN_PROGRESS,
+          'backup: a restore is in progress — writes are paused until it completes',
+          ERROR_STATUS_MAP[ErrorCode.BACKUP_IN_PROGRESS]
+        )
         return {
           id: request?.id ?? '',
           status: error.status,

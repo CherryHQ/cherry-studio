@@ -11,5 +11,9 @@
 // (ExportOrchestrator, FileStager, errors, contributors/*, …) are private to the
 // pipeline and stay unexported here; in-directory .test.ts files may import them
 // directly because tests are not external consumers.
+//
+// Exception: IPC entry points import `./quiesceGate` directly (with barrel/closed
+// disable) so PreferenceService / IpcApiService / IpcAdapter do not pull the
+// BackupService module graph into BeforeReady / DataApi load paths.
 
 export { BackupService } from './BackupService'

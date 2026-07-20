@@ -4,6 +4,8 @@ import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
 import type { WindowType } from '@main/core/window/types'
+// eslint-disable-next-line barrel/closed -- quiesceGate only; avoid pulling BackupService into IpcApi BeforeReady graph
+import { assertNotBackupInProgress } from '@main/services/backup/quiesceGate'
 import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcError'
 import { type IpcEventName, type IpcRequestSchemas, ipcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload, IpcContext, WindowId } from '@shared/ipc/types'
@@ -69,6 +71,11 @@ export class IpcApiService extends BaseService {
 
     const t0 = DIAGNOSTICS_ENABLED ? performance.now() : 0
     try {
+      // Partial restore quiesce: reject mutations while BACKUP_IN_PROGRESS is held.
+      // backup.* routes stay open so restore progress / cancel can still run during the window.
+      if (!route.startsWith('backup.')) {
+        assertNotBackupInProgress()
+      }
       const data = await this.router.dispatch(route, input, this.makeContext(event))
       return { ok: true, data }
     } catch (e) {

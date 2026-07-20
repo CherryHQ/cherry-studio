@@ -5,6 +5,8 @@ import { Phase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
 import { bootConfigService } from '@main/data/bootConfig'
+// eslint-disable-next-line barrel/closed -- quiesceGate only; avoid pulling BackupService into Preference BeforeReady graph
+import { assertNotBackupInProgress } from '@main/services/backup/quiesceGate'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
@@ -263,6 +265,7 @@ export class PreferenceService extends BaseService {
       IpcChannel.Preference_Set,
       async (event, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
         this.assertTrustedSender(event, IpcChannel.Preference_Set)
+        assertNotBackupInProgress()
         await this.set(key, value)
       }
     )
@@ -274,6 +277,7 @@ export class PreferenceService extends BaseService {
 
     this.ipcHandle(IpcChannel.Preference_SetMultiple, async (event, updates: Partial<UnifiedPreferenceType>) => {
       this.assertTrustedSender(event, IpcChannel.Preference_SetMultiple)
+      assertNotBackupInProgress()
       await this.setMultiple(updates)
     })
 

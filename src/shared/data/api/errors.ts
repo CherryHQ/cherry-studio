@@ -113,7 +113,14 @@ export enum ErrorCode {
    * or data corruption found during validation.
    * Not retryable: requires investigation or data repair.
    */
-  DATA_INCONSISTENT = 'DATA_INCONSISTENT'
+  DATA_INCONSISTENT = 'DATA_INCONSISTENT',
+
+  /**
+   * 423 - A backup restore quiesce window is held (partial write-quiesce).
+   * Mutations are rejected until BackupService clears BACKUP_IN_PROGRESS.
+   * Read-only GET requests are not gated. Retryable after restore completes.
+   */
+  BACKUP_IN_PROGRESS = 'BACKUP_IN_PROGRESS'
 }
 
 // ============================================================================
@@ -146,7 +153,8 @@ export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   [ErrorCode.RESOURCE_LOCKED]: 423,
   [ErrorCode.CONCURRENT_MODIFICATION]: 409,
   [ErrorCode.DATA_INCONSISTENT]: 409,
-  [ErrorCode.MIGRATION_ERROR]: 500
+  [ErrorCode.MIGRATION_ERROR]: 500,
+  [ErrorCode.BACKUP_IN_PROGRESS]: 423
 }
 
 /**
@@ -172,7 +180,9 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.MIGRATION_ERROR]: 'Migration error: Failed to migrate data',
   [ErrorCode.RESOURCE_LOCKED]: 'Resource locked: Resource is currently locked by another operation',
   [ErrorCode.CONCURRENT_MODIFICATION]: 'Concurrent modification: Resource was modified by another user',
-  [ErrorCode.DATA_INCONSISTENT]: 'Data inconsistent: Data integrity violation detected'
+  [ErrorCode.DATA_INCONSISTENT]: 'Data inconsistent: Data integrity violation detected',
+  [ErrorCode.BACKUP_IN_PROGRESS]:
+    'Backup in progress: a restore is in progress — writes are paused until it completes'
 }
 
 // ============================================================================
