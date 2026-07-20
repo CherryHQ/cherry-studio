@@ -40,14 +40,14 @@ describe('validateThemeContractSources', () => {
 
   it('rejects an unregistered runtime input', async () => {
     const sources = await loadSources()
-    sources.themeInput += '\n:root { --cs-theme-speculative: hotpink; }\n'
+    sources.themeInput += '\n:root {\n  --cs-theme-speculative: hotpink;\n}\n'
 
     expect(() => validateThemeContractSources(sources)).toThrow(/declares unregistered runtime input/)
   })
 
   it('rejects a runtime input declared by the foundation layer', async () => {
     const sources = await loadSources()
-    sources.primitiveColors += '\n:root { --cs-theme-speculative: hotpink; }\n'
+    sources.primitiveColors += '\n:root {\n  --cs-theme-speculative: hotpink;\n}\n'
 
     expect(() => validateThemeContractSources(sources)).toThrow(/foundation cannot declare runtime input/)
   })
