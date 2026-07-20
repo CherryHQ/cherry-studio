@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const responsiveStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/responsive.css'), 'utf8')
 
@@ -98,6 +98,10 @@ describe('OnboardingPage', () => {
     selectedModelsMock.defaultModel = { id: 'default-model' }
     selectedModelsMock.quickModel = { id: 'quick-model' }
     selectedModelsMock.translateModel = { id: 'translate-model' }
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('shows provider setup with onboarding mode when choosing another provider', async () => {
@@ -220,12 +224,36 @@ describe('OnboardingPage', () => {
     const logo = screen.getByRole('img', { name: 'Cherry Studio' })
     const welcomeContent = logo.parentElement
     const primaryAction = screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })
+    const secondaryAction = screen.getByRole('button', { name: 'onboarding.welcome.other_provider' })
 
     expect(welcomeContent?.parentElement).toHaveClass('pb-20')
-    expect(logo.nextElementSibling).toHaveClass('mt-5')
+    expect(logo.nextElementSibling).toHaveClass('mt-5', 'space-y-3')
     expect(screen.getByText('onboarding.welcome.subtitle')).toHaveClass('text-foreground-secondary')
     expect(primaryAction.parentElement).toHaveClass('mt-8')
+    expect(primaryAction).toHaveClass('rounded-xl')
+    expect(secondaryAction).toHaveClass('rounded-xl')
+    expect(primaryAction.querySelector('svg')).toHaveClass('lucide-log-in')
+    expect(screen.queryByText('onboarding.welcome.or_continue_with')).not.toBeInTheDocument()
     expect(screen.getByText('onboarding.welcome.setup_hint')).toHaveClass('mt-4')
+  })
+
+  it('hides the login icon while loading and restores the action after ten seconds', async () => {
+    vi.useFakeTimers()
+    oauthWithCherryInMock.mockImplementation(() => new Promise<string>(() => {}))
+    render(<OnboardingPage onComplete={vi.fn()} />)
+
+    const loginButton = screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })
+    fireEvent.click(loginButton)
+
+    expect(loginButton).toBeDisabled()
+    expect(loginButton.querySelector('.lucide-log-in')).not.toBeInTheDocument()
+
+    await act(() => vi.advanceTimersByTime(9_999))
+    expect(loginButton).toBeDisabled()
+
+    await act(() => vi.advanceTimersByTime(1))
+    expect(loginButton).toBeEnabled()
+    expect(loginButton.querySelector('.lucide-log-in')).toBeInTheDocument()
   })
 
   it('syncs CherryIN models before moving a fresh install to model selection', async () => {

@@ -4457,9 +4457,9 @@
       "connected": "Successfully connected to CherryIN"
     },
     "welcome": {
-      "login_cherryin": "Continue with CherryIN",
+      "login_cherryin": "Connect CherryIN",
       "or_continue_with": "or",
-      "other_provider": "Use another provider",
+      "other_provider": "Set up another provider",
       "select_other_provider": "Select Other Provider",
       "setup_hint": "You can change providers anytime in Settings",
       "subtitle": "Connect a provider to power your AI workspace",

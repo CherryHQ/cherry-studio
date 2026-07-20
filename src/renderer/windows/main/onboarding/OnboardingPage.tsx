@@ -14,7 +14,7 @@ import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { defaultLanguage } from '@shared/utils/languages'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { ArrowLeft, Check, KeyRound, Languages, LogIn } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
@@ -24,6 +24,7 @@ interface OnboardingPageProps {
 }
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
+const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 
 function OnboardingProviderSettings() {
   const router = useMemo(() => {
@@ -46,6 +47,8 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
   const [step, setStep] = useState<OnboardingStep>('welcome')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
+  const loginAttemptRef = useRef(0)
+  const loginLoadingTimeoutRef = useRef<number | null>(null)
   const canCompleteModelSetup = Boolean(defaultModel && quickModel && translateModel)
   const eligibleProviderIds = new Set(
     enabledProviders.filter((provider) => provider.id !== CHERRYAI_PROVIDER_ID).map((provider) => provider.id)
@@ -87,11 +90,35 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
     }
   }, [onComplete, t])
 
+  useEffect(
+    () => () => {
+      if (loginLoadingTimeoutRef.current !== null) {
+        window.clearTimeout(loginLoadingTimeoutRef.current)
+      }
+    },
+    []
+  )
+
   const handleCherryInLogin = useCallback(async () => {
+    const attemptId = ++loginAttemptRef.current
+
+    if (loginLoadingTimeoutRef.current !== null) {
+      window.clearTimeout(loginLoadingTimeoutRef.current)
+    }
+
     setIsLoggingIn(true)
+    loginLoadingTimeoutRef.current = window.setTimeout(() => {
+      if (loginAttemptRef.current === attemptId) {
+        loginLoadingTimeoutRef.current = null
+        setIsLoggingIn(false)
+      }
+    }, CHERRYIN_LOGIN_LOADING_TIMEOUT_MS)
+
     try {
       await oauthWithCherryIn(
         async (apiKeys) => {
+          if (loginAttemptRef.current !== attemptId) return
+
           const keys = apiKeys
             .split(',')
             .map((key) => key.trim())
@@ -102,7 +129,11 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
         },
         { oauthServer: CHERRYIN_OAUTH_SERVER }
       )
+      if (loginAttemptRef.current !== attemptId) return
+
       const cherryInModels = await syncProviderModels()
+      if (loginAttemptRef.current !== attemptId) return
+
       if (!cherryInModels.some((model) => model.isEnabled)) {
         toast.error(t('onboarding.provider_setup.missing_model'))
         setStep('provider')
@@ -111,9 +142,17 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
       toast.success(t('onboarding.toast.connected'))
       setStep('select-model')
     } catch {
-      toast.error(t('settings.provider.oauth.error'))
+      if (loginAttemptRef.current === attemptId) {
+        toast.error(t('settings.provider.oauth.error'))
+      }
     } finally {
-      setIsLoggingIn(false)
+      if (loginAttemptRef.current === attemptId) {
+        if (loginLoadingTimeoutRef.current !== null) {
+          window.clearTimeout(loginLoadingTimeoutRef.current)
+          loginLoadingTimeoutRef.current = null
+        }
+        setIsLoggingIn(false)
+      }
     }
   }, [addApiKey, syncProviderModels, t, updateProvider])
 
@@ -159,7 +198,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
             <div className="flex h-full w-full items-center justify-center px-6 pb-20">
               <div className="flex w-full max-w-[420px] flex-col items-center">
                 <img src={AppLogo} alt="Cherry Studio" className="size-16 rounded-xl" />
-                <div className="mt-5 space-y-2 text-center">
+                <div className="mt-5 space-y-3 text-center">
                   <h1 className="m-0 font-semibold text-2xl text-foreground">{t('onboarding.welcome.title')}</h1>
                   <p className="m-0 text-foreground-secondary text-sm">{t('onboarding.welcome.subtitle')}</p>
                 </div>
@@ -167,22 +206,17 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                   <Button
                     type="button"
                     size="lg"
-                    className="h-11 w-full"
+                    className="h-11 w-full rounded-xl"
                     loading={isLoggingIn}
                     onClick={() => void handleCherryInLogin()}>
-                    <LogIn size={16} />
+                    {!isLoggingIn && <LogIn size={16} />}
                     {t('onboarding.welcome.login_cherryin')}
                   </Button>
-                  <div className="flex items-center gap-3 text-foreground-muted text-xs">
-                    <div className="h-px flex-1 bg-border" />
-                    <span>{t('onboarding.welcome.or_continue_with')}</span>
-                    <div className="h-px flex-1 bg-border" />
-                  </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="lg"
-                    className="h-11 w-full"
+                    className="h-11 w-full rounded-xl"
                     onClick={() => setStep('provider')}>
                     <KeyRound size={16} />
                     {t('onboarding.welcome.other_provider')}

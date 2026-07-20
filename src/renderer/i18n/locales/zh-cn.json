@@ -4457,9 +4457,9 @@
       "connected": "成功连接 CherryIN"
     },
     "welcome": {
-      "login_cherryin": "通过 CherryIN 继续",
+      "login_cherryin": "连接 CherryIN",
       "or_continue_with": "或",
-      "other_provider": "使用其他服务商",
+      "other_provider": "配置其他服务商",
       "select_other_provider": "选择其他服务商",
       "setup_hint": "您可以随时在设置中更换服务商",
       "subtitle": "连接服务商，开启您的 AI 工作空间",
