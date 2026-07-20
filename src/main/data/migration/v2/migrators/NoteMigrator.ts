@@ -4,15 +4,9 @@ import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/
 import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { PayloadProfileDescriptor } from '../diagnostics'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('NoteMigrator')
-
-const NOTE_PROFILE = {
-  target: 'note',
-  fields: ['rootPath', 'path']
-} as const satisfies PayloadProfileDescriptor
 
 interface LegacyNoteState {
   notesPath?: unknown
@@ -107,18 +101,20 @@ export class NoteMigrator extends BaseMigrator {
     try {
       ctx.db.transaction((tx) => {
         for (const row of this.preparedRows) {
-          this.runDiagnosedWrite(ctx, NOTE_PROFILE, [row], () =>
-            tx
-              .insert(noteTable)
-              .values(row)
-              .onConflictDoUpdate({
-                target: [noteTable.rootPath, noteTable.path],
-                set: {
-                  isStarred: row.isStarred,
-                  isExpanded: row.isExpanded
-                }
-              })
-              .run()
+          this.runDiagnosedWrite(
+            () => [],
+            () =>
+              tx
+                .insert(noteTable)
+                .values(row)
+                .onConflictDoUpdate({
+                  target: [noteTable.rootPath, noteTable.path],
+                  set: {
+                    isStarred: row.isStarred,
+                    isExpanded: row.isExpanded
+                  }
+                })
+                .run()
           )
         }
       })

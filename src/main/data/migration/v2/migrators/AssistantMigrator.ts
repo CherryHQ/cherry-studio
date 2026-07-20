@@ -14,7 +14,6 @@ import { sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { PayloadProfileDescriptor } from '../diagnostics'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY } from './KnowledgeMigrator'
@@ -22,16 +21,6 @@ import { type AssistantTransformResult, type OldAssistant, transformAssistant } 
 import { resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('AssistantMigrator')
-
-const ASSISTANT_PROFILE = {
-  target: 'assistant',
-  fields: ['name', 'prompt', 'description']
-} as const satisfies PayloadProfileDescriptor
-
-const ASSISTANT_RELATION_PROFILE = {
-  target: 'assistant_relation',
-  fields: ['name']
-} as const satisfies PayloadProfileDescriptor
 
 interface AssistantState {
   assistants: OldAssistant[]
@@ -259,7 +248,15 @@ export class AssistantMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         for (let i = 0; i < orderedAssistantRows.length; i += BATCH_SIZE) {
           const batch = orderedAssistantRows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(ctx, ASSISTANT_PROFILE, batch, () => tx.insert(assistantTable).values(batch).run())
+          this.runDiagnosedWrite(
+            () =>
+              batch.flatMap((row) => [
+                { role: 'text_value' as const, kind: 'string' as const, value: row.prompt ?? '' },
+                { role: 'text_value' as const, kind: 'string' as const, value: row.description ?? '' },
+                { role: 'json_value' as const, kind: 'json' as const, value: row.settings }
+              ]),
+            () => tx.insert(assistantTable).values(batch).run()
+          )
           processed += batch.length
         }
 
@@ -286,8 +283,9 @@ export class AssistantMigrator extends BaseMigrator {
           .filter((row): row is NonNullable<typeof row> => row !== null)
         for (let i = 0; i < mcpServerRows.length; i += BATCH_SIZE) {
           const batch = mcpServerRows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(ctx, ASSISTANT_RELATION_PROFILE, batch, () =>
-            tx.insert(assistantMcpServerTable).values(batch).run()
+          this.runDiagnosedWrite(
+            () => [],
+            () => tx.insert(assistantMcpServerTable).values(batch).run()
           )
         }
         if (allMcpServerRows.length !== mcpServerRows.length) {
@@ -332,8 +330,9 @@ export class AssistantMigrator extends BaseMigrator {
           })
         for (let i = 0; i < knowledgeBaseRows.length; i += BATCH_SIZE) {
           const batch = knowledgeBaseRows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(ctx, ASSISTANT_RELATION_PROFILE, batch, () =>
-            tx.insert(assistantKnowledgeBaseTable).values(batch).run()
+          this.runDiagnosedWrite(
+            () => [],
+            () => tx.insert(assistantKnowledgeBaseTable).values(batch).run()
           )
         }
         if (allKnowledgeBaseRows.length !== knowledgeBaseRows.length) {
@@ -358,8 +357,9 @@ export class AssistantMigrator extends BaseMigrator {
           let insertedTagRowCount = 0
           for (let i = 0; i < tagRows.length; i += BATCH_SIZE) {
             const batch = tagRows.slice(i, i + BATCH_SIZE)
-            const insertedRows = this.runDiagnosedWrite(ctx, ASSISTANT_RELATION_PROFILE, batch, () =>
-              tx.insert(tagTable).values(batch).onConflictDoNothing().returning({ id: tagTable.id }).all()
+            const insertedRows = this.runDiagnosedWrite(
+              () => [],
+              () => tx.insert(tagTable).values(batch).onConflictDoNothing().returning({ id: tagTable.id }).all()
             )
             insertedTagRowCount += insertedRows.length
           }
@@ -385,13 +385,15 @@ export class AssistantMigrator extends BaseMigrator {
           let insertedAssociationCount = 0
           for (let i = 0; i < entityTagRows.length; i += BATCH_SIZE) {
             const batch = entityTagRows.slice(i, i + BATCH_SIZE)
-            const insertedRows = this.runDiagnosedWrite(ctx, ASSISTANT_RELATION_PROFILE, batch, () =>
-              tx
-                .insert(entityTagTable)
-                .values(batch)
-                .onConflictDoNothing()
-                .returning({ tagId: entityTagTable.tagId })
-                .all()
+            const insertedRows = this.runDiagnosedWrite(
+              () => [],
+              () =>
+                tx
+                  .insert(entityTagTable)
+                  .values(batch)
+                  .onConflictDoNothing()
+                  .returning({ tagId: entityTagTable.tagId })
+                  .all()
             )
             insertedAssociationCount += insertedRows.length
           }

@@ -15,8 +15,7 @@ function createMigrationRun(db: MigrationContext['db'], historyRows: readonly un
     db,
     sharedData: new Map(),
     paths: {} as MigrationContext['paths'],
-    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    diagnostics: { recordEvent: vi.fn() }
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
   } as unknown as MigrationContext
 }
 
@@ -57,24 +56,17 @@ describe('TranslateMigrator', () => {
     const migrator = new TranslateMigrator()
     await migrator.prepare(migrationRun)
 
-    const result = await migrator.execute(migrationRun)
+    const diagnosed = await migrator.executeWithDiagnostics(migrationRun)
 
-    expect(result.success).toBe(false)
-    expect(migrationRun.diagnostics.recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'sqlite_too_big',
-        migratorId: 'translate',
-        payloadProfile: expect.objectContaining({
-          target: 'translate_history',
-          slots: expect.arrayContaining([expect.objectContaining({ slot: 'sourceText', kind: 'string' })])
-        })
-      })
-    )
-    expect(JSON.stringify((migrationRun.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)).not.toContain(
-      'PRIVATE_TRANSLATION_TEXT'
-    )
-    expect(JSON.stringify((migrationRun.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)).not.toContain(
-      '/Users/alice'
-    )
+    expect(diagnosed.result.success).toBe(false)
+    expect(diagnosed.failure).toMatchObject({
+      classification: { errorCode: 'sqlite_too_big' },
+      evidence: {
+        kind: 'failed_write',
+        values: expect.arrayContaining([expect.objectContaining({ role: 'text_value', kind: 'string' })])
+      }
+    })
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_TRANSLATION_TEXT')
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
   })
 })

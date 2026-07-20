@@ -8,6 +8,9 @@ const MAX_CAUSE_DEPTH = 4
 
 export interface ClassifiedMigrationError {
   readonly errorCode: MigrationFailureErrorCode
+  readonly identifierViolation?:
+    | { readonly identifierRole: 'provider_id'; readonly rule: 'empty' | 'contains_separator' }
+    | { readonly identifierRole: 'model_id'; readonly rule: 'empty' | 'contains_reserved_route_character' }
   /** @deprecated Removed with the event-timeline diagnostics consumer. */
   readonly category: MigrationErrorCategory
   /** @deprecated Removed with the event-timeline diagnostics consumer. */
@@ -46,15 +49,19 @@ function legacyClassification(errorCode: MigrationFailureErrorCode): LegacyClass
   }
 }
 
-function classified(errorCode: MigrationFailureErrorCode, causeDepth = 0): ClassifiedMigrationError {
-  const result = { errorCode } as ClassifiedMigrationError
+function classified(
+  errorCode: MigrationFailureErrorCode,
+  causeDepth = 0,
+  identifierViolation?: ClassifiedMigrationError['identifierViolation']
+): ClassifiedMigrationError {
+  const result = { errorCode, ...(identifierViolation === undefined ? {} : { identifierViolation }) }
   const legacy = legacyClassification(errorCode)
   Object.defineProperties(result, {
     category: { value: legacy.category },
     code: { value: legacy.code },
     causeDepth: { value: causeDepth }
   })
-  return result
+  return result as ClassifiedMigrationError
 }
 
 const UNKNOWN_CLASSIFICATION = classified('unknown_error')
@@ -89,6 +96,14 @@ function classifyCode(code: string): MigrationFailureErrorCode | undefined {
   }
 
   switch (code) {
+    case 'MIGRATION_FOREIGN_KEY':
+      return 'validation_foreign_key'
+    case 'MIGRATION_COUNT_MISMATCH':
+      return 'validation_count_mismatch'
+    case 'MIGRATION_VALIDATION_FAILED':
+      return 'validation_status'
+    case 'MIGRATION_REQUIRED_RECORDS_REJECTED':
+      return 'source_required_records_rejected'
     case 'SQLITE_PERM':
     case 'SQLITE_AUTH':
       return 'sqlite_permission'
@@ -111,6 +126,18 @@ function classifyCode(code: string): MigrationFailureErrorCode | undefined {
       if (code.startsWith('SQLITE_')) return 'sqlite_unknown'
       return undefined
   }
+}
+
+function classifyIdentifierViolation(value: object): ClassifiedMigrationError['identifierViolation'] {
+  const identifierRole = ownDataProperty(value, 'identifierRole')
+  const rule = ownDataProperty(value, 'rule')
+  if (identifierRole === 'provider_id' && (rule === 'empty' || rule === 'contains_separator')) {
+    return { identifierRole, rule }
+  }
+  if (identifierRole === 'model_id' && (rule === 'empty' || rule === 'contains_reserved_route_character')) {
+    return { identifierRole, rule }
+  }
+  return undefined
 }
 
 function isObjectLike(value: unknown): value is object {
@@ -136,6 +163,12 @@ export function classifyMigrationError(error: unknown): ClassifiedMigrationError
 
     const code = ownDataProperty(current, 'code')
     if (typeof code === 'string') {
+      if (code === 'INVALID_UNIQUE_MODEL_ID') {
+        const identifierViolation = classifyIdentifierViolation(current)
+        if (identifierViolation !== undefined) {
+          return classified('source_invalid_identifier', causeDepth, identifierViolation)
+        }
+      }
       const errorCode = classifyCode(code)
       if (errorCode) return classified(errorCode, causeDepth)
     }

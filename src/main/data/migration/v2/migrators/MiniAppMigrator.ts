@@ -14,7 +14,6 @@ import { miniAppLogoRef } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { PayloadProfileDescriptor } from '../diagnostics'
 import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
@@ -30,16 +29,6 @@ import {
 type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
 
 const logger = loggerService.withContext('MiniAppMigrator')
-
-const MINI_APP_PROFILE = {
-  target: 'mini_app',
-  fields: ['name', 'url', 'logoKey', 'background', 'supportedRegions', 'configuration', 'nameKey']
-} as const satisfies PayloadProfileDescriptor
-
-const FILE_ENTRY_PROFILE = {
-  target: 'file_entry',
-  fields: ['name', 'externalPath']
-} as const satisfies PayloadProfileDescriptor
 
 function orderKeyScopeForStatus(status: MiniAppStatus | undefined): 'visible' | 'disabled' {
   return status === 'disabled' ? 'disabled' : 'visible'
@@ -231,14 +220,29 @@ export class MiniAppMigrator extends BaseMigrator {
         // them), then the owner rows, then the ref rows (whose `source_id` FK
         // needs the owner) — see logoRef ordering.
         for (const logoFile of logoFiles) {
-          this.runDiagnosedWrite(ctx, FILE_ENTRY_PROFILE, [logoFile.fileEntry], () =>
-            insertPreparedImageEntryTx(tx, logoFile)
+          this.runDiagnosedWrite(
+            () => [],
+            () => insertPreparedImageEntryTx(tx, logoFile)
           )
         }
 
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(ctx, MINI_APP_PROFILE, batch, () => tx.insert(miniAppTable).values(batch).run())
+          this.runDiagnosedWrite(
+            () =>
+              batch.flatMap((row) => [
+                ...(typeof row.background === 'string'
+                  ? [{ role: 'text_value' as const, kind: 'string' as const, value: row.background }]
+                  : []),
+                ...(row.supportedRegions === undefined
+                  ? []
+                  : [{ role: 'json_value' as const, kind: 'json' as const, value: row.supportedRegions }]),
+                ...(row.configuration === undefined
+                  ? []
+                  : [{ role: 'json_value' as const, kind: 'json' as const, value: row.configuration }])
+              ]),
+            () => tx.insert(miniAppTable).values(batch).run()
+          )
           processed += batch.length
         }
 

@@ -39,7 +39,6 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       error: vi.fn(),
       debug: vi.fn()
     },
-    diagnostics: { recordEvent: vi.fn() },
     insertedRows
   }
 }
@@ -129,9 +128,18 @@ describe('McpServerMigrator', () => {
         { name: 'no-id-2', isActive: false }
       ]
       const ctx = createMockContext({ mcp: { servers } })
-      const result = await migrator.prepare(ctx as any)
-      expect(result.success).toBe(false)
-      expect(result.itemCount).toBe(0)
+      const diagnosed = await migrator.prepareWithDiagnostics(ctx as any)
+      expect(diagnosed.result.success).toBe(false)
+      expect(diagnosed.result.itemCount).toBe(0)
+      expect(diagnosed.failure).toEqual({
+        classification: { errorCode: 'source_required_records_rejected' },
+        evidence: {
+          kind: 'all_required_rows_rejected',
+          sourceRole: 'mcp_server',
+          fieldRole: 'source_id',
+          rejectedCountBucket: '2-10'
+        }
+      })
     })
 
     it('should filter out servers without id', async () => {
@@ -141,11 +149,13 @@ describe('McpServerMigrator', () => {
         { id: '', name: 'empty-id', isActive: false }
       ]
       const ctx = createMockContext({ mcp: { servers } })
-      const result = await migrator.prepare(ctx as any)
-      expect(result).toStrictEqual({
-        success: true,
-        itemCount: 1,
-        warnings: ['Skipped server without valid id: no-id', 'Skipped server without valid id: empty-id']
+      const diagnosed = await migrator.prepareWithDiagnostics(ctx as any)
+      expect(diagnosed).toStrictEqual({
+        result: {
+          success: true,
+          itemCount: 1,
+          warnings: ['Skipped server without valid id: no-id', 'Skipped server without valid id: empty-id']
+        }
       })
     })
 
@@ -185,21 +195,21 @@ describe('McpServerMigrator', () => {
       )
       await migrator.prepare(ctx as any)
 
-      const result = await migrator.execute(ctx as any)
+      const diagnosed = await migrator.executeWithDiagnostics(ctx as any)
 
-      expect(result.success).toBe(false)
-      expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'sqlite_too_big',
-          migratorId: 'mcp_server',
-          payloadProfile: expect.objectContaining({
-            target: 'mcp_server',
-            slots: expect.arrayContaining([expect.objectContaining({ slot: 'env', kind: 'json' })])
-          })
-        })
-      )
-      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_MCP_KEY')
-      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+      expect(diagnosed.result.success).toBe(false)
+      expect(diagnosed.failure).toMatchObject({
+        classification: { errorCode: 'sqlite_too_big' },
+        evidence: {
+          kind: 'failed_write',
+          operationRole: 'insert',
+          values: expect.arrayContaining([
+            expect.objectContaining({ role: 'json_value', kind: 'json', byteLengthBucket: '262145+' })
+          ])
+        }
+      })
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_MCP_KEY')
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
     })
 
     it('should insert servers into database', async () => {

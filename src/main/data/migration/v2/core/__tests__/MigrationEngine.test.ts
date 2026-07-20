@@ -82,7 +82,7 @@ function createTestMigrator(id: string, order: number, events: string[]) {
 describe('MigrationEngine', () => {
   let engine: MigrationEngine
   let diagnostics: {
-    recordEvent: ReturnType<typeof vi.fn>
+    updateLocation: ReturnType<typeof vi.fn>
     finishAttempt: ReturnType<typeof vi.fn>
     complete: ReturnType<typeof vi.fn>
   }
@@ -90,7 +90,7 @@ describe('MigrationEngine', () => {
   beforeEach(() => {
     engine = new MigrationEngine()
     diagnostics = {
-      recordEvent: vi.fn(),
+      updateLocation: vi.fn(),
       finishAttempt: vi.fn(),
       complete: vi.fn()
     }
@@ -111,48 +111,25 @@ describe('MigrationEngine', () => {
     vi.spyOn(engine as any, 'cleanupTempFiles').mockResolvedValue(undefined)
   })
 
-  it('collects full database diagnostics only inside the MigrationDbService callback lease', async () => {
-    const lease = { opaque: true }
+  it('runs one-shot database diagnostics against the resolved database path', async () => {
     const expected = { completion: { status: 'completed' } }
     const databaseDiagnostics = {
-      inspect: vi.fn(),
-      inspectWithLease: vi.fn(async (received) => {
-        expect(received).toBe(lease)
-        return expected
-      })
+      inspect: vi.fn(async () => expected)
     }
-    const migrationDb = {
-      getDb: vi.fn(() => ({})),
-      close: vi.fn(),
-      withDiagnosticsLease: vi.fn(async (run) => ({ kind: 'leased', value: await run(lease) }))
-    }
-    ;(engine as any).migrationDb = migrationDb
 
     await expect(engine.collectDatabaseDiagnostics(databaseDiagnostics as any)).resolves.toBe(expected)
-    expect(migrationDb.withDiagnosticsLease).toHaveBeenCalledOnce()
-    expect(databaseDiagnostics.inspectWithLease).toHaveBeenCalledExactlyOnceWith(lease)
-    expect(databaseDiagnostics.inspect).not.toHaveBeenCalled()
+    expect(databaseDiagnostics.inspect).toHaveBeenCalledExactlyOnceWith(mockPaths.databaseFile)
   })
 
-  it('falls back to L0-only diagnostics when a lease is unavailable or the engine is closed', async () => {
-    const l0Only = { completion: { status: 'failed', code: 'lease_unavailable' } }
+  it('can collect one-shot diagnostics after the migration connection is closed', async () => {
+    const result = { sqlite: { status: 'unavailable', reason: 'open_failed' } }
     const databaseDiagnostics = {
-      inspect: vi.fn(async () => l0Only),
-      inspectWithLease: vi.fn()
+      inspect: vi.fn(async () => result)
     }
-    ;(engine as any).migrationDb = {
-      getDb: vi.fn(() => ({})),
-      close: vi.fn(),
-      withDiagnosticsLease: vi.fn(async () => ({ kind: 'unavailable' }))
-    }
-
-    await expect(engine.collectDatabaseDiagnostics(databaseDiagnostics as any)).resolves.toBe(l0Only)
-    expect(databaseDiagnostics.inspect).toHaveBeenLastCalledWith(mockPaths.databaseFile)
-    expect(databaseDiagnostics.inspectWithLease).not.toHaveBeenCalled()
 
     engine.close()
-    await expect(engine.collectDatabaseDiagnostics(databaseDiagnostics as any)).resolves.toBe(l0Only)
-    expect(databaseDiagnostics.inspect).toHaveBeenLastCalledWith(mockPaths.databaseFile)
+    await expect(engine.collectDatabaseDiagnostics(databaseDiagnostics as any)).resolves.toBe(result)
+    expect(databaseDiagnostics.inspect).toHaveBeenCalledExactlyOnceWith(mockPaths.databaseFile)
   })
 
   it('resets every migrator before each run starts', async () => {
@@ -200,6 +177,7 @@ describe('MigrationEngine', () => {
     expect(result.success).toBe(true)
     expect(result.migratorResults).toHaveLength(1)
     expect(result.migratorResults[0].warnings).toEqual(['prepare warn', 'execute warn'])
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({ status: 'completed', warningCount: 2 })
   })
 
   it('omits the warnings field when a migrator reports none', async () => {
@@ -232,10 +210,10 @@ describe('MigrationEngine', () => {
     errorSpy.mockRestore()
   })
 
-  it('records a classified phase failure before status persistence and the attempt terminal event', async () => {
+  it('records one terminal phase failure before secondary status persistence', async () => {
     const order: string[] = []
-    diagnostics.recordEvent.mockImplementation((event) => {
-      order.push(`${event.scope}:${event.phase}:${event.state}`)
+    diagnostics.updateLocation.mockImplementation((location) => {
+      order.push(`${location.scope}:${location.phase}`)
     })
     diagnostics.finishAttempt.mockImplementation(() => order.push('attempt:failed'))
     vi.mocked((engine as any).markFailed).mockImplementation(async () => {
@@ -251,32 +229,27 @@ describe('MigrationEngine', () => {
     const result = await engine.run({}, '/tmp/dexie_export')
 
     expect(result).toMatchObject({ success: false, error: canary })
-    const executeStarted = order.indexOf('migrator:execute:started')
-    const executeFailed = order.indexOf('migrator:execute:failed')
+    const executeLocation = order.indexOf('migrator:execute')
     const statusFailed = order.indexOf('status:failed')
     const terminal = order.indexOf('attempt:failed')
-    expect(executeStarted).toBeGreaterThanOrEqual(0)
-    expect(executeStarted).toBeLessThan(executeFailed)
-    expect(executeFailed).toBeLessThan(statusFailed)
-    expect(statusFailed).toBeLessThan(terminal)
-    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
+    expect(executeLocation).toBeGreaterThanOrEqual(0)
+    expect(executeLocation).toBeLessThan(terminal)
+    expect(terminal).toBeLessThan(statusFailed)
+    expect(diagnostics.updateLocation).toHaveBeenCalledWith({
       scope: 'migrator',
       phase: 'execute',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0,
       migratorId: 'chat'
     })
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
-      scope: 'engine',
-      phase: 'finalize',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_write_failed',
+        scope: 'migrator',
+        phase: 'execute',
+        migratorId: 'chat',
+        errorCode: 'sqlite_too_big'
+      }
     })
-    expect(JSON.stringify(diagnostics.recordEvent.mock.calls)).not.toContain(canary)
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
   })
 
@@ -285,29 +258,22 @@ describe('MigrationEngine', () => {
     const failing = createTestMigrator('preferences', 1, events)
     failing.executeWithDiagnostics.mockResolvedValueOnce({
       result: { success: false, processedCount: 0, error: 'private display error' },
-      failureClassification: { category: 'database_write', code: 'sqlite_too_big', causeDepth: 0 }
+      failure: { classification: { errorCode: 'sqlite_too_big' } }
     } as never)
     engine.registerMigrators([failing as any])
 
     const result = await engine.run({}, '/tmp/dexie_export')
 
     expect(result).toMatchObject({ success: false, error: 'preferences execute failed: private display error' })
-    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
-      scope: 'migrator',
-      phase: 'execute',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0,
-      migratorId: 'preferences'
-    })
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
-      scope: 'engine',
-      phase: 'finalize',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_write_failed',
+        scope: 'migrator',
+        phase: 'execute',
+        migratorId: 'preferences',
+        errorCode: 'sqlite_too_big'
+      }
     })
   })
 
@@ -338,7 +304,6 @@ describe('MigrationEngine', () => {
           throw original
         })
       },
-      diagnostics,
       logger: { error: vi.fn() }
     }
     vi.mocked(createMigrationContext).mockResolvedValueOnce(context as never)
@@ -348,27 +313,17 @@ describe('MigrationEngine', () => {
 
     expect(run).toHaveBeenCalledTimes(1)
     expect(result).toMatchObject({ success: false, error: expect.stringContaining(canary) })
-    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
-      scope: 'migrator',
-      phase: 'execute',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0,
-      migratorId: 'note'
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_write_failed',
+        scope: 'migrator',
+        phase: 'execute',
+        migratorId: 'note',
+        errorCode: 'sqlite_too_big'
+      }
     })
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
-      scope: 'engine',
-      phase: 'finalize',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0
-    })
-    const serializedDiagnostics = JSON.stringify({
-      events: diagnostics.recordEvent.mock.calls,
-      terminal: diagnostics.finishAttempt.mock.calls
-    })
+    const serializedDiagnostics = JSON.stringify(diagnostics.finishAttempt.mock.calls)
     expect(serializedDiagnostics).not.toContain(canary)
   })
 
@@ -387,24 +342,16 @@ describe('MigrationEngine', () => {
     const result = await engine.run({}, '/tmp/dexie_export')
 
     expect(result).toMatchObject({ success: false, error: expect.stringContaining(canary) })
-    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
-      scope: 'migrator',
-      phase: 'prepare',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0,
-      migratorId: 'prompt'
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'source_prepare_failed',
+        scope: 'migrator',
+        phase: 'prepare',
+        migratorId: 'prompt',
+        errorCode: 'sqlite_too_big'
+      }
     })
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
-      scope: 'engine',
-      phase: 'finalize',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0
-    })
-    expect(JSON.stringify(diagnostics.recordEvent.mock.calls)).not.toContain(canary)
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
   })
 
@@ -430,37 +377,22 @@ describe('MigrationEngine', () => {
     const result = await engine.run({}, '/tmp/dexie_export')
 
     expect(result).toMatchObject({ success: false, error: expect.stringContaining(canary) })
-    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
-      scope: 'migrator',
-      phase: 'validate',
-      state: 'failed',
-      category: 'database_read',
-      code: 'sqlite_corrupt',
-      causeDepth: 0,
-      migratorId: 'mcp_server'
+    expect(diagnostics.finishAttempt).toHaveBeenCalledTimes(1)
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_validation_failed',
+        scope: 'migrator',
+        phase: 'validate',
+        migratorId: 'mcp_server',
+        errorCode: 'sqlite_corrupt'
+      }
     })
-    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
-      scope: 'database',
-      phase: 'finalize',
-      state: 'failed',
-      category: 'filesystem',
-      code: 'disk_full',
-      causeDepth: 0
-    })
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
-      scope: 'engine',
-      phase: 'finalize',
-      state: 'failed',
-      category: 'database_read',
-      code: 'sqlite_corrupt',
-      causeDepth: 0
-    })
-    expect(JSON.stringify(diagnostics.recordEvent.mock.calls)).not.toContain(canary)
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_STATUS_CANARY')
   })
 
-  it('profiles the real resurrected user_model write and preserves its terminal classification', async () => {
-    const performanceNow = vi.spyOn(performance, 'now').mockReturnValue(0)
+  it('preserves a real resurrected user_model failure without measuring names', async () => {
     const nameCanary = `PRIVATE_MODEL_NAME_${'n'.repeat(300)}`
     const groupCanary = `PRIVATE_MODEL_GROUP_${'g'.repeat(5_000)}`
     const original = Object.assign(new Error(`SQLITE_TOOBIG ${nameCanary} ${groupCanary}`), {
@@ -490,7 +422,6 @@ describe('MigrationEngine', () => {
       db: {
         transaction: vi.fn((operation: (tx: unknown) => unknown) => operation(tx))
       },
-      diagnostics,
       logger: { error: vi.fn() },
       sharedData: new Map()
     }
@@ -518,48 +449,19 @@ describe('MigrationEngine', () => {
     engine.registerMigrators([migrator])
 
     const result = await engine.run({}, '/tmp/dexie_export')
-    performanceNow.mockRestore()
 
     expect(result).toMatchObject({ success: false, error: expect.stringContaining('SQLITE_TOOBIG') })
-    expect(diagnostics.recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_write_failed',
         scope: 'migrator',
         phase: 'execute',
-        state: 'failed',
-        category: 'database_write',
-        code: 'sqlite_too_big',
-        causeDepth: 0,
         migratorId: 'knowledge',
-        payloadProfile: expect.objectContaining({
-          target: 'user_model',
-          rowCountBucket: '1',
-          slots: expect.arrayContaining([
-            expect.objectContaining({
-              slot: 'name',
-              kind: 'string',
-              maxCharLengthBucket: '257-4096'
-            }),
-            expect.objectContaining({
-              slot: 'group',
-              kind: 'string',
-              maxCharLengthBucket: '4097-65536'
-            })
-          ])
-        })
-      })
-    )
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('failed', {
-      scope: 'engine',
-      phase: 'finalize',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0
+        errorCode: 'sqlite_too_big'
+      }
     })
-    const serializedDiagnostics = JSON.stringify({
-      events: diagnostics.recordEvent.mock.calls,
-      terminal: diagnostics.finishAttempt.mock.calls
-    })
+    const serializedDiagnostics = JSON.stringify(diagnostics.finishAttempt.mock.calls)
     expect(serializedDiagnostics).not.toContain(nameCanary)
     expect(serializedDiagnostics).not.toContain(groupCanary)
   })
@@ -570,31 +472,36 @@ describe('MigrationEngine', () => {
       throw original
     })
     const localDiagnostics = {
-      recordEvent: vi.fn((event) => {
-        if (event.state === 'failed') throw new Error('journal unavailable')
+      updateLocation: vi.fn(() => {
+        throw new Error('journal unavailable')
       }),
-      finishAttempt: vi.fn(),
+      finishAttempt: vi.fn(() => {
+        throw new Error('journal unavailable')
+      }),
       complete: vi.fn()
     }
     const loggerError = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
     const localEngine = new MigrationEngine()
 
     expect(() => localEngine.initialize(mockPaths, false, localDiagnostics as any)).toThrow(original)
-    expect(localDiagnostics.recordEvent).toHaveBeenCalledWith({
-      scope: 'database',
-      phase: 'initialize',
-      state: 'failed',
-      category: 'database_read',
-      code: 'sqlite_corrupt',
-      causeDepth: 0
+    expect(localDiagnostics.updateLocation).toHaveBeenCalledWith({ scope: 'database', phase: 'initialize' })
+    expect(localDiagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'preboot_failed',
+        scope: 'database',
+        phase: 'initialize',
+        errorCode: 'sqlite_corrupt'
+      }
     })
-    expect(JSON.stringify(localDiagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_DATABASE_PATH')
-    expect(loggerError).toHaveBeenCalledWith('Failed to record bounded migration diagnostic event')
+    expect(JSON.stringify(localDiagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_DATABASE_PATH')
+    expect(loggerError).toHaveBeenCalledWith('Failed to update bounded migration diagnostic location')
+    expect(loggerError).toHaveBeenCalledWith('Failed to record bounded migration diagnostic terminal result')
   })
 
-  it('records a status-write failure independently without replacing the original migration error', async () => {
+  it('does not let a status-write failure replace the original terminal failure', async () => {
     const order: string[] = []
-    diagnostics.recordEvent.mockImplementation((event) => order.push(`${event.scope}:${event.phase}:${event.state}`))
+    diagnostics.updateLocation.mockImplementation((location) => order.push(`${location.scope}:${location.phase}`))
     diagnostics.finishAttempt.mockImplementation(() => order.push('attempt:failed'))
     const statusError = Object.assign(new Error('PRIVATE_STATUS_PATH_/Users/alice'), { code: 'ENOSPC' })
     vi.mocked((engine as any).markFailed).mockImplementation(async () => {
@@ -610,17 +517,90 @@ describe('MigrationEngine', () => {
     const result = await engine.run({}, '/tmp/dexie_export')
 
     expect(result).toMatchObject({ success: false, error: 'PRIVATE_ORIGINAL' })
-    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
-      scope: 'database',
-      phase: 'finalize',
-      state: 'failed',
-      category: 'filesystem',
-      code: 'disk_full',
-      causeDepth: 0
+    expect(diagnostics.finishAttempt).toHaveBeenCalledTimes(1)
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_write_failed',
+        scope: 'migrator',
+        phase: 'execute',
+        migratorId: 'chat',
+        errorCode: 'sqlite_too_big'
+      }
     })
-    expect(order.indexOf('status:write')).toBeLessThan(order.indexOf('database:finalize:failed'))
-    expect(order.indexOf('database:finalize:failed')).toBeLessThan(order.indexOf('attempt:failed'))
-    expect(JSON.stringify(diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_STATUS_PATH')
+    expect(order.indexOf('attempt:failed')).toBeLessThan(order.indexOf('status:write'))
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_STATUS_PATH')
+  })
+
+  it('records the final foreign-key check as a validation failure', async () => {
+    const error = Object.assign(new Error('PRIVATE_FK_SAMPLE'), { code: 'MIGRATION_FOREIGN_KEY' })
+    vi.mocked((engine as any).verifyForeignKeys).mockImplementation(() => {
+      throw error
+    })
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(false)
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_validation_failed',
+        scope: 'database',
+        phase: 'validate',
+        errorCode: 'validation_foreign_key',
+        evidence: { kind: 'validation', checkRole: 'foreign_key' }
+      }
+    })
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_FK_SAMPLE')
+  })
+
+  it('records a completed-status write failure at the finalization boundary', async () => {
+    const error = Object.assign(new Error('PRIVATE_STATUS_PATH'), { code: 'ENOSPC' })
+    vi.mocked((engine as any).markCompleted).mockRejectedValueOnce(error)
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(false)
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_finalize_failed',
+        scope: 'database',
+        phase: 'finalize',
+        errorCode: 'file_io'
+      }
+    })
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_STATUS_PATH')
+  })
+
+  it('maps an Agents owned-table FK failure to one invariant outcome', async () => {
+    const events: string[] = []
+    const failing = createTestMigrator('agents', 1, events)
+    failing.executeWithDiagnostics.mockResolvedValueOnce({
+      result: { success: false, processedCount: 0, error: 'PRIVATE_FK_DISPLAY' },
+      failure: {
+        classification: { errorCode: 'validation_foreign_key' },
+        evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+      }
+    } as never)
+    engine.registerMigrators([failing as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(false)
+    expect(diagnostics.finishAttempt).toHaveBeenCalledTimes(1)
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_invariant_failed',
+        scope: 'migrator',
+        phase: 'execute',
+        migratorId: 'agents',
+        errorCode: 'validation_foreign_key',
+        evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+      }
+    })
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_FK_DISPLAY')
   })
 
   it('clears diagnostics only after the completed status is persisted and the attempt is terminal', async () => {
@@ -645,19 +625,14 @@ describe('MigrationEngine', () => {
 
     await engine.skipMigration()
 
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('completed', {
-      scope: 'engine',
-      phase: 'finalize',
-      state: 'completed',
-      code: 'unknown'
-    })
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({ status: 'completed', warningCount: 0 })
     expect(order).toEqual(['status:completed', 'attempt:completed', 'journal:cleanup'])
   })
 
   it('keeps a diagnostics sink failure observable without changing the original terminal result', async () => {
     const loggerError = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
-    diagnostics.recordEvent.mockImplementation((event) => {
-      if (event.state === 'failed') throw new Error('journal unavailable')
+    diagnostics.finishAttempt.mockImplementation(() => {
+      throw new Error('journal unavailable')
     })
     const events: string[] = []
     const failing = createTestMigrator('chat', 1, events)
@@ -669,7 +644,7 @@ describe('MigrationEngine', () => {
 
     expect(result).toMatchObject({ success: false, error: 'PRIVATE_ORIGINAL' })
     expect(diagnostics.finishAttempt).toHaveBeenCalledTimes(1)
-    expect(loggerError).toHaveBeenCalledWith('Failed to record bounded migration diagnostic event')
+    expect(loggerError).toHaveBeenCalledWith('Failed to record bounded migration diagnostic terminal result')
   })
 
   it('classifies a table-clear failure with fixed metadata only', async () => {
@@ -682,15 +657,16 @@ describe('MigrationEngine', () => {
     const result = await engine.run({}, '/tmp/dexie_export')
 
     expect(result).toMatchObject({ success: false, error: canary })
-    expect(diagnostics.recordEvent).toHaveBeenCalledWith({
-      scope: 'database',
-      phase: 'initialize',
-      state: 'failed',
-      category: 'database_read',
-      code: 'sqlite_corrupt',
-      causeDepth: 0
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'preboot_failed',
+        scope: 'database',
+        phase: 'initialize',
+        errorCode: 'sqlite_corrupt'
+      }
     })
-    expect(JSON.stringify(diagnostics.recordEvent.mock.calls)).not.toContain(canary)
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
   })
 
   it('aborts the whole migration when validate() reports targetCount below sourceCount minus skippedCount', async () => {
@@ -714,6 +690,22 @@ describe('MigrationEngine', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('count mismatch')
     expect((engine as any).markFailed).toHaveBeenCalled()
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_validation_failed',
+        scope: 'migrator',
+        phase: 'validate',
+        migratorId: 'knowledge_vector',
+        errorCode: 'validation_count_mismatch',
+        evidence: {
+          kind: 'validation',
+          checkRole: 'count',
+          expectedCountBucket: '2-10',
+          actualCountBucket: '1'
+        }
+      }
+    })
 
     errorSpy.mockRestore()
   })

@@ -112,6 +112,23 @@ export const ParameterSupportDbSchema = z.object({
 export const UNIQUE_MODEL_ID_SEPARATOR = '::'
 const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 
+export type UniqueModelIdIdentifierRole = 'provider_id' | 'model_id'
+export type UniqueModelIdViolationRule = 'empty' | 'contains_separator' | 'contains_reserved_route_character'
+
+/** Fixed metadata for callers that must classify an invalid composite ID without parsing its message. */
+export class UniqueModelIdViolationError extends Error {
+  readonly code = 'INVALID_UNIQUE_MODEL_ID'
+
+  constructor(
+    message: string,
+    readonly identifierRole: UniqueModelIdIdentifierRole,
+    readonly rule: UniqueModelIdViolationRule
+  ) {
+    super(message)
+    this.name = 'UniqueModelIdViolationError'
+  }
+}
+
 /** UniqueModelId type: "providerId::modelId" */
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
 
@@ -152,17 +169,25 @@ export const UniqueModelIdSchema = z.custom<UniqueModelId>(
  */
 export function createUniqueModelId(providerId: string, modelId: string): UniqueModelId {
   if (providerId.length === 0) {
-    throw new Error('providerId cannot be empty')
+    throw new UniqueModelIdViolationError('providerId cannot be empty', 'provider_id', 'empty')
   }
   if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
-    throw new Error(`providerId cannot contain "${UNIQUE_MODEL_ID_SEPARATOR}": ${providerId}`)
+    throw new UniqueModelIdViolationError(
+      `providerId cannot contain "${UNIQUE_MODEL_ID_SEPARATOR}": ${providerId}`,
+      'provider_id',
+      'contains_separator'
+    )
   }
   if (modelId.length === 0) {
-    throw new Error('modelId cannot be empty')
+    throw new UniqueModelIdViolationError('modelId cannot be empty', 'model_id', 'empty')
   }
   const reservedChar = RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.find((char) => modelId.includes(char))
   if (reservedChar) {
-    throw new Error(`modelId cannot contain reserved route character "${reservedChar}": ${modelId}`)
+    throw new UniqueModelIdViolationError(
+      `modelId cannot contain reserved route character "${reservedChar}": ${modelId}`,
+      'model_id',
+      'contains_reserved_route_character'
+    )
   }
   return `${providerId}${UNIQUE_MODEL_ID_SEPARATOR}${modelId}`
 }

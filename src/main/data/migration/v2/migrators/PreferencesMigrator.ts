@@ -10,7 +10,6 @@ import { tagStoredFileRef } from '@shared/data/types/file'
 import { and, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { PayloadProfileDescriptor } from '../diagnostics'
 import { BaseMigrator } from './BaseMigrator'
 import { COMPLEX_PREFERENCE_MAPPINGS, getComplexMappingTargetKeys } from './mappings/ComplexPreferenceMappings'
 import {
@@ -37,16 +36,6 @@ const AVATAR_REF = { sourceType: 'user_avatar', sourceId: 'default', role: 'avat
 
 /** The preference key holding the user avatar (`image://avatar` in v1). */
 const AVATAR_PREFERENCE_KEY = 'app.user.avatar'
-
-const PREFERENCE_PROFILE = {
-  target: 'preference',
-  fields: ['value']
-} as const satisfies PayloadProfileDescriptor
-
-const FILE_ENTRY_PROFILE = {
-  target: 'file_entry',
-  fields: ['name', 'externalPath']
-} as const satisfies PayloadProfileDescriptor
 
 interface MigrationItem {
   originalKey: string
@@ -262,8 +251,9 @@ export class PreferencesMigrator extends BaseMigrator {
 
       db.transaction((tx) => {
         for (const avatarFile of avatarFiles) {
-          this.runDiagnosedWrite(ctx, FILE_ENTRY_PROFILE, [avatarFile.fileEntry], () =>
-            insertPreparedImageEntryTx(tx, avatarFile)
+          this.runDiagnosedWrite(
+            () => [],
+            () => insertPreparedImageEntryTx(tx, avatarFile)
           )
         }
 
@@ -280,7 +270,15 @@ export class PreferencesMigrator extends BaseMigrator {
         const BATCH_SIZE = 100
         for (let i = 0; i < insertValues.length; i += BATCH_SIZE) {
           const batch = insertValues.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(ctx, PREFERENCE_PROFILE, batch, () => tx.insert(preferenceTable).values(batch).run())
+          this.runDiagnosedWrite(
+            () =>
+              batch.map((row) => ({
+                role: 'json_value' as const,
+                kind: 'json' as const,
+                value: row.value
+              })),
+            () => tx.insert(preferenceTable).values(batch).run()
+          )
 
           // Report progress
           const progress = Math.round(((i + batch.length) / insertValues.length) * 100)

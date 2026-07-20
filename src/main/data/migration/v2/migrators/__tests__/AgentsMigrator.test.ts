@@ -212,7 +212,7 @@ describe('AgentsMigrator', () => {
     expect(executed.some((stmt) => stmt?.startsWith('DELETE FROM agent'))).toBe(false)
   })
 
-  it('records only fixed classification when an INSERT SELECT is too large', async () => {
+  it('rethrows the original INSERT SELECT failure for the engine owner to classify', async () => {
     const sqliteError = Object.assign(new Error('PRIVATE_AGENT_CONTENT_/Users/alice'), { code: 'SQLITE_TOOBIG' })
     const run = vi.fn((statement) => {
       const rawSql = statement.queryChunks[0]?.value?.[0]
@@ -220,7 +220,6 @@ describe('AgentsMigrator', () => {
         throw sqliteError
       }
     })
-    const recordEvent = vi.fn()
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
@@ -228,23 +227,9 @@ describe('AgentsMigrator', () => {
 
     const migrationContext = createMigrationContext({
       db: { run },
-      diagnostics: { recordEvent },
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
     })
-    await expect(migrator.execute(migrationContext)).rejects.toBe(sqliteError)
-
-    expect(recordEvent).toHaveBeenCalledWith({
-      scope: 'migrator',
-      phase: 'execute',
-      state: 'failed',
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 0,
-      migratorId: 'agents'
-    })
-    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_AGENT_CONTENT')
-    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
-    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('INSERT INTO')
+    await expect(migrator.executeWithDiagnostics(migrationContext)).rejects.toBe(sqliteError)
   })
 
   it('validate fails when imported table counts are lower than the expected filtered counts', async () => {

@@ -1931,28 +1931,16 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const transaction = vi.fn((callback: (tx: any) => void) => {
       callback({ insert: vi.fn().mockReturnValue({ values }), update: createUpdateMock() })
     })
-    const recordEvent = vi.fn()
-
-    const result = await migrator.execute({
+    const diagnosed = await migrator.executeWithDiagnostics({
       db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) },
       sharedData: new Map(),
-      diagnostics: { recordEvent },
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
     } as any)
 
-    expect(result.success).toBe(false)
-    expect(recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'sqlite_too_big',
-        migratorId: 'knowledge',
-        payloadProfile: expect.objectContaining({
-          target: 'knowledge_base',
-          slots: expect.arrayContaining([expect.objectContaining({ slot: 'name', kind: 'string' })])
-        })
-      })
-    )
-    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_KNOWLEDGE_NAME')
-    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+    expect(diagnosed.result.success).toBe(false)
+    expect(diagnosed.failure).toEqual({ classification: { errorCode: 'sqlite_too_big' } })
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_KNOWLEDGE_NAME')
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
   })
 
   it('records the real knowledge item data field when an oversized item insert fails', async () => {
@@ -1989,28 +1977,24 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const transaction = vi.fn((callback: (tx: any) => void) => {
       callback({ insert: vi.fn().mockReturnValue({ values }), update: createUpdateMock() })
     })
-    const recordEvent = vi.fn()
-
-    const result = await migrator.execute({
+    const diagnosed = await migrator.executeWithDiagnostics({
       db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) },
       sharedData: new Map(),
-      diagnostics: { recordEvent },
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
     } as any)
 
-    expect(result.success).toBe(false)
-    expect(recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'sqlite_too_big',
-        migratorId: 'knowledge',
-        payloadProfile: expect.objectContaining({
-          target: 'knowledge_item',
-          slots: expect.arrayContaining([expect.objectContaining({ slot: 'data', kind: 'json' })])
-        })
-      })
-    )
-    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_KNOWLEDGE_CONTENT')
-    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+    expect(diagnosed.result.success).toBe(false)
+    expect(diagnosed.failure).toMatchObject({
+      classification: { errorCode: 'sqlite_too_big' },
+      evidence: {
+        kind: 'failed_write',
+        values: expect.arrayContaining([
+          expect.objectContaining({ role: 'json_value', kind: 'json', byteLengthBucket: '65537-262144' })
+        ])
+      }
+    })
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_KNOWLEDGE_CONTENT')
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
   })
 
   it('execute uses one transaction per prepared knowledge base', async () => {

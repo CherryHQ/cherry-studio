@@ -66,7 +66,6 @@ export {
   writeMigrationDiagnosticsJournal
 } from './migrationDiagnosticsJournal'
 export type {
-  LengthBucket,
   MigrationAttemptFinish,
   MigrationAttemptTerminalOutcome,
   MigrationAttemptTrigger,
@@ -92,18 +91,9 @@ export type {
   MigrationErrorCode,
   MigrationFailureErrorCode,
   MigrationFailureKind,
-  MigrationVersionGateContext,
-  PayloadLengthProfile,
-  PayloadLengthSlotProfile,
-  PayloadProfileDescriptor,
-  PayloadProfileSlot,
-  PayloadProfileTarget,
-  PayloadTraversal,
-  RowCountBucket
+  MigrationVersionGateContext
 } from './migrationDiagnosticsSchemas'
 export {
-  LENGTH_BUCKETS,
-  lengthBucketSchema,
   MIGRATION_DIAGNOSTIC_DIRECTORY_SELECTION_ROLES,
   MIGRATION_DIAGNOSTIC_MIGRATOR_IDS,
   MIGRATION_DIAGNOSTIC_VERSION_LOG_COUNT_BUCKETS,
@@ -140,18 +130,9 @@ export {
   migrationErrorCodeSchema,
   migrationFailureErrorCodeSchema,
   migrationFailureKindSchema,
-  migrationVersionGateContextSchema,
-  PAYLOAD_PROFILE_SLOTS,
-  PAYLOAD_PROFILE_TARGETS,
-  payloadLengthProfileSchema,
-  payloadLengthSlotProfileSchema,
-  payloadProfileDescriptorSchema,
-  payloadProfileSlotSchema,
-  payloadProfileTargetSchema,
-  payloadTraversalSchema,
-  ROW_COUNT_BUCKETS,
-  rowCountBucketSchema
+  migrationVersionGateContextSchema
 } from './migrationDiagnosticsSchemas'
 export type { ClassifiedMigrationError } from './migrationErrorClassifier'
 export { classifyMigrationError } from './migrationErrorClassifier'
-export { createPayloadByteLengthMeasurement, profilePayloadLengths } from './payloadLengthProfiler'
+export type { FailedWriteOperationRole, FailedWriteValue } from './payloadLengthProfiler'
+export { measureFailedWriteValuesBestEffort } from './payloadLengthProfiler'

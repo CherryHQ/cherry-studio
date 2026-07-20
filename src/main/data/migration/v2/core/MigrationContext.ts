@@ -8,7 +8,7 @@ import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
 import Store from 'electron-store'
 import fs from 'fs/promises'
 
-import type { MigrationAttemptTerminalOutcome, MigrationDiagnosticEventInput } from '../diagnostics'
+import type { MigrationAttemptFinish, MigrationDiagnosticLocation } from '../diagnostics'
 import { DexieFileReader } from '../utils/DexieFileReader'
 import { DexieSettingsReader, type DexieSettingsRecord } from '../utils/DexieSettingsReader'
 import { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
@@ -25,21 +25,11 @@ export interface ElectronStoreReader {
   get<T>(key: string, defaultValue?: T): T | undefined
 }
 
-/** Narrow, explicitly injected diagnostics surface available to migrators. */
-export interface MigrationDiagnosticsSink {
-  recordEvent(input: MigrationDiagnosticEventInput): void
-}
-
 /** Engine-only attempt lifecycle surface implemented by the preboot coordinator. */
-export interface MigrationAttemptDiagnostics extends MigrationDiagnosticsSink {
-  finishAttempt(outcome: MigrationAttemptTerminalOutcome, terminalInput: MigrationDiagnosticEventInput): void
+export interface MigrationAttemptDiagnostics {
+  updateLocation(location: MigrationDiagnosticLocation): void
+  finishAttempt(result: MigrationAttemptFinish): void
   complete(): void
-}
-
-const NOOP_MIGRATION_DIAGNOSTICS: MigrationAttemptDiagnostics = {
-  recordEvent: () => {},
-  finishAttempt: () => {},
-  complete: () => {}
 }
 
 // Migration context interface
@@ -66,9 +56,6 @@ export interface MigrationContext {
 
   // Migration paths
   paths: MigrationPaths
-
-  // Bounded structured diagnostics (never raw errors, paths, SQL, or values)
-  diagnostics: MigrationDiagnosticsSink
 }
 
 /**
@@ -81,8 +68,7 @@ export async function createMigrationContext(
   paths: MigrationPaths,
   reduxData: Record<string, unknown>,
   dexieExportPath: string,
-  localStorageExportPath?: string,
-  diagnostics: MigrationDiagnosticsSink = NOOP_MIGRATION_DIAGNOSTICS
+  localStorageExportPath?: string
 ): Promise<MigrationContext> {
   const logger = loggerService.withContext('Migration')
   const electronStore = new Store({ cwd: paths.userData })
@@ -128,7 +114,6 @@ export async function createMigrationContext(
     db,
     sharedData: new Map(),
     logger,
-    paths,
-    diagnostics
+    paths
   }
 }

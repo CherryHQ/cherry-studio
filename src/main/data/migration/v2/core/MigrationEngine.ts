@@ -57,12 +57,15 @@ import path from 'path'
 import {
   type ClassifiedMigrationError,
   classifyMigrationError,
+  type MigrationAttemptFinish,
   type MigrationDatabaseDiagnosticResult,
   type MigrationDatabaseDiagnostics,
-  type MigrationDiagnosticEventInput,
+  type MigrationDiagnosticFailure,
+  type MigrationDiagnosticFailureEvidence,
+  type MigrationDiagnosticLocation,
   type MigrationDiagnosticMigratorId
 } from '../diagnostics'
-import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
+import type { BaseMigrator, DiagnosedPhaseFailure, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext, type MigrationAttemptDiagnostics } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
@@ -70,9 +73,104 @@ import type { MigrationPaths } from './MigrationPaths'
 const logger = loggerService.withContext('MigrationEngine')
 
 const MIGRATION_V2_STATUS = 'migration_v2_status'
+type EngineDiagnosticScope = Extract<MigrationDiagnosticLocation['scope'], 'engine' | 'migrator' | 'database'>
+type EngineDiagnosticPhase = Extract<
+  MigrationDiagnosticLocation['phase'],
+  'initialize' | 'prepare' | 'execute' | 'validate' | 'finalize'
+>
+type FailureOfKind<TKind extends MigrationDiagnosticFailure['kind']> = Extract<
+  MigrationDiagnosticFailure,
+  { kind: TKind }
+>
+type DatabaseOrFileErrorCode = FailureOfKind<'migration_write_failed'>['errorCode']
+type InvariantEvidence = Extract<MigrationDiagnosticFailureEvidence, { kind: 'invariant' }>
+type ValidationEvidence = Extract<MigrationDiagnosticFailureEvidence, { kind: 'validation' }>
+
+const DATABASE_OR_FILE_ERROR_CODES: ReadonlySet<DatabaseOrFileErrorCode> = new Set([
+  'unknown_error',
+  'sqlite_open_failed',
+  'sqlite_corrupt',
+  'sqlite_not_database',
+  'sqlite_schema',
+  'sqlite_constraint',
+  'sqlite_readonly',
+  'sqlite_permission',
+  'sqlite_too_big',
+  'sqlite_busy',
+  'sqlite_locked',
+  'sqlite_io',
+  'sqlite_unknown',
+  'file_missing',
+  'file_permission',
+  'file_readonly',
+  'file_io',
+  'file_unknown'
+])
+
+function databaseOrFileErrorCode(errorCode: ClassifiedMigrationError['errorCode']): DatabaseOrFileErrorCode {
+  return DATABASE_OR_FILE_ERROR_CODES.has(errorCode as DatabaseOrFileErrorCode)
+    ? (errorCode as DatabaseOrFileErrorCode)
+    : 'unknown_error'
+}
+
+function invariantErrorCode(evidence: InvariantEvidence): FailureOfKind<'migration_invariant_failed'>['errorCode'] {
+  switch (evidence.invariantRole) {
+    case 'identifier':
+      return 'source_invalid_identifier'
+    case 'foreign_key':
+      return 'validation_foreign_key'
+    case 'dependency':
+      return 'validation_relation'
+  }
+}
+
+function prepareErrorCode(
+  errorCode: ClassifiedMigrationError['errorCode']
+): FailureOfKind<'source_prepare_failed'>['errorCode'] {
+  switch (errorCode) {
+    case 'source_read_failed':
+    case 'source_parse_failed':
+    case 'source_serialization_failed':
+      return errorCode
+    default:
+      return databaseOrFileErrorCode(errorCode)
+  }
+}
+
+function validationErrorCode(
+  errorCode: ClassifiedMigrationError['errorCode']
+): FailureOfKind<'migration_validation_failed'>['errorCode'] {
+  switch (errorCode) {
+    case 'validation_count_mismatch':
+    case 'validation_required_target_field':
+    case 'validation_relation':
+    case 'validation_material':
+    case 'validation_vector':
+    case 'validation_foreign_key':
+    case 'validation_status':
+      return errorCode
+    default:
+      return databaseOrFileErrorCode(errorCode)
+  }
+}
+
+function finalizeErrorCode(
+  errorCode: ClassifiedMigrationError['errorCode']
+): FailureOfKind<'migration_finalize_failed'>['errorCode'] {
+  return errorCode === 'validation_foreign_key' || errorCode === 'validation_status'
+    ? errorCode
+    : databaseOrFileErrorCode(errorCode)
+}
+
+function diagnosticCountBucket(count: number): '0' | '1' | '2-10' | '11+' {
+  if (!Number.isFinite(count) || count <= 0) return '0'
+  if (count === 1) return '1'
+  if (count <= 10) return '2-10'
+  return '11+'
+}
 
 const NOOP_MIGRATION_DIAGNOSTICS: MigrationAttemptDiagnostics = {
-  recordEvent: () => {},
+  updateLocation: () => {},
   finishAttempt: () => {},
   complete: () => {}
 }
@@ -80,7 +178,7 @@ const NOOP_MIGRATION_DIAGNOSTICS: MigrationAttemptDiagnostics = {
 class MigratorResultError extends Error {
   constructor(
     message: string,
-    readonly failureClassification?: ClassifiedMigrationError
+    readonly failure?: DiagnosedPhaseFailure
   ) {
     super(message)
     this.name = 'MigratorResultError'
@@ -94,6 +192,7 @@ export class MigrationEngine {
   private _paths: MigrationPaths | null = null
   private legacyDataConfirmed = false
   private diagnostics: MigrationAttemptDiagnostics = NOOP_MIGRATION_DIAGNOSTICS
+  private diagnosticAttemptTerminated = false
 
   get paths(): MigrationPaths {
     if (!this._paths) {
@@ -119,24 +218,10 @@ export class MigrationEngine {
     this._paths = paths
     this.legacyDataConfirmed = legacyDataConfirmed
     this.diagnostics = diagnostics
-    this.recordDiagnosticEvent({
-      scope: 'database',
-      phase: 'initialize',
-      state: 'started',
-      code: 'unknown'
-    })
-    try {
+    this.diagnosticAttemptTerminated = false
+    this.runSynchronousDiagnosticBoundary('database', 'initialize', () => {
       this.migrationDb = MigrationDbService.create(paths)
-      this.recordDiagnosticEvent({
-        scope: 'database',
-        phase: 'initialize',
-        state: 'completed',
-        code: 'unknown'
-      })
-    } catch (error) {
-      this.recordClassifiedFailure('database', 'initialize', error)
-      throw error
-    }
+    })
   }
 
   /**
@@ -254,6 +339,8 @@ export class MigrationEngine {
   ): Promise<MigrationResult> {
     const startTime = Date.now()
     const results: MigratorResult[] = []
+    let warningCount = 0
+    this.diagnosticAttemptTerminated = false
 
     try {
       for (const migrator of this.migrators) {
@@ -265,14 +352,7 @@ export class MigrationEngine {
 
       // Create migration context
       const context = await this.runDiagnosticBoundary('engine', 'initialize', () =>
-        createMigrationContext(
-          this.getDb(),
-          this.paths,
-          reduxData,
-          dexieExportPath,
-          localStorageExportPath,
-          this.diagnostics
-        )
+        createMigrationContext(this.getDb(), this.paths, reduxData, dexieExportPath, localStorageExportPath)
       )
 
       for (let i = 0; i < this.migrators.length; i++) {
@@ -294,10 +374,10 @@ export class MigrationEngine {
           'migrator',
           'prepare',
           async () => {
-            const { result, failureClassification } = await migrator.prepareWithDiagnostics(context)
+            const { result, failure } = await migrator.prepareWithDiagnostics(context)
             if (!result.success) {
               const reason = result.error ?? result.warnings?.join(', ') ?? 'unknown reason'
-              throw new MigratorResultError(`${migrator.name} prepare failed: ${reason}`, failureClassification)
+              throw new MigratorResultError(`${migrator.name} prepare failed: ${reason}`, failure)
             }
             return result
           },
@@ -311,9 +391,9 @@ export class MigrationEngine {
           'migrator',
           'execute',
           async () => {
-            const { result, failureClassification } = await migrator.executeWithDiagnostics(context)
+            const { result, failure } = await migrator.executeWithDiagnostics(context)
             if (!result.success) {
-              throw new MigratorResultError(`${migrator.name} execute failed: ${result.error}`, failureClassification)
+              throw new MigratorResultError(`${migrator.name} execute failed: ${result.error}`, failure)
             }
             return result
           },
@@ -329,13 +409,13 @@ export class MigrationEngine {
           'migrator',
           'validate',
           async () => {
-            const { result, failureClassification } = await migrator.validateWithDiagnostics(context)
+            const { result, failure } = await migrator.validateWithDiagnostics(context)
             try {
               // Engine-level validation
               this.validateMigratorResult(migrator, result)
             } catch (error) {
-              if (failureClassification) {
-                throw new MigratorResultError(this.normalizeDisplayError(error).message, failureClassification)
+              if (failure) {
+                throw new MigratorResultError(this.normalizeDisplayError(error).message, failure)
               }
               throw error
             }
@@ -351,6 +431,7 @@ export class MigrationEngine {
         // execute-phase warnings (e.g. knowledge files kept but not reindexable).
         const warnings = [...(prepareResult.warnings ?? []), ...(executeResult.warnings ?? [])]
         if (warnings.length > 0) {
+          warningCount += warnings.length
           logger.warn(`${migrator.name} completed with ${warnings.length} warning(s)`, { warnings })
         }
 
@@ -374,12 +455,7 @@ export class MigrationEngine {
       // Mark migration completed
       await this.runDiagnosticBoundary('database', 'finalize', () => this.markCompleted())
 
-      const attemptFinished = this.finishDiagnosticAttempt('completed', {
-        scope: 'engine',
-        phase: 'finalize',
-        state: 'completed',
-        code: 'unknown'
-      })
+      const attemptFinished = this.finishDiagnosticAttempt({ status: 'completed', warningCount })
       if (attemptFinished) {
         this.completeDiagnostics()
       }
@@ -402,43 +478,26 @@ export class MigrationEngine {
         totalDuration: Date.now() - startTime
       }
     } catch (error) {
-      // Classify while the original thrown value is still intact and before the
-      // migration-status write, whose own failure must remain secondary.
-      const originalClassification = this.classifyDiagnosticError(error)
       const err = this.normalizeDisplayError(error)
       const errorMessage = err.message
 
       logger.error('Migration failed', err)
 
-      // Mark migration as failed with error details. A secondary status-write
-      // error is recorded independently and never replaces the migration error.
-      this.recordDiagnosticEvent({
-        scope: 'database',
-        phase: 'finalize',
-        state: 'started',
-        code: 'unknown'
-      })
+      // Persist the display error after the owner boundary has already stored
+      // the root diagnostic failure. A secondary status-write error never
+      // replaces that first terminal fact.
       try {
         await this.markFailed(errorMessage)
-        this.recordDiagnosticEvent({
-          scope: 'database',
-          phase: 'finalize',
-          state: 'completed',
-          code: 'unknown'
-        })
       } catch (statusError) {
         logger.error('Failed to persist migration failure status', statusError as Error)
-        this.recordClassifiedFailure('database', 'finalize', statusError)
       }
 
-      this.finishDiagnosticAttempt('failed', {
-        scope: 'engine',
-        phase: 'finalize',
-        state: 'failed',
-        category: originalClassification.category,
-        code: originalClassification.code,
-        causeDepth: originalClassification.causeDepth
-      })
+      if (!this.diagnosticAttemptTerminated) {
+        this.finishDiagnosticAttempt({
+          status: 'failed',
+          failure: this.createDiagnosticFailure('engine', 'finalize', error)
+        })
+      }
 
       return {
         success: false,
@@ -450,76 +509,172 @@ export class MigrationEngine {
   }
 
   private async runDiagnosticBoundary<T>(
-    scope: MigrationDiagnosticEventInput['scope'],
-    phase: MigrationDiagnosticEventInput['phase'],
+    scope: EngineDiagnosticScope,
+    phase: EngineDiagnosticPhase,
     operation: () => T | Promise<T>,
     migratorId?: MigrationDiagnosticMigratorId
   ): Promise<T> {
-    this.recordDiagnosticEvent({
-      scope,
-      phase,
-      state: 'started',
-      code: 'unknown',
-      ...(migratorId ? { migratorId } : {})
-    })
+    this.updateDiagnosticLocation({ scope, phase, ...(migratorId ? { migratorId } : {}) })
     try {
-      const result = await operation()
-      this.recordDiagnosticEvent({
-        scope,
-        phase,
-        state: 'completed',
-        code: 'unknown',
-        ...(migratorId ? { migratorId } : {})
-      })
-      return result
+      return await operation()
     } catch (error) {
-      this.recordClassifiedFailure(scope, phase, error, migratorId)
+      this.finishDiagnosticAttempt({
+        status: 'failed',
+        failure: this.createDiagnosticFailure(scope, phase, error, migratorId)
+      })
       throw error
     }
   }
 
-  private recordClassifiedFailure(
-    scope: MigrationDiagnosticEventInput['scope'],
-    phase: MigrationDiagnosticEventInput['phase'],
+  private runSynchronousDiagnosticBoundary<T>(
+    scope: EngineDiagnosticScope,
+    phase: EngineDiagnosticPhase,
+    operation: () => T,
+    migratorId?: MigrationDiagnosticMigratorId
+  ): T {
+    this.updateDiagnosticLocation({ scope, phase, ...(migratorId ? { migratorId } : {}) })
+    try {
+      return operation()
+    } catch (error) {
+      this.finishDiagnosticAttempt({
+        status: 'failed',
+        failure: this.createDiagnosticFailure(scope, phase, error, migratorId)
+      })
+      throw error
+    }
+  }
+
+  private updateDiagnosticLocation(location: MigrationDiagnosticLocation): void {
+    try {
+      this.diagnostics.updateLocation(location)
+    } catch {
+      logger.error('Failed to update bounded migration diagnostic location')
+    }
+  }
+
+  private diagnosedFailure(error: unknown): DiagnosedPhaseFailure {
+    if (error instanceof MigratorResultError && error.failure !== undefined) {
+      return error.failure
+    }
+    const classification = classifyMigrationError(error)
+    return {
+      classification,
+      ...(classification.identifierViolation === undefined
+        ? {}
+        : {
+            evidence: {
+              kind: 'invariant' as const,
+              invariantRole: 'identifier' as const,
+              ...classification.identifierViolation
+            }
+          })
+    }
+  }
+
+  private createDiagnosticFailure(
+    scope: EngineDiagnosticScope,
+    phase: EngineDiagnosticPhase,
     error: unknown,
     migratorId?: MigrationDiagnosticMigratorId
-  ): void {
-    const classification = this.classifyDiagnosticError(error)
-    this.recordDiagnosticEvent({
-      scope,
-      phase,
-      state: 'failed',
-      category: classification.category,
-      code: classification.code,
-      causeDepth: classification.causeDepth,
-      ...(migratorId ? { migratorId } : {})
-    })
-  }
-
-  private recordDiagnosticEvent(input: MigrationDiagnosticEventInput): void {
-    try {
-      this.diagnostics.recordEvent(input)
-    } catch {
-      logger.error('Failed to record bounded migration diagnostic event')
+  ): MigrationDiagnosticFailure {
+    const { classification, evidence } = this.diagnosedFailure(error)
+    if (evidence?.kind === 'all_required_rows_rejected') {
+      return {
+        kind: 'source_prepare_failed',
+        ...location,
+        scope: 'migrator',
+        phase: 'prepare',
+        migratorId: migratorId as MigrationDiagnosticMigratorId,
+        errorCode: 'source_required_records_rejected',
+        evidence
+      }
+    }
+    if (evidence?.kind === 'invariant') {
+      return {
+        kind: 'migration_invariant_failed',
+        scope,
+        phase: phase === 'initialize' || phase === 'prepare' ? 'execute' : phase,
+        ...(migratorId === undefined ? {} : { migratorId }),
+        errorCode: invariantErrorCode(evidence),
+        evidence
+      }
+    }
+    if (evidence?.kind === 'validation') {
+      if (phase === 'finalize') {
+        return {
+          kind: 'migration_finalize_failed',
+          scope: scope === 'migrator' ? 'engine' : scope,
+          phase: 'finalize',
+          errorCode: finalizeErrorCode(classification.errorCode),
+          evidence
+        }
+      }
+      return {
+        kind: 'migration_validation_failed',
+        scope,
+        phase: 'validate',
+        ...(migratorId === undefined ? {} : { migratorId }),
+        errorCode: validationErrorCode(classification.errorCode),
+        evidence
+      }
+    }
+    if (phase === 'initialize') {
+      return {
+        kind: 'preboot_failed',
+        scope: scope === 'migrator' ? 'engine' : scope,
+        phase,
+        errorCode: databaseOrFileErrorCode(classification.errorCode)
+      }
+    }
+    if (phase === 'prepare') {
+      return {
+        kind: 'source_prepare_failed',
+        scope: 'migrator',
+        phase,
+        migratorId: migratorId as MigrationDiagnosticMigratorId,
+        errorCode: prepareErrorCode(classification.errorCode)
+      }
+    }
+    if (phase === 'validate') {
+      const validationEvidence: ValidationEvidence | undefined =
+        classification.errorCode === 'validation_foreign_key'
+          ? { kind: 'validation', checkRole: 'foreign_key' }
+          : undefined
+      return {
+        kind: 'migration_validation_failed',
+        scope,
+        phase,
+        ...(migratorId === undefined ? {} : { migratorId }),
+        errorCode: validationErrorCode(classification.errorCode),
+        ...(validationEvidence === undefined ? {} : { evidence: validationEvidence })
+      }
+    }
+    if (phase === 'finalize') {
+      return {
+        kind: 'migration_finalize_failed',
+        scope: scope === 'migrator' ? 'engine' : scope,
+        phase,
+        errorCode: finalizeErrorCode(classification.errorCode)
+      }
+    }
+    return {
+      kind: 'migration_write_failed',
+      scope: scope === 'migrator' ? 'migrator' : 'database',
+      phase: 'execute',
+      ...(migratorId === undefined ? {} : { migratorId }),
+      errorCode: databaseOrFileErrorCode(classification.errorCode),
+      ...(evidence?.kind === 'failed_write' ? { evidence } : {})
     }
   }
 
-  private classifyDiagnosticError(error: unknown): ClassifiedMigrationError {
-    if (error instanceof MigratorResultError && error.failureClassification) {
-      return error.failureClassification
-    }
-    return classifyMigrationError(error)
-  }
-
-  private finishDiagnosticAttempt(
-    outcome: 'completed' | 'failed',
-    terminalInput: MigrationDiagnosticEventInput
-  ): boolean {
+  private finishDiagnosticAttempt(result: MigrationAttemptFinish): boolean {
+    if (this.diagnosticAttemptTerminated) return false
+    this.diagnosticAttemptTerminated = true
     try {
-      this.diagnostics.finishAttempt(outcome, terminalInput)
+      this.diagnostics.finishAttempt(result)
       return true
     } catch {
-      logger.error('Failed to record bounded migration diagnostic terminal event')
+      logger.error('Failed to record bounded migration diagnostic terminal result')
       return false
     }
   }
@@ -626,7 +781,9 @@ export class MigrationEngine {
         .slice(0, 5)
         .map((v) => `${v.table}(rowid=${v.rowid})→${v.parent}`)
         .join('; ')
-      throw new Error(`Foreign key check failed: ${violations.length} violation(s). Sample: ${sample}`)
+      throw Object.assign(new Error(`Foreign key check failed: ${violations.length} violation(s). Sample: ${sample}`), {
+        code: 'MIGRATION_FOREIGN_KEY'
+      })
     }
 
     logger.info('Foreign key integrity verified')
@@ -642,11 +799,23 @@ export class MigrationEngine {
     // Count validation: target must have at least source count minus skipped
     const expectedCount = stats.sourceCount - stats.skippedCount
     if (stats.targetCount < expectedCount) {
-      throw new Error(
-        `${migrator.name} count mismatch: ` +
-          `expected ${expectedCount}, ` +
-          `got ${stats.targetCount}. ${stats.mismatchReason || ''}`
+      const error = Object.assign(
+        new Error(
+          `${migrator.name} count mismatch: ` +
+            `expected ${expectedCount}, ` +
+            `got ${stats.targetCount}. ${stats.mismatchReason || ''}`
+        ),
+        { code: 'MIGRATION_COUNT_MISMATCH' }
       )
+      throw new MigratorResultError(error.message, {
+        classification: classifyMigrationError(error),
+        evidence: {
+          kind: 'validation',
+          checkRole: 'count',
+          expectedCountBucket: diagnosticCountBucket(expectedCount),
+          actualCountBucket: diagnosticCountBucket(stats.targetCount)
+        }
+      })
     }
 
     // Any validation errors are fatal
@@ -655,10 +824,17 @@ export class MigrationEngine {
         .slice(0, 3)
         .map((e) => e.message)
         .join('; ')
-      throw new Error(
-        `${migrator.name} validation failed: ${errorSummary}` +
-          (result.errors.length > 3 ? ` (+${result.errors.length - 3} more)` : '')
+      const error = Object.assign(
+        new Error(
+          `${migrator.name} validation failed: ${errorSummary}` +
+            (result.errors.length > 3 ? ` (+${result.errors.length - 3} more)` : '')
+        ),
+        { code: 'MIGRATION_VALIDATION_FAILED' }
       )
+      throw new MigratorResultError(error.message, {
+        classification: classifyMigrationError(error),
+        evidence: { kind: 'validation', checkRole: 'status' }
+      })
     }
   }
 
@@ -728,12 +904,7 @@ export class MigrationEngine {
   async skipMigration(): Promise<void> {
     logger.info('Migration skipped by user (version incompatible, using defaults)')
     await this.markCompleted()
-    const attemptFinished = this.finishDiagnosticAttempt('completed', {
-      scope: 'engine',
-      phase: 'finalize',
-      state: 'completed',
-      code: 'unknown'
-    })
+    const attemptFinished = this.finishDiagnosticAttempt({ status: 'completed', warningCount: 0 })
     if (attemptFinished) {
       this.completeDiagnostics()
     }

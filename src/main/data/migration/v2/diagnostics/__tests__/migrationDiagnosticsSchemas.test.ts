@@ -212,6 +212,27 @@ describe('migrationDiagnosticFailureSchema', () => {
     ).toBe(false)
   })
 
+  it('allows database validation failures without check evidence but requires it for validation result codes', () => {
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        kind: 'migration_validation_failed',
+        scope: 'migrator',
+        phase: 'validate',
+        migratorId: 'chat',
+        errorCode: 'sqlite_corrupt'
+      }).success
+    ).toBe(true)
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        kind: 'migration_validation_failed',
+        scope: 'migrator',
+        phase: 'validate',
+        migratorId: 'chat',
+        errorCode: 'validation_status'
+      }).success
+    ).toBe(false)
+  })
+
   it.each(['rawError', 'message', 'stack', 'path', 'sql', 'recordId', 'value', 'hash'])(
     'rejects the arbitrary %s field',
     (field) => {

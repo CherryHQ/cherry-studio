@@ -7,7 +7,7 @@ import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { MiniAppMigrator } from '../MiniAppMigrator'
@@ -36,8 +36,7 @@ function createTestContext(reduxData: Record<string, unknown> = {}, db: any) {
       error: () => {},
       debug: () => {}
     } as any,
-    paths: {} as any,
-    diagnostics: { recordEvent: vi.fn() }
+    paths: {} as any
   }
 }
 
@@ -298,7 +297,7 @@ describe('MiniAppMigrator', () => {
   })
 
   describe('execute', () => {
-    it('records bounded mini-app lengths when SQLite rejects an oversized batch', async () => {
+    it('records only eligible mini-app values when SQLite rejects a batch', async () => {
       const canary = `PRIVATE_MINI_APP_LOGO_${'x'.repeat(90_000)}`
       const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
       const ctx = createTestContext(
@@ -323,21 +322,18 @@ describe('MiniAppMigrator', () => {
           })
       }
 
-      const result = await migrator.execute(ctx)
+      const diagnosed = await migrator.executeWithDiagnostics(ctx)
 
-      expect(result.success).toBe(false)
-      expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'sqlite_too_big',
-          migratorId: 'miniapp',
-          payloadProfile: expect.objectContaining({
-            target: 'mini_app',
-            slots: expect.arrayContaining([expect.objectContaining({ slot: 'logoKey', kind: 'string' })])
-          })
-        })
-      )
-      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_MINI_APP_LOGO')
-      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+      expect(diagnosed.result.success).toBe(false)
+      expect(diagnosed.failure).toMatchObject({
+        classification: { errorCode: 'sqlite_too_big' },
+        evidence: {
+          kind: 'failed_write',
+          values: [expect.objectContaining({ role: 'json_value', kind: 'json' })]
+        }
+      })
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_MINI_APP_LOGO')
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
     })
 
     it('should return success with 0 when no prepared rows', async () => {

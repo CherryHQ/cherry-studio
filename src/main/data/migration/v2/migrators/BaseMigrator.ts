@@ -11,9 +11,11 @@ import type { MigrationContext } from '../core/MigrationContext'
 import {
   type ClassifiedMigrationError,
   classifyMigrationError,
-  type MigrationDiagnosticMigratorId,
-  type PayloadProfileDescriptor,
-  profilePayloadLengths
+  type FailedWriteOperationRole,
+  type FailedWriteValue,
+  measureFailedWriteValuesBestEffort,
+  type MigrationDiagnosticFailureEvidence,
+  type MigrationDiagnosticMigratorId
 } from '../diagnostics'
 
 export interface ProgressMessage {
@@ -29,12 +31,15 @@ interface ForeignKeyViolation {
   fkid: number
 }
 
-interface DiagnosedPhaseResult<TResult> {
-  result: TResult
-  failureClassification?: ClassifiedMigrationError
+export interface DiagnosedPhaseFailure {
+  readonly classification: ClassifiedMigrationError
+  readonly evidence?: MigrationDiagnosticFailureEvidence
 }
 
-type ProfilePayloadRows = Parameters<typeof profilePayloadLengths>[0]
+export interface DiagnosedPhaseResult<TResult> {
+  result: TResult
+  failure?: DiagnosedPhaseFailure
+}
 
 export abstract class BaseMigrator {
   // Metadata - must be implemented by subclasses
@@ -47,7 +52,7 @@ export abstract class BaseMigrator {
   protected onProgress?: (progress: number, progressMessage: ProgressMessage) => void
 
   /** Fixed metadata from the latest caught failure in the current phase attempt. */
-  private diagnosedPhaseFailure?: ClassifiedMigrationError
+  private diagnosedPhaseFailure?: DiagnosedPhaseFailure
 
   /**
    * Set progress callback for reporting progress to UI
@@ -79,15 +84,17 @@ export abstract class BaseMigrator {
    * await the callback, clone rows, or inspect error text.
    */
   protected runDiagnosedWrite<T>(
-    ctx: MigrationContext,
-    descriptor: PayloadProfileDescriptor,
-    rows: readonly unknown[],
-    write: () => T
+    values: () => readonly FailedWriteValue[],
+    write: () => T,
+    operationRole: FailedWriteOperationRole = 'insert'
   ): T {
     try {
       return write()
     } catch (error) {
-      this.recordDiagnosedWriteFailure(ctx, descriptor, () => rows, error)
+      this.diagnosedPhaseFailure = {
+        classification: classifyMigrationError(error),
+        evidence: measureFailedWriteValuesBestEffort(values, operationRole)
+      }
       throw error
     }
   }
@@ -98,45 +105,23 @@ export abstract class BaseMigrator {
    * successful write pays no profiling or allocation cost.
    */
   protected async runDiagnosedAsyncWrite<T>(
-    ctx: MigrationContext,
-    descriptor: PayloadProfileDescriptor,
-    rows: () => ProfilePayloadRows,
-    write: () => Promise<T>
+    values: () => readonly FailedWriteValue[],
+    write: () => Promise<T>,
+    operationRole: FailedWriteOperationRole = 'insert'
   ): Promise<T> {
     try {
       return await write()
     } catch (error) {
-      this.recordDiagnosedWriteFailure(ctx, descriptor, rows, error)
+      this.diagnosedPhaseFailure = {
+        classification: classifyMigrationError(error),
+        evidence: measureFailedWriteValuesBestEffort(values, operationRole)
+      }
       throw error
     }
   }
 
-  private recordDiagnosedWriteFailure(
-    ctx: MigrationContext,
-    descriptor: PayloadProfileDescriptor,
-    rows: () => ProfilePayloadRows,
-    error: unknown
-  ): void {
-    try {
-      const classification = classifyMigrationError(error)
-      this.diagnosedPhaseFailure = classification
-      ctx.diagnostics?.recordEvent({
-        scope: 'migrator',
-        phase: 'execute',
-        state: 'failed',
-        category: classification.category,
-        code: classification.code,
-        causeDepth: classification.causeDepth,
-        migratorId: this.id,
-        payloadProfile: profilePayloadLengths(rows(), descriptor)
-      })
-    } catch {
-      try {
-        ctx.logger?.error('Failed to record bounded migration write diagnostics')
-      } catch {
-        // Diagnostics and logging are both best-effort; the write error remains authoritative.
-      }
-    }
+  protected captureDiagnosedFailure(failure: DiagnosedPhaseFailure): void {
+    this.diagnosedPhaseFailure ??= failure
   }
 
   /**
@@ -145,7 +130,20 @@ export abstract class BaseMigrator {
    * prepare/validate catch, before the raw exception leaves scope.
    */
   protected capturePhaseFailure(error: unknown): void {
-    this.diagnosedPhaseFailure = classifyMigrationError(error)
+    if (this.diagnosedPhaseFailure !== undefined) return
+    const classification = classifyMigrationError(error)
+    this.diagnosedPhaseFailure = {
+      classification,
+      ...(classification.identifierViolation === undefined
+        ? {}
+        : {
+            evidence: {
+              kind: 'invariant' as const,
+              invariantRole: 'identifier' as const,
+              ...classification.identifierViolation
+            }
+          })
+    }
   }
 
   private async runPhaseWithDiagnostics<TResult extends { success: boolean }>(
@@ -155,7 +153,7 @@ export abstract class BaseMigrator {
     try {
       const result = await operation()
       if (result.success || this.diagnosedPhaseFailure === undefined) return { result }
-      return { result, failureClassification: this.diagnosedPhaseFailure }
+      return { result, failure: this.diagnosedPhaseFailure }
     } finally {
       this.diagnosedPhaseFailure = undefined
     }
@@ -215,13 +213,21 @@ export abstract class BaseMigrator {
     }
 
     if (violations.length > 0) {
-      throw new Error(
-        `${this.name}Migrator left ${violations.length} foreign-key violation(s): ` +
-          violations
-            .slice(0, 5)
-            .map((v) => `${v.table}->${v.parent} (rowid=${v.rowid})`)
-            .join(', ')
+      const error = Object.assign(
+        new Error(
+          `${this.name}Migrator left ${violations.length} foreign-key violation(s): ` +
+            violations
+              .slice(0, 5)
+              .map((v) => `${v.table}->${v.parent} (rowid=${v.rowid})`)
+              .join(', ')
+        ),
+        { code: 'MIGRATION_FOREIGN_KEY' }
       )
+      this.captureDiagnosedFailure({
+        classification: classifyMigrationError(error),
+        evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+      })
+      throw error
     }
   }
 

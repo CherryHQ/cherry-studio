@@ -1,5 +1,10 @@
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  type Model,
+  MODEL_CAPABILITY,
+  UniqueModelIdViolationError
+} from '@shared/data/types/model'
 import {
   inferEmbeddingFromModelId,
   inferFunctionCallingFromModelId,
@@ -33,6 +38,55 @@ const createModel = (capabilities: Model['capabilities'] = []): Model => ({
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false
+})
+
+describe('createUniqueModelId', () => {
+  it.each([
+    ['', 'model', 'provider_id', 'empty', 'providerId cannot be empty'],
+    [
+      'provider::nested',
+      'model',
+      'provider_id',
+      'contains_separator',
+      'providerId cannot contain "::": provider::nested'
+    ],
+    ['provider', '', 'model_id', 'empty', 'modelId cannot be empty'],
+    [
+      'provider',
+      'model?private',
+      'model_id',
+      'contains_reserved_route_character',
+      'modelId cannot contain reserved route character "?": model?private'
+    ],
+    [
+      'provider',
+      'model#private',
+      'model_id',
+      'contains_reserved_route_character',
+      'modelId cannot contain reserved route character "#": model#private'
+    ]
+  ] as const)(
+    'throws a typed, fixed violation for provider=%j model=%j',
+    (providerId, modelId, identifierRole, rule, message) => {
+      let thrown: unknown
+      try {
+        createUniqueModelId(providerId, modelId)
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(UniqueModelIdViolationError)
+      expect(thrown).toMatchObject({
+        code: 'INVALID_UNIQUE_MODEL_ID',
+        identifierRole,
+        rule,
+        message
+      })
+      expect(Object.hasOwn(thrown as object, 'code')).toBe(true)
+      expect(Object.hasOwn(thrown as object, 'identifierRole')).toBe(true)
+      expect(Object.hasOwn(thrown as object, 'rule')).toBe(true)
+    }
+  )
 })
 
 describe('shared model capability helpers', () => {

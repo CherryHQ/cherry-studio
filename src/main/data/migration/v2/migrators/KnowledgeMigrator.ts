@@ -24,7 +24,6 @@ import Database from 'better-sqlite3'
 import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { PayloadProfileDescriptor } from '../diagnostics'
 import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
@@ -43,21 +42,6 @@ import {
 import { legacyModelToUniqueId, resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('KnowledgeMigrator')
-
-const KNOWLEDGE_BASE_PROFILE = {
-  target: 'knowledge_base',
-  fields: ['name', 'chunkSeparator']
-} as const satisfies PayloadProfileDescriptor
-
-const KNOWLEDGE_ITEM_PROFILE = {
-  target: 'knowledge_item',
-  fields: ['data']
-} as const satisfies PayloadProfileDescriptor
-
-const USER_MODEL_PROFILE = {
-  target: 'user_model',
-  fields: ['name', 'group']
-} as const satisfies PayloadProfileDescriptor
 
 const ITEM_INSERT_BATCH_SIZE = 200
 const LOOKUP_STREAM_BATCH_SIZE = 200
@@ -866,11 +850,13 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     ctx.db.transaction((tx) => {
       for (const [providerId, rows] of rowsByProvider) {
-        this.runDiagnosedWrite(ctx, USER_MODEL_PROFILE, rows, () =>
-          insertManyWithOrderKey(tx, userModelTable, rows, {
-            pkColumn: userModelTable.id,
-            scope: eq(userModelTable.providerId, providerId)
-          })
+        this.runDiagnosedWrite(
+          () => [],
+          () =>
+            insertManyWithOrderKey(tx, userModelTable, rows, {
+              pkColumn: userModelTable.id,
+              scope: eq(userModelTable.providerId, providerId)
+            })
         )
       }
     })
@@ -950,15 +936,25 @@ export class KnowledgeMigrator extends BaseMigrator {
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
         ctx.db.transaction((tx) => {
-          this.runDiagnosedWrite(ctx, KNOWLEDGE_BASE_PROFILE, [base], () =>
-            tx.insert(knowledgeBaseTable).values(base).run()
+          this.runDiagnosedWrite(
+            () =>
+              typeof base.chunkSeparator === 'string'
+                ? [{ role: 'text_value', kind: 'string', value: base.chunkSeparator }]
+                : [],
+            () => tx.insert(knowledgeBaseTable).values(base).run()
           )
           transactionProcessed += 1
 
           for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
             const batch = baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
-            this.runDiagnosedWrite(ctx, KNOWLEDGE_ITEM_PROFILE, batch, () =>
-              tx.insert(knowledgeItemTable).values(batch).run()
+            this.runDiagnosedWrite(
+              () =>
+                batch.map((row) => ({
+                  role: 'json_value' as const,
+                  kind: 'json' as const,
+                  value: row.data
+                })),
+              () => tx.insert(knowledgeItemTable).values(batch).run()
             )
             transactionProcessed += batch.length
           }

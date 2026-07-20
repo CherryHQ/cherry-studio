@@ -7,8 +7,8 @@ import { eq, sql } from 'drizzle-orm'
 import { validate as isUuid } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { PayloadLengthProfile, PayloadProfileDescriptor } from '../../diagnostics'
-import { profilePayloadLengths } from '../../diagnostics'
+import type { FailedWriteOperationRole, FailedWriteValue, MigrationDiagnosticFailureEvidence } from '../../diagnostics'
+import { measureFailedWriteValuesBestEffort } from '../../diagnostics'
 import { importLegacySessionMessages } from '../AgentsMigrator'
 import { createEmptyAgentsSchemaInfo } from '../mappings/AgentsDbMappings'
 
@@ -67,7 +67,11 @@ describe('importLegacySessionMessages', () => {
 
   async function importLegacyRows(
     rows: LegacyMessageRow[],
-    diagnoseWrite?: <T>(descriptor: PayloadProfileDescriptor, rows: readonly unknown[], write: () => T) => T
+    diagnoseWrite?: <T>(
+      values: () => readonly FailedWriteValue[],
+      write: () => T,
+      operationRole?: FailedWriteOperationRole
+    ) => T
   ): Promise<number> {
     dbh.db.run(sql.raw("ATTACH DATABASE ':memory:' AS agents_legacy"))
     try {
@@ -145,14 +149,18 @@ describe('importLegacySessionMessages', () => {
     expect(row.runtimeResumeToken).toBe('sdk-1')
   })
 
-  it('profiles the actual agent message data field without retaining its value', async () => {
+  it('measures the actual failed agent message data without retaining its value', async () => {
     await seedSession('s-diagnostics')
     const canary = `PRIVATE_AGENT_MESSAGE_${'x'.repeat(10_000)}`
     const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
-    let profile: PayloadLengthProfile | undefined
-    const diagnoseWrite = <T>(descriptor: PayloadProfileDescriptor, rows: readonly unknown[], write: () => T): T => {
+    let evidence: MigrationDiagnosticFailureEvidence | undefined
+    const diagnoseWrite = <T>(
+      values: () => readonly FailedWriteValue[],
+      write: () => T,
+      operationRole: FailedWriteOperationRole = 'insert'
+    ): T => {
       void write
-      profile = profilePayloadLengths(rows, descriptor)
+      evidence = measureFailedWriteValuesBestEffort(values, operationRole)
       throw sqliteError
     }
 
@@ -170,14 +178,13 @@ describe('importLegacySessionMessages', () => {
       )
     ).rejects.toBe(sqliteError)
 
-    expect(profile).toEqual(
-      expect.objectContaining({
-        target: 'agent_message',
-        slots: expect.arrayContaining([expect.objectContaining({ slot: 'data', kind: 'json' })])
-      })
-    )
-    expect(JSON.stringify(profile)).not.toContain('PRIVATE_AGENT_MESSAGE')
-    expect(JSON.stringify(profile)).not.toContain('/Users/alice')
+    expect(evidence).toMatchObject({
+      kind: 'failed_write',
+      operationRole: 'insert',
+      values: [expect.objectContaining({ role: 'json_value', kind: 'json', byteLengthBucket: '4097-65536' })]
+    })
+    expect(JSON.stringify(evidence)).not.toContain('PRIVATE_AGENT_MESSAGE')
+    expect(JSON.stringify(evidence)).not.toContain('/Users/alice')
   })
 
   it('converts legacy block envelopes during import without a second pass', async () => {

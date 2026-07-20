@@ -1,3 +1,4 @@
+import { UniqueModelIdViolationError } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { classifyMigrationError } from '../migrationErrorClassifier'
@@ -42,6 +43,34 @@ describe('classifyMigrationError', () => {
     const error = errorWithCode('UNRECOGNIZED', new Error('wrapper', { cause: nested }))
 
     expect(classifyMigrationError(error)).toEqual({ errorCode: 'sqlite_too_big' })
+  })
+
+  it('copies only the fixed role and rule from a typed unique-model-id violation', () => {
+    const error = new UniqueModelIdViolationError(
+      'modelId cannot contain reserved route character "?": PRIVATE_MODEL_ID',
+      'model_id',
+      'contains_reserved_route_character'
+    )
+
+    const result = classifyMigrationError(new Error('PRIVATE_WRAPPER', { cause: error }))
+
+    expect(result).toEqual({
+      errorCode: 'source_invalid_identifier',
+      identifierViolation: {
+        identifierRole: 'model_id',
+        rule: 'contains_reserved_route_character'
+      }
+    })
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_')
+  })
+
+  it.each([
+    ['MIGRATION_FOREIGN_KEY', 'validation_foreign_key'],
+    ['MIGRATION_COUNT_MISMATCH', 'validation_count_mismatch'],
+    ['MIGRATION_VALIDATION_FAILED', 'validation_status'],
+    ['MIGRATION_REQUIRED_RECORDS_REJECTED', 'source_required_records_rejected']
+  ] as const)('classifies fixed migration code %s', (code, errorCode) => {
+    expect(classifyMigrationError(errorWithCode(code))).toEqual({ errorCode })
   })
 
   it('inspects depths 0 through 4 but not depth 5', () => {

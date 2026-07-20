@@ -17,16 +17,17 @@ import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { PayloadProfileDescriptor } from '../diagnostics'
+import { classifyMigrationError } from '../diagnostics'
 import { BaseMigrator } from './BaseMigrator'
 import { type McpServerTransformResult, transformMcpServer } from './mappings/McpServerMappings'
 
 const logger = loggerService.withContext('McpServerMigrator')
 
-const MCP_SERVER_PROFILE = {
-  target: 'mcp_server',
-  fields: ['name', 'command', 'args', 'env']
-} as const satisfies PayloadProfileDescriptor
+function rejectedCountBucket(count: number): '1' | '2-10' | '11+' {
+  if (count === 1) return '1'
+  if (count <= 10) return '2-10'
+  return '11+'
+}
 
 export class McpServerMigrator extends BaseMigrator {
   readonly id = 'mcp_server'
@@ -52,12 +53,14 @@ export class McpServerMigrator extends BaseMigrator {
         warnings.push('mcp.servers is not an array')
       } else {
         const seenIds = new Set<string>()
+        let requiredFieldRejections = 0
 
         for (const server of servers) {
           const s = server as Record<string, unknown>
 
           if (!s.id || typeof s.id !== 'string') {
             this.skippedCount++
+            requiredFieldRejections++
             warnings.push(`Skipped server without valid id: ${s.name ?? 'unknown'}`)
             continue
           }
@@ -79,6 +82,20 @@ export class McpServerMigrator extends BaseMigrator {
         }
 
         if (this.skippedCount > 0 && this.preparedResults.length === 0 && servers.length > 0) {
+          if (requiredFieldRejections === servers.length) {
+            const error = Object.assign(new Error('All MCP server rows are missing a required source id'), {
+              code: 'MIGRATION_REQUIRED_RECORDS_REJECTED'
+            })
+            this.captureDiagnosedFailure({
+              classification: classifyMigrationError(error),
+              evidence: {
+                kind: 'all_required_rows_rejected',
+                sourceRole: 'mcp_server',
+                fieldRole: 'source_id',
+                rejectedCountBucket: rejectedCountBucket(requiredFieldRejections)
+              }
+            })
+          }
           return {
             success: false,
             itemCount: 0,
@@ -126,7 +143,15 @@ export class McpServerMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         for (let i = 0; i < rows.length; i += BATCH_SIZE) {
           const batch = rows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(ctx, MCP_SERVER_PROFILE, batch, () => tx.insert(mcpServerTable).values(batch).run())
+          this.runDiagnosedWrite(
+            () =>
+              batch.flatMap((row) => [
+                { role: 'json_value' as const, kind: 'json' as const, value: row.args },
+                { role: 'json_value' as const, kind: 'json' as const, value: row.env },
+                { role: 'json_value' as const, kind: 'json' as const, value: row.headers }
+              ]),
+            () => tx.insert(mcpServerTable).values(batch).run()
+          )
           processed += batch.length
         }
       })

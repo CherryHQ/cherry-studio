@@ -62,176 +62,8 @@ export const MIGRATION_DIAGNOSTIC_DIRECTORY_SELECTION_ROLES = Object.freeze([
 
 export const MIGRATION_DIAGNOSTIC_VERSION_LOG_COUNT_BUCKETS = Object.freeze(['0', '1', '2+', 'unknown'] as const)
 
-export const PAYLOAD_PROFILE_TARGETS = [
-  'preference',
-  'assistant',
-  'assistant_relation',
-  'mcp_server',
-  'user_provider',
-  'user_model',
-  'mini_app',
-  'file_entry',
-  'knowledge_base',
-  'knowledge_item',
-  'topic',
-  'message',
-  'file_ref',
-  'pin',
-  'painting',
-  'translate_language',
-  'translate_history',
-  'prompt',
-  'note',
-  'agent_task',
-  'agent_message',
-  'agent_workspace',
-  'agent_relation',
-  'knowledge_vector_status',
-  'knowledge_vector_rebuild'
-] as const
-
-export const PAYLOAD_PROFILE_SLOTS = [
-  'value',
-  'name',
-  'group',
-  'prompt',
-  'description',
-  'command',
-  'args',
-  'env',
-  'endpointConfigs',
-  'apiKeys',
-  'authConfig',
-  'apiFeatures',
-  'providerSettings',
-  'capabilities',
-  'inputModalities',
-  'outputModalities',
-  'endpointTypes',
-  'customEndpointUrl',
-  'reasoning',
-  'parameters',
-  'pricing',
-  'notes',
-  'userOverrides',
-  'url',
-  'logoKey',
-  'background',
-  'supportedRegions',
-  'configuration',
-  'nameKey',
-  'externalPath',
-  'chunkSeparator',
-  'data',
-  'searchableText',
-  'messageSnapshot',
-  'stats',
-  'payload',
-  'path',
-  'rootPath',
-  'metadata',
-  'content',
-  'sourceText',
-  'targetText',
-  'emoji',
-  'trigger',
-  'jobInputTemplate',
-  'catchUpPolicy',
-  'error',
-  'vectorBlob'
-] as const
-
-export const LENGTH_BUCKETS = ['0', '1-256', '257-4096', '4097-65536', '65537-262144', '262145+'] as const
-
-export const ROW_COUNT_BUCKETS = ['0', '1', '2-10', '11-100', '101-1000', '1001+'] as const
-
 export const migrationErrorCodeSchema = z.enum(MIGRATION_ERROR_CODES)
 export const migrationErrorCategorySchema = z.enum(MIGRATION_ERROR_CATEGORIES)
-export const payloadProfileTargetSchema = z.enum(PAYLOAD_PROFILE_TARGETS)
-export const payloadProfileSlotSchema = z.enum(PAYLOAD_PROFILE_SLOTS)
-export const lengthBucketSchema = z.enum(LENGTH_BUCKETS)
-export const rowCountBucketSchema = z.enum(ROW_COUNT_BUCKETS)
-export const payloadTraversalSchema = z.enum(['complete', 'truncated'])
-
-const stringPayloadLengthSlotProfileSchema = z
-  .object({
-    slot: payloadProfileSlotSchema,
-    kind: z.literal('string'),
-    totalByteLengthBucket: lengthBucketSchema,
-    maxCharLengthBucket: lengthBucketSchema,
-    maxByteLengthBucket: lengthBucketSchema
-  })
-  .strict()
-
-const bytesPayloadLengthSlotProfileSchema = z
-  .object({
-    slot: payloadProfileSlotSchema,
-    kind: z.literal('bytes'),
-    totalByteLengthBucket: lengthBucketSchema,
-    maxByteLengthBucket: lengthBucketSchema
-  })
-  .strict()
-
-const jsonPayloadLengthSlotProfileSchema = z
-  .object({
-    slot: payloadProfileSlotSchema,
-    kind: z.literal('json'),
-    totalSerializedByteLengthBucket: lengthBucketSchema,
-    maxSerializedByteLengthBucket: lengthBucketSchema,
-    maxStringLeafCharLengthBucket: lengthBucketSchema,
-    maxStringLeafByteLengthBucket: lengthBucketSchema,
-    traversal: payloadTraversalSchema
-  })
-  .strict()
-
-const mixedPayloadLengthSlotProfileSchema = z
-  .object({
-    slot: payloadProfileSlotSchema,
-    kind: z.literal('mixed'),
-    traversal: payloadTraversalSchema
-  })
-  .strict()
-
-const unsupportedPayloadLengthSlotProfileSchema = z
-  .object({
-    slot: payloadProfileSlotSchema,
-    kind: z.literal('unsupported')
-  })
-  .strict()
-
-const emptyPayloadLengthSlotProfileSchema = z
-  .object({
-    slot: payloadProfileSlotSchema,
-    kind: z.literal('empty')
-  })
-  .strict()
-
-export const payloadLengthSlotProfileSchema = z.discriminatedUnion('kind', [
-  stringPayloadLengthSlotProfileSchema,
-  bytesPayloadLengthSlotProfileSchema,
-  jsonPayloadLengthSlotProfileSchema,
-  mixedPayloadLengthSlotProfileSchema,
-  unsupportedPayloadLengthSlotProfileSchema,
-  emptyPayloadLengthSlotProfileSchema
-])
-
-export const payloadLengthProfileSchema = z
-  .object({
-    target: payloadProfileTargetSchema,
-    rowCountBucket: rowCountBucketSchema,
-    profiledByteLengthBucket: lengthBucketSchema,
-    maxProfiledRowByteLengthBucket: lengthBucketSchema,
-    traversal: payloadTraversalSchema,
-    slots: z.array(payloadLengthSlotProfileSchema).max(64)
-  })
-  .strict()
-
-export const payloadProfileDescriptorSchema = z
-  .object({
-    target: payloadProfileTargetSchema,
-    fields: z.array(payloadProfileSlotSchema).max(64)
-  })
-  .strict()
 
 const migrationDiagnosticNormalizedVersionSchema = z.string().regex(/^\d{1,6}\.\d{1,6}\.\d{1,6}$/)
 const migrationDiagnosticCurrentVersionSchema = z.union([
@@ -338,7 +170,6 @@ const migrationDiagnosticEventFields = {
   code: migrationErrorCodeSchema,
   category: migrationErrorCategorySchema.optional(),
   causeDepth: z.number().int().min(0).max(4).optional(),
-  payloadProfile: payloadLengthProfileSchema.optional(),
   versionGate: migrationVersionGateContextSchema.optional(),
   semanticEvidence: migrationDiagnosticSemanticEvidenceSchema.optional()
 }
@@ -902,16 +733,18 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       kind: z.literal('preboot_failed'),
       scope: z.enum(['gate', 'engine', 'database']),
       phase: z.enum(['resolve_paths', 'initialize', 'validate', 'finalize']),
-      errorCode: z.enum([
-        'unknown_error',
-        'path_resolution_failed',
-        'legacy_data_location_unavailable',
-        'data_location_pin_failed',
-        'database_initialize_failed',
-        'migration_status_probe_failed',
-        'version_check_failed',
-        'version_window_failed',
-        'migration_window_failed'
+      errorCode: z.union([
+        databaseOrFileFailureCodeSchema,
+        z.enum([
+          'path_resolution_failed',
+          'legacy_data_location_unavailable',
+          'data_location_pin_failed',
+          'database_initialize_failed',
+          'migration_status_probe_failed',
+          'version_check_failed',
+          'version_window_failed',
+          'migration_window_failed'
+        ])
       ]),
       evidence: migrationVersionGateFailureEvidenceSchema.optional()
     })
@@ -941,8 +774,16 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       scope: z.literal('migrator'),
       phase: z.literal('prepare'),
       migratorId: migrationDiagnosticMigratorIdSchema,
-      errorCode: z.literal('source_required_records_rejected'),
-      evidence: migrationAllRequiredRowsRejectedEvidenceSchema
+      errorCode: z.union([
+        databaseOrFileFailureCodeSchema,
+        z.enum([
+          'source_read_failed',
+          'source_parse_failed',
+          'source_serialization_failed',
+          'source_required_records_rejected'
+        ])
+      ]),
+      evidence: migrationAllRequiredRowsRejectedEvidenceSchema.optional()
     })
     .strict(),
   z
@@ -977,16 +818,19 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       scope: z.enum(['engine', 'migrator', 'database']),
       phase: z.literal('validate'),
       migratorId: migrationDiagnosticMigratorIdSchema.optional(),
-      errorCode: z.enum([
-        'unknown_error',
-        'validation_count_mismatch',
-        'validation_required_target_field',
-        'validation_relation',
-        'validation_material',
-        'validation_vector',
-        'validation_foreign_key'
+      errorCode: z.union([
+        databaseOrFileFailureCodeSchema,
+        z.enum([
+          'validation_count_mismatch',
+          'validation_required_target_field',
+          'validation_relation',
+          'validation_material',
+          'validation_vector',
+          'validation_foreign_key',
+          'validation_status'
+        ])
       ]),
-      evidence: migrationValidationEvidenceSchema
+      evidence: migrationValidationEvidenceSchema.optional()
     })
     .strict(),
   z
@@ -1023,6 +867,25 @@ export const migrationDiagnosticFailureSchema = migrationDiagnosticFailureUnionS
       ctx.addIssue({
         code: 'custom',
         message: 'Only a version-window preboot failure carries version-gate evidence',
+        path: ['evidence']
+      })
+    }
+  }
+  if (failure.kind === 'source_prepare_failed') {
+    const aggregate = failure.errorCode === 'source_required_records_rejected'
+    if (aggregate !== (failure.evidence !== undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Only rejected required source rows carry aggregate prepare evidence',
+        path: ['evidence']
+      })
+    }
+  }
+  if (failure.kind === 'migration_validation_failed' && failure.errorCode.startsWith('validation_')) {
+    if (failure.evidence === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A validation result failure must carry its fixed check evidence',
         path: ['evidence']
       })
     }
@@ -1094,13 +957,6 @@ export const migrationDiagnosticsCheckpointSchema = z
 
 export type MigrationErrorCode = z.infer<typeof migrationErrorCodeSchema>
 export type MigrationErrorCategory = z.infer<typeof migrationErrorCategorySchema>
-export type PayloadProfileTarget = z.infer<typeof payloadProfileTargetSchema>
-export type PayloadProfileSlot = z.infer<typeof payloadProfileSlotSchema>
-export type LengthBucket = z.infer<typeof lengthBucketSchema>
-export type RowCountBucket = z.infer<typeof rowCountBucketSchema>
-export type PayloadTraversal = z.infer<typeof payloadTraversalSchema>
-export type PayloadLengthSlotProfile = z.infer<typeof payloadLengthSlotProfileSchema>
-export type PayloadLengthProfile = z.infer<typeof payloadLengthProfileSchema>
 export type MigrationDiagnosticEvent = z.infer<typeof migrationDiagnosticEventSchema>
 export type MigrationDiagnosticEventInput = z.infer<typeof migrationDiagnosticEventInputSchema>
 export type MigrationDiagnosticMigratorId = z.infer<typeof migrationDiagnosticMigratorIdSchema>
@@ -1130,8 +986,3 @@ export type MigrationAttemptFinish =
   | { status: 'failed'; failure: MigrationDiagnosticFailure }
   | { status: 'interrupted'; failure: ProcessInterruptedFailure }
 export type MigrationDiagnosticsSnapshot = Readonly<z.infer<typeof migrationDiagnosticsCheckpointSchema>>
-
-export interface PayloadProfileDescriptor {
-  readonly target: PayloadProfileTarget
-  readonly fields: readonly PayloadProfileSlot[]
-}

@@ -72,8 +72,7 @@ function createMockContext(
       error: vi.fn(),
       debug: vi.fn()
     } as unknown as MigrationContext['logger'],
-    paths: {} as unknown as MigrationContext['paths'],
-    diagnostics: { recordEvent: vi.fn() }
+    paths: {} as unknown as MigrationContext['paths']
   }
 }
 
@@ -180,22 +179,20 @@ describe('PromptMigrator', () => {
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      const result = await migrator.execute(ctx)
+      const diagnosed = await migrator.executeWithDiagnostics(ctx)
 
-      expect(result.success).toBe(false)
-      expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'sqlite_too_big',
-          migratorId: 'prompt',
-          payloadProfile: expect.objectContaining({
-            target: 'prompt',
-            slots: expect.arrayContaining([expect.objectContaining({ slot: 'content', kind: 'string' })])
-          })
-        })
-      )
-      expect(JSON.stringify((ctx.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)).not.toContain(
-        'PRIVATE_PROMPT_CANARY'
-      )
+      expect(diagnosed.result.success).toBe(false)
+      expect(diagnosed.failure).toMatchObject({
+        classification: { errorCode: 'sqlite_too_big' },
+        evidence: {
+          kind: 'failed_write',
+          operationRole: 'insert',
+          values: expect.arrayContaining([
+            expect.objectContaining({ role: 'text_value', kind: 'string', byteLengthBucket: '65537-262144' })
+          ])
+        }
+      })
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_PROMPT_CANARY')
     })
 
     it('should return immediately when no phrases prepared', async () => {

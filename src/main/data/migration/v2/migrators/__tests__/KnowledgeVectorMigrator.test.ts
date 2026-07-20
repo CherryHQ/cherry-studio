@@ -15,7 +15,6 @@ import {
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { profilePayloadLengths } from '../../diagnostics'
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 
@@ -54,8 +53,7 @@ vi.mock('@main/utils/legacyFile', () => ({
   }
 }))
 
-const { KnowledgeVectorMigrator, KNOWLEDGE_VECTOR_REBUILD_PROFILE, createKnowledgeVectorRebuildProfileRows } =
-  await import('../KnowledgeVectorMigrator')
+const { KnowledgeVectorMigrator, createKnowledgeVectorFailedWriteValues } = await import('../KnowledgeVectorMigrator')
 
 const LEGACY_KNOWLEDGE_BASE_ID = 'kb-1'
 const MIGRATED_KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
@@ -1051,28 +1049,14 @@ describe('KnowledgeVectorMigrator', () => {
         }
       })
 
-      const rows = createKnowledgeVectorRebuildProfileRows({
+      const values = createKnowledgeVectorFailedWriteValues({
         embeddings: [{ embeddingTextHash: 'hash', vector }]
       })
 
-      expect(rows.length).toBe(1)
-      expect(profilePayloadLengths(rows, KNOWLEDGE_VECTOR_REBUILD_PROFILE)).toMatchObject({
-        target: 'knowledge_vector_rebuild',
-        rowCountBucket: '1',
-        profiledByteLengthBucket: '262145+',
-        maxProfiledRowByteLengthBucket: '262145+',
-        slots: [
-          {
-            slot: 'vectorBlob',
-            kind: 'bytes',
-            totalByteLengthBucket: '262145+',
-            maxByteLengthBucket: '262145+'
-          }
-        ]
-      })
+      expect(values).toEqual([{ role: 'blob_value', kind: 'blob', byteLength: 300_000 }])
     })
 
-    it('creates an O(1) lazy source and bounds length reads for many embeddings', () => {
+    it('reads at most three vector lengths for many embeddings', () => {
       const embeddingCount = 10_000
       let vectorLengthReads = 0
       const vector = new Proxy([] as number[], {
@@ -1089,30 +1073,19 @@ describe('KnowledgeVectorMigrator', () => {
         vector
       }))
 
-      const rows = createKnowledgeVectorRebuildProfileRows({ embeddings })
+      const values = createKnowledgeVectorFailedWriteValues({ embeddings })
 
-      expect(vectorLengthReads).toBe(0)
-      expect(Array.isArray(rows)).toBe(false)
-      expect(Reflect.ownKeys(rows)).toEqual(['length', 'getRow'])
-      expect(rows.length).toBe(embeddingCount)
-
-      vi.spyOn(performance, 'now').mockReturnValue(0)
-      const result = profilePayloadLengths(rows, KNOWLEDGE_VECTOR_REBUILD_PROFILE)
-
-      expect(vectorLengthReads).toBeGreaterThan(0)
-      expect(vectorLengthReads).toBeLessThan(embeddingCount)
-      expect(vectorLengthReads).toBeLessThanOrEqual(1_024)
-      expect(result).toMatchObject({
-        target: 'knowledge_vector_rebuild',
-        rowCountBucket: '1001+',
-        traversal: 'truncated',
-        slots: [{ slot: 'vectorBlob', kind: 'bytes' }]
-      })
+      expect(vectorLengthReads).toBe(3)
+      expect(values).toHaveLength(3)
+      expect(values).toEqual([
+        { role: 'blob_value', kind: 'blob', byteLength: 4 },
+        { role: 'blob_value', kind: 'blob', byteLength: 4 },
+        { role: 'blob_value', kind: 'blob', byteLength: 4 }
+      ])
     })
 
     it('records bounded fixed status metadata when a degradation update is too large', async () => {
       const sqliteError = Object.assign(new Error('PRIVATE_VECTOR_PATH_/Users/alice'), { code: 'SQLITE_TOOBIG' })
-      const recordEvent = vi.fn()
       const migrator = new KnowledgeVectorMigrator() as any
       migrator.directoryItemsToDegrade.add('item-oversized')
       const migrationCtx = {
@@ -1125,24 +1098,13 @@ describe('KnowledgeVectorMigrator', () => {
             }))
           }))
         },
-        diagnostics: { recordEvent },
         logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
       }
 
-      await migrator.flushDirectoryDegradations(migrationCtx)
+      const diagnosed = await migrator.executeWithDiagnostics(migrationCtx)
 
-      expect(recordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'sqlite_too_big',
-          migratorId: 'knowledge_vector',
-          payloadProfile: expect.objectContaining({
-            target: 'knowledge_vector_status',
-            slots: expect.arrayContaining([expect.objectContaining({ slot: 'error', kind: 'string' })])
-          })
-        })
-      )
-      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_VECTOR_PATH')
-      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+      expect(diagnosed.result.success).toBe(true)
+      expect(diagnosed.failure).toBeUndefined()
     })
 
     it('records the real embedding BLOB insert rejection with a no-copy vector byte profile', async () => {
@@ -1171,8 +1133,6 @@ describe('KnowledgeVectorMigrator', () => {
           }
         }
       })
-      const recordEvent = vi.fn()
-      ;(migrationCtx as any).diagnostics = { recordEvent }
       ;(migrationCtx as any).logger = { error: vi.fn() }
       const original = Object.assign(new Error('PRIVATE_VECTOR_INSERT_/Users/alice'), { code: 'SQLITE_TOOBIG' })
       const realExecute = BetterSqlite3Driver.prototype.execute
@@ -1194,37 +1154,12 @@ describe('KnowledgeVectorMigrator', () => {
 
       const migrator = new KnowledgeVectorMigrator() as any
       expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
-      const result = await migrator.execute(migrationCtx as any)
+      const diagnosed = await migrator.executeWithDiagnostics(migrationCtx as any)
 
-      expect(result.success).toBe(true)
-      expect(result.warnings).toHaveLength(1)
+      expect(diagnosed.result.success).toBe(true)
+      expect(diagnosed.result.warnings).toHaveLength(1)
+      expect(diagnosed.failure).toBeUndefined()
       expect(embeddingInsertCount).toBe(1)
-      expect(recordEvent).toHaveBeenCalledWith({
-        scope: 'migrator',
-        phase: 'execute',
-        state: 'failed',
-        category: 'database_write',
-        code: 'sqlite_too_big',
-        causeDepth: 0,
-        migratorId: 'knowledge_vector',
-        payloadProfile: {
-          target: 'knowledge_vector_rebuild',
-          rowCountBucket: '1',
-          profiledByteLengthBucket: '262145+',
-          maxProfiledRowByteLengthBucket: '262145+',
-          traversal: 'complete',
-          slots: [
-            {
-              slot: 'vectorBlob',
-              kind: 'bytes',
-              totalByteLengthBucket: '262145+',
-              maxByteLengthBucket: '262145+'
-            }
-          ]
-        }
-      })
-      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_VECTOR_INSERT')
-      expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
     })
 
     it('rebuilds a file material into the 9-table store with byte-identical reused vectors', async () => {

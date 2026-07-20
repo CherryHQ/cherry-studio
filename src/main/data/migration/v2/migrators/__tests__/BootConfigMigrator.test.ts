@@ -128,11 +128,11 @@ describe('BootConfigMigrator', () => {
 
       expect(failed).toMatchObject({
         result: { success: false, error: canary },
-        failureClassification: { category: 'filesystem', code: 'disk_full', causeDepth: 0 }
+        failure: { classification: { errorCode: 'file_io' } }
       })
-      expect(JSON.stringify(failed.failureClassification)).not.toContain(canary)
+      expect(JSON.stringify(failed.failure)).not.toContain(canary)
       expect(retried).toEqual({ result: expect.objectContaining({ success: true }) })
-      expect(retried).not.toHaveProperty('failureClassification')
+      expect(retried).not.toHaveProperty('failure')
     })
 
     it('skips the configfile source when reader returns null (no v1 config file)', async () => {

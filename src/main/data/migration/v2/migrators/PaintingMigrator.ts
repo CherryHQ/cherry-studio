@@ -7,7 +7,6 @@ import { inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { PayloadProfileDescriptor } from '../diagnostics'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
@@ -19,16 +18,6 @@ import {
 } from './mappings/PaintingMappings'
 
 const logger = loggerService.withContext('PaintingMigrator')
-
-const PAINTING_PROFILE = {
-  target: 'painting',
-  fields: ['prompt']
-} as const satisfies PayloadProfileDescriptor
-
-const FILE_REF_PROFILE = {
-  target: 'file_ref',
-  fields: []
-} as const satisfies PayloadProfileDescriptor
 
 const INSERT_BATCH_SIZE = 100
 const INARRAY_CHUNK = 500
@@ -159,7 +148,15 @@ export class PaintingMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         for (let index = 0; index < paintings.length; index += INSERT_BATCH_SIZE) {
           const batch = paintings.slice(index, index + INSERT_BATCH_SIZE)
-          this.runDiagnosedWrite(ctx, PAINTING_PROFILE, batch, () => tx.insert(paintingTable).values(batch).run())
+          this.runDiagnosedWrite(
+            () =>
+              batch.map((row) => ({
+                role: 'text_value' as const,
+                kind: 'string' as const,
+                value: row.prompt
+              })),
+            () => tx.insert(paintingTable).values(batch).run()
+          )
 
           this.reportProgress(
             Math.round((Math.min(index + INSERT_BATCH_SIZE, paintings.length) / paintings.length) * 100),
@@ -228,8 +225,9 @@ export class PaintingMigrator extends BaseMigrator {
 
           for (let i = 0; i < refRows.length; i += INSERT_BATCH_SIZE) {
             const batch = refRows.slice(i, i + INSERT_BATCH_SIZE)
-            this.runDiagnosedWrite(ctx, FILE_REF_PROFILE, batch, () =>
-              tx.insert(paintingFileRefTable).values(batch).onConflictDoNothing().run()
+            this.runDiagnosedWrite(
+              () => [],
+              () => tx.insert(paintingFileRefTable).values(batch).onConflictDoNothing().run()
             )
           }
 

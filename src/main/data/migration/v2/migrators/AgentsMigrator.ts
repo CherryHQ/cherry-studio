@@ -12,7 +12,7 @@ import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import { classifyMigrationError, type PayloadProfileDescriptor } from '../diagnostics'
+import type { FailedWriteOperationRole, FailedWriteValue } from '../diagnostics'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
@@ -50,29 +50,13 @@ const HEARTBEAT_INTERVAL_FALLBACK_MS = 60 * 60_000
 
 const logger = loggerService.withContext('AgentsMigrator')
 
-const AGENT_TASK_PROFILE = {
-  target: 'agent_task',
-  fields: ['name', 'trigger', 'jobInputTemplate', 'catchUpPolicy', 'metadata']
-} as const satisfies PayloadProfileDescriptor
+type DiagnosedWrite = <T>(
+  values: () => readonly FailedWriteValue[],
+  write: () => T,
+  operationRole?: FailedWriteOperationRole
+) => T
 
-const AGENT_MESSAGE_PROFILE = {
-  target: 'agent_message',
-  fields: ['data', 'searchableText', 'messageSnapshot', 'stats']
-} as const satisfies PayloadProfileDescriptor
-
-const AGENT_WORKSPACE_PROFILE = {
-  target: 'agent_workspace',
-  fields: ['name', 'path']
-} as const satisfies PayloadProfileDescriptor
-
-const AGENT_RELATION_PROFILE = {
-  target: 'agent_relation',
-  fields: []
-} as const satisfies PayloadProfileDescriptor
-
-type DiagnosedWrite = <T>(descriptor: PayloadProfileDescriptor, rows: readonly unknown[], write: () => T) => T
-
-const runWithoutDiagnostics: DiagnosedWrite = (_descriptor, _rows, write) => write()
+const runWithoutDiagnostics: DiagnosedWrite = (_values, write) => write()
 
 export class AgentsMigrator extends BaseMigrator {
   readonly id = 'agents'
@@ -157,8 +141,8 @@ export class AgentsMigrator extends BaseMigrator {
     // BEGIN/COMMIT/ROLLBACK via db.run() so ATTACH, all INSERTs, and DETACH run
     // in order on the single connection, with the inserts kept atomic.
     const importStatements = statements.slice(1, -1)
-    const diagnoseWrite: DiagnosedWrite = (descriptor, rows, write) =>
-      this.runDiagnosedWrite(ctx, descriptor, rows, write)
+    const diagnoseWrite: DiagnosedWrite = (values, write, operationRole) =>
+      this.runDiagnosedWrite(values, write, operationRole)
     let isAttached = false
     let committed = false
     let pendingError: unknown = null
@@ -174,7 +158,7 @@ export class AgentsMigrator extends BaseMigrator {
 
       for (const statement of importStatements) {
         logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
-        this.runDiagnosedImportStatement(ctx, () => ctx.db.run(sql.raw(statement)))
+        this.runDiagnosedImportStatement(() => ctx.db.run(sql.raw(statement)))
       }
 
       // Atomic post-INSERT reconciliation — runs INSIDE the BEGIN/COMMIT
@@ -427,27 +411,9 @@ export class AgentsMigrator extends BaseMigrator {
     }
   }
 
-  /** Raw INSERT...SELECT rows never enter memory, so record classification only. */
-  private runDiagnosedImportStatement<T>(ctx: MigrationContext, write: () => T): T {
-    try {
-      return write()
-    } catch (error) {
-      try {
-        const classification = classifyMigrationError(error)
-        ctx.diagnostics?.recordEvent({
-          scope: 'migrator',
-          phase: 'execute',
-          state: 'failed',
-          category: classification.category,
-          code: classification.code,
-          causeDepth: classification.causeDepth,
-          migratorId: this.id
-        })
-      } catch {
-        ctx.logger?.error('Failed to record bounded migration import diagnostics')
-      }
-      throw error
-    }
+  /** Raw INSERT...SELECT rows never enter memory, so preserve classification without value evidence. */
+  private runDiagnosedImportStatement<T>(write: () => T): T {
+    return this.runDiagnosedWrite(() => [], write, 'import')
   }
 
   private createReader(ctx: MigrationContext): LegacyAgentsDbReader {
@@ -556,8 +522,13 @@ export class AgentsMigrator extends BaseMigrator {
         enabled: v1.status === 'active',
         metadata: { migratedFrom: 'v1.agentTask', v1Id: v1.id }
       }
-      const inserted = diagnoseWrite(AGENT_TASK_PROFILE, [scheduleRow], () =>
-        db.insert(jobScheduleTable).values(scheduleRow).returning({ id: jobScheduleTable.id }).all()
+      const inserted = diagnoseWrite(
+        () => [
+          { role: 'json_value', kind: 'json', value: scheduleRow.trigger },
+          { role: 'json_value', kind: 'json', value: scheduleRow.jobInputTemplate },
+          { role: 'json_value', kind: 'json', value: scheduleRow.catchUpPolicy }
+        ],
+        () => db.insert(jobScheduleTable).values(scheduleRow).returning({ id: jobScheduleTable.id }).all()
       )
 
       const newId = inserted[0]?.id
@@ -589,8 +560,9 @@ export class AgentsMigrator extends BaseMigrator {
         continue
       }
       const relationRow = { channelId: sub.channel_id, taskId: newScheduleId }
-      diagnoseWrite(AGENT_RELATION_PROFILE, [relationRow], () =>
-        db.insert(agentChannelTaskTable).values(relationRow).onConflictDoNothing().run()
+      diagnoseWrite(
+        () => [],
+        () => db.insert(agentChannelTaskTable).values(relationRow).onConflictDoNothing().run()
       )
       subCount++
     }
@@ -842,18 +814,22 @@ function stageSessionWorkspaces(
 
   const derived = deriveSessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
-    diagnoseWrite(AGENT_WORKSPACE_PROFILE, [workspace], () =>
-      db.run(
-        sql`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+    diagnoseWrite(
+      () => [],
+      () =>
+        db.run(
+          sql`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
             VALUES (${workspace.id}, ${workspace.name}, ${workspace.path}, ${workspace.type}, ${workspace.orderKey}, ${workspace.createdAt}, ${workspace.updatedAt})`
-      )
+        )
     )
   }
   for (const mapping of derived.mappings) {
-    diagnoseWrite(AGENT_RELATION_PROFILE, [mapping], () =>
-      db.run(
-        sql`INSERT INTO session_workspace_map (session_id, workspace_id) VALUES (${mapping.sessionId}, ${mapping.workspaceId})`
-      )
+    diagnoseWrite(
+      () => [],
+      () =>
+        db.run(
+          sql`INSERT INTO session_workspace_map (session_id, workspace_id) VALUES (${mapping.sessionId}, ${mapping.workspaceId})`
+        )
     )
   }
 
@@ -994,8 +970,9 @@ export async function importLegacySessionMessages(
       createdAt,
       updatedAt
     }
-    diagnoseWrite(AGENT_MESSAGE_PROFILE, [messageRow], () =>
-      db.insert(agentSessionMessageTable).values(messageRow).run()
+    diagnoseWrite(
+      () => [{ role: 'json_value', kind: 'json', value: messageRow.data }],
+      () => db.insert(agentSessionMessageTable).values(messageRow).run()
     )
     imported++
   }
@@ -1050,8 +1027,9 @@ export async function migrateAgentMcps(
   )
 
   if (values.length === 0) return
-  diagnoseWrite(AGENT_RELATION_PROFILE, values, () =>
-    db.insert(agentMcpServerTable).values(values).onConflictDoNothing().run()
+  diagnoseWrite(
+    () => [],
+    () => db.insert(agentMcpServerTable).values(values).onConflictDoNothing().run()
   )
   const dropped = rows.length - values.length
   const summary = { rows: values.length, dropped }

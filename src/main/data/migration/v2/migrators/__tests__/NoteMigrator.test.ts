@@ -25,8 +25,7 @@ function createTestContext(reduxData: Record<string, unknown>, db: any) {
       error: () => {},
       debug: () => {}
     } as any,
-    paths: {} as any,
-    diagnostics: { recordEvent: vi.fn() }
+    paths: {} as any
   }
 }
 
@@ -102,24 +101,12 @@ describe('NoteMigrator', () => {
     ) as any
     await migrator.prepare(ctx)
 
-    const result = await migrator.execute(ctx)
+    const diagnosed = await migrator.executeWithDiagnostics(ctx)
 
-    expect(result.success).toBe(false)
-    expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'sqlite_too_big',
-        migratorId: 'note',
-        payloadProfile: expect.objectContaining({
-          target: 'note',
-          slots: [
-            expect.objectContaining({ slot: 'rootPath', kind: 'string' }),
-            expect.objectContaining({ slot: 'path', kind: 'string' })
-          ]
-        })
-      })
-    )
-    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_NOTE_PATH')
-    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+    expect(diagnosed.result.success).toBe(false)
+    expect(diagnosed.failure).toEqual({ classification: { errorCode: 'sqlite_too_big' } })
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_NOTE_PATH')
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
   })
 
   it('preserves a COMMIT-boundary classification and clears it after a successful retry', async () => {
@@ -151,12 +138,11 @@ describe('NoteMigrator', () => {
     expect(run).toHaveBeenCalledTimes(2)
     expect(failed).toMatchObject({
       result: { success: false, processedCount: 0, error: canary },
-      failureClassification: { category: 'database_write', code: 'sqlite_too_big', causeDepth: 0 }
+      failure: { classification: { errorCode: 'sqlite_too_big' } }
     })
-    expect(JSON.stringify(failed.failureClassification)).not.toContain(canary)
-    expect(ctx.diagnostics.recordEvent).not.toHaveBeenCalled()
+    expect(JSON.stringify(failed.failure)).not.toContain(canary)
     expect(retried).toEqual({ result: { success: true, processedCount: 1 } })
-    expect(retried).not.toHaveProperty('failureClassification')
+    expect(retried).not.toHaveProperty('failure')
   })
 
   it('should trim legacy paths before migration', async () => {

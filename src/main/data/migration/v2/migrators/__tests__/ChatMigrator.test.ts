@@ -585,10 +585,10 @@ describe('ChatMigrator message block index', () => {
       await onBatch([oversizedBlock])
       return 1
     })
-    const recordEvent = vi.fn()
     const migrator = new ChatMigrator()
     const internal = migrator as unknown as Record<string, unknown>
     internal['blocksExist'] = true
+    internal['topicCount'] = 1
     const ctx = {
       db: {
         run: vi.fn(),
@@ -604,25 +604,22 @@ describe('ChatMigrator message block index', () => {
           createStreamReader: vi.fn().mockReturnValue({ readInBatches })
         }
       },
-      diagnostics: { recordEvent },
+      sharedData: new Map(),
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
     } as unknown as MigrationContext
-    const prepareBlockIndex = internal['prepareBlockIndex'] as (ctx: MigrationContext) => Promise<void>
 
-    await expect(prepareBlockIndex.call(migrator, ctx)).rejects.toBe(sqliteError)
+    const diagnosed = await migrator.executeWithDiagnostics(ctx)
 
-    expect(recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'sqlite_too_big',
-        migratorId: 'chat',
-        payloadProfile: expect.objectContaining({
-          target: 'message',
-          slots: expect.arrayContaining([expect.objectContaining({ slot: 'payload', kind: 'string' })])
-        })
-      })
-    )
-    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('PRIVATE_USER_MESSAGE')
-    expect(JSON.stringify(recordEvent.mock.calls)).not.toContain('/Users/alice')
+    expect(diagnosed.result.success).toBe(false)
+    expect(diagnosed.failure).toMatchObject({
+      classification: { errorCode: 'sqlite_too_big' },
+      evidence: {
+        kind: 'failed_write',
+        values: expect.arrayContaining([expect.objectContaining({ role: 'text_value', kind: 'string' })])
+      }
+    })
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_USER_MESSAGE')
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
   })
 
   it('resolves blocks from the temporary SQLite index without loading the full table into memory', async () => {

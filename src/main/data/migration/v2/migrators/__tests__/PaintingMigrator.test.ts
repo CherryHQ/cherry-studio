@@ -63,7 +63,6 @@ function makeCtx(dbh: Dbh, paintingsState: Record<string, unknown>) {
       }
     },
     db: dbh.db,
-    diagnostics: { recordEvent: vi.fn() },
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
   } as never
 }
@@ -105,21 +104,18 @@ describe('PaintingMigrator painting_file_ref integration', () => {
         })
     }
 
-    const result = await migrator.execute(ctx)
+    const diagnosed = await migrator.executeWithDiagnostics(ctx)
 
-    expect(result.success).toBe(false)
-    expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'sqlite_too_big',
-        migratorId: 'painting',
-        payloadProfile: expect.objectContaining({
-          target: 'painting',
-          slots: expect.arrayContaining([expect.objectContaining({ slot: 'prompt', kind: 'string' })])
-        })
-      })
-    )
-    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_PAINTING_PROMPT')
-    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+    expect(diagnosed.result.success).toBe(false)
+    expect(diagnosed.failure).toMatchObject({
+      classification: { errorCode: 'sqlite_too_big' },
+      evidence: {
+        kind: 'failed_write',
+        values: expect.arrayContaining([expect.objectContaining({ role: 'text_value', kind: 'string' })])
+      }
+    })
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_PAINTING_PROMPT')
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
   })
 
   it('emits painting_file_ref rows for present file ids and inserts painting rows (happy path)', async () => {

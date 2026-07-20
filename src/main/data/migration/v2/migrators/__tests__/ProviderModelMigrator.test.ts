@@ -70,8 +70,7 @@ function createContext(
     db,
     sharedData: new Map(),
     paths: { filesDataDir },
-    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    diagnostics: { recordEvent: vi.fn() }
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
   } as unknown as MigrationContext
 }
 
@@ -234,32 +233,40 @@ describe('ProviderModelMigrator', () => {
         }
       })
 
-      const result = await migrator.execute(migrationContext)
+      const diagnosed = await migrator.executeWithDiagnostics(migrationContext)
 
-      expect(result.success).toBe(false)
-      expect(migrationContext.diagnostics.recordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'sqlite_too_big',
-          migratorId: 'provider_model',
-          payloadProfile: expect.objectContaining({
-            target: 'user_provider',
-            slots: expect.arrayContaining([
-              expect.objectContaining({ slot: 'endpointConfigs', kind: 'json' }),
-              expect.objectContaining({ slot: 'apiKeys', kind: 'json' })
-            ])
-          })
-        })
-      )
-      expect(
-        JSON.stringify((migrationContext.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)
-      ).not.toContain('PRIVATE_PROVIDER_ENDPOINT')
-      expect(
-        JSON.stringify((migrationContext.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)
-      ).not.toContain('PRIVATE_PROVIDER_API_KEY')
-      expect(
-        JSON.stringify((migrationContext.diagnostics.recordEvent as ReturnType<typeof vi.fn>).mock.calls)
-      ).not.toContain('/Users/alice')
+      expect(diagnosed.result.success).toBe(false)
+      expect(diagnosed.failure).toEqual({ classification: { errorCode: 'sqlite_too_big' } })
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_PROVIDER_ENDPOINT')
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_PROVIDER_API_KEY')
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
     })
+
+    it.each([
+      ['provider::private', 'model', 'provider_id', 'contains_separator'],
+      ['provider', 'model?private', 'model_id', 'contains_reserved_route_character']
+    ] as const)(
+      'returns fixed invalid-identifier evidence for provider=%s model=%s',
+      async (providerId, modelId, identifierRole, rule) => {
+        const migrationContext = createContext(dbh.db, {
+          llm: { providers: [makeProvider(providerId, [{ id: modelId }])] }
+        })
+        await migrator.prepare(migrationContext)
+
+        const diagnosed = await migrator.executeWithDiagnostics(migrationContext)
+
+        expect(diagnosed.result.success).toBe(false)
+        expect(diagnosed.failure).toEqual({
+          classification: {
+            errorCode: 'source_invalid_identifier',
+            identifierViolation: { identifierRole, rule }
+          },
+          evidence: { kind: 'invariant', invariantRole: 'identifier', identifierRole, rule }
+        })
+        expect(JSON.stringify(diagnosed.failure)).not.toContain('provider::private')
+        expect(JSON.stringify(diagnosed.failure)).not.toContain('model?private')
+      }
+    )
 
     it('returns success with zero count when no providers', async () => {
       const migrationContext = createContext(dbh.db, { llm: {} })

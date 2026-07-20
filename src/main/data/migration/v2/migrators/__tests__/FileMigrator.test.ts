@@ -100,7 +100,6 @@ function createMockContext(rows: FileMetadata[], overrides: Record<string, unkno
     sharedData: new Map<string, unknown>(),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     paths: { userData: MOCK_USER_DATA },
-    diagnostics: { recordEvent: vi.fn() },
     ...overrides
   }
 
@@ -148,21 +147,12 @@ describe('FileMigrator id preservation', () => {
     const migrator = new FileMigrator()
     await migrator.prepare(ctx as never)
 
-    const result = await migrator.execute(ctx as never)
+    const diagnosed = await migrator.executeWithDiagnostics(ctx as never)
 
-    expect(result.success).toBe(false)
-    expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'sqlite_too_big',
-        migratorId: 'file',
-        payloadProfile: expect.objectContaining({
-          target: 'file_entry',
-          slots: expect.arrayContaining([expect.objectContaining({ slot: 'name', kind: 'string' })])
-        })
-      })
-    )
-    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_FILE_NAME')
-    expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+    expect(diagnosed.result.success).toBe(false)
+    expect(diagnosed.failure).toEqual({ classification: { errorCode: 'sqlite_too_big' } })
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_FILE_NAME')
+    expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
   })
 
   it('preserves v7 ids verbatim into file_entry', async () => {

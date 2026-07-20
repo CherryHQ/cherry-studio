@@ -67,8 +67,7 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn()
-    },
-    diagnostics: { recordEvent: vi.fn() }
+    }
   }
 }
 
@@ -444,21 +443,18 @@ describe('AssistantMigrator', () => {
       ) as any
       await migrator.prepare(ctx as any)
 
-      const result = await migrator.execute(ctx as any)
+      const diagnosed = await migrator.executeWithDiagnostics(ctx as any)
 
-      expect(result.success).toBe(false)
-      expect(ctx.diagnostics.recordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'sqlite_too_big',
-          migratorId: 'assistant',
-          payloadProfile: expect.objectContaining({
-            target: 'assistant',
-            slots: expect.arrayContaining([expect.objectContaining({ slot: 'prompt', kind: 'string' })])
-          })
-        })
-      )
-      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('PRIVATE_ASSISTANT_PROMPT')
-      expect(JSON.stringify(ctx.diagnostics.recordEvent.mock.calls)).not.toContain('/Users/alice')
+      expect(diagnosed.result.success).toBe(false)
+      expect(diagnosed.failure).toMatchObject({
+        classification: { errorCode: 'sqlite_too_big' },
+        evidence: {
+          kind: 'failed_write',
+          values: expect.arrayContaining([expect.objectContaining({ role: 'text_value', kind: 'string' })])
+        }
+      })
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_ASSISTANT_PROMPT')
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
     })
 
     it('should insert assistants into database', async () => {
