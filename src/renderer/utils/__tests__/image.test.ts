@@ -218,6 +218,19 @@ describe('utils/image', () => {
       expect(captureOptions?.filter?.(fallback)).toBe(true)
     })
 
+    it('should tolerate image resources that cannot be loaded', async () => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await captureScrollable(ref)
+
+      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
+      expect(captureOptions?.imagePlaceholder).toMatch(/^data:image\/png;base64,/)
+      expect(() => captureOptions?.onImageErrorHandler?.(new Event('error'))).not.toThrow()
+    })
+
     it('should restore styles when html-to-image capture fails', async () => {
       vi.mocked(htmlToImage.toCanvas).mockRejectedValueOnce(new Error('capture failed'))
 
