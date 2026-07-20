@@ -1,15 +1,22 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HtmlArtifactView } from '../HtmlArtifactView'
 
 const mocks = vi.hoisted(() => ({
+  createTempFile: vi.fn(),
   resizeObserverCallbacks: [] as ResizeObserverCallback[],
   CodeViewer: vi.fn(({ value }) => <pre data-testid="code-viewer">{value}</pre>),
   HtmlPreviewFrame: vi.fn(({ title }: { html: string; title: string }) => (
     <div data-testid="html-preview-frame" title={title} />
-  ))
+  )),
+  loggerError: vi.fn(),
+  openPath: vi.fn(),
+  save: vi.fn(),
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
+  write: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -25,12 +32,42 @@ vi.mock('@renderer/components/CodeViewer', () => ({ default: mocks.CodeViewer })
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', () => ({
   default: mocks.HtmlPreviewFrame
 }))
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ error: mocks.loggerError })
+  }
+}))
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    error: mocks.toastError,
+    success: mocks.toastSuccess
+  }
+}))
+vi.mock('@renderer/utils/error', () => ({
+  formatErrorMessageWithPrefix: vi.fn((error, prefix) => `${prefix}: ${(error as Error).message}`)
+}))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 describe('HtmlArtifactView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resizeObserverCallbacks = []
+    mocks.createTempFile.mockResolvedValue('/tmp/artifacts-preview.html')
+    mocks.openPath.mockResolvedValue(undefined)
+    mocks.save.mockResolvedValue('/tmp/Preview.html')
+    mocks.write.mockResolvedValue(undefined)
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      writable: true,
+      value: {
+        file: {
+          createTempFile: mocks.createTempFile,
+          openPath: mocks.openPath,
+          save: mocks.save,
+          write: mocks.write
+        }
+      }
+    })
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -79,19 +116,23 @@ describe('HtmlArtifactView', () => {
     )
   })
 
-  it('keeps a static HTML fallback outside the live preview capture boundary', () => {
+  it('opens the HTML source externally from the inline controls', async () => {
     render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
 
-    const fallback = screen.getByTestId('html-artifact-capture-fallback')
-    const previewFrame = screen.getByTestId('html-preview-frame')
-    const livePreview = previewFrame.parentElement
-    if (!livePreview) throw new Error('Expected live HTML preview wrapper')
+    fireEvent.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))
 
-    expect(fallback).toHaveTextContent('Preview')
-    expect(fallback).toHaveTextContent('<main>Page</main>')
-    expect(livePreview).toHaveAttribute('data-html-artifact-live-preview')
-    expect(livePreview).not.toContainElement(fallback)
-    expect(livePreview.parentElement).toContainElement(fallback)
+    await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/artifacts-preview.html'))
+    expect(mocks.createTempFile).toHaveBeenCalledWith('artifacts-preview.html')
+    expect(mocks.write).toHaveBeenCalledWith('/tmp/artifacts-preview.html', '<main>Page</main>')
+  })
+
+  it('downloads the HTML source from the inline controls', async () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview Page" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'code_block.download.label' }))
+
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith('Preview-Page.html', '<main>Page</main>'))
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('message.download.success')
   })
 
   it('zooms the HTML viewport without changing the message dimensions', () => {

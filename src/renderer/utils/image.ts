@@ -9,9 +9,6 @@ const logger = loggerService.withContext('Utils:image')
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
 
-const TRANSPARENT_IMAGE_PLACEHOLDER =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
-
 const loadHtmlToImage = () => {
   htmlToImagePromise ??= import('html-to-image').catch((error) => {
     htmlToImagePromise = undefined
@@ -145,11 +142,8 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
-          // Live HTML artifact previews can navigate or contain cross-origin frames.
-          // html-to-image recursively reads iframe documents while cloning, which can
-          // throw a SecurityError. The component keeps a static sibling fallback for
-          // image exports, so omit only the live preview subtree here.
-          if (node.hasAttribute('data-html-artifact-live-preview')) {
+          // Interactive HTML artifacts are intentionally omitted from image exports.
+          if (node.hasAttribute('data-html-artifact')) {
             return false
           }
           if (node.style.display === 'none') {
@@ -166,9 +160,6 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         filter: filterHiddenElements,
         backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
         cacheBust: true,
-        // A single inaccessible image should not abort copying the entire message.
-        imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
-        onImageErrorHandler: () => undefined,
         pixelRatio: window.devicePixelRatio,
         skipAutoScale: true,
         canvasWidth: el.scrollWidth,

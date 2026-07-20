@@ -113,6 +113,7 @@ export const MessageHtmlArtifact = memo(function MessageHtmlArtifact({ html, isS
   return (
     <div
       ref={artifactRef}
+      data-html-artifact=""
       data-testid="message-html-artifact"
       className="message-html-artifact special-preview mt-0 mb-2.5 w-full">
       {isStreaming ? (

@@ -201,12 +201,12 @@ describe('utils/image', () => {
       expect(result).toBe(finalCanvas)
     })
 
-    it('should exclude live HTML previews from image capture', async () => {
+    it('should exclude HTML artifacts from image capture', async () => {
       const div = document.createElement('div')
-      const fallback = document.createElement('div')
-      const livePreview = document.createElement('div')
-      livePreview.setAttribute('data-html-artifact-live-preview', '')
-      div.append(fallback, livePreview)
+      const content = document.createElement('div')
+      const htmlArtifact = document.createElement('div')
+      htmlArtifact.setAttribute('data-html-artifact', '')
+      div.append(content, htmlArtifact)
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
@@ -214,21 +214,8 @@ describe('utils/image', () => {
       await captureScrollable(ref)
 
       const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
-      expect(captureOptions?.filter?.(livePreview)).toBe(false)
-      expect(captureOptions?.filter?.(fallback)).toBe(true)
-    })
-
-    it('should tolerate image resources that cannot be loaded', async () => {
-      const div = document.createElement('div')
-      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
-      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
-      const ref = { current: div } as React.RefObject<HTMLDivElement>
-
-      await captureScrollable(ref)
-
-      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
-      expect(captureOptions?.imagePlaceholder).toMatch(/^data:image\/png;base64,/)
-      expect(() => captureOptions?.onImageErrorHandler?.(new Event('error'))).not.toThrow()
+      expect(captureOptions?.filter?.(htmlArtifact)).toBe(false)
+      expect(captureOptions?.filter?.(content)).toBe(true)
     })
 
     it('should restore styles when html-to-image capture fails', async () => {

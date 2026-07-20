@@ -29,6 +29,7 @@ describe('MessageHtmlArtifact', () => {
   it('renders the completed HTML in the message artifact view', () => {
     render(<MessageHtmlArtifact html="<title>Demo</title><h1>Hello</h1>" isStreaming={false} />)
 
+    expect(screen.getByTestId('message-html-artifact')).toHaveAttribute('data-html-artifact')
     expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-title', 'Demo')
     expect(screen.getByTestId('html-artifact-view')).toHaveTextContent('<title>Demo</title><h1>Hello</h1>')
   })

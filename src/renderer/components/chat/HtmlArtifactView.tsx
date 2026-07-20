@@ -1,9 +1,15 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
-import { Code2, Eye, ZoomIn, ZoomOut } from 'lucide-react'
+import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
+import { Code2, DownloadIcon, Eye, LinkIcon, ZoomIn, ZoomOut } from 'lucide-react'
 import { memo, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('HtmlArtifactView')
 
 const DESKTOP_VIEWPORT_WIDTH = 1440
 const DESKTOP_VIEWPORT_HEIGHT = 810
@@ -66,28 +72,13 @@ const DesktopHtmlPreview = memo(function DesktopHtmlPreview({
         style={{ width: DESKTOP_VIEWPORT_WIDTH, height: DESKTOP_VIEWPORT_HEIGHT }}>
         <div
           data-testid="desktop-html-zoom-layer"
-          className="relative origin-top-left"
+          className="origin-top-left"
           style={{
             width: `${100 / zoomScale}%`,
             height: `${100 / zoomScale}%`,
             transform: `scale(${zoomScale})`
           }}>
-          {/* html-to-image skips the live iframe and captures this inert source snapshot instead. */}
-          <div
-            aria-hidden="true"
-            data-testid="html-artifact-capture-fallback"
-            className="absolute inset-0 flex flex-col overflow-hidden bg-muted p-6 text-foreground">
-            <div className="mb-4 flex shrink-0 items-center gap-2 text-foreground-muted text-xs">
-              <Code2 className="size-4 shrink-0" />
-              <span className="truncate">{title}</span>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
-              {html}
-            </div>
-          </div>
-          <div data-html-artifact-live-preview className="absolute inset-0">
-            <HtmlPreviewFrame html={html} title={title} />
-          </div>
+          <HtmlPreviewFrame html={html} title={title} />
         </div>
       </div>
     </div>
@@ -98,6 +89,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview')
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
+  const hasContent = html.trim().length > 0
   const showCode = viewMode === 'code'
   const toggleLabel = t(showCode ? 'html_artifacts.preview' : 'html_artifacts.code')
   const handleToggle = () => {
@@ -111,6 +103,28 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   }
   const handleResetZoom = () => {
     setZoom(DEFAULT_ZOOM)
+  }
+  const handleOpenExternal = async () => {
+    try {
+      const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
+      await window.api.file.write(tempPath, html)
+      await window.api.file.openPath(tempPath)
+    } catch (error) {
+      logger.error('Failed to open HTML artifact externally', error as Error)
+      toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
+    }
+  }
+  const handleDownload = async () => {
+    try {
+      const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
+      const savedPath = await window.api.file.save(fileName, html)
+      if (!savedPath) return
+
+      toast.success(t('message.download.success'))
+    } catch (error) {
+      logger.error('Failed to download HTML artifact', error as Error)
+      toast.error(formatErrorMessageWithPrefix(error, t('message.download.failed')))
+    }
   }
 
   return (
@@ -169,6 +183,31 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
               <span className="h-3.5 w-px bg-border-subtle" />
             </>
           )}
+          <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6"
+              aria-label={t('chat.artifacts.button.openExternal')}
+              disabled={!hasContent}
+              onClick={handleOpenExternal}>
+              <LinkIcon className="size-3" />
+            </Button>
+          </Tooltip>
+          <Tooltip content={t('code_block.download.label')} delay={500}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6"
+              aria-label={t('code_block.download.label')}
+              disabled={!hasContent}
+              onClick={handleDownload}>
+              <DownloadIcon className="size-3" />
+            </Button>
+          </Tooltip>
+          <span className="h-3.5 w-px bg-border-subtle" />
           <Tooltip content={toggleLabel} delay={500}>
             <Button
               type="button"
