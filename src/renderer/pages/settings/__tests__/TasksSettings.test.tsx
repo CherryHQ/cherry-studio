@@ -530,7 +530,8 @@ describe('TasksSettings task logs', () => {
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { channelIds: [] })
     )
-    await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledTimes(4))
+    await act(async () => {})
+    expect(dataApiMock.get).toHaveBeenCalledTimes(2)
   })
 
   it('renders the segmented schedule type selector for the selected task', async () => {
@@ -592,6 +593,28 @@ describe('TasksSettings task logs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
 
     await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+  })
+
+  it('applies the updated task response without reloading all task data', async () => {
+    taskMutationMocks.updateTask.mockResolvedValueOnce({
+      ...taskDataMock.task,
+      name: 'Server-normalized task name'
+    })
+
+    render(<TasksSettings />)
+
+    const nameInput = await screen.findByDisplayValue('Daily task')
+    await act(async () => {})
+    dataApiMock.get.mockClear()
+
+    fireEvent.change(nameInput, { target: { value: 'Edited task name' } })
+    fireEvent.blur(nameInput)
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { name: 'Edited task name' })
+    )
+    await waitFor(() => expect(screen.getByDisplayValue('Server-normalized task name')).toBeInTheDocument())
+    expect(dataApiMock.get).not.toHaveBeenCalled()
   })
 
   it('waits for a pending channel save before running the task', async () => {

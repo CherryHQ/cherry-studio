@@ -1091,12 +1091,16 @@ const TasksSettings: FC = () => {
       const current = state.tail.then(async () => {
         const updated = await updateTask(task.agentId, taskId, updates)
         state.lastUpdateSucceeded = updated !== undefined
-        if (updated) await loadData()
+        if (updated) {
+          setTasks((currentTasks) =>
+            currentTasks.map((currentTask) => (currentTask.id === taskId ? updated : currentTask))
+          )
+        }
       })
       state.tail = current
       return current
     },
-    [updateTask, tasks, loadData]
+    [updateTask, tasks]
   )
 
   const waitForTaskUpdates = useCallback(async (taskId: string): Promise<boolean> => {
