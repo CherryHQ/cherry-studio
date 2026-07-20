@@ -46,7 +46,7 @@
   --cs-highlight: rgba(255, 255, 0, 0.5);
   --cs-highlight-accent: rgba(255, 150, 50, 0.5);
 
-  /* Stable product domain: lists and navigation shell */
+  /* Migration parity: historical lists and navigation shell */
   --cs-list-item: #fff;
   --cs-list-item-foreground: var(--foreground);
   --cs-list-item-hover: #fafafa;
@@ -57,12 +57,14 @@
   --cs-modal: var(--card);
   --cs-modal-foreground: var(--foreground);
 
-  /* Stable product domain: conversation surfaces */
+  /* Migration parity: historical conversation roots */
   --cs-chat: transparent;
   --cs-chat-foreground: var(--foreground);
-  --cs-chat-user: rgba(0, 0, 0, 0.045);
   --cs-chat-assistant: transparent;
   --cs-chat-assistant-foreground: var(--cs-chat-foreground);
+
+  /* Stable product domain: user-message surface */
+  --cs-chat-user: rgba(0, 0, 0, 0.045);
   --cs-chat-user-foreground: var(--foreground);
 
   /* Migration parity: platform compatibility colors */
@@ -105,14 +107,14 @@
   --cs-highlight: rgba(255, 255, 0, 0.9);
   --cs-highlight-accent: rgba(255, 150, 50, 0.9);
 
-  /* Stable product domain: lists and navigation shell */
+  /* Migration parity: historical lists and navigation shell */
   --cs-list-item: rgba(255, 255, 255, 0.1);
   --cs-list-item-hover: rgba(255, 255, 255, 0.05);
   --cs-navbar-translucent: rgba(20, 20, 20, 0.55);
   --cs-navbar: #1f1f1f;
   --cs-modal: #111;
 
-  /* Stable product domain: conversation surfaces */
+  /* Stable product domain: user-message surface */
   --cs-chat-user: rgba(255, 255, 255, 0.08);
   --cs-chat-user-foreground: var(--cs-black);
 

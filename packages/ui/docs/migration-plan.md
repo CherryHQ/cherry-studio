@@ -110,7 +110,7 @@ When submitting PRs, please place components in the correct directory based on t
 
 | Phase | Status | Main Tasks | Description |
 | --- | --- | --- | --- |
-| **Phase 1** | ✅ **Completed** | **Design System Integration** | • Converted design values from todocss.css to the token sources<br>• Added the official unprefixed Shadcn contract and the `--cs-*` Cherry Studio product namespace<br>• Generated explicit Tailwind mappings for both contracts<br>• Added token-level spacing values and an extended radius system; semantic spacing utilities remain intentionally disabled<br>• Added a renderer bridge for compatibility during consumer migration |
+| **Phase 1** | ✅ **Completed** | **Design System Integration** | • Converted design values from todocss.css to the token sources<br>• Added the official unprefixed Shadcn contract and the `--cs-*` Cherry Studio product namespace<br>• Added a controlled runtime-input boundary for host theme customization<br>• Generated explicit Tailwind mappings for public semantic contracts only<br>• Added token-level spacing values and an extended radius system; semantic spacing utilities remain intentionally disabled<br>• Migrated consumers and removed the temporary renderer semantic bridge |
 | **Phase 2** | ⏳ **To Start** | **Component Migration and Optimization** | • Filter components for migration based on extraction criteria<br>• Remove antd dependencies, replace with shadcn/ui<br>• Remove HeroUI dependencies, replace with shadcn/ui<br>• Remove styled-components, replace with Tailwind CSS + design system variables<br>• Optimize component APIs and type definitions |
 | **Phase 3** | ⏳ **To Start** | **UI Refactoring and Optimization** | • Gradually implement UI refactoring with UI designers<br>• Ensure visual consistency and user experience<br>• Performance optimization and code quality improvement |
 
@@ -136,6 +136,8 @@ When submitting PRs, please place components in the correct directory based on t
 ### CSS Variable System
 
 - Official Shadcn semantics remain unprefixed; approved Cherry Studio product semantics use `--cs-*`
+- Host-written `--cs-theme-*` values are controlled inputs, not component-facing semantics or Tailwind colors
+- Component-, page-, and App Shell custom properties remain private to their owning stylesheet
 - Primitive and historical `--cs-*` variables remain internal migration sources unless explicitly allowlisted
 - Complete color palette: 17 colors × 11 shades each
 - Token-level spacing values: `5xs` through `8xl` (16 levels); they are not a public Tailwind utility contract

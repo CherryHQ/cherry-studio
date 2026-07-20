@@ -1,12 +1,15 @@
 /**
- * Machine-readable public variable contract.
+ * Machine-readable theme contract.
  *
+ * Runtime inputs are host-written internal values, not public component roles.
  * Stability and Tailwind exposure are independent decisions:
  * - stable product variables are valid defaults for new product code;
  * - migration variables exist only to preserve historical rendering while
  *   consumers are replaced;
  * - Tailwind color variables are generated only for roles used as utilities.
  */
+
+export const RUNTIME_THEME_INPUT_TOKENS = ['primary'] as const
 
 export const SHADCN_COLOR_TOKENS = [
   'background',
@@ -100,20 +103,7 @@ export const CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS = [
   'highlight',
   'highlight-foreground',
   'highlight-accent',
-  'list-item',
-  'list-item-foreground',
-  'list-item-hover',
-  'list-item-radius',
-  'navbar',
-  'navbar-foreground',
-  'navbar-translucent',
-  'modal',
-  'modal-foreground',
-  'chat',
-  'chat-foreground',
   'chat-user',
-  'chat-assistant',
-  'chat-assistant-foreground',
   'chat-user-foreground',
   'sidebar-active-bg',
   'sidebar-active-foreground',
@@ -143,7 +133,20 @@ export const CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS = [
   'system-gray-3',
   'icon-contrast',
   'primary-soft',
-  'primary-subtle'
+  'primary-subtle',
+  'list-item',
+  'list-item-foreground',
+  'list-item-hover',
+  'list-item-radius',
+  'navbar',
+  'navbar-foreground',
+  'navbar-translucent',
+  'modal',
+  'modal-foreground',
+  'chat',
+  'chat-foreground',
+  'chat-assistant',
+  'chat-assistant-foreground'
 ] as const
 
 export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
@@ -198,11 +201,6 @@ export const CHERRY_PRODUCT_SURFACE_PAIRS = [
   ['inline-code', 'inline-code-foreground'],
   ['reference', 'reference-foreground'],
   ['highlight', 'highlight-foreground'],
-  ['list-item', 'list-item-foreground'],
-  ['navbar', 'navbar-foreground'],
-  ['modal', 'modal-foreground'],
-  ['chat', 'chat-foreground'],
   ['chat-user', 'chat-user-foreground'],
-  ['chat-assistant', 'chat-assistant-foreground'],
   ['sidebar-active-bg', 'sidebar-active-foreground']
 ] as const

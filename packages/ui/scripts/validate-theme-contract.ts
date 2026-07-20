@@ -8,6 +8,7 @@ import {
   CHERRY_PRODUCT_SURFACE_PAIRS,
   CHERRY_PRODUCT_VARIABLE_TOKENS,
   CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS,
+  RUNTIME_THEME_INPUT_TOKENS,
   SHADCN_SURFACE_PAIRS,
   SHADCN_VARIABLE_TOKENS
 } from './theme-contract'
@@ -20,6 +21,7 @@ export interface ThemeContractSources {
   variableCatalog: string
   contractEntry: string
   tokensEntry: string
+  themeInput: string
   primitiveColors: string
   semanticColors: string
   statusColors: string
@@ -179,6 +181,8 @@ function assertNoCycles(mode: string, declarations: Map<string, Declaration>): v
 }
 
 function assertLayerDependencies(sources: ThemeContractSources): void {
+  const runtimeVariablePrefix = '--cs-theme-'
+  const runtimeVariables = new Set(RUNTIME_THEME_INPUT_TOKENS.map((token) => `--cs-theme-${token}`))
   const officialVariables = new Set(SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`))
   const productVariables = new Set(CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`))
   const foundationEntries: SourceEntry[] = [
@@ -192,15 +196,40 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
 
   for (const [sourceName, source] of foundationEntries) {
     for (const declaration of extractDeclarations(source, sourceName)) {
+      if (declaration.name.startsWith(runtimeVariablePrefix)) {
+        throw new Error(`[theme-contract] foundation cannot declare runtime input ${declaration.name}`)
+      }
       for (const reference of extractReferences(declaration.value)) {
-        if (officialVariables.has(reference) || reference.startsWith('--color-') || reference.startsWith('--app-')) {
+        if (
+          reference.startsWith(runtimeVariablePrefix) ||
+          officialVariables.has(reference) ||
+          reference.startsWith('--color-') ||
+          reference.startsWith('--app-')
+        ) {
           throw new Error(`[theme-contract] foundation ${declaration.name} cannot depend on upper-layer ${reference}`)
         }
       }
     }
   }
 
+  for (const declaration of extractDeclarations(sources.themeInput, 'theme-input.css')) {
+    if (!runtimeVariables.has(declaration.name)) {
+      throw new Error(`[theme-contract] theme-input.css declares unregistered runtime input ${declaration.name}`)
+    }
+    for (const reference of extractReferences(declaration.value)) {
+      if (officialVariables.has(reference) || productVariables.has(reference) || reference.startsWith('--color-')) {
+        throw new Error(`[theme-contract] runtime input ${declaration.name} cannot depend on upper-layer ${reference}`)
+      }
+      if (reference.startsWith('--app-')) {
+        throw new Error(`[theme-contract] runtime input ${declaration.name} cannot depend on host-local ${reference}`)
+      }
+    }
+  }
+
   for (const declaration of extractDeclarations(sources.shadcn, 'shadcn.css')) {
+    if (declaration.name.startsWith(runtimeVariablePrefix)) {
+      throw new Error(`[theme-contract] shadcn.css cannot own runtime input ${declaration.name}`)
+    }
     for (const reference of extractReferences(declaration.value)) {
       if (productVariables.has(reference) || reference.startsWith('--color-') || reference.startsWith('--app-')) {
         throw new Error(`[theme-contract] Shadcn ${declaration.name} cannot depend on product/adapter ${reference}`)
@@ -220,6 +249,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
 
 function assertCatalogCoverage(sources: ThemeContractSources): void {
   const requiredNames = [
+    ...RUNTIME_THEME_INPUT_TOKENS.map((token) => `--cs-theme-${token}`),
     ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
     ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`)
   ]
@@ -231,6 +261,7 @@ function assertCatalogCoverage(sources: ThemeContractSources): void {
 }
 
 export function validateThemeContractSources(sources: ThemeContractSources): void {
+  assertUnique('runtime theme inputs', RUNTIME_THEME_INPUT_TOKENS)
   assertUnique('Shadcn variables', SHADCN_VARIABLE_TOKENS)
   assertUnique('stable product variables', CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS)
   assertUnique('migration product variables', CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS)
@@ -256,7 +287,12 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
   assertSurfacePairs('product contract', CHERRY_PRODUCT_SURFACE_PAIRS, stableVariables)
 
   assertExactImports('tokens.css', sources.tokensEntry, ['./tokens/index.css'])
-  assertExactImports('contract.css', sources.contractEntry, ['./tokens.css', './shadcn.css', './product.css'])
+  assertExactImports('contract.css', sources.contractEntry, [
+    './tokens.css',
+    './theme-input.css',
+    './shadcn.css',
+    './product.css'
+  ])
   assertCatalogCoverage(sources)
   assertLayerDependencies(sources)
 
@@ -267,6 +303,7 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
     ['tokens/spacing.css', sources.spacing],
     ['tokens/radius.css', sources.radius],
     ['tokens/typography.css', sources.typography],
+    ['theme-input.css', sources.themeInput],
     ['shadcn.css', sources.shadcn],
     ['product.css', sources.product]
   ]
@@ -275,6 +312,7 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
   const darkDeclarations = new Map(rootDeclarations)
   for (const [name, declaration] of darkOverrides) darkDeclarations.set(name, declaration)
 
+  assertRequiredDeclarations('runtime theme inputs', rootDeclarations, RUNTIME_THEME_INPUT_TOKENS, '--cs-theme-')
   assertRequiredDeclarations('Shadcn contract', rootDeclarations, SHADCN_VARIABLE_TOKENS, '--')
   assertRequiredDeclarations('product contract', rootDeclarations, CHERRY_PRODUCT_VARIABLE_TOKENS, '--cs-')
 
@@ -313,6 +351,7 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     variableCatalog,
     contractEntry,
     tokensEntry,
+    themeInput,
     primitiveColors,
     semanticColors,
     statusColors,
@@ -325,6 +364,7 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     fs.readFile(path.resolve(stylesDir, '../../docs/variable-catalog.md'), 'utf8'),
     fs.readFile(path.join(stylesDir, 'contract.css'), 'utf8'),
     fs.readFile(path.join(stylesDir, 'tokens.css'), 'utf8'),
+    fs.readFile(path.join(stylesDir, 'theme-input.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/primitive.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/semantic.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/status.css'), 'utf8'),
@@ -339,6 +379,7 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     variableCatalog,
     contractEntry,
     tokensEntry,
+    themeInput,
     primitiveColors,
     semanticColors,
     statusColors,

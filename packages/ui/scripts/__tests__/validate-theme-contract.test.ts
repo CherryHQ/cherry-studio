@@ -38,6 +38,27 @@ describe('validateThemeContractSources', () => {
     expect(() => validateThemeContractSources(sources)).toThrow(/foundation --cs-primary cannot depend/)
   })
 
+  it('rejects an unregistered runtime input', async () => {
+    const sources = await loadSources()
+    sources.themeInput += '\n:root { --cs-theme-speculative: hotpink; }\n'
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/declares unregistered runtime input/)
+  })
+
+  it('rejects a runtime input declared by the foundation layer', async () => {
+    const sources = await loadSources()
+    sources.primitiveColors += '\n:root { --cs-theme-speculative: hotpink; }\n'
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/foundation cannot declare runtime input/)
+  })
+
+  it('rejects an upper-layer dependency from a runtime input', async () => {
+    const sources = await loadSources()
+    sources.themeInput = sources.themeInput.replace('var(--cs-primary)', 'var(--primary)')
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/runtime input .* cannot depend on upper-layer/)
+  })
+
   it('rejects variable cycles in a supported mode', async () => {
     const sources = await loadSources()
     sources.product = sources.product

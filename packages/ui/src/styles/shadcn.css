@@ -2,16 +2,13 @@
  * Canonical Shadcn theme contract.
  *
  * Official Shadcn variables remain unprefixed for ecosystem compatibility.
- * Foundation providers are imported before this file. Cherry Studio product
- * semantics are imported after it so they may intentionally follow official
- * variables and third-party themes such as TweakCN.
+ * Foundation providers and controlled runtime inputs are imported before this
+ * file. Cherry Studio product semantics are imported after it so they may
+ * intentionally follow official variables and third-party themes such as
+ * TweakCN.
  */
 
 :root {
-  /* Runtime customization inputs */
-  --cs-theme-primary: var(--cs-primary);
-  --cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);
-
   /* Core surfaces and content */
   --background: var(--cs-background);
   --foreground: var(--cs-foreground);
@@ -33,7 +30,7 @@
   /* Controls */
   --border: var(--cs-border);
   --input: var(--cs-input);
-  --ring: var(--cs-theme-ring);
+  --ring: color-mix(in srgb, var(--primary) 40%, transparent);
 
   /* Charts */
   --chart-1: oklch(0.646 0.222 41.116);

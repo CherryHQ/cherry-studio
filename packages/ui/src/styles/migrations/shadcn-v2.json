@@ -5,6 +5,7 @@
   "exclude": [
     "packages/ui/src/styles/theme.css",
     "packages/ui/src/styles/contract.css",
+    "packages/ui/src/styles/theme-input.css",
     "packages/ui/src/styles/shadcn.css",
     "packages/ui/src/styles/product.css",
     "packages/ui/src/styles/tokens/**",
@@ -117,7 +118,12 @@
     { "source": "--color-border-mute", "target": "--cs-border-faint", "strategy": "exact" },
     { "source": "--color-error", "target": "--cs-error", "strategy": "exact" },
     { "source": "--color-link", "target": "--cs-link", "strategy": "exact" },
-    { "source": "--color-primary-bg", "target": "--cs-primary-soft", "strategy": "exact" },
+    {
+      "source": "--color-primary-bg",
+      "target": "--cs-primary-soft",
+      "strategy": "contextual",
+      "reason": "The historical value followed the user-selected color, whose long-term role is intentionally separate from Shadcn primary."
+    },
     { "source": "--color-fill-secondary", "target": "--cs-fill-secondary", "strategy": "exact" },
     { "source": "--color-fill-2", "target": "--cs-fill-secondary", "strategy": "exact" },
     { "source": "--color-bg-base", "target": "--background", "strategy": "exact" },
@@ -186,7 +192,12 @@
     { "source": "--color-gray-3", "target": "--cs-system-gray-3", "strategy": "exact" },
     { "source": "--color-icon-white", "target": "--cs-icon-contrast", "strategy": "exact" },
     { "source": "--color-primary-1", "target": "--cs-primary-subtle", "strategy": "exact" },
-    { "source": "--color-primary-6", "target": "--primary", "strategy": "exact" },
+    {
+      "source": "--color-primary-6",
+      "target": "--primary",
+      "strategy": "contextual",
+      "reason": "The historical alias represented the user-selected color; Shadcn primary may map to a distinct semantic role."
+    },
     { "source": "--color-status-success", "target": "--cs-success", "strategy": "exact" },
     { "source": "--color-status-error", "target": "--cs-error", "strategy": "exact" },
     { "source": "--color-status-warning", "target": "--cs-warning", "strategy": "exact" },

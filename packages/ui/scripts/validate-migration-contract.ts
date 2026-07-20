@@ -12,6 +12,7 @@ const MIGRATION_STRATEGIES = new Set(['exact', 'contextual', 'review', 'preserve
 const REQUIRED_EXCLUDES = [
   'packages/ui/src/styles/theme.css',
   'packages/ui/src/styles/contract.css',
+  'packages/ui/src/styles/theme-input.css',
   'packages/ui/src/styles/shadcn.css',
   'packages/ui/src/styles/product.css',
   'packages/ui/src/styles/tokens/**',
@@ -156,7 +157,9 @@ export function validateMigrationContractSources(sources: MigrationContractSourc
     throw new Error('[theme-contract] renderer theme cannot import the removed legacy compatibility layer')
   }
   if (rendererTheme.includes('--app-')) {
-    throw new Error('[theme-contract] renderer app compatibility aliases must remain removed')
+    throw new Error(
+      '[theme-contract] renderer theme entry cannot own --app-* variables; keep host-local values in a dedicated stylesheet'
+    )
   }
   if (/@theme(?:\s+inline)?\s*\{/.test(rendererTheme)) {
     throw new Error('[theme-contract] renderer theme must use the shared generated Tailwind adapter')

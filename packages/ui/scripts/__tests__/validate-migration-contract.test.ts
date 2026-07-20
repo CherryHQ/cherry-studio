@@ -22,7 +22,7 @@ describe('validateMigrationContractSources', () => {
     ).toThrow('legacy compatibility layer must remain removed')
   })
 
-  it('rejects recreated renderer app aliases', async () => {
+  it('keeps host-local variables out of the renderer theme entry', async () => {
     const sources = await loadMigrationContractSources()
 
     expect(() =>
@@ -30,7 +30,7 @@ describe('validateMigrationContractSources', () => {
         ...sources,
         rendererTheme: `${sources.rendererTheme}\n:root { --app-icon: var(--cs-unknown-role); }`
       })
-    ).toThrow('renderer app compatibility aliases must remain removed')
+    ).toThrow('renderer theme entry cannot own --app-* variables')
   })
 
   it('rejects a second renderer Tailwind adapter', async () => {

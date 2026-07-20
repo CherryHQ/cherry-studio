@@ -9,7 +9,7 @@
 
 ## 1. Visual Theme & Atmosphere
 
-> **Source of truth:** foundation values live in `packages/ui/src/styles/tokens/`, the official Shadcn contract lives in `packages/ui/src/styles/shadcn.css`, and Cherry Studio product semantics live in `packages/ui/src/styles/product.css` plus explicitly classified foundation providers. `contract.css` composes those layers in order; Tailwind-facing aliases are generated in `theme.css`. Renderer bridge aliases remain compatibility-only. For actual values and stability, inspect the source plus `scripts/theme-contract.ts`.
+> **Source of truth:** foundation values live in `packages/ui/src/styles/tokens/`, controlled host-written inputs live in `packages/ui/src/styles/theme-input.css`, the official Shadcn contract lives in `packages/ui/src/styles/shadcn.css`, and Cherry Studio product semantics live in `packages/ui/src/styles/product.css` plus explicitly classified foundation providers. `contract.css` composes those layers in order; Tailwind-facing aliases are generated in `theme.css`. Component, page, and App Shell implementation variables stay in their owning stylesheets and are not public theme roles. For actual values and stability, inspect the source plus `scripts/theme-contract.ts`.
 
 Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the exported primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
 
@@ -46,7 +46,7 @@ When you reach for a value:
 2. If the role is "this exact color regardless of surface" (brand, error, success), use the corresponding solid token from the `--color-{primary,destructive,success,warning,info,*-base,*-text,*-bg}` set or a primitive scale.
 
 ### Primary
-- **Primary**: `var(--color-primary)` — exported primary accent for true page actions, selected states, links, and component accents. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
+- **Primary**: `var(--color-primary)` — public semantic output for true page actions, selected states, links, and component accents. It is currently fed by the registered runtime primary input, but components depend on this semantic role rather than that host input. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
 - **Primary Foreground**: `var(--color-primary-foreground)` — contrast text on `bg-primary` surfaces
 - **Primary Hover**: `var(--color-primary-hover)`
 

@@ -6,6 +6,7 @@ import {
   buildThemeContractCss,
   CHERRY_PRODUCT_COLOR_TOKENS,
   loadThemeContractInputs,
+  RUNTIME_THEME_INPUT_TOKENS,
   SHADCN_COLOR_TOKENS
 } from '../build-theme-css'
 import { assertGeneratedThemeCssCurrent } from '../check-theme-contract'
@@ -25,8 +26,10 @@ describe('buildThemeContractCss', () => {
     expect(css).not.toContain("@import './shadcn.css';")
     expect(css).toContain('@theme inline {')
     expect(css).not.toContain('/* Runtime Theme Inputs */')
-    expect(css).not.toContain('--cs-theme-primary:')
-    expect(css).not.toContain('--cs-theme-ring:')
+    for (const token of RUNTIME_THEME_INPUT_TOKENS) {
+      expect(css).not.toContain(`--cs-theme-${token}:`)
+      expect(css).not.toContain(`--color-theme-${token}:`)
+    }
     expect(css).not.toContain('--cs-user-font-family:')
     expect(css).not.toContain('--cs-user-code-font-family:')
     expect(css).not.toContain('--primary: var(--color-primary);')

@@ -21,7 +21,9 @@
  * 5. Add custom utilities in `@layer utilities`.
  *
  * The shared generated theme is the only Tailwind variable adapter. Do not
- * recreate renderer aliases or duplicate its `@theme` mappings here.
+ * recreate renderer aliases or duplicate its `@theme` mappings here. Genuine
+ * renderer-only App Shell variables belong in a dedicated owning stylesheet,
+ * not in this generic theme entry.
  */
 
 @layer base {

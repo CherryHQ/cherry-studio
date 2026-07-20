@@ -80,7 +80,8 @@ Import the official Shadcn and Cherry Studio product variables without installin
 
 - ✅ Exposes official variables such as `--background`, `--primary`, and `--sidebar`
 - ✅ Exposes approved product variables such as `--cs-success` and `--cs-chat-user`
-- ✅ Preserves the required foundation → Shadcn → product import order
+- ✅ Includes controlled runtime inputs used by the semantic contract
+- ✅ Preserves the required foundation → runtime input → Shadcn → product import order
 - ✅ Works for CSS Modules, CSS-in-JS, and non-Tailwind consumers
 
 #### Mode 3: Selective Foundation Consumption 🎯
@@ -145,7 +146,8 @@ To avoid mixing value sources, semantic variables, theme mappings, and runtime o
 3. Product variables marked `migration` are replacement targets only and must not be introduced in new code
 4. Primitive and unclassified historical `--cs-*` variables remain internal value providers, not automatic public API
 5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; prefer the resulting semantic utilities in components
-6. `--cs-theme-*` is a controlled runtime input and must resolve into the semantic contract
+6. `--cs-theme-*` is a controlled host-written input, not a component-facing semantic role or Tailwind utility
+7. Component-, page-, and Electron-shell variables stay in their owning stylesheet and are not added to the shared contract merely because they are CSS custom properties
 
 Default consumption rules:
 
@@ -153,7 +155,7 @@ Default consumption rules:
 2. Components should prefer semantic utilities such as `bg-background`, `text-muted-foreground`, and `bg-success`; custom CSS may use the matching official or product variable
 3. Non-Tailwind consumers should depend on `@cherrystudio/ui/styles/contract.css`
 4. Only design-system-adjacent packages that explicitly need foundation-level access should depend on `@cherrystudio/ui/styles/tokens.css`
-5. Runtime theme logic should only write to controlled entry variables such as `--cs-theme-*`, not directly to derived `--color-*` variables
+5. Runtime theme logic should only write to registered inputs such as `--cs-theme-*`, not directly to official semantics or derived `--color-*` variables
 
 ## Usage
 

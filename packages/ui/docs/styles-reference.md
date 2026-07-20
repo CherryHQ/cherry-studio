@@ -15,6 +15,7 @@ Runtime styles and design tokens live under `src/styles`:
 
 - [theme.css](../src/styles/theme.css)
 - [contract.css](../src/styles/contract.css)
+- [theme-input.css](../src/styles/theme-input.css) (internal runtime-input layer composed by `contract.css`)
 - [shadcn.css](../src/styles/shadcn.css)
 - [product.css](../src/styles/product.css)
 - [tokens.css](../src/styles/tokens.css)

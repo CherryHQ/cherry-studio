@@ -8,6 +8,7 @@ import {
   CHERRY_PRODUCT_COLOR_TOKENS,
   CHERRY_PRODUCT_VARIABLE_TOKENS,
   CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS,
+  RUNTIME_THEME_INPUT_TOKENS,
   SHADCN_COLOR_TOKENS,
   SHADCN_VARIABLE_TOKENS
 } from '../theme-contract'
@@ -46,9 +47,12 @@ describe('design token contract', () => {
     }
   })
 
-  it('documents every public and migration variable in the operational catalog', async () => {
+  it('documents every runtime input, public variable, and migration variable in the operational catalog', async () => {
     const catalog = await fs.readFile(path.resolve(STYLES_DIR, '../../docs/variable-catalog.md'), 'utf8')
 
+    for (const token of RUNTIME_THEME_INPUT_TOKENS) {
+      expect(catalog).toContain(`\`--cs-theme-${token}\``)
+    }
     for (const token of SHADCN_VARIABLE_TOKENS) {
       expect(catalog).toContain(`\`--${token}\``)
     }
@@ -61,13 +65,19 @@ describe('design token contract', () => {
   })
 
   it('separates official Shadcn colors from Cherry Studio product colors', async () => {
-    const [shadcnSource, semanticSource, statusSource, productSource] = await Promise.all([
+    const [themeInputSource, shadcnSource, semanticSource, statusSource, productSource] = await Promise.all([
+      fs.readFile(path.join(STYLES_DIR, 'theme-input.css'), 'utf8'),
       fs.readFile(path.join(STYLES_DIR, 'shadcn.css'), 'utf8'),
       fs.readFile(path.join(STYLES_DIR, 'tokens/colors/semantic.css'), 'utf8'),
       fs.readFile(path.join(STYLES_DIR, 'tokens/colors/status.css'), 'utf8'),
       fs.readFile(path.join(STYLES_DIR, 'product.css'), 'utf8')
     ])
     const productContractSource = `${semanticSource}\n${statusSource}\n${productSource}`
+
+    for (const token of RUNTIME_THEME_INPUT_TOKENS) {
+      expect(themeInputSource).toMatch(new RegExp(`^\\s*--cs-theme-${token}:`, 'm'))
+      expect(shadcnSource).not.toMatch(new RegExp(`^\\s*--cs-theme-${token}:`, 'm'))
+    }
 
     for (const token of SHADCN_COLOR_TOKENS) {
       expect(shadcnSource).toMatch(new RegExp(`^\\s*--${token}:`, 'm'))
@@ -98,6 +108,7 @@ describe('design token contract', () => {
     expect(registry.version).toBe(1)
     expect(registry.contract).toBe('shadcn-v2')
     expect(registry.exclude).toContain('packages/ui/src/styles/theme.css')
+    expect(registry.exclude).toContain('packages/ui/src/styles/theme-input.css')
     expect(registry.exclude).toContain('packages/ui/src/styles/product.css')
     expect(registry.exclude).toContain('src/renderer/assets/styles/legacy-vars.css')
     expect(registry.exclude).toContain('src/renderer/assets/styles/tailwind.css')
@@ -118,7 +129,7 @@ describe('design token contract', () => {
     }
   })
 
-  it('keeps renderer compatibility bridges removed', async () => {
+  it('keeps compatibility bridges out of the renderer theme entry', async () => {
     const legacyPath = path.join(REPOSITORY_ROOT, 'src/renderer/assets/styles/legacy-vars.css')
     const rendererThemeSource = await fs.readFile(
       path.join(REPOSITORY_ROOT, 'src/renderer/assets/styles/tailwind.css'),

@@ -26,15 +26,32 @@ CSS property match.
 | Layer | Authored source | May depend on | Public entry |
 | --- | --- | --- | --- |
 | Foundation values | `tokens/**` | primitives and other foundation values | `styles/tokens.css` |
-| Official semantics | `shadcn.css` | foundation values | `styles/contract.css` |
+| Controlled runtime inputs | `theme-input.css` | foundation values | composed internally by `styles/contract.css` |
+| Official semantics | `shadcn.css` | foundation values and registered runtime inputs | `styles/contract.css` |
 | Product semantics | `product.css` plus approved foundation providers | official semantics and foundations | `styles/contract.css` |
 | Tailwind adapter | generated `theme.css` | official and product semantics | `styles/theme.css` |
 | Migration policy | `migrations/shadcn-v2.json` | official and product semantics | tooling only; no runtime layer |
 
-The dependency direction is one-way. A lower layer must never reference `--color-*`, `--app-*`, or a legacy
-variable.
+The shared dependency direction is one-way. A lower shared layer must never reference `--color-*`, host-local
+`--app-*`, or a legacy variable.
 
-## 3. Official Shadcn variables
+## 3. Runtime inputs and local implementation variables
+
+The current registered runtime input is `--cs-theme-primary`. Only host theme logic may write it, and only the
+semantic layer may consume it. It is not a stable product variable, component API, or Tailwind color.
+
+Component, page, and Electron-shell custom properties are a separate ownership category:
+
+| Owner | Placement | Shared contract treatment |
+| --- | --- | --- |
+| Component | Component stylesheet or scoped style | Keep private; do not generate globally |
+| Page/feature | Page or feature stylesheet | Keep private; do not generate globally |
+| Electron/App Shell | Dedicated renderer host stylesheet; `--app-*` is allowed | Keep private; do not put in the generic Tailwind entry |
+
+The migration registry's historical `--app-*` entries are retired semantic bridges, not a namespace-wide ban on
+genuine host-local variables.
+
+## 4. Official Shadcn variables
 
 Official variables are unprefixed so Shadcn tooling and compatible themes such as TweakCN can provide them.
 
@@ -77,7 +94,7 @@ The standard Tailwind adapter derives `radius-sm` through `radius-4xl` from `--r
 multipliers. Cherry's smaller `4xs` through `xs` aliases and `round` alias are compatibility extensions, not
 inputs to the semantic contract.
 
-## 4. Stable Cherry Studio product variables
+## 5. Stable Cherry Studio product variables
 
 Stable product variables are allowed in new code when no official Shadcn role expresses the product concept.
 
@@ -112,19 +129,14 @@ Use `--destructive` for a dangerous action. Use the `--cs-error*` family for err
 | Inline code | `--cs-inline-code`, `--cs-inline-code-foreground` | Inline code `background-color` / `color` |
 | References | `--cs-reference`, `--cs-reference-foreground`, `--cs-reference-subtle` | Reference surface, content, and quiet surface variant |
 | Search highlights | `--cs-highlight`, `--cs-highlight-foreground`, `--cs-highlight-accent` | Match surface, content, and active-match surface |
-| List rows | `--cs-list-item`, `--cs-list-item-foreground`, `--cs-list-item-hover`, `--cs-list-item-radius` | Row background, content, hover background, and `border-radius` |
-| Navbar | `--cs-navbar`, `--cs-navbar-foreground`, `--cs-navbar-translucent` | Opaque surface, content, and translucent surface variant |
-| Modal | `--cs-modal`, `--cs-modal-foreground` | Modal surface and content |
-| Conversation root | `--cs-chat`, `--cs-chat-foreground` | Conversation surface and default content |
 | User message | `--cs-chat-user`, `--cs-chat-user-foreground` | User-message surface and content |
-| Assistant message | `--cs-chat-assistant`, `--cs-chat-assistant-foreground` | Assistant-message surface and content |
 | Active sidebar row | `--cs-sidebar-active-bg`, `--cs-sidebar-active-foreground`, `--cs-sidebar-active-border` | Active surface, content, and border |
 | Sidebar glow | `--cs-sidebar-glow-bg`, `--cs-sidebar-glow-line` | Decorative glow fill and line only |
 
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
 utilities; custom-CSS domains such as rich text intentionally use `var(--cs-*)` directly.
 
-## 5. Migration-only product variables
+## 6. Migration-only product variables
 
 The following variables preserve historical rendering exactly. Do not introduce them in new code, component APIs,
 or design documentation:
@@ -134,13 +146,16 @@ or design documentation:
 - Historical surfaces: `--cs-background-soft`, `--cs-background-muted`, `--cs-background-translucent`
 - Historical borders and fills: `--cs-border-soft`, `--cs-border-faint`, `--cs-fill-secondary`, `--cs-frame-border`, `--cs-group-background`
 - Historical interaction states: `--cs-interactive-hover`, `--cs-interactive-active`
+- Historical list rows: `--cs-list-item`, `--cs-list-item-foreground`, `--cs-list-item-hover`, `--cs-list-item-radius`
+- Historical navigation and modal surfaces: `--cs-navbar`, `--cs-navbar-foreground`, `--cs-navbar-translucent`, `--cs-modal`, `--cs-modal-foreground`
+- Historical conversation roots: `--cs-chat`, `--cs-chat-foreground`, `--cs-chat-assistant`, `--cs-chat-assistant-foreground`
 - Platform compatibility: `--cs-system-gray-1`, `--cs-system-gray-2`, `--cs-system-gray-3`, `--cs-icon-contrast`
 - Historical primary variants: `--cs-primary-soft`, `--cs-primary-subtle`
 
 A migration variable can be removed or promoted only after all source aliases and consumers are gone. Promotion
 requires a semantic review, an intended-property definition, and a decision about surface/foreground pairing.
 
-## 6. Tailwind and CSS usage
+## 7. Tailwind and CSS usage
 
 Preferred component usage:
 
@@ -163,25 +178,28 @@ Preferred custom CSS usage:
 }
 ```
 
-Do not author runtime styles against `--color-*`. Those variables are Tailwind adapter output. Do not declare or
-consume historical `--app-*` or legacy names anywhere; the migration registry and codemod handle incoming usage.
+Do not author runtime styles against `--color-*`. Those variables are Tailwind adapter output. Do not recreate or
+consume the historical `--app-*` semantic bridges or legacy names in the migration registry. Genuine App Shell
+variables must stay in a dedicated host-owned stylesheet and must not masquerade as shared theme semantics.
 
-## 7. Adding or changing a variable
+## 8. Adding or changing a variable
 
 Before adding a variable:
 
 1. Search the official Shadcn contract and stable product list for the same intent.
-2. State the intended CSS property and at least two real consumers.
-3. Choose `stable` or `migration`; never leave stability implicit.
-4. Add a foreground if the variable represents a surface.
-5. Define a root value and ensure light/dark resolution is intentional.
-6. Add the name to `theme-contract.ts`; add Tailwind exposure only when semantic utilities are required.
-7. Add migration metadata when replacing an existing name.
-8. Run `theme:build`, then `pnpm --filter @cherrystudio/ui theme:check`; the check also covers generated output,
+2. Identify its owner first: shared semantic, runtime input, component, page/feature, or App Shell.
+3. State the intended CSS property and concrete current consumers or cross-component invariant. A speculative or
+   single local use stays with its owner.
+4. For a shared product variable, choose `stable` or `migration`; never leave stability implicit.
+5. Add a foreground if the variable represents a public surface.
+6. Define a root value and ensure light/dark resolution is intentional.
+7. Add shared names to `theme-contract.ts`; add Tailwind exposure only when semantic utilities are required.
+8. Add migration metadata when replacing an existing name.
+9. Run `theme:build`, then `pnpm --filter @cherrystudio/ui theme:check`; the check also covers generated output,
    migration rules, and the renderer migration boundary.
-9. Update this catalog and the relevant visual guidance.
+10. Update this catalog and the relevant visual guidance.
 
-## 8. Rules for AI-generated code
+## 9. Rules for AI-generated code
 
 When generating or refactoring UI code:
 
@@ -191,5 +209,6 @@ When generating or refactoring UI code:
 - never infer semantics from a resolved color value or token spelling alone;
 - never add light/dark palette branches when an existing semantic variable already resolves the mode;
 - never edit generated `theme.css` directly;
+- keep component, page, and App Shell implementation variables in their owning stylesheet;
 - never introduce a raw color merely because a close token is unavailable—report the missing semantic role;
 - preserve the surface/foreground pair when moving or composing a surface.
