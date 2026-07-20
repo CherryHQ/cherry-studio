@@ -1,11 +1,11 @@
 # Cherry Studio Shadcn Variable System
 
-> Status: normative v2 contract with a visual-parity bridge. This PR introduces the complete contract without
-> bulk-replacing existing component usage or deleting compatibility variable names.
+> Status: normative v2 contract. Exact renderer aliases have been migrated and their runtime compatibility
+> bridges have been removed.
 
 This document defines the new variable system for Cherry Studio. It is intentionally focused on the Shadcn
-semantic contract and its migration boundary. The existing palette, spacing, typography, and legacy variables
-continue to exist while consumers are migrated.
+semantic contract and its migration boundary. Historical names now exist only in the migration registry and
+enforcement tooling; they are no longer part of the runtime variable graph.
 
 The executable selection guide and complete public/migration inventory are maintained in
 [variable-catalog.md](./variable-catalog.md).
@@ -23,8 +23,8 @@ The repository currently contains multiple variable families with different resp
 | existing semantic `--cs-*` | Partially standardized and historically mixed semantics | Classified as approved product token or migration source |
 | approved product `--cs-*` | Core semantics plus visual-parity coverage | Canonical product API and temporary exact migration targets |
 | generated `--color-*` | Tailwind theme variables and some accidental public API | Tailwind adapter output only |
-| renderer `--app-*` | Pure aliases to Shadcn and `--cs-*` roles | Compatibility-only layer, removed after migration |
-| `legacy-vars.css` | Pure aliases to Shadcn and `--cs-*` roles | Compatibility-only layer, removed after migration |
+| historical renderer `--app-*` | Removed from runtime | Exact migration sources; forbidden in product code |
+| historical renderer legacy names | Removed from runtime | Exact migration sources; forbidden in product code |
 | official Shadcn variables | Complete shared contract | Canonical ecosystem-compatible API |
 
 The new system does not create another independent palette. It creates two explicit semantic APIs over the
@@ -54,7 +54,8 @@ semantic utilities
 The public entries reflect that graph: `tokens.css` exposes foundations, `contract.css` composes the semantic CSS
 contract, and generated `theme.css` adds the Tailwind adapter.
 
-During migration, compatibility variables point toward this flow. Official and product semantic variables
+Deprecated aliases do not participate in this flow. The registry maps them directly to official or product
+semantics, while the codemod and lint guard prevent their reintroduction. Official and product semantic variables
 must never point to `--color-*`, `--app-*`, or legacy variables.
 
 ## 2. Scope of the v2 contract
@@ -65,14 +66,14 @@ This contract includes:
 2. a `--cs-*` namespace for approved Cherry Studio product semantics;
 3. a canonical `--radius` input and Tailwind radius mappings;
 4. an explicit Tailwind CSS v4 `@theme inline` adapter;
-5. a machine-readable registry for later automated migration;
+5. a machine-readable registry and syntax-aware exact-migration codemod;
 6. product variables that preserve every value previously owned by renderer compatibility layers;
-7. compatibility rules that allow old and new names to coexist temporarily.
+7. renderer boundary checks that keep removed compatibility layers from returning.
 
 This contract does not include:
 
-- bulk replacement of component variables or Tailwind classes;
-- deletion of existing `--cs-*`, `--app-*`, or legacy variable names;
+- contextual or review-only migration rules that require UI judgment;
+- consolidation of migration-only `--cs-*` parity roles before visual verification;
 - renaming every primitive to a new reference-token namespace;
 - redesigning spacing, typography, shadow, or motion scales;
 - adopting DTCG JSON as a required build input;
@@ -92,10 +93,10 @@ listed by the generated contract. Primitive and unclassified `--cs-*` variables 
 sources.
 
 `product.css` is the authored Cherry Studio product layer. Some entries intentionally duplicate nearby roles so
-that every historical renderer value has an exact destination before automated replacement starts. These parity
-tokens are valid migration targets but forbidden in new feature code. New code must prefer an official Shadcn
-role, then a stable product role. Redundant parity roles may be consolidated only after their old consumers have
-been migrated and visually verified.
+that every historical renderer value has an exact destination. Migrated consumers now reference these parity
+tokens directly, but the tokens remain migration-classified and forbidden in new feature code. New code must
+prefer an official Shadcn role, then a stable product role. Redundant parity roles may be consolidated only after
+their migrated surfaces have been visually verified.
 
 ### 3.2 Official Shadcn semantic layer
 
@@ -200,7 +201,7 @@ text-success-foreground
 ```
 
 `--color-*` is not a design source and runtime code must not write to it. Existing non-semantic palette utilities
-remain available as compatibility API in this PR, but new shared UI should prefer semantic utilities.
+remain available during primitive cleanup, but new shared UI should prefer semantic utilities.
 
 ### 3.5 Application domains
 
@@ -213,24 +214,16 @@ Application-only concepts use a Cherry Studio domain rather than a second owners
 --cs-window-background
 ```
 
-Existing `--app-*` variables are compatibility sources. Names such as `--app-card-foreground` and
-`--app-muted-foreground` duplicate the official Shadcn contract; true product concepts migrate to an approved
-`--cs-{domain}-*` name.
+The former `--app-*` family has no runtime declarations or references. Historical names such as
+`--app-card-foreground` map to official Shadcn variables in the migration registry; true product concepts map to
+an approved `--cs-{domain}-*` name. Do not recreate a renderer ownership prefix.
 
-### 3.6 Legacy layer
+### 3.6 Removed legacy layer
 
-Legacy files may contain aliases while old consumers still exist:
-
-```css
---color-text-1: var(--cs-text-primary);
-```
-
-No new product code may consume a legacy variable. A legacy alias is removed only after repository-wide usage
-reaches zero.
-
-Compatibility files must contain only single `var()` aliases to an official Shadcn variable or an approved
-`--cs-*` product variable. They must not contain literals, `color-mix()`, mode branches, or references to another
-compatibility family.
+The renderer legacy alias file was deleted after repository-wide exact usage reached zero. Historical names such
+as `--color-text-1` remain registry sources so old branches and incoming changes can be migrated deterministically,
+but they must not be declared or consumed at runtime. Use `pnpm styles:legacy-vars` to report reintroductions and
+`pnpm styles:legacy-vars --fix` to map approved exact cases back to the canonical graph.
 
 ## 4. Canonical Shadcn contract
 
@@ -264,9 +257,9 @@ sidebar-border
 sidebar-ring
 ```
 
-### 4.2 Initial value bridge
+### 4.2 Canonical value providers
 
-The first implementation preserves current design decisions by using the existing semantic layer as a provider:
+The contract preserves current design decisions by using the existing semantic layer as a provider:
 
 | Canonical variable | Initial provider |
 | --- | --- |
@@ -425,7 +418,8 @@ Examples:
 
 The repository codemod reads this registry and parses CSS plus TS/TSX syntax before changing source files. It is
 idempotent, skips generated and vendor files, preserves same-named variables owned locally by a file, and changes
-only approved `exact` compatibility aliases. Contextual and review rules remain explicit manual work.
+only approved `exact` deprecated aliases, including historical `--app-*` names. Contextual and review rules remain
+explicit manual work.
 
 Run `pnpm styles:legacy-vars` for a dry-run report, `pnpm styles:legacy-vars --fix` to apply exact replacements,
 or `pnpm styles:legacy-vars:strict` to fail when migratable usage remains. The same registry also drives the ESLint
@@ -460,26 +454,27 @@ The generated contract must validate that:
 - no source addition silently expands the canonical API;
 - generated CSS matches committed output;
 - migration records use a known strategy and do not contain duplicate sources;
-- renderer compatibility declarations remain single canonical aliases with matching exact migration rules.
+- the renderer cannot reintroduce legacy aliases, `--app-*`, or a second Tailwind adapter.
 
 Run `pnpm --filter @cherrystudio/ui theme:check` to validate the canonical graph, committed generated CSS,
-migration registry, and renderer bridges together. `theme:build` reruns the canonical graph validation before
+migration registry, and renderer boundary together. `theme:build` reruns the canonical graph validation before
 writing generated CSS, so an invalid graph cannot silently regenerate the adapter.
 
 ## 9. Delivery in this PR
 
 The contract is delivered as independent commits. In addition to the initial architecture, Shadcn variables,
-Tailwind adapter, migration registry, and product namespace, the visual-parity phase:
+Tailwind adapter, migration registry, and product namespace, the migration phase:
 
 1. adds an authored `product.css` layer with exact light/dark destinations for historical behavior;
 2. aligns shared Shadcn providers with the values previously overridden by the renderer;
-3. converts all legacy and `--app-*` declarations to canonical aliases;
-4. records every compatibility alias as an `exact` migration rule;
-5. validates that compatibility layers cannot regain independent values.
+3. records every deprecated alias as an `exact` migration rule and makes the codemod registry-driven;
+4. migrates all repository exact consumers, including consumer tests, to their canonical destinations;
+5. deletes `legacy-vars.css`, all `--app-*` aliases, and the duplicate renderer `@theme` adapter;
+6. validates that the removed bridges cannot be reintroduced.
 
-Existing component references remain untouched. Their bulk migration belongs to a later automated pass. A
-compatibility alias may be deleted only when its usage is zero; a parity product token may be redesigned or merged
-only after all of its migrated consumers have passed visual verification in both light and dark modes.
+The exact pass preserves the same providers previously reached through each alias. Contextual and review rules
+remain outside automatic replacement. A parity product token may be redesigned or merged only after all of its
+migrated consumers have passed visual verification in both light and dark modes.
 
 ## 10. References
 

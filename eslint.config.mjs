@@ -21,6 +21,7 @@ const designTokenMigrationRegistry = JSON.parse(
 const LEGACY_RENDERER_CSS_VARS = designTokenMigrationRegistry.rules
   .filter(({ source }) => {
     return (
+      source.startsWith('--app-') ||
       source.startsWith('--color-') ||
       source.startsWith('--navbar-') ||
       source.startsWith('--modal-') ||

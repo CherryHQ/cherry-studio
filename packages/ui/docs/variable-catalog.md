@@ -29,7 +29,7 @@ CSS property match.
 | Official semantics | `shadcn.css` | foundation values | `styles/contract.css` |
 | Product semantics | `product.css` plus approved foundation providers | official semantics and foundations | `styles/contract.css` |
 | Tailwind adapter | generated `theme.css` | official and product semantics | `styles/theme.css` |
-| Compatibility aliases | renderer `legacy-vars.css` and `tailwind.css` | official and product semantics | internal only |
+| Migration policy | `migrations/shadcn-v2.json` | official and product semantics | tooling only; no runtime layer |
 
 The dependency direction is one-way. A lower layer must never reference `--color-*`, `--app-*`, or a legacy
 variable.
@@ -163,8 +163,8 @@ Preferred custom CSS usage:
 }
 ```
 
-Do not author runtime styles against `--color-*`. Those variables are Tailwind adapter output. Do not write
-`--app-*` or legacy names outside their compatibility files.
+Do not author runtime styles against `--color-*`. Those variables are Tailwind adapter output. Do not declare or
+consume historical `--app-*` or legacy names anywhere; the migration registry and codemod handle incoming usage.
 
 ## 7. Adding or changing a variable
 
@@ -178,7 +178,7 @@ Before adding a variable:
 6. Add the name to `theme-contract.ts`; add Tailwind exposure only when semantic utilities are required.
 7. Add migration metadata when replacing an existing name.
 8. Run `theme:build`, then `pnpm --filter @cherrystudio/ui theme:check`; the check also covers generated output,
-   migration rules, and renderer compatibility bridges.
+   migration rules, and the renderer migration boundary.
 9. Update this catalog and the relevant visual guidance.
 
 ## 8. Rules for AI-generated code

@@ -29,36 +29,6 @@ interface MigrationRegistry {
   rules: MigrationRule[]
 }
 
-interface VariableDeclaration {
-  name: string
-  value: string
-}
-
-function extractVariableDeclarations(source: string, include: (name: string) => boolean): VariableDeclaration[] {
-  return [...source.matchAll(/^\s*(--[a-z0-9-]+):\s*([^;]+);/gm)]
-    .map((match) => ({ name: match[1], value: match[2].trim() }))
-    .filter(({ name }) => include(name))
-}
-
-function expectCompatibilityAliases(
-  declarations: VariableDeclaration[],
-  canonicalVariableNames: Set<string>,
-  registry: MigrationRegistry
-): void {
-  expect(declarations.length).toBeGreaterThan(0)
-
-  for (const declaration of declarations) {
-    const aliasMatch = declaration.value.match(/^var\((--[a-z0-9-]+)\)$/)
-
-    expect(aliasMatch, `${declaration.name} must be a single canonical var() alias`).not.toBeNull()
-    if (!aliasMatch) continue
-
-    const target = aliasMatch[1]
-    expect(canonicalVariableNames.has(target), `${declaration.name} points outside the canonical contract`).toBe(true)
-    expect(registry.rules).toContainEqual({ source: declaration.name, target, strategy: 'exact' })
-  }
-}
-
 describe('design token contract', () => {
   it('classifies every product variable by stability and Tailwind exposure', () => {
     const stableTokens = new Set<string>(CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS)
@@ -148,22 +118,15 @@ describe('design token contract', () => {
     }
   })
 
-  it('keeps renderer compatibility layers as canonical aliases only', async () => {
-    const [legacySource, rendererThemeSource, registrySource] = await Promise.all([
-      fs.readFile(path.join(REPOSITORY_ROOT, 'src/renderer/assets/styles/legacy-vars.css'), 'utf8'),
-      fs.readFile(path.join(REPOSITORY_ROOT, 'src/renderer/assets/styles/tailwind.css'), 'utf8'),
-      fs.readFile(path.join(STYLES_DIR, 'migrations/shadcn-v2.json'), 'utf8')
-    ])
-    const registry = JSON.parse(registrySource) as MigrationRegistry
-    const canonicalVariableNames = new Set<string>([
-      ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
-      ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`)
-    ])
-    const legacyDeclarations = extractVariableDeclarations(legacySource, () => true)
-    const appDeclarations = extractVariableDeclarations(rendererThemeSource, (name) => name.startsWith('--app-'))
+  it('keeps renderer compatibility bridges removed', async () => {
+    const legacyPath = path.join(REPOSITORY_ROOT, 'src/renderer/assets/styles/legacy-vars.css')
+    const rendererThemeSource = await fs.readFile(
+      path.join(REPOSITORY_ROOT, 'src/renderer/assets/styles/tailwind.css'),
+      'utf8'
+    )
 
-    expectCompatibilityAliases(legacyDeclarations, canonicalVariableNames, registry)
-    expectCompatibilityAliases(appDeclarations, canonicalVariableNames, registry)
-    expect(legacySource).not.toMatch(/^\s*\.dark\s*{/m)
+    await expect(fs.readFile(legacyPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(rendererThemeSource).not.toContain("@import './legacy-vars.css'")
+    expect(rendererThemeSource).not.toContain('--app-')
   })
 })

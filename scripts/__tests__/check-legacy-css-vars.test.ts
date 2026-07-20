@@ -148,6 +148,7 @@ describe('check-legacy-css-vars', () => {
     const content = [
       'const className = "text-(--color-text-2) bg-(--color-background-soft)"',
       'const linkStyle = { color: "var(--color-link)" }',
+      'const iconStyle = { color: "var(--app-icon)" }',
       '// var(--color-text-1)',
       'const localTheme = `:root {',
       '  --color-text-1: var(--color-foreground);',
@@ -156,9 +157,10 @@ describe('check-legacy-css-vars', () => {
 
     const result = fixLegacyVarsInContent(content)
 
-    expect(result.replacements).toBe(3)
+    expect(result.replacements).toBe(4)
     expect(result.content).toContain('text-(--cs-text-secondary) bg-(--cs-background-soft)')
     expect(result.content).toContain('var(--cs-link)')
+    expect(result.content).toContain('var(--cs-icon)')
     expect(result.content).toContain('// var(--color-text-1)')
     expect(result.content).toContain('--color-text-1: var(--color-foreground);')
   })

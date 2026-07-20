@@ -40,11 +40,6 @@ export interface MigrationContractSources {
   rendererTheme: string
 }
 
-interface VariableDeclaration {
-  name: string
-  value: string
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -103,51 +98,6 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
-function extractDeclarations(source: string, include: (name: string) => boolean): VariableDeclaration[] {
-  return [...stripComments(source).matchAll(/^\s*(--[a-z0-9-]+)\s*:\s*([^;]+);/gm)]
-    .map((match) => ({ name: match[1], value: match[2].trim() }))
-    .filter(({ name }) => include(name))
-}
-
-function assertCompatibilityAliases(
-  label: string,
-  declarations: VariableDeclaration[],
-  canonicalNames: Set<string>,
-  rulesBySource: Map<string, MigrationRule>
-): Set<string> {
-  if (declarations.length === 0) {
-    throw new Error(`[theme-contract] ${label} contains no compatibility aliases`)
-  }
-
-  const declarationNames = new Set<string>()
-
-  for (const declaration of declarations) {
-    if (declarationNames.has(declaration.name)) {
-      throw new Error(`[theme-contract] ${label} declares ${declaration.name} more than once`)
-    }
-    declarationNames.add(declaration.name)
-
-    const aliasMatch = declaration.value.match(/^var\(\s*(--[a-z0-9-]+)\s*\)$/)
-    if (!aliasMatch) {
-      throw new Error(`[theme-contract] ${label} ${declaration.name} must be a single canonical var() alias`)
-    }
-
-    const target = aliasMatch[1]
-    if (!canonicalNames.has(target)) {
-      throw new Error(`[theme-contract] ${label} ${declaration.name} points outside the canonical contract: ${target}`)
-    }
-
-    const rule = rulesBySource.get(declaration.name)
-    if (!rule || rule.strategy !== 'exact' || rule.target !== target) {
-      throw new Error(
-        `[theme-contract] ${label} ${declaration.name} must have a matching exact migration rule to ${target}`
-      )
-    }
-  }
-
-  return declarationNames
-}
-
 export function validateMigrationContractSources(sources: MigrationContractSources): void {
   const registry = parseMigrationRegistry(sources.migrationRegistry)
   const canonicalNames = new Set<string>([
@@ -194,38 +144,19 @@ export function validateMigrationContractSources(sources: MigrationContractSourc
     rulesBySource.set(rule.source, rule)
   }
 
-  if (/\.dark\s*\{/.test(stripComments(sources.legacyAliases))) {
-    throw new Error('[theme-contract] legacy compatibility aliases cannot own dark-mode overrides')
-  }
-  if (/\.dark\s*\{/.test(stripComments(sources.rendererTheme))) {
-    throw new Error('[theme-contract] renderer app aliases cannot own dark-mode overrides')
+  if (sources.legacyAliases.trim() !== '') {
+    throw new Error('[theme-contract] legacy compatibility layer must remain removed')
   }
 
-  assertCompatibilityAliases(
-    'legacy compatibility layer',
-    extractDeclarations(sources.legacyAliases, () => true),
-    canonicalNames,
-    rulesBySource
-  )
-  const appAliasNames = assertCompatibilityAliases(
-    'renderer app compatibility layer',
-    extractDeclarations(sources.rendererTheme, (name) => name.startsWith('--app-')),
-    canonicalNames,
-    rulesBySource
-  )
-
-  const appReferences = new Set(
-    [...stripComments(sources.rendererTheme).matchAll(/var\(\s*(--app-[a-z0-9-]+)/g)].map((match) => match[1])
-  )
-  for (const reference of appReferences) {
-    if (!appAliasNames.has(reference)) {
-      throw new Error(`[theme-contract] renderer theme references undeclared app alias ${reference}`)
-    }
+  const rendererTheme = stripComments(sources.rendererTheme)
+  if (rendererTheme.includes('legacy-vars.css')) {
+    throw new Error('[theme-contract] renderer theme cannot import the removed legacy compatibility layer')
   }
-  for (const name of appAliasNames) {
-    if (!appReferences.has(name)) {
-      throw new Error(`[theme-contract] renderer app alias ${name} is not exposed by the renderer adapter`)
-    }
+  if (rendererTheme.includes('--app-')) {
+    throw new Error('[theme-contract] renderer app compatibility aliases must remain removed')
+  }
+  if (/@theme(?:\s+inline)?\s*\{/.test(rendererTheme)) {
+    throw new Error('[theme-contract] renderer theme must use the shared generated Tailwind adapter')
   }
 }
 
@@ -234,7 +165,12 @@ export async function loadMigrationContractSources(
 ): Promise<MigrationContractSources> {
   const [migrationRegistry, legacyAliases, rendererTheme] = await Promise.all([
     fs.readFile(path.join(repositoryRoot, 'packages/ui/src/styles/migrations/shadcn-v2.json'), 'utf8'),
-    fs.readFile(path.join(repositoryRoot, 'src/renderer/assets/styles/legacy-vars.css'), 'utf8'),
+    fs
+      .readFile(path.join(repositoryRoot, 'src/renderer/assets/styles/legacy-vars.css'), 'utf8')
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return ''
+        throw error
+      }),
     fs.readFile(path.join(repositoryRoot, 'src/renderer/assets/styles/tailwind.css'), 'utf8')
   ])
 

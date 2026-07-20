@@ -20,8 +20,9 @@ interface MigrationRegistry {
   rules: MigrationRule[]
 }
 
-function isRendererLegacyAliasSource(source: string): boolean {
+function isDeprecatedRendererAliasSource(source: string): boolean {
   return (
+    source.startsWith('--app-') ||
     source.startsWith('--color-') ||
     source.startsWith('--navbar-') ||
     source.startsWith('--modal-') ||
@@ -35,11 +36,11 @@ function loadMigrationRegistry(): MigrationRegistry {
 }
 
 const MIGRATION_REGISTRY = loadMigrationRegistry()
-const LEGACY_ALIAS_RULES = MIGRATION_REGISTRY.rules.filter((rule) => isRendererLegacyAliasSource(rule.source))
+const LEGACY_ALIAS_RULES = MIGRATION_REGISTRY.rules.filter((rule) => isDeprecatedRendererAliasSource(rule.source))
 
 for (const rule of LEGACY_ALIAS_RULES) {
   if (rule.strategy !== 'exact' || !rule.target) {
-    throw new Error(`Legacy compatibility variable ${rule.source} must have an exact migration target`)
+    throw new Error(`Deprecated renderer variable ${rule.source} must have an exact migration target`)
   }
 }
 
