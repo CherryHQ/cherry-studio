@@ -1,3 +1,4 @@
+import { migrationRendererExportFailureReportSchema } from '@shared/data/migration/v2/diagnostics'
 import * as z from 'zod'
 
 export const MIGRATION_ERROR_CODES = [
@@ -11,6 +12,8 @@ export const MIGRATION_ERROR_CODES = [
   'sqlite_constraint',
   'sqlite_schema',
   'source_parse',
+  'missing_required_field',
+  'invalid_identifier',
   'process_timeout',
   'renderer_process_gone',
   'renderer_unresponsive',
@@ -46,6 +49,18 @@ export const MIGRATION_DIAGNOSTIC_MIGRATOR_IDS = Object.freeze([
   'translate',
   'prompt'
 ] as const)
+
+export const MIGRATION_DIAGNOSTIC_DIRECTORY_SELECTION_ROLES = Object.freeze([
+  'current',
+  'boot_config',
+  'legacy_exact',
+  'legacy_fuzzy_eligible',
+  'legacy_fuzzy_blocked',
+  'default',
+  'unknown'
+] as const)
+
+export const MIGRATION_DIAGNOSTIC_VERSION_LOG_COUNT_BUCKETS = Object.freeze(['0', '1', '2+', 'unknown'] as const)
 
 export const PAYLOAD_PROFILE_TARGETS = [
   'preference',
@@ -224,62 +239,122 @@ const migrationDiagnosticCurrentVersionSchema = z.union([
   migrationDiagnosticNormalizedVersionSchema
 ])
 
+export const migrationDiagnosticDirectorySelectionRoleSchema = z.enum(MIGRATION_DIAGNOSTIC_DIRECTORY_SELECTION_ROLES)
+export const migrationDiagnosticVersionLogCountBucketSchema = z.enum(MIGRATION_DIAGNOSTIC_VERSION_LOG_COUNT_BUCKETS)
+export const migrationDiagnosticVersionLogContextSchema = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('missing') }).strict(),
+  z.object({ state: z.literal('read_failed') }).strict(),
+  z
+    .object({
+      state: z.literal('parsed'),
+      validRecordCountBucket: migrationDiagnosticVersionLogCountBucketSchema,
+      invalidRecordCountBucket: migrationDiagnosticVersionLogCountBucketSchema
+    })
+    .strict()
+])
+
+const migrationVersionGateCommonFields = {
+  currentVersion: migrationDiagnosticCurrentVersionSchema,
+  directorySelectionRole: migrationDiagnosticDirectorySelectionRoleSchema,
+  versionLog: migrationDiagnosticVersionLogContextSchema
+}
+
 export const migrationVersionGateContextSchema = z.discriminatedUnion('reason', [
   z
     .object({
       reason: z.literal('no_version_log'),
-      currentVersion: migrationDiagnosticCurrentVersionSchema,
+      ...migrationVersionGateCommonFields,
       previousVersion: z.null(),
       requiredVersion: migrationDiagnosticNormalizedVersionSchema,
-      gatewayVersion: z.null(),
-      versionLog: z.literal('missing')
+      gatewayVersion: z.null()
     })
     .strict(),
   z
     .object({
       reason: z.literal('v1_too_old'),
-      currentVersion: migrationDiagnosticCurrentVersionSchema,
+      ...migrationVersionGateCommonFields,
       previousVersion: migrationDiagnosticNormalizedVersionSchema,
       requiredVersion: migrationDiagnosticNormalizedVersionSchema,
-      gatewayVersion: z.null(),
-      versionLog: z.literal('present')
+      gatewayVersion: z.null()
     })
     .strict(),
   z
     .object({
       reason: z.literal('v2_gateway_skipped'),
-      currentVersion: migrationDiagnosticCurrentVersionSchema,
+      ...migrationVersionGateCommonFields,
       previousVersion: migrationDiagnosticNormalizedVersionSchema,
       requiredVersion: z.null(),
-      gatewayVersion: migrationDiagnosticNormalizedVersionSchema,
-      versionLog: z.literal('present')
+      gatewayVersion: migrationDiagnosticNormalizedVersionSchema
     })
     .strict()
 ])
 
+const rendererExportReportSchemas = migrationRendererExportFailureReportSchema.options
+const rendererExportFailureEvidenceSchema = z.discriminatedUnion('sourceRole', [
+  rendererExportReportSchemas[0].extend({ kind: z.literal('renderer_export_failure') }),
+  rendererExportReportSchemas[1].extend({ kind: z.literal('renderer_export_failure') }),
+  rendererExportReportSchemas[2].extend({ kind: z.literal('renderer_export_failure') }),
+  rendererExportReportSchemas[3].extend({ kind: z.literal('renderer_export_failure') })
+])
+
+const missingRequiredFieldEvidenceSchema = z
+  .object({
+    kind: z.literal('missing_required_field'),
+    fieldRole: z.literal('source_id'),
+    affectedCountBucket: z.enum(['1', '2-10', '11+'])
+  })
+  .strict()
+
+const invalidIdentifierEvidenceSchema = z.discriminatedUnion('identifierRole', [
+  z
+    .object({
+      kind: z.literal('invalid_identifier'),
+      identifierRole: z.literal('provider_id'),
+      rule: z.enum(['empty', 'contains_separator'])
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('invalid_identifier'),
+      identifierRole: z.literal('model_id'),
+      rule: z.enum(['empty', 'contains_reserved_route_character'])
+    })
+    .strict()
+])
+
+export const migrationDiagnosticSemanticEvidenceSchema = z.discriminatedUnion('kind', [
+  rendererExportFailureEvidenceSchema,
+  missingRequiredFieldEvidenceSchema,
+  invalidIdentifierEvidenceSchema
+])
+
+export const migrationDiagnosticMigratorIdSchema = z.enum(MIGRATION_DIAGNOSTIC_MIGRATOR_IDS)
+export const migrationDiagnosticPersistedMigratorIdSchema = z.enum([...MIGRATION_DIAGNOSTIC_MIGRATOR_IDS, 'unknown'])
+
 const migrationDiagnosticEventFields = {
   scope: z.enum(['gate', 'renderer_export', 'engine', 'migrator', 'database', 'bundle']),
   phase: z.enum(['resolve_paths', 'initialize', 'prepare', 'execute', 'validate', 'finalize', 'save']),
-  state: z.enum(['started', 'completed', 'failed', 'interrupted', 'unavailable']),
+  state: z.enum(['started', 'completed', 'failed', 'interrupted', 'unavailable', 'warning']),
   code: migrationErrorCodeSchema,
   category: migrationErrorCategorySchema.optional(),
   causeDepth: z.number().int().min(0).max(4).optional(),
   payloadProfile: payloadLengthProfileSchema.optional(),
-  versionGate: migrationVersionGateContextSchema.optional()
+  versionGate: migrationVersionGateContextSchema.optional(),
+  semanticEvidence: migrationDiagnosticSemanticEvidenceSchema.optional()
 }
 
-interface MigrationDiagnosticVersionGateEventCandidate {
+interface MigrationDiagnosticEventCandidate {
   readonly scope?: unknown
   readonly phase?: unknown
   readonly state?: unknown
   readonly code?: unknown
+  readonly category?: unknown
+  readonly migratorId?: unknown
   readonly versionGate?: unknown
+  readonly semanticEvidence?: z.infer<typeof migrationDiagnosticSemanticEvidenceSchema>
 }
 
-function validateMigrationDiagnosticVersionGateEvent(
-  event: MigrationDiagnosticVersionGateEventCandidate,
-  ctx: z.RefinementCtx
-): void {
+function validateMigrationDiagnosticEvent(event: MigrationDiagnosticEventCandidate, ctx: z.RefinementCtx): void {
   const isVersionGateEvent =
     event.scope === 'gate' &&
     event.phase === 'validate' &&
@@ -293,28 +368,67 @@ function validateMigrationDiagnosticVersionGateEvent(
       path: ['versionGate']
     })
   }
+
+  const isRendererExportFailureEvent =
+    event.scope === 'renderer_export' && event.phase === 'finalize' && event.state === 'failed'
+  const isMissingRequiredFieldEvent =
+    event.scope === 'migrator' &&
+    event.phase === 'prepare' &&
+    event.state === 'warning' &&
+    event.code === 'missing_required_field' &&
+    event.category === 'source' &&
+    event.migratorId === 'mcp_server'
+  const isInvalidIdentifierEvent =
+    event.scope === 'migrator' &&
+    event.phase === 'execute' &&
+    event.state === 'failed' &&
+    event.code === 'invalid_identifier' &&
+    event.category === 'source' &&
+    event.migratorId === 'provider_model'
+
+  const evidenceKind = event.semanticEvidence?.kind
+  const evidenceMatchesEvent =
+    (evidenceKind === 'renderer_export_failure' && isRendererExportFailureEvent) ||
+    (evidenceKind === 'missing_required_field' && isMissingRequiredFieldEvent) ||
+    (evidenceKind === 'invalid_identifier' && isInvalidIdentifierEvent)
+  const fixedEventMatchesEvidence =
+    (isRendererExportFailureEvent && evidenceKind === 'renderer_export_failure') ||
+    (isMissingRequiredFieldEvent && evidenceKind === 'missing_required_field') ||
+    (isInvalidIdentifierEvent && evidenceKind === 'invalid_identifier')
+
+  if (
+    (evidenceKind !== undefined && !evidenceMatchesEvent) ||
+    ((isRendererExportFailureEvent || isMissingRequiredFieldEvent || isInvalidIdentifierEvent) &&
+      !fixedEventMatchesEvidence)
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Semantic evidence must appear together with its fixed diagnostic event',
+      path: ['semanticEvidence']
+    })
+  }
 }
 
 export function createMigrationDiagnosticEventSchema<const T extends z.ZodRawShape>(recordFields: T) {
   return z
     .object({ ...recordFields, ...migrationDiagnosticEventFields })
     .strict()
-    .superRefine(validateMigrationDiagnosticVersionGateEvent)
+    .superRefine(validateMigrationDiagnosticEvent)
 }
 
 export const migrationDiagnosticEventSchema = createMigrationDiagnosticEventSchema({
   sequence: z.number().int().nonnegative(),
   at: z.string().datetime(),
   attemptId: z.string().min(1).max(64),
-  migratorId: z.string().max(64).optional()
+  migratorId: migrationDiagnosticPersistedMigratorIdSchema.optional()
 })
 
-export const MIGRATION_DIAGNOSTICS_SESSION_VERSION = 1 as const
+export const MIGRATION_DIAGNOSTICS_SESSION_VERSION = 2 as const
 export const MIGRATION_DIAGNOSTICS_MAX_ATTEMPTS = 5
 export const MIGRATION_DIAGNOSTICS_MAX_EVENTS = 200
 
 export const migrationDiagnosticEventInputSchema = createMigrationDiagnosticEventSchema({
-  migratorId: z.string().max(64).optional()
+  migratorId: migrationDiagnosticMigratorIdSchema.optional()
 })
 
 export const migrationAttemptTriggerSchema = z.enum(['initial', 'manual_retry', 'recovered_retry'])
@@ -497,6 +611,12 @@ export type PayloadLengthSlotProfile = z.infer<typeof payloadLengthSlotProfileSc
 export type PayloadLengthProfile = z.infer<typeof payloadLengthProfileSchema>
 export type MigrationDiagnosticEvent = z.infer<typeof migrationDiagnosticEventSchema>
 export type MigrationDiagnosticEventInput = z.infer<typeof migrationDiagnosticEventInputSchema>
+export type MigrationDiagnosticMigratorId = z.infer<typeof migrationDiagnosticMigratorIdSchema>
+export type MigrationDiagnosticPersistedMigratorId = z.infer<typeof migrationDiagnosticPersistedMigratorIdSchema>
+export type MigrationDiagnosticSemanticEvidence = z.infer<typeof migrationDiagnosticSemanticEvidenceSchema>
+export type MigrationDiagnosticDirectorySelectionRole = z.infer<typeof migrationDiagnosticDirectorySelectionRoleSchema>
+export type MigrationDiagnosticVersionLogCountBucket = z.infer<typeof migrationDiagnosticVersionLogCountBucketSchema>
+export type MigrationDiagnosticVersionLogContext = z.infer<typeof migrationDiagnosticVersionLogContextSchema>
 export type MigrationVersionGateContext = z.infer<typeof migrationVersionGateContextSchema>
 export type MigrationAttemptTrigger = z.infer<typeof migrationAttemptTriggerSchema>
 export type MigrationAttemptTerminalOutcome = z.infer<typeof migrationAttemptTerminalOutcomeSchema>
