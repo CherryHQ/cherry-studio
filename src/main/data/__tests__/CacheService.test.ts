@@ -65,6 +65,17 @@ const SHARED_EXACT = 'web_search.provider.last_used_key.google' as const
 const SHARED_OTHER = 'web_search.provider.last_used_key.openrouter' as const
 const SHARED_TEMPLATE = 'web_search.provider.last_used_key.${providerId}' as const
 
+// Sender shapes for the in-handler source-trust gate (validateSender); the
+// global application mock resolves getPath('app.root') to '/mock/app.root'.
+const trustedEvent = {
+  sender: { getType: () => 'window' },
+  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+} as unknown as IpcMainEvent
+const untrustedEvent = {
+  sender: { getType: () => 'webview' },
+  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+} as unknown as IpcMainEvent
+
 describe('CacheService subscription', () => {
   let service: any
 
@@ -224,10 +235,28 @@ describe('CacheService subscription', () => {
 
       const listener = ipcListeners.get(IpcChannel.Cache_Sync)!
       expect(listener).toBeDefined()
-      const event = { sender: {} } as IpcMainEvent
-      listener(event, { type: 'shared', key: SHARED_EXACT, value: 'from-renderer' })
+      listener(trustedEvent, { type: 'shared', key: SHARED_EXACT, value: 'from-renderer' })
 
       expect(cb).toHaveBeenCalledWith('from-renderer', undefined, SHARED_EXACT)
+    })
+
+    it('drops IPC Cache_Sync from an untrusted sender (no write, no notify)', () => {
+      const cb = vi.fn()
+      service.subscribeSharedChange(SHARED_EXACT, cb)
+
+      const listener = ipcListeners.get(IpcChannel.Cache_Sync)!
+      listener(untrustedEvent, { type: 'shared', key: SHARED_EXACT, value: 'from-webview' })
+
+      expect(cb).not.toHaveBeenCalled()
+      expect(service.getShared(SHARED_EXACT)).toBeUndefined()
+    })
+
+    it('rejects Cache_GetAllShared from an untrusted sender without reading the cache', () => {
+      const handler = ipcHandlers.get(IpcChannel.Cache_GetAllShared)!
+      const getAllShared = vi.spyOn(service, 'getAllShared')
+
+      expect(() => handler(untrustedEvent)).toThrow('untrusted sender')
+      expect(getAllShared).not.toHaveBeenCalled()
     })
 
     it('treats expired entries as undefined for oldValue', () => {
@@ -287,7 +316,7 @@ describe('CacheService subscription', () => {
       service.subscribeSharedChange(SHARED_TEMPLATE, cb)
       // Write via the IPC path since a TS-typed setShared would reject non-ASCII.
       const listener = ipcListeners.get(IpcChannel.Cache_Sync)!
-      listener({ sender: {} } as IpcMainEvent, {
+      listener(trustedEvent, {
         type: 'shared',
         key: 'web_search.provider.last_used_key.中文id',
         value: 'v'

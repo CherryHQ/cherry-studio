@@ -2,10 +2,8 @@ import { joinPath } from '@renderer/utils/path'
 
 /**
  * Pure path / selection helpers shared by `ArtifactPane` and the
- * `useArtifactFileTreeModel` hook. Extracted into their own module so the
- * hook (which the agent page imports to lift the tree model above the
- * Host↔Overlay remount boundary) and the presentational component can both
- * depend on them without forming an import cycle.
+ * `useArtifactFileTreeModel` hook. Keeping them separate lets the model and
+ * presentational component share path semantics without an import cycle.
  */
 
 /** Synthetic id/path for the workspace root node in the projected file tree. */
