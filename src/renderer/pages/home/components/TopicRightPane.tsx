@@ -13,14 +13,17 @@ import {
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TopicBranchPanel from './TopicBranchPanel'
+
+const TracePane = lazy(() =>
+  import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
+)
 
 interface TopicRightPaneMeta {
   topicId?: string
@@ -142,7 +145,11 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
 }
 
 function TopicTraceRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
-  return <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />
+  return (
+    <Suspense fallback={null}>
+      <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />
+    </Suspense>
+  )
 }
 
 /** Stable capability declarations; catalog order is the fallback order. */
