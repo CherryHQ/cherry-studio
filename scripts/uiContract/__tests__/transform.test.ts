@@ -1,6 +1,7 @@
 import { parseSync } from '@swc/core'
 import { describe, expect, it } from 'vitest'
 
+import { emptyRegistry, reconcileRegistry } from '../registry'
 import { mergeDataUi, mergeUiProps } from '../runtime'
 import { uiContractForDescriptor } from '../semanticId'
 import { transformHtml, transformJsx } from '../transform'
@@ -19,9 +20,9 @@ describe('UI contract compiler', () => {
     )
 
     expect(compact.descriptors[0].anchorHash).toBe(formatted.descriptors[0].anchorHash)
-    expect(uiContractForDescriptor(compact.descriptors[0]).id).toBe(
-      uiContractForDescriptor(formatted.descriptors[0]).id
-    )
+    const first = reconcileRegistry(emptyRegistry(), compact.descriptors)
+    const second = reconcileRegistry(first, formatted.descriptors)
+    expect(second.nodes[0][2]).toBe(first.nodes[0][2])
   })
 
   it('never derives semantics from translated display text', () => {
@@ -32,16 +33,17 @@ describe('UI contract compiler', () => {
     expect(chinese.descriptors[0].anchorHash).toBe(english.descriptors[0].anchorHash)
   })
 
-  it('changes exact IDs when the source coordinate changes', () => {
+  it('preserves a registered ID when a file moves', () => {
     const original = transformJsx('const CopyButton = () => <button data-ui="part:copy-button" />', options)
+    const first = reconcileRegistry(emptyRegistry(), original.descriptors)
     const moved = transformJsx('const CopyButton = () => <button data-ui="part:copy-button" />', {
       ...options,
       sourceFile: 'src/renderer/components/actions/CopyButton.tsx'
     })
+    moved.descriptors[0].previousAnchorHash = original.descriptors[0].anchorHash
+    const second = reconcileRegistry(first, moved.descriptors)
 
-    expect(uiContractForDescriptor(moved.descriptors[0]).id).not.toBe(
-      uiContractForDescriptor(original.descriptors[0]).id
-    )
+    expect(second.nodes[0][2]).toBe(first.nodes[0][2])
   })
 
   it('emits parseable JSX for self-closing intrinsic elements', () => {

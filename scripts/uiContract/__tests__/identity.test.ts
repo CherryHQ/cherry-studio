@@ -15,12 +15,9 @@ describe('UI node identity', () => {
   it('rejects a truncated-hash collision', () => {
     const result = transformJsx('const Message = () => <article />', options)
     const descriptor = result.descriptors[0]
-    const collision = {
-      ...descriptor,
-      anchorHash: `${descriptor.anchorHash.slice(0, 16)}ffffffff`,
-      sourceOffset: descriptor.sourceOffset + 1
-    }
+    const node = { ...descriptor, id: uiContractForDescriptor(descriptor).id }
+    const collision = { ...node, sourceOffset: descriptor.sourceOffset + 1 }
 
-    expect(() => assertUniqueUiNodeIds([descriptor, collision])).toThrow('UI node ID collision')
+    expect(() => assertUniqueUiNodeIds([node, collision])).toThrow('UI node ID collision')
   })
 })

@@ -154,15 +154,16 @@ export function inferSemanticId(input: SemanticIdInput): string {
   return unique([...prefix, ...entity, ...role]).join('.')
 }
 
-export function createDescriptorAnchor(input: {
+export function createDescriptorHashes(input: {
   component: string
   element: string
+  explicitSemanticId?: string
   occurrence: number
   parentSemanticId?: string
   semanticId: string
   signature: string
   sourceFile: string
-}): Pick<UiNodeDescriptor, 'anchorHash'> {
+}): Pick<UiNodeDescriptor, 'anchorHash' | 'fingerprintHash'> {
   const anchor = [
     input.sourceFile,
     input.component,
@@ -173,7 +174,16 @@ export function createDescriptorAnchor(input: {
     input.occurrence
   ].join('\0')
 
-  return { anchorHash: stableHash(anchor, 24) }
+  const parentRole = input.parentSemanticId?.split('.').slice(-3).join('.') ?? ''
+  const fingerprint = [
+    input.component,
+    input.element,
+    input.signature,
+    input.explicitSemanticId ?? '',
+    parentRole
+  ].join('\0')
+
+  return { anchorHash: stableHash(anchor, 24), fingerprintHash: stableHash(fingerprint, 24) }
 }
 
 export function uiNodeId(anchorHash: string): string {
@@ -187,16 +197,17 @@ export function uiContractForDescriptor(descriptor: UiNodeDescriptor): { id: str
   return { id: uiNodeId(descriptor.anchorHash), semanticId: descriptor.semanticId }
 }
 
-export function assertUniqueUiNodeIds(descriptors: readonly UiNodeDescriptor[]): void {
-  const descriptorById = new Map<string, UiNodeDescriptor>()
-  for (const descriptor of descriptors) {
-    const id = uiNodeId(descriptor.anchorHash)
-    const existing = descriptorById.get(id)
+export function assertUniqueUiNodeIds(
+  nodes: ReadonlyArray<Pick<UiNodeDescriptor, 'sourceFile' | 'sourceOffset'> & { id: string }>
+): void {
+  const nodeById = new Map<string, Pick<UiNodeDescriptor, 'sourceFile' | 'sourceOffset'>>()
+  for (const node of nodes) {
+    const existing = nodeById.get(node.id)
     if (existing) {
       throw new Error(
-        `UI node ID collision for ${id}: ${existing.sourceFile}:${existing.sourceOffset} and ${descriptor.sourceFile}:${descriptor.sourceOffset}`
+        `UI node ID collision for ${node.id}: ${existing.sourceFile}:${existing.sourceOffset} and ${node.sourceFile}:${node.sourceOffset}`
       )
     }
-    descriptorById.set(id, descriptor)
+    nodeById.set(node.id, node)
   }
 }

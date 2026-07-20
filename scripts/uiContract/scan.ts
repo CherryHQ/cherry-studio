@@ -36,7 +36,10 @@ export function windowNameFromHtml(sourceFile: string): string {
   return (windowIndex >= 0 ? parts.slice(windowIndex + 1) : parts.slice(-2)).join('.') || 'main'
 }
 
-export async function scanUiSources(root: string): Promise<UiNodeDescriptor[]> {
+export async function scanUiSources(
+  root: string,
+  previousSourceByCurrent: ReadonlyMap<string, string> = new Map()
+): Promise<UiNodeDescriptor[]> {
   const files = (
     await Promise.all(
       SOURCE_ROOTS.map(async (sourceRoot) => {
@@ -57,11 +60,27 @@ export async function scanUiSources(root: string): Promise<UiNodeDescriptor[]> {
     const source = await readFile(file, 'utf8')
     const sourceFile = normalizeSourceFile(root, file)
     try {
+      const previousSourceFile = previousSourceByCurrent.get(sourceFile)
       if (extname(file) === '.html') {
         const current = transformHtml(source, { sourceFile, windowName: windowNameFromHtml(sourceFile) }).descriptors
+        if (previousSourceFile) {
+          const previous = transformHtml(source, {
+            sourceFile: previousSourceFile,
+            windowName: windowNameFromHtml(previousSourceFile)
+          }).descriptors
+          current.forEach((descriptor, index) => {
+            descriptor.previousAnchorHash = previous[index]?.anchorHash
+          })
+        }
         descriptors.push(...current)
       } else {
         const current = transformJsx(source, { sourceFile }).descriptors
+        if (previousSourceFile) {
+          const previous = transformJsx(source, { sourceFile: previousSourceFile }).descriptors
+          current.forEach((descriptor, index) => {
+            descriptor.previousAnchorHash = previous[index]?.anchorHash
+          })
+        }
         descriptors.push(...current)
       }
     } catch (error) {

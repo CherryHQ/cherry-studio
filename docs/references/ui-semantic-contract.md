@@ -18,7 +18,7 @@ automation. Internal classes, DOM ancestry, and unmarked SVG drawing primitives 
 | --- | --- | --- |
 | `chat.message` | Human-readable semantic role | Stable public grouping selector |
 | `part:message-content` | Reusable component structure role | Stable public part selector |
-| `id:ui-3976699e5846d12a` | Deterministic exact source coordinate | Stable while its canonical source anchor is unchanged |
+| `id:ui-3976699e5846d12a` | Registered exact source node | Stable across builds and unambiguous DOM-preserving moves |
 | `scope:message:m_817` | Runtime instance identity | Stable for that business entity |
 | `variant:bubble` | Visual/product variant | Changes when the variant changes |
 | `mode:fold` | Active layout or behavior mode | Changes with the active mode |
@@ -78,17 +78,40 @@ Semantic inference uses, in order:
 Visible text is never an identity input, so localization, copy changes, and formatting do not change a node's exact ID.
 Line numbers, timestamps, random values, class names, and build traversal order are also excluded.
 
-Each exact ID is derived directly from the current canonical source anchor: `ui-` followed by the first 16 hexadecimal
-characters of its SHA-256 hash. The anchor includes normalized source path, component, semantic role, element, stable
-attributes/parts, parent semantic role, and same-shape occurrence. This makes IDs deterministic across builds without a
-committed history registry. Moving the node to another file, renaming its component, changing its semantic structure, or
-wrapping it under a different parent may produce a new ID. Consumers that need a durable selector should therefore
-prefer explicit semantic and `part:` tokens and reserve `id:` for version-matched tests and single-node overrides.
+New exact IDs start as `ui-` followed by the first 16 hexadecimal characters of the node's SHA-256 source-anchor hash.
+The anchor includes normalized source path, component, semantic role, element, stable attributes/parts, parent semantic
+role, and same-shape occurrence. The committed `ui-contract.registry.json` then preserves that ID while reconciling the
+current source.
 
-Builds validate that the truncated IDs are unique, then emit a deterministic, dictionary-packed `ui-contract.json`
-asset. Its `columns` field describes each node tuple; the `sources`, `semantics`, `elements`, and `components`
-dictionaries map tuple indexes back to readable metadata. Theme inspectors and AI tools should discover the contract
-from this manifest instead of scraping implementation classes.
+The registry intentionally stores only the state required for identity reconciliation:
+
+```json
+{
+  "version": 1,
+  "nodes": [["anchorHash", "fingerprintHash", "ui-0123456789abcdef"]]
+}
+```
+
+`semanticId` remains source-derived and is not duplicated in the registry. Deleted IDs are not retained as tombstones
+because the contract does not promise permanent non-reuse. Reconciliation matches nodes in this order: unchanged source
+anchor, Git-confirmed file move, then exactly one departed and one arrived node with the same structural fingerprint.
+Ambiguous structural candidates are never guessed and receive new IDs. This preserves identity for DOM nodes that remain
+recognizable without turning the registry into a cross-version compatibility ledger.
+
+After changing renderer markup, update and commit the registry:
+
+```bash
+pnpm ui:contract:sync
+```
+
+When a merge or rebase conflicts on `ui-contract.registry.json`, accept either side and rerun the sync command on the
+merged source; never hand-edit the generated tuples.
+
+Production builds and CI reject registry drift through `pnpm ui:contract:check`. Builds also validate that assigned IDs
+are unique, then emit a deterministic, dictionary-packed `ui-contract.json` asset. Its `columns` field describes each
+node tuple; the `sources`, `semantics`, `elements`, and `components` dictionaries map tuple indexes back to readable
+metadata. Theme inspectors and AI tools should discover the contract from this manifest instead of scraping
+implementation classes.
 
 During source work, an agent or developer can resolve a semantic prefix without building the app:
 
@@ -96,8 +119,8 @@ During source work, an agent or developer can resolve a semantic prefix without 
 pnpm ui:contract:query chat.message
 ```
 
-The command scans the current source and returns exact IDs, element/component names, and relative source locations as
-JSON. It applies the same collision check as the build.
+The command scans the current source and returns registered exact IDs, element/component names, and relative source
+locations as JSON. It rejects a stale registry and applies the same collision check as the build.
 
 ## Runtime API
 
@@ -161,8 +184,9 @@ the source contract; its owning renderer must expose a stable boundary or explic
   entry.
 - Inferred semantic IDs are deterministic but best-effort and are re-derived from the current source. Themes that need a
   durable name must rely on an explicit semantic ID or a `part:` token.
-- Exact `id:` tokens identify the current canonical source coordinate. They remain stable across formatting and copy
-  changes but may change after structural refactors; they do not carry a cross-version no-reuse guarantee.
+- Exact `id:` tokens identify a registered source node. They remain stable across formatting, copy changes, unchanged
+  anchors, and unambiguous DOM-preserving moves. Ambiguous structural refactors may receive new IDs, and deleted IDs do
+  not carry a permanent no-reuse guarantee.
 - Runtime state belongs in `state:`, `mode:`, or `variant:`; do not generate a new semantic ID for each state.
 - Tests and automation must query semantic/exact tokens, then use accessible roles for the intended interaction. The
   contract identifies nodes; it does not grant arbitrary script execution or bypass application permissions.
