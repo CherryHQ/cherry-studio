@@ -46,7 +46,11 @@ import {
   migrationDiagnosticEventsDocumentSchema,
   migrationDiagnosticManifestSchema
 } from '../migrationDiagnosticBundleSchemas'
-import type { MigrationDiagnosticsSession, PayloadLengthProfile } from '../migrationDiagnosticsSchemas'
+import type {
+  MigrationDiagnosticEvent,
+  MigrationDiagnosticsSession,
+  PayloadLengthProfile
+} from '../migrationDiagnosticsSchemas'
 
 const STARTED_AT = '2026-07-19T10:00:00.000Z'
 const ENDED_AT = '2026-07-19T10:01:00.000Z'
@@ -136,7 +140,7 @@ function terminalEvent(attemptId: string, sequence = 2) {
 function failedSnapshot(overrides: Partial<MigrationDiagnosticsSession> = {}): MigrationDiagnosticsSession {
   const attemptId = 'source-attempt-private-id'
   return {
-    version: 1,
+    version: 2,
     sessionId: 'source-session-private-id',
     appVersion: '2.0.0-test+private',
     platform: 'darwin',
@@ -217,13 +221,14 @@ describe('strict bundle schemas and accounting', () => {
     const versionGate = {
       reason: 'v1_too_old',
       currentVersion: '2.0.0',
+      directorySelectionRole: 'current',
       previousVersion: '1.8.0',
       requiredVersion: '1.9.12',
       gatewayVersion: null,
-      versionLog: 'present'
+      versionLog: { state: 'parsed', validRecordCountBucket: '1', invalidRecordCountBucket: '0' }
     } as const
     const snapshot = {
-      version: 1,
+      version: 2,
       sessionId: 'version-block-private-session-id',
       appVersion: '2.0.0-beta.1+private',
       platform: 'darwin',
@@ -471,7 +476,7 @@ describe('strict bundle manifest and deterministic selection', () => {
     expect(Buffer.from(JSON.stringify(manifest), 'utf8').byteLength).toBe(entries.get('manifest.json')?.byteLength)
   })
 
-  it('drops the oldest intermediate events deterministically and retains every true terminal event', async () => {
+  it('drops ordinary events before extra causal events and retains each causal representative and terminal', async () => {
     const stringify = vi.spyOn(JSON, 'stringify')
     const maximumProfile: PayloadLengthProfile = {
       target: 'message',
@@ -492,7 +497,7 @@ describe('strict bundle manifest and deterministic selection', () => {
     let sequence = 0
     const attempts = Array.from({ length: 5 }, (_, attemptIndex) => {
       const id = `private-attempt-${attemptIndex}`
-      const events = Array.from({ length: 39 }, () => ({
+      const events: MigrationDiagnosticEvent[] = Array.from({ length: 30 }, () => ({
         sequence: ++sequence,
         at: STARTED_AT,
         attemptId: id,
@@ -503,12 +508,25 @@ describe('strict bundle manifest and deterministic selection', () => {
         migratorId: 'chat',
         payloadProfile: maximumProfile
       }))
+      events.push(
+        ...Array.from(
+          { length: 9 },
+          (): MigrationDiagnosticEvent => ({
+            sequence: ++sequence,
+            at: STARTED_AT,
+            attemptId: id,
+            scope: 'engine',
+            phase: 'execute',
+            state: 'started',
+            code: 'unknown'
+          })
+        )
+      )
       events.push({
         ...terminalEvent(id, ++sequence),
         at: ENDED_AT,
-        migratorId: 'chat',
-        payloadProfile: maximumProfile
-      } as unknown as (typeof events)[number])
+        migratorId: 'chat'
+      })
       return {
         id,
         trigger: attemptIndex === 0 ? ('initial' as const) : ('manual_retry' as const),
@@ -554,10 +572,14 @@ describe('strict bundle manifest and deterministic selection', () => {
     expect(manifest.components.migrationEvents.status).toBe('truncated')
     expect(manifest.truncation.droppedIntermediateEvents).toBeGreaterThan(0)
     expect(retained.map((event) => event.sequence)).not.toContain(1)
+    expect(retained.filter((event) => event.state === 'started' && event.payloadProfile === undefined)).toEqual([])
     expect(retained.map((event) => event.sequence)).toEqual(
       [...retained.map((event) => event.sequence)].sort((left, right) => left - right)
     )
     expect(eventsDocument.attempts.map((attempt) => attempt.events.at(-1)?.sequence)).toEqual([40, 80, 120, 160, 200])
+    expect([30, 70, 110, 150, 190].every((sequence) => retained.some((event) => event.sequence === sequence))).toBe(
+      true
+    )
   })
 
   it('omits optional database details in the fixed l2 -> l1 -> l0 order without dropping statuses', () => {

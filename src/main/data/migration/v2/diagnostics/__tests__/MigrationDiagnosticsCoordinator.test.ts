@@ -91,7 +91,7 @@ const MAXIMUM_SHAPE_PAYLOAD_PROFILE: PayloadLengthProfile = {
 
 function oldSession(overrides: Partial<MigrationDiagnosticsSession> = {}): MigrationDiagnosticsSession {
   return {
-    version: 1,
+    version: 2,
     sessionId: 'old-session',
     appVersion: '1.9.12',
     platform: 'win32',
@@ -189,7 +189,7 @@ describe('MigrationDiagnosticsCoordinator attachment and recovery', () => {
 
   it('quarantines a completed journal that contradictorily retains an active attempt', async () => {
     const contradictoryJournal = {
-      version: 1,
+      version: 2,
       sessionId: 'contradictory-session',
       appVersion: '1.9.12',
       platform: 'win32',
@@ -378,12 +378,17 @@ describe('MigrationDiagnosticsCoordinator attempts and retention', () => {
     ])
   })
 
-  it('retains 200 total events, every terminal event, and the newest intermediate events', async () => {
+  it('retains 200 total events plus every terminal and causal representative across five attempts', async () => {
     const subject = coordinator()
+    const causalSequences: number[] = []
     for (let attemptIndex = 0; attemptIndex < 5; attemptIndex += 1) {
       subject.beginAttempt(attemptIndex === 0 ? 'initial' : 'manual_retry')
       for (let eventIndex = 0; eventIndex < 45; eventIndex += 1) {
-        subject.recordEvent(eventInput())
+        const isCause = eventIndex === 10
+        subject.recordEvent(
+          eventInput(isCause ? { state: 'warning', code: 'source_parse', category: 'source' } : undefined)
+        )
+        if (isCause) causalSequences.push(attemptIndex * 46 + eventIndex + 1)
       }
       subject.finishAttempt('failed', eventInput({ scope: 'gate', phase: 'finalize', state: 'failed' }))
     }
@@ -398,6 +403,8 @@ describe('MigrationDiagnosticsCoordinator attempts and retention', () => {
     }
     expect(events.at(-1)?.sequence).toBe(230)
     expect(events.some((event) => event.sequence === 1)).toBe(false)
+    expect(causalSequences).toEqual([11, 57, 103, 149, 195])
+    expect(causalSequences.every((sequence) => events.some((event) => event.sequence === sequence))).toBe(true)
     expect(events.map((event) => event.sequence)).toEqual(
       [...events.map((event) => event.sequence)].sort((left, right) => left - right)
     )
@@ -427,7 +434,7 @@ describe('MigrationDiagnosticsCoordinator attempts and retention', () => {
     expect(snapshot.attempts).toHaveLength(5)
     expect(events.length).toBeLessThanOrEqual(200)
     expect(sequences).not.toContain(1)
-    expect(sequences).toContain(229)
+    expect([45, 91, 137, 183, 229].every((sequence) => sequences.includes(sequence))).toBe(true)
     expect(sequences.some((sequence, index) => index > 0 && sequence > sequences[index - 1] + 1)).toBe(true)
     expect(sequences.every((sequence, index) => index === 0 || sequence > sequences[index - 1])).toBe(true)
     expect(snapshot.attempts.map((attempt) => attempt.events.at(-1)?.sequence)).toEqual([46, 92, 138, 184, 230])
@@ -436,6 +443,24 @@ describe('MigrationDiagnosticsCoordinator attempts and retention', () => {
       expect(attempt.events.at(-1)?.phase).toBe('finalize')
     }
     expect(migrationDiagnosticsSessionSchema.safeParse(snapshot).success).toBe(true)
+  })
+
+  it('throws the fixed size error instead of deleting the protected minimum', () => {
+    const subject = coordinator()
+    subject.beginAttempt('initial')
+    subject.recordEvent(eventInput({ state: 'warning', code: 'source_parse', category: 'source' }))
+    const serializedCandidates: string[] = []
+    vi.spyOn(Buffer, 'byteLength').mockImplementation((value) => {
+      serializedCandidates.push(String(value))
+      return MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES + 1
+    })
+
+    expect(() =>
+      subject.finishAttempt('failed', eventInput({ scope: 'gate', phase: 'finalize', state: 'failed' }))
+    ).toThrow('Migration diagnostics journal cannot satisfy its fixed size limit')
+    expect(serializedCandidates).toHaveLength(1)
+    expect(serializedCandidates[0]).toContain('source_parse')
+    expect(serializedCandidates[0]).toContain('"phase":"finalize"')
   })
 })
 

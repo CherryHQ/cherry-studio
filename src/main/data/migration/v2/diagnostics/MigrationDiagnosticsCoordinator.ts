@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { MigrationPaths } from '@main/data/migration/v2/core/MigrationPaths'
 import { app } from 'electron'
 
+import { createMigrationDiagnosticRetentionPlan } from './migrationDiagnosticRetention'
 import {
   cleanupMigrationDiagnosticsJournal,
   garbageCollectMigrationDiagnosticsQuarantines,
@@ -20,7 +21,6 @@ import {
   migrationAttemptTerminalOutcomeSchema,
   type MigrationAttemptTrigger,
   migrationAttemptTriggerSchema,
-  type MigrationDiagnosticEvent,
   type MigrationDiagnosticEventInput,
   migrationDiagnosticEventInputSchema,
   migrationDiagnosticEventSchema,
@@ -83,37 +83,23 @@ function deepFreeze<TValue>(value: TValue): TValue {
 
 function retainedSession(candidate: MigrationDiagnosticsSession): MigrationDiagnosticsSession {
   const newestAttempts = candidate.attempts.slice(-MIGRATION_DIAGNOSTICS_MAX_ATTEMPTS)
-  const protectedSequences = new Set<number>()
-  const allEvents: MigrationDiagnosticEvent[] = []
-
-  for (const attempt of newestAttempts) {
-    allEvents.push(...attempt.events)
-    if (attempt.outcome !== 'in_progress') {
-      const terminalEvent = attempt.events.at(-1)
-      if (terminalEvent !== undefined) {
-        protectedSequences.add(terminalEvent.sequence)
-      }
-    }
-  }
-
-  const intermediateSequences = allEvents
-    .filter((event) => !protectedSequences.has(event.sequence))
-    .map((event) => event.sequence)
-  const intermediateBudget = Math.max(0, MIGRATION_DIAGNOSTICS_MAX_EVENTS - protectedSequences.size)
-  const keptSequences = new Set([...protectedSequences, ...intermediateSequences.slice(-intermediateBudget)])
+  const retentionPlan = createMigrationDiagnosticRetentionPlan(newestAttempts)
+  const totalEvents = newestAttempts.reduce((total, attempt) => total + attempt.events.length, 0)
+  const eventLimitRemovalCount = Math.max(0, totalEvents - MIGRATION_DIAGNOSTICS_MAX_EVENTS)
+  const removedSequences = new Set(retentionPlan.removableSequences.slice(0, eventLimitRemovalCount))
+  let removalIndex = eventLimitRemovalCount
   let attempts = newestAttempts.map((attempt) => ({
     ...attempt,
-    events: attempt.events.filter((event) => keptSequences.has(event.sequence))
+    events: attempt.events.filter((event) => !removedSequences.has(event.sequence))
   })) as MigrationDiagnosticsAttempt[]
 
   let retained = { ...candidate, attempts } as MigrationDiagnosticsSession
   while (Buffer.byteLength(JSON.stringify(retained), 'utf8') > MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES) {
-    const removable = attempts.flatMap((attempt) =>
-      attempt.events.filter((event) => !protectedSequences.has(event.sequence)).map((event) => event.sequence)
-    )[0]
+    const removable = retentionPlan.removableSequences[removalIndex]
     if (removable === undefined) {
       throw new Error('Migration diagnostics journal cannot satisfy its fixed size limit')
     }
+    removalIndex += 1
     attempts = attempts.map((attempt) => ({
       ...attempt,
       events: attempt.events.filter((event) => event.sequence !== removable)

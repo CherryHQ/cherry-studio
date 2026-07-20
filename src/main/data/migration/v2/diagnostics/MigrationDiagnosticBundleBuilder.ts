@@ -26,6 +26,7 @@ import {
   migrationDiagnosticManifestSchema,
   type MigrationDiagnosticStrictEntryName
 } from './migrationDiagnosticBundleSchemas'
+import { createMigrationDiagnosticRetentionPlan } from './migrationDiagnosticRetention'
 import type { MigrationDiagnosticsSnapshot } from './MigrationDiagnosticsCoordinator'
 import {
   MIGRATION_DIAGNOSTIC_MIGRATOR_IDS,
@@ -359,39 +360,17 @@ function serializeBundle(documents: SelectedDocuments, strict: boolean): Seriali
   throw new Error('manifest_fixed_point_failed')
 }
 
-interface IntermediateEventLocation {
-  readonly attemptIndex: number
-  readonly eventIndex: number
-  readonly sequence: number
-}
-
-function intermediateEventsInDropOrder(
-  document: MigrationDiagnosticEventsDocument
-): readonly IntermediateEventLocation[] {
-  const locations: IntermediateEventLocation[] = []
-  for (const [attemptIndex, attempt] of document.attempts.entries()) {
-    const terminalIndex = attempt.outcome === 'in_progress' ? -1 : attempt.events.length - 1
-    for (const [eventIndex, event] of attempt.events.entries()) {
-      if (eventIndex === terminalIndex) continue
-      locations.push({ attemptIndex, eventIndex, sequence: event.sequence })
-    }
-  }
-  return locations.sort((left, right) => left.sequence - right.sequence)
-}
-
-function dropOldestIntermediateEvents(
+function dropRemovableEvents(
   document: MigrationDiagnosticEventsDocument,
-  locations: readonly IntermediateEventLocation[],
+  removableSequences: readonly number[],
   count: number
 ): MigrationDiagnosticEventsDocument {
-  const removed = new Set(
-    locations.slice(0, count).map(({ attemptIndex, eventIndex }) => `${attemptIndex}:${eventIndex}`)
-  )
+  const removed = new Set(removableSequences.slice(0, count))
   return {
     ...document,
-    attempts: document.attempts.map((attempt, attemptIndex) => ({
+    attempts: document.attempts.map((attempt) => ({
       ...attempt,
-      events: attempt.events.filter((_event, eventIndex) => !removed.has(`${attemptIndex}:${eventIndex}`))
+      events: attempt.events.filter((event) => !removed.has(event.sequence))
     }))
   }
 }
@@ -407,27 +386,27 @@ function finalizeSelectedDocuments(documents: SelectedDocuments): SerializedBund
 
 function selectDocumentsWithinBudget(
   events: MigrationDiagnosticEventsDocument,
-  database: MigrationDatabaseDiagnosticsDocument
+  database: MigrationDatabaseDiagnosticsDocument,
+  removableSequences: readonly number[]
 ): SerializedBundle | null {
   let documents: SelectedDocuments = { events, database, droppedIntermediateEvents: 0 }
   if (serializeBundle(documents, false).uncompressedBytes <= MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES) {
     return finalizeSelectedDocuments(documents)
   }
 
-  const intermediateEvents = intermediateEventsInDropOrder(events)
-  if (intermediateEvents.length > 0) {
+  if (removableSequences.length > 0) {
     const allEventsDropped: SelectedDocuments = {
-      events: dropOldestIntermediateEvents(events, intermediateEvents, intermediateEvents.length),
+      events: dropRemovableEvents(events, removableSequences, removableSequences.length),
       database,
-      droppedIntermediateEvents: intermediateEvents.length
+      droppedIntermediateEvents: removableSequences.length
     }
     if (serializeBundle(allEventsDropped, false).uncompressedBytes <= MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES) {
       let lowerBound = 1
-      let upperBound = intermediateEvents.length
+      let upperBound = removableSequences.length
       while (lowerBound < upperBound) {
         const candidateCount = Math.floor((lowerBound + upperBound) / 2)
         const candidate: SelectedDocuments = {
-          events: dropOldestIntermediateEvents(events, intermediateEvents, candidateCount),
+          events: dropRemovableEvents(events, removableSequences, candidateCount),
           database,
           droppedIntermediateEvents: candidateCount
         }
@@ -438,7 +417,7 @@ function selectDocumentsWithinBudget(
         }
       }
       return finalizeSelectedDocuments({
-        events: dropOldestIntermediateEvents(events, intermediateEvents, lowerBound),
+        events: dropRemovableEvents(events, removableSequences, lowerBound),
         database,
         droppedIntermediateEvents: lowerBound
       })
@@ -924,6 +903,7 @@ export class MigrationDiagnosticBundleBuilder {
 
     const snapshot = migrationDiagnosticsSessionSchema.safeParse(input.snapshot)
     if (!snapshot.success) return failed('invalid_input')
+    const retentionPlan = createMigrationDiagnosticRetentionPlan(snapshot.data.attempts)
 
     let events: MigrationDiagnosticEventsDocument
     try {
@@ -937,7 +917,7 @@ export class MigrationDiagnosticBundleBuilder {
     )
     let serialized: SerializedBundle | null
     try {
-      serialized = selectDocumentsWithinBudget(events, database)
+      serialized = selectDocumentsWithinBudget(events, database, retentionPlan.removableSequences)
     } catch {
       return failed('invalid_input')
     }
