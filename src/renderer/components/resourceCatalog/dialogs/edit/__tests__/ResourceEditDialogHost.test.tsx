@@ -1,16 +1,14 @@
-import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '../ResourceEditDialogHost'
+import { ResourceEditDialogHost } from '../ResourceEditDialogHost'
 
 const mocks = vi.hoisted(() => ({
   assistantRefetch: vi.fn(),
   agentRevalidate: vi.fn(),
   onOpenChange: vi.fn(),
   onSaved: vi.fn(),
-  toastError: vi.fn(),
   useAgent: vi.fn(),
   useAssistantApiById: vi.fn()
 }))
@@ -42,26 +40,18 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => vi.fn(() => true)
 }))
 
-vi.mock('@renderer/services/toast', () => ({
-  toast: {
-    error: mocks.toastError
-  }
-}))
-
 vi.mock('../AssistantEditDialog', () => ({
   AssistantEditDialog: ({
-    open,
     onOpenChange,
     onSaved,
     resource
   }: {
-    open: boolean
     onOpenChange: (open: boolean) => void
     onSaved: () => Promise<void>
     resource: { id: string } | null
   }) =>
     resource ? (
-      <div data-open={open} data-testid="assistant-edit-dialog">
+      <div data-testid="assistant-edit-dialog">
         <button type="button" onClick={() => void onSaved()}>
           save
         </button>
@@ -74,18 +64,16 @@ vi.mock('../AssistantEditDialog', () => ({
 
 vi.mock('../AgentEditDialog', () => ({
   AgentEditDialog: ({
-    open,
     onOpenChange,
     onSaved,
     resource
   }: {
-    open: boolean
     onOpenChange: (open: boolean) => void
     onSaved: () => Promise<void>
     resource: { id: string } | null
   }) =>
     resource ? (
-      <div data-open={open} data-testid="agent-edit-dialog">
+      <div data-testid="agent-edit-dialog">
         <button type="button" onClick={() => void onSaved()}>
           save
         </button>
@@ -105,7 +93,6 @@ describe('ResourceEditDialogHost', () => {
     mocks.onOpenChange.mockReset()
     mocks.onSaved.mockReset()
     mocks.onSaved.mockResolvedValue(undefined)
-    mocks.toastError.mockReset()
     mocks.useAssistantApiById.mockReset()
     mocks.useAssistantApiById.mockReturnValue({
       assistant: { id: 'assistant-1' },
@@ -136,74 +123,6 @@ describe('ResourceEditDialogHost', () => {
 
     expect(mocks.assistantRefetch).toHaveBeenCalledTimes(1)
     expect(mocks.onSaved).toHaveBeenCalledWith({ kind: 'assistant', id: 'assistant-1' })
-  })
-
-  it('forwards popup exit state to the edit dialog', () => {
-    render(
-      <ResourceEditDialogHost
-        target={{ kind: 'assistant', id: 'assistant-1' }}
-        open={false}
-        onOpenChange={mocks.onOpenChange}
-      />
-    )
-
-    expect(screen.getByTestId('assistant-edit-dialog')).toHaveAttribute('data-open', 'false')
-  })
-
-  it.each(['assistant', 'agent'] as const)('closes when the %s author can no longer be loaded', async (kind) => {
-    const error = DataApiErrorFactory.notFound(kind === 'assistant' ? 'Assistant' : 'Agent', `${kind}-missing`)
-    if (kind === 'assistant') {
-      mocks.useAssistantApiById.mockReturnValue({
-        assistant: undefined,
-        error,
-        refetch: mocks.assistantRefetch
-      })
-    } else {
-      mocks.useAgent.mockReturnValue({
-        agent: undefined,
-        error,
-        revalidate: mocks.agentRevalidate
-      })
-    }
-
-    const target: ResourceEditDialogTarget =
-      kind === 'assistant' ? { kind: 'assistant', id: 'assistant-missing' } : { kind: 'agent', id: 'agent-missing' }
-
-    const { rerender } = render(
-      <ResourceEditDialogHost target={target} open onOpenChange={(open) => mocks.onOpenChange(open)} />
-    )
-
-    await waitFor(() => expect(mocks.onOpenChange).toHaveBeenCalledWith(false))
-
-    rerender(<ResourceEditDialogHost target={target} open={false} onOpenChange={(open) => mocks.onOpenChange(open)} />)
-
-    expect(mocks.toastError).toHaveBeenCalledTimes(1)
-  })
-
-  it.each(['assistant', 'agent'] as const)('keeps the %s editor open after a transient refresh error', async (kind) => {
-    const error = new Error('Temporary refresh failure')
-    if (kind === 'assistant') {
-      mocks.useAssistantApiById.mockReturnValue({
-        assistant: { id: 'assistant-1' },
-        error,
-        refetch: mocks.assistantRefetch
-      })
-    } else {
-      mocks.useAgent.mockReturnValue({
-        agent: { id: 'agent-1' },
-        error,
-        revalidate: mocks.agentRevalidate
-      })
-    }
-
-    const target: ResourceEditDialogTarget =
-      kind === 'assistant' ? { kind: 'assistant', id: 'assistant-1' } : { kind: 'agent', id: 'agent-1' }
-
-    render(<ResourceEditDialogHost target={target} open onOpenChange={mocks.onOpenChange} />)
-
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId(`${kind}-edit-dialog`)).toHaveAttribute('data-open', 'true')
-    expect(mocks.onOpenChange).not.toHaveBeenCalled()
   })
 
   it('keeps assistant post-save refresh failures inside the host', async () => {

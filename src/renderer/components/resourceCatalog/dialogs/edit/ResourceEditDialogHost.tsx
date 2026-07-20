@@ -4,8 +4,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
-import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AgentEditDialog } from './AgentEditDialog'
@@ -15,20 +14,19 @@ export type ResourceEditDialogTarget = { kind: 'assistant'; id: string } | { kin
 
 type ResourceEditDialogHostProps = {
   target: ResourceEditDialogTarget | null
-  open?: boolean
   onOpenChange: (open: boolean) => void
   onSaved?: (target: ResourceEditDialogTarget) => Promise<unknown> | void
 }
 
 const logger = loggerService.withContext('ResourceEditDialogHost')
 
-export function ResourceEditDialogHost({ target, open = true, onOpenChange, onSaved }: ResourceEditDialogHostProps) {
+export function ResourceEditDialogHost({ target, onOpenChange, onSaved }: ResourceEditDialogHostProps) {
   if (target?.kind === 'assistant') {
-    return <AssistantEditDialogHost target={target} open={open} onOpenChange={onOpenChange} onSaved={onSaved} />
+    return <AssistantEditDialogHost target={target} onOpenChange={onOpenChange} onSaved={onSaved} />
   }
 
   if (target?.kind === 'agent') {
-    return <AgentEditDialogHost target={target} open={open} onOpenChange={onOpenChange} onSaved={onSaved} />
+    return <AgentEditDialogHost target={target} onOpenChange={onOpenChange} onSaved={onSaved} />
   }
 
   return null
@@ -36,25 +34,18 @@ export function ResourceEditDialogHost({ target, open = true, onOpenChange, onSa
 
 function AssistantEditDialogHost({
   target,
-  open = true,
   onOpenChange,
   onSaved
 }: ResourceEditDialogHostProps & { target: Extract<ResourceEditDialogTarget, { kind: 'assistant' }> }) {
   const { t } = useTranslation()
   const { assistant, error, refetch } = useAssistantApiById(target.id)
-  const handledLoadErrorRef = useRef<unknown>(undefined)
 
   useEffect(() => {
-    if (!open || !error || handledLoadErrorRef.current === error) return
-
-    handledLoadErrorRef.current = error
+    if (!error) return
 
     logger.error('Failed to load assistant for edit dialog', error, { id: target.id })
     toast.error(t('common.error'))
-    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-      onOpenChange(false)
-    }
-  }, [error, onOpenChange, open, t, target.id])
+  }, [error, t, target.id])
 
   const handleSaved = useCallback(async () => {
     try {
@@ -68,7 +59,7 @@ function AssistantEditDialogHost({
 
   return (
     <AssistantEditDialog
-      open={open}
+      open
       resource={assistant ?? null}
       onOpenChange={onOpenChange}
       onSaved={handleSaved}
@@ -79,26 +70,19 @@ function AssistantEditDialogHost({
 
 function AgentEditDialogHost({
   target,
-  open = true,
   onOpenChange,
   onSaved
 }: ResourceEditDialogHostProps & { target: Extract<ResourceEditDialogTarget, { kind: 'agent' }> }) {
   const { t } = useTranslation()
   const modelFilter = useAgentModelFilter('claude-code')
   const { agent, error, revalidate } = useAgent(target.id)
-  const handledLoadErrorRef = useRef<unknown>(undefined)
 
   useEffect(() => {
-    if (!open || !error || handledLoadErrorRef.current === error) return
-
-    handledLoadErrorRef.current = error
+    if (!error) return
 
     logger.error('Failed to load agent for edit dialog', error, { id: target.id })
     toast.error(t('common.error'))
-    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-      onOpenChange(false)
-    }
-  }, [error, onOpenChange, open, t, target.id])
+  }, [error, t, target.id])
 
   const handleSaved = useCallback(async () => {
     try {
@@ -112,7 +96,7 @@ function AgentEditDialogHost({
 
   return (
     <AgentEditDialog
-      open={open}
+      open
       resource={agent ?? null}
       onOpenChange={onOpenChange}
       onSaved={handleSaved}

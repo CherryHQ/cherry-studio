@@ -1,17 +1,21 @@
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
-import { lazy, Suspense, useCallback } from 'react'
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { lazy, Suspense, useCallback, useState } from 'react'
 
-import type { ResourceEditDialogTarget } from './ResourceEditDialogHost'
+import type { AssistantEditDialogResource } from './AssistantEditDialog'
 
-const ResourceEditDialogHost = lazy(() =>
-  import('./ResourceEditDialogHost').then((module) => ({ default: module.ResourceEditDialogHost }))
+const AssistantEditDialog = lazy(() =>
+  import('./AssistantEditDialog').then((module) => ({ default: module.AssistantEditDialog }))
 )
+const AgentEditDialog = lazy(() => import('./AgentEditDialog').then((module) => ({ default: module.AgentEditDialog })))
 
-type ResourceEditPopupParams = {
-  target: ResourceEditDialogTarget
-}
+type ResourceEditPopupParams =
+  | { kind: 'assistant'; resource: AssistantEditDialogResource }
+  | { kind: 'agent'; resource: AgentDetail }
 
-function ResourceEditPopupContainer({ open, resolve, target }: ResourceEditPopupParams & PopupInjectedProps<void>) {
+function ResourceEditPopupContainer({ open, resolve, ...params }: ResourceEditPopupParams & PopupInjectedProps<void>) {
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen) resolve(undefined)
@@ -21,8 +25,57 @@ function ResourceEditPopupContainer({ open, resolve, target }: ResourceEditPopup
 
   return (
     <Suspense fallback={null}>
-      <ResourceEditDialogHost target={target} open={open} onOpenChange={handleOpenChange} />
+      {params.kind === 'assistant' ? (
+        <AssistantResourceEditPopup open={open} onOpenChange={handleOpenChange} initialResource={params.resource} />
+      ) : (
+        <AgentResourceEditPopup open={open} onOpenChange={handleOpenChange} initialResource={params.resource} />
+      )}
     </Suspense>
+  )
+}
+
+function AssistantResourceEditPopup({
+  open,
+  onOpenChange,
+  initialResource
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initialResource: AssistantEditDialogResource
+}) {
+  const [resource, setResource] = useState(initialResource)
+
+  return (
+    <AssistantEditDialog
+      open={open}
+      resource={resource}
+      onOpenChange={onOpenChange}
+      onSaved={setResource}
+      modelFilter={isSelectableAssistantModel}
+    />
+  )
+}
+
+function AgentResourceEditPopup({
+  open,
+  onOpenChange,
+  initialResource
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initialResource: AgentDetail
+}) {
+  const [resource, setResource] = useState(initialResource)
+  const modelFilter = useAgentModelFilter('claude-code')
+
+  return (
+    <AgentEditDialog
+      open={open}
+      resource={resource}
+      onOpenChange={onOpenChange}
+      onSaved={setResource}
+      modelFilter={modelFilter}
+    />
   )
 }
 

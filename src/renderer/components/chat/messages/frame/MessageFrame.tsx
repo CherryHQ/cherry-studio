@@ -337,6 +337,7 @@ const UserBubbleMessage = ({
   fontSize: number
   isEditing: boolean
 }) => {
+  const { t } = useTranslation()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
   const avatar = meta.userProfile?.avatar ?? ''
@@ -361,7 +362,12 @@ const UserBubbleMessage = ({
             </MessageErrorBoundary>
           </Scrollbar>
         </div>
-        <MessageAvatar avatar={avatar} className="mt-1.5" onClick={canOpenUserProfile ? openUserProfile : undefined} />
+        <MessageAvatar
+          avatar={avatar}
+          className="mt-1.5"
+          aria-label={canOpenUserProfile ? t('common.edit') : undefined}
+          onClick={canOpenUserProfile ? openUserProfile : undefined}
+        />
       </div>
       {!isEditing && (
         <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
