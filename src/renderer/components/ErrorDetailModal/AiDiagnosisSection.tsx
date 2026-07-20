@@ -127,13 +127,13 @@ const AiDiagnosisSectionWithStatus = memo(
           <>
             <div
               className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
-              style={{ color: 'var(--color-error-base)' }}>
+              style={{ color: 'var(--cs-error)' }}>
               {diagError}
             </div>
             <button
               type="button"
               className="cursor-pointer rounded border px-2 py-1 text-xs"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--color-foreground)' }}
+              style={{ borderColor: 'var(--color-border)', color: 'var(--cs-text-primary)' }}
               onClick={() => void runDiagnosis()}>
               {t('common.retry')}
             </button>
@@ -147,7 +147,7 @@ const AiDiagnosisSectionWithStatus = memo(
               <CheckCircle size={14} />
               {t('error.diagnosis.ai_result')}
             </div>
-            <div className="text-[13px] leading-[1.7]" style={{ color: 'var(--color-foreground-secondary)' }}>
+            <div className="text-[13px] leading-[1.7]" style={{ color: 'var(--cs-text-secondary)' }}>
               {result.explanation || result.summary}
             </div>
             {result.steps.length > 0 && (

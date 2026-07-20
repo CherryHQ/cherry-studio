@@ -8,5 +8,5 @@ import type { IconTooltipProps } from './types'
  * Used for displaying warnings or cautions.
  */
 export const WarnTooltip = (props: IconTooltipProps) => {
-  return <IconTooltip icon={AlertTriangle} ariaLabel="Warning" defaultColor="var(--color-warning)" {...props} />
+  return <IconTooltip icon={AlertTriangle} ariaLabel="Warning" defaultColor="var(--cs-warning)" {...props} />
 }

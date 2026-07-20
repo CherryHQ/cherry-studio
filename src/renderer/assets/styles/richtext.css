@@ -82,7 +82,7 @@
 }
 
 .tiptap a {
-  color: var(--color-primary);
+  color: var(--cs-link);
   text-decoration: none;
   cursor: pointer;
 }
@@ -98,22 +98,22 @@
 }
 
 .tiptap code {
-  background-color: var(--color-muted);
+  background-color: var(--cs-inline-code);
   border-radius: 0.4rem;
-  color: var(--color-error-text);
+  color: var(--cs-inline-code-foreground);
   font-size: 0.85rem;
   padding: 0.25em 0.3em;
   font-family: var(--code-font-family);
 }
 
 .tiptap pre {
-  background: var(--color-muted);
+  background: var(--cs-code-block);
   border-radius: 0.5rem;
-  color: var(--color-foreground);
+  color: var(--cs-text-primary);
   font-family: var(--code-font-family);
   margin: 1.5rem 0;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--color-border-muted);
+  border: 1px solid var(--cs-border-soft);
 }
 
 .tiptap pre code {
@@ -126,7 +126,7 @@
 
 .tiptap hr {
   border: none;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--cs-system-gray-2);
   margin: 2rem 0;
 }
 
@@ -150,7 +150,7 @@
 .tiptap .placeholder:before {
   content: attr(data-placeholder);
   position: absolute;
-  color: var(--color-foreground-secondary);
+  color: var(--cs-text-secondary);
   opacity: 0.6;
   pointer-events: none;
   font-style: var(--editor-placeholder-font-style, italic);
@@ -211,7 +211,7 @@
 
 .tiptap td,
 .tiptap th {
-  border: 1px solid var(--color-border-muted);
+  border: 1px solid var(--cs-border-soft);
   box-sizing: border-box;
   display: table-cell;
   min-width: 120px;
@@ -233,7 +233,7 @@
 
 .tiptap th,
 .tiptap th * {
-  background-color: var(--color-muted);
+  background-color: var(--cs-system-gray-3);
   font-weight: bold;
   text-align: left;
 }
@@ -344,7 +344,7 @@
 .tiptap .tableWrapper .add-row-button,
 .tiptap .tableWrapper .add-column-button {
   border: 1px solid var(--color-border);
-  background: var(--color-background);
+  background: var(--background);
   border-radius: 4px;
   font-size: 12px;
   line-height: 1;
@@ -352,7 +352,7 @@
   display: none;
   align-items: center;
   justify-content: center;
-  color: var(--color-foreground);
+  color: var(--cs-text-primary);
   z-index: 20;
   transition: all 0.2s ease;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -493,7 +493,7 @@
 
 /* Checked task item appearance */
 .tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
-  color: var(--color-foreground-secondary);
+  color: var(--cs-text-secondary);
   text-decoration: line-through;
 }
 

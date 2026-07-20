@@ -111,7 +111,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
     left: position.x,
     top: position.y + 25, // Position slightly below the link
     zIndex: 1000,
-    background: isDark ? 'var(--color-popover)' : 'white',
+    background: isDark ? 'var(--cs-background-soft, #222222)' : 'white',
     border: `1px solid ${isDark ? 'var(--color-border, #ffffff19)' : '#d9d9d9'}`,
     borderRadius: 8,
     boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0,0,0,0.15)',

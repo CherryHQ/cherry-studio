@@ -29,7 +29,7 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   style.textContent = `
     :host {
       --shadow-host-background-color: white;
-      --shadow-host-border: 0.5px solid var(--color-border);
+      --shadow-host-border: 0.5px solid var(--cs-code-block);
       --shadow-host-border-radius: 8px;
 
       background-color: var(--shadow-host-background-color);

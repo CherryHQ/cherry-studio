@@ -249,7 +249,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
     <div
       data-composer-viewport-inset-target=""
       className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
-      <div className="rounded-[17px] border-[0.5px] border-border bg-background/90 p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]">
+      <div className="rounded-[17px] border-[0.5px] border-border bg-(--cs-background-translucent) p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]">
         <div className="flex items-center justify-between gap-3 px-1">
           <div className="min-w-0 flex-1">
             <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">

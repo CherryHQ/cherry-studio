@@ -278,8 +278,8 @@
 }
 
 .animation-shimmer {
-  --color-shimmer-mid: var(--color-foreground);
-  --color-shimmer-end: color-mix(in srgb, var(--color-foreground) 25%, transparent);
+  --color-shimmer-mid: var(--cs-text-primary);
+  --color-shimmer-end: color-mix(in srgb, var(--cs-text-primary) 25%, transparent);
   background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
   background-size: 200% 100%;
   background-clip: text;
