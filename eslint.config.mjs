@@ -18,21 +18,12 @@ const REPO_DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 const designTokenMigrationRegistry = JSON.parse(
   fs.readFileSync(path.join(REPO_DIRNAME, 'packages/ui/src/styles/migrations/shadcn-v2.json'), 'utf8')
 )
-const LEGACY_RENDERER_CSS_VARS = designTokenMigrationRegistry.rules
-  .filter(({ source }) => {
-    return (
-      source.startsWith('--app-') ||
-      source.startsWith('--color-') ||
-      source.startsWith('--navbar-') ||
-      source.startsWith('--modal-') ||
-      source.startsWith('--chat-') ||
-      source.startsWith('--list-item-')
-    )
-  })
+const DEPRECATED_CSS_VARS = designTokenMigrationRegistry.rules
+  .filter(({ strategy }) => strategy !== 'preserve')
   .map(({ source }) => source)
 
-const LEGACY_RENDERER_CSS_VAR_REGEX = new RegExp(
-  `(?<![\\w-])(${LEGACY_RENDERER_CSS_VARS.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w-])`,
+const DEPRECATED_CSS_VAR_REGEX = new RegExp(
+  `(?<![\\w-])(${DEPRECATED_CSS_VARS.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w-])`,
   'g'
 )
 
@@ -746,6 +737,65 @@ export default defineConfig([
     plugins: { naming: namingPlugin },
     rules: {
       'naming/path-case': 'error'
+    }
+  },
+  // renderer deprecated CSS variable migration warnings
+  {
+    files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],
+    ignores: [
+      'src/renderer/**/*.test.*',
+      'src/renderer/**/__tests__/**',
+      'src/renderer/**/__mocks__/**'
+    ],
+    plugins: {
+      'renderer-styles': {
+        rules: {
+          'no-legacy-css-vars': {
+            meta: {
+              type: 'suggestion',
+              docs: {
+                description:
+                  'Warn when renderer code references a deprecated CSS variable instead of the shared theme contract.',
+                recommended: true
+              },
+              messages: {
+                legacyVar:
+                  'CSS variable "{{variable}}" is deprecated. Prefer @cherrystudio/ui theme contract variables or Tailwind semantic utilities instead.'
+              }
+            },
+            create(context) {
+              function reportIfLegacyCssVar(node, text) {
+                const matches = text.matchAll(DEPRECATED_CSS_VAR_REGEX)
+                for (const match of matches) {
+                  const variable = match[1]
+                  if (!variable) continue
+                  context.report({
+                    node,
+                    messageId: 'legacyVar',
+                    data: { variable }
+                  })
+                }
+              }
+
+              return {
+                Literal(node) {
+                  if (typeof node.value !== 'string') return
+                  reportIfLegacyCssVar(node, node.value)
+                },
+                TemplateElement(node) {
+                  reportIfLegacyCssVar(node, node.value.raw)
+                },
+                JSXText(node) {
+                  reportIfLegacyCssVar(node, node.value)
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'renderer-styles/no-legacy-css-vars': process.env.NO_LEGACY_CSS_WARN ? 'off' : 'warn'
     }
   },
   // Schema key naming convention (cache, preferences, paths & IPC route/event keys)

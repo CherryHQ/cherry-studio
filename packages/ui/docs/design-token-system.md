@@ -417,13 +417,14 @@ Examples:
 | product chat, navbar, window, and glow variables | approved `--cs-{domain}-*` concept | `exact` |
 
 The repository codemod reads this registry and parses CSS plus TS/TSX syntax before changing source files. It is
-idempotent, skips generated and vendor files, preserves same-named variables owned locally by a file, and changes
-only approved `exact` deprecated aliases, including historical `--app-*` names. Contextual and review rules remain
-explicit manual work.
+idempotent, reports every non-`preserve` migration source, and changes only approved `exact` rules. Generated and
+canonical providers, contract fixtures, vendor files, and explicitly listed isolated local themes are excluded;
+contextual and review rules remain visible manual work.
 
-Run `pnpm styles:legacy-vars` for a dry-run report, `pnpm styles:legacy-vars --fix` to apply exact replacements,
-or `pnpm styles:legacy-vars:strict` to fail when migratable usage remains. The same registry also drives the ESLint
-reminder, so migration policy and enforcement cannot maintain separate hard-coded inventories.
+Run `pnpm styles:legacy-vars` for a strategy-labelled dry-run report, `pnpm styles:legacy-vars --fix` to apply exact
+replacements, or `pnpm styles:legacy-vars:strict` to fail when any non-preserved migration source remains. After a
+fix, contextual and review findings intentionally remain. The same registry also drives the ESLint reminder, so
+migration policy and enforcement cannot maintain separate hard-coded inventories.
 
 ## 8. Governance
 

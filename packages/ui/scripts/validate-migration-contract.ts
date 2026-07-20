@@ -17,7 +17,10 @@ const REQUIRED_EXCLUDES = [
   'packages/ui/src/styles/tokens/**',
   'packages/ui/src/styles/migrations/**',
   'src/renderer/assets/styles/legacy-vars.css',
-  'src/renderer/assets/styles/tailwind.css'
+  'src/renderer/assets/styles/tailwind.css',
+  'src/main/ai/mcp/servers/browser/tabbarHtml.ts',
+  'resources/devtools/main-network/panel.css',
+  'packages/ui/scripts/__tests__/**'
 ] as const
 
 export interface MigrationRule {

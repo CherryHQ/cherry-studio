@@ -11,6 +11,8 @@ import {
   runCli
 } from '../check-legacy-css-vars'
 
+const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '../..')
+
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-css-vars-'))
 }
@@ -37,7 +39,7 @@ describe('check-legacy-css-vars', () => {
     expect(isCommentLine('color: var(--color-text-1);')).toBe(false)
   })
 
-  it('ignores variable definitions and comment-only mentions', () => {
+  it('reports deprecated definitions while ignoring comment-only mentions', () => {
     const content = `
       :root {
         --color-text-1: var(--color-foreground);
@@ -46,7 +48,11 @@ describe('check-legacy-css-vars', () => {
       /* var(--color-text-2) */
     `
 
-    expect(findLegacyVarHitsInContent(content, 'src/renderer/example.css')).toEqual([])
+    const findings = findLegacyVarHitsInContent(content, 'src/renderer/example.css')
+
+    expect(findings.map(({ variable, strategy, line }) => ({ variable, strategy, line }))).toEqual([
+      { variable: '--color-text-1', strategy: 'exact', line: 3 }
+    ])
   })
 
   it('reports real legacy variable usages', () => {
@@ -60,6 +66,7 @@ describe('check-legacy-css-vars', () => {
 
     expect(findings).toHaveLength(2)
     expect(findings.map((finding) => finding.variable)).toEqual(['--color-text-1', '--color-text-2'])
+    expect(findings.map((finding) => finding.strategy)).toEqual(['exact', 'exact'])
     expect(findings.map((finding) => finding.line)).toEqual([2, 4])
   })
 
@@ -144,7 +151,7 @@ describe('check-legacy-css-vars', () => {
     expect(stderr.output()).toContain(targetFile)
   })
 
-  it('auto-fixes mapped legacy variables in code lines only', () => {
+  it('auto-fixes exact variables in code strings and embedded CSS', () => {
     const content = [
       'const className = "text-(--color-text-2) bg-(--color-background-soft)"',
       'const linkStyle = { color: "var(--color-link)" }',
@@ -157,26 +164,33 @@ describe('check-legacy-css-vars', () => {
 
     const result = fixLegacyVarsInContent(content)
 
-    expect(result.replacements).toBe(4)
+    expect(result.replacements).toBe(5)
     expect(result.content).toContain('text-(--cs-text-secondary) bg-(--cs-background-soft)')
     expect(result.content).toContain('var(--cs-link)')
     expect(result.content).toContain('var(--cs-icon)')
     expect(result.content).toContain('// var(--color-text-1)')
-    expect(result.content).toContain('--color-text-1: var(--color-foreground);')
+    expect(result.content).toContain('--cs-text-primary: var(--color-foreground);')
   })
 
-  it('preserves locally owned CSS variables that only collide by name', () => {
-    const content = `
-      :root {
-        --color-error: #c5221f;
-      }
-      .error {
-        color: var(--color-error);
-      }
-    `
+  it('reports contextual rules without auto-fixing them', () => {
+    const content = '.brand { color: var(--cs-primary); }'
+    const findings = findLegacyVarHitsInContent(content, 'src/renderer/example.css')
 
-    expect(findLegacyVarHitsInContent(content, 'resources/example.css')).toEqual([])
-    expect(fixLegacyVarsInContent(content, 'resources/example.css')).toEqual({ content, replacements: 0 })
+    expect(findings.map(({ variable, strategy }) => ({ variable, strategy }))).toEqual([
+      { variable: '--cs-primary', strategy: 'contextual' }
+    ])
+    expect(fixLegacyVarsInContent(content, 'src/renderer/example.css')).toEqual({ content, replacements: 0 })
+  })
+
+  it('excludes isolated local contracts that intentionally reuse generic names', () => {
+    const localContractFiles = [
+      path.join(REPOSITORY_ROOT, 'src/main/ai/mcp/servers/browser/tabbarHtml.ts'),
+      path.join(REPOSITORY_ROOT, 'resources/devtools/main-network/panel.css')
+    ]
+
+    for (const filePath of localContractFiles) {
+      expect(collectTargetFiles(filePath)).toEqual([])
+    }
   })
 
   it('is idempotent after applying exact registry mappings', () => {
@@ -201,7 +215,7 @@ describe('check-legacy-css-vars', () => {
     expect(exitCode).toBe(0)
     expect(fs.readFileSync(targetFile, 'utf8')).toBe('.title { color: var(--cs-text-primary); }')
     expect(stdout.output()).toContain('changed 1 files, replaced 1 usages')
-    expect(stdout.output()).toContain('No legacy CSS variable usages found.')
+    expect(stdout.output()).toContain('No deprecated CSS variable usages found.')
     expect(stderr.output()).toBe('')
   })
 })

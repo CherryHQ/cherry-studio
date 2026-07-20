@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-import postcss, { type AtRule, type ChildNode, type Declaration, type Root, type Rule } from 'postcss'
+import postcss, { type AtRule, type ChildNode, type Declaration, type Rule } from 'postcss'
 import ts from 'typescript'
 
 const REPO_ROOT = path.resolve(__dirname, '..')
@@ -20,35 +20,26 @@ interface MigrationRegistry {
   rules: MigrationRule[]
 }
 
-function isDeprecatedRendererAliasSource(source: string): boolean {
-  return (
-    source.startsWith('--app-') ||
-    source.startsWith('--color-') ||
-    source.startsWith('--navbar-') ||
-    source.startsWith('--modal-') ||
-    source.startsWith('--chat-') ||
-    source.startsWith('--list-item-')
-  )
-}
-
 function loadMigrationRegistry(): MigrationRegistry {
   return JSON.parse(fs.readFileSync(MIGRATION_REGISTRY_PATH, 'utf8')) as MigrationRegistry
 }
 
 const MIGRATION_REGISTRY = loadMigrationRegistry()
-const LEGACY_ALIAS_RULES = MIGRATION_REGISTRY.rules.filter((rule) => isDeprecatedRendererAliasSource(rule.source))
+const DEPRECATED_RULES = MIGRATION_REGISTRY.rules.filter((rule) => rule.strategy !== 'preserve')
 
-for (const rule of LEGACY_ALIAS_RULES) {
-  if (rule.strategy !== 'exact' || !rule.target) {
-    throw new Error(`Deprecated renderer variable ${rule.source} must have an exact migration target`)
+for (const rule of DEPRECATED_RULES) {
+  if (rule.strategy === 'exact' && !rule.target) {
+    throw new Error(`Exact migration ${rule.source} must have a target`)
   }
 }
 
-export const LEGACY_VARS = LEGACY_ALIAS_RULES.map((rule) => rule.source)
+export const DEPRECATED_VARS = DEPRECATED_RULES.map((rule) => rule.source)
 
-const LEGACY_VAR_SET = new Set(LEGACY_VARS)
-const EXACT_REPLACEMENTS = new Map(LEGACY_ALIAS_RULES.map((rule) => [rule.source, rule.target as string]))
-const OCCURRENCE_PATTERN = new RegExp(`(?<![\\w-])(${LEGACY_VARS.map(escapeRegExp).join('|')})(?![\\w-])`, 'g')
+const RULES_BY_SOURCE = new Map(DEPRECATED_RULES.map((rule) => [rule.source, rule]))
+const EXACT_REPLACEMENTS = new Map(
+  DEPRECATED_RULES.filter((rule) => rule.strategy === 'exact').map((rule) => [rule.source, rule.target as string])
+)
+const OCCURRENCE_PATTERN = new RegExp(`(?<![\\w-])(${DEPRECATED_VARS.map(escapeRegExp).join('|')})(?![\\w-])`, 'g')
 
 type WritableStream = Pick<typeof process.stdout, 'write'>
 
@@ -62,6 +53,7 @@ export interface Finding {
   file: string
   line: number
   variable: string
+  strategy: string
   lineText: string
 }
 
@@ -160,32 +152,26 @@ export function collectTargetFiles(targetPath = REPO_ROOT): string[] {
   return [targetPath]
 }
 
-function isVariableDefinitionLine(line: string, variable: string): boolean {
-  return new RegExp(`^\\s*${escapeRegExp(variable)}\\s*:`).test(line)
-}
-
 export function isCommentLine(line: string): boolean {
   const trimmed = line.trim()
   return trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('*/')
 }
 
-function findMatches(text: string, locallyOwned = new Set<string>()): Array<{ index: number; variable: string }> {
+function findMatches(text: string): Array<{ index: number; variable: string }> {
   const matches: Array<{ index: number; variable: string }> = []
 
   for (const match of text.matchAll(OCCURRENCE_PATTERN)) {
     const variable = match[1]
-    if (!variable || match.index === undefined || locallyOwned.has(variable)) continue
+    if (!variable || match.index === undefined) continue
     matches.push({ index: match.index, variable })
   }
 
   return matches
 }
 
-function replaceMatches(text: string, locallyOwned = new Set<string>()): ReplacementResult {
+function replaceMatches(text: string): ReplacementResult {
   let replacements = 0
   const content = text.replace(OCCURRENCE_PATTERN, (match, variable: string) => {
-    if (locallyOwned.has(variable)) return match
-
     const replacement = EXACT_REPLACEMENTS.get(variable)
     if (!replacement) return match
 
@@ -199,9 +185,7 @@ function replaceMatches(text: string, locallyOwned = new Set<string>()): Replace
 export function findLegacyVarsInLine(line: string): string[] {
   if (isCommentLine(line)) return []
 
-  return findMatches(line)
-    .map(({ variable }) => variable)
-    .filter((variable) => !isVariableDefinitionLine(line, variable))
+  return findMatches(line).map(({ variable }) => variable)
 }
 
 function lineTextAt(content: string, line: number): string {
@@ -210,31 +194,23 @@ function lineTextAt(content: string, line: number): string {
 
 function findingForNode(content: string, filePath: string, node: ChildNode, variable: string): Finding {
   const line = node.source?.start?.line ?? 1
-  return { file: filePath, line, variable, lineText: lineTextAt(content, line) }
-}
-
-function collectCssLocallyOwnedVariables(root: Root): Set<string> {
-  const locallyOwned = new Set<string>()
-
-  root.walkDecls((declaration) => {
-    if (LEGACY_VAR_SET.has(declaration.prop)) locallyOwned.add(declaration.prop)
-  })
-
-  return locallyOwned
+  const strategy = RULES_BY_SOURCE.get(variable)?.strategy
+  if (!strategy) throw new Error(`Missing migration rule for ${variable}`)
+  return { file: filePath, line, variable, strategy, lineText: lineTextAt(content, line) }
 }
 
 function findCssLegacyVarHits(content: string, filePath: string): Finding[] {
   const root = postcss.parse(content, { from: filePath })
-  const locallyOwned = collectCssLocallyOwnedVariables(root)
   const findings: Finding[] = []
   const collect = (text: string, node: ChildNode): void => {
-    for (const { variable } of findMatches(text, locallyOwned)) {
+    for (const { variable } of findMatches(text)) {
       findings.push(findingForNode(content, filePath, node, variable))
     }
   }
 
   root.walkDecls((declaration) => {
-    if (!LEGACY_VAR_SET.has(declaration.prop)) collect(declaration.value, declaration)
+    collect(declaration.prop, declaration)
+    collect(declaration.value, declaration)
   })
   root.walkAtRules((atRule) => collect(atRule.params, atRule))
   root.walkRules((rule) => collect(rule.selector, rule))
@@ -244,16 +220,16 @@ function findCssLegacyVarHits(content: string, filePath: string): Finding[] {
 
 function replaceCssLegacyVars(content: string, filePath: string): ReplacementResult {
   const root = postcss.parse(content, { from: filePath })
-  const locallyOwned = collectCssLocallyOwnedVariables(root)
   let replacements = 0
   const replace = (text: string): string => {
-    const result = replaceMatches(text, locallyOwned)
+    const result = replaceMatches(text)
     replacements += result.replacements
     return result.content
   }
 
   root.walkDecls((declaration: Declaration) => {
-    if (!LEGACY_VAR_SET.has(declaration.prop)) declaration.value = replace(declaration.value)
+    declaration.prop = replace(declaration.prop)
+    declaration.value = replace(declaration.value)
   })
   root.walkAtRules((atRule: AtRule) => {
     atRule.params = replace(atRule.params)
@@ -297,30 +273,21 @@ function collectTypeScriptTextRanges(sourceFile: ts.SourceFile): TextRange[] {
   return ranges
 }
 
-function collectEmbeddedCssDefinitions(content: string): Set<string> {
-  const locallyOwned = new Set<string>()
-  const definitionPattern = new RegExp(`(?:^|[;{\\s])(${LEGACY_VARS.map(escapeRegExp).join('|')})\\s*:`, 'gm')
-
-  for (const match of content.matchAll(definitionPattern)) {
-    if (match[1]) locallyOwned.add(match[1])
-  }
-
-  return locallyOwned
-}
-
 function findTypeScriptLegacyVarHits(content: string, filePath: string): Finding[] {
   const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true, scriptKindFor(filePath))
-  const locallyOwned = collectEmbeddedCssDefinitions(content)
   const findings: Finding[] = []
 
   for (const range of collectTypeScriptTextRanges(sourceFile)) {
     const text = content.slice(range.start, range.end)
-    for (const match of findMatches(text, locallyOwned)) {
+    for (const match of findMatches(text)) {
       const line = sourceFile.getLineAndCharacterOfPosition(range.start + match.index).line + 1
+      const strategy = RULES_BY_SOURCE.get(match.variable)?.strategy
+      if (!strategy) throw new Error(`Missing migration rule for ${match.variable}`)
       findings.push({
         file: filePath,
         line,
         variable: match.variable,
+        strategy,
         lineText: lineTextAt(content, line)
       })
     }
@@ -331,11 +298,10 @@ function findTypeScriptLegacyVarHits(content: string, filePath: string): Finding
 
 function replaceTypeScriptLegacyVars(content: string, filePath: string): ReplacementResult {
   const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true, scriptKindFor(filePath))
-  const locallyOwned = collectEmbeddedCssDefinitions(content)
   const edits: Array<TextRange & { content: string; replacements: number }> = []
 
   for (const range of collectTypeScriptTextRanges(sourceFile)) {
-    const result = replaceMatches(content.slice(range.start, range.end), locallyOwned)
+    const result = replaceMatches(content.slice(range.start, range.end))
     if (result.replacements > 0) edits.push({ ...range, content: result.content, replacements: result.replacements })
   }
 
@@ -378,32 +344,36 @@ function toRepoRelative(filePath: string): string {
 
 function printResults(findings: Finding[], stdout: WritableStream, stderr: WritableStream): void {
   if (findings.length === 0) {
-    stdout.write('No legacy CSS variable usages found.\n')
+    stdout.write('No deprecated CSS variable usages found.\n')
     return
   }
 
-  const byVariable = new Map<string, number>()
+  const byVariable = new Map<string, { count: number; strategy: string }>()
 
   for (const finding of findings) {
-    byVariable.set(finding.variable, (byVariable.get(finding.variable) ?? 0) + 1)
+    const current = byVariable.get(finding.variable)
+    byVariable.set(finding.variable, {
+      count: (current?.count ?? 0) + 1,
+      strategy: finding.strategy
+    })
   }
 
-  stderr.write('Legacy CSS variable usages detected:\n\n')
+  stderr.write('Deprecated CSS variable usages detected:\n\n')
 
   for (const finding of findings) {
     stderr.write(`  ${toRepoRelative(finding.file)}:${finding.line}\n`)
-    stderr.write(`    ${finding.variable}\n`)
+    stderr.write(`    ${finding.variable} [${finding.strategy}]\n`)
     stderr.write(`    ${finding.lineText}\n`)
   }
 
   stderr.write('\nUsage summary:\n')
 
-  for (const [variable, count] of [...byVariable.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    stderr.write(`  ${variable}: ${count}\n`)
+  for (const [variable, summary] of [...byVariable.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    stderr.write(`  ${variable} [${summary.strategy}]: ${summary.count}\n`)
   }
 
   stderr.write(
-    '\nPrefer @cherrystudio/ui theme contract variables and Tailwind semantic utilities instead of adding new legacy var usages.\n'
+    '\nPrefer @cherrystudio/ui theme contract variables and Tailwind semantic utilities instead of adding deprecated variable usages.\n'
   )
 }
 
@@ -413,7 +383,7 @@ function printUsage(stderr: WritableStream): void {
 
 function printFixSummary(summary: FixSummary, stdout: WritableStream): void {
   stdout.write(
-    `Legacy CSS variable exact migration: changed ${summary.filesChanged} files, replaced ${summary.replacements} usages.\n`
+    `Deprecated CSS variable exact migration: changed ${summary.filesChanged} files, replaced ${summary.replacements} usages.\n`
   )
 }
 
