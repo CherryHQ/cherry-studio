@@ -156,6 +156,7 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
+  isInputHistoryActive?: boolean
   onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
@@ -499,7 +500,7 @@ function createComposerEditorContent(text: string, draftTokens: readonly Compose
   return createPromptVariableContent(text)
 }
 
-function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown') {
+function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown', isInputHistoryActive: boolean) {
   const { doc, selection } = view.state
   // ProseMirror positions are token-based: `doc.content.size` is one past the
   // trailing block-close token, so the caret at end-of-text sits at
@@ -510,11 +511,17 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
   let isCursorAtHistoryBoundary = false
 
   if (isCursorAtEnd) {
-    const topLevelBlockIndex = selection.$head.index(0)
-    const isAtDocumentEdgeBlock =
-      key === 'ArrowUp' ? topLevelBlockIndex === 0 : topLevelBlockIndex === doc.childCount - 1
-    const direction = key === 'ArrowUp' ? 'up' : 'down'
-    isCursorAtHistoryBoundary = isAtDocumentEdgeBlock && view.endOfTextblock(direction)
+    if (key === 'ArrowUp' && isInputHistoryActive) {
+      // Replacing the draft with a history item leaves the caret at the document end.
+      // Continue browsing from that unchanged position even when the item wraps visually.
+      isCursorAtHistoryBoundary = true
+    } else {
+      const topLevelBlockIndex = selection.$head.index(0)
+      const isAtDocumentEdgeBlock =
+        key === 'ArrowUp' ? topLevelBlockIndex === 0 : topLevelBlockIndex === doc.childCount - 1
+      const direction = key === 'ArrowUp' ? 'up' : 'down'
+      isCursorAtHistoryBoundary = isAtDocumentEdgeBlock && view.endOfTextblock(direction)
+    }
   }
 
   return {
@@ -552,6 +559,7 @@ export default function ComposerSurface({
   narrowMode,
   onFocus,
   onActionsChange,
+  isInputHistoryActive = false,
   onInputHistoryNavigate,
   editingState,
   getToolLaunchers,
@@ -589,6 +597,7 @@ export default function ComposerSurface({
   const sendMessageShortcutRef = useRef(sendMessageShortcut)
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
+  const isInputHistoryActiveRef = useRef(isInputHistoryActive)
   const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
@@ -609,10 +618,12 @@ export default function ComposerSurface({
     sendMessageShortcutRef.current = sendMessageShortcut
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
+    isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
     filesCount,
     isExpanded,
+    isInputHistoryActive,
     onInputHistoryNavigate,
     onSendDraft,
     quickPanel,
@@ -1442,7 +1453,7 @@ export default function ComposerSurface({
           !event.altKey &&
           !event.shiftKey &&
           shouldHandleInputHistoryNavigation({
-            ...getComposerSelectionState(view, event.key),
+            ...getComposerSelectionState(view, event.key, isInputHistoryActiveRef.current),
             isComposing: event.isComposing,
             isQuickPanelVisible: qp.isVisible,
             key: event.key,

@@ -4508,6 +4508,40 @@ describe('ComposerSurface', () => {
       expect(event.defaultPrevented).toBe(false)
     })
 
+    it('continues ArrowUp history navigation when the recalled item wraps visually', async () => {
+      const onInputHistoryNavigate = vi.fn().mockReturnValue(true)
+      const { rerender } = render(
+        <ComposerSurface
+          {...baseProps}
+          text=""
+          isInputHistoryActive={false}
+          onInputHistoryNavigate={onInputHistoryNavigate}
+        />
+      )
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const firstEvent = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+      expect(mocks.editorOptions.editorProps.handleKeyDown(buildView(false, false), firstEvent)).toBe(true)
+
+      rerender(
+        <ComposerSurface
+          {...baseProps}
+          text="a recalled history item that wraps across multiple visual lines"
+          isInputHistoryActive
+          onInputHistoryNavigate={onInputHistoryNavigate}
+        />
+      )
+
+      const secondEvent = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+      expect(
+        mocks.editorOptions.editorProps.handleKeyDown(buildView(true, false, { atVisualBoundary: false }), secondEvent)
+      ).toBe(true)
+      expect(onInputHistoryNavigate).toHaveBeenNthCalledWith(1, 'up')
+      expect(onInputHistoryNavigate).toHaveBeenNthCalledWith(2, 'up')
+      expect(secondEvent.defaultPrevented).toBe(true)
+    })
+
     it('keeps ArrowUp in the editor when the cursor is in a later top-level text block', async () => {
       const onInputHistoryNavigate = vi.fn().mockReturnValue(true)
       render(<ComposerSurface {...baseProps} text={'first\nsecond'} onInputHistoryNavigate={onInputHistoryNavigate} />)

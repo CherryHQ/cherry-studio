@@ -3255,6 +3255,69 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
+  it('does not let an earlier edit save close a later editing session', async () => {
+    let resolveFirstSave: () => void = () => undefined
+    const firstSave = new Promise<void>((resolve) => {
+      resolveFirstSave = resolve
+    })
+    const forkAndResend = vi.fn().mockReturnValue(firstSave)
+    mocks.chatWrite = {
+      pause: vi.fn(),
+      editMessage: vi.fn().mockResolvedValue(undefined),
+      resend: vi.fn().mockResolvedValue(undefined),
+      forkAndResend
+    }
+    const firstMessage = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const secondMessage = {
+      ...firstMessage,
+      id: 'message-2'
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={firstMessage as any} parts={[{ type: 'text', text: 'first' }] as any} />
+        <StartEditingButton message={secondMessage as any} parts={[{ type: 'text', text: 'second' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(firstMessage.id))
+
+    let firstSubmission: void | Promise<void> = undefined
+    act(() => {
+      firstSubmission = mocks.surfaceProps?.onSendDraft({ text: 'first edited', tokens: [] })
+    })
+    await waitFor(() => {
+      expect(forkAndResend).toHaveBeenCalledTimes(1)
+      expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    })
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.editingState?.messageId).toBe(secondMessage.id)
+      expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    })
+
+    await act(async () => {
+      resolveFirstSave()
+      await firstSubmission
+    })
+
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(secondMessage.id)
+    expect(mocks.surfaceProps?.text).toBe('second')
+  })
+
   it('saves an edited assistant reply without forking and removes derived translation parts', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)

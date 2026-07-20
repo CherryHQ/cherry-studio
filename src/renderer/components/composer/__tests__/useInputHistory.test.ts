@@ -268,16 +268,19 @@ describe('useInputHistory', () => {
         applyDraft: (value) => appliedDrafts.push(value)
       })
     )
+    expect(result.current.isInputHistoryActive).toBe(false)
 
     act(() => {
       expect(result.current.navigateHistory('up', draftBeforeHistory)).toBe(true)
     })
     expect(appliedDrafts).toEqual([{ text: 'history-1', tokens: [] }])
+    expect(result.current.isInputHistoryActive).toBe(true)
 
     act(() => {
       expect(result.current.navigateHistory('down', { text: 'history-1', tokens: [] })).toBe(true)
     })
     expect(appliedDrafts).toEqual([{ text: 'history-1', tokens: [] }, draftBeforeHistory])
+    expect(result.current.isInputHistoryActive).toBe(false)
   })
 
   describe('saveHistory', () => {

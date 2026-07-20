@@ -552,7 +552,7 @@ const ChatComposerInner = ({
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
-  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
@@ -560,6 +560,7 @@ const ChatComposerInner = ({
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
+  const editingMessageForCurrentTopicRef = useLatest(editingMessageForCurrentTopic)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const skipDraftCacheWriteForHistoryPreviewRef = useRef(false)
   const applyHistoryDraft = useCallback(
@@ -598,9 +599,10 @@ const ChatComposerInner = ({
       setSelectedKnowledgeBases
     ]
   )
-  const { navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } = useInputHistory({
-    applyDraft: applyHistoryDraft
-  })
+  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } =
+    useInputHistory({
+      applyDraft: applyHistoryDraft
+    })
   const handleInputHistoryNavigate = useCallback(
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
     [actionsRef, navigateHistory]
@@ -615,9 +617,10 @@ const ChatComposerInner = ({
     [resetHistoryIndex]
   )
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
-  const editSaveInFlightRef = useRef(false)
+  const editSaveInFlightSessionIdRef = useRef<number | null>(null)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)
+  const isSavingEdit = savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
   const hasMissingPersistedAssistant = !!assistantId && !isAssistantLoading && !assistant
@@ -1072,7 +1075,8 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
-        if (editSaveInFlightRef.current) return
+        const editingSessionId = editingMessageForCurrentTopic.editingSessionId
+        if (editSaveInFlightSessionIdRef.current === editingSessionId) return
 
         const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
         const saveEditedMessage = isAssistantReply ? chatWrite?.editMessage : chatWrite?.forkAndResend
@@ -1086,8 +1090,8 @@ const ChatComposerInner = ({
           return
         }
 
-        editSaveInFlightRef.current = true
-        setIsSavingEdit(true)
+        editSaveInFlightSessionIdRef.current = editingSessionId
+        setSavingEditingSessionId(editingSessionId)
         try {
           const editedParts = await buildEditedMessageParts(draft)
           if (!editedParts) return
@@ -1096,14 +1100,20 @@ const ChatComposerInner = ({
             ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
             : editedParts
           await saveEditedMessage(editingMessageForCurrentTopic.message.id, savedParts)
-          restoreSavedDraft()
-          stopEditing()
+          if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
+            restoreSavedDraft()
+            stopEditing()
+          }
         } catch (error) {
           logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
           toast.error(t('message.error.operation_unavailable'))
         } finally {
-          editSaveInFlightRef.current = false
-          setIsSavingEdit(false)
+          if (editSaveInFlightSessionIdRef.current === editingSessionId) {
+            editSaveInFlightSessionIdRef.current = null
+            setSavingEditingSessionId((currentSessionId) =>
+              currentSessionId === editingSessionId ? null : currentSessionId
+            )
+          }
         }
         return
       }
@@ -1167,6 +1177,7 @@ const ChatComposerInner = ({
       chatWrite,
       clearCurrentDraft,
       editingMessageForCurrentTopic,
+      editingMessageForCurrentTopicRef,
       enqueueFollowup,
       files,
       handleModelSelect,
@@ -1348,6 +1359,7 @@ const ChatComposerInner = ({
           narrowMode={forceNarrowLayout || narrowMode}
           onFocus={() => setSearching(false)}
           onActionsChange={handleSurfaceActionsChange}
+          isInputHistoryActive={isInputHistoryActive}
           onInputHistoryNavigate={handleInputHistoryNavigate}
           getToolLaunchers={() => getLaunchers()}
           toolLaunchersVersion={toolLaunchersVersion}
