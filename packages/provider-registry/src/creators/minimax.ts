@@ -5,5 +5,5 @@ export default defineCreator({
   name: 'MiniMax',
   modelsDevProviders: ['minimax', 'minimax-cn'],
   idPrefixes: ['minimax', 'abab'],
-  reasoningFamilies: [{ pattern: 'minimax-m[123]' }]
+  reasoningFamilies: [{ pattern: 'minimax-m\\d' }]
 })

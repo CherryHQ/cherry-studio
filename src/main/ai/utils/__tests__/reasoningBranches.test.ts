@@ -521,6 +521,16 @@ describe('native adapter params — descriptor-driven (#16598)', () => {
       })
     })
 
+    it('minimax m3 → adaptive/disabled wire, default IS auto (its anthropic surface defaults OFF)', () => {
+      const m3 = model('minimax', 'minimax-m3', withControls([{ kind: 'toggle' }]))
+      expect(getAnthropicReasoningParams(a(), m3)).toEqual({ thinking: { type: 'adaptive' }, sendReasoning: true })
+      expect(getAnthropicReasoningParams(a('auto'), m3)).toEqual({
+        thinking: { type: 'adaptive' },
+        sendReasoning: true
+      })
+      expect(getAnthropicReasoningParams(a('none'), m3)).toEqual({ thinking: { type: 'disabled' } })
+    })
+
     it('toggle/budget compat model → enabled + budget (fallback beats the SDK 1024 backfill)', () => {
       // kimi-k2.5 has no descriptor here; the enabled marker still needs a
       // real budget on this wire — the shared legacy fallback resolves the

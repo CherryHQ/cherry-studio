@@ -159,7 +159,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // inception
   { pattern: '^mercury-2' },
   // minimax
-  { pattern: 'minimax-m[123]' },
+  { pattern: 'minimax-m\\d' },
   // mistral
   { pattern: '^mistral-small-2603', effort: ['none', 'high'] },
   { pattern: 'magistral' },

@@ -34,6 +34,7 @@ import {
   isGrok4FastReasoningModel,
   isGrokModel,
   isHostedGemma4ThinkingModel,
+  isMiniMaxModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -65,7 +66,7 @@ import { serializeReasoningEffort } from './reasoningSerializers'
 const logger = loggerService.withContext('reasoning')
 
 export type ReasoningEffortOptionalParams = {
-  thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
+  thinking?: { type: 'disabled' | 'enabled' | 'auto' | 'adaptive'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoningEffort?: ReasoningEffortOption
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
@@ -779,12 +780,20 @@ export function getAnthropicReasoningParams(
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
   const isAdaptiveClaude = isAnthropicModel(model) && hasEffortControl(model)
+  // MiniMax speaks thinking.type ∈ {adaptive, disabled} — no 'enabled', no
+  // budget; its anthropic surface defaults to OFF, so the explicit adaptive
+  // envelope carries both the on-tiers and the auto default.
+  const isMiniMaxToggle =
+    isMiniMaxModel(model) && (model.reasoning?.controls?.some((c) => c.kind === 'toggle') ?? false)
 
   if (!reasoningEffort || reasoningEffort === 'default') {
     // default IS auto: adaptive-generation Claude gets the explicit
     // "model decides" envelope (Opus 4.7/4.8 default to OFF without it);
+    // MiniMax M3 likewise (its anthropic surface defaults thinking off);
     // everywhere else, sending nothing is the auto behavior.
-    return isAdaptiveClaude ? { thinking: { type: 'adaptive', display: 'summarized' } } : {}
+    if (isAdaptiveClaude) return { thinking: { type: 'adaptive', display: 'summarized' } }
+    if (isMiniMaxToggle) return { thinking: { type: 'adaptive' }, sendReasoning: true }
+    return {}
   }
 
   if (reasoningEffort === 'none') {
@@ -817,7 +826,10 @@ export function getAnthropicReasoningParams(
   }
 
   // Non-Anthropic models served over the Claude wire.
-  //
+  if (isMiniMaxToggle) {
+    return { thinking: { type: 'adaptive' }, sendReasoning: true }
+  }
+
   // Effort-driven models with no declared budget (DeepSeek V4): the effort
   // field alone, exactly like DeepSeek's own docs — no thinking envelope.
   // Sending `type: 'enabled'` without a budget makes @ai-sdk/anthropic

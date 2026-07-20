@@ -224,6 +224,9 @@ export const isDeepSeekModel = (model?: Model): boolean => {
   return model.name ? VENDOR_PATTERNS.deepseek.test(model.name.toLowerCase()) : false
 }
 
+/** Check if model is a MiniMax model. */
+export const isMiniMaxModel = vendorCheck(VENDOR_PATTERNS.minimax)
+
 /** Check if model is a MiMo (Xiaomi) model. */
 export const isMiMoModel = vendorCheck(VENDOR_PATTERNS.mimo)
 

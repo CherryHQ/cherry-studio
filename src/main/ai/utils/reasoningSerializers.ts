@@ -45,6 +45,7 @@ import {
   isDoubaoThinkingAutoModel,
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
+  isMiniMaxModel,
   isOpenAIReasoningModel,
   isQwen35to39Model,
   isQwenAlwaysThinkModel,
@@ -115,6 +116,11 @@ function residueOff(ctx: SerializerContext): ReasoningEffortOptionalParams {
   if (isDeepSeekV4PlusModel(model)) {
     return { thinking: { type: 'disabled' } }
   }
+  // MiniMax M3: thinking.type ∈ {adaptive, disabled} — no 'enabled', no budget
+  // (platform.minimax.io text-openai-api / text-anthropic-api).
+  if (isMiniMaxModel(model)) {
+    return { thinking: { type: 'disabled' } }
+  }
   if (isDeepSeekHybridInferenceModel(model)) {
     return {}
   }
@@ -164,6 +170,9 @@ function residuePositive(ctx: SerializerContext): ReasoningEffortOptionalParams 
   }
   if (isDeepSeekHybridInferenceModel(model)) {
     return hybridDeepSeekPositive(provider.id)
+  }
+  if (isMiniMaxModel(model)) {
+    return { thinking: { type: 'adaptive' } }
   }
   if (isQwenReasoningModel(model)) {
     const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
