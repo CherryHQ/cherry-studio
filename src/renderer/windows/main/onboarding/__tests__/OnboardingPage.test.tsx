@@ -1,7 +1,12 @@
 import '@testing-library/jest-dom/vitest'
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const responsiveStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/responsive.css'), 'utf8')
 
 const addApiKeyMock = vi.fn()
 const updateProviderMock = vi.fn()
@@ -177,6 +182,8 @@ describe('OnboardingPage', () => {
     expect(screen.getByRole('button', { name: 'onboarding.skip' })).toBeInTheDocument()
     expect(screen.getByTestId('window-controls')).toBeInTheDocument()
     expect(container.querySelector('.drag')).toHaveClass('h-[var(--app-top-chrome-height)]')
+    expect(responsiveStyles).toMatch(/--app-top-chrome-height:\s*44px/)
+    expect(responsiveStyles).toMatch(/--navbar-height:\s*var\(--app-top-chrome-height\)/)
   })
 
   it('syncs CherryIN models before moving a fresh install to model selection', async () => {
