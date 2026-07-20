@@ -548,8 +548,20 @@ export class SkillService {
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
 
     const existing = agentGlobalSkillService.getByFolderName(folderName)
-    if (existing?.source === 'system' && source !== 'system') {
-      throw new Error(`Cannot replace a system skill with a different install source: ${folderName}`)
+    if (existing) {
+      // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
+      // existing folder in place. Anything else — a marketplace install colliding with a builtin,
+      // system, local, or different-origin skill of the same folder name — is a conflict, not a
+      // silent replace: overwriting would clobber the files while the DB row keeps the old source
+      // (e.g. a third-party `skill-creator` replacing the builtin, which then stays
+      // enabled-for-all-agents), or irrecoverably destroy the user's own local skill.
+      const sameOrigin = existing.source === source && (existing.sourceUrl ?? null) === (sourceUrl ?? null)
+      if (!sameOrigin) {
+        throw new Error(
+          `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
+            `refusing to overwrite it with a ${source} install.`
+        )
+      }
     }
 
     const contentHash = await this.installer.computeContentHash(skillDir)
@@ -707,10 +719,18 @@ export class SkillService {
   ): Promise<string> {
     if (directoryPath) {
       const resolved = path.resolve(repoDir, directoryPath)
+      // Reject a directoryPath that escapes the clone root — a crafted identifier could otherwise
+      // point install at an arbitrary local directory (path traversal).
+      const relative = path.relative(repoDir, resolved)
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw new Error(`Skill directory path escapes the repository: ${directoryPath}`)
+      }
       const skillMdPath = await findSkillMdPath(resolved)
       if (skillMdPath) return resolved
 
-      logger.debug('SKILL.md not found at directoryPath, falling through to search', { directoryPath })
+      // Fail closed: an explicit directoryPath with no SKILL.md must NOT fall back to guessing a
+      // different candidate in the repo — the user confirmed skill A and must not get skill B.
+      throw new Error(`No SKILL.md found at the specified skill directory: ${directoryPath}`)
     }
 
     const candidates = await findAllSkillDirectories(repoDir, repoDir, 8)
@@ -901,16 +921,18 @@ export class SkillService {
     }
 
     const onDisk = new Map<string, string>()
-    // Present-but-unreadable descriptors: enumerated on disk yet the SKILL.md read threw
-    // (EACCES / EIO / atomic-replace window). These are NOT deletions, so they must be excluded
-    // from pruning — otherwise a transient read error would cascade-delete the catalog row and
-    // every agent's enablement for it.
-    const unreadable = new Set<string>()
+    // Every skill folder physically enumerated on disk, regardless of whether its descriptor is
+    // currently readable. Pruning keys off THIS set, not off a successful descriptor read: an editor
+    // saving a SKILL.md atomically briefly removes it (both casings ENOENT), and that transient
+    // window must not be mistaken for the skill being deleted — which would cascade-delete the
+    // catalog row and every agent's enablement via the agent_skill FK.
+    const presentFolders = new Set<string>()
     for (const entry of entries) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
       // Hidden entries (an install's `.<name>.bak` backup, staging dirs, …) are bookkeeping, never
       // skills — skip them so a backup can't be adopted as a phantom skill.
       if (entry.name.startsWith('.')) continue
+      presentFolders.add(entry.name)
       const dir = path.join(storageRoot, entry.name)
       // The scanner/parser accept lowercase `skill.md`, but the mirror + SDK load `SKILL.md`, so
       // normalize first — else a lowercase-only skill enters the catalog yet never loads.
@@ -919,12 +941,12 @@ export class SkillService {
       if (read.status === 'found') {
         onDisk.set(entry.name, createHash('sha256').update(read.content).digest('hex'))
       } else if (read.status === 'error') {
-        unreadable.add(entry.name)
-        logger.warn('Skill descriptor unreadable during reconcile; keeping its catalog row', {
+        logger.warn('Skill descriptor unreadable during reconcile; keeping any catalog row', {
           folderName: entry.name
         })
       }
-      // 'missing' → a dir with no SKILL.md at all: not a skill, so neither adopt nor protect.
+      // 'found' → adopt/refresh below. 'missing'/'error' → present folder with no usable descriptor:
+      // not adopted, and the presentFolders guard below keeps any existing row + enablement intact.
     }
 
     const dbSkills = agentGlobalSkillService.listAll()
@@ -974,12 +996,12 @@ export class SkillService {
 
     for (const skill of dbSkills) {
       if (skill.source === 'builtin') continue
-      if (onDisk.has(skill.folderName)) continue
-      // Files enumerated but the descriptor was unreadable → transient, not a deletion. Keep the row.
-      if (unreadable.has(skill.folderName)) continue
+      // Prune ONLY when the whole folder is gone from disk. A present folder whose descriptor is
+      // momentarily missing/unreadable (atomic save, EACCES) keeps its row — see presentFolders.
+      if (presentFolders.has(skill.folderName)) continue
       agentGlobalSkillService.deleteById(skill.id)
       await this.unlinkMirror(skill.folderName)
-      logger.info('Pruned skill whose library files were removed', { folderName: skill.folderName })
+      logger.info('Pruned skill whose library folder was removed', { folderName: skill.folderName })
     }
   }
 

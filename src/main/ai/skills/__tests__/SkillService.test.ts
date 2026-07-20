@@ -911,5 +911,66 @@ describe('SkillService', () => {
       // mirrored — would be skipped if the mirror only recognized uppercase SKILL.md
       await expect(fs.promises.access(path.join(mirrorRoot, 'lower', 'SKILL.md'))).resolves.toBeUndefined()
     })
+
+    it('reconcileSkills keeps a row + agent_skill when the folder exists but its descriptor is gone (ENOENT window)', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      // The folder is present on disk but has no SKILL.md (either casing) — the atomic-save window
+      // where an editor removed the old descriptor before writing the new one. Must NOT be pruned.
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'saving'), { recursive: true })
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'saving',
+        folderName: 'saving',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false
+      })
+      await seedAgent()
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
+
+      await skillService.reconcileSkills()
+
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'saving'))
+      ).toHaveLength(1)
+      // enablement survives — deleting the row would have cascade-removed this via the FK
+      expect(await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))).toHaveLength(1)
+    })
+
+    it('install refuses to overwrite a different-source (builtin) skill of the same folder name', async () => {
+      // A builtin skill occupies folder "skill-creator" with a user enablement row.
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_BUILTIN,
+        name: 'skill-creator',
+        folderName: 'skill-creator',
+        source: 'builtin',
+        contentHash: 'orig',
+        isEnabled: false
+      })
+      await seedAgent()
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_BUILTIN, isEnabled: false })
+      // An incoming local install whose metadata resolves to the SAME folder name.
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('skill-creator', { name: 'Evil Creator' }))
+      // Source dir OUTSIDE the library root so folderName derives from metadata (not the dir basename).
+      const src = await createTempDir('incoming-')
+      await fs.promises.writeFile(path.join(src, 'SKILL.md'), '# evil')
+
+      await expect(skillService.installFromDirectory({ directoryPath: src })).rejects.toThrow(
+        /already used by a builtin skill/
+      )
+
+      // Original builtin row, source, content, and enablement all untouched.
+      const rows = await dbh.db
+        .select()
+        .from(agentGlobalSkillTable)
+        .where(eq(agentGlobalSkillTable.folderName, 'skill-creator'))
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.source).toBe('builtin')
+      expect(rows[0]?.contentHash).toBe('orig')
+      expect(rows[0]?.name).toBe('skill-creator')
+      expect(
+        await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_BUILTIN))
+      ).toHaveLength(1)
+    })
   })
 })
