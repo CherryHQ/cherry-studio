@@ -115,29 +115,29 @@ preboot/
 ├── factoryResetGate.ts  factory-reset gate (#17131); consumes the BootConfig
 │                        `temp.factory_reset` marker at the top of startApp()
 │                        — before backupRestoreGate, after the single-instance
-│                        lock and the frozen path registry — wiping userData
-│                        (except the process-held logs/ and Crashpad/ and the
-│                        re-downloadable Runtime/ + Toolchain/ model artifacts)
-│                        and CHERRY_HOME user state (config/, mcp/, trace/ +
-│                        the OVMS model registry), then resetting BootConfig
-│                        to defaults (keeping app.user_data_path). Directories
-│                        whose shape makes a whole-tree pass too risky degrade
-│                        to a manifest wipe: 'owned-manifest' (sentinel-proven
-│                        near-root / ~/.cherrystudio: Cherry artifacts + v1
-│                        artifacts + .claude/tesseract) or strict 'manifest'
-│                        (no sentinel: Cherry-named artifacts only). Bounded
-│                        retry: attempts AND the wipe-mode decision are
-│                        durably recorded in the marker before each pass
-│                        (cap 2; a pass never runs on unrecorded accounting,
-│                        and retries reuse the recorded mode because the pass
-│                        deletes the sentinel it derives from), critical
-│                        delete failures relaunch straight back into preboot
-│                        to retry — never a writable app on a pending marker
-│                        — with the cap turning that into give-up: marker
-│                        cleared, user warned, boot continues. The
-│                        completed-wipe marker clear is a HARD persist — if
-│                        that write fails the gate quits rather than arm a
-│                        re-wipe of freshly created data.
+│                        lock and the frozen path registry. Whitelist wipe of
+│                        userData only: deletes exactly the USER_DATA_WIPE
+│                        entries (Cherry user state, v1 residue, high-value
+│                        Chromium state) plus the cherrystudio.sqlite prefix
+│                        family; everything unnamed survives (user files,
+│                        unknown debris, the process-held logs/ + Crashpad/
+│                        and re-downloadable Runtime/ + Toolchain/ +
+│                        tesseract/ artifacts). ~/.cherrystudio is machine
+│                        domain and deliberately untouched (#17138). Then
+│                        resets BootConfig to defaults (keeping
+│                        app.user_data_path) and relaunches into a clean
+│                        process. Bounded retry: attempts AND the target's
+│                        canonical (realpath) identity are durably recorded
+│                        in the marker before each pass (cap 2; a pass never
+│                        runs on unrecorded accounting, and a canonical
+│                        mismatch — replaced symlink/junction — refuses to
+│                        wipe), critical delete failures relaunch straight
+│                        back into preboot to retry — never a writable app on
+│                        a pending marker — with the cap turning that into
+│                        give-up: marker cleared, user warned, boot
+│                        continues. The completed-wipe marker clear is a
+│                        HARD persist — if that write fails the gate quits
+│                        rather than arm a re-wipe of freshly created data.
 ├── backupRestoreGate.ts
 │                        backup-restore gate; promotes a staged restored DB
 │                        (if any) at the top of startApp(), after the

@@ -1,18 +1,11 @@
 import path from 'node:path'
 
-import { CHERRY_HOME } from '@main/core/paths/constants'
 import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  CHERRY_HOME_WIPE,
-  OWNED_MANIFEST_EXTRAS,
-  OWNERSHIP_SENTINEL,
-  USER_DATA_KEEP,
-  USER_DATA_MANIFEST
-} from '../factoryResetGate'
+import { USER_DATA_KEPT, USER_DATA_WIPE, USER_DATA_WIPE_PREFIXES } from '../factoryResetGate'
 
-// Conformance test: factoryResetGate's wipe lists are literal entry names,
+// Conformance test: factoryResetGate's wipe list is literal entry names,
 // while the paths they refer to are owned by pathRegistry. This suite pins
 // each literal to the registry key it mirrors, so relocating or renaming a
 // path in the registry fails here instead of silently un-covering (or
@@ -54,63 +47,61 @@ function firstSegment(child: string, parent: string): string {
   return path.relative(parent, child).split(path.sep)[0]
 }
 
+/** Same membership rule the gate applies to a directory entry. */
+function isWiped(entry: string): boolean {
+  return USER_DATA_WIPE.includes(entry) || USER_DATA_WIPE_PREFIXES.some((prefix) => entry.startsWith(prefix))
+}
+
 describe('factoryResetGate ↔ pathRegistry conformance', () => {
-  it('OWNERSHIP_SENTINEL is the basename of app.database.file', () => {
-    expect(OWNERSHIP_SENTINEL).toBe(path.basename(registry['app.database.file']))
+  it('the sqlite prefix family is rooted at the app.database.file basename', () => {
+    const dbFile = path.basename(registry['app.database.file'])
+    expect(USER_DATA_WIPE_PREFIXES).toContain(dbFile)
+    // The prefix covers the sidecars an exact-name list would miss.
+    expect(isWiped(`${dbFile}-wal`)).toBe(true)
+    expect(isWiped(`${dbFile}-shm`)).toBe(true)
+    expect(isWiped(`${dbFile}.bak-20260101000000`)).toBe(true)
   })
 
-  it('USER_DATA_MANIFEST covers every registry-owned userData artifact', () => {
-    const dbFile = path.basename(registry['app.database.file'])
-    expect(USER_DATA_MANIFEST).toContain(dbFile)
-    expect(USER_DATA_MANIFEST).toContain(`${dbFile}-wal`)
-    expect(USER_DATA_MANIFEST).toContain(`${dbFile}-shm`)
-    expect(USER_DATA_MANIFEST).toContain(firstSegment(registry['app.userdata.data'], userData))
-    expect(USER_DATA_MANIFEST).toContain(path.basename(registry['feature.backup.restore.file']))
-    expect(USER_DATA_MANIFEST).toContain(path.basename(registry['feature.backup.restore.staging']))
+  it('USER_DATA_WIPE names the registry-owned userData user state', () => {
+    expect(USER_DATA_WIPE).toContain(firstSegment(registry['app.userdata.data'], userData))
+    expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.version_log.file']))
+    expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.file']))
+    expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.staging']))
+    expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.agents.claude.root'], userData))
     // 'cache.json' has no registry key — CacheService names it inline against
     // 'app.userdata' (see the reverse comment at its persistFilePath).
-    expect(USER_DATA_MANIFEST).toContain('cache.json')
+    expect(USER_DATA_WIPE).toContain('cache.json')
+    // 'Data.restore' has no registry key yet — LegacyBackupManager names it
+    // inline against the userData root as `${Data}.restore`.
+    expect(USER_DATA_WIPE).toContain('Data.restore')
   })
 
-  it('USER_DATA_KEEP shields the model/toolchain trees the registry places under userData', () => {
-    expect(USER_DATA_KEEP).toContain(firstSegment(registry['feature.embedding.models'], userData))
-    expect(USER_DATA_KEEP).toContain(firstSegment(registry['feature.ocr.paddleocr'], userData))
-    expect(USER_DATA_KEEP).toContain(firstSegment(registry['feature.onnxruntime.binary'], userData))
+  it('USER_DATA_KEPT shields the model/toolchain trees the registry places under userData', () => {
+    expect(USER_DATA_KEPT).toContain(firstSegment(registry['feature.embedding.models'], userData))
+    expect(USER_DATA_KEPT).toContain(firstSegment(registry['feature.ocr.paddleocr'], userData))
+    expect(USER_DATA_KEPT).toContain(firstSegment(registry['feature.onnxruntime.binary'], userData))
+    expect(USER_DATA_KEPT).toContain(firstSegment(registry['feature.ocr.tesseract'], userData))
   })
 
-  it('OWNED_MANIFEST_EXTRAS names the registry-owned userData-root user state', () => {
-    expect(OWNED_MANIFEST_EXTRAS).toContain(path.basename(registry['feature.version_log.file']))
-    expect(OWNED_MANIFEST_EXTRAS).toContain(firstSegment(registry['feature.agents.claude.root'], userData))
-    expect(OWNED_MANIFEST_EXTRAS).toContain(firstSegment(registry['feature.ocr.tesseract'], userData))
-  })
-
-  it('CHERRY_HOME_WIPE matches the registry keys it targets', () => {
-    expect(CHERRY_HOME_WIPE).toContain(firstSegment(registry['cherry.config'], CHERRY_HOME))
-    expect(CHERRY_HOME_WIPE).toContain(firstSegment(registry['feature.mcp'], CHERRY_HOME))
-    expect(CHERRY_HOME_WIPE).toContain(firstSegment(registry['feature.trace'], CHERRY_HOME))
-  })
-
-  it('classifies every CHERRY_HOME registry entry as wiped user state or a kept machine artifact', () => {
-    // The machine artifacts a factory reset keeps (#17131) — mirrors the
-    // CHERRY_HOME_WIPE doc comment. A NEW registry key under CHERRY_HOME must
-    // be classified deliberately: user state → add its first segment to
-    // CHERRY_HOME_WIPE in factoryResetGate; re-downloadable machine artifact
-    // → add it here.
-    const KEPT_MACHINE_ARTIFACTS = ['bin', 'binary-manager', 'ovms', 'install']
-    const classified = new Set([...CHERRY_HOME_WIPE, ...KEPT_MACHINE_ARTIFACTS])
-
+  it('classifies every userData registry entry as wiped user state or a kept machine artifact', () => {
+    // A NEW registry key under userData must be classified deliberately:
+    // user state → add its entry name to USER_DATA_WIPE in factoryResetGate;
+    // re-downloadable machine artifact → add it to USER_DATA_KEPT.
     for (const [key, value] of Object.entries(registry)) {
       // process.resourcesPath ('app.extra_resources') is undefined outside Electron
       if (typeof value !== 'string') continue
-      if (key === 'cherry.home' || !value.startsWith(CHERRY_HOME + path.sep)) continue
-      const entry = firstSegment(value, CHERRY_HOME)
-      expect(classified, `unclassified CHERRY_HOME entry '${entry}' from registry key '${key}'`).toContain(entry)
+      if (key === 'app.userdata' || !value.startsWith(userData + path.sep)) continue
+      const entry = firstSegment(value, userData)
+      expect(
+        isWiped(entry) || USER_DATA_KEPT.includes(entry),
+        `unclassified userData entry '${entry}' from registry key '${key}'`
+      ).toBe(true)
     }
   })
 
-  it('the OVMS model registry key sits inside the kept feature.ovms.ovms tree', () => {
-    expect(registry['feature.ovms.model_registry_file']).toBe(
-      path.join(registry['feature.ovms.ovms'], 'models', 'config.json')
-    )
+  it('no entry is both wiped and kept', () => {
+    for (const entry of USER_DATA_KEPT) {
+      expect(isWiped(entry), `'${entry}' is in USER_DATA_KEPT but matches the wipe list`).toBe(false)
+    }
   })
 })

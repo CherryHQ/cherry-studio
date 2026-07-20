@@ -204,8 +204,8 @@ export class CacheService extends BaseService {
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
     this.startGarbageCollection()
-    // 'cache.json' is enumerated in factoryResetGate's USER_DATA_MANIFEST —
-    // renaming or relocating this file must update that manifest too.
+    // 'cache.json' is enumerated in factoryResetGate's USER_DATA_WIPE —
+    // renaming or relocating this file must update that list too.
     this.persistFilePath = application.getPath('app.userdata', 'cache.json')
     this.loadPersist()
     logger.info('CacheService initialized')
