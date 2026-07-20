@@ -62,7 +62,7 @@ cleanup_policy TEXT NOT NULL DEFAULT 'manual'
 | Value | Meaning |
 |---|---|
 | `manual` | Keep the entry even at zero refs. Cleanup requires an explicit user/caller action. |
-| `delete_when_unreferenced` | FileManager may delete the entry once it has zero persistent refs, no temp-session refs, and is older than the grace window. |
+| `delete_when_unreferenced` | FileManager may delete the entry once it has zero persistent refs and is older than the grace window. |
 
 ### 4.1 Assignment at creation — business-owned creation paths are `delete_when_unreferenced`
 
@@ -80,9 +80,9 @@ Files that follow an owning business object's lifecycle are `delete_when_unrefer
 
 **Type rule**: `cleanupPolicy` is **required** in the TS creation surfaces (`CreateFileEntryRowSchema`, `CreateInternalEntryParams` / `EnsureExternalEntryParams` IPC schemas) so every caller makes an explicit choice at compile time. The DB default `'manual'` exists only as the safe backstop for migration and raw-SQL paths — a forgotten assignment leaks (recoverable) instead of deleting (unrecoverable).
 
-**Draft-window hold — materialization can precede the owning row.** A `delete_when_unreferenced` input may be materialized *before* its owning business row exists: the painting composer promotes an input image to a `FileEntry` (`createInternalEntry`) the moment it is attached, but a draft painting is not persisted until generation (`usePaintingGeneration` calls `createPainting` only on the first generate), so no `painting_file_ref` exists yet. Left unprotected, such an entry ages past the grace window and the cleanup pass reclaims it *while the draft still shows it* — the chosen reference image vanishes before generation, and later persistence silently drops the now-missing FK. **Rule**: an entry materialized ahead of its owner must be held by a cleanup-visible **temp-session ref** for the draft window; generation persists the painting and its `painting_file_ref role='input'` takes over, and removing/replacing the input releases the temp-session ref.
+**Materialization time = owning-object persistence time.** A `delete_when_unreferenced` entry is never materialized ahead of the business row that will reference it, so no draft ever holds an orphaned, unreferenced entry for the cleanup pass to reclaim. Chat obeys this via `buildFileParts`, which promotes composer attachments to `FileEntry`s at **send** time, when the message row and its `chat_message_file_ref` land together. Painting obeys it the same way: the composer holds lean attachments during the draft and materializes them at **generate** time (`usePaintingComposerInputFiles.materializeInputs`, invoked from `handleSendDraft`), when the painting row and its `painting_file_ref role='input'` are persisted. A never-generated draft persists no input entries at all; an input added to a persisted painting but not regenerated is not committed until the next generate (which keeps a painting's inputs consistent with its output).
 
-The ideal is *materialization time = owning-object persistence time*: chat obeys it — `buildFileParts` promotes attachments at **send** time, when the message row and its `chat_message_file_ref` land together, so a draft never holds an orphaned entry. The painting composer materializes **eagerly** instead — a deliberate choice, to capture the bytes of a volatile external path the moment the user provides it (a pasted/dropped temp file may be gone by generation) — and the temp-session hold is what closes the resulting draft-window gap. **Alternative considered:** delaying materialization to generation (mirroring chat's send-time promote, so a draft holds zero persisted files) is the more thorough fix and removes the gap at the root, but it requires reworking the shared composer input data flow; it is tracked as a separate follow-up, not part of this PR.
+_History_: an earlier design eagerly materialized painting inputs during the draft and protected them with a CacheService-backed **temp-session ref** held for the draft window. That hold — and the entire temp-session ref subsystem — was removed in favor of the delayed materialization above, which closes the draft-window gap at the root instead of patching it.
 
 ### 4.2 Policy transitions
 
@@ -145,8 +145,6 @@ For each candidate id, one serialized `DbService.withWriteTx` (callback is synch
 3. Count persistent refs **inside the transaction** (new tx-scoped method on `FileRefService`); > 0 → skip.
 4. Delete the `file_entry` row.
 
-Temp-session refs are checked **before** the transaction (they live in main-process `CacheService` memory and are not transactional; a temp ref appearing mid-transaction is tolerated — see §6). Any temp-session ref → skip the candidate this pass.
-
 After commit, run the existing `cleanupDeletedEntry` from `permanentDelete`'s implementation: invalidate `versionCache`, remove from `DanglingCache`, best-effort unlink the internal blob (external: DB-only, user's file untouched). If unlink fails, the DB state is already converged and the FS orphan sweep reclaims the blob later.
 
 ### 5.5 Triggering
@@ -192,8 +190,6 @@ A failed candidate is logged and simply retried on the next pass — no attempt 
 | Single-tx ref replacement (delete + re-insert) | Never observable: `withWriteTx` serialization means the pass sees pre- or post-state only. |
 | New persistent ref races the delete | Serialized writes decide order. Ref insert commits first → step 3 sees it. Delete commits first → ref insert fails FK validation (same failure mode the business flow already has against explicit `permanentDelete`). |
 | Send pipeline: entry created, refs not yet written | Protected by the 1h `created_at` grace window; a crashed send's orphan is collected after the window. |
-| Temp-session ref exists | Candidate skipped this pass; temp refs are restart-scoped, so the entry is collected once the session ends. |
-| Temp-session ref created between check and commit | Tolerated: the temp ref points at a deleted entry, is pruned by the existing sweep, and persisting it fails FK validation. Temp refs are advisory, not a correctness boundary. |
 | Policy upgraded to `manual` (ensureExternal reuse) between query and tx | Step 2 re-check skips; counted as `gonePinned`. |
 | Crash after row delete, before unlink | Blob becomes an FS orphan; existing `runFileSweep` reclaims it. |
 | Crash mid-pass | No state to recover; the next pass re-derives candidates. |
@@ -231,7 +227,6 @@ Shipped in the same PR series:
   - `manual` zero-ref entry → preserved;
   - `delete_when_unreferenced` zero-ref past grace → row deleted, internal blob unlinked;
   - entry with a persistent ref → preserved;
-  - temp-session ref → skipped this pass;
   - entry younger than grace → skipped;
   - trashed (`deleted_at` set) auto entry → reclaimed;
   - external auto entry → row deleted, no FS touch;

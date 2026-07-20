@@ -167,7 +167,7 @@ chat_message_file_ref / painting_file_ref / ...
 └── UNIQUE(fileEntryId, sourceId, role)
 ```
 
-`FileRefService` aggregates these source-owned tables into the shared `FileRef` discriminated union for DataApi reads, ref counts, and sweep reporting. It does not own persistent ref writes. The only mutable refs stored by `FileRefService` are `temp_session` refs, backed by main-process `CacheService` memory.
+`FileRefService` aggregates these source-owned tables into the shared `FileRef` discriminated union for DataApi reads, ref counts, and sweep reporting. It does not own persistent ref writes.
 
 When a persistent business object is deleted, SQLite FK cascade removes its association rows. Relationship replacement (for example, replacing a painting's complete file set) is handled directly by the owning business service.
 
@@ -229,7 +229,7 @@ src/main/services/file/
 │     ├── system/
 │     │    ├── shell.ts        — open / showInFolder
 │     │    └── tempCopy.ts     — withTempCopy
-│     └── orphanSweep.ts       — temp-session ref prune + FS-level orphan sweep
+│     └── orphanSweep.ts       — FS-level orphan sweep
 └── versionCache.ts       ← LRU type definition
 ```
 
@@ -711,14 +711,13 @@ Three layers of protection, with each layer as a fallback for the next:
 | relationship replaced -> explicit cleanup+insert      |
 +-------------------------------------------------------+
 | Layer 3: on-demand DB orphan sweep                    |
-| prune temp-session refs whose file_entry is missing   |
 | report zero-ref manual entries                        |
 | reclaim zero-ref delete_when_unreferenced entries     |
 | via the cleanup pass                                  |
 +-------------------------------------------------------+
 ```
 
-Layer 3 is not a generic persistent-source reconciler. Persistent association rows are FK-constrained and should disappear through Layer 1 / Layer 2 cascades; the sweep handles the non-persistent `temp_session` cache, reports `manual` zero-ref entries, and reclaims `delete_when_unreferenced` zero-ref entries via the cleanup pass described in [file-entry-cleanup.md](./file-entry-cleanup.md).
+Layer 3 is not a generic persistent-source reconciler. Persistent association rows are FK-constrained and should disappear through Layer 1 / Layer 2 cascades; the sweep reports `manual` zero-ref entries, and reclaims `delete_when_unreferenced` zero-ref entries via the cleanup pass described in [file-entry-cleanup.md](./file-entry-cleanup.md).
 
 ### 7.1 No-Reference Entry Policy
 
@@ -755,7 +754,7 @@ Consequences:
 - No persisted "missing since" timestamp or time-based cleanup query.
 - No cleanup-verification bypass around DanglingCache TTL.
 - No cleanup-specific observability event.
-- No `('external', 'missing', 0)` automatic deletion branch keyed on dangling state. Layer 3's reporting sub-path remains temp-session ref pruning plus zero-ref reporting for `manual` entries; `delete_when_unreferenced` entries are instead reclaimed by the policy-driven cleanup pass (file-entry-cleanup.md), independent of dangling state.
+- No `('external', 'missing', 0)` automatic deletion branch keyed on dangling state. Layer 3's reporting sub-path remains zero-ref reporting for `manual` entries; `delete_when_unreferenced` entries are instead reclaimed by the policy-driven cleanup pass (file-entry-cleanup.md), independent of dangling state.
 
 ---
 
@@ -954,9 +953,8 @@ async runSweep(): Promise<OrphanReport> {
   //      just reclaimed.
   //   2. FS-level file sweep (§10): scan {userData}/Data/Files/* for
   //      orphans not present in the file_entry snapshot.
-  //   3. DB-level temp-session ref prune + entry report (§7 Layer 3):
-  //      prune cache refs whose file_entry is missing, then report
-  //      unreferenced `manual` entries.
+  //   3. DB-level entry report (§7 Layer 3): report unreferenced
+  //      `manual` entries.
   // Passes 2/3 settle independently with their own error capture. A DB
   // failure dominates as `failed`; FS-side partial/aborted/failed outcomes
   // degrade the umbrella report to `partial` via `fsSweepIssue`. The
@@ -1076,7 +1074,7 @@ Every sweep run emits one structured log record through `loggerService` — `inf
 }
 ```
 
-The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its current outcomes are `completed`, `aborted` (`abortReason: 'pending-restore'` — the same stand-aside as the FS pass), or `failed`: it prunes temp-session refs whose `file_entry` is missing, then reports `manual` entries with zero refs. The shared `partial` wire branch remains for compatibility, but there is no generic per-source checker pass.
+The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its current outcomes are `completed`, `aborted` (`abortReason: 'pending-restore'` — the same stand-aside as the FS pass), or `failed`: it reports `manual` entries with zero refs. The shared `partial` wire branch remains for compatibility, but there is no generic per-source checker pass.
 
 The entry-cleanup pass (§7.1, [file-entry-cleanup.md §5.6](./file-entry-cleanup.md#56-failure-handling--observability)) emits a third, independent record under `event: 'file-entry-cleanup'` — `info` on `completed`, `error` on `failed` (it has no `aborted` outcome; the volume abort was removed, spec §5.3) — covering candidate/deleted/`gonePinned`/`failed` counts and skip/unlink-failure breakdowns for the `delete_when_unreferenced` reclaim path. It fires on its own triggers (init, idle-gated interval) in addition to running as the first of `runSweep`'s three passes (§10.1).
 
