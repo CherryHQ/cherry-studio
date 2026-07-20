@@ -23,12 +23,10 @@ function foreignKeyBucket(count: number): '0' | '1' | '2-10' | '11+' {
 }
 
 function inspectForeignKeys(database: Database.Database): '0' | '1' | '2-10' | '11+' {
-  let count = 0
-  for (const _row of database.prepare('PRAGMA foreign_key_check').iterate()) {
-    count += 1
-    if (count >= 11) break
-  }
-  return foreignKeyBucket(count)
+  const row = database
+    .prepare('SELECT count(*) AS count FROM (SELECT 1 FROM pragma_foreign_key_check LIMIT 11)')
+    .get() as { readonly count: number }
+  return foreignKeyBucket(row.count)
 }
 
 function inspectObject(
