@@ -27,4 +27,12 @@ export const migrationRendererExportFailureReportSchema = z.discriminatedUnion('
     .strict()
 ])
 
+export const migrationRendererExportFailurePayloadSchema = z
+  .object({
+    message: z.string().min(1).max(4_096),
+    report: migrationRendererExportFailureReportSchema
+  })
+  .strict()
+
 export type MigrationRendererExportFailureReport = z.infer<typeof migrationRendererExportFailureReportSchema>
+export type MigrationRendererExportFailurePayload = z.infer<typeof migrationRendererExportFailurePayloadSchema>

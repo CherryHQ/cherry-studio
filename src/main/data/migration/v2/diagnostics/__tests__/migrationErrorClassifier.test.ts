@@ -8,48 +8,49 @@ function errorWithCode(code: string, cause?: unknown): Error {
 
 describe('classifyMigrationError', () => {
   it.each([
-    ['EACCES', 'filesystem', 'permission_denied'],
-    ['EPERM', 'filesystem', 'permission_denied'],
-    ['ENOENT', 'filesystem', 'path_unavailable'],
-    ['ENOTDIR', 'filesystem', 'path_unavailable'],
-    ['ENOSPC', 'filesystem', 'disk_full'],
-    ['SQLITE_CANTOPEN', 'filesystem', 'path_unavailable'],
-    ['SQLITE_CANTOPEN_ISDIR', 'filesystem', 'path_unavailable'],
-    ['SQLITE_READONLY', 'filesystem', 'permission_denied'],
-    ['SQLITE_READONLY_DBMOVED', 'filesystem', 'permission_denied'],
-    ['SQLITE_FULL', 'filesystem', 'disk_full'],
-    ['SQLITE_CORRUPT', 'database_read', 'sqlite_corrupt'],
-    ['SQLITE_NOTADB', 'database_read', 'sqlite_not_database'],
-    ['SQLITE_TOOBIG', 'database_write', 'sqlite_too_big'],
-    ['SQLITE_CONSTRAINT', 'database_write', 'sqlite_constraint'],
-    ['SQLITE_CONSTRAINT_UNIQUE', 'database_write', 'sqlite_constraint'],
-    ['SQLITE_SCHEMA', 'database_read', 'sqlite_schema']
-  ] as const)('classifies %s', (code, category, expectedCode) => {
-    expect(classifyMigrationError(errorWithCode(code))).toEqual({ category, code: expectedCode, causeDepth: 0 })
+    ['SQLITE_CANTOPEN', 'sqlite_open_failed'],
+    ['SQLITE_CANTOPEN_ISDIR', 'sqlite_open_failed'],
+    ['SQLITE_CORRUPT', 'sqlite_corrupt'],
+    ['SQLITE_NOTADB', 'sqlite_not_database'],
+    ['SQLITE_SCHEMA', 'sqlite_schema'],
+    ['SQLITE_CONSTRAINT', 'sqlite_constraint'],
+    ['SQLITE_CONSTRAINT_UNIQUE', 'sqlite_constraint'],
+    ['SQLITE_READONLY', 'sqlite_readonly'],
+    ['SQLITE_READONLY_DBMOVED', 'sqlite_readonly'],
+    ['SQLITE_PERM', 'sqlite_permission'],
+    ['SQLITE_TOOBIG', 'sqlite_too_big'],
+    ['SQLITE_BUSY', 'sqlite_busy'],
+    ['SQLITE_BUSY_TIMEOUT', 'sqlite_busy'],
+    ['SQLITE_LOCKED', 'sqlite_locked'],
+    ['SQLITE_LOCKED_SHAREDCACHE', 'sqlite_locked'],
+    ['SQLITE_IOERR', 'sqlite_io'],
+    ['SQLITE_IOERR_READ', 'sqlite_io'],
+    ['SQLITE_FULL', 'sqlite_io'],
+    ['ENOENT', 'file_missing'],
+    ['ENOTDIR', 'file_missing'],
+    ['EACCES', 'file_permission'],
+    ['EPERM', 'file_permission'],
+    ['EROFS', 'file_readonly'],
+    ['EIO', 'file_io'],
+    ['ENOSPC', 'file_io']
+  ] as const)('classifies %s', (code, errorCode) => {
+    expect(classifyMigrationError(errorWithCode(code))).toEqual({ errorCode })
   })
 
   it('returns the first recognized code in a bounded cause chain', () => {
     const nested = errorWithCode('SQLITE_TOOBIG')
     const error = errorWithCode('UNRECOGNIZED', new Error('wrapper', { cause: nested }))
 
-    expect(classifyMigrationError(error)).toEqual({
-      category: 'database_write',
-      code: 'sqlite_too_big',
-      causeDepth: 2
-    })
+    expect(classifyMigrationError(error)).toEqual({ errorCode: 'sqlite_too_big' })
   })
 
   it('inspects depths 0 through 4 but not depth 5', () => {
     let atDepthFour: Error = errorWithCode('SQLITE_CORRUPT')
     for (let index = 0; index < 4; index++) atDepthFour = new Error('wrapper', { cause: atDepthFour })
-    expect(classifyMigrationError(atDepthFour)).toEqual({
-      category: 'database_read',
-      code: 'sqlite_corrupt',
-      causeDepth: 4
-    })
+    expect(classifyMigrationError(atDepthFour)).toEqual({ errorCode: 'sqlite_corrupt' })
 
     const atDepthFive = new Error('wrapper', { cause: atDepthFour })
-    expect(classifyMigrationError(atDepthFive)).toEqual({ category: 'unknown', code: 'unknown', causeDepth: 0 })
+    expect(classifyMigrationError(atDepthFive)).toEqual({ errorCode: 'unknown_error' })
   })
 
   it('terminates cyclic causes', () => {
@@ -57,7 +58,7 @@ describe('classifyMigrationError', () => {
     const second = new Error('second', { cause: first })
     Object.defineProperty(first, 'cause', { value: second })
 
-    expect(classifyMigrationError(first)).toEqual({ category: 'unknown', code: 'unknown', causeDepth: 0 })
+    expect(classifyMigrationError(first)).toEqual({ errorCode: 'unknown_error' })
   })
 
   it('does not execute accessors or stringify unknown values', () => {
@@ -83,7 +84,15 @@ describe('classifyMigrationError', () => {
       }
     }
 
-    expect(classifyMigrationError(hostile)).toEqual({ category: 'unknown', code: 'unknown', causeDepth: 0 })
+    expect(classifyMigrationError(hostile)).toEqual({ errorCode: 'unknown_error' })
     expect(getterCalls).toBe(0)
+  })
+
+  it('does not expose the raw message, stack, code, or cause depth', () => {
+    const result = classifyMigrationError(errorWithCode('SQLITE_CORRUPT'))
+
+    expect(Object.keys(result)).toEqual(['errorCode'])
+    expect(result).not.toHaveProperty('message')
+    expect(result).not.toHaveProperty('stack')
   })
 })

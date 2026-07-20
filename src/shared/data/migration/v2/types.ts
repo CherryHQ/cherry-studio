@@ -139,7 +139,7 @@ export type MigrationDiagnosticSaveResult =
   | { status: 'saved' }
   | {
       status: 'failed'
-      code: 'dialog_failed' | 'snapshot_failed' | 'archive_failed' | 'publish_failed' | 'save_in_progress'
+      code: 'dialog_failed' | 'snapshot_failed' | 'bundle_save_failed' | 'save_in_progress'
     }
 
 // IPC channels for migration communication

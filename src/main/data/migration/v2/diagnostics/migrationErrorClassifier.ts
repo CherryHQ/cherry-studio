@@ -1,49 +1,114 @@
-import type { MigrationErrorCategory, MigrationErrorCode } from './migrationDiagnosticsSchemas'
+import type {
+  MigrationErrorCategory,
+  MigrationErrorCode,
+  MigrationFailureErrorCode
+} from './migrationDiagnosticsSchemas'
 
 const MAX_CAUSE_DEPTH = 4
 
 export interface ClassifiedMigrationError {
+  readonly errorCode: MigrationFailureErrorCode
+  /** @deprecated Removed with the event-timeline diagnostics consumer. */
   readonly category: MigrationErrorCategory
+  /** @deprecated Removed with the event-timeline diagnostics consumer. */
   readonly code: MigrationErrorCode
+  /** @deprecated Cause depth is intentionally excluded from persisted diagnostics. */
   readonly causeDepth: number
 }
 
-const UNKNOWN_CLASSIFICATION: ClassifiedMigrationError = {
-  category: 'unknown',
-  code: 'unknown',
-  causeDepth: 0
+interface LegacyClassification {
+  readonly category: MigrationErrorCategory
+  readonly code: MigrationErrorCode
 }
 
-function classifyCode(code: string): Pick<ClassifiedMigrationError, 'category' | 'code'> | undefined {
+function legacyClassification(errorCode: MigrationFailureErrorCode): LegacyClassification {
+  switch (errorCode) {
+    case 'sqlite_corrupt':
+    case 'sqlite_not_database':
+    case 'sqlite_schema':
+      return { category: 'database_read', code: errorCode }
+    case 'sqlite_constraint':
+    case 'sqlite_too_big':
+      return { category: 'database_write', code: errorCode }
+    case 'sqlite_open_failed':
+    case 'file_missing':
+      return { category: 'filesystem', code: 'path_unavailable' }
+    case 'sqlite_readonly':
+    case 'sqlite_permission':
+    case 'file_permission':
+    case 'file_readonly':
+      return { category: 'filesystem', code: 'permission_denied' }
+    case 'sqlite_io':
+    case 'file_io':
+      return { category: 'filesystem', code: 'disk_full' }
+    default:
+      return { category: 'unknown', code: 'unknown' }
+  }
+}
+
+function classified(errorCode: MigrationFailureErrorCode, causeDepth = 0): ClassifiedMigrationError {
+  const result = { errorCode } as ClassifiedMigrationError
+  const legacy = legacyClassification(errorCode)
+  Object.defineProperties(result, {
+    category: { value: legacy.category },
+    code: { value: legacy.code },
+    causeDepth: { value: causeDepth }
+  })
+  return result
+}
+
+const UNKNOWN_CLASSIFICATION = classified('unknown_error')
+
+function classifyCode(code: string): MigrationFailureErrorCode | undefined {
   if (code === 'SQLITE_CANTOPEN' || code.startsWith('SQLITE_CANTOPEN_')) {
-    return { category: 'filesystem', code: 'path_unavailable' }
+    return 'sqlite_open_failed'
+  }
+  if (code === 'SQLITE_CORRUPT' || code.startsWith('SQLITE_CORRUPT_')) {
+    return 'sqlite_corrupt'
+  }
+  if (code === 'SQLITE_NOTADB' || code.startsWith('SQLITE_NOTADB_')) {
+    return 'sqlite_not_database'
+  }
+  if (code === 'SQLITE_SCHEMA' || code.startsWith('SQLITE_SCHEMA_')) {
+    return 'sqlite_schema'
+  }
+  if (code === 'SQLITE_CONSTRAINT' || code.startsWith('SQLITE_CONSTRAINT_')) {
+    return 'sqlite_constraint'
   }
   if (code === 'SQLITE_READONLY' || code.startsWith('SQLITE_READONLY_')) {
-    return { category: 'filesystem', code: 'permission_denied' }
+    return 'sqlite_readonly'
+  }
+  if (code === 'SQLITE_BUSY' || code.startsWith('SQLITE_BUSY_')) {
+    return 'sqlite_busy'
+  }
+  if (code === 'SQLITE_LOCKED' || code.startsWith('SQLITE_LOCKED_')) {
+    return 'sqlite_locked'
+  }
+  if (code === 'SQLITE_IOERR' || code.startsWith('SQLITE_IOERR_')) {
+    return 'sqlite_io'
   }
 
   switch (code) {
+    case 'SQLITE_PERM':
+    case 'SQLITE_AUTH':
+      return 'sqlite_permission'
+    case 'SQLITE_TOOBIG':
+      return 'sqlite_too_big'
+    case 'SQLITE_FULL':
+      return 'sqlite_io'
     case 'EACCES':
     case 'EPERM':
-      return { category: 'filesystem', code: 'permission_denied' }
+      return 'file_permission'
+    case 'EROFS':
+      return 'file_readonly'
     case 'ENOENT':
     case 'ENOTDIR':
-      return { category: 'filesystem', code: 'path_unavailable' }
+      return 'file_missing'
     case 'ENOSPC':
-    case 'SQLITE_FULL':
-      return { category: 'filesystem', code: 'disk_full' }
-    case 'SQLITE_CORRUPT':
-      return { category: 'database_read', code: 'sqlite_corrupt' }
-    case 'SQLITE_NOTADB':
-      return { category: 'database_read', code: 'sqlite_not_database' }
-    case 'SQLITE_TOOBIG':
-      return { category: 'database_write', code: 'sqlite_too_big' }
-    case 'SQLITE_SCHEMA':
-      return { category: 'database_read', code: 'sqlite_schema' }
+    case 'EIO':
+      return 'file_io'
     default:
-      if (code === 'SQLITE_CONSTRAINT' || code.startsWith('SQLITE_CONSTRAINT_')) {
-        return { category: 'database_write', code: 'sqlite_constraint' }
-      }
+      if (code.startsWith('SQLITE_')) return 'sqlite_unknown'
       return undefined
   }
 }
@@ -71,8 +136,8 @@ export function classifyMigrationError(error: unknown): ClassifiedMigrationError
 
     const code = ownDataProperty(current, 'code')
     if (typeof code === 'string') {
-      const classification = classifyCode(code)
-      if (classification) return { ...classification, causeDepth }
+      const errorCode = classifyCode(code)
+      if (errorCode) return classified(errorCode, causeDepth)
     }
 
     current = ownDataProperty(current, 'cause')
