@@ -9,7 +9,7 @@
  */
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiServer } from '../../ApiServer'
 import { IpcAdapter } from '../IpcAdapter'
@@ -97,5 +97,38 @@ describe('IpcAdapter', () => {
       await expect(subscribeHandler(event, '/topics')).rejects.toThrow('untrusted sender')
       await expect(unsubscribeHandler(event, 'sub-1')).rejects.toThrow('untrusted sender')
     }
+  })
+
+  describe('BACKUP_IN_PROGRESS gate', () => {
+    afterEach(async () => {
+      const { setBackupInProgress } = await import('@main/services/backup/quiesceGate')
+      setBackupInProgress(false)
+    })
+
+    it('rejects non-GET mutations while restore quiesce is held', async () => {
+      const { setBackupInProgress } = await import('@main/services/backup/quiesceGate')
+      setBackupInProgress(true)
+
+      const response = await requestHandler(trustedEvent, {
+        id: 'req-mut',
+        method: 'POST',
+        path: '/topics'
+      })
+
+      expect(response.status).toBe(423)
+      expect(response.error).toMatchObject({ code: 'BACKUP_IN_PROGRESS', status: 423 })
+      expect(handleRequest).not.toHaveBeenCalled()
+    })
+
+    it('allows GET reads while restore quiesce is held', async () => {
+      const { setBackupInProgress } = await import('@main/services/backup/quiesceGate')
+      setBackupInProgress(true)
+
+      const request = { id: 'req-get', method: 'GET', path: '/topics' }
+      const response = await requestHandler(trustedEvent, request)
+
+      expect(handleRequest).toHaveBeenCalledWith(request)
+      expect(response).toMatchObject({ id: 'req-get', status: 200, data: { ok: true } })
+    })
   })
 })
