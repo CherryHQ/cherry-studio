@@ -1,7 +1,7 @@
 /**
- * Image generation core — runtime-agnostic.
+ * Image generation/editing core — runtime-agnostic.
  *
- * Single source of truth for "generate an image from a prompt" shared by the
+ * Single source of truth for producing an image from a prompt and optional image references, shared by the
  * AI-SDK builtin tool (`generate_image`) and the Claude Code in-process MCP
  * bridge. Both runtimes are thin wrappers over `generateImageFromPrompt`; the
  * painting model is resolved from the `feature.paintings.default_model_id` preference,
@@ -16,21 +16,32 @@
  */
 
 import { application } from '@application'
+import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
-import type { UniqueModelId } from '@shared/data/types/model'
+import {
+  type ImageGenerationMode,
+  type ImageGenerationSupport,
+  parseUniqueModelId,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import * as z from 'zod'
+
+import { type GenerateImageToolInput, limitGenerateImageInputIds } from './generateImageTool'
 
 const logger = loggerService.withContext('Painting')
 
-export const GENERATE_IMAGE_DESCRIPTION = `Generate an image from a text prompt using the user's configured painting model.
+export const GENERATE_IMAGE_DESCRIPTION = `Generate or edit an image using the user's configured painting model.
 
 Use this when:
 - The user asks you to draw, paint, illustrate, or generate an image, picture, logo, or icon.
+- The user asks you to modify a previously generated image and provides its FileEntry id.
 
 Notes:
-- Describe the desired image vividly in the prompt; the configured painting model does the rest.
+- Describe the desired image or edit vividly in the prompt.
+- Pass image_ids only when editing or using existing images as references.
 - Generation can take 10-60 seconds.
 - Requires a painting model configured in Settings > Default Model. If none is set this returns a
   configuration note — tell the user instead of retrying.`
@@ -54,6 +65,20 @@ export const PAINTING_ERROR_NOTE = 'Image generation failed (provider error); re
 export const PAINTING_MODEL_NOT_CONFIGURED_NOTE =
   'No painting model is configured. Tell the user to pick one in Settings > Default Model; do not retry — it cannot succeed until then.'
 
+export const PAINTING_EDIT_NOT_SUPPORTED_NOTE =
+  "The configured painting model can't edit images. Tell the user to choose an edit-capable painting model; do not retry with this model."
+
+export const PAINTING_GENERATE_NOT_SUPPORTED_NOTE =
+  "The configured painting model can't generate a new image without input images. Ask for image references or tell the user to choose a generation-capable painting model."
+
+export const PAINTING_INPUT_IMAGE_ERROR_NOTE =
+  'One or more image references could not be read as images. Ask the user for valid generated-image FileEntry ids.'
+
+export interface ConfiguredPaintingModel {
+  uniqueModelId: UniqueModelId
+  support: ImageGenerationSupport | null
+}
+
 export function isPaintingError(output: PaintingResult): output is PaintingError {
   // Success is always the file array; the error object is the only non-array shape.
   return !Array.isArray(output)
@@ -71,29 +96,93 @@ export function paintingModelOutput(output: PaintingResult): { type: 'text'; val
   return { type: 'text', value: `Generated ${output.length} image(s): ${list}` }
 }
 
-/** generate_image input shape shared by both callers: MCP omits n, AI-SDK strict passes null. */
-type GenerateImagePromptInput = {
-  prompt: string
-  n?: number | null
-}
-
-export async function generateImageFromPrompt(
-  input: GenerateImagePromptInput,
-  signal?: AbortSignal
-): Promise<PaintingResult> {
+export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null {
   const uniqueModelId = application
     .get('PreferenceService')
     .get('feature.paintings.default_model_id') as UniqueModelId | null
-  if (!uniqueModelId) {
-    return { error: PAINTING_MODEL_NOT_CONFIGURED_NOTE }
+  if (!uniqueModelId) return null
+
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  return {
+    uniqueModelId,
+    support: providerRegistryService.getImageGenerationSupport(providerId, modelId)
   }
+}
+
+function resolveMode(input: GenerateImageToolInput): ImageGenerationMode {
+  return input.image_ids && input.image_ids.length > 0 ? 'edit' : 'generate'
+}
+
+function extractParamValues(
+  input: GenerateImageToolInput,
+  support: ImageGenerationSupport | null,
+  mode: ImageGenerationMode
+): ParamValues {
+  const supports = support?.modes[mode]?.supports
+  if (!supports) return {}
+
+  const candidate: Record<string, unknown> = {}
+  for (const key of Object.keys(supports)) {
+    const value = input[key as keyof GenerateImageToolInput]
+    if (value !== undefined && value !== null && value !== '') candidate[key] = value
+  }
+
+  const parsed = buildParamsSchema(support, mode).parse(candidate)
+  const regularEntries = Object.entries(supports).flatMap(([key, spec]) => {
+    const value = parsed[key]
+    if (value === undefined || (spec.type === 'size' && spec.pairedEnumKey)) return []
+    return [[key, value]]
+  })
+  const pairedSizeEntries = Object.entries(supports).flatMap(([key, spec]) => {
+    const value = parsed[key]
+    if (value === undefined || spec.type !== 'size' || !spec.pairedEnumKey) return []
+    return [[spec.pairedEnumKey, value]]
+  })
+  return Object.fromEntries([...regularEntries, ...pairedSizeEntries])
+}
+
+async function resolveInputImages(imageIds: readonly string[]): Promise<string[]> {
+  const ids = limitGenerateImageInputIds(imageIds)
+  return Promise.all(
+    ids.map(async (id) => {
+      const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
+      if (!mime.startsWith('image/')) throw new Error(`FileEntry ${id} is not an image`)
+      return `data:${mime};base64,${content}`
+    })
+  )
+}
+
+export async function generateImageFromPrompt(
+  input: GenerateImageToolInput,
+  signal?: AbortSignal,
+  configuredModel: ConfiguredPaintingModel | null = resolveConfiguredPaintingModel()
+): Promise<PaintingResult> {
+  if (!configuredModel) return { error: PAINTING_MODEL_NOT_CONFIGURED_NOTE }
+
+  const { uniqueModelId, support } = configuredModel
+  const mode = resolveMode(input)
+  if ((mode === 'edit' && !support?.modes.edit) || (mode === 'generate' && support && !support.modes.generate)) {
+    return { error: mode === 'edit' ? PAINTING_EDIT_NOT_SUPPORTED_NOTE : PAINTING_GENERATE_NOT_SUPPORTED_NOTE }
+  }
+
+  let inputImages: string[] | undefined
+  if (mode === 'edit') {
+    try {
+      inputImages = await resolveInputImages(input.image_ids ?? [])
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error
+      logger.warn('Failed to resolve generate_image input images', { error })
+      return { error: PAINTING_INPUT_IMAGE_ERROR_NOTE }
+    }
+  }
+
   try {
     const { files } = await application.get('AiService').generateImage({
       uniqueModelId,
       prompt: input.prompt,
-      paramValues: {
-        ...(input.n != null ? { numImages: input.n } : {})
-      },
+      mode,
+      ...(inputImages && { inputImages }),
+      paramValues: extractParamValues(input, support, mode),
       // `manual` (confirmed no ref backing): this builtin tool's output only lives
       // in the tool-call part's text result — it is never emitted as a `file` part,
       // so `extractChatMessageFileEntryIds` skips it and none of the *_file_ref

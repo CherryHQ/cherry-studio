@@ -475,6 +475,7 @@ export default defineConfig([
       'src/renderer/ui/**',
       'src/renderer/routeTree.gen.ts',
       'packages/**/dist',
+      'packages/**/storybook-static/**',
       'v2-refactor-temp/**'
     ]
   },

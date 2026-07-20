@@ -22,6 +22,7 @@ import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
+import { runUserDataRelocation } from '@main/services/userDataRelocation'
 
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
@@ -41,6 +42,12 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
+  // userData relocation: a pending/failed relocation makes this a dedicated
+  // relocation launch (execute or explain, then relaunch) before any service
+  // opens files under the source tree. See services/userDataRelocation/README.md.
+  const relocationResult = await runUserDataRelocation()
+  if (relocationResult === 'handled') return
+
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
   // migration gate reads the DB. Never throws; on any failure the old DB
   // stays live and the app starts normally.
