@@ -45,7 +45,7 @@ vi.mock('@application', () => ({
     getPath: (key: string) => {
       if (key === 'app.root.resources.binaries') return '/app/resources/binaries'
       if (key === 'cherry.bin') return '/home/testuser/.cherrystudio/bin'
-      if (key === 'feature.binary.data') return '/home/testuser/.cherrystudio/binary-manager'
+      if (key === 'feature.binary.data') return '/home/testuser/.config/CherryStudio/Toolchain/mise'
       return '/app/resources'
     }
   }

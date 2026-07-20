@@ -13,9 +13,10 @@ vi.mock('@main/core/platform', () => ({
 vi.mock('@application', () => ({
   application: {
     getPath: (key: string) => {
-      const base = 'C:\\Users\\test\\.cherrystudio'
-      if (key === 'cherry.bin') return `${base}\\bin`
-      if (key === 'feature.binary.data') return `${base}\\binary-manager`
+      if (key === 'cherry.bin') return 'C:\\Users\\test\\.cherrystudio\\bin'
+      if (key === 'feature.binary.data') {
+        return 'C:\\Users\\test\\AppData\\Roaming\\CherryStudio\\Toolchain\\mise'
+      }
       if (key === 'sys.home') return 'C:\\Users\\test'
       return `/mock/${key}`
     }
@@ -199,7 +200,7 @@ describe('shellEnv – Windows registry PATH', () => {
     const env = await refreshShellEnv()
 
     expect(env.Path).toContain('.cherrystudio')
-    expect(env.Path).toContain('binary-manager')
+    expect(env.Path).toContain('Toolchain\\mise')
     expect(env.Path).toContain('shims')
     expect(env.Path).toContain('bin')
   })
