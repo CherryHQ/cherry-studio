@@ -4,25 +4,21 @@ const SEMANTIC_ID = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/
 export type UiTokenValue = string | false | null | undefined
 
 export interface UiTokenOptions {
-  boundaries?: readonly UiTokenValue[]
   exactId?: string
   modes?: readonly UiTokenValue[]
   parts?: readonly UiTokenValue[]
   scopes?: readonly UiTokenValue[]
   states?: readonly UiTokenValue[]
-  themes?: readonly UiTokenValue[]
   variants?: readonly UiTokenValue[]
 }
 
 export interface ParsedUiTokens {
-  boundaries: string[]
   exactId?: string
   modes: string[]
   parts: string[]
   scopes: string[]
   semanticId?: string
   states: string[]
-  themes: string[]
   variants: string[]
 }
 
@@ -59,9 +55,7 @@ export function uiTokens(semanticId: string, options: UiTokenOptions = {}): stri
     ...namespaced('scope', options.scopes),
     ...namespaced('variant', options.variants),
     ...namespaced('mode', options.modes),
-    ...namespaced('state', options.states),
-    ...namespaced('boundary', options.boundaries),
-    ...namespaced('theme', options.themes)
+    ...namespaced('state', options.states)
   ]
     .filter((token): token is string => Boolean(token))
     .filter((token, index, tokens) => tokens.indexOf(token) === index)
@@ -70,12 +64,10 @@ export function uiTokens(semanticId: string, options: UiTokenOptions = {}): stri
 
 export function parseUiTokens(value: string | null | undefined): ParsedUiTokens {
   const result: ParsedUiTokens = {
-    boundaries: [],
     modes: [],
     parts: [],
     scopes: [],
     states: [],
-    themes: [],
     variants: []
   }
   for (const token of value?.split(/\s+/).filter(Boolean) ?? []) {
@@ -92,8 +84,6 @@ export function parseUiTokens(value: string | null | undefined): ParsedUiTokens 
     else if (namespace === 'variant') result.variants.push(tokenValue)
     else if (namespace === 'mode') result.modes.push(tokenValue)
     else if (namespace === 'state') result.states.push(tokenValue)
-    else if (namespace === 'boundary') result.boundaries.push(tokenValue)
-    else if (namespace === 'theme') result.themes.push(tokenValue)
   }
   return result
 }
@@ -115,9 +105,7 @@ export function uiSelector(options: UiSelectorOptions): string {
     ...namespaced('scope', options.scopes),
     ...namespaced('variant', options.variants),
     ...namespaced('mode', options.modes),
-    ...namespaced('state', options.states),
-    ...namespaced('boundary', options.boundaries),
-    ...namespaced('theme', options.themes)
+    ...namespaced('state', options.states)
   ].filter((token): token is string => Boolean(token))
   if (tokens.length === 0) throw new Error('A data-ui selector requires at least one token')
   if (options.semanticId) assertSemanticId(options.semanticId)

@@ -261,7 +261,6 @@ const Message = () => {
 
     expect(result.descriptors).toHaveLength(2)
     expect(result.code).toContain('scope:window:main')
-    expect(result.code).not.toContain('boundary:app')
     expect(result.code).toContain('const sample = "<span>"')
   })
 

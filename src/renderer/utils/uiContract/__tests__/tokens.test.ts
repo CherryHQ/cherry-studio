@@ -10,12 +10,11 @@ describe('data-ui tokens', () => {
       parts: ['message-content'],
       scopes: ['message:m_817'],
       states: ['assistant', 'complete'],
-      themes: ['custom'],
       variants: ['bubble']
     })
 
     expect(value).toBe(
-      'chat.message part:message-content id:uabcdef0 scope:message:m_817 variant:bubble mode:compact state:assistant state:complete theme:custom'
+      'chat.message part:message-content id:uabcdef0 scope:message:m_817 variant:bubble mode:compact state:assistant state:complete'
     )
     expect(parseUiTokens(value)).toMatchObject({
       exactId: 'uabcdef0',
