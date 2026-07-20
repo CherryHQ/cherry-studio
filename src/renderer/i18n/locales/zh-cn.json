@@ -2279,6 +2279,7 @@
     "swap": "交换",
     "topics": "对话",
     "translate_text": "翻译文本",
+    "undo": "撤销",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "退订",
@@ -3415,6 +3416,11 @@
         "insert_variable": "插入变量",
         "label": "系统提示词",
         "placeholder": "输入对助手的要求，例如回答风格、角色设定或背景说明",
+        "polish": "润色提示词",
+        "polish_failed_description": "请检查或调整默认模型后重试。",
+        "polish_failed_title": "润色提示词失败",
+        "polish_variables_changed_description": "润色结果修改或遗漏了提示词变量，请重试。",
+        "polish_variables_changed_title": "无法应用润色结果",
         "title": "提示词",
         "tokens_label": "Tokens: ",
         "variables_description": "可在系统提示词中插入这些系统变量；每次助手回复前，系统会按当时的信息自动填写。",
@@ -4887,6 +4893,7 @@
     "install": "安装",
     "install_plugins_from_browser": "浏览可用技能以开始使用",
     "installing": "安装中...",
+    "manage_skills": "管理技能",
     "name": "名称",
     "no_description": "无描述",
     "no_installed_plugins": "尚未安装任何技能",
@@ -6863,6 +6870,7 @@
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",
       "empty": "没有模型",
+      "empty_hint": "点击上方的获取模型列表按钮添加模型",
       "enabled_models": "已启用",
       "expand_all": "全部展开",
       "filter": {
@@ -7360,9 +7368,6 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
-      "openai": {
-        "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"
-      },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
       "reorder_failed": "调整服务商顺序失败",
@@ -7438,6 +7443,7 @@
         "autoEmpty": "暂无已启用的 MCP 服务器",
         "description": "查看当前 MCP 服务器状态",
         "disabled": "当前助手已禁用 MCP",
+        "open_config": "配置 MCP 服务器",
         "unknownServer": "未知 MCP 服务器"
       },
       "multiple": "多选",
