@@ -9,6 +9,7 @@ import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChu
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
+import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
@@ -113,6 +114,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
           : { messages: input.messages, ...(signal && { abortSignal: signal }) }
       const result = await aiAgent.generate(generateInput)
+      const terminalError = resolveToolLoopTerminalError({
+        steps: result.steps,
+        finishReason: result.finishReason,
+        toolCallLimit: this.params.options?.toolCallLimit
+      })
+      if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
       return { text: result.text, usage: result.usage }
     } catch (err) {
@@ -200,6 +207,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       })
       const reader = uiStream.getReader()
       let readFailure: { error: unknown } | undefined
+      let pendingFinish: Extract<UIMessageChunk, { type: 'finish' }> | undefined
       try {
         while (true) {
           const { done, value } = await reader.read()
@@ -218,6 +226,13 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             await reader.cancel(capturedError.error).catch(() => {})
             throw capturedError.error
           }
+          // Hold the success-looking finish marker until the loop result has
+          // been classified. A cap-triggered or terminal-tool stop must reach
+          // persistence as an error instead of briefly completing as success.
+          if (value.type === 'finish') {
+            pendingFinish = value
+            continue
+          }
           await writer.write(value)
         }
       } catch (error) {
@@ -226,6 +241,18 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         reader.releaseLock()
       }
       if (readFailure) throw readFailure.error
+
+      const [steps, finishReason] = await Promise.all([
+        Promise.resolve(result.steps),
+        Promise.resolve(result.finishReason)
+      ])
+      const terminalError = resolveToolLoopTerminalError({
+        steps: steps ?? [],
+        finishReason: finishReason ?? pendingFinish?.finishReason,
+        toolCallLimit: params.options?.toolCallLimit
+      })
+      if (terminalError) throw terminalError
+      if (pendingFinish) await writer.write(pendingFinish)
 
       // onFinish is success-only by current design: it fires only when the
       // stream drains cleanly, never on the error/abort path below (which

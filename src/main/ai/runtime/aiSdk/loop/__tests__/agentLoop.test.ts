@@ -64,6 +64,83 @@ describe('Agent', () => {
     expect(cancelUiStream).toHaveBeenCalledWith(apiError)
   })
 
+  it('turns a terminal tool output into an error instead of forwarding a success finish', async () => {
+    const output = {
+      error: 'Unsafe remote url',
+      retryable: false,
+      terminal: true,
+      userMessage: 'Change the proxy setting.',
+      i18nKey: 'web_search_proxy_fake_ip'
+    }
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'tool-output-available', toolCallId: 'tool-1', output })
+              controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve([
+          {
+            toolResults: [{ type: 'tool-result', toolCallId: 'tool-1', toolName: 'web_fetch', output }]
+          }
+        ]),
+        finishReason: Promise.resolve('tool-calls')
+      })
+    })
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      options: { toolCallLimit: 20 }
+    })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'tool-output-available' }, done: false })
+    await expect(reader.read()).rejects.toMatchObject({
+      name: 'ToolLoopTerminalError',
+      message: 'Change the proxy setting.',
+      i18nKey: 'web_search_proxy_fake_ip'
+    })
+  })
+
+  it('turns cap-triggered tool-loop completion into an explicit error', async () => {
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve([
+          { toolResults: [] },
+          { toolResults: [{ type: 'tool-result', toolCallId: 'tool-2', toolName: 'web_fetch', output: [] }] }
+        ]),
+        finishReason: Promise.resolve('tool-calls')
+      })
+    })
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      options: { toolCallLimit: 2 }
+    })
+
+    await expect(agent.stream([], new AbortController().signal).getReader().read()).rejects.toMatchObject({
+      name: 'ToolLoopTerminalError',
+      i18nKey: 'tool_call_limit_reached'
+    })
+  })
+
   it('swallows hooks.onError exceptions so they do not become unhandled rejections', async () => {
     const apiError = new APICallError({
       message: 'Insufficient balance',

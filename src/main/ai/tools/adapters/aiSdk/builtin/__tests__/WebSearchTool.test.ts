@@ -92,7 +92,21 @@ describe('web_search', () => {
     searchKeywords.mockRejectedValue(new Error('upstream 503'))
     const out = await callSearchExecute({ query: 'q' })
     // Distinguishable from an empty-but-successful search: never [].
-    expect(out).toEqual({ error: 'upstream 503' })
+    expect(out).toEqual({ error: 'upstream 503', retryable: true })
+  })
+
+  it('marks a missing provider as terminal instead of retrying it', async () => {
+    const message = 'Default web search provider is not configured for capability searchKeywords'
+    searchKeywords.mockRejectedValue(new Error(message))
+
+    expect(await callSearchExecute({ query: 'q' })).toEqual({
+      error: message,
+      retryable: false,
+      terminal: true,
+      userMessage:
+        'Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again.',
+      i18nKey: 'web_search_provider_unavailable'
+    })
   })
 
   it('rethrows an abort instead of converting it to an error discriminant', async () => {
@@ -174,7 +188,28 @@ describe('web_fetch', () => {
   it('returns an error discriminant (not []) when webSearchService throws', async () => {
     fetchUrls.mockRejectedValue(new Error('upstream 503'))
     const out = await callFetchExecute({ urls: ['https://example.com'] })
-    expect(out).toEqual({ error: 'upstream 503' })
+    expect(out).toEqual({ error: 'upstream 503', retryable: true })
+  })
+
+  it('marks proxy Fake-IP rejection as terminal and tells the model not to retry', async () => {
+    const message = 'Unsafe remote url: DNS resolved to local or private address (example.com -> 198.18.1.14)'
+    fetchUrls.mockRejectedValue(new Error(message))
+
+    const out = await callFetchExecute({ urls: ['https://example.com'] })
+
+    expect(out).toEqual({
+      error: message,
+      retryable: false,
+      terminal: true,
+      userMessage:
+        'Web access was blocked because proxy DNS returned a Fake-IP address. Disable the proxy or change its DNS enhanced mode from fake-ip to redir-host, then try again.',
+      i18nKey: 'web_search_proxy_fake_ip'
+    })
+    expect(fetchEntry.tool.toModelOutput!({ output: out } as never)).toEqual({
+      type: 'text',
+      value:
+        'Web access is blocked because proxy DNS returned a Fake-IP address. Tell the user to disable the proxy or change its DNS enhanced mode from fake-ip to redir-host; do not retry until the proxy setting changes.'
+    })
   })
 
   it('rethrows an abort instead of converting it to an error discriminant', async () => {

@@ -2434,13 +2434,16 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
+    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
     "truncated": "Data truncated, original size",
     "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
     "usage": "Usage",
     "user_message_not_found": "Cannot find original user message to resend",
     "value": "Value",
-    "values": "Values"
+    "values": "Values",
+    "web_search_provider_unavailable": "Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again.",
+    "web_search_proxy_fake_ip": "Web access was blocked because proxy DNS returned a Fake-IP address. Disable the proxy or change its DNS enhanced mode from fake-ip to redir-host, then try again."
   },
   "export": {
     "assistant": "Assistant",

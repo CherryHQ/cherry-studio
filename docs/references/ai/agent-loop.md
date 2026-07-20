@@ -105,6 +105,11 @@ see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
 - Thrown errors are caught and routed through `onError`. Returning
   `'retry'` is reserved for a future implementation — today the loop
   logs and aborts.
+- A tool can return a structured terminal failure (`terminal: true`,
+  `retryable: false`). A feature stop condition ends the loop at that step
+  boundary, and `Agent` converts the otherwise clean finish into an error.
+- A `tool-calls` finish at the effective step cap is also converted into an
+  explicit error instead of persisting an empty successful response.
 - The writer is settled exactly once via the `then`/`catch` of the
   internal IIFE — listeners never see a half-closed stream.
 

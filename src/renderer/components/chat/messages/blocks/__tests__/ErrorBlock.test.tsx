@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MessageListActions, MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
-  actions: {} as MessageListActions
+  actions: {} as MessageListActions,
+  i18nKeys: new Set<string>()
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -39,7 +40,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => key,
     i18n: {
       language: 'en',
-      exists: () => false
+      exists: (key: string) => mocks.i18nKeys.has(key)
     }
   })
 }))
@@ -66,7 +67,27 @@ const message: MessageListItem = {
 describe('ErrorBlock', () => {
   beforeEach(() => {
     mocks.actions = {}
+    mocks.i18nKeys.clear()
     vi.clearAllMocks()
+  })
+
+  it('renders an i18nKey even when the error has no provider id', () => {
+    mocks.i18nKeys.add('error.tool_call_limit_reached')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ToolLoopTerminalError',
+          message: 'fallback message',
+          stack: null,
+          i18nKey: 'tool_call_limit_reached'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.tool_call_limit_reached')).toBeInTheDocument()
   })
 
   it('hides mutation and detail affordances when capabilities are unavailable', () => {

@@ -7,10 +7,10 @@
  * functions; the provider is resolved inside `WebSearchService` from the
  * user's configured default for each capability.
  *
- * Never throws on lookup failure: a failed lookup returns `{ error }` so the
- * surrounding agentic loop (AI-SDK or Claude Code) keeps running instead of
- * aborting. A cancellation (aborted signal) is the exception — it rethrows, so
- * it propagates as the cancellation it is rather than a retryable error.
+ * Never throws on lookup failure: a failed lookup returns a structured error
+ * so callers can distinguish transient failures from failures that cannot
+ * succeed without a configuration change. A cancellation (aborted signal) is
+ * the exception — it rethrows so it propagates as the cancellation it is.
  */
 
 import { application } from '@application'
@@ -59,7 +59,13 @@ Cite sources by [id] in your final answer.`
  * would otherwise be `[]`. Success returns the results array (matching
  * `webSearchOutputSchema`); failure returns `{ error }`.
  */
-export const webLookupErrorSchema = z.object({ error: z.string() })
+export const webLookupErrorSchema = z.object({
+  error: z.string(),
+  retryable: z.boolean().optional(),
+  terminal: z.literal(true).optional(),
+  userMessage: z.string().optional(),
+  i18nKey: z.string().optional()
+})
 export type WebLookupError = z.infer<typeof webLookupErrorSchema>
 export type WebLookupResult = WebSearchOutput | WebLookupError
 
@@ -75,9 +81,57 @@ export const WEB_LOOKUP_ERROR_NOTE = 'Web lookup failed (network/provider error)
 export const WEB_PROVIDER_NOT_CONFIGURED_NOTE =
   'No usable web search provider for this capability (none configured, or the configured one does not support it). Tell the user to configure one in Settings (Web Search); do not retry — it cannot succeed until then.'
 
-/** Branch the model-facing note: a permanent provider-config failure can't be retried; everything else is. */
-function webLookupNote(error: string): string {
-  return isPermanentWebSearchConfigError(error) ? WEB_PROVIDER_NOT_CONFIGURED_NOTE : WEB_LOOKUP_ERROR_NOTE
+/** Clash Fake-IP addresses use the RFC 2544 benchmarking range (198.18.0.0/15). */
+export const WEB_PROXY_FAKE_IP_NOTE =
+  'Web access is blocked because proxy DNS returned a Fake-IP address. Tell the user to disable the proxy or change its DNS enhanced mode from fake-ip to redir-host; do not retry until the proxy setting changes.'
+
+const WEB_PROXY_FAKE_IP_MESSAGE =
+  'Web access was blocked because proxy DNS returned a Fake-IP address. Disable the proxy or change its DNS enhanced mode from fake-ip to redir-host, then try again.'
+const WEB_PROVIDER_NOT_CONFIGURED_MESSAGE =
+  'Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again.'
+
+function isProxyFakeIpError(message: string): boolean {
+  return (
+    /Unsafe remote url: DNS resolved to local or private address/i.test(message) &&
+    /\b198\.(?:18|19)\.(?:\d{1,3})\.(?:\d{1,3})\b/.test(message)
+  )
+}
+
+function classifyWebLookupError(error: unknown): WebLookupError {
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (isPermanentWebSearchConfigError(message)) {
+    return {
+      error: message,
+      retryable: false,
+      terminal: true,
+      userMessage: WEB_PROVIDER_NOT_CONFIGURED_MESSAGE,
+      i18nKey: 'web_search_provider_unavailable'
+    }
+  }
+
+  if (isProxyFakeIpError(message)) {
+    return {
+      error: message,
+      retryable: false,
+      terminal: true,
+      userMessage: WEB_PROXY_FAKE_IP_MESSAGE,
+      i18nKey: 'web_search_proxy_fake_ip'
+    }
+  }
+
+  return { error: message, retryable: true }
+}
+
+/** Branch the model-facing note: permanent failures must not trigger a retry loop. */
+function webLookupNote(error: WebLookupError): string {
+  if (error.i18nKey === 'web_search_proxy_fake_ip' || isProxyFakeIpError(error.error)) {
+    return WEB_PROXY_FAKE_IP_NOTE
+  }
+  if (error.i18nKey === 'web_search_provider_unavailable' || isPermanentWebSearchConfigError(error.error)) {
+    return WEB_PROVIDER_NOT_CONFIGURED_NOTE
+  }
+  return WEB_LOOKUP_ERROR_NOTE
 }
 
 export function isWebLookupError(output: WebLookupResult): output is WebLookupError {
@@ -91,7 +145,7 @@ export function webLookupModelOutput(
   output: WebLookupResult
 ): { type: 'text'; value: string } | { type: 'json'; value: WebSearchOutput } {
   if (isWebLookupError(output)) {
-    return { type: 'text', value: webLookupNote(output.error) }
+    return { type: 'text', value: webLookupNote(output) }
   }
   return { type: 'json', value: output }
 }
@@ -114,7 +168,7 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.searchKeywords failed', error as Error, { query })
-    return { error: error instanceof Error ? error.message : String(error) }
+    return classifyWebLookupError(error)
   }
 }
 
@@ -127,6 +181,6 @@ export async function fetchWeb(urls: string[], signal?: AbortSignal): Promise<We
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.fetchUrls failed', error as Error, { urls })
-    return { error: error instanceof Error ? error.message : String(error) }
+    return classifyWebLookupError(error)
   }
 }

@@ -56,6 +56,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
         />
       )
     }
+    return t(i18nKey)
   }
 
   if (i18n.exists(errorKey)) {

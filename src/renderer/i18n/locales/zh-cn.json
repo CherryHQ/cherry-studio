@@ -2434,13 +2434,16 @@
     "text": "文本",
     "toolInput": "工具输入",
     "toolName": "工具名",
+    "tool_call_limit_reached": "助手在生成最终回复前已达到工具调用上限。请重试，或缩小任务范围。",
     "truncated": "数据已截断，原始大小",
     "truncatedBadge": "已截断",
     "unknown": "未知错误",
     "usage": "用量",
     "user_message_not_found": "无法找到原始用户消息",
     "value": "值",
-    "values": "值"
+    "values": "值",
+    "web_search_provider_unavailable": "联网搜索不可用，因为尚未配置兼容的服务提供商。请前往“设置 → 联网搜索”完成配置后重试。",
+    "web_search_proxy_fake_ip": "代理 DNS 返回了 Fake-IP 地址，联网访问已被安全策略拦截。请关闭代理，或将代理的 DNS 增强模式从 fake-ip 改为 redir-host 后重试。"
   },
   "export": {
     "assistant": "助手",
