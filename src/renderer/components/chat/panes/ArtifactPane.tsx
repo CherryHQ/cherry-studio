@@ -526,15 +526,25 @@ export function ArtifactPaneView({
     return t('agent.session.file_manager.files')
   }, [t])
 
+  // Autosave normally leaves nothing to guard when navigating — except a draft
+  // whose autosave is failing (disk full, permissions…): moving away would
+  // detach the session and drop the edit, so block the navigation instead.
+  const blockLeavingUnsavedDraft = useCallback(() => {
+    if (!fileSession?.isDirty || !fileSession.saveError) return false
+    toast.error(t('agent.preview_pane.edit.save_failed'))
+    return true
+  }, [fileSession?.isDirty, fileSession?.saveError, t])
+
   const handleSelectedChange = useCallback(
     (id: string | null) => {
+      if (blockLeavingUnsavedDraft()) return
       if (!id) {
         onSelectedFileChange(null)
         return
       }
       if (isSelectableFileNode(model.nodeById, id)) onSelectedFileChange(id)
     },
-    [model.nodeById, onSelectedFileChange]
+    [blockLeavingUnsavedDraft, model.nodeById, onSelectedFileChange]
   )
 
   const isPdfSelection = previewFilePath ? isPdfFile(previewFilePath) : false
@@ -574,6 +584,12 @@ export function ArtifactPaneView({
     )
     onEditModeChange?.('preview')
   }, [editMode, fileSession?.status, fileSession?.unsupportedReason, onEditModeChange, t])
+
+  // Autosave I/O failure: the draft stays in the editor and retries on the next
+  // keystroke, but the user must know the file is not on disk yet.
+  useEffect(() => {
+    if (fileSession?.saveError) toast.error(t('agent.preview_pane.edit.save_failed'))
+  }, [fileSession?.saveError, t])
 
   useEffect(() => {
     if (!overlayWorkspacePath || !overlayFilePath) return
@@ -615,12 +631,13 @@ export function ArtifactPaneView({
   ])
 
   const handleClosePreview = useCallback(() => {
+    if (blockLeavingUnsavedDraft()) return
     if (onPreviewClose) {
       onPreviewClose()
       return
     }
     onSelectedFileChange(null)
-  }, [onPreviewClose, onSelectedFileChange])
+  }, [blockLeavingUnsavedDraft, onPreviewClose, onSelectedFileChange])
 
   const handleOverlayKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {

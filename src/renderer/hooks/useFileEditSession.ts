@@ -46,6 +46,8 @@ interface FileEditModel {
   snapshot: FileEditSnapshot
   draft: string
   conflict: boolean
+  /** Last non-stale write failure (disk full, permissions…); cleared on success. */
+  lastWriteError: Error | null
   /** Serialized writer: at most one write loop runs per model at a time. */
   chain: Promise<void>
   writeRunning: boolean
@@ -61,12 +63,19 @@ export interface FileEditSession {
   isSaving: boolean
   /** A genuine external change collided with local edits — autosave is paused until `reload`. */
   conflict: boolean
+  /** Last autosave I/O failure while still dirty (disk full, permissions…); cleared once a write lands. */
+  saveError?: Error
   unsupportedReason?: UnsupportedFileTextReason
   error?: Error
   setDraft: (next: string) => void
   /** Discard local edits, load disk content, resume autosave. */
   reload: () => Promise<void>
-  /** Write the pending edit immediately (e.g. before a file operation). */
+  /**
+   * Write the pending edit immediately (e.g. before a file operation).
+   * Rejects if the draft could not be persisted (I/O failure) so callers must
+   * not proceed with operations that would lose it. A conflicted session
+   * resolves without writing — the conflict dialog owns that draft's fate.
+   */
   flush: () => Promise<void>
   /**
    * A watcher observed a change on this file. Pass the event's mtime (ms) when
@@ -124,6 +133,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
   const [draft, setDraftState] = useState('')
   const [savedContent, setSavedContentState] = useState('')
   const [conflict, setConflictState] = useState(false)
+  const [saveError, setSaveErrorState] = useState<Error | undefined>(undefined)
   const [isSaving, setIsSaving] = useState(false)
   const [ready, setReady] = useState(false)
 
@@ -135,6 +145,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     setDraftState(model.draft)
     setSavedContentState(model.snapshot.content)
     setConflictState(model.conflict)
+    setSaveErrorState(model.lastWriteError ?? undefined)
     setReady(true)
   }, [])
 
@@ -159,13 +170,18 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
             expectedContentHash: baseline.contentHash
           })
           model.snapshot = { ...baseline, content: writeDraft, contentHash, version }
+          model.lastWriteError = null
           syncFromModel(model)
           // Keep the SWR cache in step so a later reopen sees the saved bytes.
           void mutate(keyOf(model.path), model.snapshot, { revalidate: false })
         } catch (writeError) {
           if (!(writeError instanceof IpcError) || writeError.code !== fileErrorCodes.STALE_VERSION) {
+            // I/O error (disk full, permissions…): surface it — `saveError` for
+            // the UI, and `flush()` will reject while the draft is unpersisted.
             logger.error('Autosave failed', writeError as Error)
-            break // IO error: stop; the next keystroke re-triggers the writer
+            model.lastWriteError = writeError as Error
+            syncFromModel(model)
+            break // stop; the next keystroke re-triggers the writer
           }
           // Stale write — verify against disk before declaring a conflict
           // (VS Code's validateWriteFile content-equality escape).
@@ -237,6 +253,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
       snapshot: data,
       draft: data.content,
       conflict: false,
+      lastWriteError: null,
       chain: Promise.resolve(),
       writeRunning: false
     }
@@ -258,6 +275,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
       setDraftState('')
       setSavedContentState('')
       setConflictState(false)
+      setSaveErrorState(undefined)
       setIsSaving(false)
       setReady(false)
     }
@@ -284,6 +302,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     model.snapshot = disk
     model.draft = disk.content
     model.conflict = false
+    model.lastWriteError = null
     syncFromModel(model)
     void mutate(keyOf(model.path), disk, { revalidate: false })
   }, [debouncedWrite, mutate, syncFromModel])
@@ -294,6 +313,13 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     if (!model) return
     requestWrite(model)
     await model.chain
+    // The chain resolving is not proof of persistence — an I/O failure leaves
+    // the draft dirty. Reject so callers abort the operation that prompted the
+    // flush instead of silently losing the edit. (A conflicted session resolves:
+    // its draft's fate belongs to the conflict dialog, not the file operation.)
+    if (!model.conflict && model.draft !== model.snapshot.content) {
+      throw model.lastWriteError ?? new Error('Pending edit could not be saved')
+    }
   }, [debouncedWrite, requestWrite])
 
   const notifyExternalChange = useCallback(
@@ -356,6 +382,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
       isDirty: draft !== savedContent,
       isSaving,
       conflict,
+      saveError,
       unsupportedReason,
       error: error && !(error instanceof UnsupportedFileTextError) ? error : undefined,
       setDraft,
@@ -372,6 +399,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     draft,
     isSaving,
     conflict,
+    saveError,
     setDraft,
     reload,
     flush,

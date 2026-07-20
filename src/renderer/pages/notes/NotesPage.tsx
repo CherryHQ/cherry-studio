@@ -44,6 +44,7 @@ import NotesEditor from './NotesEditor'
 import NotesSidebar from './NotesSidebar'
 
 const logger = loggerService.withContext('NotesPage')
+const SAVE_FAILURE_TOAST_INTERVAL_MS = 5000
 
 const NOTES_TREE_OPTIONS: DirectoryTreeOptions = {
   // Notes ships only `.md` files. Stats fuel `sortType: sort_updated_*` /
@@ -95,7 +96,16 @@ const NotesPage: FC = () => {
 
   const fileSession = useFileEditSession(activeFilePath as FilePath | undefined)
   const currentContent = fileSession.savedContent
-  const contentLoadError = fileSession.status === 'error' ? fileSession.error : undefined
+  // `unsupported` (oversize / non-UTF-8 / mixed line endings) must block editing
+  // like a load error — otherwise the note renders as an editable blank document
+  // and input is silently discarded.
+  const contentLoadError = useMemo(() => {
+    if (fileSession.status === 'error') return fileSession.error
+    if (fileSession.status === 'unsupported') {
+      return new Error(`Unsupported note file (${fileSession.unsupportedReason ?? 'unknown'})`)
+    }
+    return undefined
+  }, [fileSession.status, fileSession.error, fileSession.unsupportedReason])
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [showConflict, setShowConflict] = useState(false)
@@ -189,6 +199,18 @@ const NotesPage: FC = () => {
   useEffect(() => {
     if (fileSession.conflict) setShowConflict(true)
   }, [fileSession.conflict])
+
+  // Autosave I/O failures (disk full, permissions…) — warn, throttled so a
+  // typing burst doesn't stack toasts. The draft stays in memory and every
+  // subsequent keystroke retries the write.
+  const lastSaveFailureToastAtRef = useRef(0)
+  useEffect(() => {
+    if (!fileSession.saveError) return
+    const now = Date.now()
+    if (now - lastSaveFailureToastAtRef.current < SAVE_FAILURE_TOAST_INTERVAL_MS) return
+    lastSaveFailureToastAtRef.current = now
+    toast.error(t('notes.save_failed'))
+  }, [fileSession.saveError, t])
 
   useEffect(() => {
     if (contentLoadError) {
@@ -526,6 +548,12 @@ const NotesPage: FC = () => {
   const handleSelectNode = useCallback(
     async (node: NotesTreeNode) => {
       if (node.type === 'file') {
+        // Don't navigate away from a draft that could not be persisted —
+        // switching would detach the session and silently drop the edit.
+        if (fileSession.isDirty && fileSession.saveError) {
+          toast.error(t('notes.save_failed'))
+          return
+        }
         // Switching the active path re-reads the file through the session.
         setActiveFilePath(node.externalPath)
         setSelectedFolderId(null)
@@ -534,7 +562,7 @@ const NotesPage: FC = () => {
         handleToggleExpanded(node.id)
       }
     },
-    [handleToggleExpanded, setActiveFilePath]
+    [fileSession.isDirty, fileSession.saveError, handleToggleExpanded, setActiveFilePath, t]
   )
 
   // 删除节点

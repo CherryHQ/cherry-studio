@@ -225,6 +225,7 @@
           "title": "File changed on disk"
         },
         "refresh_failed": "Unable to reload the latest file content.",
+        "save_failed": "Unable to save this file. Your edits are kept in the editor and saving will be retried.",
         "unsaved": "Unsaved",
         "unsupported": "This file can be previewed but not safely edited here. Editing supports UTF-8 text files with consistent LF or CRLF line endings."
       },

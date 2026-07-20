@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
+    sessionStatus: 'ready' as string,
     currentContent: 'saved content',
     richEditorContent: 'edited rich content',
     sourceEditorContent: 'edited source content',
@@ -192,12 +193,13 @@ vi.mock('@renderer/hooks/useNote', () => ({
 
 vi.mock('@renderer/hooks/useFileEditSession', () => ({
   useFileEditSession: () => ({
-    status: 'ready',
-    savedContent: mocks.currentContent,
-    draft: mocks.currentContent,
+    status: mocks.sessionStatus,
+    savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
+    draft: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
     isDirty: false,
     isSaving: false,
     conflict: false,
+    unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
     setDraft: mocks.setDraft,
     reload: mocks.reloadSession,
     flush: mocks.flushSession,
@@ -273,6 +275,7 @@ import NotesPage from '../NotesPage'
 describe('NotesPage print payloads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.sessionStatus = 'ready'
     mocks.currentContent = 'saved content'
     mocks.richEditorContent = 'edited rich content'
     mocks.sourceEditorContent = 'edited source content'
@@ -431,5 +434,15 @@ describe('NotesPage print payloads', () => {
     fireEvent.click(screen.getByTestId('popover-trigger'))
 
     expect(screen.getByRole('button', { name: /notes\.print/ })).toHaveTextContent('⌘P')
+  })
+
+  it('blocks editing and surfaces a load failure for unsupported note files', async () => {
+    // Oversize / non-UTF-8 / mixed-line-ending notes must not render as an
+    // editable blank document (regression guard for the unsupported status).
+    mocks.sessionStatus = 'unsupported'
+
+    render(<NotesPage />)
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('notes.load_failed'))
   })
 })

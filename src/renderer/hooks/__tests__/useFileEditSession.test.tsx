@@ -264,7 +264,7 @@ describe('useFileEditSession', () => {
     }
   })
 
-  it('keeps the dirty draft ready for retry when saving fails with an IO error', async () => {
+  it('surfaces an IO save failure, keeps the draft for retry, and clears the error once a write lands', async () => {
     vi.useFakeTimers()
     try {
       ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
@@ -274,7 +274,8 @@ describe('useFileEditSession', () => {
       })
 
       act(() => result.current.setDraft('draft'))
-      ipcMocks.request.mockRejectedValueOnce(new Error('disk full'))
+      const diskFull = new Error('disk full')
+      ipcMocks.request.mockRejectedValueOnce(diskFull)
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800)
       })
@@ -282,12 +283,41 @@ describe('useFileEditSession', () => {
       expect(result.current.isDirty).toBe(true)
       expect(result.current.draft).toBe('draft')
       expect(result.current.conflict).toBe(false)
+      expect(result.current.saveError).toBe(diskFull)
 
-      // The next keystroke re-triggers the writer.
+      // The next keystroke re-triggers the writer; success clears the error.
       act(() => result.current.setDraft('draft 2'))
       ipcMocks.request.mockResolvedValueOnce(writeResult(2, 7))
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800)
+      })
+      expect(result.current.isDirty).toBe(false)
+      expect(result.current.saveError).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('flush rejects while the draft cannot be persisted, then resolves after a successful retry', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderSession()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      act(() => result.current.setDraft('unsaved'))
+      const diskFull = new Error('disk full')
+      ipcMocks.request.mockRejectedValueOnce(diskFull)
+      await act(async () => {
+        await expect(result.current.flush()).rejects.toBe(diskFull)
+      })
+      expect(result.current.isDirty).toBe(true)
+
+      ipcMocks.request.mockResolvedValueOnce(writeResult(2, 7))
+      await act(async () => {
+        await result.current.flush()
       })
       expect(result.current.isDirty).toBe(false)
     } finally {
@@ -509,5 +539,12 @@ describe('useFileEditSession', () => {
     const { result } = renderSession()
     await waitFor(() => expect(result.current.status).toBe('unsupported'))
     expect(result.current.unsupportedReason).toBe('encoding')
+  })
+
+  it('surfaces an unsupported status for mixed line endings', async () => {
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8('first\r\nsecond\n')))
+    const { result } = renderSession()
+    await waitFor(() => expect(result.current.status).toBe('unsupported'))
+    expect(result.current.unsupportedReason).toBe('mixed-line-endings')
   })
 })
