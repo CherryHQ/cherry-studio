@@ -5645,16 +5645,17 @@
         "path_changed_without_copy": "Path changed successfully",
         "restart_notice": "The app may need to restart multiple times to apply the changes",
         "select": "Modify Directory",
-        "select_error": "Failed to change data directory",
+        "select_error": "The selected directory may be used by another Cherry Studio instance. Close other instances and try again. If none are running, remove stale SingletonLock and SingletonSocket files from that directory.",
         "select_error_in_app_path": "New path is the same as the application installation path, please select another path",
+        "select_error_protected_path": "The selected path is protected by the operating system or Cherry Studio. Please choose another folder.",
         "select_error_root_path": "New path cannot be the root path",
         "select_error_same_path": "New path is the same as the old path, please select another path",
         "select_error_write_permission": "New path does not have write permission",
         "select_not_empty_dir": "New path is not empty",
-        "select_not_empty_dir_content": "New path is not empty, it will overwrite the data in the new path, there is a risk of data loss and copy failure, continue?",
         "select_success": "Data directory changed, the app will restart to apply changes",
         "select_title": "Change App Data Directory",
-        "stop_quit_app_reason": "The app is currently migrating data and cannot be exited"
+        "stop_quit_app_reason": "The app is currently migrating data and cannot be exited",
+        "switch_existing_notice": "This non-empty directory will be used as-is. Its existing files will not be overwritten."
       },
       "app_logs": {
         "button": "Open Logs",
