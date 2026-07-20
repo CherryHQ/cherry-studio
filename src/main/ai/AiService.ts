@@ -33,7 +33,7 @@ import {
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { prepareChatMessages } from './messages/attachmentRouting'
-import { resolveMediaCapabilities } from './messages/messageCapabilities'
+import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
@@ -44,6 +44,7 @@ import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
 import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager'
+import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
   AiBaseRequest,
@@ -387,8 +388,18 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts, nativeFileSupport, fileAttachments } =
-      await this.buildAgentParamsFor(request, signal, extraFeatures)
+    const {
+      sdkConfig,
+      tools,
+      plugins,
+      system,
+      options,
+      provider,
+      model,
+      hookParts,
+      nativeFileSupport,
+      fileAttachments
+    } = await this.buildAgentParamsFor(request, signal, extraFeatures)
 
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file).
@@ -399,6 +410,7 @@ export class AiService extends BaseService {
       signal
     })
 
+    const mediaCapabilities = resolveMediaCapabilities(model)
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
@@ -409,7 +421,11 @@ export class AiService extends BaseService {
       system,
       options,
       hookParts: [this.analyticsHookPart(model), ...hookParts],
-      mediaCapabilities: resolveMediaCapabilities(model)
+      mediaCapabilities,
+      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
+        mediaCapabilities,
+        resolveModelTokenDialect(provider, model)
+      )
     })
 
     return agent.stream(preparedMessages, signal)

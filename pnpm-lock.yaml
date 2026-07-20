@@ -829,6 +829,9 @@ importers:
       google-auth-library:
         specifier: ^9.15.1
         version: 9.15.1(encoding@0.1.13)
+      gpt-tokenizer:
+        specifier: ^3.4.0
+        version: 3.4.0
       html-to-image:
         specifier: ^1.11.13
         version: 1.11.13
@@ -9718,6 +9721,9 @@ packages:
   got@11.8.6:
     resolution: {integrity: sha512-6tfZ91bOr7bOXnK7PRDCGBLa1H4U080YHNaAQ2KsMGlLEzRbk44nsZF2E1IeRc3vtJHPVbKCYgdFbaGO2ljd8g==}
     engines: {node: '>=10.19.0'}
+
+  gpt-tokenizer@3.4.0:
+    resolution: {integrity: sha512-wxFLnhIXTDjYebd9A9pGl3e31ZpSypbpIJSOswbgop5jLte/AsZVDvjlbEuVFlsqZixVKqbcoNmRlFDf6pz/UQ==}
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
@@ -23362,6 +23368,8 @@ snapshots:
       lowercase-keys: 2.0.0
       p-cancelable: 2.1.1
       responselike: 2.0.1
+
+  gpt-tokenizer@3.4.0: {}
 
   graceful-fs@4.2.11: {}
 

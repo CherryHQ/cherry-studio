@@ -210,7 +210,7 @@ export async function resolveTools(
       ...clientTools
     }
   }
-  const exposed = applyDeferExposition(tools, registry, model.contextWindow)
+  const exposed = await applyDeferExposition(tools, registry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
 }
 

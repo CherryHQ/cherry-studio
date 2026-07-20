@@ -140,6 +140,71 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
   })
 })
 
+describe('AnthropicMessageConverter tool_result media', () => {
+  const withToolResult = (content: unknown) =>
+    params({
+      messages: [
+        { role: 'assistant', content: [{ type: 'tool_use', id: 'tu1', name: 'shot', input: {} }] },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu1', content }] }
+      ] as MessageCreateParams['messages']
+    })
+
+  const toolPartOutput = (p: MessageCreateParams) => {
+    const msgs = converter.toUIMessages(p)
+    const part = msgs.flatMap((m) => m.parts).find((x) => x.type === 'dynamic-tool') as { output?: unknown }
+    return part.output
+  }
+
+  it('emits structured image-data for a nested tool_result image (not a base64 string)', () => {
+    const output = toolPartOutput(
+      withToolResult([
+        { type: 'text', text: 'here' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }
+      ])
+    )
+    expect(output).toEqual([
+      { type: 'text', text: 'here' },
+      { type: 'image-data', data: 'AAAA', mediaType: 'image/png' }
+    ])
+    expect(JSON.stringify(output)).not.toContain('data:image/png;base64')
+  })
+
+  it('emits image-url for a url-sourced nested image', () => {
+    const output = toolPartOutput(withToolResult([{ type: 'image', source: { type: 'url', url: 'https://x/y.png' } }]))
+    expect(output).toEqual([{ type: 'image-url', url: 'https://x/y.png' }])
+  })
+
+  it('keeps a text-only tool_result as a joined string (unchanged)', () => {
+    expect(
+      toolPartOutput(
+        withToolResult([
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' }
+        ])
+      )
+    ).toBe('a\nb')
+  })
+})
+
+describe('AnthropicMessageConverter.toAiSdkTools toModelOutput', () => {
+  it('maps an items array → content, a string → text, an object → json', () => {
+    const tools = converter.toAiSdkTools(
+      params({
+        tools: [{ name: 'shot', description: 'd', input_schema: { type: 'object' } }] as MessageCreateParams['tools']
+      })
+    )
+    const toModelOutput = (
+      tools?.['shot'] as unknown as {
+        toModelOutput: (o: { toolCallId: string; input: unknown; output: unknown }) => unknown
+      }
+    ).toModelOutput
+    const call = (output: unknown) => toModelOutput({ toolCallId: 't', input: {}, output })
+    expect(call([{ type: 'text', text: 'x' }])).toEqual({ type: 'content', value: [{ type: 'text', text: 'x' }] })
+    expect(call('hi')).toEqual({ type: 'text', value: 'hi' })
+    expect(call({ a: 1 })).toEqual({ type: 'json', value: { a: 1 } })
+  })
+})
+
 describe('AnthropicMessageConverter.extractStreamOptions', () => {
   it('maps Anthropic sampling params to common options', () => {
     expect(

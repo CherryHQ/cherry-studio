@@ -112,4 +112,6 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   hookParts?: ReadonlyArray<Partial<AgentLoopHooks>>
   /** Modalities the model accepts; unsupported media is stripped before conversion. */
   mediaCapabilities?: MediaCapabilities
+  /** Media a tool result may carry to this wire+model; defaults to `mediaCapabilities`. */
+  toolResultMediaCapabilities?: MediaCapabilities
 }

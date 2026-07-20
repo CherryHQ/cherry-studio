@@ -1,11 +1,12 @@
 import { bearer } from '@elysia/bearer'
 import { isReservedGeminiGatewayModelId, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { Elysia } from 'elysia'
-import { approximateTokenSize } from 'tokenx'
 
+import type { InputParamsMap } from '../adapters'
 import { googleEnvelope } from '../errors'
 import { authorizeApiRequest } from '../middleware/auth'
 import { processMessage } from '../proxyStream'
+import { estimateGeminiRequestTokens } from '../tokens/estimateGeminiRequestTokens'
 import { GeminiGenerateContentBodySchema } from './schemas'
 
 /** Generation methods the gateway serves under `/v1beta/models/{model}:{method}`. */
@@ -25,46 +26,6 @@ function parseModelMethod(raw: string): { model: string; method: string } | null
   return { model: stripGeminiGatewayModelSuffix(raw.slice(0, lastColon)), method: raw.slice(lastColon + 1) }
 }
 
-/** Best-effort token estimate over a Gemini request's text parts. */
-function estimateGeminiTokens(body: unknown): number {
-  const request = (body ?? {}) as {
-    contents?: Array<{ parts?: Array<{ text?: unknown }> }>
-    systemInstruction?: unknown
-  }
-  let total = 0
-
-  const addContentText = (parts: Array<{ text?: unknown }> | undefined) => {
-    if (!Array.isArray(parts)) return
-    for (const part of parts) {
-      if (typeof part.text === 'string') total += approximateTokenSize(part.text)
-    }
-  }
-
-  if (Array.isArray(request.contents)) {
-    for (const content of request.contents) addContentText(content.parts)
-    // Every content message carries a small structural overhead.
-    total += request.contents.length * 3
-  }
-
-  const system = request.systemInstruction
-  if (typeof system === 'string') {
-    total += approximateTokenSize(system)
-  } else if (system && typeof system === 'object') {
-    addContentText((system as { parts?: Array<{ text?: unknown }> }).parts)
-  }
-
-  return total
-}
-
-/** Whether a Gemini request carries binary/file parts the text-only estimator cannot count. */
-function hasMediaParts(body: unknown): boolean {
-  const request = (body ?? {}) as { contents?: Array<{ parts?: Array<{ inlineData?: unknown; fileData?: unknown }> }> }
-  if (!Array.isArray(request.contents)) return false
-  return request.contents.some(
-    (content) => Array.isArray(content.parts) && content.parts.some((part) => part?.inlineData || part?.fileData)
-  )
-}
-
 /** Google `invalid_argument` (400) envelope for in-handler request errors. */
 const invalidArgument = (message: string) => ({
   error: { code: 400, message, status: 'INVALID_ARGUMENT' }
@@ -82,9 +43,9 @@ const invalidArgument = (message: string) => ({
  * `POST /v1beta/models/{model}:generateContent` (JSON) and
  * `:streamGenerateContent` (SSE with `?alt=sse`) both stream through
  * `AiStreamManager`; the model and the streaming flag come from the URL, not the
- * body. `:countTokens` returns a local estimate (text only; media is rejected so the
- * client falls back to its own count). Errors are shaped into the Google envelope by
- * the app's root `onError` (path-based → `googleErrorHandler`).
+ * body. `:countTokens` estimates the converted representation (provider remote count when
+ * reachable, else the shared local walker incl. media). Errors are shaped into the Google
+ * envelope by the app's root `onError` (path-based → `googleErrorHandler`).
  */
 export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
   .use(bearer())
@@ -103,7 +64,7 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
   })
   .post(
     '/models/*',
-    ({ params, body, request, status }) => {
+    async ({ params, body, request, status }) => {
       const parsed = parseModelMethod(params['*'])
       if (!parsed) {
         return status(400, invalidArgument('Invalid model path. Expected "models/{model}:{method}".'))
@@ -118,14 +79,7 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
       }
 
       if (method === 'countTokens') {
-        // The estimate counts text only. Gemini CLI calls remote countTokens precisely
-        // when the request has media and falls back to its own local media estimate only
-        // on a non-2xx response — so reject media rather than return a wrong 200 that
-        // would suppress that fallback and badly undercount context usage.
-        if (hasMediaParts(body)) {
-          return status(400, invalidArgument('countTokens does not support inlineData/fileData parts.'))
-        }
-        return { totalTokens: estimateGeminiTokens(body) }
+        return { totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], model) }
       }
       if (!GENERATE_METHODS.has(method)) {
         return status(400, invalidArgument(`Unsupported method: "${method}".`))
