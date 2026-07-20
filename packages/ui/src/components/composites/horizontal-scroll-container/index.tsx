@@ -114,7 +114,10 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
             !isScrolledToEnd && 'group-hover/container:opacity-100'
           )}
           onClick={handleScrollRight}>
-          <ChevronRight size={14} className="text-[var(--color-text-2)] hover:text-[var(--color-text)]" />
+          <ChevronRight
+            size={14}
+            className="text-[var(--color-foreground-secondary)] hover:text-[var(--color-foreground)]"
+          />
         </div>
       )}
     </div>

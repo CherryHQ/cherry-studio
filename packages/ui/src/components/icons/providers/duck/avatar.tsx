@@ -9,8 +9,8 @@ export function DuckAvatar({ size = 32, shape = 'circle', className }: Omit<Icon
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground">
-        <DuckLight style={{ width: size * 0.82, height: size * 0.82 }} />
+      <AvatarFallback className="text-foreground bg-background">
+        <DuckLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

@@ -2,6 +2,7 @@ import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   BookOpenCheck,
+  Box,
   Code2,
   FileQuestion,
   FolderOpen,
@@ -11,7 +12,6 @@ import {
   Package,
   Puzzle,
   Search,
-  ServerOff,
   Sparkles
 } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -36,7 +36,7 @@ interface PresetConfig {
 }
 
 const PRESET_MAP: Record<EmptyStatePreset, PresetConfig> = {
-  'no-model': { icon: ServerOff },
+  'no-model': { icon: Box },
   'no-assistant': { icon: Sparkles },
   'no-agent': { icon: Package },
   'no-knowledge': { icon: BookOpenCheck },
