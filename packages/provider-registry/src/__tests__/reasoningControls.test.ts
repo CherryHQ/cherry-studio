@@ -118,7 +118,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
         { kind: 'budget', min: 0, max: 30_720 }
       ]
     ],
-    ['glm-4.6', [{ kind: 'budget', min: 0, max: 30_720 }, { kind: 'toggle' }]],
+    ['glm-4.6', [{ kind: 'toggle' }]],
     ['gemma-4-27b-it', [{ kind: 'effort', values: ['minimal', 'high'] }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
     // provider-namespaced ids are normalized before matching

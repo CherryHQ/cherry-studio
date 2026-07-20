@@ -218,7 +218,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'mimo-v2-(?:flash|pro|omni)', budget: { min: 0, max: 30720 }, template: true },
   { pattern: 'mimo-v2[.-]5-pro-ultraspeed' },
   // zhipu
-  { pattern: 'glm-?5|glm-4[.-][567]', toggle: true, budget: { min: 0, max: 30720 } },
+  { pattern: 'glm-?5|glm-4[.-][567]', toggle: true },
   { pattern: 'glm-zero-preview' },
   { pattern: 'glm-z1' }
 ]

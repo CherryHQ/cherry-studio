@@ -9649,6 +9649,26 @@
       "ownedBy": "luma"
     },
     {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1048756,
+      "id": "longcat-2-0",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "longcat-2-0",
+      "outputModalities": ["text"],
+      "ownedBy": "meituan",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      }
+    },
+    {
       "capabilities": ["function-call", "structured-output"],
       "contextWindow": 128000,
       "family": "llama",
@@ -17952,18 +17972,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -17992,18 +18003,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18040,18 +18042,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18088,18 +18081,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18136,18 +18120,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18188,18 +18163,9 @@
           },
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["high", "max", "xhigh", "none"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["high", "max", "xhigh", "none"]
       }
     },
     {
@@ -18236,18 +18202,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18283,18 +18240,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18331,18 +18279,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18379,18 +18318,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18427,18 +18357,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18478,18 +18399,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18529,18 +18441,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18583,18 +18486,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18631,18 +18525,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18679,18 +18564,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18726,18 +18602,9 @@
           },
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["high", "xhigh", "none"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["high", "xhigh", "none"]
       }
     },
     {
@@ -18755,18 +18622,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -19893,5 +19751,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "3248f11a84d078b5"
+  "version": "3e89ba6d72142d1f"
 }

@@ -10,7 +10,9 @@ export default defineCreator({
   idPrefixes: ['glm', 'cogview', 'cogvideo', 'codegeex', 'chatglm'],
   reasoningFamilies: [
     // GLM-5 and GLM-4.5/4.6/4.7. Unanchored to handle provider-prefixed ids.
-    { pattern: 'glm-?5|glm-4[.-][567]', toggle: true, budget: { min: 0, max: 30720 } },
+    // On/off only — bigmodel's API has no thinking budget parameter; depth
+    // control is GLM-5.2's reasoning_effort (declared upstream per SKU).
+    { pattern: 'glm-?5|glm-4[.-][567]', toggle: true },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: 'glm-zero-preview' },
     { pattern: 'glm-z1' }
