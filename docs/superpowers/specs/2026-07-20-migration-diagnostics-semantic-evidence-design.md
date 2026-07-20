@@ -1,7 +1,7 @@
 # Migration Diagnostics Semantic Evidence Design
 
 - Date: 2026-07-20
-- Status: conversational design approved; awaiting repository specification review
+- Status: approved
 - Source: [v1 → v2 迁移诊断覆盖评估与补足建议](https://mcnnox2fhjfq.feishu.cn/docx/UYygd3kJto6cmvxQoLfcjOWhn5b)
 
 ## Outcome
@@ -335,6 +335,10 @@ Run the repository-required non-test verification before completion:
 
 - `pnpm lint`;
 - `pnpm format`;
-- `pnpm build:check`.
+- `pnpm docs:check-links`.
+
+Do not invoke `pnpm build:check` for this change: the repository script expands to
+`pnpm lint && pnpm docs:check-links && pnpm test`, so it would violate the explicit
+no-full-suite constraint. Run its allowed non-test components separately instead.
 
 The final handoff must explicitly state that the full test suite was not run at the user's request and list the targeted commands that were run.
