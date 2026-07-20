@@ -157,6 +157,19 @@ Default consumption rules:
 4. Only design-system-adjacent packages that explicitly need foundation-level access should depend on `@cherrystudio/ui/styles/tokens.css`
 5. Runtime theme logic should only write to registered inputs such as `--cs-theme-*`, not directly to official semantics or derived `--color-*` variables
 
+### Shadcn CLI Ownership
+
+Use the Shadcn CLI to scaffold or update component source and dependency metadata only. Cherry Studio's authored
+theme layers and generator own the shared CSS contract, even though `components.json` points the CLI at the generated
+`src/styles/theme.css` entry.
+
+- Do not retain direct CLI edits to `src/styles/theme.css`; `pnpm theme:build` is its only writer.
+- Review any CSS proposed by `shadcn add` and place it according to ownership: official semantics in `shadcn.css`,
+  Cherry Studio product semantics in `product.css` and `theme-contract.ts`, and component-local styles with the
+  component.
+- Add Tailwind mappings through the theme generator rather than by hand-editing its output.
+- Run `pnpm theme:build` followed by `pnpm theme:check` after accepting a component that changes theme requirements.
+
 ## Usage
 
 ### Basic Components
