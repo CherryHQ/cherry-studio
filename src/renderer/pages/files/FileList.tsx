@@ -1,4 +1,5 @@
 import { Button, Checkbox, type CheckedState } from '@cherrystudio/ui'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   ChevronDown,
   ChevronsUpDown,
@@ -9,7 +10,7 @@ import {
   SquareArrowOutUpRight,
   Trash2
 } from 'lucide-react'
-import { memo } from 'react'
+import { memo, type RefObject, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
@@ -19,6 +20,9 @@ import { InlineRename } from './InlineRename'
 
 export type SortKey = 'name' | 'size' | 'updatedAt' | 'type'
 export type SortDir = 'asc' | 'desc'
+
+const FILE_ROW_HEIGHT_PX = 40
+const FILE_HEADER_HEIGHT_PX = 36
 
 function SortHeader({
   label,
@@ -68,6 +72,7 @@ export const FileList = memo(function FileList({
   sortKey,
   sortDir,
   onSort,
+  scrollRef,
   renamingId,
   onRenameConfirm,
   onRenameCancel
@@ -87,14 +92,29 @@ export const FileList = memo(function FileList({
   sortKey: SortKey
   sortDir: SortDir
   onSort: (key: SortKey) => void
+  scrollRef: RefObject<HTMLDivElement | null>
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
 }) {
   const { t } = useTranslation()
+  const getItemKey = useCallback((index: number) => files[index]?.id ?? index, [files])
+  const rowVirtualizer = useVirtualizer({
+    count: files.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => FILE_ROW_HEIGHT_PX,
+    getItemKey,
+    overscan: 8
+  })
+
+  useEffect(() => {
+    if (!renamingId) return
+    const index = files.findIndex((file) => file.id === renamingId)
+    if (index >= 0) rowVirtualizer.scrollToIndex(index, { align: 'auto' })
+  }, [files, renamingId, rowVirtualizer])
 
   return (
-    <div className="flex flex-col">
+    <div className="relative flex flex-col" style={{ height: FILE_HEADER_HEIGHT_PX + rowVirtualizer.getTotalSize() }}>
       <div className="sticky top-0 z-10 flex items-center gap-2 border-border/30 border-b bg-background px-4 py-1.5">
         <div className="flex w-5 shrink-0 items-center justify-center">
           <Checkbox
@@ -126,7 +146,9 @@ export const FileList = memo(function FileList({
           {t('files.actions')}
         </div>
       </div>
-      {files.map((file) => {
+      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+        const file = files[virtualRow.index]
+        if (!file) return null
         const selected = selectedIds.has(file.id)
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
@@ -148,9 +170,10 @@ export const FileList = memo(function FileList({
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
               }}
-              className={`group flex cursor-pointer items-center gap-2 border-border/15 border-b px-4 py-[6px] transition-colors ${
+              className={`group absolute top-0 left-0 flex h-10 w-full cursor-default items-center gap-2 border-border/15 border-b px-4 py-[6px] transition-colors ${
                 selected ? 'bg-accent/50' : 'hover:bg-accent/50'
-              }`}>
+              }`}
+              style={{ transform: `translateY(${FILE_HEADER_HEIGHT_PX + virtualRow.start}px)` }}>
               <div className="flex w-5 shrink-0 items-center justify-center" onClick={(e) => e.stopPropagation()}>
                 <Checkbox
                   size="sm"

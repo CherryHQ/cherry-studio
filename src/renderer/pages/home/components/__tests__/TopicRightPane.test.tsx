@@ -216,7 +216,7 @@ describe('TopicRightPane', () => {
     expect(branchPane).toHaveAttribute('data-open', 'true')
   })
 
-  it('shows a permanent trace tab keyed on the container traceId when developer mode is on', () => {
+  it('loads the trace pane with the container traceId only when the trace tab is selected', async () => {
     render(
       <TopicRightPane topicId="topic-a" traceId="trace-a">
         <TopicRightPane.Shortcuts />
@@ -224,10 +224,14 @@ describe('TopicRightPane', () => {
       </TopicRightPane>
     )
 
-    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
 
     expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toBeInTheDocument()
-    expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-topic-id', 'topic-a')
+    expect(screen.queryByTestId('trace-pane')).toBeNull()
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+
+    expect(await screen.findByTestId('trace-pane')).toHaveAttribute('data-topic-id', 'topic-a')
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-trace-id', 'trace-a')
   })
 
