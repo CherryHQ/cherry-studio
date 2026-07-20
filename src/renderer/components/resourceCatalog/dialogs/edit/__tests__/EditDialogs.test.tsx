@@ -964,6 +964,21 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Skill One')).toBeInTheDocument()
   })
 
+  it('opens the agent edit dialog directly on the requested initial tab', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
+
+    expect(screen.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('opens the assistant edit dialog directly on the requested initial tab', () => {
+    render(
+      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.mcp" />
+    )
+
+    expect(screen.getByRole('tab', { name: 'MCP' })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('auto-saves agent skill toggles after a debounce', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
