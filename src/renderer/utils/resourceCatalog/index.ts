@@ -19,6 +19,7 @@ export { isSelectableAssistantModel } from './assistantModelFilter'
 export {
   type AssistantConfigMcpMode,
   MCP_MODE_OPTIONS,
+  RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT,
   RESOURCE_TYPE_META,
   RESOURCE_TYPE_ORDER
 } from './constants'

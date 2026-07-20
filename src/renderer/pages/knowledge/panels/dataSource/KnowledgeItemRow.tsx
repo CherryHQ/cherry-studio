@@ -1,6 +1,7 @@
 import { Checkbox, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
 import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { toast } from '@renderer/services/toast'
@@ -8,7 +9,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,12 +28,28 @@ export interface KnowledgeItemRowProps {
   onViewChunks: () => void
 }
 
+/**
+ * Live " NN%" suffix for a row whose index job is embedding. Mounted only while
+ * `item.status === 'embedding'` and subscribed read-only, so ordinary rows never
+ * create or pin the shared-cache key — the indexing job in main owns it end-to-end
+ * (created when embedding actually starts, TTL-collected after the job exits).
+ */
+const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
+  const progress = useSharedCacheValue(`knowledge.item.embedding_progress.${itemId}` as const)
+  if (progress == null) {
+    return null
+  }
+  return ` ${progress}%`
+}
+
 const KnowledgeItemStatusBadge = ({
   failureReason,
-  status
+  status,
+  embeddingProgress
 }: {
   failureReason: string | null
   status: DataSourceStatusViewModel
+  embeddingProgress: ReactNode
 }) => {
   const { t } = useTranslation()
   const icon =
@@ -54,7 +71,10 @@ const KnowledgeItemStatusBadge = ({
       tabIndex={failureReason ? 0 : undefined}
       aria-label={failureReason ?? undefined}>
       {icon}
-      <span>{t(status.labelKey)}</span>
+      <span>
+        {t(status.labelKey)}
+        {embeddingProgress}
+      </span>
     </span>
   )
 
@@ -95,9 +115,9 @@ const KnowledgeItemRow = ({
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
-  // Left-click activates the row: file/url open with the system tool and a directory drills into
-  // its children — all status-independent (the source exists regardless of index state). A note
-  // has no external target, so it only activates once its in-app chunk view is ready (`completed`).
+  // Files and URLs delegate preview/fallback/error handling to `previewSource`, while directories
+  // drill into their children; all three remain status-independent. Notes activate only once their
+  // in-app chunk view is ready (`completed`).
   const canActivate = item.type === 'note' ? canViewChunks : true
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)
@@ -216,7 +236,11 @@ const KnowledgeItemRow = ({
           {typeLabel}
         </div>
         <div role="gridcell">
-          <KnowledgeItemStatusBadge status={status} failureReason={failureReason} />
+          <KnowledgeItemStatusBadge
+            status={status}
+            failureReason={failureReason}
+            embeddingProgress={item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
+          />
         </div>
         <div role="gridcell" className="truncate text-foreground-muted text-xs">
           {updatedAt}

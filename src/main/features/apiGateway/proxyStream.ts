@@ -21,6 +21,7 @@ import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import type { Provider } from '@shared/data/types/provider'
+import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
@@ -32,6 +33,23 @@ import { resolveGatewayModelAddress } from './utils/models'
 const logger = loggerService.withContext('ProxyStreamService')
 
 const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
+
+type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
+
+const STARTUP_COMMIT_CHUNK_TYPES: ReadonlySet<UIMessageChunk['type']> = new Set([
+  'text-start',
+  'text-delta',
+  'text-end',
+  'reasoning-start',
+  'reasoning-delta',
+  'reasoning-end',
+  'tool-input-available',
+  'finish'
+])
+
+function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
+  return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
+}
 
 /**
  * Terminal error for a stream that paused without finishing — the 20-minute idle
@@ -159,88 +177,153 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const aiStreamManager = application.get('AiStreamManager')
 
   if (isStreaming) {
-    // Streaming: stream the adapter's formatted SSE frames out of a ReadableStream.
+    // Do not commit the HTTP response until the provider has produced a meaningful
+    // chunk. Adapters can emit protocol scaffolding for AI SDK `start` chunks.
     const encoder = new TextEncoder()
-    let closed = false
+    let startupState: StartupState = 'pending'
+    let resolveStartup!: () => void
+    let rejectStartup!: (error: unknown) => void
+    const startup = new Promise<void>((resolve, reject) => {
+      resolveStartup = resolve
+      rejectStartup = reject
+    })
+    const bufferedFrames: Uint8Array[] = []
+    let abortStream: (() => void) | undefined
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
+        let closed = false
+
+        const commit = () => {
+          if (startupState !== 'pending') return
+          startupState = 'committed'
+          for (const frame of bufferedFrames) controller.enqueue(frame)
+          bufferedFrames.length = 0
+          resolveStartup()
+        }
+        const fail = (error: unknown) => {
+          if (startupState !== 'pending') return
+          startupState = 'failed'
+          bufferedFrames.length = 0
+          rejectStartup(error)
+        }
+        const abandon = () => {
+          if (startupState !== 'pending') return
+          startupState = 'abandoned'
+          bufferedFrames.length = 0
+          resolveStartup()
+        }
         const safeClose = () => {
           if (closed) return
           closed = true
+          signal?.removeEventListener('abort', onAbort)
           try {
             controller.close()
           } catch {
             // already closed
           }
         }
+        const complete = () => {
+          commit()
+          safeClose()
+          logger.info('Message completed', { providerId, modelId, streaming: true })
+          onComplete?.()
+        }
+        const write = (data: string) => {
+          if (closed) return
+          const frame = encoder.encode(data)
+          if (startupState === 'pending') bufferedFrames.push(frame)
+          else if (startupState === 'committed') controller.enqueue(frame)
+        }
 
         const onAbort = () => {
+          abandon()
           aiStreamManager.abort(streamId, 'gateway client disconnected')
           safeClose()
         }
+        abortStream = onAbort
+
         if (signal) {
           if (signal.aborted) onAbort()
           else signal.addEventListener('abort', onAbort, { once: true })
         }
 
-        const listener: StreamListener = new SseListener(
-          (data) => {
-            if (closed) return
-            controller.enqueue(encoder.encode(data))
+        const sseListener = new SseListener(write, complete, () => !closed, {
+          id: `gateway:${streamId}`,
+          // Commit before transforming a semantic chunk: adapter output for `start`
+          // is protocol scaffolding, not proof that the provider has started.
+          formatChunk: (chunk) => {
+            if (isStartupCommitChunk(chunk)) commit()
+            return adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event))
           },
-          () => {
-            safeClose()
-            logger.info('Message completed', { providerId, modelId, streaming: true })
-            onComplete?.()
+          formatDone: () =>
+            adapter
+              .finalizeEvents()
+              .map((event) => formatter.formatEvent(event))
+              .join('') + formatter.formatDone(),
+          formatPaused: () => {
+            logger.warn('Gateway stream paused before completion; emitting truncation error frame', {
+              providerId,
+              modelId,
+              streamId
+            })
+            return buildStreamErrorFrame(outputFormat, streamInterruptedError())
           },
-          () => !closed,
-          {
-            id: `gateway:${streamId}`,
-            // Stateful: each UIMessageChunk → 0..N formatted SSE frames (named event:/data:).
-            formatChunk: (chunk) => adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event)),
-            // Terminal: flush the adapter's closing events (e.g. message_stop) + the format's done marker.
-            formatDone: () =>
-              adapter
-                .finalizeEvents()
-                .map((event) => formatter.formatEvent(event))
-                .join('') + formatter.formatDone(),
-            // Pause = idle-timeout / mid-stream abort (never a clean finish). Emit a
-            // dialect error frame so the client can tell a truncation from completion.
-            // (Skipped when the client itself disconnected — `closed` is already set.)
-            formatPaused: () => {
-              logger.warn('Gateway stream paused before completion; emitting truncation error frame', {
-                providerId,
-                modelId,
-                streamId
-              })
-              return buildStreamErrorFrame(outputFormat, streamInterruptedError())
-            },
-            // Project the error into the per-dialect, isDev-gated envelope — never the
-            // raw SerializedError (which would leak stack / url / request+response bodies).
-            formatError: (error) => {
-              onError?.(error)
-              return buildStreamErrorFrame(outputFormat, error)
-            }
+          formatError: (error) => {
+            onError?.(error)
+            return buildStreamErrorFrame(outputFormat, error)
           }
-        )
-
-        aiStreamManager.streamPrompt({
-          streamId,
-          uniqueModelId,
-          messages,
-          listener,
-          callOverrides,
-          idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
         })
+        const listener: StreamListener = {
+          id: sseListener.id,
+          onChunk: (chunk) => sseListener.onChunk(chunk),
+          onDone: (result) => sseListener.onDone(result),
+          onPaused: (result) => {
+            if (startupState === 'pending') {
+              fail(streamInterruptedError())
+              complete()
+              return
+            }
+            return sseListener.onPaused(result)
+          },
+          onError: (result) => {
+            if (startupState !== 'pending') return sseListener.onError(result)
+
+            fail(result.error)
+            try {
+              onError?.(result.error)
+            } finally {
+              complete()
+            }
+          },
+          isAlive: () => sseListener.isAlive()
+        }
+
+        if (closed) return
+        try {
+          aiStreamManager.streamPrompt({
+            streamId,
+            uniqueModelId,
+            messages,
+            listener,
+            callOverrides,
+            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+          })
+        } catch (error) {
+          fail(error)
+          try {
+            onError?.(error)
+          } finally {
+            safeClose()
+          }
+        }
       },
       cancel() {
-        closed = true
-        aiStreamManager.abort(streamId, 'gateway client disconnected')
+        abortStream?.()
       }
     })
 
-    return new Response(stream, {
+    const response = new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -248,6 +331,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         'X-Accel-Buffering': 'no'
       }
     })
+    await startup
+    return response
   }
 
   // Non-streaming: drive the adapter to accumulate state; respond with JSON at the end.

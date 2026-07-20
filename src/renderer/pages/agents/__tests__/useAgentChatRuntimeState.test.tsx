@@ -1,4 +1,3 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -62,7 +61,6 @@ vi.mock('react-i18next', () => ({
 
 import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
 
-const session = { id: 'session-1' } as AgentSessionEntity
 const assistantMessage = {
   id: 'assistant-1',
   role: 'assistant',
@@ -168,7 +166,7 @@ describe('useAgentChatRuntimeState', () => {
   it('does not wire per-overlay finish refresh for agent sessions', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -182,7 +180,7 @@ describe('useAgentChatRuntimeState', () => {
   it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
     renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -220,7 +218,7 @@ describe('useAgentChatRuntimeState', () => {
 
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -238,7 +236,7 @@ describe('useAgentChatRuntimeState', () => {
     })
     const { result, rerender } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -263,7 +261,7 @@ describe('useAgentChatRuntimeState', () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -283,7 +281,7 @@ describe('useAgentChatRuntimeState', () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })

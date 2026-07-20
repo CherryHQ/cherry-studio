@@ -23,9 +23,7 @@ import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { toast } from '@renderer/services/toast'
-import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { MCP_MODE_OPTIONS } from '@renderer/utils/resourceCatalog'
+import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
   diffAssistantSaveIntent,
@@ -33,7 +31,7 @@ import {
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { Loader2, Sparkles, Trash2, Undo2 } from 'lucide-react'
+import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -56,6 +54,7 @@ import {
 } from '../components/EditDialogShared'
 import { GroupSelector } from '../components/GroupSelector'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
 
@@ -440,99 +439,31 @@ function AssistantPromptField({
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
-  const [generating, setGenerating] = useState(false)
-  const [showUndoButton, setShowUndoButton] = useState(false)
-  const [originalPrompt, setOriginalPrompt] = useState('')
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
-  const generateRequestIdRef = useRef(0)
   const prompt = form.watch('prompt')
   const name = form.watch('name')
-  const generateSource = prompt.trim() || name.trim()
   const processedPrompt = usePromptProcessor({
     prompt,
     modelName: modelName ?? resource.modelName ?? undefined
   })
-  const promptGenerationFailedToast = {
-    title: t('library.config.prompt.generate_failed_title'),
-    description: t('library.config.prompt.generate_failed_description')
-  }
 
   const handlePromptChange = (nextPrompt: string) => {
-    setShowUndoButton(false)
     form.setValue('prompt', nextPrompt, { shouldDirty: true, shouldTouch: true })
   }
 
-  useEffect(() => {
-    return () => {
-      generateRequestIdRef.current += 1
-    }
-  }, [])
-
-  const handleGeneratePrompt = async () => {
-    if (!generateSource || generating) return
-
-    const requestId = generateRequestIdRef.current + 1
-    generateRequestIdRef.current = requestId
-    setGenerating(true)
-    setShowUndoButton(false)
-
-    try {
-      const generatedPrompt = await fetchGenerate({
-        prompt: AGENT_PROMPT,
-        content: generateSource,
-        throwOnError: true
-      })
-
-      if (generateRequestIdRef.current !== requestId) return
-      if (!generatedPrompt) {
-        toast.error(promptGenerationFailedToast)
-        return
-      }
-
-      setOriginalPrompt(prompt)
-      form.setValue('prompt', generatedPrompt, { shouldDirty: true, shouldTouch: true })
-      setShowUndoButton(true)
-      setResetPreviewKey((key) => key + 1)
-    } catch (error) {
-      logger.error('Failed to generate assistant prompt from edit dialog', error as Error, {
-        assistantId: resource.id
-      })
-      toast.error(promptGenerationFailedToast)
-    } finally {
-      if (generateRequestIdRef.current === requestId) {
-        setGenerating(false)
-      }
-    }
-  }
-
-  const handleUndoGeneratedPrompt = () => {
-    form.setValue('prompt', originalPrompt, { shouldDirty: true, shouldTouch: true })
-    setShowUndoButton(false)
+  const handlePromptActionChange = (nextPrompt: string) => {
+    handlePromptChange(nextPrompt)
     setResetPreviewKey((key) => key + 1)
   }
 
   const promptActions = (
-    <>
-      {showUndoButton ? (
-        <Button
-          type="button"
-          variant="outline"
-          aria-label={t('common.undo')}
-          onClick={handleUndoGeneratedPrompt}
-          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0">
-          <Undo2 size={10} />
-        </Button>
-      ) : null}
-      <Button
-        type="button"
-        variant="outline"
-        aria-label={t('library.config.prompt.generate')}
-        onClick={handleGeneratePrompt}
-        disabled={!generateSource || generating}
-        className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-        {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-      </Button>
-    </>
+    <PromptPolishActions
+      value={prompt}
+      fallbackSource={name}
+      emptyValueSystemPrompt={AGENT_PROMPT}
+      existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+      onChange={handlePromptActionChange}
+    />
   )
 
   return (
