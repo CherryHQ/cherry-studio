@@ -242,7 +242,9 @@ export class AgentSessionRuntimeService extends BaseService {
         isResumeTokenLive: (token) => liveEntryTokens.has(token) || persistedTokens.has(token)
       }
 
-      await this.sweepSystemWorkspaceDirectories(live)
+      // Drivers sweep first: their contract includes releasing session resources they still hold
+      // for dead sessions (e.g. Claude's prewarmed queries, whose subprocess sits in the workspace
+      // cwd) — only after that is removing the workspace directories safe.
       for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
         if (!driver.sweepSessionFiles) continue
         try {
@@ -251,6 +253,7 @@ export class AgentSessionRuntimeService extends BaseService {
           logger.warn('Runtime session file sweep failed', { driver: driver.type, error })
         }
       }
+      await this.sweepSystemWorkspaceDirectories(live)
     } catch (error) {
       logger.warn('Session file sweep failed', { error })
     } finally {

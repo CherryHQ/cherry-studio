@@ -142,9 +142,12 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
   /**
    * Garbage-collect whatever the runtime persisted outside Cherry's DB
    * (transcripts, per-session caches, …) for sessions/tokens absent from the
-   * live index. Invoked by the host on its own schedule (boot + interval), not
-   * per deletion; best-effort — failures log, never throw. Omit when the
-   * runtime keeps no external session store.
+   * live index. The driver must FIRST release any session resources it still
+   * holds for dead sessions (e.g. pooled/prewarmed subprocesses running in the
+   * session's workspace cwd) — the host removes shared workspace directories
+   * after all driver sweeps and relies on this. Invoked by the host on its own
+   * schedule (boot + interval), not per deletion; best-effort — failures log,
+   * never throw. Omit when the runtime keeps no external session store.
    */
   sweepSessionFiles?(live: AgentSessionLiveIndex): Promise<void>
 }

@@ -762,6 +762,13 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async sweepSessionFiles(live: AgentSessionLiveIndex): Promise<void> {
+    // A deleted session's prewarmed query can outlive its DB row within the warm TTL, still
+    // holding the workspace cwd and appending its transcript — the whole-directory removals
+    // below (and the host's workspace-dir sweep that follows) are only safe once it is closed.
+    const warmManager = application.get('ClaudeCodeWarmQueryManager')
+    for (const sessionId of warmManager.getWarmAgentSessionIds()) {
+      if (!live.isSessionLive(sessionId)) warmManager.closeAgentSessionWarm(sessionId)
+    }
     await sweepClaudeSessionFiles(live)
   }
 }
