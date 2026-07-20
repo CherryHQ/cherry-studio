@@ -1470,16 +1470,16 @@
         "unsupported_model": "現在のモデルは調整可能な推論をサポートしていません"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "ツールバーをカスタマイズ",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "{{name}}の再注文がキャンセルされました。",
+          "dropped": "{{name}}がドロップされました。",
+          "instructions": "並べ替えるには、SpaceキーまたはEnterキーでツールを選択し、矢印キーで移動してから、SpaceキーまたはEnterキーでドロップするか、Escapeキーでキャンセルします。",
+          "over": "{{name}}は{{over}}に移動しました。",
+          "picked_up": "{{name}}を拾いました。"
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "{{name}}をドラッグして並べ替えます",
+        "restore_default": "デフォルトに戻す"
       },
       "tools": {
         "collapse": "折りたたむ",
@@ -1755,7 +1755,7 @@
     "thinking_tokens": "~{{tokens}}トークン",
     "topics": {
       "auto_rename": "自動リネーム",
-      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
+      "auto_rename_failed": "会話名の自動生成に失敗しました",
       "clear": {
         "title": "メッセージをクリア"
       },
@@ -2453,6 +2453,80 @@
       "reasoning_truncated": "思考過程がブロック分割できません。切り捨てられています。"
     },
     "user": "ユーザー"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "このHTMLファイルにはコンテンツがありません。",
+        "title": "空のファイル"
+      },
+      "mode": {
+        "label": "HTMLビューモード",
+        "preview": "プレビュー",
+        "source": "ソース"
+      },
+      "read_error": {
+        "title": "このファイルを読み取れませんでした"
+      },
+      "too_large": {
+        "description": "HTMLファイルは{{limit}}MiBを超えるとプレビューできません。",
+        "title": "ファイルが大きすぎます"
+      }
+    },
+    "invalid_path": {
+      "description": "ファイルのプレビューには有効な絶対ローカルパスが必要です。",
+      "title": "このファイルをプレビューできません"
+    },
+    "load_error": {
+      "description": "プレビュー内容を読み込めませんでした。",
+      "title": "プレビューに失敗しました"
+    },
+    "loading": "プレビューを読み込み中...",
+    "markdown": {
+      "empty": {
+        "description": "このMarkdownファイルにはコンテンツがありません。",
+        "title": "空のファイル"
+      },
+      "mode": {
+        "label": "Markdown表示モード",
+        "preview": "プレビュー",
+        "source": "ソース"
+      },
+      "read_error": {
+        "title": "このファイルを読み込めませんでした"
+      },
+      "too_large": {
+        "description": "{{limit}} MiBを超えるMarkdownファイルはプレビューできません。",
+        "title": "ファイルが大きすぎます"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "デフォルトのアプリで開く",
+        "description": "{{limit}} MiBを超えるPDFファイルはプレビューできません。",
+        "open_error": "このファイルを開けませんでした",
+        "title": "ファイルが大きすぎます"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "このテキストファイルには内容がありません。",
+        "title": "空のファイル"
+      },
+      "read_error": {
+        "title": "このファイルを読み取れませんでした"
+      },
+      "too_large": {
+        "description": "{{limit}} MiBを超えるテキストファイルはプレビューできません。",
+        "title": "ファイルが大きすぎます"
+      }
+    },
+    "unsupported": {
+      "action": "デフォルトのアプリで開く",
+      "description": "このファイルタイプはまだプレビューできません。",
+      "open_error": "このファイルを開けませんでした",
+      "title": "プレビューは利用できません"
+    }
   },
   "files": {
     "actions": "操作",
@@ -3497,8 +3571,10 @@
       "title": "図書館"
     },
     "skill_add": {
+      "add": "スキルを追加",
       "local_import": "ローカルインポート",
-      "online_search": "オンライン検索"
+      "online_search": "オンライン検索",
+      "system_search": "システム検索"
     },
     "skill_detail": {
       "created_at": "作成済",
@@ -3526,6 +3602,19 @@
       "updated": "更新日時でソート"
     },
     "subtitle": "アシスタント、エージェント、スキルを管理する",
+    "system_skill": {
+      "conflict": "名称の競合",
+      "description": "このシステムに既にインストールされているスキルをインポートします。",
+      "empty_description": "このデバイスの他のコーディングツールでインポート可能なスキルが見つかりませんでした。",
+      "empty_title": "インポートできるスキルがありません",
+      "enable_success": "{{name}}を有効にしました",
+      "enabled": "有効",
+      "import": "インポート",
+      "import_success": "{{name}}をインポートしました",
+      "imported": "インポート済み",
+      "search_placeholder": "検索システムスキル...",
+      "title": "システムスキル"
+    },
     "tag_picker": {
       "no_tags": "まだタグはありません",
       "placeholder": "新しいタグ名..."
@@ -4699,6 +4788,7 @@
     "req_error_text": "サーバーが混雑しているか、プロンプトに「著作権用語」または「敏感な用語」が含まれています。もう一度お試しください。",
     "req_error_token": "トークンの有効性を確認してください",
     "required_field": "必須項目",
+    "revealing": "生成された画像の公開",
     "safety_tolerance": "安全許容範囲",
     "safety_tolerance_tip": "高いほどフィルターが緩やかになります。0が最も厳しく、6が最も緩やかです。",
     "seed": "シード",
@@ -7736,6 +7826,8 @@
   },
   "tab": {
     "close": "タブを閉じる",
+    "close_others": "他のタブを閉じる",
+    "close_to_right": "右側のタブを閉じる",
     "move_to_first": "最初へ移動",
     "new": "新しいタブ",
     "open_in_new_window": "新しいウィンドウで開く",
