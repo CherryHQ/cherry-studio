@@ -76,7 +76,7 @@ const Message = () => {
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
 
-  it('adds the exact ID to runtime uiTokens without losing dynamic state', () => {
+  it('adds the exact ID to runtime uiTokens without losing dynamic scope', () => {
     const result = transformJsx(
       "const Message = ({ id }) => <div data-ui={uiTokens('chat.message', { scopes: [`message:${id}`] })} />",
       {
@@ -91,7 +91,7 @@ const Message = () => {
 
   it('assigns exact IDs only to intrinsic DOM and composes forwarded component tokens', () => {
     const callSite = transformJsx(
-      "const App = () => <MessageWrapper data-ui={uiTokens('chat.message', { states: ['selected'] })} />",
+      "const App = () => <MessageWrapper data-ui={uiTokens('chat.message', { scopes: ['message:m_817'] })} />",
       {
         ...options,
         contractForDescriptor: () => ({ id: 'ui-1111111111111111', semanticId: 'chat.message' })
@@ -108,12 +108,15 @@ const Message = () => {
     expect(implementation.code).toContain('__cherryUiContractMergeUiProps(props')
     expect(implementation.code).toContain('part:wrapper id:ui-2222222222222222')
     expect(
-      mergeDataUi('chat.wrapper part:wrapper id:ui-2222222222222222', 'chat.message state:selected id:ignored')
-    ).toBe('chat.message part:wrapper id:ui-2222222222222222 state:selected')
+      mergeDataUi('chat.wrapper part:wrapper id:ui-2222222222222222', 'chat.message scope:message:m_817 id:ignored')
+    ).toBe('chat.message part:wrapper id:ui-2222222222222222 scope:message:m_817')
     expect(
-      mergeUiProps({ 'data-ui': 'chat.message state:selected' }, 'chat.wrapper part:wrapper id:ui-2222222222222222')
+      mergeUiProps(
+        { 'data-ui': 'chat.message scope:message:m_817' },
+        'chat.wrapper part:wrapper id:ui-2222222222222222'
+      )
     ).toEqual({
-      'data-ui': 'chat.message part:wrapper id:ui-2222222222222222 state:selected'
+      'data-ui': 'chat.message part:wrapper id:ui-2222222222222222 scope:message:m_817'
     })
   })
 
