@@ -201,22 +201,28 @@ vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
   default: () => <button type="button">Open external</button>
 }))
 
-vi.mock('@renderer/hooks/useFileEditSession', () => ({
-  useFileEditSession: () => ({
+vi.mock('@renderer/hooks/useFileEditSession', () => {
+  const fileSessionMock = {
     status: 'idle',
     savedContent: '',
     draft: '',
-    isDirty: fileSessionState.isDirty,
+    get isDirty() {
+      return fileSessionState.isDirty
+    },
     isSaving: false,
     conflict: false,
-    saveError: fileSessionState.saveError,
+    get saveError() {
+      return fileSessionState.saveError
+    },
     setDraft: vi.fn(),
     discard: fileSessionDiscardMock,
     reload: vi.fn(),
     flush: fileSessionFlushMock,
     notifyExternalChange: vi.fn()
-  })
-}))
+  }
+
+  return { useFileEditSession: () => fileSessionMock }
+})
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
   isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>

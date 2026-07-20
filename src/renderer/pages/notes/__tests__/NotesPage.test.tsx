@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => {
     ipcRequest: vi.fn(),
     commandHandlers: new Map<string, { handler: () => void | Promise<void>; enabled: boolean }>(),
     isActiveTab: true,
+    showWorkspace: false,
     printShortcutLabel: 'Ctrl+P',
     noteByPath: new Map(),
     patchNode: vi.fn(),
@@ -139,7 +140,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
 
 vi.mock('@renderer/hooks/useShowWorkspace', () => ({
   useShowWorkspace: () => ({
-    showWorkspace: false,
+    showWorkspace: mocks.showWorkspace,
     toggleShowWorkspace: mocks.toggleShowWorkspace
   })
 }))
@@ -312,6 +313,7 @@ describe('NotesPage print payloads', () => {
     })
     mocks.commandHandlers.clear()
     mocks.isActiveTab = true
+    mocks.showWorkspace = false
     mocks.printShortcutLabel = 'Ctrl+P'
 
     Object.assign(window, {
@@ -473,6 +475,7 @@ describe('NotesPage print payloads', () => {
     mocks.sessionIsDirty = true
     mocks.sessionSaveError = new Error('permission denied')
     mocks.sessionDraft = 'unsaved draft'
+    mocks.showWorkspace = true
 
     render(<NotesPage />)
 
