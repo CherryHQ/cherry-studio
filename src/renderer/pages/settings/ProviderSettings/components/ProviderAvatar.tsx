@@ -17,7 +17,13 @@ export function ProviderAvatar({ provider, size, className, style, displayContex
   // component itself loads async, so the branch below never flip-flops.
   const systemIconRef = resolveProviderIconRef(provider.id)
   const systemIcon = useIcon(systemIconRef)
-  const displayConfig = displayContext ? getIconDisplayConfig(displayContext, provider.id) : undefined
+  // Preset providers render the bundled icon; custom providers carry either a
+  // preset brand key (`icon:<id>` on `logo`) or a main-resolved uploaded-logo
+  // URL (`logoSrc`). The primitive dispatches on both.
+  const customLogo = systemIconRef ? undefined : (provider.logo ?? provider.logoSrc)
+  const displayIconId =
+    typeof customLogo === 'string' && customLogo.startsWith('icon:') ? customLogo.slice('icon:'.length) : provider.id
+  const displayConfig = displayContext ? getIconDisplayConfig(displayContext, displayIconId) : undefined
   const iconStyle: CSSProperties | undefined = displayConfig
     ? {
         width: `${displayConfig.scale * 100}%`,
@@ -27,10 +33,6 @@ export function ProviderAvatar({ provider, size, className, style, displayContex
         overflow: displayConfig.borderRadius === undefined ? undefined : 'hidden'
       }
     : undefined
-  // Preset providers render the bundled icon; custom providers carry either a
-  // preset brand key (`icon:<id>` on `logo`) or a main-resolved uploaded-logo
-  // URL (`logoSrc`). The primitive dispatches on both.
-  const customLogo = systemIconRef ? undefined : (provider.logo ?? provider.logoSrc)
   if (systemIconRef) {
     return (
       <ProviderAvatarPrimitive
