@@ -9,7 +9,7 @@ import type { FC, PropsWithChildren } from 'react'
  * re-enable v1 provider surfaces.
  *
  * Export and restore are **independent**:
- * - {@link isV2BackupExportReady} — packaged ON (online `db.backup()`, no quiesce).
+ * - {@link isV2BackupExportReady} — packaged ON (export uses `createSnapshot` / VACUUM INTO into a detached backup.sqlite, no quiesce).
  * - {@link isV2BackupRestoreReady} — stays inert until restore-quiesce; DEV-only
  *   so the restore spine can still be exercised in development.
  *
