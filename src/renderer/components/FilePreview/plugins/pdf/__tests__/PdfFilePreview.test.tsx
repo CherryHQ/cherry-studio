@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   eventBusOff: vi.fn(),
   eventBusOn: vi.fn(),
   fsRead: vi.fn(),
+  getMetadata: vi.fn(),
+  safeOpen: vi.fn(),
+  toastError: vi.fn(),
   getDocument: vi.fn(),
   linkServiceSetDocument: vi.fn(),
   linkServiceSetViewer: vi.fn(),
@@ -144,10 +147,25 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  EmptyState: ({ title, description }: { title: string; description?: string }) => (
+  EmptyState: ({
+    title,
+    description,
+    actionLabel,
+    onAction
+  }: {
+    title: string
+    description?: string
+    actionLabel?: string
+    onAction?: () => void
+  }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
       <span>{description}</span>
+      {actionLabel ? (
+        <button type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   ),
   Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
@@ -158,6 +176,14 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('@renderer/utils/file/safeOpen', () => ({
+  safeOpen: mocks.safeOpen
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
 }))
 
 const filePath = '/tmp/workspace/paper.pdf' as FilePath
@@ -181,6 +207,8 @@ describe('PdfFilePreview', () => {
     mocks.pdfDocument.numPages = 3
     document.documentElement.style.setProperty('--color-background', 'rgb(10, 11, 12)')
     mocks.fsRead.mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
+    mocks.safeOpen.mockResolvedValue(undefined)
     mocks.loadingTaskDestroy.mockResolvedValue(undefined)
     mocks.getDocument.mockReturnValue({
       destroy: mocks.loadingTaskDestroy,
@@ -188,7 +216,7 @@ describe('PdfFilePreview', () => {
     })
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: { fs: { read: mocks.fsRead } }
+      value: { fs: { read: mocks.fsRead }, file: { getMetadata: mocks.getMetadata } }
     })
   })
 
@@ -285,6 +313,20 @@ describe('PdfFilePreview', () => {
       `Failed to load PDF preview: ${filePath}`,
       expect.objectContaining({ message: 'sensitive parser details' })
     )
+  })
+
+  it('rejects oversized PDFs via metadata before reading bytes and offers an external open', async () => {
+    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 50 * 1024 * 1024 + 1 })
+
+    renderPreview()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.pdf.too_large.title')
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('file_preview.pdf.too_large.description')
+    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.getDocument).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'file_preview.pdf.too_large.action' }))
+    await waitFor(() => expect(mocks.safeOpen).toHaveBeenCalledTimes(1))
   })
 
   it('reloads the document when the refresh key changes', async () => {

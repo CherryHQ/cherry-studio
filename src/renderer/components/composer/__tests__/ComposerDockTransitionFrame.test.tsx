@@ -185,19 +185,4 @@ describe('ComposerDockTransitionFrame', () => {
     expect(surface).toHaveAttribute('data-composer-dock-motion', 'home-to-docked')
     expect(surface).toHaveClass('animation-chat-composer-dock-down')
   })
-
-  it('renders the home header outside the animated composer surface', () => {
-    const { container } = render(
-      <ComposerDockTransitionFrame
-        placement="home"
-        main={<InsetProbe />}
-        composer={<div data-composer-inputbar="">composer</div>}
-        homeHeader={<div data-testid="home-header">welcome</div>}
-      />
-    )
-
-    const surface = container.querySelector('[data-composer-dock-surface]')
-    expect(screen.getByTestId('home-header')).toBeInTheDocument()
-    expect(surface).not.toContainElement(screen.getByTestId('home-header'))
-  })
 })

@@ -23,14 +23,22 @@ vi.mock('@main/data/bootConfig', () => ({
   }
 }))
 
-// Only onInit touches application.get('DbService'); these tests skip onInit.
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn(() => {
-      throw new Error('Unexpected application.get in subscribe handler tests')
-    })
-  }
-}))
+// Unified application mock — these tests skip onInit, so its default services
+// suffice; its getPath ('/mock/app.root') backs the sender gate's app-root lookup.
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+
+// Sender shapes for the in-handler source-trust gate (validateSender).
+const trustedEvent = {
+  sender: { getType: () => 'window' },
+  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+} as unknown as IpcMainInvokeEvent
+const untrustedEvent = {
+  sender: { getType: () => 'webview' },
+  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+} as unknown as IpcMainInvokeEvent
 
 // Mock lifecycle decorators so `new PreferenceService()` works without the container.
 // The mocked BaseService captures ipcMain handlers we can invoke directly.
@@ -103,15 +111,27 @@ describe('Preference_Subscribe IPC handler', () => {
   it('rejects when the sender cannot be resolved to a BrowserWindow', async () => {
     fromWebContents.mockReturnValue(null)
 
-    await expect(Promise.resolve(handler({ sender: {} } as IpcMainInvokeEvent, ['app.language']))).rejects.toThrow()
+    await expect(Promise.resolve(handler(trustedEvent, ['app.language']))).rejects.toThrow()
     expect(service.getSubscriptions().size).toBe(0)
   })
 
   it('registers all requested keys for a resolvable window', async () => {
     fromWebContents.mockReturnValue({ id: 42 })
 
-    await handler({ sender: {} } as IpcMainInvokeEvent, ['app.language', 'ui.theme_mode'])
+    await handler(trustedEvent, ['app.language', 'ui.theme_mode'])
 
     expect(service.getSubscriptions().get(42)).toEqual(new Set(['app.language', 'ui.theme_mode']))
+  })
+
+  it('rejects untrusted senders on every preference channel before any work', async () => {
+    fromWebContents.mockReturnValue({ id: 42 })
+
+    for (const [channel, channelHandler] of ipcHandlers) {
+      await expect(
+        Promise.resolve().then(() => channelHandler(untrustedEvent, 'app.language')),
+        `${channel} must reject an untrusted sender`
+      ).rejects.toThrow('untrusted sender')
+    }
+    expect(service.getSubscriptions().size).toBe(0)
   })
 })
