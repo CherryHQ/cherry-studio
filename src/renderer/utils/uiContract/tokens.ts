@@ -9,7 +9,6 @@ export interface UiTokenOptions {
   parts?: readonly UiTokenValue[]
   scopes?: readonly UiTokenValue[]
   states?: readonly UiTokenValue[]
-  variants?: readonly UiTokenValue[]
 }
 
 export interface ParsedUiTokens {
@@ -19,7 +18,6 @@ export interface ParsedUiTokens {
   scopes: string[]
   semanticId?: string
   states: string[]
-  variants: string[]
 }
 
 function assertSemanticId(value: string): void {
@@ -53,7 +51,6 @@ export function uiTokens(semanticId: string, options: UiTokenOptions = {}): stri
     ...namespaced('part', options.parts),
     options.exactId ? `id:${options.exactId}` : undefined,
     ...namespaced('scope', options.scopes),
-    ...namespaced('variant', options.variants),
     ...namespaced('mode', options.modes),
     ...namespaced('state', options.states)
   ]
@@ -67,8 +64,7 @@ export function parseUiTokens(value: string | null | undefined): ParsedUiTokens 
     modes: [],
     parts: [],
     scopes: [],
-    states: [],
-    variants: []
+    states: []
   }
   for (const token of value?.split(/\s+/).filter(Boolean) ?? []) {
     const separator = token.indexOf(':')
@@ -81,7 +77,6 @@ export function parseUiTokens(value: string | null | undefined): ParsedUiTokens 
     if (namespace === 'id') result.exactId ??= tokenValue
     else if (namespace === 'part') result.parts.push(tokenValue)
     else if (namespace === 'scope') result.scopes.push(tokenValue)
-    else if (namespace === 'variant') result.variants.push(tokenValue)
     else if (namespace === 'mode') result.modes.push(tokenValue)
     else if (namespace === 'state') result.states.push(tokenValue)
   }
@@ -103,7 +98,6 @@ export function uiSelector(options: UiSelectorOptions): string {
     ...namespaced('part', options.parts),
     options.exactId ? `id:${options.exactId}` : undefined,
     ...namespaced('scope', options.scopes),
-    ...namespaced('variant', options.variants),
     ...namespaced('mode', options.modes),
     ...namespaced('state', options.states)
   ].filter((token): token is string => Boolean(token))
