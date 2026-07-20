@@ -732,6 +732,15 @@ export class MigrationEngine {
   async skipMigration(): Promise<void> {
     logger.info('Migration skipped by user (version incompatible, using defaults)')
     await this.markCompleted()
+    const attemptFinished = this.finishDiagnosticAttempt('completed', {
+      scope: 'engine',
+      phase: 'finalize',
+      state: 'completed',
+      code: 'unknown'
+    })
+    if (attemptFinished) {
+      this.completeDiagnostics()
+    }
   }
 
   /**

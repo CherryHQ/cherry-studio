@@ -637,6 +637,23 @@ describe('MigrationEngine', () => {
     expect(order).toEqual(['status:completed', 'attempt:completed', 'journal:cleanup'])
   })
 
+  it('clears diagnostics after a skipped migration is persisted and the attempt is terminal', async () => {
+    const order: string[] = []
+    vi.mocked((engine as any).markCompleted).mockImplementation(async () => order.push('status:completed'))
+    diagnostics.finishAttempt.mockImplementation(() => order.push('attempt:completed'))
+    diagnostics.complete.mockImplementation(() => order.push('journal:cleanup'))
+
+    await engine.skipMigration()
+
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith('completed', {
+      scope: 'engine',
+      phase: 'finalize',
+      state: 'completed',
+      code: 'unknown'
+    })
+    expect(order).toEqual(['status:completed', 'attempt:completed', 'journal:cleanup'])
+  })
+
   it('keeps a diagnostics sink failure observable without changing the original terminal result', async () => {
     const loggerError = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
     diagnostics.recordEvent.mockImplementation((event) => {
