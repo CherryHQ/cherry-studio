@@ -183,7 +183,7 @@ function AssistantEditDialogContent({
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
-  const { groups } = useGroups('assistant')
+  const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
     const baseline = initialAssistantFormState(resource)
@@ -297,6 +297,8 @@ function AssistantEditDialogContent({
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
             groups={groups}
+            groupsLoading={isGroupsLoading}
+            groupsError={groupsError}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
             onSettingsNavigate={closeBeforeAction}
@@ -340,6 +342,8 @@ function AssistantBasicFields({
   modelLabels,
   setModelLabels,
   groups,
+  groupsLoading,
+  groupsError,
   emojiPickerOpen,
   setEmojiPickerOpen,
   onSettingsNavigate
@@ -350,6 +354,8 @@ function AssistantBasicFields({
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
   groups: ReturnType<typeof useGroups>['groups']
+  groupsLoading: ReturnType<typeof useGroups>['isLoading']
+  groupsError: ReturnType<typeof useGroups>['error']
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
@@ -410,6 +416,8 @@ function AssistantBasicFields({
                 value={field.value}
                 onChange={field.onChange}
                 groups={groups}
+                isLoading={groupsLoading}
+                error={groupsError}
                 portalContainer={portalContainer}
               />
               <FormMessage />

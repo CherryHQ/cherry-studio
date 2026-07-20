@@ -142,10 +142,12 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [additionalItems, data?.items, groupById]
   )
 
-  const selectorGroups = useMemo<ResourceSelectorShellGroup[]>(
-    () => groups.map((group) => ({ id: group.id, name: group.name })),
-    [groups]
-  )
+  const selectorGroups = useMemo<ResourceSelectorShellGroup[]>(() => {
+    // Match the legacy tag selector: filter chips come from the listed items,
+    // so standalone groups with no assistants are not actionable filters.
+    const referencedGroupIds = new Set(items.map((item) => item.groupId).filter((id): id is string => Boolean(id)))
+    return groups.flatMap((group) => (referencedGroupIds.has(group.id) ? [{ id: group.id, name: group.name }] : []))
+  }, [groups, items])
 
   const handleTogglePin = useCallback(
     async (id: string) => {

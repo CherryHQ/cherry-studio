@@ -14,6 +14,8 @@ vi.mock('react-i18next', () => ({
         'library.config.basic.group': 'Group',
         'library.config.basic.group_empty': 'No groups available',
         'library.config.basic.group_placeholder': 'Select group',
+        'library.group_sync_failed': 'Failed to sync groups',
+        'common.loading': 'Loading...',
         'common.clear': 'Clear'
       })[key] ?? key
   })
@@ -21,10 +23,11 @@ vi.mock('react-i18next', () => ({
 
 type SelectContextValue = {
   open: boolean
+  disabled: boolean
   onOpenChange?: (open: boolean) => void
 }
 
-const SelectContext = createContext<SelectContextValue>({ open: false })
+const SelectContext = createContext<SelectContextValue>({ open: false, disabled: false })
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => (
@@ -35,13 +38,15 @@ vi.mock('@cherrystudio/ui', () => ({
   Select: ({
     children,
     open = false,
+    disabled = false,
     onOpenChange
   }: {
     children?: ReactNode
     open?: boolean
+    disabled?: boolean
     onOpenChange?: (open: boolean) => void
   }) => (
-    <SelectContext value={{ open, onOpenChange }}>
+    <SelectContext value={{ open, disabled, onOpenChange }}>
       <div data-testid="select-root" data-open={String(open)}>
         {children}
       </div>
@@ -57,9 +62,9 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   SelectItem: ({ children }: { children?: ReactNode }) => <div role="option">{children}</div>,
   SelectTrigger: ({ children, ...props }: { children?: ReactNode }) => {
-    const { open, onOpenChange } = use(SelectContext)
+    const { open, disabled, onOpenChange } = use(SelectContext)
     return (
-      <button type="button" {...props} onClick={() => onOpenChange?.(!open)}>
+      <button type="button" disabled={disabled} {...props} onClick={() => onOpenChange?.(!open)}>
         {children}
       </button>
     )
@@ -133,5 +138,39 @@ describe('GroupSelector', () => {
     } finally {
       portalContainer.remove()
     }
+  })
+
+  it('shows a disabled loading placeholder without exposing stale options or clear action', () => {
+    const portalContainer = createPortalContainer()
+
+    try {
+      render(
+        <GroupSelector
+          value={groups[0].id}
+          onChange={vi.fn()}
+          groups={groups}
+          isLoading
+          portalContainer={portalContainer}
+        />
+      )
+
+      const trigger = screen.getByRole('button', { name: 'Group' })
+      expect(trigger).toHaveTextContent('Loading...')
+      expect(trigger).toBeDisabled()
+      expect(screen.queryByRole('button', { name: 'Group Clear' })).not.toBeInTheDocument()
+
+      fireEvent.click(trigger)
+      expect(screen.queryByRole('option')).not.toBeInTheDocument()
+    } finally {
+      portalContainer.remove()
+    }
+  })
+
+  it('shows a disabled error placeholder without exposing the clear action', () => {
+    render(<GroupSelector value={groups[0].id} onChange={vi.fn()} groups={[]} error={new Error('request failed')} />)
+
+    expect(screen.getByRole('button', { name: 'Group' })).toHaveTextContent('Failed to sync groups')
+    expect(screen.getByRole('button', { name: 'Group' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Group Clear' })).not.toBeInTheDocument()
   })
 })

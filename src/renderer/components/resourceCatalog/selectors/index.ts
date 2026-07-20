@@ -25,7 +25,6 @@ export {
   type ResourceSelectorShellGroup,
   type ResourceSelectorShellItem,
   type ResourceSelectorShellLabels,
-  type ResourceSelectorShellProps,
-  type ResourceSelectorShellTag
+  type ResourceSelectorShellProps
 } from './ResourceSelectorShell'
 export { WorkspaceSelector, type WorkspaceSelectorProps } from './WorkspaceSelector'

@@ -3112,7 +3112,6 @@
       "edit": "编辑",
       "enable": "启用",
       "manage_groups": "管理分组",
-      "manage_tags": "管理标签",
       "uninstall": "卸载"
     },
     "assistant_catalog": {
@@ -3570,7 +3569,6 @@
     },
     "sidebar": {
       "all_resources": "所有资源",
-      "all_tags": "全部标签",
       "no_tags": "暂无标签",
       "subtitle": "管理你的 AI 资源",
       "tags": "标签",
@@ -3636,13 +3634,10 @@
     "title": "资源库",
     "toolbar": {
       "add_group_placeholder": "分组名...",
-      "add_tag_placeholder": "标签名...",
       "all_groups": "全部分组",
-      "all_tags": "全部标签",
       "group_button": "分组",
       "new_resource": "新建资源",
-      "search_placeholder": "搜索资源名称、描述...",
-      "tag_button": "标签"
+      "search_placeholder": "搜索资源名称、描述..."
     },
     "type": {
       "agent": "智能体",

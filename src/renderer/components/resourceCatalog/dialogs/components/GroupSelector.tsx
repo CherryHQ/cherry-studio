@@ -10,6 +10,8 @@ interface Props {
   value: string | null
   onChange: (groupId: string | null) => void
   groups: Group[]
+  isLoading?: boolean
+  error?: Error
   disabled?: boolean
   portalContainer?: HTMLElement | null
 }
@@ -25,24 +27,31 @@ function decodeGroupSelectValue(value: string) {
   return value.slice(GROUP_SELECT_VALUE_PREFIX.length)
 }
 
-export const GroupSelector: FC<Props> = ({ value, onChange, groups, disabled, portalContainer }) => {
+export const GroupSelector: FC<Props> = ({ value, onChange, groups, isLoading, error, disabled, portalContainer }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
   const hasGroupOptions = groups.length > 0
-  const selectOpen = hasGroupOptions && open
+  const isUnavailable = Boolean(isLoading || error)
+  const canOpen = hasGroupOptions && !isUnavailable
+  const selectOpen = canOpen && open
+  const placeholder = isLoading
+    ? t('common.loading')
+    : error
+      ? t('library.group_sync_failed')
+      : t(hasGroupOptions ? 'library.config.basic.group_placeholder' : 'library.config.basic.group_empty')
 
   useEffect(() => {
-    if (!hasGroupOptions) setOpen(false)
-  }, [hasGroupOptions])
+    if (!canOpen) setOpen(false)
+  }, [canOpen])
 
   return (
     <div className="group/group-select relative flex w-full min-w-0 items-center">
       <Select
-        disabled={disabled}
+        disabled={disabled || isUnavailable}
         open={selectOpen}
-        value={value ? encodeGroupSelectValue(value) : ''}
-        onOpenChange={(nextOpen) => setOpen(hasGroupOptions && nextOpen)}
+        value={!isUnavailable && value ? encodeGroupSelectValue(value) : ''}
+        onOpenChange={(nextOpen) => setOpen(canOpen && nextOpen)}
         onValueChange={(selectedValue) => onChange(decodeGroupSelectValue(selectedValue))}>
         <SelectTrigger
           size="sm"
@@ -52,11 +61,7 @@ export const GroupSelector: FC<Props> = ({ value, onChange, groups, disabled, po
               '[&_svg]:transition-opacity group-focus-within/group-select:[&_svg]:opacity-0 group-hover/group-select:[&_svg]:opacity-0'
           )}
           aria-label={t('library.config.basic.group')}>
-          <SelectValue
-            placeholder={t(
-              hasGroupOptions ? 'library.config.basic.group_placeholder' : 'library.config.basic.group_empty'
-            )}
-          />
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent portalContainer={portalContainer ?? undefined}>
           {groups.map((group) => (
@@ -66,7 +71,7 @@ export const GroupSelector: FC<Props> = ({ value, onChange, groups, disabled, po
           ))}
         </SelectContent>
       </Select>
-      {value && !disabled ? (
+      {value && !disabled && !isUnavailable ? (
         <Button
           type="button"
           variant="ghost"

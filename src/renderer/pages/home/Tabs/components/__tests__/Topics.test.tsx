@@ -2748,6 +2748,47 @@ describe('Topics', () => {
     expect(homeSection!.compareDocumentPosition(betaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('renders ungrouped assistants before named groups in group mode', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+    const defaultUseQuery = mockUseQuery.getMockImplementation()
+    mockUseQuery.mockImplementation((path, options) => {
+      if (path === '/assistants') {
+        return {
+          data: {
+            items: [
+              createAssistant({ groupId: null }),
+              createAssistant({
+                id: 'assistant-2',
+                name: 'Beta Assistant',
+                emoji: '✍️',
+                orderKey: 'b',
+                groupId: 'group-home'
+              })
+            ],
+            total: 2
+          },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return defaultUseQuery!(path, options)
+    })
+
+    renderTopicList()
+
+    const ungroupedSection = screen.getByRole('button', { name: 'Ungrouped' }).closest('div')
+    const homeSection = screen.getByRole('button', { name: 'Home' }).closest('div')
+    expect(ungroupedSection).toBeInTheDocument()
+    expect(homeSection).toBeInTheDocument()
+    expect(ungroupedSection!.compareDocumentPosition(homeSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('uses the configured model icon for assistant topic groups', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.icon_type': 'model',
@@ -3152,6 +3193,29 @@ describe('Topics', () => {
       expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
     )
     expect(patchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects assistant section drops across different group ids in group mode', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: {
+        data: sortableData('group:topic:assistant:assistant-2'),
+        id: 'group:topic:assistant:assistant-2'
+      }
+    })
+
+    expect(patchSpy).not.toHaveBeenCalled()
   })
 
   it('shows a toast when assistant group reorder persistence fails', async () => {

@@ -108,6 +108,42 @@ describe('useResourceLibrary', () => {
     expect(mocks.usePromptList).toHaveBeenCalledWith({ enabled: false, search: undefined })
   })
 
+  it('maps assistant group ids to group names', () => {
+    mocks.useGroups.mockReturnValue({
+      groups: [
+        {
+          id: 'group-work',
+          entityType: 'assistant',
+          name: 'Work',
+          orderKey: 'a0',
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
+        }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mocks.useAssistantList.mockReturnValue(
+      listResult([
+        {
+          id: 'assistant-1',
+          name: 'Assistant',
+          description: '',
+          emoji: '💬',
+          modelName: null,
+          groupId: 'group-work',
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
+        }
+      ])
+    )
+
+    const { result } = renderResourceLibrary()
+
+    expect(result.current.allResources).toMatchObject([{ id: 'assistant-1', groupId: 'group-work', groupName: 'Work' }])
+  })
+
   it('uses backend-resolved model names for agent resource cards', () => {
     mocks.useAgentList.mockReturnValue(
       listResult([

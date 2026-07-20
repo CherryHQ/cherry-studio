@@ -1,4 +1,5 @@
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
+import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -97,6 +98,7 @@ vi.mock('@cherrystudio/ui', async () => {
     ConfirmDialog: ({
       cancelText,
       confirmText,
+      confirmLoading,
       description,
       onConfirm,
       open,
@@ -104,6 +106,7 @@ vi.mock('@cherrystudio/ui', async () => {
     }: {
       cancelText?: string
       confirmText?: string
+      confirmLoading?: boolean
       description?: ReactNode
       onConfirm?: () => void | Promise<void>
       open?: boolean
@@ -115,7 +118,7 @@ vi.mock('@cherrystudio/ui', async () => {
           {description && <div>{description}</div>}
           {cancelText && <button type="button">{cancelText}</button>}
           {confirmText && (
-            <button type="button" onClick={() => void onConfirm?.()}>
+            <button type="button" disabled={confirmLoading} onClick={() => void onConfirm?.()}>
               {confirmText}
             </button>
           )}
@@ -672,6 +675,68 @@ describe('ResourceGrid group toolbar management', () => {
 
     await waitFor(() => expect(deleteGroupMock).toHaveBeenCalledWith('group-alpha'))
     expect(onGroupFilter).toHaveBeenCalledWith(null)
+  })
+
+  it('keeps the add-group editor open and clears pending state when creation fails', async () => {
+    const user = userEvent.setup()
+    const onAddGroup = vi.fn().mockRejectedValueOnce(new Error('create failed'))
+
+    renderResourceGrid({ onAddGroup })
+
+    await user.click(screen.getByRole('button', { name: '分组' }))
+    const input = screen.getByPlaceholderText('library.toolbar.add_group_placeholder')
+    await user.type(input, 'work{Enter}')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('create failed'))
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveValue('work')
+    await waitFor(() => expect(input).not.toBeDisabled())
+  })
+
+  it('keeps the rename dialog open and clears pending state when rename fails', async () => {
+    const user = userEvent.setup()
+    updateGroupMock.mockRejectedValueOnce(new Error('rename failed'))
+
+    renderResourceGrid({ groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }] })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
+    await user.click(screen.getByRole('button', { name: '重命名' }))
+    const input = screen.getByLabelText('重命名')
+    await user.clear(input)
+    await user.type(input, 'renamed')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('rename failed'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(input).toHaveValue('renamed')
+    await waitFor(() => expect(input).not.toBeDisabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).not.toBeDisabled())
+  })
+
+  it('keeps the delete dialog and active filter when deletion fails, then allows retry', async () => {
+    const user = userEvent.setup()
+    const onGroupFilter = vi.fn()
+    deleteGroupMock.mockRejectedValueOnce(new Error('delete failed')).mockResolvedValueOnce(undefined)
+
+    renderResourceGrid({
+      activeGroupId: 'group-alpha',
+      onGroupFilter,
+      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }]
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
+    await user.click(screen.getByRole('button', { name: '删除分组' }))
+    await user.click(screen.getByRole('button', { name: '删除' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('delete failed'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onGroupFilter).not.toHaveBeenCalled()
+
+    const confirmButton = screen.getByRole('button', { name: '删除' })
+    await waitFor(() => expect(confirmButton).not.toBeDisabled())
+    await user.click(confirmButton)
+    await waitFor(() => expect(deleteGroupMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onGroupFilter).toHaveBeenCalledWith(null))
   })
 })
 

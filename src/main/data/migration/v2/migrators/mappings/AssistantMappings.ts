@@ -10,7 +10,7 @@
  * - model/defaultModel -> assistant.modelId (primary model, composite format)
  * - mcpServers[] -> assistant_mcp_server junction rows
  * - knowledge_bases[] -> assistant_knowledge_base junction rows
- * - tags[0] -> assistant group name
+ * - first non-empty string in tags[] -> assistant group name
  * - type -> dropped (design flaw)
  * - messages -> dropped (feature removed)
  * - topics -> dropped (decoupled)
@@ -121,7 +121,7 @@ export interface OldAssistant {
   mcpServers?: OldMcpServer[] | null
   knowledge_bases?: OldKnowledgeBase[] | null
   enableWebSearch?: boolean | null
-  tags?: string[] | null
+  tags?: unknown[] | null
 }
 
 // ============================================================================
@@ -133,6 +133,7 @@ export interface AssistantTransformResult {
   mcpServers: (typeof assistantMcpServerTable.$inferInsert)[]
   knowledgeBases: (typeof assistantKnowledgeBaseTable.$inferInsert)[]
   legacyTagName: string | null
+  discardedLegacyTagCount: number
 }
 
 // ============================================================================
@@ -165,12 +166,21 @@ function extractKnowledgeBaseIds(source: OldAssistant): string[] {
   }, [])
 }
 
-function extractLegacyTagName(source: OldAssistant): string | null {
-  const tag = Array.isArray(source.tags) ? source.tags[0] : undefined
-  if (typeof tag !== 'string') return null
+function extractLegacyTag(source: OldAssistant): { name: string | null; discardedCount: number } {
+  if (!Array.isArray(source.tags)) return { name: null, discardedCount: 0 }
 
-  const name = tag.trim()
-  return name || null
+  let name: string | null = null
+  for (const tag of source.tags) {
+    if (name !== null || typeof tag !== 'string') continue
+
+    const candidate = tag.trim()
+    if (candidate) name = candidate
+  }
+
+  return {
+    name,
+    discardedCount: source.tags.length - (name === null ? 0 : 1)
+  }
 }
 
 /**
@@ -184,6 +194,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   const primaryModelId = extractPrimaryModelId(source)
   const mcpServerIds = extractMcpServerIds(source)
   const knowledgeBaseIds = extractKnowledgeBaseIds(source)
+  const legacyTag = extractLegacyTag(source)
 
   // Build settings JSON: merge legacy top-level fields into settings object
   const legacySettings: Record<string, unknown> = source.settings ? { ...source.settings } : {}
@@ -214,6 +225,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
     },
     mcpServers: mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })),
     knowledgeBases: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })),
-    legacyTagName: extractLegacyTagName(source)
+    legacyTagName: legacyTag.name,
+    discardedLegacyTagCount: legacyTag.discardedCount
   }
 }

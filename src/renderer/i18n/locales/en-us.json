@@ -3112,7 +3112,6 @@
       "edit": "Edit",
       "enable": "Enable",
       "manage_groups": "Manage groups",
-      "manage_tags": "Manage tags",
       "uninstall": "Uninstall"
     },
     "assistant_catalog": {
@@ -3570,7 +3569,6 @@
     },
     "sidebar": {
       "all_resources": "All resources",
-      "all_tags": "All tags",
       "no_tags": "No tags yet",
       "subtitle": "Manage your AI resources",
       "tags": "Tags",
@@ -3636,13 +3634,10 @@
     "title": "Library",
     "toolbar": {
       "add_group_placeholder": "Group name...",
-      "add_tag_placeholder": "Tag name...",
       "all_groups": "All groups",
-      "all_tags": "All tags",
       "group_button": "Group",
       "new_resource": "New resource",
-      "search_placeholder": "Search by name or description...",
-      "tag_button": "Tag"
+      "search_placeholder": "Search by name or description..."
     },
     "type": {
       "agent": "Agent",

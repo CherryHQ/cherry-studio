@@ -194,6 +194,11 @@ export class AssistantMigrator extends BaseMigrator {
         try {
           const result = transformAssistant(source)
           this.preparedResults.push(result)
+          if (result.discardedLegacyTagCount > 0) {
+            const warning = `Discarded ${result.discardedLegacyTagCount} invalid or additional legacy tag entries for assistant ${source.id}`
+            warnings.push(warning)
+            logger.warn(warning)
+          }
         } catch (err) {
           this.skippedCount++
           warnings.push(`Failed to transform assistant ${source.id}: ${(err as Error).message}`)

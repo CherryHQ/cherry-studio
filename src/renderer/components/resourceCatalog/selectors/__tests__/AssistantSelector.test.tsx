@@ -89,6 +89,14 @@ vi.mock('@renderer/hooks/useGroups', () => ({
         orderKey: 'a1',
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z'
+      },
+      {
+        id: '55555555-5555-4555-8555-555555555555',
+        entityType: 'assistant',
+        name: 'empty',
+        orderKey: 'a2',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
       }
     ],
     isLoading: false
@@ -340,7 +348,7 @@ describe('AssistantSelector', () => {
     })
   })
 
-  it('renders rows in DataApi order and shows tag filters without sort controls', () => {
+  it('renders rows in DataApi order and shows group filters without sort controls', () => {
     renderSelector()
     openPopover()
 
@@ -350,6 +358,15 @@ describe('AssistantSelector', () => {
     expect(screen.getByRole('button', { name: 'work' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Newest' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Oldest' })).not.toBeInTheDocument()
+  })
+
+  it('hides group filters that are not referenced by any selector item', () => {
+    renderSelector()
+    openPopover()
+
+    expect(screen.getByRole('button', { name: 'work' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'personal' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'empty' })).not.toBeInTheDocument()
   })
 
   it('renders the empty state prompt when no assistants exist', () => {

@@ -168,6 +168,21 @@ describe('AssistantMappings', () => {
         tags: [' work ']
       })
       expect(result.legacyTagName).toBe('work')
+      expect(result.discardedLegacyTagCount).toBe(0)
+    })
+
+    it('should keep the first valid legacy tag and report additional entries', () => {
+      const result = transformAssistant({ id: 'ast-10b', tags: ['a', 'b'] })
+
+      expect(result.legacyTagName).toBe('a')
+      expect(result.discardedLegacyTagCount).toBe(1)
+    })
+
+    it('should skip invalid entries before the first valid legacy tag', () => {
+      const result = transformAssistant({ id: 'ast-10c', tags: ['', ' work '] })
+
+      expect(result.legacyTagName).toBe('work')
+      expect(result.discardedLegacyTagCount).toBe(1)
     })
 
     it('should return no legacy group when tags is not an array', () => {

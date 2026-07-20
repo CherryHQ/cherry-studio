@@ -96,6 +96,7 @@ describe('useResourceCatalogController', () => {
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.refetch.mockResolvedValue(undefined)
     controllerMocks.resourceLibraryOptions.length = 0
+    controllerMocks.groups.length = 0
     controllerMocks.resourceLibraryState.allResources = []
     controllerMocks.resourceLibraryState.error = undefined
     controllerMocks.resourceLibraryState.isLoading = false
@@ -187,6 +188,48 @@ describe('useResourceCatalogController', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('export failed')
     })
+  })
+
+  it('counts non-empty groups and resolves the exported assistant group name', async () => {
+    controllerMocks.groups.push(
+      {
+        id: 'group-work',
+        entityType: 'assistant',
+        name: 'Work',
+        orderKey: 'a0',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      },
+      {
+        id: 'group-empty',
+        entityType: 'assistant',
+        name: 'Empty',
+        orderKey: 'a1',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z'
+      }
+    )
+    const groupedAssistant = {
+      ...assistantResource,
+      groupId: 'group-work',
+      raw: { ...assistantResource.raw, groupId: 'group-work' }
+    } as ResourceItem
+    controllerMocks.resourceLibraryState.allResources = [
+      groupedAssistant,
+      { ...groupedAssistant, id: 'assistant-2', raw: { ...groupedAssistant.raw, id: 'assistant-2' } } as ResourceItem
+    ]
+
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+
+    expect(result.current.gridProps.groups).toEqual([{ id: 'group-work', name: 'Work', count: 2 }])
+
+    act(() => {
+      result.current.gridProps.onExport(groupedAssistant)
+    })
+
+    await waitFor(() => expect(controllerMocks.saveFile).toHaveBeenCalledOnce())
+    const exportedBytes = controllerMocks.saveFile.mock.calls[0][1] as Uint8Array
+    expect(JSON.parse(new TextDecoder().decode(exportedBytes))).toMatchObject([{ group: ['Work'] }])
   })
 
   it('clears the active group when the resource type changes', async () => {

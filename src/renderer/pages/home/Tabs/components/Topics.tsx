@@ -1171,14 +1171,15 @@ export function Topics({
       const activeAssistantId = getAssistantIdFromTopicGroupId(activeGroupId)
       const overAssistantId = getAssistantIdFromTopicGroupId(overGroupId)
 
-      return (
-        !!activeAssistantId &&
-        !!overAssistantId &&
-        assistantById.has(activeAssistantId) &&
-        assistantById.has(overAssistantId)
-      )
+      if (!activeAssistantId || !overAssistantId) return false
+
+      const activeAssistant = assistantById.get(activeAssistantId)
+      const overAssistant = assistantById.get(overAssistantId)
+      if (!activeAssistant || !overAssistant) return false
+
+      return !isGroupGrouping || (activeAssistant.groupId ?? null) === (overAssistant.groupId ?? null)
     },
-    [assistantById, isAssistantDisplayMode]
+    [assistantById, isAssistantDisplayMode, isGroupGrouping]
   )
 
   const handleTopicReorder = useCallback(

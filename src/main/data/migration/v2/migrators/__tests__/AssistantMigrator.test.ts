@@ -173,6 +173,22 @@ describe('AssistantMigrator', () => {
       expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
     })
 
+    it('should warn when invalid or additional legacy tags are discarded', async () => {
+      const ctx = createMockContext({
+        assistants: { assistants: [{ id: 'ast-1', name: 'Grouped', tags: ['', 'work'] }], presets: [] }
+      })
+
+      const result = await migrator.prepare(ctx as any)
+
+      expect(result).toStrictEqual({
+        success: true,
+        itemCount: 1,
+        warnings: ['Discarded 1 invalid or additional legacy tag entries for assistant ast-1']
+      })
+      const internal = migrator as unknown as { preparedResults: { legacyTagName: string | null }[] }
+      expect(internal.preparedResults[0].legacyTagName).toBe('work')
+    })
+
     it('should fail when all assistants are skipped but source had data', async () => {
       // All assistants lack valid IDs — every one gets skipped
       const assistants = [{ name: 'no-id-1' }, { name: 'no-id-2' }]
