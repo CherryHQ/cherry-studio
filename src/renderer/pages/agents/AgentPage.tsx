@@ -215,11 +215,18 @@ const AgentPage = () => {
       return currentActiveSessionId
     })
   }, [routeActiveSessionId])
-  const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
+  const [lastUsedSessionId, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const [, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
+  // Resume target frozen at mount: `last_used_session_id` is rewritten as soon as any session
+  // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
+  // targets take precedence over resume.
+  const [resumeSessionId] = useState<string | null>(() =>
+    isMessageOnlyView || routeActiveSessionId ? null : lastUsedSessionId
+  )
+  const { session: resumeSession, isLoading: isResumeSessionLoading } = useSession(resumeSessionId)
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -750,6 +757,20 @@ const AgentPage = () => {
       return
     }
 
+    // Resume the last-focused session before falling back to the most-recently-updated one —
+    // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
+    // what the user was looking at. A deleted (or unfetchable) last-used session falls through.
+    if (resumeSessionId) {
+      if (isResumeSessionLoading) return
+      if (resumeSession) {
+        initialEmptySessionEvaluatedRef.current = true
+        setPendingLocateMessageId(undefined)
+        setMissingAgentSelection(false)
+        setActiveSession(resumeSession)
+        return
+      }
+    }
+
     // Resume the globally most-recently-updated session — both layouts, so switching layout never
     // changes what you land on. Only a genuinely empty list falls through.
     if (!isLatestSessionReady) return
@@ -783,8 +804,11 @@ const AgentPage = () => {
     isAgentsLoading,
     isLatestSessionReady,
     isMessageOnlyView,
+    isResumeSessionLoading,
     latestSession,
     missingAgentSelection,
+    resumeSession,
+    resumeSessionId,
     setActiveSession,
     setActiveSessionId
   ])
