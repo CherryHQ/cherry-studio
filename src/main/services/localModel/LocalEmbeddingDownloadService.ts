@@ -59,6 +59,9 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
    * vanish moments later (the exact FK trap the heal exists to prevent). */
   private removing = false
 
+  /** In-flight removal, if any — concurrent {@link remove} calls join it. */
+  private removal: Promise<{ removed: boolean }> | null = null
+
   /** The dedicated cache root for this one model (`models/qwen3-embedding`). Cleanup
    * and removal target this rather than the nested repo dir so no empty
    * `onnx-community/` parent chain is left behind. */
@@ -128,6 +131,18 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
   }
 
   async remove(): Promise<{ removed: boolean }> {
+    // Coalesce concurrent removes onto the in-flight one: a second pass would
+    // re-run unregister/rm mid-teardown, and its `finally` would end the
+    // `removing` suppression window while the first delete is still running.
+    if (!this.removal) {
+      this.removal = this.performRemove().finally(() => {
+        this.removal = null
+      })
+    }
+    return this.removal
+  }
+
+  private async performRemove(): Promise<{ removed: boolean }> {
     const { removed } = await unregisterLocalEmbeddingModelIfUnused()
     if (!removed) {
       // A knowledge base still references the model. Keep the weights too — deleting

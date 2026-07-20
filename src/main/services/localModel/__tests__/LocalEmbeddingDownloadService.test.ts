@@ -236,6 +236,30 @@ describe('LocalEmbeddingDownloadService', () => {
       expect(registerLocalEmbeddingModel).toHaveBeenCalledTimes(1)
     })
 
+    it('coalesces concurrent removes onto the in-flight one', async () => {
+      unregisterMock.mockResolvedValue({ removed: true })
+      let releaseRm!: () => void
+      rm.mockImplementation(() => new Promise<void>((resolve) => (releaseRm = resolve)))
+
+      const first = localEmbeddingDownloadService.remove()
+      await vi.waitFor(() => expect(rm).toHaveBeenCalled())
+      // A second remove mid-teardown must join the first, not start another
+      // unregister/rm pass (whose finally would also end the checkStatus
+      // suppression window while the first delete is still running).
+      const second = localEmbeddingDownloadService.remove()
+
+      releaseRm()
+      await expect(first).resolves.toEqual({ removed: true })
+      await expect(second).resolves.toEqual({ removed: true })
+      expect(unregisterMock).toHaveBeenCalledTimes(1)
+      expect(rm).toHaveBeenCalledTimes(1)
+
+      // The coalescing window closes with the removal: a later remove runs its own pass.
+      unregisterMock.mockResolvedValue({ removed: false })
+      await expect(localEmbeddingDownloadService.remove()).resolves.toEqual({ removed: false })
+      expect(unregisterMock).toHaveBeenCalledTimes(2)
+    })
+
     it('re-registers the model when deleting the weights fails, so files and DB stay consistent', async () => {
       unregisterMock.mockResolvedValue({ removed: true })
       rm.mockRejectedValue(new Error('EBUSY')) // e.g. a Windows lock survives the unlink
