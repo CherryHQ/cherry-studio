@@ -59,7 +59,8 @@ import {
   classifyMigrationError,
   type MigrationDatabaseDiagnosticResult,
   type MigrationDatabaseDiagnostics,
-  type MigrationDiagnosticEventInput
+  type MigrationDiagnosticEventInput,
+  type MigrationDiagnosticMigratorId
 } from '../diagnostics'
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext, type MigrationAttemptDiagnostics } from './MigrationContext'
@@ -457,7 +458,7 @@ export class MigrationEngine {
     scope: MigrationDiagnosticEventInput['scope'],
     phase: MigrationDiagnosticEventInput['phase'],
     operation: () => T | Promise<T>,
-    migratorId?: string
+    migratorId?: MigrationDiagnosticMigratorId
   ): Promise<T> {
     this.recordDiagnosticEvent({
       scope,
@@ -486,7 +487,7 @@ export class MigrationEngine {
     scope: MigrationDiagnosticEventInput['scope'],
     phase: MigrationDiagnosticEventInput['phase'],
     error: unknown,
-    migratorId?: string
+    migratorId?: MigrationDiagnosticMigratorId
   ): void {
     const classification = this.classifyDiagnosticError(error)
     this.recordDiagnosticEvent({

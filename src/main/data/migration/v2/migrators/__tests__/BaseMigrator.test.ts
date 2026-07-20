@@ -16,7 +16,7 @@ import { BaseMigrator } from '../BaseMigrator'
  * so it can be exercised directly against a real DB.
  */
 class ProbeMigrator extends BaseMigrator {
-  readonly id = 'probe'
+  readonly id = 'note'
   readonly name = 'Probe'
   readonly description = 'test-only migrator'
   readonly order = 0
@@ -228,7 +228,7 @@ describe('BaseMigrator.runDiagnosedWrite', () => {
       category: 'database_write',
       code: 'sqlite_too_big',
       causeDepth: 0,
-      migratorId: 'probe',
+      migratorId: 'note',
       payloadProfile: expect.objectContaining({
         target: 'message',
         rowCountBucket: '1',
@@ -289,7 +289,7 @@ describe('BaseMigrator.runDiagnosedWrite', () => {
         state: 'failed',
         category: 'database_write',
         code: 'sqlite_too_big',
-        migratorId: 'probe',
+        migratorId: 'note',
         payloadProfile: expect.objectContaining({ target: 'message' })
       })
     )

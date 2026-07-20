@@ -11,6 +11,7 @@ import type { MigrationContext } from '../core/MigrationContext'
 import {
   type ClassifiedMigrationError,
   classifyMigrationError,
+  type MigrationDiagnosticMigratorId,
   type PayloadProfileDescriptor,
   profilePayloadLengths
 } from '../diagnostics'
@@ -37,7 +38,7 @@ type ProfilePayloadRows = Parameters<typeof profilePayloadLengths>[0]
 
 export abstract class BaseMigrator {
   // Metadata - must be implemented by subclasses
-  abstract readonly id: string
+  abstract readonly id: MigrationDiagnosticMigratorId
   abstract readonly name: string // Display name for UI
   abstract readonly description: string // Display description for UI
   abstract readonly order: number // Execution order (lower runs first)

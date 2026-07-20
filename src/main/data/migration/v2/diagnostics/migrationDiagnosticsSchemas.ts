@@ -363,16 +363,11 @@ function isValidRendererExportFailureClassification(
   event: MigrationDiagnosticEventCandidate,
   evidence: RendererExportFailureEvidence
 ): boolean {
-  if (event.code === 'unknown' && event.category === 'unknown') {
-    return true
+  if (evidence.sourceRole === 'redux' && evidence.operationRole === 'parse') {
+    return event.code === 'source_parse' && event.category === 'source'
   }
 
-  if (
-    evidence.sourceRole === 'redux' &&
-    evidence.operationRole === 'parse' &&
-    event.code === 'source_parse' &&
-    event.category === 'source'
-  ) {
+  if (event.code === 'unknown' && event.category === 'unknown') {
     return true
   }
 
@@ -447,7 +442,7 @@ export function createMigrationDiagnosticEventSchema<const T extends z.ZodRawSha
   return z
     .object({ ...recordFields, ...migrationDiagnosticEventFields })
     .strict()
-    .superRefine(validateMigrationDiagnosticEvent)
+    .superRefine((event, ctx) => validateMigrationDiagnosticEvent(event as MigrationDiagnosticEventCandidate, ctx))
 }
 
 export const migrationDiagnosticEventSchema = createMigrationDiagnosticEventSchema({

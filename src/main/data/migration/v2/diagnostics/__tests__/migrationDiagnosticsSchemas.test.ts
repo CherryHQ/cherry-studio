@@ -191,20 +191,27 @@ describe('migrationDiagnosticEventSchema', () => {
     }
   )
 
-  it.each(rendererEvidenceCases)(
-    'accepts the safe unknown/unknown fallback for $sourceRole/$operationRole',
-    (semanticEvidence) => {
-      expect(
-        migrationDiagnosticEventSchema.safeParse({
-          ...rendererExportEvent,
-          code: 'unknown',
-          category: 'unknown',
-          semanticEvidence
-        }).success
-      ).toBe(true)
-      expect(semanticEvidence).not.toHaveProperty('failureClass')
-    }
-  )
+  it.each([
+    rendererEvidenceCases[0],
+    rendererEvidenceCases[2],
+    rendererEvidenceCases[3],
+    rendererEvidenceCases[4],
+    rendererEvidenceCases[5],
+    rendererEvidenceCases[6],
+    rendererEvidenceCases[7],
+    rendererEvidenceCases[8],
+    rendererEvidenceCases[9]
+  ])('accepts the safe unknown/unknown fallback for $sourceRole/$operationRole', (semanticEvidence) => {
+    expect(
+      migrationDiagnosticEventSchema.safeParse({
+        ...rendererExportEvent,
+        code: 'unknown',
+        category: 'unknown',
+        semanticEvidence
+      }).success
+    ).toBe(true)
+    expect(semanticEvidence).not.toHaveProperty('failureClass')
+  })
 
   it.each([
     { semanticEvidence: rendererEvidenceCases[1], code: 'sqlite_too_big', category: 'database_write' },
@@ -214,6 +221,7 @@ describe('migrationDiagnosticEventSchema', () => {
     { semanticEvidence: rendererEvidenceCases[7], code: 'source_parse', category: 'source' },
     { semanticEvidence: rendererEvidenceCases[1], code: 'source_parse', category: 'unknown' },
     { semanticEvidence: rendererEvidenceCases[1], code: 'source_parse', category: undefined },
+    { semanticEvidence: rendererEvidenceCases[1], code: 'unknown', category: 'unknown' },
     { semanticEvidence: rendererEvidenceCases[3], code: 'permission_denied', category: 'filesystem' },
     { semanticEvidence: rendererEvidenceCases[5], code: 'permission_denied', category: 'database_write' },
     { semanticEvidence: rendererEvidenceCases[8], code: 'sqlite_too_big', category: 'filesystem' },
