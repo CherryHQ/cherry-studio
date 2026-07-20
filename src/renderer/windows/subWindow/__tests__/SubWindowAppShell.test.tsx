@@ -67,6 +67,9 @@ async function renderSubWindowAppShell({ init = null }: { init?: SubWindowInitDa
       <div data-testid="resource-view-source-provider">{children}</div>
     )
   }))
+  vi.doMock('@renderer/components/MiniApp/MiniAppTabsCleanup', () => ({
+    default: () => null
+  }))
 
   const { SubWindowAppShell } = await import('../SubWindowAppShell')
   render(<SubWindowAppShell />)

@@ -1,6 +1,7 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
+import MiniAppTabsCleanup from '@renderer/components/MiniApp/MiniAppTabsCleanup'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { useHasWindowControls, WindowControls } from '@renderer/components/WindowControls'
@@ -109,6 +110,7 @@ export const SubWindowAppShell = () => {
               is per-window (Memory tier) so this sub-window manages its own
               list independently of the main window. */}
           <MiniAppTabsPool />
+          <MiniAppTabsCleanup />
         </main>
 
         {/* OS window controls overlay — flush in the corner, above the title bar (z-[9999]),
