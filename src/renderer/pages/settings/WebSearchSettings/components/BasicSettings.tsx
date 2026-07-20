@@ -165,7 +165,7 @@ const BasicSettings: FC = () => {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="text-icon hover:text-foreground"
+                  className="text-foreground-secondary hover:text-foreground"
                   aria-label={t('common.reset')}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={resetMaxResults}>
