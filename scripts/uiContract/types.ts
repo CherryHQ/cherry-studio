@@ -3,6 +3,8 @@ import type { SourceMap } from 'magic-string'
 export const UI_CONTRACT_VERSION = 1 as const
 
 export interface UiNodeDescriptor {
+  /** Internal source-anchor material used to reconstruct this occurrence cohort. */
+  anchorCohort: string
   anchorHash: string
   component: string
   element: string

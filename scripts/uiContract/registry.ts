@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
-import { uiNodeId } from './semanticId'
+import { anchorHashForOccurrence, stableHash, uiNodeId } from './semanticId'
 import { UI_CONTRACT_VERSION, type UiContractRegistry, type UiNodeDescriptor, type UiRegistryNode } from './types'
 
 export const UI_CONTRACT_REGISTRY_PATH = 'ui-contract.registry.json'
@@ -29,8 +29,9 @@ export async function readRegistry(root: string): Promise<UiContractRegistry> {
   }
 }
 
-function allocateId(descriptor: UiNodeDescriptor, usedIds: Set<string>): string {
-  const id = uiNodeId(descriptor.anchorHash)
+function allocateId(descriptor: UiNodeDescriptor, usedIds: Set<string>, previousId?: string): string {
+  const identityHash = previousId ? stableHash(`${descriptor.anchorHash}\0${previousId}`, 24) : descriptor.anchorHash
+  const id = uiNodeId(identityHash)
   if (usedIds.has(id)) {
     throw new Error(`UI node ID collision for ${id}; change the 64-bit ID scheme before syncing the registry`)
   }
@@ -43,13 +44,49 @@ export function reconcileRegistry(previous: UiContractRegistry, descriptors: UiN
   const usedOldIds = new Set<string>()
   const matches = new Map<UiNodeDescriptor, string>()
 
+  const oldNodeCountByFingerprint = new Map<string, number>()
+  for (const node of previous.nodes) {
+    oldNodeCountByFingerprint.set(node[1], (oldNodeCountByFingerprint.get(node[1]) ?? 0) + 1)
+  }
+  const currentByAnchorCohort = new Map<string, UiNodeDescriptor[]>()
   for (const descriptor of sorted) {
-    const candidates = [
-      oldByAnchor.get(descriptor.anchorHash),
-      descriptor.previousAnchorHash ? oldByAnchor.get(descriptor.previousAnchorHash) : undefined
-    ]
-    const matched = candidates.find((node) => node && !usedOldIds.has(node[2]))
-    if (!matched) continue
+    currentByAnchorCohort.set(descriptor.anchorCohort, [
+      ...(currentByAnchorCohort.get(descriptor.anchorCohort) ?? []),
+      descriptor
+    ])
+  }
+  const unchangedAnchorCohorts = new Set(
+    [...currentByAnchorCohort].flatMap(([anchorCohort, current]) => {
+      const fingerprint = current[0].fingerprintHash
+      const oldFingerprintNodeCount = oldNodeCountByFingerprint.get(fingerprint) ?? 0
+      const oldAnchors = new Set<string>()
+      for (let occurrence = 0; occurrence < oldFingerprintNodeCount; occurrence += 1) {
+        const anchor = anchorHashForOccurrence(anchorCohort, occurrence)
+        if (oldByAnchor.get(anchor)?.[1] !== fingerprint) break
+        oldAnchors.add(anchor)
+      }
+      if (oldAnchors.size !== current.length) return []
+      return current.every((descriptor) => oldAnchors.has(descriptor.anchorHash)) ? [anchorCohort] : []
+    })
+  )
+
+  // Git-confirmed file moves provide an authoritative old anchor even when a
+  // fingerprint is shared by otherwise indistinguishable nodes.
+  for (const descriptor of sorted) {
+    if (!descriptor.previousAnchorHash) continue
+    const matched = oldByAnchor.get(descriptor.previousAnchorHash)
+    if (!matched || usedOldIds.has(matched[2])) continue
+    usedOldIds.add(matched[2])
+    matches.set(descriptor, matched[2])
+  }
+
+  // An occurrence is part of the source anchor. Reuse direct anchors only when
+  // the whole structural cohort is unchanged; otherwise an inserted or removed
+  // indistinguishable sibling could silently take another node's ID.
+  for (const descriptor of sorted) {
+    if (matches.has(descriptor) || !unchangedAnchorCohorts.has(descriptor.anchorCohort)) continue
+    const matched = oldByAnchor.get(descriptor.anchorHash)
+    if (!matched || usedOldIds.has(matched[2])) continue
     usedOldIds.add(matched[2])
     matches.set(descriptor, matched[2])
   }
@@ -83,7 +120,7 @@ export function reconcileRegistry(previous: UiContractRegistry, descriptors: UiN
   const nodes = sorted.map((descriptor): UiRegistryNode => {
     const matchedId = matches.get(descriptor)
     if (matchedId) return [descriptor.anchorHash, descriptor.fingerprintHash, matchedId]
-    const id = allocateId(descriptor, usedIds)
+    const id = allocateId(descriptor, usedIds, oldByAnchor.get(descriptor.anchorHash)?.[2])
     usedIds.add(id)
     return [descriptor.anchorHash, descriptor.fingerprintHash, id]
   })

@@ -4,7 +4,12 @@ import { resolve } from 'node:path'
 import { readRegistry, reconcileRegistry, registryIdMap, serializeRegistry } from './registry'
 import { scanUiSources } from './scan'
 import { assertUniqueUiNodeIds } from './semanticId'
-import type { UiContractManifestNode } from './types'
+import type { UiNodeDescriptor } from './types'
+
+type UiContractQueryNode = Pick<
+  UiNodeDescriptor,
+  'component' | 'element' | 'kind' | 'semanticId' | 'sourceFile' | 'sourceOffset'
+> & { id: string }
 
 async function main(): Promise<void> {
   const query = process.argv.slice(2).find((argument) => !argument.startsWith('-'))
@@ -25,9 +30,21 @@ async function main(): Promise<void> {
   }
 
   const idByAnchor = registryIdMap(registry)
-  const nodes = descriptors.flatMap((descriptor): UiContractManifestNode[] => {
+  const nodes = descriptors.flatMap((descriptor): UiContractQueryNode[] => {
     const id = idByAnchor.get(descriptor.anchorHash)
-    return id ? [{ ...descriptor, id }] : []
+    return id
+      ? [
+          {
+            component: descriptor.component,
+            element: descriptor.element,
+            id,
+            kind: descriptor.kind,
+            semanticId: descriptor.semanticId,
+            sourceFile: descriptor.sourceFile,
+            sourceOffset: descriptor.sourceOffset
+          }
+        ]
+      : []
   })
   assertUniqueUiNodeIds(nodes)
   const matches = nodes

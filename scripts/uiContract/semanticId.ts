@@ -163,15 +163,14 @@ export function createDescriptorHashes(input: {
   semanticId: string
   signature: string
   sourceFile: string
-}): Pick<UiNodeDescriptor, 'anchorHash' | 'fingerprintHash'> {
-  const anchor = [
+}): Pick<UiNodeDescriptor, 'anchorCohort' | 'anchorHash' | 'fingerprintHash'> {
+  const anchorCohort = [
     input.sourceFile,
     input.component,
     input.semanticId,
     input.element,
     input.signature,
-    input.parentSemanticId ?? '',
-    input.occurrence
+    input.parentSemanticId ?? ''
   ].join('\0')
 
   const parentRole = input.parentSemanticId?.split('.').slice(-3).join('.') ?? ''
@@ -183,7 +182,15 @@ export function createDescriptorHashes(input: {
     parentRole
   ].join('\0')
 
-  return { anchorHash: stableHash(anchor, 24), fingerprintHash: stableHash(fingerprint, 24) }
+  return {
+    anchorCohort,
+    anchorHash: anchorHashForOccurrence(anchorCohort, input.occurrence),
+    fingerprintHash: stableHash(fingerprint, 24)
+  }
+}
+
+export function anchorHashForOccurrence(anchorCohort: string, occurrence: number): string {
+  return stableHash(`${anchorCohort}\0${occurrence}`, 24)
 }
 
 export function uiNodeId(anchorHash: string): string {

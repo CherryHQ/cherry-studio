@@ -430,10 +430,18 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     return semanticId
   }
 
-  function hasAsChildAttribute(opening: JSXOpeningElement): boolean {
-    return opening.attributes.some(
+  function shouldWrapAsChildContent(opening: JSXOpeningElement): boolean {
+    const attribute = opening.attributes.find(
       (attribute) =>
         attribute.type === 'JSXAttribute' && attribute.name.type === 'Identifier' && attribute.name.value === 'asChild'
+    )
+    if (!attribute || attribute.type !== 'JSXAttribute') return false
+    if (!attribute.value) return true
+
+    return !(
+      attribute.value.type === 'JSXExpressionContainer' &&
+      attribute.value.expression.type === 'BooleanLiteral' &&
+      !attribute.value.expression.value
     )
   }
 
@@ -453,7 +461,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       if (
         options.contractForDescriptor &&
         !/^[a-z]/.test(element) &&
-        hasAsChildAttribute(opening) &&
+        shouldWrapAsChildContent(opening) &&
         Array.isArray(value.children) &&
         value.children.length > 0 &&
         isRecord(value.closing) &&

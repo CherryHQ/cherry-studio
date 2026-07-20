@@ -135,8 +135,36 @@ const Message = () => {
     }
   })
 
-  it('adds a transparent data-ui merge layer around asChild content', () => {
-    const result = transformJsx('const App = () => <Button asChild><a href="/settings" /></Button>', {
+  it('adds a transparent data-ui merge layer when asChild is statically true', () => {
+    for (const asChild of ['asChild', 'asChild={true}']) {
+      const result = transformJsx(`const App = () => <Button ${asChild}><a href="/settings" /></Button>`, {
+        ...options,
+        contractForDescriptor: () => ({ id: 'ui-3333333333333333', semanticId: 'settings.action.open' })
+      })
+
+      expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['a'])
+      expect(result.code).toContain('<__CherryUiContractSlot><a data-ui=')
+      expect(result.code).toContain('</__CherryUiContractSlot></Button>')
+      expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+    }
+  })
+
+  it('does not add a data-ui merge layer when asChild is statically false', () => {
+    const result = transformJsx(
+      'const App = () => <Button asChild={false}><a href="/settings" /><span>Label</span></Button>',
+      {
+        ...options,
+        contractForDescriptor: () => ({ id: 'ui-3333333333333333', semanticId: 'settings.action.open' })
+      }
+    )
+
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['a', 'span'])
+    expect(result.code).not.toContain('__CherryUiContractSlot')
+    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+  })
+
+  it('keeps the data-ui merge layer when asChild is dynamic', () => {
+    const result = transformJsx('const App = () => <Button asChild={useSlot}><a href="/settings" /></Button>', {
       ...options,
       contractForDescriptor: () => ({ id: 'ui-3333333333333333', semanticId: 'settings.action.open' })
     })
