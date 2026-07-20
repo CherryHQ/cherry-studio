@@ -1,4 +1,7 @@
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const getImageGenerationSupport = vi.hoisted(() => vi.fn())
 
 const searchKeywords = vi.fn()
 const fetchUrls = vi.fn()
@@ -14,6 +17,10 @@ const listRootItems = vi.fn()
 const getPreference = vi.fn()
 const generateImage = vi.fn()
 const fileRead = vi.fn()
+
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: { getImageGenerationSupport }
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -83,6 +90,8 @@ describe('cherryBuiltinTools', () => {
     getPreference.mockReset()
     generateImage.mockReset()
     fileRead.mockReset()
+    getImageGenerationSupport.mockReset()
+    getImageGenerationSupport.mockReturnValue(null)
   })
 
   it('advertises builtin tools with object input schemas and no $schema marker', () => {
@@ -462,6 +471,59 @@ describe('cherryBuiltinTools', () => {
     // …followed by the base64 image content block the agent renderer shows inline.
     expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
     expect(result.content[1]).toEqual({ type: 'image', data: 'BASE64DATA', mimeType: 'image/png' })
+  })
+
+  it('advertises provider-accurate generate_image params from the configured model', () => {
+    const support = {
+      modes: {
+        generate: {
+          supports: {
+            size: { type: 'enum', options: ['1024x1024', '1792x1024'] },
+            numImages: { type: 'range', min: 1, max: 3 }
+          }
+        }
+      }
+    } satisfies ImageGenerationSupport
+    getPreference.mockReturnValue('openai::dall-e-3')
+    getImageGenerationSupport.mockReturnValue(support)
+
+    const tool = listCherryBuiltinTools().find(({ name }) => name === 'generate_image')!
+    const schema = tool.inputSchema as {
+      properties: Record<string, { enum?: string[]; maximum?: number }>
+    }
+
+    expect(schema.properties.size.enum).toEqual(['1024x1024', '1792x1024'])
+    expect(schema.properties.numImages.maximum).toBe(3)
+    expect(schema.properties.image_ids).toBeUndefined()
+  })
+
+  it('resolves image ids and calls the edit mode with edit-specific params', async () => {
+    const support = {
+      modes: {
+        generate: { supports: { size: { type: 'enum', options: ['1024x1024'] } } },
+        edit: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } }
+      }
+    } satisfies ImageGenerationSupport
+    getPreference.mockReturnValue('openai::gpt-image-1')
+    getImageGenerationSupport.mockReturnValue(support)
+    fileRead.mockResolvedValue({ content: 'AAAA', mime: 'image/png' })
+    generateImage.mockResolvedValue({ files: [] })
+
+    const result = await callCherryBuiltinTool(
+      'generate_image',
+      { prompt: 'make it blue', image_ids: ['f1'], quality: 'high' },
+      signal
+    )
+
+    expect(result.isError).toBeFalsy()
+    expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'edit',
+        inputImages: ['data:image/png;base64,AAAA'],
+        paramValues: { quality: 'high' }
+      })
+    )
   })
 
   it('still summarizes generate_image when reading the file back for inline rendering fails', async () => {
