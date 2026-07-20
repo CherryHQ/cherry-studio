@@ -250,13 +250,15 @@ describe('AgentSessionService', () => {
       expect(page2.nextCursor).toBeUndefined()
     })
 
-    it('pages a pinned-only stream by descending pin order, independent of the session sort profile', async () => {
+    it('pages a pinned-only stream by ascending pin order (newest pin first), independent of the session sort profile', async () => {
       await seedFlat()
+      // Fresh pins insert first in the sequence: the newer s4 pin carries a
+      // smaller orderKey than the seeded s2 pin ('a0').
       await dbh.db.insert(pinTable).values({
         id: '88888888-8888-4888-8888-888888888888',
         entityType: 'session',
         entityId: 's4',
-        orderKey: 'a1'
+        orderKey: 'Zz'
       })
 
       const page1 = agentSessionService.listByCursor({ sortBy: 'createdAt', pinned: true, limit: 1 })

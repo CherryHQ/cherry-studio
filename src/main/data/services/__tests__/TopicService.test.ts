@@ -400,13 +400,15 @@ describe('TopicService', () => {
       expect(result.items.map((t) => t.id)).toEqual(['t4', 't3', 't1'])
     })
 
-    it('pages a pinned-only stream by descending pin order, independent of the topic sort profile', async () => {
+    it('pages a pinned-only stream by ascending pin order (newest pin first), independent of the topic sort profile', async () => {
       await seedFlat()
+      // Fresh pins insert first in the sequence: the newer t4 pin carries a
+      // smaller orderKey than the seeded t2 pin ('a0').
       await dbh.db.insert(pinTable).values({
         id: '55555555-5555-4555-8555-555555555555',
         entityType: 'topic',
         entityId: 't4',
-        orderKey: 'a1',
+        orderKey: 'Zz',
         createdAt: 1,
         updatedAt: 1
       })
