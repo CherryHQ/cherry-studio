@@ -9083,7 +9083,7 @@
       "id": "mai-image-2-5",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "mai-image-2-5",
+      "name": "Microsoft: MAI-Image-2.5",
       "outputModalities": ["image"],
       "ownedBy": "microsoft"
     },
@@ -12880,7 +12880,7 @@
       "id": "gpt-5-4-image-2",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-4-image-2",
+      "name": "OpenAI: GPT-5.4 Image 2",
       "outputModalities": ["image", "text"],
       "ownedBy": "openai",
       "pricing": {
@@ -13401,7 +13401,7 @@
       "id": "gpt-5-image",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-image",
+      "name": "OpenAI: GPT-5 Image",
       "outputModalities": ["image", "text"],
       "ownedBy": "openai",
       "pricing": {
@@ -13421,7 +13421,7 @@
       "id": "gpt-5-image-mini",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-image-mini",
+      "name": "OpenAI: GPT-5 Image Mini",
       "outputModalities": ["image", "text"],
       "ownedBy": "openai",
       "pricing": {
@@ -14628,7 +14628,7 @@
       "id": "recraft-v4-1-pro-vector",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "recraft-v4-1-pro-vector",
+      "name": "Recraft: Recraft V4.1 Pro Vector",
       "outputModalities": ["image"],
       "ownedBy": "recraft"
     },
@@ -14657,7 +14657,7 @@
       "id": "recraft-v4-1-vector",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "recraft-v4-1-vector",
+      "name": "Recraft: Recraft V4.1 Vector",
       "outputModalities": ["image"],
       "ownedBy": "recraft"
     },
@@ -14676,7 +14676,7 @@
       "id": "recraft-v4-pro-vector",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "recraft-v4-pro-vector",
+      "name": "Recraft: Recraft V4 Pro Vector",
       "outputModalities": ["image"],
       "ownedBy": "recraft"
     },
@@ -14685,7 +14685,7 @@
       "id": "recraft-v4-vector",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "recraft-v4-vector",
+      "name": "Recraft: Recraft V4 Vector",
       "outputModalities": ["image"],
       "ownedBy": "recraft"
     },
@@ -14761,7 +14761,7 @@
       "id": "riverflow-v2-5-fast",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "riverflow-v2-5-fast",
+      "name": "Sourceful: Riverflow V2.5 Fast",
       "outputModalities": ["image"],
       "ownedBy": "sourceful"
     },
@@ -14770,7 +14770,7 @@
       "id": "riverflow-v2-5-pro",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "riverflow-v2-5-pro",
+      "name": "Sourceful: Riverflow V2.5 Pro",
       "outputModalities": ["image"],
       "ownedBy": "sourceful"
     },
@@ -14779,7 +14779,7 @@
       "id": "riverflow-v2-fast",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "riverflow-v2-fast",
+      "name": "Sourceful: Riverflow V2 Fast",
       "outputModalities": ["image"],
       "ownedBy": "sourceful"
     },
@@ -14788,7 +14788,7 @@
       "id": "riverflow-v2-fast-preview",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "riverflow-v2-fast-preview",
+      "name": "Sourceful: Riverflow V2 Fast Preview",
       "outputModalities": ["image"],
       "ownedBy": "sourceful"
     },
@@ -14797,7 +14797,7 @@
       "id": "riverflow-v2-max-preview",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "riverflow-v2-max-preview",
+      "name": "Sourceful: Riverflow V2 Max Preview",
       "outputModalities": ["image"],
       "ownedBy": "sourceful"
     },
@@ -14806,7 +14806,7 @@
       "id": "riverflow-v2-pro",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "riverflow-v2-pro",
+      "name": "Sourceful: Riverflow V2 Pro",
       "outputModalities": ["image"],
       "ownedBy": "sourceful"
     },
@@ -14815,7 +14815,7 @@
       "id": "riverflow-v2-standard-preview",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "riverflow-v2-standard-preview",
+      "name": "Sourceful: Riverflow V2 Standard Preview",
       "outputModalities": ["image"],
       "ownedBy": "sourceful"
     },
@@ -17650,5 +17650,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "b52d5300e6a86f5e"
+  "version": "6ff350f2a03329ab"
 }

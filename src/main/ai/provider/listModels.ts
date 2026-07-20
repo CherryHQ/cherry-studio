@@ -76,6 +76,10 @@ function handleOptionalModelListFailure<T>(
     throw error
   }
 
+  return recoverOptionalModelListFailure(error, context)
+}
+
+function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
     error
@@ -485,25 +489,27 @@ const openRouterFetcher: ModelFetcher = {
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
       }).catch((error) =>
-        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+        recoverOptionalModelListFailure<OpenAIModelResponseItem>(error, {
           providerId: provider.id,
           endpoint: 'openrouter-image-models'
         })
       )
     ])
-    const imageModelIds = new Set(imageModelsResponse.data.map((model) => model.id))
+    const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
     const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
-    return dedup(all, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
+    return dedup(all, (m) => m.id).map((m) => {
+      const imageModel = imageModelsById.get(m.id)
+      return toModel(m.id, provider, {
+        name: imageModel?.name ?? m.name,
         ownedBy: m.owned_by,
-        ...(imageModelIds.has(m.id)
+        ...(imageModel
           ? {
               capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
               endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
             }
           : {})
       })
-    )
+    })
   }
 }
 

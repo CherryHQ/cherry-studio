@@ -6,6 +6,7 @@ describe('parseOrEntry', () => {
   it('parses dedicated OpenRouter image-model entries with parameter descriptors', () => {
     expect(
       parseOrEntry({
+        name: 'Sourceful: Riverflow V2.5 Fast',
         architecture: {
           input_modalities: ['text', 'image'],
           output_modalities: ['image']
@@ -16,6 +17,7 @@ describe('parseOrEntry', () => {
         }
       })
     ).toEqual({
+      name: 'Sourceful: Riverflow V2.5 Fast',
       capabilities: ['image-recognition', 'image-generation'],
       inputModalities: ['text', 'image'],
       outputModalities: ['image']

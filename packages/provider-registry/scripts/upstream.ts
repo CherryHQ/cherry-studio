@@ -146,6 +146,7 @@ export function parseMdEntry(raw: unknown): CherryMeta | null {
 // ── OpenRouter ───────────────────────────────────────────────────────────────
 const OrEntry = z
   .object({
+    name: z.string().optional(),
     context_length: z.number().optional(),
     architecture: z
       .object({ input_modalities: z.array(z.string()).optional(), output_modalities: z.array(z.string()).optional() })
@@ -174,6 +175,7 @@ export function parseOrEntry(raw: unknown): CherryMeta | null {
   if (out.includes('audio')) caps.add('audio-generation')
 
   return dropUndef({
+    name: m.supported_parameters && !Array.isArray(m.supported_parameters) ? m.name : undefined,
     capabilities: caps.size ? [...caps] : undefined,
     inputModalities: inp.filter((x) => MODALITY.has(x)),
     outputModalities: out.filter((x) => MODALITY.has(x)),
