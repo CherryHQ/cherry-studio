@@ -1,17 +1,19 @@
 // File blob staging — copies file_entry blobs + knowledge base dirs from their
-// live on-disk locations into temp staging dirs (files/<id>, knowledge/<baseId>/)
+// on-disk locations into temp staging dirs (files/<id>, knowledge/<baseId>/)
 // for archive assembly. A missing source is SKIPPED, not fatal: an external file
 // the user moved, or a knowledge base dir absent on disk, must not abort the
 // whole export — the manifest records only what was actually staged.
 //
-// Backed by the live DB (file_entry rows resolve id → source path) and the two
-// live filesystem roots:
-//   - feature.files.data         (internal blobs: <id>.<ext>)
+// File blobs resolve paths from the **snapshot** file_entry row (readonly DB
+// handle) + backup-local path resolution — never from live FileEntryService.
+// Knowledge/skills use the live filesystem roots passed at construction:
 //   - feature.knowledgebase.data (per-base dirs: <baseId>/)
 
 import { copyFile, cp, mkdir, realpath, rm, stat } from 'node:fs/promises'
+import path from 'node:path'
 import { basename, dirname, join, resolve } from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { fileEntryTable } from '@main/data/db/schemas/file'
@@ -19,6 +21,35 @@ import { isPathInside } from '@main/utils/file'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 
 const logger = loggerService.withContext('backup/FileStager')
+
+type BackupPathResolvableEntry =
+  | { id: string; origin: 'internal'; ext: string | null }
+  | { id: string; origin: 'external'; ext: string | null; externalPath: string }
+
+/**
+ * TEMPORARY self-contained mirror of file/utils/pathResolver.resolvePhysicalPath.
+ * Avoids depending on the file barrel (resolvePhysicalPath is not re-exported from
+ * file/index.ts). Upstream request pending: ask file owner @DeJeune to export
+ * resolvePhysicalPath from the file barrel, then switch this to an import. This
+ * self-contained copy is reusable for backup's external-path handling.
+ */
+function resolvePhysicalPath(entry: BackupPathResolvableEntry): string {
+  if (entry.id.includes('\0') || (entry.ext && entry.ext.includes('\0'))) {
+    logger.error('Null byte detected in entry id/ext', { entryId: entry.id, origin: entry.origin })
+    throw new Error('Entry id or extension contains null bytes')
+  }
+
+  if (entry.origin === 'internal') {
+    const extSuffix = entry.ext ? `.${entry.ext}` : ''
+    return application.getPath('feature.files.data', `${entry.id}${extSuffix}`)
+  }
+
+  if (entry.externalPath.includes('\0')) {
+    logger.error('Null byte detected in externalPath', { entryId: entry.id })
+    throw new Error(`external entry ${entry.id} externalPath contains null bytes`)
+  }
+  return path.resolve(entry.externalPath)
+}
 
 /**
  * Derived per-base vector index (+ WAL sidecars) under `<baseId>/.cherry/`.
@@ -120,21 +151,15 @@ export interface FileStager {
 
 /**
  * Resolves each id against file_entry (non-deleted **internal** rows only), copies
- * the blob to <destDir>/<id> via FileManager's read-only `copyContentTo` (same
- * physical path resolution as createReadStream), and sums actual on-disk sizes.
- * External rows are dangling by design (architecture §5.1) — TOPICS/PAINTINGS
- * file_ref may still surface their ids, but export does not copy absolute-path
- * blobs. Ids whose file_entry was soft-deleted, external, or whose source file
- * is unreadable land in `missing` instead of throwing.
+ * the blob to <destDir>/<id> via snapshot row + resolvePhysicalPath + fs.copyFile,
+ * and sums actual on-disk sizes. External rows are dangling by design (architecture
+ * §5.1) — TOPICS/PAINTINGS file_ref may still surface their ids, but export does
+ * not copy absolute-path blobs. Ids whose file_entry was soft-deleted, external,
+ * or whose source file is unreadable land in `missing` instead of throwing.
  */
 export class SqliteFileStager implements FileStager {
   constructor(
-    private readonly liveDb: BackupReadonlyDb,
-    /** Read-only blob copy port (production: FileManager). */
-    private readonly fileBlobs: {
-      copyContentTo(id: string, destPath: string): Promise<{ size: number }>
-      getMetadata(id: string): Promise<{ size: number }>
-    },
+    private readonly snapshotDb: BackupReadonlyDb,
     private readonly knowledgeRoot: string,
     private readonly skillsRoot: string
   ) {}
@@ -154,7 +179,7 @@ export class SqliteFileStager implements FileStager {
       // Only non-deleted internal rows are staged. Soft-deleted rows and external
       // rows (dangling by design — architecture §5.1) are reported missing rather
       // than copied (file_ref domains may still collect external ids).
-      const r = await this.liveDb
+      const r = await this.snapshotDb
         .select()
         .from(fileEntryTable)
         .where(
@@ -177,13 +202,22 @@ export class SqliteFileStager implements FileStager {
 
     for (const row of rows) {
       const dest = join(destDir, row.id)
+      const physicalPath = resolvePhysicalPath({
+        id: row.id,
+        origin: 'internal',
+        ext: row.ext
+      })
       try {
-        const { size } = await this.fileBlobs.copyContentTo(row.id, dest)
+        await copyFile(physicalPath, dest)
+        const destStat = await stat(dest)
+        if (destStat.isDirectory()) {
+          throw Object.assign(new Error(`stageFiles: source is a directory (${row.id})`), { code: 'EISDIR' })
+        }
         total += 1
-        totalBytes += size
+        totalBytes += destStat.size
       } catch (e) {
         // ENOENT/ENOTDIR = source gone → missing. EACCES/EPERM is ambiguous —
-        // unreadable source OR dest write-permission — so probe getMetadata:
+        // unreadable source OR dest write-permission — so re-stat the source:
         // source gone → missing; source still present → dest write error, MUST abort.
         if (isErrnoCode(e, 'ENOENT') || isErrnoCode(e, 'ENOTDIR')) {
           await rm(dest, { force: true }).catch(() => {})
@@ -192,7 +226,7 @@ export class SqliteFileStager implements FileStager {
         }
         if (isErrnoCode(e, 'EACCES') || isErrnoCode(e, 'EPERM')) {
           try {
-            await this.fileBlobs.getMetadata(row.id)
+            await stat(physicalPath)
           } catch (metaErr) {
             if (isMissingPath(metaErr) || isErrnoCode(metaErr, 'ENOENT') || isErrnoCode(metaErr, 'ENOTDIR')) {
               await rm(dest, { force: true }).catch(() => {})

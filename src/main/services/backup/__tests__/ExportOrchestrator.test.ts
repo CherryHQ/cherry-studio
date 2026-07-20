@@ -1,9 +1,10 @@
 // Unit tests for ExportOrchestrator — .cbu production (full-preset, DB + blob slice).
 import { copyFileSync, existsSync } from 'node:fs'
-import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
+import { application } from '@application'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import { BACKUP_DOMAINS } from '@main/data/db/backup/domains'
@@ -19,7 +20,7 @@ import type { BackupProgressUpdate } from '@shared/types/backup'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import StreamZip from 'node-stream-zip'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { contributorManager } from '../contributors/ContributorManager'
 import { SqliteBackupStripper } from '../ExcludedDomainStripper'
@@ -54,27 +55,10 @@ const openZip = async (p: string) => {
   return { zip, entries }
 }
 
-/** Path-based FileManager stand-in for export staging tests. */
-function pathFileBlobs(lookup: Record<string, string>) {
-  return {
-    async copyContentTo(id: string, destPath: string): Promise<{ size: number }> {
-      const src = lookup[id]
-      if (!src) {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      }
-      await copyFile(src, destPath)
-      const s = await stat(destPath)
-      return { size: s.size }
-    },
-    async getMetadata(id: string): Promise<{ size: number }> {
-      const src = lookup[id]
-      if (!src) {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      }
-      const s = await stat(src)
-      return { size: s.size }
-    }
-  }
+async function writeInternalBlob(id: string, ext: string, content: string): Promise<void> {
+  const blobPath = application.getPath('feature.files.data', `${id}.${ext}`)
+  await mkdir(dirname(blobPath), { recursive: true })
+  await writeFile(blobPath, content)
 }
 
 const newOrch = (dir: string, fixture: string) =>
@@ -82,7 +66,6 @@ const newOrch = (dir: string, fixture: string) =>
     dbService: { createSnapshot: (destPath) => copyFileSync(fixture, destPath) },
     registry: STUB_REGISTRY,
     tempDir: dir,
-    fileBlobs: pathFileBlobs({}),
     knowledgeRoot: join(dir, 'kb-root'),
     skillsRoot: join(dir, 'skills-root'),
     notesRoot: () => join(dir, 'notes-root'),
@@ -288,6 +271,17 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
 // real SqliteFileStager + fixture blobs on disk → archive holds files/ + knowledge/.
 describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () => {
   const dbh = setupTestDatabase()
+  let internalFilesRoot: string
+
+  beforeAll(async () => {
+    internalFilesRoot = await mkdtemp(join(tmpdir(), 'cs-internal-files-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.files.data') {
+        return filename ? join(internalFilesRoot, filename) : internalFilesRoot
+      }
+      return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+    })
+  })
 
   it('collects + stages file_entry blobs and knowledge base dirs into the archive', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-export-e2e-'))
@@ -299,10 +293,9 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         .values([{ id: 'kb1', name: 'kb', status: 'completed', chunkSize: 100, chunkOverlap: 20 }])
       await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
       // Fixture blobs at the live filesystem roots.
-      const filesRoot = await mkdtemp(join(tmpdir(), 'cs-files-root-'))
       const kbRoot = await mkdtemp(join(tmpdir(), 'cs-kb-root-'))
       const notesRoot = await mkdtemp(join(tmpdir(), 'cs-notes-root-'))
-      await writeFile(join(filesRoot, 'f1.txt'), 'hello')
+      await writeInternalBlob('f1', 'txt', 'hello')
       await mkdir(join(kbRoot, 'kb1'), { recursive: true })
       await mkdir(join(kbRoot, 'kb1', '.cherry'), { recursive: true })
       await mkdir(join(kbRoot, 'kb1', 'raw'), { recursive: true })
@@ -334,7 +327,6 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         // against the snapshot.
         registry: contributorManager.getRegistry(),
         tempDir: dir,
-        fileBlobs: pathFileBlobs({ f1: join(filesRoot, 'f1.txt') }),
         knowledgeRoot: kbRoot,
         skillsRoot: kbRoot,
         notesRoot: () => notesRoot,
@@ -397,10 +389,9 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
   it('prunes file_entry/knowledge_base rows whose blob/dir was missing at stage (DB↔staged alignment)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-export-missing-'))
     try {
-      const filesRoot = await mkdtemp(join(tmpdir(), 'cs-files-root-'))
       const kbRoot = await mkdtemp(join(tmpdir(), 'cs-kb-root-'))
       // mf1 has a blob on disk; mf2 does NOT (missing). mkb1 has a dir; mkb2 does NOT.
-      await writeFile(join(filesRoot, 'mf1.txt'), 'hello')
+      await writeInternalBlob('mf1', 'txt', 'hello')
       await mkdir(join(kbRoot, 'mkb1'), { recursive: true })
       await writeFile(join(kbRoot, 'mkb1', 'source.md'), 'doc')
 
@@ -424,7 +415,6 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         },
         registry: contributorManager.getRegistry(),
         tempDir: dir,
-        fileBlobs: pathFileBlobs({ mf1: join(filesRoot, 'mf1.txt') }),
         knowledgeRoot: kbRoot,
         skillsRoot: kbRoot,
         // No Notes root for this fixture — undefined skips notes collect (a missing
@@ -477,10 +467,10 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
   it('retains external file_entry rows + their file_ref references (§5.1 dangling by design)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-export-ext-'))
     try {
-      const filesRoot = await mkdtemp(join(tmpdir(), 'cs-files-root-'))
+      const kbRoot = await mkdtemp(join(tmpdir(), 'cs-kb-root-'))
       // int1 has an internal blob (staged); ext1 is external (dangling — no blob
       // copied, §5.1). msg1 references BOTH via chat_message_file_ref.
-      await writeFile(join(filesRoot, 'int1.txt'), 'hello')
+      await writeInternalBlob('int1', 'txt', 'hello')
 
       await dbh.db.delete(chatMessageFileRefTable)
       await dbh.db.delete(fileEntryTable)
@@ -516,9 +506,8 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         },
         registry: contributorManager.getRegistry(),
         tempDir: dir,
-        fileBlobs: pathFileBlobs({ int1: join(filesRoot, 'int1.txt') }),
-        knowledgeRoot: filesRoot,
-        skillsRoot: filesRoot,
+        knowledgeRoot: kbRoot,
+        skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => undefined,
         stripper: new SqliteBackupStripper()
       })
@@ -632,7 +621,6 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         },
         registry: contributorManager.getRegistry(),
         tempDir: dir,
-        fileBlobs: pathFileBlobs({}),
         knowledgeRoot: join(dir, 'kb-root'),
         skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => {
@@ -754,7 +742,6 @@ describe('ExportOrchestrator rowScopes filter (AGENTS job_schedule partition)', 
         dbService: { createSnapshot: (destPath) => copyFileSync(fixture, destPath) },
         registry: STUB_REGISTRY_WITH_ROWSCOPES,
         tempDir: dir,
-        fileBlobs: pathFileBlobs({}),
         knowledgeRoot: join(dir, 'kb-root'),
         skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => join(dir, 'notes-root'),
@@ -815,7 +802,6 @@ describe('ExportOrchestrator notes body ↔ collect 1:1 (fs-catch)', () => {
         dbService: { createSnapshot: (destPath) => copyFileSync(fixture, destPath) },
         registry,
         tempDir: dir,
-        fileBlobs: pathFileBlobs({}),
         knowledgeRoot: join(dir, 'kb-root'),
         skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => notesRoot,

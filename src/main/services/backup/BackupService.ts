@@ -135,7 +135,6 @@ export class BackupService extends BaseService {
       dbService: application.get('DbService'),
       registry,
       tempDir: application.getPath('feature.backup.temp'),
-      fileBlobs: application.get('FileManager'),
       knowledgeRoot: application.getPath('feature.knowledgebase.data'),
       skillsRoot: application.getPath('feature.agents.skills'),
       // Notes markdown bodies (PREFERENCES file resource) — full preset only.

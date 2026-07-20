@@ -93,14 +93,6 @@ describe('e2e-export lite roundtrip', () => {
         },
         registry: contributorManager.getRegistry(),
         tempDir: dir,
-        fileBlobs: {
-          async copyContentTo() {
-            throw new Error('lite must not stage files')
-          },
-          async getMetadata() {
-            throw new Error('lite must not stage files')
-          }
-        },
         knowledgeRoot: join(dir, 'kb-root'),
         skillsRoot: join(dir, 'skills-root'),
         notesRoot: () => {

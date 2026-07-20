@@ -2,10 +2,11 @@
  * e2e-export full roundtrip (批次1) — AC: `__tests__/e2e/export.full.test.ts`
  * Soft asserts: no `.cherry/index.sqlite*` (knowledge-r1) + notes body 1:1 (fs-catch).
  */
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
+import { application } from '@application'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentGlobalSkillTable } from '@main/data/db/schemas/agentGlobalSkill'
 import { appStateTable } from '@main/data/db/schemas/appState'
@@ -14,32 +15,31 @@ import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import StreamZip from 'node-stream-zip'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { contributorManager } from '../../contributors/ContributorManager'
 import { SqliteBackupStripper } from '../../ExcludedDomainStripper'
 import { ExportOrchestrator } from '../../ExportOrchestrator'
 
-function pathFileBlobs(lookup: Record<string, string>) {
-  return {
-    async copyContentTo(id: string, destPath: string): Promise<{ size: number }> {
-      const src = lookup[id]
-      if (!src) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      await copyFile(src, destPath)
-      const s = await stat(destPath)
-      return { size: s.size }
-    },
-    async getMetadata(id: string): Promise<{ size: number }> {
-      const src = lookup[id]
-      if (!src) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      const s = await stat(src)
-      return { size: s.size }
-    }
-  }
+async function writeInternalBlob(id: string, ext: string, content: string): Promise<void> {
+  const blobPath = application.getPath('feature.files.data', `${id}.${ext}`)
+  await mkdir(dirname(blobPath), { recursive: true })
+  await writeFile(blobPath, content)
 }
 
 describe('e2e-export full roundtrip', () => {
   const dbh = setupTestDatabase()
+  let internalFilesRoot: string
+
+  beforeAll(async () => {
+    internalFilesRoot = await mkdtemp(join(tmpdir(), 'cs-internal-files-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.files.data') {
+        return filename ? join(internalFilesRoot, filename) : internalFilesRoot
+      }
+      return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+    })
+  })
 
   it('exports full archive with files/KB/skills/notes; soft: no index.sqlite + notes 1:1', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-e2e-export-full-'))
@@ -53,13 +53,12 @@ describe('e2e-export full roundtrip', () => {
         .insert(agentGlobalSkillTable)
         .values([{ id: 's1', folderName: 'zipSkill', name: 'z', source: 'zip', contentHash: 'hz', isEnabled: true }])
 
-      const filesRoot = await mkdtemp(join(tmpdir(), 'cs-e2e-files-'))
       const kbRoot = await mkdtemp(join(tmpdir(), 'cs-e2e-kb-'))
       const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-e2e-skills-'))
       const notesRoot = await mkdtemp(join(tmpdir(), 'cs-e2e-notes-'))
       const note1Body = Buffer.from('# note 1')
       const note2Body = Buffer.from('# note 2')
-      await writeFile(join(filesRoot, 'f1.txt'), 'hello')
+      await writeInternalBlob('f1', 'txt', 'hello')
       await mkdir(join(kbRoot, 'kb1', '.cherry'), { recursive: true })
       await mkdir(join(kbRoot, 'kb1', 'raw'), { recursive: true })
       await writeFile(join(kbRoot, 'kb1', 'source.md'), 'doc')
@@ -81,7 +80,6 @@ describe('e2e-export full roundtrip', () => {
         },
         registry: contributorManager.getRegistry(),
         tempDir: dir,
-        fileBlobs: pathFileBlobs({ f1: join(filesRoot, 'f1.txt') }),
         knowledgeRoot: kbRoot,
         skillsRoot,
         notesRoot: () => notesRoot,
