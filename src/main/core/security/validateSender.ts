@@ -1,7 +1,8 @@
 import { isAbsolute, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import type { IpcMainInvokeEvent } from 'electron'
+import { application } from '@application'
+import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 
 /** Whether `childPath` is `parentDir` itself or nested inside it (no prefix-only matches). */
 function isPathInside(childPath: string, parentDir: string): boolean {
@@ -59,19 +60,28 @@ export function isTrustedSenderUrl(url: string, devServerUrl: string | null | un
 }
 
 /**
- * Source-trust gate for the single IpcApi request channel.
+ * Source-trust gate for the renderer→main funnels wired to it: the IpcApi
+ * request channel (`IpcApiService`), the DataApi transport (`IpcAdapter`), the
+ * Preference/Cache subsystem handlers, and escape-hatch channels
+ * (`Tab_MoveWindow`). Legacy channels on the deprecated
+ * `BaseService.ipcHandle`/`ipcOn` sugar are not gated yet — they adopt this
+ * gate as they migrate into IpcApi.
  *
- * Because one channel funnels every business capability into one handler, the
- * router validates the *caller* before the input: all web frames (including
+ * Each funnel validates the *caller* before the input: all web frames (including
  * iframes and `<webview>` guests) can send IPC, and this app runs with
  * `webviewTag: true` + `webSecurity: false` + MiniApps rendering arbitrary
  * remote URLs. Per Electron's security checklist, verify `senderFrame`.
  *
- * `appRootDir` (the app's own bundle root, e.g. `application.getPath('app.root')`)
- * is injected so the `file:` check enforces "the app's own renderer" rather than
- * trusting any local file.
+ * `appRootDir` scopes the `file:` check to "the app's own renderer" rather than
+ * trusting any local file. It defaults to the app's own bundle root
+ * (`application.getPath('app.root')`), resolved per call so the gate stays a
+ * plain function; pass it explicitly only to trust a different root (tests do
+ * this to stay Electron-free).
  */
-export function validateSender(event: IpcMainInvokeEvent, appRootDir: string): boolean {
+export function validateSender(
+  event: IpcMainInvokeEvent | IpcMainEvent,
+  appRootDir: string = application.getPath('app.root')
+): boolean {
   // Embedded <webview> guests arrive as their own WebContents — never let them reach IpcApi.
   if (event.sender.getType() === 'webview') return false
 

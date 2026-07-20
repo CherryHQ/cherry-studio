@@ -24,6 +24,7 @@ import {
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import type { FilePath } from '@shared/types/file'
 import { estimateTokenCount } from 'tokenx'
 
 import { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -508,6 +509,30 @@ export class KnowledgeService extends BaseService {
 
   listRootItems(baseId: string): KnowledgeItem[] {
     return knowledgeItemService.getRootItemsByBaseId(baseId)
+  }
+
+  getFilePath(itemId: string): FilePath {
+    const item = knowledgeItemService.getById(itemId)
+
+    if (item.type === 'file') {
+      return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
+    }
+
+    if (item.type === 'url') {
+      if (!item.data.relativePath) {
+        throw DataApiErrorFactory.invalidOperation(
+          'getFilePath',
+          `Knowledge URL item '${itemId}' has no captured snapshot to preview`
+        )
+      }
+
+      return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
+    }
+
+    throw DataApiErrorFactory.invalidOperation(
+      'getFilePath',
+      `Knowledge item '${itemId}' must be a file or URL to preview its source`
+    )
   }
 
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
