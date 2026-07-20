@@ -26,6 +26,14 @@ export function deriveThinkingOptions(model: Model): ReasoningEffortOption[] | u
   const reasoning = model.reasoning
   if (!reasoning) return undefined // fixed reasoning — no knob
 
+  // Dialect hard limits (the descriptor's `type` follows the SERVING
+  // provider): a 'none' provider ignores every reasoning param — no options,
+  // whatever the model's intrinsic controls say; 'disable-reasoning' can only
+  // express OFF. Every other format reaches the family-shape residue and can
+  // carry the full control set, so no projection is applied.
+  if (reasoning.type === 'none') return undefined
+  if (reasoning.type === 'disable-reasoning') return ['default', 'none']
+
   const hasControls = (reasoning.controls?.length ?? 0) > 0
   const hasEffort = reasoning.controls?.some((c) => c.kind === 'effort') ?? false
   const hasToggle = reasoning.controls?.some((c) => c.kind === 'toggle') ?? false

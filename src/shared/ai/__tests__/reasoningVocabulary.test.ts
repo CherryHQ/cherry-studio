@@ -42,6 +42,31 @@ describe('deriveThinkingOptions', () => {
     ).toBeUndefined()
   })
 
+  it("'none' dialect vetoes the budget/toggle ladders too — the wire always serializes {}", () => {
+    expect(
+      deriveThinkingOptions(
+        model({
+          type: 'none',
+          controls: [{ kind: 'budget', min: 1024, max: 32000 }, { kind: 'toggle' }],
+          supportedEfforts: [],
+          thinkingTokenLimits: { min: 1024, max: 32000 }
+        })
+      )
+    ).toBeUndefined()
+  })
+
+  it("'disable-reasoning' dialect can only express OFF → default + none, whatever the controls", () => {
+    expect(
+      deriveThinkingOptions(
+        model({
+          type: 'disable-reasoning',
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+          supportedEfforts: ['low', 'medium', 'high']
+        })
+      )
+    ).toEqual(['default', 'none'])
+  })
+
   it('effort control → default + native values in declared order (gpt-5.2; legacy gpt5_2 identical)', () => {
     expect(
       deriveThinkingOptions(

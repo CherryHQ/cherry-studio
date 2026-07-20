@@ -274,6 +274,40 @@ describe('ThinkingToolRuntime', () => {
     })
   })
 
+  it("disables the control on a 'none'-dialect provider, whatever the model's controls say", async () => {
+    const { launcher } = renderRuntime({
+      model: createModel({
+        reasoning: {
+          type: 'none',
+          controls: [{ kind: 'budget', min: 1024, max: 32000 }, { kind: 'toggle' }],
+          supportedEfforts: [],
+          thinkingTokenLimits: { min: 1024, max: 32000 }
+        }
+      })
+    })
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [noneLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    expect(noneLauncher).toMatchObject({ disabled: true, disabledReason: 'Fixed reasoning model' })
+  })
+
+  it("offers only OFF on a 'disable-reasoning' dialect provider", async () => {
+    const { launcher } = renderRuntime({
+      model: createModel({
+        reasoning: {
+          type: 'disable-reasoning',
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+          supportedEfforts: ['low', 'medium', 'high']
+        }
+      })
+    })
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [offOnlyLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    expect(offOnlyLauncher.disabled).toBeFalsy()
+    expect(offOnlyLauncher.submenu?.map((item) => item.id)).toEqual(['thinking-none'])
+  })
+
   it('keeps OpenAI web search from selecting minimal reasoning', async () => {
     const { launcher, updateAssistantSettings } = renderRuntime({
       assistant: createAssistant({ enableWebSearch: true, reasoning_effort: 'none' }),
