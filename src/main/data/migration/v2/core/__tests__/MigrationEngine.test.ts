@@ -40,7 +40,6 @@ const mockPaths: MigrationPaths = {
   agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   diagnosticsJournalFile: '/tmp/test-userdata/migration-diagnostics-v2.json',
-  legacyDiagnosticsJournalFile: '/tmp/test-userdata/migration-diagnostics-v1.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
 }

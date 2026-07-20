@@ -26,7 +26,6 @@ import {
   migrationDiagnosticManifestSchema,
   type MigrationDiagnosticStrictEntryName
 } from './migrationDiagnosticBundleSchemas'
-import { createMigrationDiagnosticRetentionPlan } from './migrationDiagnosticRetention'
 import type { MigrationDiagnosticsSnapshot } from './MigrationDiagnosticsCoordinator'
 import {
   MIGRATION_DIAGNOSTIC_MIGRATOR_IDS,
@@ -904,7 +903,9 @@ export class MigrationDiagnosticBundleBuilder {
 
     const snapshot = migrationDiagnosticsSessionSchema.safeParse(input.snapshot)
     if (!snapshot.success) return failed('invalid_input')
-    const retentionPlan = createMigrationDiagnosticRetentionPlan(snapshot.data.attempts)
+    const removableSequences = snapshot.data.attempts.flatMap((attempt) =>
+      attempt.events.slice(0, -1).map((event) => event.sequence)
+    )
 
     let events: MigrationDiagnosticEventsDocument
     try {
@@ -918,7 +919,7 @@ export class MigrationDiagnosticBundleBuilder {
     )
     let serialized: SerializedBundle | null
     try {
-      serialized = selectDocumentsWithinBudget(events, database, retentionPlan.removableSequences)
+      serialized = selectDocumentsWithinBudget(events, database, removableSequences)
     } catch {
       return failed('invalid_input')
     }

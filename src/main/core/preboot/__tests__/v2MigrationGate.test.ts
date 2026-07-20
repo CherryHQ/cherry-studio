@@ -109,8 +109,7 @@ const defaultMigrationPaths = {
   userData: '/mock/userData',
   versionLogFile: '/mock/version.log',
   databaseFile: '/mock/userData/cherrystudio.sqlite',
-  diagnosticsJournalFile: '/mock/userData/migration-diagnostics-v2.json',
-  legacyDiagnosticsJournalFile: '/mock/userData/migration-diagnostics-v1.json'
+  diagnosticsJournalFile: '/mock/userData/migration-diagnostics-v2.json'
 }
 const defaultResolveResult = {
   paths: defaultMigrationPaths,

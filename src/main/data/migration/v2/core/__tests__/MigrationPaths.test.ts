@@ -335,7 +335,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     const { paths } = resolveMigrationPaths()
 
     expect(paths.diagnosticsJournalFile).toBe(path.join(DEFAULT_USER_DATA, 'migration-diagnostics-v2.json'))
-    expect(paths.legacyDiagnosticsJournalFile).toBe(path.join(DEFAULT_USER_DATA, 'migration-diagnostics-v1.json'))
+    expect(paths).not.toHaveProperty('legacyDiagnosticsJournalFile')
     expect(Object.isFrozen(paths)).toBe(true)
   })
 
@@ -353,7 +353,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     const { paths } = resolveMigrationPaths()
 
     expect(paths.diagnosticsJournalFile).toBe('/custom/data/migration-diagnostics-v2.json')
-    expect(paths.legacyDiagnosticsJournalFile).toBe('/custom/data/migration-diagnostics-v1.json')
+    expect(paths).not.toHaveProperty('legacyDiagnosticsJournalFile')
   })
 
   it('redirects to the matching entry when the current exe matches exactly (regression guard)', () => {

@@ -27,13 +27,10 @@ window, and failure surfaces. It is deliberately not a lifecycle service or glob
 
 After paths resolve, the coordinator persists a bounded, strict journal at
 `MigrationPaths.diagnosticsJournalFile` (`{userData}/migration-diagnostics-v2.json`).
-`MigrationPaths.legacyDiagnosticsJournalFile` (`{userData}/migration-diagnostics-v1.json`) is read only for the
-one-time v1 → v2 journal upgrade when no active v2 journal exists. An unfinished failure, renderer crash, force quit,
-or power loss keeps the active journal for the next launch and recovered retry. A successful migration reconciliation
-deletes it. The journal contains fixed diagnostic fields only and is never copied into the support bundle. An
-`initial` attempt, an in-process `manual_retry`, and a cross-launch `recovered_retry` remain separate ordered attempts
-in the same session; acceptance coverage verifies that the same fixed failure location is retained in every step of
-that three-attempt sequence.
+It stores only the current attempt and the immediately previous failed/interrupted attempt. An unfinished renderer
+crash, force quit, or power loss is closed as `process_interrupted` on the next launch. Incompatible development
+journals are quarantined without changing business data or migration eligibility. A successful migration
+reconciliation deletes the checkpoint while retaining the completed in-memory summary for the current UI session.
 
 The user-saved Scheme A ZIP has an exact four-file allowlist:
 

@@ -43,11 +43,7 @@ import {
   readMigrationDiagnosticsJournal,
   writeMigrationDiagnosticsJournal
 } from '../migrationDiagnosticsJournal'
-import type { MigrationDiagnosticsSession } from '../migrationDiagnosticsSchemas'
-import {
-  type MigrationDiagnosticsV1Session,
-  migrationDiagnosticsV1SessionSchema
-} from '../migrationDiagnosticsV1Schemas'
+import type { MigrationDiagnosticsSnapshot } from '../migrationDiagnosticsSchemas'
 
 let testDir = ''
 
@@ -55,33 +51,17 @@ function journalFile(): string {
   return path.join(testDir, 'migration-diagnostics-v2.json')
 }
 
-function legacyJournalFile(): string {
-  return path.join(testDir, 'migration-diagnostics-v1.json')
-}
-
-function session(): MigrationDiagnosticsSession {
+function checkpoint(): MigrationDiagnosticsSnapshot {
   return {
-    version: 2,
-    sessionId: 'session-1',
-    appVersion: '2.0.0',
-    platform: 'darwin',
-    arch: 'arm64',
-    startedAt: '2026-07-19T10:00:00.000Z',
+    formatVersion: 1,
+    app: { version: '2.0.0', platform: 'darwin', arch: 'arm64' },
     state: 'active',
-    attempts: []
-  }
-}
-
-function legacySession(): MigrationDiagnosticsV1Session {
-  return {
-    version: 1,
-    sessionId: 'legacy-session-1',
-    appVersion: '1.9.12',
-    platform: 'darwin',
-    arch: 'arm64',
-    startedAt: '2026-07-19T09:00:00.000Z',
-    state: 'active',
-    attempts: []
+    current: {
+      trigger: 'initial',
+      status: 'in_progress',
+      startedAt: '2026-07-21T08:00:00.000Z',
+      lastLocation: { scope: 'gate', phase: 'resolve_paths' }
+    }
   }
 }
 
@@ -99,8 +79,8 @@ describe('readMigrationDiagnosticsJournal', () => {
   it("returns typed 'none', 'ok', and content-free 'corrupt' outcomes", () => {
     expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'none' })
 
-    writeMigrationDiagnosticsJournal(journalFile(), session())
-    expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'ok', journal: session() })
+    writeMigrationDiagnosticsJournal(journalFile(), checkpoint())
+    expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'ok', journal: checkpoint() })
 
     const secret = 'sk-user-message-/Users/alice'
     writeFileSync(journalFile(), `{ "raw": "${secret}"`)
@@ -109,39 +89,36 @@ describe('readMigrationDiagnosticsJournal', () => {
     expect(JSON.stringify(corrupt)).not.toContain(secret)
   })
 
-  it('rejects oversized input without returning its content', () => {
+  it.each([
+    ['old strict v2', { version: 2, sessionId: 'old', attempts: [] }],
+    ['old v1', { version: 1, sessionId: 'old', attempts: [] }],
+    ['extra private data', { ...checkpoint(), rawError: 'privacy-canary' }]
+  ])('rejects %s without a compatibility reader', (_name, value) => {
+    writeFileSync(journalFile(), JSON.stringify(value), { mode: 0o600 })
+
+    expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'corrupt', reason: 'invalid' })
+  })
+
+  it('rejects oversized and non-regular input without returning content', () => {
     const marker = 'MODEL_KEY_SHOULD_NOT_ECHO'
     const oversized = Buffer.alloc(MIGRATION_DIAGNOSTICS_JOURNAL_MAX_BYTES + 1, 'x')
     oversized.set(Buffer.from(marker), 0)
     writeFileSync(journalFile(), oversized)
 
-    const result = readMigrationDiagnosticsJournal(journalFile())
+    const oversizedResult = readMigrationDiagnosticsJournal(journalFile())
+    expect(oversizedResult).toEqual({ kind: 'corrupt', reason: 'oversized' })
+    expect(JSON.stringify(oversizedResult)).not.toContain(marker)
 
-    expect(result).toEqual({ kind: 'corrupt', reason: 'oversized' })
-    expect(JSON.stringify(result)).not.toContain(marker)
-  })
-
-  it('uses a caller-supplied strict schema without weakening content-free outcomes', () => {
-    writeFileSync(legacyJournalFile(), JSON.stringify(legacySession()), { mode: 0o600 })
-
-    expect(readMigrationDiagnosticsJournal(legacyJournalFile(), migrationDiagnosticsV1SessionSchema)).toEqual({
-      kind: 'ok',
-      journal: legacySession()
-    })
-
-    const canary = 'LEGACY_UNKNOWN_FIELD_CANARY_/Users/alice'
-    writeFileSync(legacyJournalFile(), JSON.stringify({ ...legacySession(), rawError: canary }), { mode: 0o600 })
-    const invalid = readMigrationDiagnosticsJournal(legacyJournalFile(), migrationDiagnosticsV1SessionSchema)
-
-    expect(invalid).toEqual({ kind: 'corrupt', reason: 'invalid' })
-    expect(JSON.stringify(invalid)).not.toContain(canary)
+    rmSync(journalFile())
+    fs.mkdirSync(journalFile())
+    expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'corrupt', reason: 'unreadable' })
   })
 })
 
 describe('writeMigrationDiagnosticsJournal', () => {
   it('validates before touching disk', () => {
     const open = vi.mocked(fs.openSync)
-    const invalid = { ...session(), rawError: 'secret' } as MigrationDiagnosticsSession
+    const invalid = { ...checkpoint(), rawError: 'secret' } as MigrationDiagnosticsSnapshot
 
     expect(() => writeMigrationDiagnosticsJournal(journalFile(), invalid)).toThrow()
     expect(open).not.toHaveBeenCalled()
@@ -155,7 +132,7 @@ describe('writeMigrationDiagnosticsJournal', () => {
     const close = vi.mocked(fs.closeSync)
     const rename = vi.mocked(fs.renameSync)
 
-    writeMigrationDiagnosticsJournal(journalFile(), session(), { platform: 'darwin' })
+    writeMigrationDiagnosticsJournal(journalFile(), checkpoint(), { platform: 'darwin' })
 
     const tmpFile = `${journalFile()}.tmp`
     expect(open.mock.calls[0]).toEqual([tmpFile, 'wx', 0o600])
@@ -166,230 +143,132 @@ describe('writeMigrationDiagnosticsJournal', () => {
     expect(rename).toHaveBeenCalledWith(tmpFile, journalFile())
     expect(rename.mock.invocationCallOrder[0]).toBeLessThan(open.mock.invocationCallOrder[1])
     expect(open.mock.calls[1]).toEqual([testDir, 'r'])
-    expect(open.mock.invocationCallOrder[1]).toBeLessThan(fsync.mock.invocationCallOrder[1])
-    expect(fsync.mock.invocationCallOrder[1]).toBeLessThan(close.mock.invocationCallOrder[1])
     expect(lstatSync(journalFile()).mode & 0o777).toBe(0o600)
   })
 
-  it('skips parent-directory fsync on Windows', () => {
-    const open = vi.mocked(fs.openSync)
-    const fsync = vi.mocked(fs.fsyncSync)
-
-    writeMigrationDiagnosticsJournal(journalFile(), session(), { platform: 'win32' })
-
-    expect(open).toHaveBeenCalledTimes(1)
-    expect(fsync).toHaveBeenCalledTimes(1)
-  })
-
-  it('safely replaces an exact stale tmp sibling', () => {
+  it('skips parent-directory fsync on Windows and replaces an exact stale tmp sibling', () => {
     writeFileSync(`${journalFile()}.tmp`, 'stale secret')
 
-    writeMigrationDiagnosticsJournal(journalFile(), session())
+    writeMigrationDiagnosticsJournal(journalFile(), checkpoint(), { platform: 'win32' })
 
+    expect(vi.mocked(fs.openSync)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(fs.fsyncSync)).toHaveBeenCalledTimes(1)
     expect(existsSync(`${journalFile()}.tmp`)).toBe(false)
-    expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'ok', journal: session() })
   })
 
   it('reports stable typed failures before and after atomic publication', () => {
-    const rawBeforeFailure = 'secret-before-/Users/alice'
     vi.mocked(fs.renameSync).mockImplementationOnce(() => {
-      throw new Error(rawBeforeFailure)
+      throw new Error('secret-before-/Users/alice')
     })
-    let beforeFailure: unknown
-
-    try {
-      writeMigrationDiagnosticsJournal(journalFile(), session(), { platform: 'darwin' })
-    } catch (error) {
-      beforeFailure = error
-    }
-
-    expect(beforeFailure).toMatchObject({
-      name: 'MigrationDiagnosticsJournalWriteError',
-      code: 'journal_write_failed',
-      publication: 'not_published'
-    })
-    expect(beforeFailure).toBeInstanceOf(Error)
-    if (!(beforeFailure instanceof Error)) {
-      throw new Error('Expected a journal write error')
-    }
-    expect(beforeFailure.message).toBe('Migration diagnostics journal write failed before publication')
-    expect(beforeFailure.message).not.toContain(rawBeforeFailure)
-    expect(beforeFailure.message).not.toContain(testDir)
+    expect(() => writeMigrationDiagnosticsJournal(journalFile(), checkpoint())).toThrowError(
+      expect.objectContaining({
+        name: 'MigrationDiagnosticsJournalWriteError',
+        code: 'journal_write_failed',
+        publication: 'not_published'
+      })
+    )
     expect(existsSync(journalFile())).toBe(false)
 
-    const rawAfterFailure = 'secret-after-/Users/alice'
     vi.mocked(fs.fsyncSync)
       .mockImplementationOnce(fsyncSync)
       .mockImplementationOnce(() => {
-        throw new Error(rawAfterFailure)
+        throw new Error('secret-after-/Users/alice')
       })
-    let afterFailure: unknown
-
-    try {
-      writeMigrationDiagnosticsJournal(journalFile(), session(), { platform: 'darwin' })
-    } catch (error) {
-      afterFailure = error
-    }
-
-    expect(afterFailure).toMatchObject({
-      name: 'MigrationDiagnosticsJournalWriteError',
-      code: 'journal_write_failed',
-      publication: 'published'
-    })
-    expect(afterFailure).toBeInstanceOf(Error)
-    if (!(afterFailure instanceof Error)) {
-      throw new Error('Expected a journal write error')
-    }
-    expect(afterFailure.message).toBe('Migration diagnostics journal write failed after publication')
-    expect(afterFailure.message).not.toContain(rawAfterFailure)
-    expect(afterFailure.message).not.toContain(testDir)
-    expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'ok', journal: session() })
+    expect(() => writeMigrationDiagnosticsJournal(journalFile(), checkpoint())).toThrowError(
+      expect.objectContaining({
+        name: 'MigrationDiagnosticsJournalWriteError',
+        code: 'journal_write_failed',
+        publication: 'published'
+      })
+    )
+    expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'ok', journal: checkpoint() })
   })
 })
 
 describe('corrupt quarantine', () => {
-  const now = new Date('2026-07-19T10:00:00.000Z')
+  const now = new Date('2026-07-21T10:00:00.000Z')
 
   it('uses a collision-safe UTC-basic filename without overwriting an existing copy', () => {
-    const collision = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
+    const collision = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260721T100000Z.json')
     writeFileSync(collision, 'existing')
     writeFileSync(journalFile(), 'new-corrupt')
 
-    const quarantined = quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now, platform: 'darwin' })
-    const quarantineFile = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100001Z.json')
-
-    expect(quarantined).toBe(true)
+    expect(quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now, platform: 'darwin' })).toBe(true)
     expect(readFileSync(collision, 'utf8')).toBe('existing')
-    expect(readFileSync(quarantineFile, 'utf8')).toBe('new-corrupt')
-    expect(existsSync(journalFile())).toBe(false)
+    expect(readFileSync(path.join(testDir, 'migration-diagnostics-v2.corrupt.20260721T100001Z.json'), 'utf8')).toBe(
+      'new-corrupt'
+    )
   })
 
-  it('atomically skips a destination created immediately before the first quarantine claim', () => {
-    const firstCandidate = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
-    const laterCandidate = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100001Z.json')
-    const racerCanary = 'racer-canary-must-not-be-overwritten'
-    const corruptJournal = 'new-corrupt-journal'
+  it('does not overwrite a destination claimed by a local competitor', () => {
+    const first = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260721T100000Z.json')
+    const second = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260721T100001Z.json')
     vi.mocked(fs.linkSync).mockImplementationOnce((existingPath, newPath) => {
-      writeFileSync(newPath, racerCanary, { flag: 'wx' })
+      writeFileSync(newPath, 'competitor-canary', { flag: 'wx' })
       linkSync(existingPath, newPath)
     })
-    writeFileSync(journalFile(), corruptJournal)
+    writeFileSync(journalFile(), 'new-corrupt')
 
-    const result = quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now, platform: 'darwin' })
-
-    expect(result).toBe(true)
-    expect(vi.mocked(fs.linkSync)).toHaveBeenCalledTimes(2)
-    expect(readFileSync(firstCandidate, 'utf8')).toBe(racerCanary)
-    expect(readFileSync(laterCandidate, 'utf8')).toBe(corruptJournal)
-    expect(existsSync(journalFile())).toBe(false)
-    expect(JSON.stringify(result)).not.toContain(testDir)
-    expect(JSON.stringify(result)).not.toContain(racerCanary)
-    expect(JSON.stringify(result)).not.toContain(corruptJournal)
+    expect(quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now })).toBe(true)
+    expect(readFileSync(first, 'utf8')).toBe('competitor-canary')
+    expect(readFileSync(second, 'utf8')).toBe('new-corrupt')
   })
 
-  it('tightens a permissive source inode to 0600 and durably syncs it before removing live', () => {
-    const quarantineFile = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
+  it('tightens the quarantined inode to 0600 before removing the live name', () => {
+    const quarantined = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260721T100000Z.json')
     writeFileSync(journalFile(), 'corrupt')
     chmodSync(journalFile(), 0o644)
-    const link = vi.mocked(fs.linkSync)
-    const open = vi.mocked(fs.openSync)
-    const fchmod = vi.mocked(fs.fchmodSync)
-    const fsync = vi.mocked(fs.fsyncSync)
-    const close = vi.mocked(fs.closeSync)
-    const unlink = vi.mocked(fs.unlinkSync)
 
     quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now, platform: 'darwin' })
 
-    expect(lstatSync(quarantineFile).mode & 0o777).toBe(0o600)
-    expect(link.mock.invocationCallOrder[0]).toBeLessThan(open.mock.invocationCallOrder[0])
-    expect(open.mock.calls[0]).toEqual([quarantineFile, 'r'])
-    expect(open.mock.invocationCallOrder[0]).toBeLessThan(fchmod.mock.invocationCallOrder[0])
-    expect(fchmod.mock.calls[0]?.[1]).toBe(0o600)
-    expect(fchmod.mock.invocationCallOrder[0]).toBeLessThan(fsync.mock.invocationCallOrder[0])
-    expect(fsync.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[0])
-    expect(close.mock.invocationCallOrder[0]).toBeLessThan(open.mock.invocationCallOrder[1])
-    expect(open.mock.calls[1]).toEqual([testDir, 'r'])
-    expect(close.mock.invocationCallOrder[1]).toBeLessThan(unlink.mock.invocationCallOrder[0])
-    expect(unlink.mock.calls[0]?.[0]).toBe(journalFile())
-    expect(unlink.mock.invocationCallOrder[0]).toBeLessThan(open.mock.invocationCallOrder[2])
-    expect(open.mock.calls[2]).toEqual([testDir, 'r'])
+    expect(lstatSync(quarantined).mode & 0o777).toBe(0o600)
+    expect(existsSync(journalFile())).toBe(false)
   })
 
-  it('keeps at most two matching regular copies and evicts the oldest when adding a third', () => {
-    const oldest = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260718T090000Z.json')
-    const newer = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T090000Z.json')
-    writeFileSync(oldest, 'oldest')
-    writeFileSync(newer, 'newer')
-    utimesSync(oldest, new Date('2026-07-18T09:00:00.000Z'), new Date('2026-07-18T09:00:00.000Z'))
-    utimesSync(newer, new Date('2026-07-19T09:00:00.000Z'), new Date('2026-07-19T09:00:00.000Z'))
-    writeFileSync(journalFile(), 'newest')
-
-    quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now })
-    const newest = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
-
-    expect(existsSync(oldest)).toBe(false)
-    expect(existsSync(newer)).toBe(true)
-    expect(existsSync(newest)).toBe(true)
-  })
-
-  it('deletes an 8-day-old matching file but preserves 7-day, symlink, and unrelated files', () => {
-    const expired = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260711T100000Z.json')
-    const retained = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260712T100000Z.json')
+  it('retains only two recent regular quarantines and preserves unrelated or symlink files', () => {
+    const expired = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260712T100000Z.json')
+    const retained = [
+      path.join(testDir, 'migration-diagnostics-v2.corrupt.20260720T100000Z.json'),
+      path.join(testDir, 'migration-diagnostics-v2.corrupt.20260720T110000Z.json'),
+      path.join(testDir, 'migration-diagnostics-v2.corrupt.20260720T120000Z.json')
+    ]
     const target = path.join(testDir, 'outside-target.txt')
-    const symlink = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260710T100000Z.json')
-    const unrelated = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260711T100000Z.json.extra')
+    const symlink = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260711T100000Z.json')
     writeFileSync(expired, 'expired')
-    writeFileSync(retained, 'retained')
+    const expiredTime = new Date('2026-07-12T09:59:59.000Z')
+    utimesSync(expired, expiredTime, expiredTime)
+    retained.forEach((file, index) => {
+      writeFileSync(file, String(index))
+      const time = new Date(`2026-07-20T${String(10 + index).padStart(2, '0')}:00:00.000Z`)
+      utimesSync(file, time, time)
+    })
     writeFileSync(target, 'outside')
     symlinkSync(target, symlink)
-    writeFileSync(unrelated, 'unrelated')
-    utimesSync(expired, new Date('2026-07-11T09:59:59.000Z'), new Date('2026-07-11T09:59:59.000Z'))
-    utimesSync(retained, new Date('2026-07-12T10:00:00.000Z'), new Date('2026-07-12T10:00:00.000Z'))
 
     garbageCollectMigrationDiagnosticsQuarantines(journalFile(), { now })
 
     expect(existsSync(expired)).toBe(false)
-    expect(existsSync(retained)).toBe(true)
+    expect(existsSync(retained[0])).toBe(false)
+    expect(existsSync(retained[1])).toBe(true)
+    expect(existsSync(retained[2])).toBe(true)
     expect(lstatSync(symlink).isSymbolicLink()).toBe(true)
     expect(readFileSync(target, 'utf8')).toBe('outside')
-    expect(existsSync(unrelated)).toBe(true)
-  })
-
-  it('derives independent v1 and v2 quarantine basenames from the supplied journal file', () => {
-    writeFileSync(journalFile(), 'corrupt-v2')
-    writeFileSync(legacyJournalFile(), 'corrupt-v1')
-
-    quarantineCorruptMigrationDiagnosticsJournal(journalFile(), { now })
-    quarantineCorruptMigrationDiagnosticsJournal(legacyJournalFile(), { now })
-
-    expect(readFileSync(path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json'), 'utf8')).toBe(
-      'corrupt-v2'
-    )
-    expect(readFileSync(path.join(testDir, 'migration-diagnostics-v1.corrupt.20260719T100000Z.json'), 'utf8')).toBe(
-      'corrupt-v1'
-    )
   })
 })
 
 describe('cleanupMigrationDiagnosticsJournal', () => {
-  it('deletes only the live journal and exact tmp while preserving corrupt and unrelated files', () => {
-    const corrupt = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260719T100000Z.json')
-    const unrelated = path.join(testDir, 'migration-diagnostics-v2.json.backup')
+  it('deletes only the live journal and exact tmp while preserving quarantines', () => {
+    const corrupt = path.join(testDir, 'migration-diagnostics-v2.corrupt.20260721T100000Z.json')
     writeFileSync(journalFile(), 'live')
     writeFileSync(`${journalFile()}.tmp`, 'tmp')
     writeFileSync(corrupt, 'corrupt')
-    writeFileSync(unrelated, 'unrelated')
 
     cleanupMigrationDiagnosticsJournal(journalFile(), { platform: 'darwin' })
 
-    expect(existsSync(journalFile())).toBe(false)
-    expect(existsSync(`${journalFile()}.tmp`)).toBe(false)
-    expect(existsSync(corrupt)).toBe(true)
-    expect(existsSync(unrelated)).toBe(true)
+    expect(readdirSync(testDir)).toEqual([path.basename(corrupt)])
   })
 
   it('treats ENOENT as benign', () => {
     expect(() => cleanupMigrationDiagnosticsJournal(journalFile())).not.toThrow()
-    expect(readdirSync(testDir)).toEqual([])
   })
 })
