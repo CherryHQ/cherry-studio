@@ -50,6 +50,7 @@ interface ResolvedTreeOptions {
   readonly includeHidden: boolean
   readonly withStats: boolean
   readonly maxDepth: number
+  readonly allowMissingRoot: boolean
 }
 
 function resolveOptions(options: DirectoryTreeOptions | undefined): ResolvedTreeOptions {
@@ -59,7 +60,8 @@ function resolveOptions(options: DirectoryTreeOptions | undefined): ResolvedTree
     respectGitignore: options?.respectGitignore ?? true,
     includeHidden: options?.includeHidden ?? false,
     withStats: options?.withStats ?? false,
-    maxDepth: options?.maxDepth ?? Number.MAX_SAFE_INTEGER
+    maxDepth: options?.maxDepth ?? Number.MAX_SAFE_INTEGER,
+    allowMissingRoot: options?.allowMissingRoot ?? false
   }
 }
 
@@ -185,18 +187,33 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   }
 
   private async runInitialScan(): Promise<void> {
+    if (this.options.allowMissingRoot) {
+      try {
+        await nodeStat(this.rootPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+        throw error
+      }
+    }
+
     // Let scan failures propagate. Swallowing them resolves File_TreeCreate
     // with an empty tree — indistinguishable from "the directory is genuinely
     // empty" to the renderer, which produces a silent regression (the user
     // sees zero notes when ripgrep is missing or the root is unreadable).
-    const paths = await searchListDirectory(this.rootPath as FilePath, {
-      recursive: true,
-      maxDepth: this.options.maxDepth,
-      includeHidden: this.options.includeHidden,
-      includeFiles: true,
-      includeDirectories: true,
-      maxEntries: Number.MAX_SAFE_INTEGER
-    })
+    let paths: string[]
+    try {
+      paths = await searchListDirectory(this.rootPath as FilePath, {
+        recursive: true,
+        maxDepth: this.options.maxDepth,
+        includeHidden: this.options.includeHidden,
+        includeFiles: true,
+        includeDirectories: true,
+        maxEntries: Number.MAX_SAFE_INTEGER
+      })
+    } catch (error) {
+      if (this.options.allowMissingRoot && (error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
 
     // Sort by depth ascending so parents always exist before children are
     // attached. Within a depth, sort alphabetically for stable display.

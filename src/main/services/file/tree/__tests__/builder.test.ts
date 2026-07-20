@@ -186,6 +186,26 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
     await rm(tmp, { recursive: true, force: true })
   })
 
+  it('starts empty and observes files created after an allowed missing root appears', async () => {
+    const root = path.join(tmp, 'system-workspace')
+    const builder = await createDirectoryTree(root, { allowMissingRoot: true })
+    try {
+      expect(builder.root.children).toEqual({})
+
+      const addedPromise = waitForEvent(
+        builder,
+        (event) => event.type === 'added' && event.path.endsWith('/artifact.md')
+      )
+      await mkdir(root)
+      await writeFile(path.join(root, 'artifact.md'), '# Artifact')
+
+      await addedPromise
+      expect(builder.getNode(path.join(root, 'artifact.md'))).not.toBeNull()
+    } finally {
+      await builder.disposeAsync()
+    }
+  })
+
   it('emits "added" when a new matching file appears on disk', async () => {
     const builder = await createDirectoryTree(tmp, { extensions: ['.md'], withStats: true })
     try {

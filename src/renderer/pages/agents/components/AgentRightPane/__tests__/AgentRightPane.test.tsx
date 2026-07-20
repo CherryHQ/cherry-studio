@@ -14,16 +14,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
-const { buildAgentToolFlowProjectionMock, fileTreeModelState, useArtifactFileTreeModelMock, useCommandHandlerMock } =
-  vi.hoisted(() => ({
-    buildAgentToolFlowProjectionMock: vi.fn(),
-    fileTreeModelState: {
-      hasLoaded: false,
-      nodeById: new Map<string, { kind: string }>()
-    },
-    useArtifactFileTreeModelMock: vi.fn(),
-    useCommandHandlerMock: vi.fn()
-  }))
+const {
+  buildAgentToolFlowProjectionMock,
+  fileTreeModelState,
+  systemFileTreeState,
+  useArtifactFileTreeModelMock,
+  useCommandHandlerMock,
+  useDirectoryTreeMock
+} = vi.hoisted(() => ({
+  buildAgentToolFlowProjectionMock: vi.fn(),
+  fileTreeModelState: {
+    hasLoaded: false,
+    nodeById: new Map<string, { kind: string }>()
+  },
+  systemFileTreeState: {
+    root: { children: {} as Record<string, unknown> },
+    version: 0
+  },
+  useArtifactFileTreeModelMock: vi.fn(),
+  useCommandHandlerMock: vi.fn(),
+  useDirectoryTreeMock: vi.fn()
+}))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
   const actual = await importActual<typeof AgentRightPaneProjection>()
@@ -155,6 +166,7 @@ vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
 }))
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
+  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { allowMissingRoot: true, maxDepth: 3 },
   isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
     Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
   useArtifactFileTreeModel: useArtifactFileTreeModelMock
@@ -194,6 +206,10 @@ vi.mock('@renderer/hooks/tab', () => ({
 
 vi.mock('@renderer/hooks/useFileSize', () => ({
   useFileSize: () => undefined
+}))
+
+vi.mock('@renderer/hooks/useDirectoryTree', () => ({
+  useDirectoryTree: useDirectoryTreeMock
 }))
 
 vi.mock('@renderer/hooks/useIsTextFile', () => ({
@@ -282,6 +298,9 @@ describe('AgentRightPane', () => {
     vi.clearAllMocks()
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
+    systemFileTreeState.root = { children: {} }
+    systemFileTreeState.version = 0
+    useDirectoryTreeMock.mockImplementation(() => systemFileTreeState)
     useArtifactFileTreeModelMock.mockImplementation(() => ({
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
@@ -382,7 +401,12 @@ describe('AgentRightPane', () => {
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
 
     rerender(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        workspaceType="user"
+        messages={[]}
+        partsByMessageId={{}}>
         <ArtifactCapabilityProbe />
         <AgentRightPane.Shortcuts />
       </TestAgentRightPane>
@@ -390,6 +414,45 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('can-open-artifact-file')).toHaveTextContent('true')
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
+  })
+
+  it('shows the files shortcut only after a system workspace contains an artifact', () => {
+    const { rerender } = render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/system-workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith('/system-workspace', {
+      allowMissingRoot: true,
+      maxDepth: 3
+    })
+
+    systemFileTreeState.root = { children: { 'artifact.md': {} } }
+    systemFileTreeState.version += 1
+    rerender(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/system-workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+    expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ allowMissingRoot: true, workspacePath: '/system-workspace' })
+    )
   })
 
   it('hides conversation shortcuts when the conversation is unavailable', () => {

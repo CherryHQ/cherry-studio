@@ -72,7 +72,13 @@ export const DirectoryTreeOptionsSchema = z.strictObject({
   withStats: z.boolean().optional(),
 
   /** Max depth from root. Default unlimited. */
-  maxDepth: z.int().nonnegative().optional()
+  maxDepth: z.int().nonnegative().optional(),
+
+  /**
+   * Treat an absent root as an empty tree while continuing to watch for it.
+   * Intended for app-owned directories that are created lazily.
+   */
+  allowMissingRoot: z.boolean().optional()
 })
 
 export type DirectoryTreeOptions = z.infer<typeof DirectoryTreeOptionsSchema>
