@@ -4,8 +4,6 @@ const SEMANTIC_ID = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/
 export type UiTokenValue = string | false | null | undefined
 
 export interface UiTokenOptions {
-  exactId?: string
-  parts?: readonly UiTokenValue[]
   scopes?: readonly UiTokenValue[]
 }
 
@@ -40,14 +38,8 @@ function namespaced(namespace: string, values: readonly UiTokenValue[] | undefin
 
 export function uiTokens(semanticId: string, options: UiTokenOptions = {}): string {
   assertSemanticId(semanticId)
-  if (options.exactId) assertTokenValue(options.exactId, 'id')
 
-  return [
-    semanticId,
-    ...namespaced('part', options.parts),
-    options.exactId ? `id:${options.exactId}` : undefined,
-    ...namespaced('scope', options.scopes)
-  ]
+  return [semanticId, ...namespaced('scope', options.scopes)]
     .filter((token): token is string => Boolean(token))
     .filter((token, index, tokens) => tokens.indexOf(token) === index)
     .join(' ')
@@ -78,7 +70,10 @@ function selectorToken(token: string): string {
   return `[data-ui~="${token}"]`
 }
 
-export interface UiSelectorOptions extends UiTokenOptions {
+export interface UiSelectorOptions {
+  exactId?: string
+  parts?: readonly UiTokenValue[]
+  scopes?: readonly UiTokenValue[]
   semanticId?: string
 }
 

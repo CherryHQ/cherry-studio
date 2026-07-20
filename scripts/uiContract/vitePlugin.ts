@@ -40,11 +40,13 @@ export { mergeDataUi, mergeUiProps } from ${JSON.stringify(runtimePath)}
 
 export const UiDataSlot = forwardRef(function UiDataSlot(props, ref) {
   const { children, ...slotProps } = props
+  const slotDataUi = typeof slotProps['data-ui'] === 'string' ? slotProps['data-ui'] : ''
+  if (!slotDataUi.trim()) return children
   if (Children.count(children) !== 1 || !isValidElement(children)) return null
   const child = children
 
   const childDataUi = typeof child.props['data-ui'] === 'string' ? child.props['data-ui'] : ''
-  const dataUi = mergeDataUi(childDataUi, slotProps['data-ui'])
+  const dataUi = mergeDataUi(childDataUi, slotDataUi)
   const mergedChild = cloneElement(child, { 'data-ui': dataUi })
   return createElement(Slot, { ...slotProps, ref }, mergedChild)
 })

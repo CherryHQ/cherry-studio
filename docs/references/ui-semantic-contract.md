@@ -1,8 +1,13 @@
 # UI Semantic Contract
 
 Cherry Studio exposes app-owned HTML elements and public SVG boundaries through one machine-readable `data-ui`
-attribute. It is the version-matched interface for user themes, end-to-end tests, inspectors, and controlled AI
+attribute. It is the maintained selector interface for user themes, end-to-end tests, inspectors, and controlled AI
 automation. Internal classes, DOM ancestry, and unmarked SVG drawing primitives are not part of this contract.
+
+The primary consumer is advanced Custom CSS. Users need a supported way to restyle or restructure arbitrary app-owned
+nodes without coupling persistent themes to implementation classes. Structured theme variables remain the preferred
+surface for common theming; `data-ui` is the node-level escape hatch for rules that variables cannot express. Tests and
+automation can reuse the same coordinates instead of introducing a second selector protocol.
 
 ## Token protocol
 
@@ -90,10 +95,12 @@ The registry intentionally stores only the state required for identity reconcili
 ```
 
 `semanticId` remains source-derived and is not duplicated in the registry. Deleted IDs are not retained as tombstones
-because the contract does not promise permanent non-reuse. Reconciliation matches nodes in this order: unchanged source
-anchor, Git-confirmed file move, then exactly one departed and one arrived node with the same structural fingerprint.
-Ambiguous structural candidates are never guessed and receive new IDs. This preserves identity for DOM nodes that remain
-recognizable without turning the registry into a cross-version compatibility ledger.
+because the contract does not promise permanent non-reuse. Reconciliation first honors Git-confirmed file moves, then
+reuses direct anchors only when the full same-shape occurrence cohort is unchanged, and finally matches exactly one
+departed and one arrived node with the same structural fingerprint. Adding or removing indistinguishable siblings
+rotates that cohort's IDs instead of guessing which source node retained an occurrence anchor. This preserves identity
+for recognizable DOM nodes without silently retargeting selectors or turning the registry into a cross-version
+compatibility ledger.
 
 After changing renderer markup, update and commit the registry:
 
@@ -128,15 +135,17 @@ import { uiTokens } from '@renderer/utils/uiContract'
 
 <div
   data-ui={uiTokens('chat.message', {
-    scopes: [`message:${message.id}`, `topic:${message.topicId}`],
-    parts: ['message-content']
+    scopes: [`message:${message.id}`, `topic:${message.topicId}`]
   })}
 />
 ```
 
-`uiTokens` validates the token grammar, removes duplicates, and serializes deterministically. `parseUiTokens` supports
-inspectors. `uiSelector` creates exact CSS selectors. Playwright code can use `uiLocator(page, 'chat.message', options)`
-from `tests/e2e/utils`.
+`uiTokens` writes only the explicit semantic ID and runtime `scope:*` tokens. Exact `id:*` tokens are compiler-owned;
+application code must not author them. Reusable `part:*` tokens describe static component structure and must be declared
+in the owning component's markup rather than selected dynamically at runtime. `uiTokens` validates the token grammar,
+removes duplicates, and serializes deterministically. `parseUiTokens` supports inspectors. `uiSelector` creates exact
+CSS selectors across semantic, part, exact-ID, and scope tokens. Playwright code can use
+`uiLocator(page, 'chat.message', options)` from `tests/e2e/utils`.
 
 Runtime scopes may contain durable business IDs already present in the renderer. Do not place secrets, prompt content,
 credentials, or user-visible text in a token.
@@ -180,7 +189,7 @@ the source contract; its owning renderer must expose a stable boundary or explic
 - Inferred semantic IDs are deterministic but best-effort and are re-derived from the current source. Themes that need a
   durable name must rely on an explicit semantic ID or a `part:` token.
 - Exact `id:` tokens identify a registered source node. They remain stable across formatting, copy changes, unchanged
-  anchors, and unambiguous DOM-preserving moves. Ambiguous structural refactors may receive new IDs, and deleted IDs do
-  not carry a permanent no-reuse guarantee.
+  occurrence cohorts, and unambiguous DOM-preserving moves. Ambiguous structural refactors may receive new IDs, and
+  deleted IDs do not carry a permanent no-reuse guarantee.
 - Tests and automation must query semantic/exact tokens, then use accessible roles for the intended interaction. The
   contract identifies nodes; it does not grant arbitrary script execution or bypass application permissions.

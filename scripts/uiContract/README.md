@@ -20,8 +20,9 @@ spreads and Radix `asChild` slots.
 
 New exact IDs are `ui-` plus the first 16 hexadecimal characters of the node's SHA-256 source-anchor hash. The committed
 `ui-contract.registry.json` stores only `[anchorHash, fingerprintHash, id]`; semantic roles and deleted-ID history are
-not duplicated. Reconciliation preserves an ID when the anchor is unchanged, a file move is Git-confirmed, or exactly
-one departed and one arrived node share a structural fingerprint. Ambiguous matches receive new IDs.
+not duplicated. Reconciliation preserves an ID when a same-shape occurrence cohort is unchanged, a file move is
+Git-confirmed, or exactly one departed and one arrived node share a structural fingerprint. Adding or removing
+indistinguishable siblings rotates that cohort's IDs instead of guessing which source node kept an occurrence anchor.
 
 Run `pnpm ui:contract:sync` after changing renderer markup. CI and production builds use `pnpm ui:contract:check` and
 reject stale registry data. Resolve registry merge conflicts by accepting either side and rerunning the sync command,
