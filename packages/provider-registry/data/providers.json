@@ -877,14 +877,14 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.minimaxi.com/v1/"
+          "baseUrl": "https://api.minimaxi.com/v1"
         }
       },
       "id": "minimax",
       "metadata": {
         "website": {
           "apiKey": "https://platform.minimaxi.com/user-center/basic-information/interface-key",
-          "docs": "https://platform.minimaxi.com/docs/api-reference/text-openai-api",
+          "docs": "https://platform.minimaxi.com/docs/api-reference/api-overview",
           "models": "https://platform.minimaxi.com/document/Models",
           "official": "https://platform.minimaxi.com/"
         }
@@ -1443,14 +1443,14 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.minimax.io/v1/"
+          "baseUrl": "https://api.minimax.io/v1"
         }
       },
       "id": "minimax-global",
       "metadata": {
         "website": {
           "apiKey": "https://platform.minimax.io/user-center/basic-information/interface-key",
-          "docs": "https://platform.minimax.io/docs/api-reference/text-openai-api",
+          "docs": "https://platform.minimax.io/docs/api-reference/api-overview",
           "models": "https://platform.minimax.io/document/Models",
           "official": "https://platform.minimax.io/"
         }

@@ -9007,7 +9007,7 @@
         "structured-output",
         "file-input"
       ],
-      "contextWindow": 1048576,
+      "contextWindow": 1000000,
       "family": "minimax",
       "id": "minimax-m3",
       "inputModalities": ["text", "image", "video"],
@@ -9020,15 +9020,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.12
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 2.4
         }
       },
       "reasoning": {
@@ -9058,11 +9058,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.2
         }
       }
     },
