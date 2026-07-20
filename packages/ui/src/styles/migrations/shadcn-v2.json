@@ -11,6 +11,8 @@
     "packages/ui/src/styles/migrations/**",
     "src/renderer/assets/styles/legacy-vars.css",
     "src/renderer/assets/styles/tailwind.css",
+    "scripts/__tests__/check-legacy-css-vars.test.ts",
+    "scripts/__tests__/check-pr-style-reminders.test.ts",
     "**/dist/**",
     "**/node_modules/**",
     "**/*.snap"

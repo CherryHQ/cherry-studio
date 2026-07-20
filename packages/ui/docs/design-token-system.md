@@ -423,9 +423,13 @@ Examples:
 | duplicated `--app-{shadcn-role}` | matching official Shadcn variable | `exact` |
 | product chat, navbar, window, and glow variables | approved `--cs-{domain}-*` concept | `exact` |
 
-A future migration plugin must parse CSS and TS/TSX syntax, be idempotent, provide a dry run, skip generated and
-vendor files, change only approved `exact`/`contextual` rules, and report ambiguous or unmapped usage. Regex-only
-mutation is not sufficient.
+The repository codemod reads this registry and parses CSS plus TS/TSX syntax before changing source files. It is
+idempotent, skips generated and vendor files, preserves same-named variables owned locally by a file, and changes
+only approved `exact` compatibility aliases. Contextual and review rules remain explicit manual work.
+
+Run `pnpm styles:legacy-vars` for a dry-run report, `pnpm styles:legacy-vars --fix` to apply exact replacements,
+or `pnpm styles:legacy-vars:strict` to fail when migratable usage remains. The same registry also drives the ESLint
+reminder, so migration policy and enforcement cannot maintain separate hard-coded inventories.
 
 ## 8. Governance
 

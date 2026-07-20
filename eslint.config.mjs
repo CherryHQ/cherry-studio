@@ -14,8 +14,29 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
 
+const REPO_DIRNAME = path.dirname(fileURLToPath(import.meta.url))
+const designTokenMigrationRegistry = JSON.parse(
+  fs.readFileSync(path.join(REPO_DIRNAME, 'packages/ui/src/styles/migrations/shadcn-v2.json'), 'utf8')
+)
+const LEGACY_RENDERER_CSS_VARS = designTokenMigrationRegistry.rules
+  .filter(({ source }) => {
+    return (
+      source.startsWith('--color-') ||
+      source.startsWith('--navbar-') ||
+      source.startsWith('--modal-') ||
+      source.startsWith('--chat-') ||
+      source.startsWith('--list-item-')
+    )
+  })
+  .map(({ source }) => source)
+
+const LEGACY_RENDERER_CSS_VAR_REGEX = new RegExp(
+  `(?<![\\w-])(${LEGACY_RENDERER_CSS_VARS.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w-])`,
+  'g'
+)
+
 // --- renderer dependency-direction boundary gate (import-x/no-restricted-paths) ---
-const RENDERER_DIRNAME = path.dirname(fileURLToPath(import.meta.url))
+const RENDERER_DIRNAME = REPO_DIRNAME
 const PAGE_DOMAINS = fs
   .readdirSync(path.join(RENDERER_DIRNAME, 'src/renderer/pages'), { withFileTypes: true })
   .filter((d) => d.isDirectory())

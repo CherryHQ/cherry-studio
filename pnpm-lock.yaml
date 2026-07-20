@@ -935,6 +935,9 @@ importers:
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
+      postcss:
+        specifier: 8.5.6
+        version: 8.5.6
       proxy-agent:
         specifier: ^6.5.0
         version: 6.5.0
