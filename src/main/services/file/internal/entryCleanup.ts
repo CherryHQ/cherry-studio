@@ -32,7 +32,6 @@ export interface EntryCleanupReport {
   readonly outcome: 'completed' | 'skipped' | 'failed'
   readonly candidates: number
   readonly deleted: number
-  readonly skippedTempRefs: number
   readonly skippedRefsReappeared: number
   /** Candidates that vanished or were upgraded to `manual` (ensureExternal reuse) between query and tx re-read — benign no-ops. */
   readonly gonePinned: number
@@ -56,7 +55,6 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
       outcome: 'skipped',
       candidates: 0,
       deleted: 0,
-      skippedTempRefs: 0,
       skippedRefsReappeared: 0,
       gonePinned: 0,
       failed: 0,
@@ -71,7 +69,6 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
         outcome: 'completed',
         candidates,
         deleted: 0,
-        skippedTempRefs: 0,
         skippedRefsReappeared: 0,
         gonePinned: 0,
         failed: 0,
@@ -85,7 +82,6 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
       limit: ENTRY_CLEANUP_BATCH_LIMIT
     })
     let deleted = 0
-    let skippedTempRefs = 0
     let skippedRefsReappeared = 0
     let gonePinned = 0
     let failed = 0
@@ -93,16 +89,6 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
 
     for (const candidate of batch) {
       try {
-        // Temp-session refs live in main-process cache memory and are not
-        // transactional — checked outside the tx; a ref appearing mid-tx is
-        // tolerated (spec §6: pruned later, FK fails on persist). Uses the
-        // dedicated cache-only predicate instead of `findByEntryId` so this
-        // per-candidate check never fans out to the persistent ref tables.
-        if (deps.fileRefService.hasTempSessionRef(candidate.id)) {
-          skippedTempRefs++
-          continue
-        }
-
         const outcome = deps.fileEntryService.withWriteTx((tx): CandidateOutcome => {
           const row = deps.fileEntryService.findByIdTx(tx, candidate.id)
           if (row === null || row.cleanupPolicy !== 'delete_when_unreferenced') {
@@ -142,7 +128,6 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
       outcome: 'completed',
       candidates,
       deleted,
-      skippedTempRefs,
       skippedRefsReappeared,
       gonePinned,
       failed,
@@ -156,7 +141,6 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
         errorMessage: err instanceof Error ? err.message : String(err),
         candidates: 0,
         deleted: 0,
-        skippedTempRefs: 0,
         skippedRefsReappeared: 0,
         gonePinned: 0,
         failed: 0,

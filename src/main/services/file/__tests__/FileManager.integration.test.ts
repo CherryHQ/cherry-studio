@@ -10,7 +10,6 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const electronMocks = vi.hoisted(() => ({
@@ -40,7 +39,6 @@ vi.mock('@data/db/restore/restoreJournal', () => ({
 
 const { FileManager } = await import('../FileManager')
 const { danglingCache } = await import('../danglingCache')
-const { fileRefService } = await import('@data/services/FileRefService')
 
 describe('FileManager (integration)', () => {
   const dbh = setupTestDatabase()
@@ -443,46 +441,24 @@ describe('FileManager (integration)', () => {
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
   })
 
-  it('INT-12: runSweep prunes dangling temp refs and reports orphan entries (DB sweep branch)', async () => {
-    const danglingTempId = '019606a0-0000-7000-8000-00000000ff31' as FileEntryId
+  it('INT-12: runSweep reports orphan entries (DB sweep branch)', async () => {
     const orphanEntryId = '019606a0-0000-7000-8000-00000000ff32' as FileEntryId
     const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values([
-      {
-        id: danglingTempId,
-        origin: 'internal',
-        name: 'dangling-temp',
-        ext: 'txt',
-        size: 1,
-        externalPath: null,
-        deletedAt: null,
-        createdAt: now,
-        updatedAt: now
-      },
-      {
-        id: orphanEntryId,
-        origin: 'internal',
-        name: 'orphan-entry',
-        ext: 'txt',
-        size: 1,
-        externalPath: null,
-        deletedAt: null,
-        createdAt: now + 1,
-        updatedAt: now + 1
-      }
-    ])
-    fileRefService.createTempSessionRef({
-      fileEntryId: danglingTempId,
-      sourceId: 'sess-orphan',
-      role: 'pending'
+    await dbh.db.insert(fileEntryTable).values({
+      id: orphanEntryId,
+      origin: 'internal',
+      name: 'orphan-entry',
+      ext: 'txt',
+      size: 1,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
     })
-    await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, danglingTempId))
 
     const report = await fm.runSweep()
 
-    expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'sess-orphan' })).toEqual([])
     expect(report.outcome).toBe('completed')
-    expect(report.orphanRefsByType.temp_session).toBe(1)
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
     // lastRunAt is the sweep start time captured server-side.
     expect(typeof report.lastRunAt).toBe('number')

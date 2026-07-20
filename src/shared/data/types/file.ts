@@ -465,17 +465,16 @@ export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSch
 //
 // 1. Add a variant section below (`{domain}SourceType` / `{domain}Roles` /
 //    `{domain}RefFields` / `{domain}FileRefSchema = createRefSchema(...)`),
-//    following `tempSession` as a minimal template.
+//    following `chatMessage` as a template.
 // 2. Add a dedicated SQLite association table with FKs to `file_entry` and the
 //    owning source table so deleting the source cascades refs at the DB layer.
 // 3. Register the variant in the aggregate: add its source-type literal to
 //    `allSourceTypes` and its schema to the `FileRefSchema` union.
 // 4. Route persistent write/delete through the owning business service;
-//    `FileRefService` only exposes cross-source query/ref-count + temp helpers.
+//    `FileRefService` only exposes cross-source query/ref-count.
 //
-// `temp_session` is the exception: app-session memory only (CacheService), not
-// SQLite, pruned via orphan sweep. Knowledge files are owned by the Knowledge
-// workflow and do not register FileManager refs.
+// Knowledge files are owned by the Knowledge workflow and do not register
+// FileManager refs.
 
 // ─── Common ref infrastructure ───
 
@@ -513,35 +512,14 @@ export type BusinessRefShape = {
  * (`id`, `fileEntryId`, `createdAt`, `updatedAt`) with business-specific fields
  * (`sourceType`, `sourceId`, `role`).
  *
- * Each sourceType variant should call this once. See the `tempSession` section
- * below for a minimal working example.
+ * Each sourceType variant should call this once. See the `chatMessage` section
+ * below for a working example.
  */
 export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObject<typeof refCommonFields & T> =>
   z.object({
     ...refCommonFields,
     ...shape
   })
-
-// ─── temp_session variant ───
-//
-// Tracks transient FileEntry records (typically paste previews, draft
-// attachments) that are in use by a session and should be retained until the
-// session completes. Temp refs are backed by main-process CacheService memory,
-// not SQLite, so they disappear on app restart. Temp refs must be explicitly
-// created and removed by the session owner.
-
-export const tempSessionSourceType = 'temp_session' as const
-
-export const tempSessionRoles = ['pending'] as const
-
-/** Business fields only (no common fields like id/nodeId/timestamps) */
-export const tempSessionRefFields = {
-  sourceType: z.literal(tempSessionSourceType),
-  sourceId: z.string().min(1),
-  role: z.enum(tempSessionRoles)
-}
-
-export const tempSessionFileRefSchema = createRefSchema(tempSessionRefFields)
 
 // ─── chat_message variant ───
 //
@@ -685,7 +663,6 @@ export function tagStoredFileRef(id: string): string {
  * "type declared but schema unaware" gap.
  */
 export const allSourceTypes = [
-  tempSessionSourceType,
   chatMessageSourceType,
   paintingSourceType,
   jobSourceType,
@@ -711,7 +688,6 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
  * bypassed the variant-registration discipline.
  */
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
-  tempSessionFileRefSchema,
   chatMessageFileRefSchema,
   paintingFileRefSchema,
   jobFileRefSchema,

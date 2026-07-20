@@ -5,10 +5,9 @@
  *
  * 1. **runDbSweep** (association/report level): persistent refs are
  *    FK-constrained by their owning source tables, so there is no generic
- *    source-orphan cleanup path. The DB pass prunes CacheService-backed
- *    temp-session refs that point at missing `file_entry` rows, then reports
- *    active **manual-policy** entries with zero refs (`delete_when_unreferenced`
- *    zero-ref entries belong to the cleanup pass, not this report).
+ *    source-orphan cleanup path. The DB pass reports active **manual-policy**
+ *    entries with zero refs (`delete_when_unreferenced` zero-ref entries belong
+ *    to the cleanup pass, not this report).
  *
  * 2. **runFileSweep** (FS-level, file-manager-architecture §10):
  *    enumerates `{userData}/Data/Files/` for UUID-named files without a
@@ -65,8 +64,8 @@ export interface ScanOrphanEntriesDeps {
 }
 
 /**
- * Identify active **manual-policy** entries with zero persistent refs and zero
- * temp-session refs pointing at them. `delete_when_unreferenced` entries are
+ * Identify active **manual-policy** entries with zero persistent refs pointing
+ * at them. `delete_when_unreferenced` entries are
  * excluded here (owned by the cleanup pass) so the report never double-counts
  * auto entries pending reclamation as manual orphans. The default policy for
  * manual orphans in architecture §7.1 is "preserve" — this scan only
@@ -87,8 +86,8 @@ export function scanOrphanEntries(deps: ScanOrphanEntriesDeps): OrphanEntryRepor
 // ─── DB-sweep umbrella + observability ───
 
 export interface RunDbSweepDeps {
-  readonly fileEntryService: Pick<FileEntryService, 'findManualUnreferenced' | 'listAllIds'>
-  readonly fileRefService: Pick<FileRefService, 'countByEntryIds' | 'pruneMissingTempSessionRefs'>
+  readonly fileEntryService: Pick<FileEntryService, 'findManualUnreferenced'>
+  readonly fileRefService: Pick<FileRefService, 'countByEntryIds'>
 }
 
 interface DbSweepStats {
@@ -116,8 +115,8 @@ export type DbSweepReport = DbSweepStats & DbSweepOutcome
 export type { OrphanReport } from '@shared/types/file'
 
 /**
- * Run both DB-level passes (temp-session ref prune + orphan-entry report) and
- * emit a single structured `orphan-sweep` log record. Persistent source deletion
+ * Run the DB-level orphan-entry report and emit a single structured
+ * `orphan-sweep` log record. Persistent source deletion
  * cleanup is intentionally absent: FK cascades own that path. An outer-level
  * throw collapses to `outcome: 'failed'`. Caller decides when to invoke the
  * sweep; FileManager exposes it on demand and does not run it at startup.
@@ -140,16 +139,13 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
     return report
   }
   try {
-    const prunedTempSessionRefs = deps.fileRefService.pruneMissingTempSessionRefs(deps.fileEntryService.listAllIds())
-    const refsByType: Partial<Record<FileRefSourceType, number>> =
-      prunedTempSessionRefs > 0 ? { temp_session: prunedTempSessionRefs } : {}
     const entries = scanOrphanEntries({
       fileEntryService: deps.fileEntryService,
       fileRefService: deps.fileRefService
     })
     const stats: DbSweepStats = {
-      orphanRefsByType: refsByType,
-      orphanRefsTotal: prunedTempSessionRefs,
+      orphanRefsByType: {},
+      orphanRefsTotal: 0,
       orphanEntriesByOrigin: entries.byOrigin,
       orphanEntriesTotal: entries.total,
       scanDurationMs: Date.now() - startedAt

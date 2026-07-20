@@ -1,10 +1,13 @@
 import { fileEntryTable } from '@data/db/schemas/file'
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { paintingTable } from '@data/db/schemas/painting'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { v4 as uuidv4 } from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -13,7 +16,6 @@ vi.mock('@application', async () => {
 })
 
 const { fileHandlers } = await import('../files')
-const { fileRefService } = await import('@data/services/FileRefService')
 
 describe('fileHandlers (DataApi)', () => {
   const dbh = setupTestDatabase()
@@ -37,6 +39,21 @@ describe('fileHandlers (DataApi)', () => {
       updatedAt: now,
       ...overrides
     })
+  }
+
+  // Give an entry a persistent (painting) ref so the ref endpoints report it.
+  // Returns the painting sourceId for source-key filtered queries.
+  async function seedPaintingRef(fileEntryId: FileEntryId): Promise<string> {
+    const paintingId = uuidv4()
+    await dbh.db.insert(paintingTable).values({
+      id: paintingId,
+      providerId: 'provider',
+      modelId: null,
+      prompt: 'prompt',
+      orderKey: paintingId
+    })
+    await dbh.db.insert(paintingFileRefTable).values({ fileEntryId, sourceId: paintingId, role: 'output' })
+    return paintingId
   }
 
   describe('GET /files/entries', () => {
@@ -180,10 +197,8 @@ describe('fileHandlers (DataApi)', () => {
       const idB = '019606a0-0000-7000-8000-000000000c02' as FileEntryId
       await seedEntry(idA)
       await seedEntry(idB)
-      fileRefService.createManyTempSessionRefs([
-        { fileEntryId: idA, sourceId: 's1', role: 'pending' },
-        { fileEntryId: idA, sourceId: 's2', role: 'pending' }
-      ])
+      await seedPaintingRef(idA)
+      await seedPaintingRef(idA)
 
       const result = (await fileHandlers['/files/entries/ref-counts'].GET({
         query: { entryIds: [idA, idB] }
@@ -215,7 +230,7 @@ describe('fileHandlers (DataApi)', () => {
     it('returns refs for the entry', async () => {
       const id = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
       await seedEntry(id)
-      fileRefService.createTempSessionRef({ fileEntryId: id, sourceId: 's1', role: 'pending' })
+      await seedPaintingRef(id)
       const refs = (await fileHandlers['/files/entries/:id/refs'].GET({
         params: { id }
       } as never)) as Array<{ fileEntryId: string }>
@@ -228,13 +243,9 @@ describe('fileHandlers (DataApi)', () => {
     it('returns refs filtered by source key', async () => {
       const id = '019606a0-0000-7000-8000-000000000e01' as FileEntryId
       await seedEntry(id)
-      fileRefService.createTempSessionRef({
-        fileEntryId: id,
-        sourceId: 'session-Z',
-        role: 'pending'
-      })
+      const paintingId = await seedPaintingRef(id)
       const refs = (await fileHandlers['/files/refs'].GET({
-        query: { sourceType: 'temp_session', sourceId: 'session-Z' }
+        query: { sourceType: 'painting', sourceId: paintingId }
       } as never)) as unknown[]
       expect(refs.length).toBe(1)
     })
@@ -253,7 +264,7 @@ describe('fileHandlers (DataApi)', () => {
     it('rejects an empty sourceId with ZodError', async () => {
       await expect(
         fileHandlers['/files/refs'].GET({
-          query: { sourceType: 'temp_session', sourceId: '' }
+          query: { sourceType: 'painting', sourceId: '' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
     })

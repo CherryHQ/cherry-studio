@@ -244,15 +244,6 @@ describe('entryCleanup', () => {
     await rm(externalDir, { recursive: true, force: true })
   })
 
-  it('skips entries holding a temp-session ref and counts skippedTempRefs', async () => {
-    const id = nthId(7)
-    await seedInternal(id, 'delete_when_unreferenced')
-    fileRefService.createTempSessionRef({ fileEntryId: id, sourceId: 'session-1', role: 'pending' })
-    const report = await runEntryCleanup(makeDeps())
-    expect(report.skippedTempRefs).toBe(1)
-    expect(fileEntryService.findById(id)).not.toBeNull()
-  })
-
   it('counts skippedRefsReappeared when a ref lands between query and tx', async () => {
     const id = nthId(8)
     await seedInternal(id, 'delete_when_unreferenced')

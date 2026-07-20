@@ -9,7 +9,6 @@ import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -105,19 +104,18 @@ describe('FileRefService', () => {
   }
 
   describe('read aggregation', () => {
-    it('findByEntryId returns refs across persistent tables and temp-session cache', async () => {
+    it('findByEntryId returns refs across persistent tables', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000aa01' as FileEntryId
       const paintingId = await seedPainting()
       const messageId = await seedChatMessage()
       await seedEntry(entryId)
       await seedPaintingRef(entryId, paintingId, 'output')
       await seedChatRef(entryId, messageId)
-      fileRefService.createTempSessionRef({ fileEntryId: entryId, sourceId: 'session-A', role: 'pending' })
 
       const refs = fileRefService.findByEntryId(entryId)
-      expect(refs).toHaveLength(3)
+      expect(refs).toHaveLength(2)
       expect(refs.every((r) => r.fileEntryId === entryId)).toBe(true)
-      expect(refs.map((r) => r.sourceType).sort()).toEqual(['chat_message', 'painting', 'temp_session'])
+      expect(refs.map((r) => r.sourceType).sort()).toEqual(['chat_message', 'painting'])
     })
 
     it('findBySource reads persistent sources without owning their write path', async () => {
@@ -132,7 +130,7 @@ describe('FileRefService', () => {
     })
 
     it('findBySource returns empty array when source key has no refs', async () => {
-      expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'no-such' })).toEqual([])
+      expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: 'no-such' })).toEqual([])
     })
 
     it('aggregates job refs (findByEntryId / findBySource) so job-held inputs are visible', async () => {
@@ -150,88 +148,8 @@ describe('FileRefService', () => {
     })
   })
 
-  describe('temp-session writes', () => {
-    it('creates a single temp ref and returns it parsed', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000bb01' as FileEntryId
-      await seedEntry(entryId)
-
-      const ref = fileRefService.createTempSessionRef({
-        fileEntryId: entryId,
-        sourceId: 'session-K',
-        role: 'pending'
-      })
-
-      expect(ref).toEqual(
-        expect.objectContaining({
-          fileEntryId: entryId,
-          sourceType: 'temp_session',
-          sourceId: 'session-K',
-          role: 'pending'
-        })
-      )
-    })
-
-    it('rejects temp refs for missing file_entry rows', async () => {
-      const missing = '019606a0-0000-7000-8000-00000000bb08' as FileEntryId
-
-      expect(() =>
-        fileRefService.createTempSessionRef({ fileEntryId: missing, sourceId: 'missing-entry', role: 'pending' })
-      ).toThrow(`FileEntry not found: ${missing}`)
-    })
-
-    it('throws on duplicate temp ref (entryId, sourceId, role)', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000bb02' as FileEntryId
-      await seedEntry(entryId)
-      const values = { fileEntryId: entryId, sourceId: 'dup', role: 'pending' as const }
-      fileRefService.createTempSessionRef(values)
-      expect(() => fileRefService.createTempSessionRef(values)).toThrow()
-    })
-
-    it('createManyTempSessionRefs skips conflicting rows and returns inserted ones', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000bb03' as FileEntryId
-      await seedEntry(entryId)
-      const base = { fileEntryId: entryId, role: 'pending' as const }
-      fileRefService.createTempSessionRef({ ...base, sourceId: 'one' })
-
-      const result = fileRefService.createManyTempSessionRefs([
-        { ...base, sourceId: 'one' },
-        { ...base, sourceId: 'two' },
-        { ...base, sourceId: 'three' }
-      ])
-
-      expect(result).toHaveLength(2)
-      expect(result.map((r) => r.sourceId).sort()).toEqual(['three', 'two'])
-    })
-
-    it('cleanupTempSessionSource removes all temp refs owned by one source', async () => {
-      const entryA = '019606a0-0000-7000-8000-00000000bb04' as FileEntryId
-      const entryB = '019606a0-0000-7000-8000-00000000bb05' as FileEntryId
-      await seedEntry(entryA)
-      await seedEntry(entryB)
-      fileRefService.createManyTempSessionRefs([
-        { fileEntryId: entryA, sourceId: 'cleanup-A', role: 'pending' },
-        { fileEntryId: entryB, sourceId: 'cleanup-A', role: 'pending' }
-      ])
-
-      expect(fileRefService.cleanupTempSessionSource('cleanup-A')).toBe(2)
-      expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'cleanup-A' })).toEqual([])
-    })
-
-    it('cleanupTempSessionSources removes temp refs across multiple sourceIds', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000bb06' as FileEntryId
-      await seedEntry(entryId)
-      const make = (sourceId: string) => ({ fileEntryId: entryId, sourceId, role: 'pending' as const })
-      fileRefService.createManyTempSessionRefs([make('s1'), make('s2'), make('s3')])
-
-      expect(fileRefService.cleanupTempSessionSources(['s1', 's3'])).toBe(2)
-      const remaining = fileRefService.findByEntryId(entryId)
-      expect(remaining.map((r) => r.sourceId)).toEqual(['s2'])
-    })
-  })
-
   describe('sweep helpers', () => {
-    it('countByEntryIds counts refs across chat, painting, job, and temp-session sources', async () => {
-      const idA = '019606a0-0000-7000-8000-00000000cc01' as FileEntryId
+    it('countByEntryIds counts refs across chat, painting, and job sources', async () => {
       const idB = '019606a0-0000-7000-8000-00000000cc02' as FileEntryId
       const idC = '019606a0-0000-7000-8000-00000000cc03' as FileEntryId
       const idD = '019606a0-0000-7000-8000-00000000cc06' as FileEntryId
@@ -240,22 +158,16 @@ describe('FileRefService', () => {
       const secondPaintingId = await seedPainting()
       const messageId = await seedChatMessage()
       const jobId = await seedJob()
-      await seedEntry(idA)
       await seedEntry(idB)
       await seedEntry(idC)
       await seedEntry(idD)
       await seedEntry(idE)
-      fileRefService.createManyTempSessionRefs([
-        { fileEntryId: idA, sourceId: 's1', role: 'pending' },
-        { fileEntryId: idA, sourceId: 's2', role: 'pending' }
-      ])
       await seedPaintingRef(idB, paintingId, 'output')
       await seedChatRef(idD, messageId)
       await seedPaintingRef(idD, secondPaintingId, 'input')
       await seedJobRef(idE, jobId, 'input')
 
-      const result = fileRefService.countByEntryIds([idA, idB, idC, idD, idE])
-      expect(result.get(idA)).toBe(2)
+      const result = fileRefService.countByEntryIds([idB, idC, idD, idE])
       expect(result.get(idB)).toBe(1)
       expect(result.has(idC)).toBe(false)
       expect(result.get(idD)).toBe(2)
@@ -277,25 +189,6 @@ describe('FileRefService', () => {
       expect(result.get(firstId)).toBe(1)
       expect(result.get(boundaryId)).toBe(1)
       expect(result.size).toBe(2)
-    })
-
-    it('pruneMissingTempSessionRefs removes stale temp refs and keeps existing ones', async () => {
-      const existing = '019606a0-0000-7000-8000-00000000cc04' as FileEntryId
-      const missing = '019606a0-0000-7000-8000-00000000cc05' as FileEntryId
-      await seedEntry(existing)
-      await seedEntry(missing)
-      fileRefService.createManyTempSessionRefs([
-        { fileEntryId: existing, sourceId: 's', role: 'pending' },
-        { fileEntryId: missing, sourceId: 's', role: 'pending' }
-      ])
-      await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, missing))
-
-      const removed = fileRefService.pruneMissingTempSessionRefs(new Set([existing]))
-
-      expect(removed).toBe(1)
-      expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 's' })).toEqual([
-        expect.objectContaining({ fileEntryId: existing })
-      ])
     })
   })
 

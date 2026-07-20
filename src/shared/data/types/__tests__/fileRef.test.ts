@@ -10,9 +10,7 @@ import {
   miniAppLogoRef,
   paintingFileRefSchema,
   paintingSourceType,
-  providerLogoRef,
-  tempSessionFileRefSchema,
-  tempSessionSourceType
+  providerLogoRef
 } from '../file'
 
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
@@ -29,14 +27,7 @@ describe('FileRefSourceType', () => {
     // FK-constrained association table — see ref/index.ts.
     // The user avatar deliberately has no variant: it is persisted only in the
     // `app.user.avatar` preference (no ref table).
-    expect([...allSourceTypes]).toEqual([
-      'temp_session',
-      'chat_message',
-      'painting',
-      'job',
-      'provider_logo',
-      'mini_app_logo'
-    ])
+    expect([...allSourceTypes]).toEqual(['chat_message', 'painting', 'job', 'provider_logo', 'mini_app_logo'])
   })
 })
 
@@ -175,19 +166,6 @@ describe('jobFileRefSchema', () => {
 })
 
 describe('FileRefSchema discriminated union', () => {
-  it('dispatches to the temp_session variant', () => {
-    const parsed = FileRefSchema.parse({
-      id: REF_ID,
-      fileEntryId: ENTRY_ID,
-      sourceType: tempSessionSourceType,
-      sourceId: 'session-1',
-      role: 'pending',
-      createdAt: TS,
-      updatedAt: TS
-    })
-    expect(parsed.sourceType).toBe('temp_session')
-  })
-
   it('dispatches to the chat_message variant', () => {
     const parsed = FileRefSchema.parse({
       id: REF_ID,
@@ -245,18 +223,5 @@ describe('FileRefSchema discriminated union', () => {
         })
       ).toThrow()
     }
-  })
-
-  it('roundtrips a valid row via the union', () => {
-    const input = tempSessionFileRefSchema.parse({
-      id: REF_ID,
-      fileEntryId: ENTRY_ID,
-      sourceType: tempSessionSourceType,
-      sourceId: 'session-rt',
-      role: 'pending',
-      createdAt: TS,
-      updatedAt: TS
-    })
-    expect(FileRefSchema.parse(input)).toEqual(input)
   })
 })

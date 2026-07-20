@@ -34,7 +34,6 @@ function completedReport(overrides: Partial<Report> = {}): Report {
     outcome: 'completed',
     candidates: 0,
     deleted: 0,
-    skippedTempRefs: 0,
     skippedRefsReappeared: 0,
     gonePinned: 0,
     failed: 0,

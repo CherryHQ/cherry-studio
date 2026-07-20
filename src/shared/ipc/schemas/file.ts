@@ -93,23 +93,6 @@ export const fileRequestSchemas = {
     input: batchCreateInternalEntriesInputSchema,
     output: batchCreateResultSchema
   }),
-  // Draft-window hold for an eagerly-materialized input whose owning row does not
-  // exist yet (painting composer inputs — file-entry-cleanup.md §4.1). A
-  // cleanup-visible temp-session ref keeps the entry alive through the draft
-  // window until generation's `painting_file_ref role='input'` takes over;
-  // `release_temp_session` drops the whole draft source once it does (or on discard).
-  'file.hold_temp_session': defineRoute({
-    input: z.strictObject({
-      fileEntryId: FileEntryIdSchema,
-      sourceId: z.string().min(1),
-      role: z.literal('input')
-    }),
-    output: z.void()
-  }),
-  'file.release_temp_session': defineRoute({
-    input: z.strictObject({ sourceId: z.string().min(1) }),
-    output: z.void()
-  }),
   'file.batch_trash': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_restore': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_permanent_delete': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),

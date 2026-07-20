@@ -1,4 +1,3 @@
-import type { tempSessionSourceType } from '@shared/data/types/file'
 import {
   chatMessageRoles,
   chatMessageSourceType,
@@ -29,7 +28,7 @@ function roleCheck(column: SQLWrapper, roles: readonly string[]) {
   return sql`${column} IN (${sqlStringList(roles)})`
 }
 
-export type PersistentFileRefSourceType = Exclude<FileRefSourceType, typeof tempSessionSourceType>
+export type PersistentFileRefSourceType = FileRefSourceType
 
 /**
  * Chat message file references.
