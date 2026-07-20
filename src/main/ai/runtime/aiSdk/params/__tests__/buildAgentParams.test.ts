@@ -11,6 +11,7 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
+      if (name === 'PreferenceService') return { get: () => null }
       throw new Error(`unexpected service: ${name}`)
     }
   }

@@ -193,6 +193,16 @@ describe('ActionTranslate', () => {
     })
   })
 
+  it('localizes known translation errors', async () => {
+    state.detectLanguage.mockResolvedValue('unknown')
+    state.translate.mockRejectedValue(new Error("Model with id 'provider/model' not found"))
+
+    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+
+    expect(await screen.findByText('error.diagnosis.model')).toBeInTheDocument()
+    expect(screen.queryByText("Model with id 'provider/model' not found")).not.toBeInTheDocument()
+  })
+
   it('groups auxiliary controls so they wrap together behind the language direction group', async () => {
     state.detectLanguage.mockResolvedValue('en-us')
 
@@ -217,6 +227,11 @@ describe('ActionTranslate', () => {
     expect(auxiliaryActionGroup).toHaveClass('ml-auto', 'shrink-0')
     expect(auxiliaryActionGroup.querySelector('.lucide-settings-2')).not.toBeNull()
     expect(auxiliaryActionGroup.querySelector('.lucide-circle-question-mark')).not.toBeNull()
+    expect(auxiliaryActionGroup.querySelector('.lucide-settings-2')?.closest('button')).toHaveClass(
+      'text-icon',
+      'dark:text-icon'
+    )
+    expect(auxiliaryActionGroup.querySelector('.lucide-circle-question-mark')).toHaveClass('text-icon')
     expect(detectedBadge).toHaveClass('min-w-0')
     expect(detectedLabel).toHaveClass('min-w-0', 'truncate')
     expect(detectedLabel).toHaveAttribute('title', 'English')
@@ -258,6 +273,13 @@ describe('ActionTranslate', () => {
     const preferredTargetLabel = await screen.findByText('translate.preferred_target')
     const settingsContent = preferredTargetLabel.closest<HTMLElement>('[data-slot="popover-content"]')
     expect(settingsContent).toBeInTheDocument()
+    expect(settingsContent).not.toHaveClass('bg-card')
+
+    const settingsComboboxes = settingsContent!.querySelectorAll('[role="combobox"]')
+    expect(settingsComboboxes).toHaveLength(2)
+    for (const combobox of settingsComboboxes) {
+      expect(combobox.closest('.inline-flex')).toHaveClass('w-full', '[&>div]:w-full')
+    }
 
     await waitFor(() => expect(settingsContent).toHaveFocus())
     expect(document.querySelectorAll('[data-slot="popover-content"]')).toHaveLength(1)
