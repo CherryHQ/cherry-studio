@@ -10,8 +10,8 @@ import type { FC, PropsWithChildren } from 'react'
  *
  * Export and restore are **independent**:
  * - {@link isV2BackupExportReady} — packaged ON (export uses `createSnapshot` / VACUUM INTO into a detached backup.sqlite, no quiesce).
- * - {@link isV2BackupRestoreReady} — stays inert until restore-quiesce; DEV-only
- *   so the restore spine can still be exercised in development.
+ * - {@link isV2BackupRestoreReady} — packaged ON once partial restore-quiesce + IPC
+ *   mutation gates land (BACKUP_IN_PROGRESS + JobManager pause/drain).
  *
  * Functions (not module consts) so tests can spy each flag without opening the other.
  */
@@ -21,9 +21,9 @@ export function isV2BackupExportReady(): boolean {
   return true
 }
 
-/** Restore stays fail-closed in packaged builds until restore-quiesce lands. */
+/** Packaged restore is production-ready once this gate ships (partial quiesce). */
 export function isV2BackupRestoreReady(): boolean {
-  return Boolean(import.meta.env.DEV)
+  return true
 }
 
 type GateProps = PropsWithChildren<{

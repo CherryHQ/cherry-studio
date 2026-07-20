@@ -20,8 +20,8 @@
 // ImportOrchestrator spine (quiesce → fingerprint → snapshot → merge → migrate → seal →
 // stage → 2nd fingerprint → journal → relaunch). quiesce is PARTIAL (BACKUP_IN_PROGRESS
 // flag + JobManager.pause + best-effort drain; full quiesce a1/#17014 follow-up).
-// MergeEngine (SKIP/INSERT + junction + FTS) is wired; file-resource staging stays
-// fail-closed (no file blobs in the staged journal yet). performRestoreRecovery at
+// MergeEngine (SKIP/INSERT + junction + FTS) is wired; file/KB/Notes blob staging is
+// deferred (stageFileResources returns [] — DB-only journal). performRestoreRecovery at
 // startup GCs staging residue from a crashed prior restore.
 
 import { randomUUID } from 'node:crypto'
@@ -31,7 +31,15 @@ import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, type Disposable, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  type Disposable,
+  Emitter,
+  ErrorHandling,
+  Injectable,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { isPathInside } from '@main/utils/legacyFile'
@@ -51,13 +59,12 @@ import {
   NewerOrDivergedBackupError,
   OutputPathExistsError,
   RestoreMergeNotImplementedError,
-  RestoreStagingNotImplementedError,
   UnsupportedBackupFormatError
 } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
-import { MergeEngine } from './merge'
+import { MergeEngine, MergeStrategyNotImplementedError } from './merge'
 import { setBackupInProgress } from './quiesceGate'
 
 const logger = loggerService.withContext('BackupService')
@@ -269,10 +276,10 @@ export class BackupService extends BaseService {
    * quiesce → snapshot → merge → migrate → seal → 2nd fingerprint → staged journal,
    * then relaunches so the preboot promotion gate (#16884) swaps work.sqlite in.
    *
-   * Fail-closed until write-quiesce lands: the orchestrator's quiesce dep throws, so
-   * NO staged journal is written and NO relaunch occurs. MergeEngine is wired
-   * (SKIP/INSERT + junction + FTS); file-resource staging stays fail-closed.
-   * Mutually exclusive with export (activeOperation).
+   * Partial quiesce + SKIP/INSERT merge are wired. File/KB/Notes blob staging is
+   * deferred (`stageFileResources` returns [] — DB-only journal / lite restore).
+   * OVERWRITE/RENAME and natural-key FIELD_MERGE still throw
+   * {@link MergeStrategyNotImplementedError}. Mutually exclusive with export.
    */
   async startRestore({ archivePath }: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
     // Reserve the active slot BEFORE any work (incl. the journal read) so the null-check and
@@ -309,8 +316,8 @@ export class BackupService extends BaseService {
         // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — SKIP/INSERT +
         // junction + FTS) are wired. quiesce is PARTIAL (BACKUP_IN_PROGRESS flag +
         // JobManager.pause + best-effort drain; full quiesce a1/#17014 is follow-up).
-        // File-resource staging stays a fail-closed stub — the staged journal carries no
-        // file blobs yet, so the preboot gate promotes only the DB.
+        // File/KB/Notes blob staging is deferred — empty fileResources so the preboot
+        // gate promotes only the DB (lite / SKIP DB-only restore).
         admitArchive,
         quiesceWriters: async () => {
           // PARTIAL quiesce (this PR): set BACKUP_IN_PROGRESS so IPC mutations reject
@@ -343,7 +350,9 @@ export class BackupService extends BaseService {
           return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
         },
         stageFileResources: async () => {
-          throw new RestoreStagingNotImplementedError()
+          // DB-only / lite restore: no FileStager blobs yet. Empty journal fileResources
+          // lets the spine seal + promote work.sqlite; KB/Notes/file blobs stay deferred.
+          return []
         }
       })
       await importOrch.importBackup({
@@ -756,6 +765,9 @@ export class BackupService extends BaseService {
     }
     if (e instanceof BackupIntegrityError) return new IpcError('BACKUP_INTEGRITY_FAILED', e.message)
     if (e instanceof BackupArchiveCorruptError) return new IpcError('BACKUP_ARCHIVE_CORRUPT', e.message)
+    if (e instanceof MergeStrategyNotImplementedError) {
+      return new IpcError('BACKUP_MERGE_STRATEGY_UNSUPPORTED', e.message)
+    }
     // File stager / SQLite copy can surface raw ENOSPC errno or SQLITE_FULL code outside
     // archive.ts (which only wraps its own writeStream ENOSPC → DiskFullError). Normalize
     // both to BACKUP_DISK_FULL so the renderer never sees INTERNAL for disk-full.

@@ -5691,7 +5691,8 @@
             "failure": "Restore failed.",
             "pick_prompt": "Select a .cbu backup archive to restore.",
             "relaunching": "Restore staged. The app is relaunching…",
-            "selected": "Selected archive:"
+            "selected": "Selected archive:",
+            "skip_only": "Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet."
           }
         },
         "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."

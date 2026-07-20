@@ -5691,7 +5691,8 @@
             "failure": "恢复失败。",
             "pick_prompt": "请选择要恢复的 .cbu 备份文件。",
             "relaunching": "恢复已暂存，应用正在重启…",
-            "selected": "已选择的备份："
+            "selected": "已选择的备份：",
+            "skip_only": "当前仅支持跳过（SKIP）合并策略，覆盖与重命名尚未支持。"
           }
         },
         "v2_unavailable": "V2 备份恢复尚未上线，敬请期待"

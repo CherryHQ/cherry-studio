@@ -1281,6 +1281,7 @@
       "label": "Tem certeza de que deseja fazer backup dos dados?"
     },
     "content": "Fazer backup de todos os dados, incluindo registros de chat, configurações, base de conhecimento e todos os outros dados. Por favor, note que o processo de backup pode levar algum tempo. Agradecemos sua paciência.",
+    "credentials_warning": "[to be translated]:This backup includes API keys and provider credentials in plaintext. Store the archive securely.",
     "progress": {
       "completed": "Backup concluído",
       "compressing": "Comprimindo arquivo...",
@@ -5643,8 +5644,45 @@
         "label": "Logs do aplicativo"
       },
       "backup": {
+        "legacy_local_unavailable": "[to be translated]:Legacy local backup controls are disabled. Use Backup / Restore above.",
         "skip_file_data_help": "Pule arquivos de dados como imagens e bancos de conhecimento durante o backup e realize apenas o backup das conversas e configurações. Diminua o consumo de espaço e aumente a velocidade do backup.",
         "skip_file_data_title": "Backup simplificado",
+        "v2": {
+          "export": {
+            "cancel_timeout": "[to be translated]:Cancel timed out. The backup may still be running.",
+            "cancelled": "[to be translated]:Backup cancelled.",
+            "failure": "[to be translated]:Backup failed.",
+            "phase": {
+              "archive": "[to be translated]:Creating archive…",
+              "collect": "[to be translated]:Collecting data…",
+              "journal": "[to be translated]:Writing journal…",
+              "merge": "[to be translated]:Merging data…",
+              "preflight": "[to be translated]:Checking disk space…",
+              "quiesce": "[to be translated]:Quiescing services…",
+              "relaunch": "[to be translated]:Relaunching…",
+              "snapshot": "[to be translated]:Copying database…",
+              "verify": "[to be translated]:Verifying backup…"
+            },
+            "running": "[to be translated]:Backing up…",
+            "save_dialog_title": "[to be translated]:Save Backup",
+            "selecting": "[to be translated]:Choose where to save the backup…",
+            "starting": "[to be translated]:Starting backup…",
+            "success": "[to be translated]:Backup completed."
+          },
+          "file_filter": "[to be translated]:Cherry Backup",
+          "preset": {
+            "full": "[to be translated]:Full backup (all data)",
+            "lite": "[to be translated]:Lite backup (chat & settings, no knowledge/files)"
+          },
+          "restore": {
+            "confirm_content": "[to be translated]:Restoring will replace current data and relaunch the app. Continue?",
+            "failure": "[to be translated]:Restore failed.",
+            "pick_prompt": "[to be translated]:Select a .cbu backup archive to restore.",
+            "relaunching": "[to be translated]:Restore staged. The app is relaunching…",
+            "selected": "[to be translated]:Selected archive:",
+            "skip_only": "[to be translated]:Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet."
+          }
+        },
         "v2_unavailable": "Backup & restore V2 ainda não está disponível. Em breve."
       },
       "clear_cache": {

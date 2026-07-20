@@ -105,6 +105,25 @@ describe('RestoreV2Popup', () => {
     })
   })
 
+  it('maps BACKUP_MERGE_STRATEGY_UNSUPPORTED to the SKIP-only copy', async () => {
+    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cbu' }])
+    confirmMock.mockResolvedValueOnce(true)
+    const err = Object.assign(new Error('userStrategy OVERWRITE'), {
+      code: 'BACKUP_MERGE_STRATEGY_UNSUPPORTED'
+    })
+    startRestoreMock.mockRejectedValueOnce(err)
+
+    await RestoreV2Popup.show()
+    fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))
+    await waitFor(() => expect(screen.getByText('/tmp/backup.cbu')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('BACKUP_MERGE_STRATEGY_UNSUPPORTED')).toBeInTheDocument()
+      expect(screen.getByText('settings.data.backup.v2.restore.skip_only')).toBeInTheDocument()
+    })
+  })
+
   it('shows select failure on idle when no archive was chosen yet', async () => {
     selectMock.mockRejectedValueOnce(new Error('dialog crashed'))
 
