@@ -24,6 +24,14 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () => ({
+    Avatar: ({ size, shape }: { size: number; shape: string }) => (
+      <span data-testid="model-icon" data-size={size} data-shape={shape} />
+    )
+  })
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<object>()
 
@@ -78,6 +86,15 @@ describe('ModelListItem', () => {
     )
 
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.getByTestId('model-icon')).toHaveAttribute('data-size', '26')
+    expect(screen.getByTestId('model-icon')).toHaveAttribute('data-shape', 'circle')
+    expect(screen.getByTestId('model-icon').parentElement).toHaveClass(
+      'size-6.5',
+      'overflow-hidden',
+      'rounded-full',
+      'border',
+      'border-border'
+    )
     expect(screen.getByLabelText('common.settings')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.models.manage.remove_model')).toBeInTheDocument()
   })

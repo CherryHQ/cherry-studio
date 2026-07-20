@@ -80,6 +80,7 @@ export default function ProviderListGroup({
               provider={{ id: presetProviderId, name: label }}
               size={26}
               className={providerListClasses.itemAvatar}
+              displayContext="provider-list"
             />
             <span className={cn(providerListClasses.itemLabel, 'text-foreground')}>{label}</span>
           </div>
