@@ -44,7 +44,6 @@ const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'
 const handlers = {
   generating: false,
   onPromptChange: vi.fn(),
-  onInputFilesChange: vi.fn(),
   onGenerate: vi.fn(),
   onCancel: vi.fn(),
   onModelSelect: vi.fn(),
