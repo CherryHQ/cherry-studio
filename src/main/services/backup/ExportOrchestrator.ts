@@ -467,11 +467,21 @@ export class ExportOrchestrator {
       // Table names are string literals (no parameterization → no injection
       // surface); each helper hardcodes its own table. CASCADE FKs remove
       // dependent rows (file_ref.fileEntryId / knowledge_item.baseId).
+      //
+      // External file_entry rows are dangling by design (§5.1: origin='external'
+      // only references externalPath user files — no blob is copied into the
+      // archive), so they legitimately lack a staged blob. Prune ONLY internal
+      // missing rows; retain external rows so their file_ref references survive
+      // into the archive (on restore the message/painting/logo still records that
+      // it referenced the user's file at externalPath). NOTE: §5.1 states external
+      // is "dangling by design" without explicitly mandating retain vs prune;
+      // current reading is "dangling = retain schema row". Revisit if architecture
+      // clarifies intent is to prune external rows instead.
       const deleteFileEntries = (ids: readonly string[]): void => {
         for (let i = 0; i < ids.length; i += CHUNK) {
           const batch = ids.slice(i, i + CHUNK)
           const placeholders = batch.map(() => '?').join(',')
-          db.prepare(`DELETE FROM file_entry WHERE id IN (${placeholders})`).run(...batch)
+          db.prepare(`DELETE FROM file_entry WHERE id IN (${placeholders}) AND origin = 'internal'`).run(...batch)
         }
       }
       const deleteKnowledgeBases = (ids: readonly string[]): void => {

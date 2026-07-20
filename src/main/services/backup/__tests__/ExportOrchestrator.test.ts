@@ -477,6 +477,93 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
     }
   })
 
+  it('retains external file_entry rows + their file_ref references (§5.1 dangling by design)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-export-ext-'))
+    try {
+      const filesRoot = await mkdtemp(join(tmpdir(), 'cs-files-root-'))
+      // int1 has an internal blob (staged); ext1 is external (dangling — no blob
+      // copied, §5.1). msg1 references BOTH via chat_message_file_ref.
+      await writeFile(join(filesRoot, 'int1.txt'), 'hello')
+
+      await dbh.db.delete(chatMessageFileRefTable)
+      await dbh.db.delete(fileEntryTable)
+      await dbh.db.delete(messageTable)
+      await dbh.db.delete(topicTable)
+      await dbh.db.insert(topicTable).values([{ id: 'tpc1', name: 'T', isNameManuallyEdited: false, orderKey: 'a' }])
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'msg1',
+          topicId: 'tpc1',
+          role: 'root',
+          parentId: null,
+          data: { parts: [] },
+          searchableText: '',
+          status: 'success',
+          siblingsGroupId: 0
+        }
+      ])
+      await dbh.db.insert(fileEntryTable).values([
+        { id: 'int1', origin: 'internal', name: 'a', ext: 'txt', size: 5 },
+        { id: 'ext1', origin: 'external', name: 'e', externalPath: '/Users/x/ext.bin' }
+      ])
+      await dbh.db.insert(chatMessageFileRefTable).values([
+        { id: 'cmfr_int', fileEntryId: 'int1', sourceId: 'msg1', role: 'attachment' },
+        { id: 'cmfr_ext', fileEntryId: 'ext1', sourceId: 'msg1', role: 'attachment' }
+      ])
+
+      const orch = new ExportOrchestrator({
+        dbService: {
+          backupTo: async (destPath) => {
+            const { unlink } = await import('node:fs/promises')
+            await unlink(destPath).catch(() => {})
+            await dbh.sqlite.backup(destPath)
+          }
+        },
+        registry: contributorManager.getRegistry(),
+        tempDir: dir,
+        fileBlobs: pathFileBlobs({ int1: join(filesRoot, 'int1.txt') }),
+        knowledgeRoot: filesRoot,
+        skillsRoot: filesRoot,
+        notesRoot: () => undefined,
+        stripper: new SqliteBackupStripper()
+      })
+      const out = join(dir, 'ext.cbu')
+      const { manifest } = await orch.exportBackup({
+        preset: 'full',
+        outputPath: out,
+        restoreId: 're',
+        producerAppVersion: '1.0.0',
+        schemaMigrationId: '0001_x.sql'
+      })
+
+      // manifest: only int1 staged (external has no blob). ext1 not in files.
+      expect(manifest.files.ids).toEqual(['int1'])
+
+      const { zip, entries } = await openZip(out)
+      try {
+        expect(entries).toContain('files/int1')
+        expect(entries).not.toContain('files/ext1')
+        const extracted = join(dir, 'extracted.db')
+        await zip.extract('backup.sqlite', extracted)
+        const d = new Database(extracted, { readonly: true })
+        try {
+          const count = (t: string) => (d.prepare(`SELECT COUNT(*) AS c FROM "${t}"`).get() as { c: number }).c
+          // §5.1: external file_entry is dangling by design — RETAINED (origin guard
+          // in pruneMissingRows), so its file_ref reference survives into the archive
+          // (the message still records it referenced /Users/x/ext.bin on restore).
+          expect(count('file_entry'), 'int1 + ext1 both retained').toBe(2)
+          expect(count('chat_message_file_ref'), 'both refs retained (external row not cascade-deleted)').toBe(2)
+        } finally {
+          d.close()
+        }
+      } finally {
+        await zip.close()
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('lite preset strips excluded-domain rows + cascade-prunes junction referrers', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-export-lite-'))
     try {
