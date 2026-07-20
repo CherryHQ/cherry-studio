@@ -76,7 +76,7 @@ const homeMocks = vi.hoisted(() => ({
   latestTopicOverride: undefined as Topic | null | undefined,
   // Controls the imperative scoped `/topics/latest` lookup used by owner fallback.
   loadLatestTopicOverride: undefined as Topic | null | undefined,
-  assistants: [{ id: 'assistant-default' }] as Array<{ id: string; name?: string }>,
+  assistants: [{ id: 'assistant-default' }, { id: 'assistant-1' }] as Array<{ id: string; name?: string }>,
   assistantsError: undefined as Error | undefined,
   assistantsLoaded: true,
   assistantsLoading: false,
@@ -804,7 +804,7 @@ describe('HomePage', () => {
     MockCacheUtils.resetMocks()
     homeMocks.locationState = { topic: initialTopic }
     homeMocks.currentTab = undefined
-    homeMocks.assistants = [{ id: 'assistant-default' }]
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-1' }]
     homeMocks.resourceLayoutTopics = []
     homeMocks.isTopicsFirstPageLoading = false
     homeMocks.isTopicsLoadingAll = false
@@ -859,6 +859,18 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('maps a topic whose assistant is no longer live to the unlinked right-pane scope', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.locationState = {
+      topic: { ...initialTopic, id: 'topic-unlinked', assistantId: 'assistant-deleted' }
+    }
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', '')
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', '')
   })
 
   it('renders the classic assistant layout for the new-user display default', () => {

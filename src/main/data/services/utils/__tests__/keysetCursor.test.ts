@@ -185,7 +185,11 @@ describe('keysetOrdering — direction coverage against real SQLite', () => {
     it('round-trips a boundary within the same family', () => {
       const family = buildCursorFamily({ resource: 'topics', stream: 'ordinary', sortBy: 'createdAt' })
       const token = encodeFamilyCursor(family, 1720000000000, 'topic-1')
-      expect(decodeFamilyCursor(token, family, asNumericKey, 'test')).toEqual({ key: 1720000000000, id: 'topic-1' })
+      expect(decodeFamilyCursor(token, family, asNumericKey, 'test')).toEqual({
+        key: 1720000000000,
+        id: 'topic-1',
+        direction: 'next'
+      })
     })
 
     it('returns null (first page) when the family does not match', () => {

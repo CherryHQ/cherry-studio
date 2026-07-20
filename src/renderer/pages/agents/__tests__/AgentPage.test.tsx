@@ -846,6 +846,22 @@ describe('AgentPage', () => {
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
   })
 
+  it('maps a session whose agent is no longer live to the unlinked right-pane scope', () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'right'
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-unlinked',
+      agentId: 'agent-deleted'
+    }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-agent-id', '')
+    expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'unlinked')
+  })
+
   it('renders the classic agent layout for the new-user display default', () => {
     agentPageMocks.sessionDisplayMode = DefaultPreferences.default['agent.session.display_mode']
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }

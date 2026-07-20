@@ -923,7 +923,7 @@ export class TopicService {
 
     const db = application.get('DbService').getDb()
     db.transaction((tx) => {
-      const ids = moves.map((m) => m.id)
+      const ids = [...new Set(moves.map((move) => move.id))]
       const targets = tx
         .select({ id: topicTable.id })
         .from(topicTable)

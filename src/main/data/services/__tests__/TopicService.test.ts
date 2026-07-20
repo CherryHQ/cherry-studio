@@ -1843,6 +1843,18 @@ describe('TopicService', () => {
       expect(ids.map((r) => r.id)).toEqual(['t4', 't2', 't3', 't1'])
     })
 
+    it('deduplicates repeated target ids and keeps the last move', async () => {
+      await seedFour()
+
+      topicService.reorderBatch([
+        { id: 't1', anchor: { position: 'first' } },
+        { id: 't1', anchor: { position: 'last' } }
+      ])
+
+      const ids = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
+      expect(ids.map((row) => row.id)).toEqual(['t2', 't3', 't4', 't1'])
+    })
+
     it('applies one global batch across assistants', async () => {
       await dbh.db.insert(assistantTable).values([
         {

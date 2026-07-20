@@ -1025,6 +1025,28 @@ describe('Sessions', () => {
     expect(screen.getByPlaceholderText('Search tasks')).toBeInTheDocument()
   })
 
+  it('shows sessions with no live agent in the unlinked right-panel scope', () => {
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-unlinked', name: 'Unlinked task', agentId: 'agent-deleted' }),
+        createSession({ id: 'session-live', name: 'Live task', agentId: 'agent-a' })
+      ]
+    })
+
+    render(<SessionsForTest agentIdFilter="unlinked" presentation="right-panel" />)
+
+    expect(screen.getByText('Unlinked task')).toBeInTheDocument()
+    expect(screen.queryByText('Live task')).not.toBeInTheDocument()
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      'unlinked',
+      expect.objectContaining({ enabled: true, pinned: true })
+    )
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      'unlinked',
+      expect.objectContaining({ enabled: true, pinned: false })
+    )
+  })
+
   it('shows independently collapsible pinned and task groups in the right panel', () => {
     setupSessions({
       sessions: [

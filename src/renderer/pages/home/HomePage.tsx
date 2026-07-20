@@ -263,15 +263,19 @@ const HomePage: FC = () => {
       : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
   const visibleTopicId = visibleTopic?.id
   const visibleTopicAssistantId = visibleTopic?.assistantId
+  const visibleTopicAssistantScopeId =
+    visibleTopicAssistantId && (!isAssistantListResolved || assistantIdSet.has(visibleTopicAssistantId))
+      ? visibleTopicAssistantId
+      : null
   const activeTopicSelectionRef = useRef<Topic | undefined>(visibleTopic)
   useEffect(() => {
     activeTopicSelectionRef.current = visibleTopic
   }, [visibleTopic])
   useEffect(() => {
     if (!visibleTopicId) return
-    setRightPaneAssistantScopeId(visibleTopicAssistantId ?? null)
+    setRightPaneAssistantScopeId(visibleTopicAssistantScopeId)
     setIsSelectedAssistantScopeEmpty(false)
-  }, [visibleTopicAssistantId, visibleTopicId])
+  }, [visibleTopicAssistantScopeId, visibleTopicId])
   const loadReusableTopicCandidates = useCallback(
     async (assistantId: string | null) =>
       mergeReusableTopicCandidates(await loadTopicReuseCandidates(assistantId), visibleTopic),
@@ -375,7 +379,7 @@ const HomePage: FC = () => {
   const activeResourceAssistantId =
     isAssistantResourceLayout && panePosition === 'right' && rightPaneAssistantScopeId !== undefined
       ? rightPaneAssistantScopeId
-      : (visibleTopic?.assistantId ?? null)
+      : visibleTopicAssistantScopeId
   const { assistant: visibleAssistant } = useAssistantApiById(activeResourceAssistantId ?? undefined)
   const topicListPosition: ChatPanePosition =
     !isWindowFrame && isAssistantResourceLayout && panePosition === 'right' ? 'right' : 'left'
@@ -459,26 +463,30 @@ const HomePage: FC = () => {
     (topic: Topic) => {
       activeTopicSelectionRef.current = topic
       closeSurface()
-      setRightPaneAssistantScopeId(topic.assistantId ?? null)
+      setRightPaneAssistantScopeId(
+        topic.assistantId && (!isAssistantListResolved || assistantIdSet.has(topic.assistantId))
+          ? topic.assistantId
+          : null
+      )
       setIsSelectedAssistantScopeEmpty(false)
       setActiveTopic(topic)
       return true
     },
-    [closeSurface, setActiveTopic]
+    [assistantIdSet, closeSurface, isAssistantListResolved, setActiveTopic]
   )
   const clearActiveTopicInSelectedScope = useCallback(
     (assistantId?: string | null) => {
       activeTopicSelectionRef.current = undefined
       closeSurface()
       setRightPaneAssistantScopeId((current) =>
-        assistantId !== undefined ? assistantId : current !== undefined ? current : (visibleTopic?.assistantId ?? null)
+        assistantId !== undefined ? assistantId : current !== undefined ? current : visibleTopicAssistantScopeId
       )
       setIsSelectedAssistantScopeEmpty(true)
       setPendingLocateMessageId(undefined)
       setTopicRevealRequest(undefined)
       clearActiveTopic()
     },
-    [clearActiveTopic, closeSurface, visibleTopic?.assistantId]
+    [clearActiveTopic, closeSurface, visibleTopicAssistantScopeId]
   )
   const handleResourceTopicSelect = useCallback(
     (topic: Topic) => {

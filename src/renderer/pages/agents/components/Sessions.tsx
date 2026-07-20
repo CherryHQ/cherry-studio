@@ -109,7 +109,11 @@ import {
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
-import type { AgentSessionEntity, AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
+import type {
+  AgentSessionEntity,
+  AgentSessionListItem,
+  AgentSessionOwnerScope
+} from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -143,7 +147,7 @@ import {
 type SessionsBaseProps = {
   activeSession?: AgentSessionEntity | null
   agentSessionsSource: AgentSessionsSource
-  agentIdFilter?: string | null
+  agentIdFilter?: AgentSessionOwnerScope | null
   historyRecordsActive?: boolean
   onActiveAgentDeleted?: (agentId: string, candidateAgentIds: readonly string[]) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
@@ -1043,12 +1047,15 @@ const Sessions = ({
   const filteredGroupedSessions = useMemo(() => {
     if (!isRightPanel) return groupedSessions
     if (!agentIdFilter) return []
+    if (agentIdFilter === 'unlinked') {
+      return groupedSessions.filter((session) => !session.agentId || !agentById.has(session.agentId))
+    }
     return groupedSessions.filter((session) => session.agentId === agentIdFilter)
-  }, [agentIdFilter, groupedSessions, isRightPanel])
+  }, [agentById, agentIdFilter, groupedSessions, isRightPanel])
   const headerSessionCreationDefaults = useMemo(
     () =>
       isRightPanel
-        ? agentIdFilter
+        ? agentIdFilter && agentIdFilter !== 'unlinked'
           ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
           : null
         : findLatestSessionCreationDefaults(filteredGroupedSessions),

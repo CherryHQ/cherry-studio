@@ -44,7 +44,11 @@ import { isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
-import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type {
+  AgentSessionEntity,
+  AgentSessionMessageEntity,
+  AgentSessionOwnerScope
+} from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -191,6 +195,7 @@ const AgentPage = () => {
     isMessageOnlyView ? routeSessionId : null
   )
   const { agents, isLoading: isAgentsLoading } = useAgents()
+  const agentIdSet = useMemo(() => new Set(agents.map((agent) => agent.id)), [agents])
   const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? tabMetadataSessionId ?? null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => routeActiveSessionId)
   const [isSelectedAgentScopeEmpty, setIsSelectedAgentScopeEmpty] = useState(false)
@@ -259,22 +264,28 @@ const AgentPage = () => {
       : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
   const visibleSessionId = visibleSession?.id
   const visibleSessionAgentId = visibleSession?.agentId
-  const [rightPaneAgentScopeId, setRightPaneAgentScopeId] = useState<string | undefined>(
-    () => visibleSessionAgentId ?? undefined
+  const visibleSessionOwnerScope: AgentSessionOwnerScope | undefined = visibleSessionId
+    ? visibleSessionAgentId && (isAgentsLoading || agentIdSet.has(visibleSessionAgentId))
+      ? visibleSessionAgentId
+      : 'unlinked'
+    : undefined
+  const [rightPaneAgentScopeId, setRightPaneAgentScopeId] = useState<AgentSessionOwnerScope | undefined>(
+    () => visibleSessionOwnerScope
   )
   const activeSessionSelectionRef = useRef<AgentSessionEntity | null>(visibleSession)
   useEffect(() => {
     activeSessionSelectionRef.current = visibleSession
   }, [visibleSession])
   useEffect(() => {
-    if (!visibleSessionId || !visibleSessionAgentId) return
-    setRightPaneAgentScopeId(visibleSessionAgentId)
+    if (!visibleSessionId || !visibleSessionOwnerScope) return
+    setRightPaneAgentScopeId(visibleSessionOwnerScope)
     setIsSelectedAgentScopeEmpty(false)
-  }, [visibleSessionAgentId, visibleSessionId])
-  const activeResourceAgentId =
+  }, [visibleSessionId, visibleSessionOwnerScope])
+  const selectedAgentScope =
     isAgentResourceLayout && panePosition === 'right' && rightPaneAgentScopeId !== undefined
       ? rightPaneAgentScopeId
-      : (visibleSession?.agentId ?? null)
+      : visibleSessionOwnerScope
+  const activeResourceAgentId = selectedAgentScope && selectedAgentScope !== 'unlinked' ? selectedAgentScope : null
   const resourceConversationKey = useMemo(() => {
     if (visibleSession?.id) return `session:${visibleSession.id}`
     if (missingAgentSelection) return 'missing-agent-selection'
@@ -798,7 +809,11 @@ const AgentPage = () => {
       activeSessionSelectionRef.current = session ?? null
       closeSurface()
       if (sessionId) {
-        if (session?.agentId) setRightPaneAgentScopeId(session.agentId)
+        if (session) {
+          setRightPaneAgentScopeId(
+            session.agentId && (isAgentsLoading || agentIdSet.has(session.agentId)) ? session.agentId : 'unlinked'
+          )
+        }
         setIsSelectedAgentScopeEmpty(false)
         setMissingAgentSelection(false)
       } else if (rightPaneAgentScopeId !== undefined) {
@@ -806,7 +821,7 @@ const AgentPage = () => {
       }
       selectSession(sessionId, session)
     },
-    [rightPaneAgentScopeId, closeSurface, selectSession]
+    [agentIdSet, isAgentsLoading, rightPaneAgentScopeId, closeSurface, selectSession]
   )
   const handleResourceSessionSelect = useCallback(
     (sessionId: string, session: AgentSessionEntity) => {
@@ -900,15 +915,17 @@ const AgentPage = () => {
   const sessionCountByAgentId = useMemo(
     () =>
       new Map(
-        (sessionStats?.byAgent ?? []).flatMap(({ agentId, count }) => (agentId ? [[agentId, count] as const] : []))
+        (sessionStats?.byAgent ?? []).map(
+          ({ agentId, count }) => [agentId ?? 'unlinked', count] as [AgentSessionOwnerScope, number]
+        )
       ),
     [sessionStats?.byAgent]
   )
   const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
-    isAgentResourceLayout && sessionListPosition === 'right' && activeResourceAgentId
+    isAgentResourceLayout && sessionListPosition === 'right' && selectedAgentScope
       ? {
           label: t('agent.session.list.title'),
-          count: sessionCountByAgentId.get(activeResourceAgentId) ?? 0
+          count: sessionCountByAgentId.get(selectedAgentScope) ?? 0
         }
       : undefined
   const setSessionListPosition = useCallback(
@@ -995,7 +1012,7 @@ const AgentPage = () => {
               agentSessionsSource={agentSessionsSource}
               presentation="right-panel"
               activeSessionId={activeSessionId}
-              agentIdFilter={activeResourceAgentId}
+              agentIdFilter={selectedAgentScope}
               onActiveAgentDeleted={handleActiveAgentDeleted}
               revealRequest={sessionRevealRequest}
               onCreateSession={createAndActivateEmptySession}
