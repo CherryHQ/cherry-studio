@@ -33,6 +33,7 @@ export function buildPathRegistry() {
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
   const appUserDataToolchain = path.join(appUserData, 'Toolchain')
+  const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
@@ -96,12 +97,12 @@ export function buildPathRegistry() {
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
     // BinaryManager (tool manager)
-    'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
+    'feature.binary.data': appUserDataToolchainMise,
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
-    'feature.binary.data.isolated.localappdata': path.join(CHERRY_HOME, 'binary-manager', 'localappdata'),
-    'feature.binary.data.isolated.appdata': path.join(CHERRY_HOME, 'binary-manager', 'appdata'),
+    'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
+    'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
