@@ -472,22 +472,23 @@ describe('native adapter params — descriptor-driven (#16598)', () => {
       expect(getAnthropicReasoningParams(a('none'), m)).toEqual({ thinking: { type: 'disabled' } })
     })
 
-    it('deepseek v4 over the claude wire → effort verbatim (max ≠ xhigh), no fabricated budget', () => {
+    it('deepseek v4 over the claude wire → bare effort verbatim, no thinking envelope at all', () => {
+      // DeepSeek's docs use output_config.effort alone; a budget-less
+      // 'enabled' envelope would trigger the SDK's 1024-token backfill.
       const v4 = model(
         'my-custom',
         'deepseek-v4',
         withControls([{ kind: 'effort', values: ['none', 'high', 'max', 'xhigh'] }, { kind: 'toggle' }])
       )
       expect(getAnthropicReasoningParams(a('max'), v4)).toEqual({
-        thinking: { type: 'enabled' },
         sendReasoning: true,
         effort: 'max'
       })
       expect(getAnthropicReasoningParams(a('xhigh'), v4)).toEqual({
-        thinking: { type: 'enabled' },
         sendReasoning: true,
         effort: 'xhigh'
       })
+      expect(getAnthropicReasoningParams(a('none'), v4)).toEqual({ thinking: { type: 'disabled' } })
     })
 
     it('compat model with declared budget (kimi-k3) → budget from the descriptor + effort verbatim', () => {
@@ -504,9 +505,12 @@ describe('native adapter params — descriptor-driven (#16598)', () => {
       })
     })
 
-    it('descriptor-less compat model → enabled envelope only (no fabricated budget)', () => {
+    it('toggle/budget compat model → enabled + budget (fallback beats the SDK 1024 backfill)', () => {
+      // kimi-k2.5 has no descriptor here; the enabled marker still needs a
+      // real budget on this wire — the shared legacy fallback resolves the
+      // kimi family limits {0, 30720}: floor(30720*.8) = 24576
       expect(getAnthropicReasoningParams(a('high'), model('my-custom', 'kimi-k2.5'))).toEqual({
-        thinking: { type: 'enabled' },
+        thinking: { type: 'enabled', budgetTokens: 24_576 },
         sendReasoning: true
       })
     })

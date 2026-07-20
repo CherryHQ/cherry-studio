@@ -813,14 +813,27 @@ export function getAnthropicReasoningParams(
   }
 
   // Non-Anthropic models served over the Claude wire.
-  const budgetTokens =
-    model.reasoning?.thinkingTokenLimits != null
-      ? getThinkingBudget(assistant.settings?.maxTokens, reasoningEffort, model)
-      : undefined
+  //
+  // Effort-driven models with no declared budget (DeepSeek V4): the effort
+  // field alone, exactly like DeepSeek's own docs — no thinking envelope.
+  // Sending `type: 'enabled'` without a budget makes @ai-sdk/anthropic
+  // backfill `budget_tokens: 1024`, actively capping the model's thinking.
+  if (hasEffortControl(model) && model.reasoning?.thinkingTokenLimits == null) {
+    return {
+      sendReasoning: true,
+      ...(effort ? { effort } : {})
+    }
+  }
+
+  // Budget/toggle models (Kimi, MiniMax, DeepSeek V3.x hybrids) need the
+  // enabled marker to switch thinking on, and the wire requires a budget
+  // with it — descriptor limits first, effort-scaled fallback otherwise
+  // (better than the SDK's flat 1024 backfill).
+  const budgetTokens = getThinkingBudget(assistant.settings?.maxTokens, reasoningEffort, model)
   return {
     thinking: {
       type: 'enabled',
-      ...(budgetTokens != null ? { budgetTokens } : {})
+      budgetTokens: budgetTokens ?? getFallbackBudgetTokens(reasoningEffort)
     },
     sendReasoning: true,
     ...(effort ? { effort } : {})
