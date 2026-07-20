@@ -310,9 +310,11 @@ describe('ConfigEditPanel', () => {
     renderPanel()
 
     await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+    // The mock being called only means the async read started — wait for the
+    // resulting state to actually render before asserting on the static bits.
+    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1))
 
     expect(screen.getByText('code.model_selection')).toBeInTheDocument()
-    expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1)
     expect(screen.queryByText('code.endpoint_hint')).not.toBeInTheDocument()
     expect(screen.queryByText('code.model_hint_config')).not.toBeInTheDocument()
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
