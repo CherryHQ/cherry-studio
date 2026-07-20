@@ -3,6 +3,9 @@ import { relative, sep } from 'node:path'
 
 import type { UiNodeDescriptor } from './types'
 
+const UI_NODE_ID_HASH_LENGTH = 16
+const UI_NODE_ID_PREFIX = 'ui-'
+
 const NON_SEMANTIC_PATH_SEGMENTS = new Set([
   'src',
   'renderer',
@@ -151,7 +154,7 @@ export function inferSemanticId(input: SemanticIdInput): string {
   return unique([...prefix, ...entity, ...role]).join('.')
 }
 
-export function createDescriptorHashes(input: {
+export function createDescriptorAnchor(input: {
   component: string
   element: string
   occurrence: number
@@ -159,7 +162,7 @@ export function createDescriptorHashes(input: {
   semanticId: string
   signature: string
   sourceFile: string
-}): Pick<UiNodeDescriptor, 'anchorHash' | 'fingerprintHash'> {
+}): Pick<UiNodeDescriptor, 'anchorHash'> {
   const anchor = [
     input.sourceFile,
     input.component,
@@ -169,11 +172,31 @@ export function createDescriptorHashes(input: {
     input.parentSemanticId ?? '',
     input.occurrence
   ].join('\0')
-  const parentRole = input.parentSemanticId?.split('.').slice(-3).join('.') ?? ''
-  const fingerprint = [input.component, input.element, input.signature, parentRole].join('\0')
 
-  return {
-    anchorHash: stableHash(anchor, 24),
-    fingerprintHash: stableHash(fingerprint, 24)
+  return { anchorHash: stableHash(anchor, 24) }
+}
+
+export function uiNodeId(anchorHash: string): string {
+  if (!/^[0-9a-f]{24}$/.test(anchorHash)) {
+    throw new Error(`Invalid UI node anchor hash: ${anchorHash}`)
+  }
+  return `${UI_NODE_ID_PREFIX}${anchorHash.slice(0, UI_NODE_ID_HASH_LENGTH)}`
+}
+
+export function uiContractForDescriptor(descriptor: UiNodeDescriptor): { id: string; semanticId: string } {
+  return { id: uiNodeId(descriptor.anchorHash), semanticId: descriptor.semanticId }
+}
+
+export function assertUniqueUiNodeIds(descriptors: readonly UiNodeDescriptor[]): void {
+  const descriptorById = new Map<string, UiNodeDescriptor>()
+  for (const descriptor of descriptors) {
+    const id = uiNodeId(descriptor.anchorHash)
+    const existing = descriptorById.get(id)
+    if (existing) {
+      throw new Error(
+        `UI node ID collision for ${id}: ${existing.sourceFile}:${existing.sourceOffset} and ${descriptor.sourceFile}:${descriptor.sourceOffset}`
+      )
+    }
+    descriptorById.set(id, descriptor)
   }
 }

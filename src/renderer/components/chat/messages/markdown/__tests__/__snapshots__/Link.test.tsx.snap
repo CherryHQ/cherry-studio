@@ -8,7 +8,7 @@ exports[`Link > should match snapshot 1`] = `
   >
     <a
       class="text-primary hover:underline"
-      data-ui="messages.markdown.link.element.a id:uf5ba7b2"
+      data-ui="messages.markdown.link.element.a id:ui-f5ba7b2a03fb96b9"
       href="https://example.com"
       rel="noreferrer"
       target="_blank"
@@ -16,7 +16,7 @@ exports[`Link > should match snapshot 1`] = `
       <span
         aria-hidden="true"
         class="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
-        data-ui="messages.markdown.link.element.span id:u26ceb5a"
+        data-ui="messages.markdown.link.element.span id:ui-26ceb5a1488a488b"
       >
         <span
           data-alt=""

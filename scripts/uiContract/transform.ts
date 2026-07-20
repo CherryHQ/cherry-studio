@@ -9,8 +9,8 @@ import {
 import { Parser } from 'htmlparser2'
 import MagicString from 'magic-string'
 
-import { createDescriptorHashes, identifierWords, inferSemanticId } from './semanticId'
-import type { UiNodeDescriptor, UiSourceTransform } from './types'
+import { createDescriptorAnchor, identifierWords, inferSemanticId } from './semanticId'
+import type { UiNodeContract, UiNodeDescriptor, UiSourceTransform } from './types'
 
 const SKIPPED_COMPONENTS = new Set(['Consumer', 'Fragment', 'Provider', 'StrictMode', 'Suspense'])
 const SKIPPED_HTML_TAGS = new Set(['base', 'head', 'html', 'link', 'meta', 'script', 'style', 'title'])
@@ -279,7 +279,7 @@ function mergePartDataUi(existing: string | undefined, part: string | undefined)
 }
 
 interface TransformJsxOptions {
-  contractForDescriptor?: (descriptor: UiNodeDescriptor) => { id: string; semanticId: string } | undefined
+  contractForDescriptor?: (descriptor: UiNodeDescriptor) => UiNodeContract | undefined
   sourceFile: string
 }
 
@@ -400,7 +400,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     const occurrenceKey = [component, semanticId, info.element, info.signature, parentSemanticId ?? ''].join('\0')
     const occurrence = occurrenceByAnchor.get(occurrenceKey) ?? 0
     occurrenceByAnchor.set(occurrenceKey, occurrence + 1)
-    const hashes = createDescriptorHashes({
+    const anchor = createDescriptorAnchor({
       component,
       element: info.element,
       occurrence,
@@ -410,7 +410,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       sourceFile: options.sourceFile
     })
     const descriptor: UiNodeDescriptor = {
-      ...hashes,
+      ...anchor,
       component,
       element: info.element,
       kind: 'jsx',
@@ -626,7 +626,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
     const occurrenceKey = `${semanticId}\0${tag.name}\0${signature}\0${parentSemanticId ?? ''}`
     const occurrence = occurrences.get(occurrenceKey) ?? 0
     occurrences.set(occurrenceKey, occurrence + 1)
-    const hashes = createDescriptorHashes({
+    const anchor = createDescriptorAnchor({
       component: options.windowName,
       element: tag.name,
       occurrence,
@@ -636,7 +636,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
       sourceFile: options.sourceFile
     })
     const descriptor: UiNodeDescriptor = {
-      ...hashes,
+      ...anchor,
       component: options.windowName,
       element: tag.name,
       kind: 'html',

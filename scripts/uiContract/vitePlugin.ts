@@ -2,9 +2,8 @@ import { resolve } from 'node:path'
 
 import type { Plugin } from 'vite'
 
-import { readRegistry, reconcileRegistry, registryNodeMap, serializeRegistry } from './registry'
-import { isUiSourceFile, scanUiSources, windowNameFromHtml } from './scan'
-import { normalizeSourceFile } from './semanticId'
+import { isUiSourceFile, windowNameFromHtml } from './scan'
+import { assertUniqueUiNodeIds, normalizeSourceFile, uiContractForDescriptor } from './semanticId'
 import { transformHtml, transformJsx, UI_CONTRACT_RUNTIME_MODULE_ID } from './transform'
 import { UI_CONTRACT_VERSION, type UiContractManifest, type UiContractManifestNode } from './types'
 
@@ -18,9 +17,6 @@ const RESOLVED_RUNTIME_MODULE_ID = `\0${UI_CONTRACT_RUNTIME_MODULE_ID}`
 export function uiContractPlugin(options: UiContractPluginOptions = {}): Plugin {
   const root = resolve(options.root ?? process.cwd())
   const manifestFileName = options.manifestFileName ?? 'ui-contract.json'
-  let command: 'build' | 'serve' = 'serve'
-  let contractByAnchor = new Map<string, { id: string; semanticId: string }>()
-  let warnedAboutProvisionalId = false
   const manifestNodes = new Map<string, UiContractManifestNode>()
 
   return {
@@ -50,22 +46,8 @@ export const UiDataSlot = forwardRef(function UiDataSlot(props, ref) {
 })
 `
     },
-    configResolved(config) {
-      command = config.command
-    },
-    async buildStart() {
-      const previous = await readRegistry(root)
-      contractByAnchor = registryNodeMap(previous)
-      if (command === 'serve') return
-
-      const descriptors = await scanUiSources(root)
-      const expected = reconcileRegistry(previous, descriptors)
-      contractByAnchor = registryNodeMap(expected)
-
-      if (serializeRegistry(previous) !== serializeRegistry(expected)) {
-        const message = 'UI contract registry is stale. Run `pnpm ui:contract:sync` and commit the result.'
-        this.error(message)
-      }
+    buildStart() {
+      manifestNodes.clear()
     },
     transform(source, id) {
       const file = id.split('?')[0]
@@ -74,29 +56,11 @@ export const UiDataSlot = forwardRef(function UiDataSlot(props, ref) {
       if (sourceFile.startsWith('../')) return null
 
       const result = transformJsx(source, {
-        contractForDescriptor: (descriptor) => {
-          const registered = contractByAnchor.get(descriptor.anchorHash)
-          if (registered) return registered
-          if (!warnedAboutProvisionalId) {
-            this.warn('New UI nodes are using provisional IDs. Run `pnpm ui:contract:sync` before committing.')
-            warnedAboutProvisionalId = true
-          }
-          return {
-            id: `u${descriptor.anchorHash.slice(0, 7)}`,
-            semanticId: descriptor.semanticId
-          }
-        },
+        contractForDescriptor: uiContractForDescriptor,
         sourceFile
       })
       for (const descriptor of result.descriptors) {
-        const contract = contractByAnchor.get(descriptor.anchorHash)
-        if (contract) {
-          manifestNodes.set(descriptor.anchorHash, {
-            ...descriptor,
-            id: contract.id,
-            semanticId: contract.semanticId
-          })
-        }
+        manifestNodes.set(descriptor.anchorHash, { ...descriptor, ...uiContractForDescriptor(descriptor) })
       }
       return { code: result.code, map: result.map }
     },
@@ -106,36 +70,19 @@ export const UiDataSlot = forwardRef(function UiDataSlot(props, ref) {
         if (!context.filename) return html
         const sourceFile = normalizeSourceFile(root, context.filename)
         const result = transformHtml(html, {
-          contractForDescriptor: (descriptor) => {
-            const registered = contractByAnchor.get(descriptor.anchorHash)
-            if (registered) return registered
-            if (!warnedAboutProvisionalId) {
-              this.warn('New UI nodes are using provisional IDs. Run `pnpm ui:contract:sync` before committing.')
-              warnedAboutProvisionalId = true
-            }
-            return {
-              id: `u${descriptor.anchorHash.slice(0, 7)}`,
-              semanticId: descriptor.semanticId
-            }
-          },
+          contractForDescriptor: uiContractForDescriptor,
           sourceFile,
           windowName: windowNameFromHtml(sourceFile)
         })
         for (const descriptor of result.descriptors) {
-          const contract = contractByAnchor.get(descriptor.anchorHash)
-          if (contract) {
-            manifestNodes.set(descriptor.anchorHash, {
-              ...descriptor,
-              id: contract.id,
-              semanticId: contract.semanticId
-            })
-          }
+          manifestNodes.set(descriptor.anchorHash, { ...descriptor, ...uiContractForDescriptor(descriptor) })
         }
         return result.code
       }
     },
     generateBundle() {
       const nodes = [...manifestNodes.values()].sort((left, right) => left.id.localeCompare(right.id))
+      assertUniqueUiNodeIds(nodes)
       const components = [...new Set(nodes.map((node) => node.component))].sort()
       const elements = [...new Set(nodes.map((node) => node.element))].sort()
       const semantics = [...new Set(nodes.map((node) => node.semanticId))].sort()
