@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
+import MiniAppTabsCleanup from '../MiniApp/MiniAppTabsCleanup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
@@ -144,6 +145,7 @@ export const AppShell = () => {
 
         {/* MiniApp keep-alive WebView pool — global, shared across modes */}
         <MiniAppTabsPool />
+        <MiniAppTabsCleanup />
       </main>
     </div>
   )

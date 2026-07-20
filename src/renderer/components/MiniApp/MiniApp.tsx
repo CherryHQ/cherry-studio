@@ -3,7 +3,6 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
-import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
@@ -29,16 +28,7 @@ const logger = loggerService.withContext('App')
 
 const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isLast, variant = 'default' }) => {
   const { t } = useTranslation()
-  const {
-    miniApps,
-    pinned,
-    openedKeepAliveMiniApps,
-    currentMiniAppId,
-    miniAppShow,
-    setOpenedKeepAliveMiniApps,
-    updateAppStatus,
-    removeCustomMiniApp
-  } = useMiniApps()
+  const { miniApps, pinned, exitMiniApp, updateAppStatus, removeCustomMiniApp } = useMiniApps()
   const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
   const { openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
@@ -48,8 +38,6 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
   const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
-  const isActive = miniAppShow && currentMiniAppId === app.appId
-  const isOpened = openedKeepAliveMiniApps.some((item) => item.appId === app.appId)
 
   // Calculate display name
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
@@ -109,9 +97,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
   const handleHide = () => {
     updateAppStatus(app.appId, 'disabled')
       .then(() => {
-        // Functional update: resolve against the latest list so a mini app opened
-        // during the status mutation's await is not clobbered by a stale snapshot.
-        setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== app.appId))
+        exitMiniApp(app.appId)
       })
       .catch(reportFailure('miniApp.hide_failed'))
   }
@@ -199,17 +185,6 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
               </div>
             ) : (
               <MiniAppIcon size={size} app={app} appearance="avatar" />
-            )}
-            {isOpened && (
-              <div
-                className={cn(
-                  'absolute rounded-full bg-background',
-                  isLaunchpad
-                    ? '-right-[3px] -bottom-[3px] p-[3px] shadow-[0_0_0_1px_var(--color-border-subtle)]'
-                    : '-right-0.5 -bottom-0.5 p-0.5'
-                )}>
-                <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
-              </div>
             )}
           </div>
           <div

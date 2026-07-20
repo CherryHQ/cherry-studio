@@ -134,8 +134,6 @@ export type UseCacheSchema = {
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
   'mini_app.current_id': string
-  'mini_app.show': boolean
-  'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
   'mini_app.detected_region': MiniAppRegion | null
 
   // Topic management
@@ -208,8 +206,6 @@ export const DefaultUseCache: UseCacheSchema = {
   // MiniApp management
   'mini_app.opened_keep_alive': [],
   'mini_app.current_id': '',
-  'mini_app.show': false,
-  'mini_app.opened_oneoff': null,
   'mini_app.detected_region': null,
 
   // Topic management

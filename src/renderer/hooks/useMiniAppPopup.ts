@@ -3,8 +3,8 @@ import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
+import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppUrl'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { fileUrlToPath } from '@shared/utils/file'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -26,7 +26,7 @@ function toMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
     appId: brandId(input.appId),
-    // Transient apps opened from raw config (URL bar / openMiniApp(rawApp)) are
+    // Transient apps opened from raw config (URL bar / openSmartMiniApp) are
     // not preset rows and not custom rows persisted via DataApi — they live
     // only in the keep-alive cache. Use `null` to mark "no preset linkage",
     // matching the same convention used for custom apps in the schema. Setting
@@ -78,15 +78,6 @@ function evictWithPinExemption(
   return { keep, evicted }
 }
 
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
-
-/** Extract the appId from a `/app/mini-app/<id>` URL, or null otherwise. */
-function miniAppIdFromTabUrl(url: string): string | null {
-  if (!url.startsWith(MINI_APP_ROUTE_PREFIX)) return null
-  const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split('/')[0]
-  return id ? id : null
-}
-
 function openExternalMiniAppUrl(url: string) {
   try {
     const parsed = new URL(url)
@@ -101,31 +92,8 @@ function openExternalMiniAppUrl(url: string) {
   void ipcApi.request('system.shell.open_website', url)
 }
 
-/**
- * Usage:
- *
- *   To control the miniapp popup, you can use the following hooks:
- *     import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
- *
- *   in the component:
- *     const { openMiniApp, openMiniAppKeepAlive, openMiniAppById,
- *             closeMiniApp, hideMiniAppPopup, closeAllMiniApps } = useMiniAppPopup()
- *
- *   To use some key states of the miniapp popup:
- *     import { useMiniApps } from '@renderer/hooks/useMiniApps'
- *     const { openedKeepAliveMiniApps, openedOneOffMiniApp, miniAppShow } = useMiniApps()
- */
 export const useMiniAppPopup = () => {
-  const {
-    allApps,
-    openedKeepAliveMiniApps,
-    openedOneOffMiniApp,
-    miniAppShow,
-    setOpenedKeepAliveMiniApps,
-    setOpenedOneOffMiniApp,
-    setCurrentMiniAppId,
-    setMiniAppShow
-  } = useMiniApps()
+  const { openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps, setCurrentMiniAppId } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
 
   const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE
@@ -169,105 +137,32 @@ export const useMiniAppPopup = () => {
     for (const app of evicted) evictMiniApp(app.appId)
   }, [cap, setOpenedKeepAliveMiniApps])
 
-  /** Open a miniapp (popup shows and miniapp loaded) */
-  const openMiniApp = useCallback(
-    (app: MiniApp, keepAlive: boolean = false) => {
-      if (keepAlive) {
-        const list = keepAliveRef.current
-        const exists = list.some((item) => item.appId === app.appId)
-        if (exists) {
-          const tail = list[list.length - 1]
-          if (tail?.appId !== app.appId) {
-            const reordered = [...list.filter((item) => item.appId !== app.appId), app]
-            setOpenedKeepAliveMiniApps(reordered)
-          }
-          setCurrentMiniAppId(app.appId)
-          setMiniAppShow(true)
-          return
-        }
-        // Evict from the existing list to make room for the newcomer,
-        // exempting pinned tabs. The newcomer itself is never evicted by
-        // its own open call — that would silently no-op the user's click.
-        // If every existing entry is pinned, the list grows past cap.
-        const targetSize = Math.max(cap - 1, 0)
-        const { keep, evicted } = evictWithPinExemption(list, targetSize, pinnedMiniAppIdsRef.current)
-        const next = [...keep, app]
-        setOpenedKeepAliveMiniApps(next)
-        for (const evictedApp of evicted) evictMiniApp(evictedApp.appId)
-        setOpenedOneOffMiniApp(null)
-        setCurrentMiniAppId(app.appId)
-        setMiniAppShow(true)
-        return
-      }
-
-      //if the miniapp is not keep alive, open it as one-off miniapp
-      setOpenedOneOffMiniApp(app)
-      setCurrentMiniAppId(app.appId)
-      setMiniAppShow(true)
-    },
-    [cap, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
-  )
-
-  /** a wrapper of openMiniApp(app, true) */
+  /** Open a miniapp into the keep-alive pool (LRU touch when already open). */
   const openMiniAppKeepAlive = useCallback(
     (app: MiniApp) => {
-      openMiniApp(app, true)
-    },
-    [openMiniApp]
-  )
-
-  /** Open a miniapp by id (look up the miniapp in allApps from DataApi) */
-  const openMiniAppById = useCallback(
-    (id: string, keepAlive: boolean = false) => {
-      const appDef = allApps.find((app) => app.appId === id)
-      if (!appDef) {
-        logger.warn(`MiniApp not found: ${id}`)
-        throw DataApiErrorFactory.notFound('MiniApp', id)
-      }
-      openMiniApp(appDef, keepAlive)
-    },
-    [allApps, openMiniApp]
-  )
-
-  /** Close a miniapp immediately (popup hides and miniapp unloaded) */
-  const closeMiniApp = useCallback(
-    (appid: string) => {
       const list = keepAliveRef.current
-      if (list.some((item) => item.appId === appid)) {
-        setOpenedKeepAliveMiniApps(list.filter((item) => item.appId !== appid))
-        evictMiniApp(appid)
-      } else if (openedOneOffMiniApp?.appId === appid) {
-        setOpenedOneOffMiniApp(null)
+      const exists = list.some((item) => item.appId === app.appId)
+      if (exists) {
+        const tail = list[list.length - 1]
+        if (tail?.appId !== app.appId) {
+          const reordered = [...list.filter((item) => item.appId !== app.appId), app]
+          setOpenedKeepAliveMiniApps(reordered)
+        }
+        setCurrentMiniAppId(app.appId)
+        return
       }
-
-      setCurrentMiniAppId('')
-      setMiniAppShow(false)
+      // Evict from the existing list to make room for the newcomer,
+      // exempting pinned tabs. The newcomer itself is never evicted by
+      // its own open call — that would silently no-op the user's click.
+      // If every existing entry is pinned, the list grows past cap.
+      const targetSize = Math.max(cap - 1, 0)
+      const { keep, evicted } = evictWithPinExemption(list, targetSize, pinnedMiniAppIdsRef.current)
+      setOpenedKeepAliveMiniApps([...keep, app])
+      for (const evictedApp of evicted) evictMiniApp(evictedApp.appId)
+      setCurrentMiniAppId(app.appId)
     },
-    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
+    [cap, setOpenedKeepAliveMiniApps, setCurrentMiniAppId]
   )
-
-  /** Close all miniApps (popup hides and all miniApps unloaded) */
-  const closeAllMiniApps = useCallback(() => {
-    const list = keepAliveRef.current
-    setOpenedKeepAliveMiniApps([])
-    setOpenedOneOffMiniApp(null)
-    setCurrentMiniAppId('')
-    setMiniAppShow(false)
-    // Mirrors LRU.clear() firing disposeAfter per entry: clean up webviews +
-    // close any tab still open for each previously kept-alive app.
-    for (const app of list) evictMiniApp(app.appId)
-  }, [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
-
-  /** Hide the miniapp popup (only one-off miniapp unloaded) */
-  const hideMiniAppPopup = useCallback(() => {
-    if (!miniAppShow) return
-
-    if (openedOneOffMiniApp) {
-      setOpenedOneOffMiniApp(null)
-      setCurrentMiniAppId('')
-    }
-    setMiniAppShow(false)
-  }, [miniAppShow, openedOneOffMiniApp, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
 
   /**
    * Open a miniapp from a transient config (e.g., a shared link). Adds to the
@@ -293,7 +188,6 @@ export const useMiniAppPopup = () => {
       }
 
       setCurrentMiniAppId(app.appId)
-      setMiniAppShow(true)
 
       // Always activate the mini-app tab even when the keep-alive entry
       // already exists. `MiniAppTabsPool.shouldShow` keys off the active tab
@@ -305,16 +199,11 @@ export const useMiniAppPopup = () => {
         icon: app.logoSrc ?? app.logo
       })
     },
-    [cap, openTab, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
+    [cap, openTab, setOpenedKeepAliveMiniApps, setCurrentMiniAppId]
   )
 
   return {
-    openMiniApp,
     openMiniAppKeepAlive,
-    openMiniAppById,
-    closeMiniApp,
-    hideMiniAppPopup,
-    closeAllMiniApps,
     openSmartMiniApp
   }
 }
