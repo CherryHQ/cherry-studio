@@ -6,21 +6,16 @@ export interface UiNodeDescriptor {
   anchorHash: string
   component: string
   element: string
-  fingerprintHash: string
   kind: 'html' | 'jsx'
-  previousAnchorHash?: string
   semanticId: string
   semanticSource: 'explicit' | 'inferred'
   sourceFile: string
   sourceOffset: number
 }
 
-export type UiRegistryNode = readonly [anchorHash: string, fingerprintHash: string, id: string, semanticId: string]
-
-export interface UiContractRegistry {
-  retiredIds: string[]
-  version: typeof UI_CONTRACT_VERSION
-  nodes: UiRegistryNode[]
+export interface UiNodeContract {
+  id: string
+  semanticId: string
 }
 
 export interface UiContractManifestNode extends UiNodeDescriptor {
