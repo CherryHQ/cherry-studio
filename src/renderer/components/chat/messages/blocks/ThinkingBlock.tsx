@@ -1,5 +1,5 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
-import { memo, useEffect, useId, useMemo, useState } from 'react'
+import { type CSSProperties, memo, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
