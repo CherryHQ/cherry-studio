@@ -14,14 +14,7 @@
       }
     },
     "enabled": true,
-    "includes": [
-      "**/*.json",
-      "!**/package.json",
-      "!coverage/**",
-      "!config/app-upgrade-segments.json",
-      // test-managed golden snapshots must stay byte-identical to test output
-      "!**/__tests__/goldens/**"
-    ]
+    "includes": ["**/*.json", "!**/package.json", "!coverage/**", "!config/app-upgrade-segments.json"]
   },
   "css": {
     "formatter": {
@@ -69,9 +62,7 @@
       "!**/package.json",
       "!src/renderer/routeTree.gen.ts",
       "!.zed/**",
-      "!v2-refactor-temp/**",
-      // test-managed golden snapshots must stay byte-identical to test output
-      "!**/__tests__/goldens/**"
+      "!v2-refactor-temp/**"
     ],
     "indentStyle": "space",
     "indentWidth": 2,

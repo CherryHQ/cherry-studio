@@ -15,9 +15,9 @@
  *    for a model the catalog doesn't know), crossed with every provider id the
  *    legacy branch tower special-cases plus a non-system custom provider.
  *
- * Consumed by reasoningGolden.test.ts now (freeze the legacy tower's output)
- * and by the Phase-4 contract test later — the descriptor→serializer path must
- * reproduce these outputs for both populations before the tower is deleted.
+ * Consumed by reasoningContract.test.ts — the permanent invariant gate over
+ * both populations. (The byte-level golden matrix this file originally fed
+ * was migration scaffolding and has been retired.)
  */
 import { resolve } from 'node:path'
 
@@ -35,16 +35,6 @@ import {
 import type { Assistant } from '@shared/data/types/assistant'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
-
-import {
-  getAnthropicReasoningParams,
-  getBedrockReasoningParams,
-  getGeminiReasoningParams,
-  getOllamaReasoningParams,
-  getOpenAIReasoningParams,
-  getReasoningEffort,
-  getXAIReasoningParams
-} from '../reasoning'
 
 const DATA_DIR = resolve(import.meta.dirname, '../../../../../packages/provider-registry/data')
 
@@ -278,97 +268,6 @@ export function buildEnrichedSyntheticRows(): MatrixRow[] {
   })
 }
 
-/** 'unset' = no reasoning_effort in settings (distinct from 'default' only for ollama). */
-export const EFFORT_AXIS = [
-  'unset',
-  'default',
-  'none',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-  'xhigh',
-  'max',
-  'auto'
-] as const
-
 export function assistantFor(effort: string): Assistant {
   return { settings: effort === 'unset' ? {} : { reasoning_effort: effort } } as Assistant
-}
-
-function isEmpty(value: unknown): boolean {
-  return value == null || (typeof value === 'object' && Object.keys(value).length === 0)
-}
-
-/** The generic openai-compat tower — the provider-dependent axis. */
-export function captureGenericTower(row: MatrixRow): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const effort of EFFORT_AXIS) {
-    const result = getReasoningEffort(assistantFor(effort), row.model, row.provider)
-    if (!isEmpty(result)) out[effort] = result
-  }
-  return out
-}
-
-/** The native-adapter param builders — provider-independent (assistant, model) fns. */
-export function captureNativeParams(row: MatrixRow): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const effort of EFFORT_AXIS) {
-    const assistant = assistantFor(effort)
-    const perFn: Record<string, unknown> = {}
-    const results: Array<[string, unknown]> = [
-      ['openai', getOpenAIReasoningParams(assistant, row.model)],
-      ['anthropic', getAnthropicReasoningParams(assistant, row.model)],
-      ['gemini', getGeminiReasoningParams(assistant, row.model)],
-      ['xai', getXAIReasoningParams(assistant, row.model)],
-      ['bedrock', getBedrockReasoningParams(assistant, row.model)],
-      ['ollama', getOllamaReasoningParams(assistant, row.model)]
-    ]
-    for (const [name, result] of results) {
-      if (!isEmpty(result)) perFn[name] = result
-    }
-    if (!isEmpty(perFn)) out[effort] = perFn
-  }
-  return out
-}
-
-export interface BehaviorGroup {
-  behavior: Record<string, unknown>
-  members: string[]
-}
-
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`)
-    return `{${entries.join(',')}}`
-  }
-  return JSON.stringify(value)
-}
-
-/**
- * Collapse rows with byte-identical behavior into one group. Keeps the golden
- * reviewable: each distinct output vector appears once with its member list,
- * and a Phase-3 data change shows up as membership moving between groups.
- */
-export function groupByBehavior(
-  rows: MatrixRow[],
-  capture: (row: MatrixRow) => Record<string, unknown>
-): BehaviorGroup[] {
-  const groups = new Map<string, BehaviorGroup>()
-  for (const row of rows) {
-    const behavior = capture(row)
-    const fingerprint = stableStringify(behavior)
-    let group = groups.get(fingerprint)
-    if (!group) {
-      group = { behavior, members: [] }
-      groups.set(fingerprint, group)
-    }
-    group.members.push(row.key)
-  }
-  return [...groups.values()]
-    .map((g) => ({ behavior: g.behavior, members: [...g.members].sort() }))
-    .sort((a, b) => a.members[0].localeCompare(b.members[0]))
 }
