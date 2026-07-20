@@ -1332,6 +1332,9 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('session-icon')).toBeInTheDocument()
     expect(screen.getByTestId('topic-icon')).toBeInTheDocument()
     expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'false')
+    expect(screen.getByTestId('session-icon').closest('[data-resource-list-leading-slot="true"]')).not.toHaveClass(
+      '[&_svg]:stroke-current'
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'session' }))
     expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'true')

@@ -1,4 +1,7 @@
 import { application } from '@application'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 import type { knowledgeRequestSchemas } from '@shared/ipc/schemas/knowledge'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -28,6 +31,18 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
   'knowledge.enable_embedding_model': async ({ baseId, patch }) =>
     application.get('KnowledgeService').enableEmbeddingModel(baseId, patch),
   'knowledge.search': async ({ baseId, query }) => application.get('KnowledgeService').search(baseId, query),
+  'knowledge.get_file_path': async ({ itemId }) => {
+    try {
+      return application.get('KnowledgeService').getFilePath(itemId)
+    } catch (error) {
+      if (isDataApiError(error) && (error.code === ErrorCode.NOT_FOUND || error.code === ErrorCode.INVALID_OPERATION)) {
+        throw new IpcError(knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE, 'Knowledge source path is unavailable', {
+          cause: error.code
+        })
+      }
+      throw error
+    }
+  },
   'knowledge.list_item_chunks': async ({ baseId, itemId }) =>
     application.get('KnowledgeService').listItemChunks(baseId, itemId)
 }

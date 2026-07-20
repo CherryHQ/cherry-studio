@@ -184,11 +184,57 @@ pnpm dev
 pnpm build
 
 # Type check
-pnpm type-check
+pnpm type:check
 
 # Run tests
 pnpm test
 ```
+
+### Icon Generation
+
+Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.
+
+In this command, `--type=icons` means general UI icons that are not Provider or Model logos.
+
+```bash
+# Generate general icons, Providers, and Models
+pnpm icons:generate
+
+# General icons
+pnpm icons:generate --type=icons
+
+# Provider icons, Avatars, barrels, and catalogs
+pnpm icons:generate --type=providers
+
+# Model icons, Avatars, barrels, and catalogs
+pnpm icons:generate --type=models
+```
+
+| Type        | SVG source                            | Generated output                                                                 |
+| ----------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| `icons`     | `icons/general/*.svg`                 | General React icon components and their barrel                                   |
+| `providers` | `icons/providers/{light,dark}/*.svg` | Provider light/dark components, metadata, Avatars, barrels, and catalogs          |
+| `models`    | `icons/models/{light,dark}/*.svg`    | Model light/dark components, metadata, Avatars, barrels, and catalogs             |
+
+Generation uses a hash cache and skips unchanged SVG files. Use the optional arguments when a narrower or clean regeneration is needed:
+
+```bash
+# Regenerate one provider and its Avatar/catalog entries
+pnpm icons:generate --type=providers --only=opencode
+
+# Regenerate multiple models
+pnpm icons:generate --type=models --only=claude,gemini
+
+# Ignore the hash cache and regenerate every provider
+pnpm icons:generate --type=providers --force
+```
+
+- Omitting `--type` generates all three groups in order: `icons`, `providers`, then `models`.
+- `--type=icons|providers|models` limits generation to one source and output group.
+- `--only=<name[,name]>` limits Provider or Model component and Avatar generation to the listed names.
+- `--force` bypasses the SVG hash cache.
+
+Provider and Model generation runs the SVG component stage first and the Avatar/catalog stage second. The `posticons:generate` lifecycle script fixes the generated icon files with ESLint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
 
 ## Package Surface
 
