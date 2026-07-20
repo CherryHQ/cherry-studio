@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,11 @@ const oauthWithCherryInMock = vi.fn()
 const syncProviderModelsMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
+const i18nMock = vi.hoisted(() => ({
+  changeLanguage: vi.fn(),
+  language: 'en-US',
+  resolvedLanguage: 'en-US'
+}))
 const enabledProvidersMock: Array<{ id: string; isEnabled: boolean }> = []
 const enabledModelsMock: Array<{ id: string; providerId: string; isEnabled: boolean }> = []
 const selectedModelsMock: {
@@ -24,6 +30,10 @@ const selectedModelsMock: {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('@renderer/i18n/resolver', () => ({
+  default: i18nMock
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -73,6 +83,8 @@ import OnboardingPage from '../OnboardingPage'
 describe('OnboardingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    i18nMock.changeLanguage.mockResolvedValue(undefined)
     oauthWithCherryInMock.mockResolvedValue('sk-test')
     addApiKeyMock.mockResolvedValue(undefined)
     updateProviderMock.mockResolvedValue(undefined)
@@ -184,6 +196,22 @@ describe('OnboardingPage', () => {
     expect(container.querySelector('.drag')).toHaveClass('h-[var(--app-top-chrome-height)]')
     expect(responsiveStyles).toMatch(/--app-top-chrome-height:\s*44px/)
     expect(responsiveStyles).toMatch(/--navbar-height:\s*var\(--app-top-chrome-height\)/)
+  })
+
+  it('changes the interface language and saves the preference from the top chrome', async () => {
+    render(<OnboardingPage onComplete={vi.fn()} />)
+
+    const languageTrigger = screen.getByRole('button', { name: 'common.language' })
+    const languageSelector = languageTrigger.closest('[data-onboarding-language-select]')
+    const skipButton = screen.getByRole('button', { name: 'onboarding.skip' })
+
+    expect(languageTrigger).toHaveClass('nodrag')
+    expect(languageSelector?.nextElementSibling).toBe(skipButton)
+
+    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+
+    expect(i18nMock.changeLanguage).toHaveBeenCalledWith('zh-CN')
+    await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('app.language')).toBe('zh-CN'))
   })
 
   it('uses an elevated welcome layout with clear text hierarchy and intentional spacing', () => {

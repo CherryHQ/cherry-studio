@@ -1,15 +1,19 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviders } from '@renderer/hooks/useProvider'
+import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
+import i18n from '@renderer/i18n/resolver'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { defaultLanguage } from '@shared/utils/languages'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
-import { ArrowLeft, Check, KeyRound, LogIn } from 'lucide-react'
+import { ArrowLeft, Check, KeyRound, Languages, LogIn } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,6 +37,7 @@ function OnboardingProviderSettings() {
 
 export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
   const { t } = useTranslation()
+  const [language, setLanguage] = usePreference('app.language')
   const { addApiKey, updateProvider } = useProvider('cherryin')
   const { syncProviderModels } = useProviderModelSync('cherryin')
   const { providers: enabledProviders, isLoading: isProvidersLoading } = useProviders({ enabled: true })
@@ -56,6 +61,20 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
         ? t('onboarding.provider_setup.missing_model')
         : null
     : null
+  const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
+  const displayLanguage = isAppLanguage(language)
+    ? language
+    : isAppLanguage(resolvedLanguage)
+      ? resolvedLanguage
+      : defaultLanguage
+  const displayLanguageLabel = appLanguageOptions.find((option) => option.value === displayLanguage)?.label
+
+  const handleLanguageChange = (value: string) => {
+    if (!isAppLanguage(value)) return
+
+    void i18n.changeLanguage(value)
+    void setLanguage(value)
+  }
 
   const complete = useCallback(async () => {
     setIsCompleting(true)
@@ -101,7 +120,26 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-sidebar text-foreground">
       <div className="drag flex h-[var(--app-top-chrome-height)] shrink-0 items-stretch justify-end">
-        <div className="nodrag mr-2 flex items-center">
+        <div className="nodrag mr-2 flex items-center gap-1">
+          <div data-onboarding-language-select="" className="nodrag">
+            <Select value={displayLanguage} onValueChange={handleLanguageChange}>
+              <SelectTrigger
+                aria-label={t('common.language')}
+                size="sm"
+                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-foreground-secondary text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                <Languages className="size-3.5" />
+                <SelectValue>{displayLanguageLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent align="end">
+                {appLanguageOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <span aria-hidden="true">{option.flag}</span>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button
             type="button"
             variant="ghost"
