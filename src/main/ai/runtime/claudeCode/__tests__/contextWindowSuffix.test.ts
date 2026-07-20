@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { with1mSuffix } from '../contextWindowSuffix'
+import { isAnthropicOfficialHost, with1mSuffix } from '../contextWindowSuffix'
 
 describe('with1mSuffix', () => {
   it('appends [1m] when a non-Anthropic model declares >= 1M context', () => {
@@ -24,5 +24,23 @@ describe('with1mSuffix', () => {
 
   it('returns empty string for a missing model id', () => {
     expect(with1mSuffix(undefined, 1_000_000, false)).toBe('')
+  })
+})
+
+describe('isAnthropicOfficialHost', () => {
+  it('is true for api.anthropic.com and for an unset base URL (SDK default)', () => {
+    expect(isAnthropicOfficialHost('https://api.anthropic.com')).toBe(true)
+    expect(isAnthropicOfficialHost('https://api.anthropic.com/')).toBe(true)
+    expect(isAnthropicOfficialHost(undefined)).toBe(true)
+    expect(isAnthropicOfficialHost('')).toBe(true)
+  })
+
+  it('is false for a custom proxy host, including one derived from the Anthropic preset', () => {
+    expect(isAnthropicOfficialHost('https://anthropic.mycorp.com')).toBe(false)
+    expect(isAnthropicOfficialHost('https://api.deepseek.com/anthropic')).toBe(false)
+  })
+
+  it('is false for an unparseable base URL', () => {
+    expect(isAnthropicOfficialHost('not a url')).toBe(false)
   })
 })

@@ -20,7 +20,7 @@ import { isExternalCliProvider, isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN 
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
-import { with1mSuffix } from './contextWindowSuffix'
+import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import { buildClaudeCodeSessionSettings, buildSkillWhitelist, type McpServerSnapshotMap } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
@@ -400,9 +400,10 @@ function deriveRouteFacts(
   // that rotate onto different keys still sign identically, while enabling/disabling/editing a key
   // invalidates warm reuse.
   const enabledKeys = providerService.getApiKeys(primaryProvider.id, { enabled: true }).map((entry) => entry.key)
-  // On this branch every slot is pinned to `primaryProvider` (see `shouldUseGateway`), so one
-  // provider-native check gates them all.
-  const isAnthropicNative = primaryProvider.id === 'anthropic' || primaryProvider.presetProviderId === 'anthropic'
+  // Every slot resolves to the same `anthropicBaseUrl`, so one host check gates them all. Decide
+  // first-party by resolved host, NOT preset origin: a provider copied from the Anthropic preset but
+  // repointed at a custom 1M proxy is not first-party and must still get the `[1m]` suffix.
+  const isAnthropicNative = isAnthropicOfficialHost(anthropicBaseUrl)
   return {
     branch: 'direct',
     baseUrl: anthropicBaseUrl,
