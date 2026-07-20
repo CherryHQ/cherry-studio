@@ -103,7 +103,17 @@ function useResourceListAutoCollapse({
   const [storedPaneWidth] = usePersistCache('ui.chat.artifact_pane.width')
 
   const dockedPaneOpen = Boolean(rightPanelState?.presentationOpen && !rightPanelState.presentationMaximized)
-  const frozen = Boolean(rightPanelState?.fullWidthActive || rightPanelState?.paneResizing || listResizing)
+  // `fullWidthActive` is host-reported one commit late; `presentationMaximized` and
+  // `layoutAnimationPending` flip synchronously in the provider, so together they
+  // close the race where a maximize-click evaluation would run before the freeze
+  // lands (the list must not open/close along with full-width phases).
+  const frozen = Boolean(
+    rightPanelState?.fullWidthActive ||
+      rightPanelState?.presentationMaximized ||
+      rightPanelState?.layoutAnimationPending ||
+      rightPanelState?.paneResizing ||
+      listResizing
+  )
   const userOpenSeq = rightPanelState?.userOpenSeq ?? 0
 
   const shellWidthRef = useRef(0)

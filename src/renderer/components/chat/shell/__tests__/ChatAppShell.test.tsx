@@ -721,6 +721,37 @@ describe('ChatAppShell', () => {
     expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
   })
 
+  it('freezes on the synchronous maximize flip before the host reports the full-width phase', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const shellProps = { pane: <aside>topics</aside>, main: <div /> }
+    rightPanelStateMock.current = {
+      layoutAnimationPending: false,
+      presentationMaximized: false,
+      presentationOpen: true,
+      fullWidthActive: false,
+      userOpenSeq: 0
+    }
+
+    const { rerender } = render(
+      <ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />
+    )
+
+    notifyObservedShellWidth(850)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+
+    // Maximize click: presentationMaximized flips in the same commit while the
+    // host's fullWidthActive report is still one commit behind — the list must
+    // not bounce open here even though the docked prediction would restore it.
+    rightPanelStateMock.current = { ...rightPanelStateMock.current, presentationMaximized: true }
+    rerender(<ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+
+    // Minimize completes: docked again, unfreeze evaluates once and keeps it collapsed.
+    rightPanelStateMock.current = { ...rightPanelStateMock.current, presentationMaximized: false }
+    rerender(<ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+  })
+
   it('defers evaluation during full-width phases and evaluates once on unfreeze', () => {
     const onPaneAutoCollapseChange = vi.fn()
     const shellProps = { pane: <aside>topics</aside>, main: <div /> }
