@@ -40,6 +40,14 @@ interface OvmsConfig {
 export class OvmsManager extends BaseService {
   private ovms: OvmsProcess | null = null
 
+  /**
+   * OVMS model registry (config.json). Resolved lazily per access: the path
+   * registry is not frozen yet when this module is imported.
+   */
+  private get modelRegistryPath(): string {
+    return application.getPath('feature.ovms.model_registry_file')
+  }
+
   protected async onStop() {
     await this.stopOvms()
   }
@@ -139,7 +147,7 @@ export class OvmsManager extends BaseService {
    */
   public async runOvms(): Promise<{ success: boolean; message?: string }> {
     const ovmsDir = application.getPath('feature.ovms.ovms')
-    const configPath = application.getPath('feature.ovms.model_registry_file')
+    const configPath = this.modelRegistryPath
     const runBatPath = path.join(ovmsDir, 'run.bat')
 
     try {
@@ -262,7 +270,7 @@ export class OvmsManager extends BaseService {
       return false
     }
 
-    const configPath = application.getPath('feature.ovms.model_registry_file')
+    const configPath = this.modelRegistryPath
     try {
       if (!(await fs.pathExists(configPath))) {
         logger.warn(`Config file does not exist: ${configPath}`)
@@ -454,7 +462,7 @@ export class OvmsManager extends BaseService {
    * @param modelId ID of the model to check
    */
   public async checkModelExists(modelId: string): Promise<boolean> {
-    const configPath = application.getPath('feature.ovms.model_registry_file')
+    const configPath = this.modelRegistryPath
 
     try {
       if (!(await fs.pathExists(configPath))) {
@@ -479,7 +487,7 @@ export class OvmsManager extends BaseService {
    * Update the model configuration file
    */
   public async updateModelConfig(modelName: string, modelId: string): Promise<boolean> {
-    const configPath = application.getPath('feature.ovms.model_registry_file')
+    const configPath = this.modelRegistryPath
 
     try {
       // Ensure the models directory exists
@@ -530,7 +538,7 @@ export class OvmsManager extends BaseService {
    * @returns Array of model configurations
    */
   public async getModels(): Promise<ModelConfig[]> {
-    const configPath = application.getPath('feature.ovms.model_registry_file')
+    const configPath = this.modelRegistryPath
 
     try {
       if (!(await fs.pathExists(configPath))) {
