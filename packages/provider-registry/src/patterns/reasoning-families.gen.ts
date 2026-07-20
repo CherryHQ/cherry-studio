@@ -166,8 +166,9 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'mistral-small-2603' },
   { pattern: '^mistral-(?:small|medium)(?!.*instruct)' },
   // moonshot
+  { pattern: '^kimi-k2[.-]7-code', toggle: false },
   { pattern: '^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)', toggle: true },
-  { pattern: 'kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)', budget: { min: 0, max: 30720 }, template: true },
+  { pattern: 'kimi-k2[.-][5-9]\\d*', budget: { min: 0, max: 30720 }, template: true },
   { pattern: '^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?$' },
   // nvidia
   { pattern: 'nemotron-(?:nano|super|3-(?:nano|super|ultra))' },

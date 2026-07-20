@@ -12080,18 +12080,9 @@
           },
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["low", "high", "max", "none"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["low", "high", "max", "none"]
       }
     },
     {
@@ -12133,12 +12124,8 @@
             "kind": "budget",
             "max": 30720,
             "min": 0
-          },
-          {
-            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"],
         "thinkingTokenLimits": {
           "max": 30720,
           "min": 0
@@ -12184,12 +12171,8 @@
             "kind": "budget",
             "max": 30720,
             "min": 0
-          },
-          {
-            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"],
         "thinkingTokenLimits": {
           "max": 30720,
           "min": 0
@@ -19910,5 +19893,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "acccc81b42873039"
+  "version": "3248f11a84d078b5"
 }
