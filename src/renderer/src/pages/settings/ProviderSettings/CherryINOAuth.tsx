@@ -12,8 +12,8 @@ import styled from 'styled-components'
 
 const logger = loggerService.withContext('CherryINOAuth')
 
-const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
-const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
+const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.net'
+const CHERRYIN_TOPUP_URL = 'https://open.cherryin.net/console/topup'
 
 /**
  * Generate avatar initials from a name (first 2 characters)
@@ -187,12 +187,12 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
           <LogOut size={14} />
         </LogoutCorner>
       )}
-      <ProviderLogo src={CherryINProviderLogo} onClick={() => window.open('https://open.cherryin.ai', '_blank')} />
+      <ProviderLogo src={CherryINProviderLogo} onClick={() => window.open('https://open.cherryin.net', '_blank')} />
       {renderContent()}
       <Description>
         {t('settings.provider.oauth.provided_by')}{' '}
-        <OfficialWebsite href="https://open.cherryin.ai" target="_blank" rel="noreferrer">
-          open.cherryin.ai
+        <OfficialWebsite href="https://open.cherryin.net" target="_blank" rel="noreferrer">
+          open.cherryin.net
         </OfficialWebsite>
         {t('settings.provider.oauth.provided_by_suffix')}
       </Description>

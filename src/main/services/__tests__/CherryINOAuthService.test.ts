@@ -41,7 +41,7 @@ describe('CherryINOAuthService', () => {
       )
       .mockResolvedValueOnce(jsonResponse(['CHERRYIN_API_KEY']))
 
-    const flow = await CherryINOAuthService.startOAuthFlow(createEvent(17), 'https://open.cherryin.ai')
+    const flow = await CherryINOAuthService.startOAuthFlow(createEvent(17), 'https://open.cherryin.net')
     const result = await CherryINOAuthService.exchangeToken(createEvent(17), 'AUTH_CODE', flow.state)
 
     expect(result).toEqual({ apiKeys: 'CHERRYIN_API_KEY' })
@@ -49,7 +49,7 @@ describe('CherryINOAuthService', () => {
   })
 
   it('rejects CherryIN OAuth code exchanges from a different IPC sender', async () => {
-    const flow = await CherryINOAuthService.startOAuthFlow(createEvent(17), 'https://open.cherryin.ai')
+    const flow = await CherryINOAuthService.startOAuthFlow(createEvent(17), 'https://open.cherryin.net')
 
     await expect(CherryINOAuthService.exchangeToken(createEvent(42), 'AUTH_CODE', flow.state)).rejects.toThrow(
       'OAuth flow was started by a different window'
