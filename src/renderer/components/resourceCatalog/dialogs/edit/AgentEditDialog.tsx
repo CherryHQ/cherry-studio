@@ -20,6 +20,7 @@ import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { permissionModeCards } from '@renderer/utils/agent'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -82,13 +83,6 @@ type AgentEditFormValues = {
 type ToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.skills'
 
 const logger = loggerService.withContext('AgentEditDialog')
-const PERMISSION_MODES = ['default', 'plan', 'acceptEdits', 'bypassPermissions'] as const
-const PERMISSION_MODE_LABEL_KEYS: Record<(typeof PERMISSION_MODES)[number], string> = {
-  acceptEdits: 'library.config.agent.field.permission_mode.option.acceptEdits',
-  bypassPermissions: 'library.config.agent.field.permission_mode.option.bypassPermissions',
-  default: 'library.config.agent.field.permission_mode.option.default',
-  plan: 'library.config.agent.field.permission_mode.option.plan'
-}
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
 
 const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
@@ -519,9 +513,9 @@ function PermissionModeField({
                 </SelectTrigger>
               </FormControl>
               <SelectContent portalContainer={portalContainer}>
-                {PERMISSION_MODES.map((mode) => (
-                  <SelectItem key={mode} value={mode}>
-                    {t(PERMISSION_MODE_LABEL_KEYS[mode])}
+                {permissionModeCards.map((card) => (
+                  <SelectItem key={card.mode} value={card.mode}>
+                    {t(card.titleKey, card.titleFallback)}
                   </SelectItem>
                 ))}
               </SelectContent>
