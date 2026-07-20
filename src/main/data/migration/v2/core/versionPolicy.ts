@@ -129,6 +129,21 @@ export interface CandidateVersionEvaluation {
   check: VersionCheckResult
   previousVersion: string | null
   versionLogExists: boolean
+  versionLog: VersionLogDiagnosticContext
+}
+
+export type VersionLogDiagnosticContext =
+  | { readonly state: 'missing' }
+  | { readonly state: 'read_failed' }
+  | {
+      readonly state: 'parsed'
+      readonly validRecordCountBucket: '0' | '1' | '2+'
+      readonly invalidRecordCountBucket: '0' | '1' | '2+'
+    }
+
+interface VersionLogReadResult {
+  readonly previousVersion: string | null
+  readonly diagnostics: Exclude<VersionLogDiagnosticContext, { state: 'missing' }>
 }
 
 /**
@@ -149,9 +164,11 @@ export interface CandidateVersionEvaluation {
 export function evaluateCandidateVersion(dir: string, currentAppVersion: string): CandidateVersionEvaluation {
   const versionLogPath = path.join(dir, 'version.log')
   const versionLogExists = fs.existsSync(versionLogPath)
-  const previousVersion = versionLogExists ? readPreviousVersion(versionLogPath, currentAppVersion) : null
+  const inspected = versionLogExists ? inspectVersionLog(versionLogPath, currentAppVersion) : null
+  const previousVersion = inspected?.previousVersion ?? null
+  const versionLog: VersionLogDiagnosticContext = inspected?.diagnostics ?? { state: 'missing' }
   const check = checkUpgradePathCompatibility({ currentAppVersion, previousVersion, versionLogExists })
-  return { check, previousVersion, versionLogExists }
+  return { check, previousVersion, versionLogExists, versionLog }
 }
 
 // ── version.log reader ──────────────────────────────────────────────
@@ -171,11 +188,20 @@ export function evaluateCandidateVersion(dir: string, currentAppVersion: string)
  * @returns The previous version string, or null.
  */
 export function readPreviousVersion(versionLogPath: string, currentVersion: string): string | null {
+  return inspectVersionLog(versionLogPath, currentVersion).previousVersion
+}
+
+function countBucket(count: number): '0' | '1' | '2+' {
+  if (count === 0) return '0'
+  return count === 1 ? '1' : '2+'
+}
+
+function inspectVersionLog(versionLogPath: string, currentVersion: string): VersionLogReadResult {
   let content: string
   try {
     content = fs.readFileSync(versionLogPath, 'utf-8')
   } catch {
-    return null
+    return { previousVersion: null, diagnostics: { state: 'read_failed' } }
   }
 
   const lines = content
@@ -183,28 +209,36 @@ export function readPreviousVersion(versionLogPath: string, currentVersion: stri
     .split('\n')
     .filter((line) => line.trim())
 
-  if (lines.length === 0) {
-    return null
-  }
-
-  let hasValidLines = false
+  let validRecordCount = 0
+  let invalidRecordCount = 0
+  let previousVersion: string | null = null
 
   // Scan backwards to find the most recent different version.
   for (let i = lines.length - 1; i >= 0; i--) {
     const version = parseVersionFromLine(lines[i])
-    if (!version) continue
-    hasValidLines = true
-    if (version !== currentVersion) {
-      return version
+    if (version === null) {
+      invalidRecordCount += 1
+      continue
+    }
+    validRecordCount += 1
+    if (previousVersion === null && version !== currentVersion) {
+      previousVersion = version
     }
   }
 
   // Non-empty file but zero parseable records — log for diagnostics.
-  if (!hasValidLines && lines.length > 0) {
+  if (validRecordCount === 0 && lines.length > 0) {
     logger.warn('version.log contains lines but none could be parsed', { lineCount: lines.length })
   }
 
-  return null
+  return {
+    previousVersion,
+    diagnostics: {
+      state: 'parsed',
+      validRecordCountBucket: countBucket(validRecordCount),
+      invalidRecordCountBucket: countBucket(invalidRecordCount)
+    }
+  }
 }
 
 /**

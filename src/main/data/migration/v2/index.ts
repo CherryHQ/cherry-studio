@@ -7,6 +7,7 @@ export { createMigrationContext, type MigrationContext } from './core/MigrationC
 export { MigrationEngine, migrationEngine } from './core/MigrationEngine'
 export { isSchemaOutOfSyncError } from './core/migrationErrors'
 export {
+  type MigrationDirectorySelectionRole,
   type MigrationPaths,
   type MigrationPathsResult,
   pinUserDataPath,

@@ -212,4 +212,43 @@ describe('evaluateCandidateVersion', () => {
     expect(result.previousVersion).toBe('1.8.0')
     expect(result.versionLogExists).toBe(true)
   })
+
+  it('uses the latest valid prior version and exposes only bounded version-log facts', () => {
+    mockedExistsSync.mockReturnValue(true)
+    mockedReadFileSync.mockReturnValue(
+      [
+        '1.8.4|darwin|production|true|normal|2025-01-01T00:00:00Z',
+        'PRIVATE_INVALID_LINE_/Users/alice',
+        '1.9.11|darwin|production|true|normal|2025-02-01T00:00:00Z',
+        '2.0.0|darwin|production|true|normal|2025-03-01T00:00:00Z'
+      ].join('\n')
+    )
+
+    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+
+    expect(result.previousVersion).toBe('1.9.11')
+    expect(result.check).toMatchObject({
+      outcome: 'block',
+      reason: 'v1_too_old',
+      details: { previousVersion: '1.9.11' }
+    })
+    expect(result.versionLog).toEqual({
+      state: 'parsed',
+      validRecordCountBucket: '2+',
+      invalidRecordCountBucket: '1'
+    })
+    expect(JSON.stringify(result.versionLog)).not.toContain('PRIVATE_INVALID_LINE')
+  })
+
+  it('distinguishes an existing unreadable version log from a missing one', () => {
+    mockedExistsSync.mockReturnValue(true)
+    mockedReadFileSync.mockImplementation(() => {
+      throw new Error('EACCES: PRIVATE_VERSION_LOG_PATH')
+    })
+
+    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+
+    expect(result.versionLog).toEqual({ state: 'read_failed' })
+    expect(JSON.stringify(result.versionLog)).not.toContain('PRIVATE_VERSION_LOG_PATH')
+  })
 })

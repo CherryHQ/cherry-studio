@@ -7,13 +7,13 @@ import {
   createMigrationWindowFailureClaim,
   evaluateCandidateVersion,
   getAllMigrators,
-  getBlockMessage,
   isSchemaOutOfSyncError,
   type MigrationDiagnosticBundleSaveResult,
   type MigrationDiagnosticFailure,
   type MigrationDiagnosticNativeDecision,
   type MigrationDiagnosticNativeFailureCode,
   type MigrationDiagnosticNativeSaveResult,
+  type MigrationDirectorySelectionRole,
   migrationEngine,
   type MigrationRendererFailureReason,
   type MigrationVersionGateContext,
@@ -50,6 +50,7 @@ type RendererExportFailureErrorCode = Extract<
   MigrationDiagnosticFailure,
   { kind: 'renderer_export_failed' }
 >['errorCode']
+type PrebootFailureErrorCode = Extract<MigrationDiagnosticFailure, { kind: 'preboot_failed' }>['errorCode']
 
 function classifyRendererExportFailure(report: MigrationRendererExportFailureReport): RendererExportFailureErrorCode {
   switch (report.operationRole) {
@@ -66,6 +67,34 @@ function classifyRendererExportFailure(report: MigrationRendererExportFailureRep
   }
 }
 
+function classifyPrebootFailure(error: unknown, fallback: PrebootFailureErrorCode): PrebootFailureErrorCode {
+  const { errorCode } = classifyMigrationError(error)
+  switch (errorCode) {
+    case 'unknown_error':
+      return fallback
+    case 'sqlite_open_failed':
+    case 'sqlite_corrupt':
+    case 'sqlite_not_database':
+    case 'sqlite_schema':
+    case 'sqlite_constraint':
+    case 'sqlite_readonly':
+    case 'sqlite_permission':
+    case 'sqlite_too_big':
+    case 'sqlite_busy':
+    case 'sqlite_locked':
+    case 'sqlite_io':
+    case 'sqlite_unknown':
+    case 'file_missing':
+    case 'file_permission':
+    case 'file_readonly':
+    case 'file_io':
+    case 'file_unknown':
+      return errorCode
+    default:
+      return fallback
+  }
+}
+
 function normalizeDiagnosticVersion(value: string | null | undefined): string | null {
   if (!value) return null
   const normalized = semver.coerce(value)?.version ?? null
@@ -76,46 +105,50 @@ function createVersionGateDiagnosticContext(
   reason: VersionBlockReason,
   details: Record<string, string>,
   previousVersion: string | null,
-  versionLogExists: boolean
+  directorySelectionRole: MigrationDirectorySelectionRole,
+  versionLog: MigrationVersionGateContext['versionLog']
 ): MigrationVersionGateContext | null {
   const currentVersion = normalizeDiagnosticVersion(app.getVersion()) ?? 'unknown'
   const normalizedPreviousVersion = normalizeDiagnosticVersion(previousVersion)
 
   if (reason === 'no_version_log') {
     const requiredVersion = normalizeDiagnosticVersion(details.requiredVersion)
-    if (requiredVersion === null || versionLogExists) return null
+    if (requiredVersion === null || versionLog.state !== 'missing') return null
     return {
       reason,
       currentVersion,
+      directorySelectionRole,
       previousVersion: null,
       requiredVersion,
       gatewayVersion: null,
-      versionLog: 'missing'
+      versionLog
     }
   }
 
   if (reason === 'v1_too_old') {
     const requiredVersion = normalizeDiagnosticVersion(details.requiredVersion)
-    if (normalizedPreviousVersion === null || requiredVersion === null || !versionLogExists) return null
+    if (normalizedPreviousVersion === null || requiredVersion === null || versionLog.state !== 'parsed') return null
     return {
       reason,
       currentVersion,
+      directorySelectionRole,
       previousVersion: normalizedPreviousVersion,
       requiredVersion,
       gatewayVersion: null,
-      versionLog: 'present'
+      versionLog
     }
   }
 
   const gatewayVersion = normalizeDiagnosticVersion(details.gatewayVersion)
-  if (normalizedPreviousVersion === null || gatewayVersion === null || !versionLogExists) return null
+  if (normalizedPreviousVersion === null || gatewayVersion === null || versionLog.state !== 'parsed') return null
   return {
     reason,
     currentVersion,
+    directorySelectionRole,
     previousVersion: normalizedPreviousVersion,
     requiredVersion: null,
     gatewayVersion,
-    versionLog: 'present'
+    versionLog
   }
 }
 
@@ -160,7 +193,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   let engineInitialized = false
   let attemptActive = false
   let startRendererExportInFlight: Promise<void> | null = null
-  type DiagnosticEventInput = Parameters<(typeof diagnosticsCoordinator)['recordEvent']>[0]
+  type AttemptFinish = Parameters<(typeof diagnosticsCoordinator)['finishAttempt']>[0]
+  type DiagnosticLocation = Parameters<(typeof diagnosticsCoordinator)['updateLocation']>[0]
 
   const saveDiagnosticBundle = async (destination: string): Promise<MigrationDiagnosticNativeSaveResult> => {
     try {
@@ -205,35 +239,19 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     }
   }
 
-  const recordEvent = (input: DiagnosticEventInput): void => {
+  const updateLocation = (location: DiagnosticLocation): void => {
     if (!attemptActive) return
     try {
-      diagnosticsCoordinator.recordEvent(input)
+      diagnosticsCoordinator.updateLocation(location)
     } catch {
-      logger.error('Failed to record bounded migration gate diagnostic event')
+      logger.error('Failed to update bounded migration diagnostic location')
     }
   }
 
-  const finishFailedAttempt = (error: unknown, phase: DiagnosticEventInput['phase']): void => {
+  const finishAttempt = (result: AttemptFinish): void => {
     if (!attemptActive) return
-    const classified = classifyMigrationError(error)
-    recordEvent({
-      scope: 'gate',
-      phase,
-      state: 'failed',
-      category: classified.category,
-      code: classified.code,
-      causeDepth: classified.causeDepth
-    })
     try {
-      diagnosticsCoordinator.finishAttempt('failed', {
-        scope: 'gate',
-        phase: 'finalize',
-        state: 'failed',
-        category: classified.category,
-        code: classified.code,
-        causeDepth: classified.causeDepth
-      })
+      diagnosticsCoordinator.finishAttempt(result)
     } catch {
       logger.error('Failed to finish bounded migration diagnostic attempt')
     } finally {
@@ -241,37 +259,37 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     }
   }
 
-  const finishInterruptedAttempt = (code: 'unknown' | 'path_unavailable'): void => {
-    if (!attemptActive) return
-    try {
-      diagnosticsCoordinator.finishAttempt('interrupted', {
+  const finishPrebootFailure = (
+    errorCode: Extract<MigrationDiagnosticFailure, { kind: 'preboot_failed' }>['errorCode'],
+    phase: Extract<DiagnosticLocation['phase'], 'resolve_paths' | 'initialize' | 'validate' | 'finalize'>,
+    versionGate?: MigrationVersionGateContext
+  ): void => {
+    finishAttempt({
+      status: 'failed',
+      failure: {
+        kind: 'preboot_failed',
         scope: 'gate',
-        phase: 'finalize',
-        state: 'interrupted',
-        code,
-        ...(code === 'path_unavailable' ? { category: 'filesystem' as const } : {})
-      })
+        phase,
+        errorCode,
+        ...(versionGate === undefined ? {} : { evidence: { kind: 'version_gate', context: versionGate } })
+      }
+    })
+  }
+
+  const finishCompletedAttempt = (): void => finishAttempt({ status: 'completed', warningCount: 0 })
+
+  const completeDiagnostics = (): void => {
+    try {
+      diagnosticsCoordinator.complete()
     } catch {
-      logger.error('Failed to interrupt bounded migration diagnostic attempt')
-    } finally {
-      attemptActive = false
+      logger.error('Failed to clean completed migration diagnostics')
     }
   }
 
-  const finishCompletedAttempt = (): void => {
-    if (!attemptActive) return
-    try {
-      diagnosticsCoordinator.finishAttempt('completed', {
-        scope: 'gate',
-        phase: 'finalize',
-        state: 'completed',
-        code: 'unknown'
-      })
-    } catch {
-      logger.error('Failed to finish completed migration diagnostic attempt')
-    } finally {
-      attemptActive = false
-    }
+  const migrationAttemptDiagnostics = {
+    updateLocation,
+    finishAttempt,
+    complete: completeDiagnostics
   }
 
   const runRendererExportStart = async (): Promise<void> => {
@@ -282,7 +300,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       } else {
         attemptActive = true
       }
-      diagnosticsCoordinator.updateLocation({ scope: 'renderer_export', phase: 'prepare' })
+      updateLocation({ scope: 'renderer_export', phase: 'prepare' })
     } catch {
       logger.error('Failed to start renderer export diagnostics')
     }
@@ -314,7 +332,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         return
       }
       attemptActive = true
-      diagnosticsCoordinator.finishAttempt({
+      finishAttempt({
         status: 'failed',
         failure: {
           kind: 'renderer_export_failed',
@@ -326,21 +344,17 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       })
     } catch {
       logger.error('Failed to finish renderer export diagnostics')
-    } finally {
-      attemptActive = false
     }
   }
 
   let rendererFailureObserved = false
+  let versionGateRecorded = false
+  let versionGateCleaned = false
 
   const completeVersionGate = (): void => {
-    if (!attemptActive || rendererFailureObserved) return
-    finishCompletedAttempt()
-    try {
-      diagnosticsCoordinator.complete()
-    } catch {
-      logger.error('Failed to clean completed version-gate diagnostics')
-    }
+    if (!versionGateRecorded || versionGateCleaned || rendererFailureObserved) return
+    versionGateCleaned = true
+    completeDiagnostics()
   }
 
   const migrationIpcDiagnosticCapabilities = {
@@ -350,24 +364,30 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     completeVersionGate
   }
 
-  const finishActiveRendererFailureAttempt = async (reason: MigrationRendererFailureReason): Promise<void> => {
+  const recordRendererInterruption = async (reason: MigrationRendererFailureReason): Promise<void> => {
     try {
       const snapshot = await diagnosticsCoordinator.snapshot()
-      if (snapshot.attempts.at(-1)?.outcome !== 'in_progress') {
+      if (snapshot.current?.status !== 'in_progress') {
         attemptActive = false
         return
       }
-      diagnosticsCoordinator.finishAttempt('failed', {
-        scope: 'gate',
-        phase: 'finalize',
-        state: 'failed',
-        category: 'process',
-        code: reason
+      attemptActive = true
+      finishAttempt({
+        status: 'interrupted',
+        failure: {
+          kind: 'process_interrupted',
+          scope: 'engine',
+          phase: 'interrupted',
+          errorCode: reason,
+          evidence: {
+            kind: 'interruption',
+            lastLocation: snapshot.current.lastLocation,
+            recoverySource: 'live_renderer_event'
+          }
+        }
       })
     } catch {
       logger.error('Failed to finish renderer failure diagnostic attempt')
-    } finally {
-      attemptActive = false
     }
   }
 
@@ -392,17 +412,22 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     resolvedPaths = resolved.paths
   } catch (error) {
     beginAttempt('initial')
-    finishFailedAttempt(error, 'resolve_paths')
+    finishPrebootFailure('path_resolution_failed', 'resolve_paths')
     return applyNativeDecision(await presentFailure('path_resolution_failed'))
   }
 
-  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolved
+  const {
+    paths,
+    userDataChanged,
+    inaccessibleLegacyPath,
+    legacyDataConfirmed,
+    directorySelectionRole = 'unknown',
+    dataLocation
+  } = resolved
   try {
     diagnosticsCoordinator.attachPaths(paths)
-  } catch (error) {
-    beginAttempt('initial')
-    finishFailedAttempt(error, 'resolve_paths')
-    return applyNativeDecision(await presentFailure('diagnostics_journal_failed'))
+  } catch {
+    logger.warn('Migration checkpoint attachment failed; continuing without cross-launch diagnostics')
   }
 
   let attemptTrigger: 'initial' | 'recovered_retry' = 'initial'
@@ -419,40 +444,30 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     attemptTrigger = 'recovered_retry'
   }
 
-  if (!beginAttempt(attemptTrigger)) {
-    return applyNativeDecision(await presentFailure('diagnostics_journal_failed'))
-  }
-  recordEvent({ scope: 'gate', phase: 'resolve_paths', state: 'completed', code: 'unknown' })
+  beginAttempt(attemptTrigger)
+  updateLocation({ scope: 'gate', phase: 'resolve_paths' })
 
   if (inaccessibleLegacyPath) {
-    recordEvent({
-      scope: 'gate',
-      phase: 'resolve_paths',
-      state: 'unavailable',
-      category: 'filesystem',
-      code: 'path_unavailable'
-    })
     const decision = await presentFailure('legacy_data_location_unavailable', { allowUseDefault: true })
     if (decision !== 'use_default') {
-      finishInterruptedAttempt('path_unavailable')
+      finishPrebootFailure('legacy_data_location_unavailable', 'resolve_paths')
       return applyNativeDecision(decision)
     }
     try {
       pinUserDataPath(paths.userData)
-      recordEvent({ scope: 'gate', phase: 'resolve_paths', state: 'completed', code: 'unknown' })
-    } catch (error) {
-      finishFailedAttempt(error, 'resolve_paths')
+    } catch {
+      finishPrebootFailure('data_location_pin_failed', 'resolve_paths')
       return applyNativeDecision(await presentFailure('data_location_pin_failed'))
     }
   }
 
   try {
-    migrationEngine.initialize(paths, legacyDataConfirmed, diagnosticsCoordinator)
+    migrationEngine.initialize(paths, legacyDataConfirmed, migrationAttemptDiagnostics)
     engineInitialized = true
     migrationEngine.registerMigrators(getAllMigrators())
   } catch (error) {
     logger.error('Migration database initialization failed', error as Error)
-    finishFailedAttempt(error, 'initialize')
+    finishPrebootFailure(classifyPrebootFailure(error, 'database_initialize_failed'), 'initialize')
 
     if (isDev) {
       await app.whenReady()
@@ -495,13 +510,12 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   }
 
   let needsMigration: boolean
-  recordEvent({ scope: 'gate', phase: 'validate', state: 'started', code: 'unknown' })
+  updateLocation({ scope: 'gate', phase: 'validate' })
   try {
     needsMigration = await migrationEngine.needsMigration()
-    recordEvent({ scope: 'gate', phase: 'validate', state: 'completed', code: 'unknown' })
   } catch (error) {
     logger.error('Migration status probe failed', error as Error)
-    finishFailedAttempt(error, 'validate')
+    finishPrebootFailure(classifyPrebootFailure(error, 'migration_status_probe_failed'), 'validate')
     const decision = await presentFailure('migration_status_probe_failed')
     migrationEngine.close()
     engineInitialized = false
@@ -512,11 +526,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     migrationEngine.close()
     engineInitialized = false
     finishCompletedAttempt()
-    try {
-      diagnosticsCoordinator.complete()
-    } catch {
-      logger.error('Failed to clean a completed migration diagnostic journal')
-    }
+    completeDiagnostics()
 
     if (userDataChanged) {
       application.relaunch()
@@ -529,7 +539,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   try {
     versionEvaluation = evaluateCandidateVersion(paths.userData, app.getVersion())
   } catch (error) {
-    finishFailedAttempt(error, 'validate')
+    finishPrebootFailure('version_check_failed', 'validate')
     const decision = await presentFailure('version_check_failed')
     migrationEngine.close()
     engineInitialized = false
@@ -542,39 +552,32 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     writesSettled: Promise<void>
   ): Promise<void> => {
     rendererFailureObserved = true
-    // This runs synchronously before the manager starts its write waiter. If an
-    // engine write is active, its own terminal event will therefore remain last.
-    recordEvent({
-      scope: 'gate',
-      phase: 'finalize',
-      state: 'failed',
-      category: 'process',
-      code: reason
-    })
+    await recordRendererInterruption(reason)
     await writesSettled
-    await finishActiveRendererFailureAttempt(reason)
     await finishWindowFailure(reason)
   }
 
   const { check: versionCheck, previousVersion, versionLogExists } = versionEvaluation
+  const versionLog =
+    versionEvaluation.versionLog ??
+    (versionLogExists
+      ? {
+          state: 'parsed' as const,
+          validRecordCountBucket: 'unknown' as const,
+          invalidRecordCountBucket: 'unknown' as const
+        }
+      : { state: 'missing' as const })
   logger.info('Version compatibility check', { previousVersion, versionLogExists })
   if (versionCheck.outcome === 'block') {
     const versionGate = createVersionGateDiagnosticContext(
       versionCheck.reason,
       versionCheck.details,
       previousVersion,
-      versionLogExists
+      directorySelectionRole,
+      versionLog
     )
     if (versionGate === null) {
       logger.error('Failed to normalize version-gate diagnostics')
-    } else {
-      recordEvent({
-        scope: 'gate',
-        phase: 'validate',
-        state: 'unavailable',
-        code: 'upgrade_path_blocked',
-        versionGate
-      })
     }
     setVersionIncompatible(versionCheck.reason, versionCheck.details)
     registerMigrationIpcHandlers(paths.userData, migrationIpcDiagnosticCapabilities)
@@ -582,16 +585,33 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       await app.whenReady()
       migrationWindowManager.create({ failureClaim: windowFailureClaim, onRendererFailure })
       await migrationWindowManager.waitForReady()
+      if (!rendererFailureObserved) {
+        if (versionGate === null) {
+          finishPrebootFailure('version_check_failed', 'validate')
+        } else {
+          finishAttempt({
+            status: 'failed',
+            failure: {
+              kind: 'upgrade_path_blocked',
+              scope: 'gate',
+              phase: 'validate',
+              errorCode: versionGate.reason,
+              evidence: { kind: 'version_gate', context: versionGate }
+            }
+          })
+          versionGateRecorded = true
+        }
+      }
       return 'handled'
     } catch (error) {
       const failure = windowFailureClaim.claim(async () => {
         logger.error('Version guidance window failed', error as Error)
-        finishFailedAttempt(error, 'initialize')
-        unregisterMigrationIpcHandlers()
-        if (engineInitialized) migrationEngine.close()
-        engineInitialized = false
-        dialog.showErrorBox('Version Upgrade Required', getBlockMessage(versionCheck.reason, versionCheck.details))
-        application.quit()
+        if (versionGate === null) {
+          finishPrebootFailure('version_check_failed', 'validate')
+        } else {
+          finishPrebootFailure('version_window_failed', 'finalize', versionGate)
+        }
+        await finishWindowFailure('version_window_failed')
       })
       await failure.completion
       return 'handled'
@@ -608,7 +628,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   } catch (error) {
     const failure = windowFailureClaim.claim(async () => {
       logger.error('Migration window failed', error as Error)
-      finishFailedAttempt(error, 'initialize')
+      finishPrebootFailure('migration_window_failed', 'finalize')
       await finishWindowFailure('migration_window_failed')
     })
     await failure.completion

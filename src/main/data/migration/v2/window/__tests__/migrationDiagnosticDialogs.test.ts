@@ -1,7 +1,11 @@
 import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { presentMigrationDiagnosticFailure, presentMigrationDiagnosticRecovery } from '../migrationDiagnosticDialogs'
+import {
+  MIGRATION_DIAGNOSTIC_NATIVE_FAILURE_CODES,
+  presentMigrationDiagnosticFailure,
+  presentMigrationDiagnosticRecovery
+} from '../migrationDiagnosticDialogs'
 
 const showMessageBoxMock = vi.mocked(dialog.showMessageBox)
 const showSaveDialogMock = vi.mocked(dialog.showSaveDialog)
@@ -10,6 +14,10 @@ const runSaveTransactionImmediately = async <T>(operation: () => Promise<T>): Pr
 describe('migrationDiagnosticDialogs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('does not expose checkpoint persistence as a migration failure', () => {
+    expect(MIGRATION_DIAGNOSTIC_NATIVE_FAILURE_CODES).not.toContain('diagnostics_journal_failed')
   })
 
   it('returns to the original failure decision after save cancellation', async () => {

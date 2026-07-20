@@ -29,7 +29,6 @@ import type {
 let testDir = ''
 let now = new Date('2026-07-21T08:00:00.000Z')
 
-const initialLocation = { scope: 'gate', phase: 'resolve_paths' } as const
 const executeLocation = { scope: 'migrator', phase: 'execute', migratorId: 'chat' } as const
 
 function paths(): { diagnosticsJournalFile: string } {
@@ -114,7 +113,11 @@ describe('minimal previous/current state', () => {
 
     now = new Date('2026-07-21T08:01:00.000Z')
     subject.beginAttempt('manual_retry')
-    expect((await subject.snapshot()).previous?.failure.errorCode).toBe('sqlite_constraint')
+    const firstRetry = await subject.snapshot()
+    expect(firstRetry.previous?.status).toBe('failed')
+    expect(firstRetry.previous?.status === 'failed' ? firstRetry.previous.failure.errorCode : undefined).toBe(
+      'sqlite_constraint'
+    )
     subject.updateLocation(executeLocation)
     subject.finishAttempt({ status: 'failed', failure: writeFailure('sqlite_too_big') })
 
@@ -122,7 +125,10 @@ describe('minimal previous/current state', () => {
     subject.beginAttempt('recovered_retry')
     const snapshot = await subject.snapshot()
 
-    expect(snapshot.previous?.failure.errorCode).toBe('sqlite_too_big')
+    expect(snapshot.previous?.status).toBe('failed')
+    expect(snapshot.previous?.status === 'failed' ? snapshot.previous.failure.errorCode : undefined).toBe(
+      'sqlite_too_big'
+    )
     expect(snapshot.current).toMatchObject({ trigger: 'recovered_retry', status: 'in_progress' })
     expect(snapshot).not.toHaveProperty('attempts')
     expect(JSON.stringify(snapshot)).not.toContain('sqlite_constraint')

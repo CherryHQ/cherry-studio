@@ -371,6 +371,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     expect(result.paths.userData).toBe('E:\\Dropbox\\Cherry Data\\CherryStudio')
     expect(result.userDataChanged).toBe(true)
     expect(result.legacyDataConfirmed).toBe(true)
+    expect(result.directorySelectionRole).toBe('legacy_exact')
     expect(h.setPath).toHaveBeenCalledWith('userData', 'E:\\Dropbox\\Cherry Data\\CherryStudio')
   })
 
@@ -390,6 +391,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     expect(result.userDataChanged).toBe(true)
     // B1 fuzzy recovery → notice surfaced to the introduction screen.
     expect(result.dataLocation).toBe('E:\\Dropbox\\Cherry Data\\CherryStudio')
+    expect(result.directorySelectionRole).toBe('legacy_fuzzy_eligible')
     expect(h.setPath).toHaveBeenCalledWith('userData', 'E:\\Dropbox\\Cherry Data\\CherryStudio')
   })
 
@@ -595,6 +597,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     expect(result.inaccessibleLegacyPath).toBeNull()
     expect(result.userDataChanged).toBe(false)
     expect(result.legacyDataConfirmed).toBe(true)
+    expect(result.directorySelectionRole).toBe('boot_config')
     expect(h.setPath).not.toHaveBeenCalled()
   })
 })

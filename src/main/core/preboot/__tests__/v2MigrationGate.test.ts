@@ -51,7 +51,7 @@ const evaluateCandidateVersionMock = vi.fn()
 const diagnosticsCoordinatorConstructedMock = vi.fn()
 const diagnosticsAttachPathsMock = vi.fn()
 const diagnosticsBeginAttemptMock = vi.fn()
-const diagnosticsRecordEventMock = vi.fn()
+const diagnosticsUpdateLocationMock = vi.fn()
 const diagnosticsFinishAttemptMock = vi.fn()
 const diagnosticsCompleteMock = vi.fn()
 const diagnosticsRunSaveMock = vi.fn()
@@ -63,14 +63,9 @@ const presentDiagnosticRecoveryMock = vi.fn()
 let diagnosticsRecovered = false
 
 const diagnosticsSnapshot = {
-  version: 1,
-  sessionId: 'safe-session-id',
-  appVersion: '2.0.0',
-  platform: 'darwin',
-  arch: 'arm64',
-  startedAt: '2026-07-19T10:00:00.000Z',
-  state: 'active',
-  attempts: []
+  formatVersion: 1,
+  app: { version: '2.0.0', platform: 'darwin', arch: 'arm64' },
+  state: 'active'
 }
 
 const diagnosticsCoordinator = {
@@ -79,7 +74,7 @@ const diagnosticsCoordinator = {
   },
   attachPaths: diagnosticsAttachPathsMock,
   beginAttempt: diagnosticsBeginAttemptMock,
-  recordEvent: diagnosticsRecordEventMock,
+  updateLocation: diagnosticsUpdateLocationMock,
   finishAttempt: diagnosticsFinishAttemptMock,
   complete: diagnosticsCompleteMock,
   runSave: diagnosticsRunSaveMock,
@@ -116,6 +111,7 @@ const defaultResolveResult = {
   userDataChanged: false,
   inaccessibleLegacyPath: null,
   legacyDataConfirmed: false,
+  directorySelectionRole: 'default' as const,
   dataLocation: undefined
 }
 
@@ -219,13 +215,11 @@ async function createMemoryDiagnosticsCoordinator(): Promise<MigrationDiagnostic
   const { MigrationDiagnosticsCoordinator: Coordinator } = await vi.importActual<{
     MigrationDiagnosticsCoordinator: typeof MigrationDiagnosticsCoordinator
   }>('@data/migration/v2/diagnostics/MigrationDiagnosticsCoordinator')
-  let nextId = 0
   const coordinator = new Coordinator({
     appVersion: '2.0.0',
     platform: 'darwin',
     arch: 'arm64',
-    clock: () => new Date('2026-07-19T10:00:00.000Z'),
-    idGenerator: () => `safe-id-${++nextId}`
+    clock: () => new Date('2026-07-19T10:00:00.000Z')
   })
   vi.spyOn(coordinator, 'attachPaths').mockImplementation(() => undefined)
   return coordinator
@@ -268,7 +262,10 @@ type RendererFailureCallback = (
 
 interface RegisteredMigrationDiagnosticsCapabilities {
   start(): Promise<void>
-  reportRendererExportFailure(): Promise<void>
+  reportRendererExportFailure(
+    report: { sourceRole: 'redux'; operationRole: 'parse' },
+    mainWriteFailure?: 'file_io'
+  ): Promise<void>
   saveDiagnosticBundle(destination: string): Promise<unknown>
   completeVersionGate(): void
 }
@@ -306,7 +303,7 @@ beforeEach(() => {
   diagnosticsCoordinatorConstructedMock.mockReset()
   diagnosticsAttachPathsMock.mockReset()
   diagnosticsBeginAttemptMock.mockReset().mockReturnValue('attempt-id')
-  diagnosticsRecordEventMock.mockReset()
+  diagnosticsUpdateLocationMock.mockReset()
   diagnosticsFinishAttemptMock.mockReset()
   diagnosticsCompleteMock.mockReset()
   diagnosticsRunSaveMock
@@ -359,7 +356,15 @@ describe('runV2MigrationGate', () => {
       await runV2MigrationGate()
 
       expect(initializeMock).toHaveBeenCalledTimes(1)
-      expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths, false, diagnosticsCoordinator)
+      expect(initializeMock).toHaveBeenCalledWith(
+        defaultMigrationPaths,
+        false,
+        expect.objectContaining({
+          updateLocation: expect.any(Function),
+          finishAttempt: expect.any(Function),
+          complete: expect.any(Function)
+        })
+      )
       expect(registerMigratorsMock).toHaveBeenCalledTimes(1)
       expect(registerMigratorsMock).toHaveBeenCalledWith(migrators)
     })
@@ -422,37 +427,29 @@ describe('runV2MigrationGate', () => {
 
       await capabilities.start()
       let snapshot = await coordinator.snapshot()
-      expect(snapshot.attempts).toHaveLength(1)
-      expect(snapshot.attempts[0]).toMatchObject({
+      expect(snapshot.current).toMatchObject({
         trigger: 'initial',
-        outcome: 'in_progress'
+        status: 'in_progress',
+        lastLocation: { scope: 'renderer_export', phase: 'prepare' }
       })
-      expect(snapshot.attempts[0].events).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            scope: 'renderer_export',
-            phase: 'prepare',
-            state: 'started',
-            code: 'unknown'
-          })
-        ])
-      )
 
-      coordinator.finishAttempt('failed', {
-        scope: 'engine',
-        phase: 'finalize',
-        state: 'failed',
-        category: 'database_write',
-        code: 'sqlite_constraint'
+      coordinator.finishAttempt({
+        status: 'failed',
+        failure: {
+          kind: 'migration_finalize_failed',
+          scope: 'engine',
+          phase: 'finalize',
+          errorCode: 'sqlite_constraint'
+        }
       })
 
       await capabilities.start()
       snapshot = await coordinator.snapshot()
-      expect(snapshot.attempts).toHaveLength(2)
-      expect(snapshot.attempts[1]).toMatchObject({
+      expect(snapshot.previous).toMatchObject({ trigger: 'initial', status: 'failed' })
+      expect(snapshot.current).toMatchObject({
         trigger: 'manual_retry',
-        outcome: 'in_progress',
-        events: [expect.objectContaining({ scope: 'renderer_export', state: 'started' })]
+        status: 'in_progress',
+        lastLocation: { scope: 'renderer_export', phase: 'prepare' }
       })
     })
 
@@ -471,30 +468,30 @@ describe('runV2MigrationGate', () => {
       const { runV2MigrationGate } = await loadModule()
       await runV2MigrationGate()
       const capabilities = registeredDiagnosticsCapabilities()
-      coordinator.finishAttempt('failed', {
-        scope: 'engine',
-        phase: 'finalize',
-        state: 'failed',
-        category: 'database_write',
-        code: 'sqlite_constraint'
+      coordinator.finishAttempt({
+        status: 'failed',
+        failure: {
+          kind: 'migration_finalize_failed',
+          scope: 'engine',
+          phase: 'finalize',
+          errorCode: 'sqlite_constraint'
+        }
       })
 
       await Promise.all([capabilities.start(), capabilities.start()])
-      await capabilities.reportRendererExportFailure()
+      await capabilities.reportRendererExportFailure({ sourceRole: 'redux', operationRole: 'parse' })
 
       const snapshot = await coordinator.snapshot()
-      expect(snapshot.attempts).toHaveLength(2)
-      const retry = snapshot.attempts[1]
-      expect(retry).toMatchObject({ trigger: 'manual_retry', outcome: 'failed' })
-      expect(
-        retry.events.filter((event) => event.scope === 'renderer_export' && event.state === 'started')
-      ).toHaveLength(1)
-      expect(retry.events.at(-1)).toMatchObject({
-        scope: 'renderer_export',
-        phase: 'finalize',
-        state: 'failed',
-        category: 'source',
-        code: 'source_parse'
+      expect(snapshot.previous).toMatchObject({ trigger: 'initial', status: 'failed' })
+      expect(snapshot.current).toMatchObject({
+        trigger: 'manual_retry',
+        status: 'failed',
+        lastLocation: { scope: 'renderer_export', phase: 'prepare' },
+        failure: {
+          kind: 'renderer_export_failed',
+          errorCode: 'source_parse_failed',
+          evidence: { kind: 'renderer_export', sourceRole: 'redux', operationRole: 'parse' }
+        }
       })
       expect(JSON.stringify(snapshot)).not.toContain('canary-secret')
       expect(JSON.stringify(snapshot)).not.toContain('/Users/private')
@@ -517,21 +514,20 @@ describe('runV2MigrationGate', () => {
       const capabilities = registeredDiagnosticsCapabilities()
 
       await capabilities.start()
-      await capabilities.reportRendererExportFailure()
+      await capabilities.reportRendererExportFailure({ sourceRole: 'redux', operationRole: 'parse' })
 
       const snapshot = await coordinator.snapshot()
-      const lastAttempt = snapshot.attempts.at(-1)
-      expect(lastAttempt).toMatchObject({ outcome: 'failed' })
-      expect(lastAttempt?.events.slice(-2)).toEqual([
-        expect.objectContaining({ scope: 'renderer_export', state: 'started' }),
-        expect.objectContaining({
+      expect(snapshot.current).toMatchObject({
+        status: 'failed',
+        lastLocation: { scope: 'renderer_export', phase: 'prepare' },
+        failure: {
+          kind: 'renderer_export_failed',
           scope: 'renderer_export',
           phase: 'finalize',
-          state: 'failed',
-          category: 'source',
-          code: 'source_parse'
-        })
-      ])
+          errorCode: 'source_parse_failed',
+          evidence: { kind: 'renderer_export', sourceRole: 'redux', operationRole: 'parse' }
+        }
+      })
       expect(JSON.stringify(snapshot)).not.toContain('canary-secret')
       expect(JSON.stringify(snapshot)).not.toContain('/Users/private')
     })
@@ -716,10 +712,11 @@ describe('runV2MigrationGate', () => {
         expected: {
           reason: 'no_version_log',
           currentVersion: '2.0.0',
+          directorySelectionRole: 'default',
           previousVersion: null,
           requiredVersion: '1.9.12',
           gatewayVersion: null,
-          versionLog: 'missing'
+          versionLog: { state: 'missing' }
         }
       },
       {
@@ -736,10 +733,15 @@ describe('runV2MigrationGate', () => {
         expected: {
           reason: 'v1_too_old',
           currentVersion: '2.0.0',
+          directorySelectionRole: 'default',
           previousVersion: '1.8.0',
           requiredVersion: '1.9.12',
           gatewayVersion: null,
-          versionLog: 'present'
+          versionLog: {
+            state: 'parsed',
+            validRecordCountBucket: 'unknown',
+            invalidRecordCountBucket: 'unknown'
+          }
         }
       },
       {
@@ -756,35 +758,44 @@ describe('runV2MigrationGate', () => {
         expected: {
           reason: 'v2_gateway_skipped',
           currentVersion: '2.1.0',
+          directorySelectionRole: 'default',
           previousVersion: '1.9.12',
           requiredVersion: null,
           gatewayVersion: '2.0.0',
-          versionLog: 'present'
+          versionLog: {
+            state: 'parsed',
+            validRecordCountBucket: 'unknown',
+            invalidRecordCountBucket: 'unknown'
+          }
         }
       }
-    ])('records a sanitized $expected.reason event before opening version guidance', async (testCase) => {
+    ])('records a sanitized $expected.reason root only after version guidance is ready', async (testCase) => {
       appGetVersionMock.mockReturnValue(testCase.currentVersion)
       needsMigrationMock.mockResolvedValue(true)
       evaluateCandidateVersionMock.mockReturnValue(testCase.evaluation)
-      stubMigrationV2()
+      const coordinator = await createMemoryDiagnosticsCoordinator()
+      const finishAttempt = vi.spyOn(coordinator, 'finishAttempt')
+      stubMigrationV2({ diagnosticsCoordinator: coordinator })
       stubElectron()
       stubApplication()
 
       const { runV2MigrationGate } = await loadModule()
       await runV2MigrationGate()
 
-      const expectedEvent = {
-        scope: 'gate',
-        phase: 'validate',
-        state: 'unavailable',
-        code: 'upgrade_path_blocked',
-        versionGate: testCase.expected
-      }
-      expect(diagnosticsRecordEventMock).toHaveBeenCalledWith(expectedEvent)
-      expect(diagnosticsRecordEventMock.mock.invocationCallOrder.at(-1)).toBeLessThan(
-        setVersionIncompatibleMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+      expect(finishAttempt).toHaveBeenCalledWith({
+        status: 'failed',
+        failure: {
+          kind: 'upgrade_path_blocked',
+          scope: 'gate',
+          phase: 'validate',
+          errorCode: testCase.expected.reason,
+          evidence: { kind: 'version_gate', context: testCase.expected }
+        }
+      })
+      expect(migrationWindowWaitForReadyMock.mock.invocationCallOrder[0]).toBeLessThan(
+        finishAttempt.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
       )
-      expect(JSON.stringify(diagnosticsRecordEventMock.mock.calls)).not.toContain('+private')
+      expect(JSON.stringify(await coordinator.snapshot())).not.toContain('+private')
     })
 
     it("returns 'handled' and shows version_incompatible window when version check blocks", async () => {
@@ -821,7 +832,7 @@ describe('runV2MigrationGate', () => {
       expect(appQuitMock).not.toHaveBeenCalled()
     })
 
-    it('completes version-gate diagnostics only when the guidance window closes normally', async () => {
+    it('cleans the recorded version-gate diagnostic only when the guidance window closes normally', async () => {
       needsMigrationMock.mockResolvedValue(true)
       evaluateCandidateVersionMock.mockReturnValue({
         check: {
@@ -839,7 +850,7 @@ describe('runV2MigrationGate', () => {
       const { runV2MigrationGate } = await loadModule()
       await runV2MigrationGate()
 
-      expect(diagnosticsFinishAttemptMock).not.toHaveBeenCalled()
+      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledTimes(1)
       expect(diagnosticsCompleteMock).not.toHaveBeenCalled()
 
       const capabilities = registeredDiagnosticsCapabilities()
@@ -847,13 +858,6 @@ describe('runV2MigrationGate', () => {
       capabilities.completeVersionGate()
       capabilities.completeVersionGate()
 
-      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledTimes(1)
-      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledWith('completed', {
-        scope: 'gate',
-        phase: 'finalize',
-        state: 'completed',
-        code: 'unknown'
-      })
       expect(diagnosticsCompleteMock).toHaveBeenCalledTimes(1)
       expect(diagnosticsFinishAttemptMock.mock.invocationCallOrder[0]).toBeLessThan(
         diagnosticsCompleteMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
@@ -882,11 +886,13 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(presentDiagnosticFailureMock).not.toHaveBeenCalled()
-      expect(showErrorBoxMock).toHaveBeenCalledWith('Version Upgrade Required', expect.stringContaining('1.9.0'))
+      expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'version_window_failed' })
+      )
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(closeMock).toHaveBeenCalledTimes(1)
-      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
+      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(2)
     })
 
     it('proceeds to migration window when version check passes', async () => {
@@ -976,7 +982,15 @@ describe('runV2MigrationGate', () => {
       // No early return: pin the default, fall through, initialize on default,
       // and reach the normal skipped path.
       expect(pinUserDataPathMock).toHaveBeenCalledWith('/mock/userData')
-      expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths, false, diagnosticsCoordinator)
+      expect(initializeMock).toHaveBeenCalledWith(
+        defaultMigrationPaths,
+        false,
+        expect.objectContaining({
+          updateLocation: expect.any(Function),
+          finishAttempt: expect.any(Function),
+          complete: expect.any(Function)
+        })
+      )
       expect(appRelaunchMock).not.toHaveBeenCalled()
       expect(appQuitMock).not.toHaveBeenCalled()
       expect(result).toBe('skipped')
@@ -1027,23 +1041,16 @@ describe('runV2MigrationGate', () => {
       expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
         expect.objectContaining({ code: 'path_resolution_failed' })
       )
-      expect(diagnosticsRecordEventMock).toHaveBeenCalledWith({
-        scope: 'gate',
-        phase: 'resolve_paths',
-        state: 'failed',
-        category: 'filesystem',
-        code: 'permission_denied',
-        causeDepth: 0
+      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledWith({
+        status: 'failed',
+        failure: {
+          kind: 'preboot_failed',
+          scope: 'gate',
+          phase: 'resolve_paths',
+          errorCode: 'path_resolution_failed'
+        }
       })
-      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledWith('failed', {
-        scope: 'gate',
-        phase: 'finalize',
-        state: 'failed',
-        category: 'filesystem',
-        code: 'permission_denied',
-        causeDepth: 0
-      })
-      expect(JSON.stringify(diagnosticsRecordEventMock.mock.calls)).not.toContain('/Users/private')
+      expect(JSON.stringify(diagnosticsFinishAttemptMock.mock.calls)).not.toContain('/Users/private')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })
@@ -1112,7 +1119,15 @@ describe('runV2MigrationGate', () => {
       expect(diagnosticsAttachPathsMock.mock.invocationCallOrder[0]).toBeLessThan(
         diagnosticsBeginAttemptMock.mock.invocationCallOrder[0]
       )
-      expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths, false, diagnosticsCoordinator)
+      expect(initializeMock).toHaveBeenCalledWith(
+        defaultMigrationPaths,
+        false,
+        expect.objectContaining({
+          updateLocation: expect.any(Function),
+          finishAttempt: expect.any(Function),
+          complete: expect.any(Function)
+        })
+      )
     })
 
     it('finishes the recovery decision before beginning a recovered retry or initializing the database', async () => {
@@ -1176,10 +1191,7 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('skipped')
-      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledWith(
-        'completed',
-        expect.objectContaining({ scope: 'gate', phase: 'finalize', state: 'completed' })
-      )
+      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledWith({ status: 'completed', warningCount: 0 })
       expect(needsMigrationMock.mock.invocationCallOrder[0]).toBeLessThan(
         diagnosticsFinishAttemptMock.mock.invocationCallOrder[0]
       )
@@ -1203,9 +1215,8 @@ describe('runV2MigrationGate', () => {
       diagnosticBundleSaveMock.mockImplementation(
         async (input: { collectDatabaseDiagnostics: () => Promise<unknown> }) => {
           expect(await input.collectDatabaseDiagnostics()).toEqual({
-            version: 1,
-            expectedSchemaVersion: 1,
-            completion: { status: 'failed', code: 'lease_unavailable' }
+            file: { status: 'unreadable', sizeBucket: '0', sqliteHeader: 'unavailable' },
+            sqlite: { status: 'unavailable', reason: 'not_attempted' }
           })
           return { status: 'saved', publication: 'published' }
         }
@@ -1227,14 +1238,23 @@ describe('runV2MigrationGate', () => {
       expect(rendered).not.toContain('/Users/private')
     })
 
+    it('continues migration when checkpoint attachment fails', async () => {
+      diagnosticsAttachPathsMock.mockImplementation(() => {
+        throw new Error('journal')
+      })
+      needsMigrationMock.mockResolvedValue(false)
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await expect(runV2MigrationGate()).resolves.toBe('skipped')
+
+      expect(presentDiagnosticFailureMock).not.toHaveBeenCalled()
+      expect(initializeMock).toHaveBeenCalledTimes(1)
+    })
+
     it.each([
-      {
-        expectedCode: 'diagnostics_journal_failed',
-        configure: () =>
-          diagnosticsAttachPathsMock.mockImplementation(() => {
-            throw new Error('journal')
-          })
-      },
       {
         expectedCode: 'database_initialize_failed',
         configure: () =>
@@ -1291,7 +1311,8 @@ describe('runV2MigrationGate', () => {
       const nativeWindow = makeGateWindow(() => Promise.reject(new Error('PRIVATE_LOAD_FAILURE_/Users/alice')))
       stubElectron(() => nativeWindow)
       const windowManager = await createRealMigrationWindowManager()
-      stubMigrationV2({ migrationWindowManager: windowManager })
+      const coordinator = await createMemoryDiagnosticsCoordinator()
+      stubMigrationV2({ diagnosticsCoordinator: coordinator, migrationWindowManager: windowManager })
       stubApplication()
 
       const { runV2MigrationGate } = await loadModule()
@@ -1299,9 +1320,22 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(nativeWindow.loadFile).toHaveBeenCalledTimes(1)
-      expect(presentDiagnosticFailureMock).not.toHaveBeenCalled()
-      expect(showErrorBoxMock).toHaveBeenCalledWith('Version Upgrade Required', expect.stringContaining('1.9.12'))
-      expect(JSON.stringify(showErrorBoxMock.mock.calls)).not.toContain('PRIVATE_LOAD_FAILURE')
+      expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'version_window_failed' })
+      )
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(JSON.stringify(presentDiagnosticFailureMock.mock.calls)).not.toContain('PRIVATE_LOAD_FAILURE')
+      expect((await coordinator.snapshot()).current).toMatchObject({
+        status: 'failed',
+        failure: {
+          kind: 'preboot_failed',
+          errorCode: 'version_window_failed',
+          evidence: {
+            kind: 'version_gate',
+            context: { reason: 'no_version_log', versionLog: { state: 'missing' } }
+          }
+        }
+      })
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
@@ -1352,7 +1386,6 @@ describe('runV2MigrationGate', () => {
         async (order) => {
           configure()
           const coordinator = await createMemoryDiagnosticsCoordinator()
-          const recordEvent = vi.spyOn(coordinator, 'recordEvent')
           const finishAttempt = vi.spyOn(coordinator, 'finishAttempt')
           let rejectLoad!: (error: Error) => void
           const loadPromise = new Promise<void>((_resolve, reject) => {
@@ -1405,10 +1438,7 @@ describe('runV2MigrationGate', () => {
           await new Promise<void>((resolve) => setImmediate(resolve))
 
           const expectedFailureCode = order === 'renderer-first' ? 'renderer_process_gone' : loadFailureCode
-          const expectedEventCode = order === 'renderer-first' ? 'renderer_process_gone' : 'unknown'
           const snapshot = await coordinator.snapshot()
-          const attempt = snapshot.attempts.at(-1)
-          const failedEvents = attempt?.events.filter((event) => event.state === 'failed') ?? []
           const bundleInput = diagnosticBundleSaveMock.mock.calls[0]?.[0] as { snapshot: unknown }
 
           expect(result).toBe('handled')
@@ -1418,12 +1448,21 @@ describe('runV2MigrationGate', () => {
             expect.objectContaining({ code: expectedFailureCode })
           )
           expect(finishAttempt).toHaveBeenCalledTimes(1)
-          expect(failedEvents).toHaveLength(2)
-          expect(failedEvents[0]).toEqual(expect.objectContaining({ code: expectedEventCode }))
-          expect(failedEvents.at(-1)).toEqual(expect.objectContaining({ code: expectedEventCode }))
-          expect(attempt?.outcome).toBe('failed')
-          expect(attempt?.events.at(-1)?.state).toBe(attempt?.outcome)
-          expect(recordEvent.mock.calls.filter(([event]) => event.state === 'failed')).toHaveLength(1)
+          expect(snapshot.current).toMatchObject(
+            order === 'renderer-first'
+              ? {
+                  status: 'interrupted',
+                  failure: {
+                    kind: 'process_interrupted',
+                    errorCode: 'renderer_process_gone',
+                    evidence: { kind: 'interruption', recoverySource: 'live_renderer_event' }
+                  }
+                }
+              : {
+                  status: 'failed',
+                  failure: { kind: 'preboot_failed', errorCode: 'migration_window_failed' }
+                }
+          )
           expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(2)
           expect(closeMock).toHaveBeenCalledTimes(1)
           expect(appQuitMock).not.toHaveBeenCalled()
@@ -1519,7 +1558,7 @@ describe('runV2MigrationGate', () => {
       expect(order).toEqual(['unregister:preserve', 'present', 'unregister:clear'])
     })
 
-    it('records an introduction crash marker and a fixed failed terminal before presenting native actions', async () => {
+    it('records one introduction crash interruption before presenting native actions', async () => {
       const coordinator = await createMemoryDiagnosticsCoordinator()
       needsMigrationMock.mockResolvedValue(true)
       evaluateCandidateVersionMock.mockReturnValue({
@@ -1540,29 +1579,20 @@ describe('runV2MigrationGate', () => {
       await callback('renderer_process_gone', Promise.resolve())
 
       const snapshot = await coordinator.snapshot()
-      const attempt = snapshot.attempts.at(-1)
-      expect(attempt?.outcome).toBe('failed')
-      expect(attempt?.events.slice(-2)).toEqual([
-        expect.objectContaining({
-          scope: 'gate',
-          phase: 'finalize',
-          state: 'failed',
-          category: 'process',
-          code: 'renderer_process_gone'
-        }),
-        expect.objectContaining({
-          scope: 'gate',
-          phase: 'finalize',
-          state: 'failed',
-          category: 'process',
-          code: 'renderer_process_gone'
-        })
-      ])
-      expect(attempt?.events.at(-1)?.state).toBe(attempt?.outcome)
+      expect(snapshot.current).toMatchObject({
+        status: 'interrupted',
+        failure: {
+          kind: 'process_interrupted',
+          scope: 'engine',
+          phase: 'interrupted',
+          errorCode: 'renderer_process_gone',
+          evidence: { kind: 'interruption', recoverySource: 'live_renderer_event' }
+        }
+      })
       expect(presentDiagnosticFailureMock).toHaveBeenCalledTimes(1)
     })
 
-    it('records an in-flight hang marker before waiting and preserves the engine terminal as the final event', async () => {
+    it('records an in-flight hang interruption before waiting and rejects a later engine terminal', async () => {
       const coordinator = await createMemoryDiagnosticsCoordinator()
       needsMigrationMock.mockResolvedValue(true)
       evaluateCandidateVersionMock.mockReturnValue({
@@ -1585,36 +1615,31 @@ describe('runV2MigrationGate', () => {
       })
 
       const nativeFlow = callback('renderer_unresponsive', writesSettled)
+      await new Promise<void>((resolve) => setImmediate(resolve))
       const beforeSettle = await coordinator.snapshot()
-      const markerBeforeSettle = beforeSettle.attempts.at(-1)?.events.at(-1)
       const presenterCallsBeforeSettle = presentDiagnosticFailureMock.mock.calls.length
 
-      coordinator.finishAttempt('failed', {
-        scope: 'engine',
-        phase: 'finalize',
-        state: 'failed',
-        category: 'unknown',
-        code: 'unknown'
-      })
+      expect(() =>
+        coordinator.finishAttempt({
+          status: 'failed',
+          failure: {
+            kind: 'migration_finalize_failed',
+            scope: 'engine',
+            phase: 'finalize',
+            errorCode: 'unknown_error'
+          }
+        })
+      ).toThrow('requires an active attempt')
       settleWrites()
       await nativeFlow
 
       const afterSettle = await coordinator.snapshot()
-      const events = afterSettle.attempts.at(-1)?.events ?? []
-      expect(markerBeforeSettle).toEqual(
-        expect.objectContaining({
-          scope: 'gate',
-          phase: 'finalize',
-          state: 'failed',
-          category: 'process',
-          code: 'renderer_unresponsive'
-        })
-      )
+      expect(beforeSettle.current).toMatchObject({
+        status: 'interrupted',
+        failure: { kind: 'process_interrupted', errorCode: 'renderer_unresponsive' }
+      })
       expect(presenterCallsBeforeSettle).toBe(0)
-      expect(events.filter((event) => event.code === 'renderer_unresponsive')).toHaveLength(1)
-      expect(events.at(-1)).toEqual(
-        expect.objectContaining({ scope: 'engine', phase: 'finalize', state: 'failed', code: 'unknown' })
-      )
+      expect(afterSettle.current).toEqual(beforeSettle.current)
       expect(presentDiagnosticFailureMock).toHaveBeenCalledTimes(1)
     })
 
@@ -1622,7 +1647,7 @@ describe('runV2MigrationGate', () => {
       'deduplicates %s crash-to-hang re-entry across the real manager, marker, and presenter',
       async (timing) => {
         const coordinator = await createMemoryDiagnosticsCoordinator()
-        const recordEvent = vi.spyOn(coordinator, 'recordEvent')
+        const finishAttempt = vi.spyOn(coordinator, 'finishAttempt')
         const nativeWindow = makeGateWindow(() => Promise.resolve())
         stubElectron(() => nativeWindow)
         const windowManager = await createRealMigrationWindowManager()
@@ -1651,13 +1676,11 @@ describe('runV2MigrationGate', () => {
         await vi.waitFor(() => expect(presentDiagnosticFailureMock).toHaveBeenCalledTimes(1))
 
         const snapshot = await coordinator.snapshot()
-        const attempt = snapshot.attempts.at(-1)
-        const reasonEvents = attempt?.events.filter((event) => event.code === 'renderer_process_gone') ?? []
-        const markerCalls = recordEvent.mock.calls.filter(([event]) => event.code === 'renderer_process_gone')
-        expect(markerCalls).toHaveLength(1)
-        expect(reasonEvents).toHaveLength(2)
-        expect(reasonEvents[0]).toEqual(expect.objectContaining({ state: 'failed', category: 'process' }))
-        expect(attempt?.events.at(-1)).toEqual(reasonEvents[1])
+        expect(finishAttempt).toHaveBeenCalledTimes(1)
+        expect(snapshot.current).toMatchObject({
+          status: 'interrupted',
+          failure: { kind: 'process_interrupted', errorCode: 'renderer_process_gone' }
+        })
         expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
           expect.objectContaining({ code: 'renderer_process_gone' })
         )

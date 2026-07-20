@@ -11,11 +11,8 @@ import {
 } from './migrationDiagnosticsJournal'
 import {
   type MigrationAttemptFinish,
-  type MigrationAttemptTerminalOutcome,
   type MigrationAttemptTrigger,
   type MigrationDiagnosticAttempt,
-  type MigrationDiagnosticEventInput,
-  type MigrationDiagnosticFailure,
   type MigrationDiagnosticLocation,
   migrationDiagnosticLocationSchema,
   type MigrationDiagnosticsArch,
@@ -72,25 +69,6 @@ function deepFreeze<TValue>(value: TValue): TValue {
   if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value
   for (const nested of Object.values(value)) deepFreeze(nested)
   return Object.freeze(value)
-}
-
-function legacyErrorCode(code: MigrationDiagnosticEventInput['code']): MigrationDiagnosticFailure['errorCode'] {
-  switch (code) {
-    case 'path_unavailable':
-      return 'file_missing'
-    case 'permission_denied':
-      return 'file_permission'
-    case 'disk_full':
-      return 'file_io'
-    case 'sqlite_corrupt':
-    case 'sqlite_not_database':
-    case 'sqlite_too_big':
-    case 'sqlite_constraint':
-    case 'sqlite_schema':
-      return code
-    default:
-      return 'unknown_error'
-  }
 }
 
 export class MigrationDiagnosticsCoordinator {
@@ -188,17 +166,7 @@ export class MigrationDiagnosticsCoordinator {
     })
   }
 
-  finishAttempt(result: MigrationAttemptFinish): void
-  /** @deprecated Temporary adapter for event-based gate/engine callers while they migrate to failures. */
-  finishAttempt(outcome: MigrationAttemptTerminalOutcome, terminalInput: MigrationDiagnosticEventInput): void
-  finishAttempt(
-    resultOrOutcome: MigrationAttemptFinish | MigrationAttemptTerminalOutcome,
-    terminalInput?: MigrationDiagnosticEventInput
-  ): void {
-    const result =
-      typeof resultOrOutcome === 'string'
-        ? this.fromLegacyFinish(resultOrOutcome, terminalInput as MigrationDiagnosticEventInput)
-        : resultOrOutcome
+  finishAttempt(result: MigrationAttemptFinish): void {
     const current = this.requireActiveAttempt()
     const endedAt = this.nowIsoAtOrAfter(current.startedAt)
 
@@ -216,23 +184,30 @@ export class MigrationDiagnosticsCoordinator {
       return
     }
 
+    if (result.status === 'failed') {
+      this.commit({
+        ...this.currentCheckpoint,
+        state: 'failed',
+        current: {
+          ...current,
+          status: 'failed',
+          endedAt,
+          failure: result.failure
+        }
+      })
+      return
+    }
+
     this.commit({
       ...this.currentCheckpoint,
       state: 'failed',
       current: {
         ...current,
-        status: result.status,
+        status: 'interrupted',
         endedAt,
         failure: result.failure
       }
     })
-  }
-
-  /** @deprecated Temporary adapter; non-terminal events now update only the last known location. */
-  recordEvent(input: MigrationDiagnosticEventInput): void {
-    const scope = input.scope === 'bundle' ? 'engine' : input.scope
-    const phase = input.phase === 'save' ? 'finalize' : input.phase
-    this.updateLocation({ scope, phase, ...(input.migratorId === undefined ? {} : { migratorId: input.migratorId }) })
   }
 
   complete(): void {
@@ -305,79 +280,6 @@ export class MigrationDiagnosticsCoordinator {
         failure
       }
     })
-  }
-
-  private fromLegacyFinish(
-    outcome: MigrationAttemptTerminalOutcome,
-    input: MigrationDiagnosticEventInput
-  ): MigrationAttemptFinish {
-    if (outcome === 'completed') return { status: 'completed', warningCount: 0 }
-    const current = this.requireActiveAttempt()
-    if (outcome === 'interrupted') {
-      return {
-        status: 'interrupted',
-        failure: {
-          kind: 'process_interrupted',
-          scope: 'engine',
-          phase: 'interrupted',
-          errorCode: input.code === 'renderer_process_gone' ? 'renderer_process_gone' : 'process_interrupted',
-          evidence: {
-            kind: 'interruption',
-            lastLocation: current.lastLocation,
-            recoverySource: 'live_renderer_event'
-          }
-        }
-      }
-    }
-    if (input.scope === 'gate') {
-      if (input.code === 'upgrade_path_blocked' && input.versionGate !== undefined) {
-        return {
-          status: 'failed',
-          failure: {
-            kind: 'upgrade_path_blocked',
-            scope: 'gate',
-            phase: 'validate',
-            errorCode: input.versionGate.reason,
-            evidence: { kind: 'version_gate', context: input.versionGate }
-          }
-        }
-      }
-      return {
-        status: 'failed',
-        failure: {
-          kind: 'preboot_failed',
-          scope: 'gate',
-          phase: 'finalize',
-          errorCode: 'unknown_error'
-        }
-      }
-    }
-    if (input.scope === 'renderer_export') {
-      const semantic = input.semanticEvidence?.kind === 'renderer_export_failure' ? input.semanticEvidence : undefined
-      return {
-        status: 'failed',
-        failure: {
-          kind: 'renderer_export_failed',
-          scope: 'renderer_export',
-          phase: 'finalize',
-          errorCode: input.code === 'source_parse' ? 'source_parse_failed' : 'unknown_error',
-          evidence: {
-            kind: 'renderer_export',
-            sourceRole: semantic?.sourceRole ?? 'unknown',
-            operationRole: semantic?.operationRole ?? 'unknown'
-          }
-        }
-      }
-    }
-    return {
-      status: 'failed',
-      failure: {
-        kind: 'migration_write_failed',
-        scope: 'database',
-        phase: 'execute',
-        errorCode: legacyErrorCode(input.code)
-      }
-    }
   }
 
   private commit(candidate: MigrationDiagnosticsSnapshot): void {

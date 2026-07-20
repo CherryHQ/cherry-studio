@@ -75,6 +75,8 @@ export interface MigrationPaths {
 
 export interface MigrationPathsResult {
   paths: MigrationPaths
+  /** Fixed, path-free role describing how the final userData directory was selected. */
+  directorySelectionRole: MigrationDirectorySelectionRole
   /** Whether userData was redirected from its Electron default (requires relaunch for path registry consistency). */
   userDataChanged: boolean
   /**
@@ -102,6 +104,15 @@ export interface MigrationPathsResult {
    */
   dataLocation?: string
 }
+
+export type MigrationDirectorySelectionRole =
+  | 'current'
+  | 'boot_config'
+  | 'legacy_exact'
+  | 'legacy_fuzzy_eligible'
+  | 'legacy_fuzzy_blocked'
+  | 'default'
+  | 'unknown'
 
 /**
  * Resolve all migration-critical paths in one shot.
@@ -142,6 +153,7 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   let userDataChanged = false
   let inaccessibleLegacyPath: string | null = null
   let dataLocation: string | undefined
+  let directorySelectionRole: MigrationDirectorySelectionRole = 'default'
 
   const exe = getNormalizedExecutablePath()
   const bootConfigEntry = bootConfigService.get('app.user_data_path')?.[exe]
@@ -152,6 +164,7 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   // entry existed and was VALID, it setPath'd userData to it; if it existed
   // but was INVALID, it silently fell through to the Electron default.
   if (bootConfigEntry) {
+    directorySelectionRole = 'boot_config'
     if (isUsableDataDir(bootConfigEntry)) {
       // Valid → current userData already IS the target. Skip legacy probing.
       logger.info('Boot-config userData entry present and valid, skipping legacy detection', { exe })
@@ -166,6 +179,7 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     // No boot-config entry → first v2 launch for this exe. Read the legacy
     // v1 config and select the best userData directory.
     const entries = readLegacyEntries(legacyConfigFile, exe)
+    const hasExactEntry = entries.some((entry) => sameLocation(entry.executablePath, exe))
     const decision = selectLegacyUserData({
       currentUserData,
       entries,
@@ -181,6 +195,11 @@ export function resolveMigrationPaths(): MigrationPathsResult {
 
     switch (decision.kind) {
       case 'redirect': {
+        directorySelectionRole = hasExactEntry
+          ? 'legacy_exact'
+          : decision.notice
+            ? 'legacy_fuzzy_eligible'
+            : 'legacy_fuzzy_blocked'
         // Redirect userData for Chromium and external consumers, and pre-write
         // boot-config so the next launch resolves it without this fallback.
         app.setPath('userData', decision.target)
@@ -193,13 +212,16 @@ export function resolveMigrationPaths(): MigrationPathsResult {
         break
       }
       case 'inaccessible':
+        directorySelectionRole = hasExactEntry ? 'legacy_exact' : 'unknown'
         inaccessibleLegacyPath = decision.path
         logger.warn('Legacy userData path inaccessible, prompting user', { path: decision.path, currentUserData })
         break
       case 'keep':
+        directorySelectionRole = 'current'
         logger.info('Current userData already V2-initialized (non-empty sqlite), keeping it')
         break
       case 'default':
+        directorySelectionRole = hasExactEntry ? 'legacy_exact' : hasV1Data(currentUserData) ? 'current' : 'default'
         // No recoverable legacy data — keep the Electron default; normal flow.
         break
     }
@@ -231,7 +253,14 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   // an empty default, so this correctly reports false for them.
   const legacyDataConfirmed = hasV1Data(paths.userData)
 
-  return { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation }
+  return {
+    paths,
+    userDataChanged,
+    inaccessibleLegacyPath,
+    legacyDataConfirmed,
+    directorySelectionRole,
+    dataLocation
+  }
 }
 
 // ── Legacy userData selection ───────────────────────────────────────────

@@ -7,7 +7,9 @@ const engineMock = vi.hoisted(() => ({
   onProgress: vi.fn(),
   run: vi.fn(),
   needsMigration: vi.fn(),
-  getLastError: vi.fn()
+  getLastError: vi.fn(),
+  skipMigration: vi.fn(),
+  close: vi.fn()
 }))
 const windowSendMock = vi.hoisted(() => vi.fn())
 const windowMinimizeMock = vi.hoisted(() => vi.fn())
@@ -17,6 +19,7 @@ const windowConfirmQuitMock = vi.hoisted(() => vi.fn())
 const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
 const windowSetWriteWaiterMock = vi.hoisted(() => vi.fn())
 const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
+const windowRestartAppMock = vi.hoisted(() => vi.fn())
 const migrationMainFrame = vi.hoisted(() => ({ id: 'migration-main-frame', parent: null }))
 const migrationWebContents = vi.hoisted(() => ({
   id: 'migration-web-contents',
@@ -47,7 +50,7 @@ vi.mock('../MigrationWindowManager', () => ({
   migrationWindowManager: {
     send: windowSendMock,
     close: vi.fn(),
-    restartApp: vi.fn(),
+    restartApp: windowRestartAppMock,
     minimize: windowMinimizeMock,
     requestClose: windowRequestCloseMock,
     setStage: windowSetStageMock,
@@ -110,6 +113,7 @@ describe('MigrationIpcHandler', () => {
       filePath: '/main-selected/migration-diagnostics.zip'
     } as never)
     engineMock.run.mockResolvedValue({ success: true, totalDuration: 1, migratorResults: [] })
+    engineMock.skipMigration.mockResolvedValue(undefined)
     resetMigrationData()
     registerMigrationIpcHandlers('/mock/userData', {
       start: diagnosticsStartMock,
@@ -979,6 +983,18 @@ describe('MigrationIpcHandler', () => {
       expect(diagnosticsCompleteVersionGateMock).toHaveBeenCalledTimes(1)
       expect(diagnosticsCompleteVersionGateMock.mock.invocationCallOrder[0]).toBeLessThan(
         windowConfirmQuitMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+      )
+    })
+
+    it('cleans version-gate diagnostics after successfully choosing the default-data path', async () => {
+      setVersionIncompatible('v1_too_old', { previousVersion: '1.0.0', requiredVersion: '1.9.12' })
+
+      await invoke(MigrationIpcChannels.SkipMigration)
+
+      expect(engineMock.skipMigration).toHaveBeenCalledTimes(1)
+      expect(diagnosticsCompleteVersionGateMock).toHaveBeenCalledTimes(1)
+      expect(diagnosticsCompleteVersionGateMock.mock.invocationCallOrder[0]).toBeLessThan(
+        windowRestartAppMock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
       )
     })
 

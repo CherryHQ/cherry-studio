@@ -412,6 +412,7 @@ export function registerMigrationIpcHandlers(
     try {
       logger.info('User chose to skip migration and use defaults')
       await migrationEngine.skipMigration()
+      completeVersionGateDiagnostics(diagnosticRegistration, diagnosticCapabilities)
       migrationEngine.close()
       void migrationWindowManager.restartApp()
       return true
