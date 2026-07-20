@@ -6924,6 +6924,7 @@
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
       "empty": "No models found",
+      "empty_hint": "Click the Get model list button above to add models.",
       "enabled_models": "Enabled",
       "expand_all": "Expand all",
       "filter": {
@@ -7420,9 +7421,6 @@
         "topup": "Top Up",
         "usage_title": "Usage",
         "usage_unit": "tokens"
-      },
-      "openai": {
-        "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",

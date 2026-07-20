@@ -17,7 +17,7 @@ const DolphinAi = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DolphinAiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(DolphinAi, {
   Avatar: DolphinAiAvatar,
-  colorPrimary: '#000'
+  colorPrimary: '#000000'
 })
 
 export default DolphinAiIcon

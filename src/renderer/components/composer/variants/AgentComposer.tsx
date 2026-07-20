@@ -995,7 +995,7 @@ const AgentComposerInner = ({
     },
     [actionsRef, draftCacheKey, filesRef, setFiles, setText]
   )
-  const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
   })
   const handleTextChange = useCallback(
@@ -1480,6 +1480,7 @@ const AgentComposerInner = ({
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           onActionsChange={handleSurfaceActionsChange}
+          isInputHistoryActive={isInputHistoryActive}
           onInputHistoryNavigate={handleInputHistoryNavigate}
           getToolLaunchers={() => getLaunchers()}
           toolLaunchersVersion={toolLaunchersVersion}
