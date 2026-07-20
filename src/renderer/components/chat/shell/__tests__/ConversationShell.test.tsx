@@ -11,7 +11,11 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import ConversationShell from '../ConversationShell'
-import { ConversationTopBarPortal, ConversationTopBarPortalHost } from '../ConversationTopBarPortal'
+import {
+  ConversationTopBarLeadingPortal,
+  ConversationTopBarPortal,
+  ConversationTopBarPortalHost
+} from '../ConversationTopBarPortal'
 
 const shellProps = vi.hoisted(() => ({
   current: null as {
@@ -135,6 +139,37 @@ describe('ConversationShell', () => {
     expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('37.5px')
     expect(topRightTool).toHaveClass('h-[37.5px]', '[-webkit-app-region:no-drag]')
     expect(rightSpacer).toHaveClass('w-[calc(0.5rem+var(--window-controls-width,0px))]')
+  })
+
+  it('places the detached sidebar toggle before the host window title', () => {
+    const { container } = render(
+      <WindowFrameProvider
+        value={{
+          mode: 'window',
+          chrome: { titleLeading: <div data-testid="title-leading">Test Agent</div> }
+        }}>
+        <ConversationShell
+          topBar={
+            <div data-testid="top-bar">
+              <ConversationTopBarLeadingPortal enabled>
+                <button type="button">Show Sidebar</button>
+              </ConversationTopBarLeadingPortal>
+              <ConversationTopBarPortalHost />
+            </div>
+          }
+          center={<div />}
+        />
+      </WindowFrameProvider>
+    )
+
+    const leadingHost = container.querySelector<HTMLElement>('[data-conversation-topbar-leading]')
+    const sidebarToggle = screen.getByRole('button', { name: 'Show Sidebar' })
+    const title = screen.getByTestId('title-leading')
+    const topBar = screen.getByTestId('top-bar')
+
+    expect(leadingHost).toContainElement(sidebarToggle)
+    expect(sidebarToggle.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(title.compareDocumentPosition(topBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('uses a full-height sidebar shell when the page owns detached window chrome', () => {

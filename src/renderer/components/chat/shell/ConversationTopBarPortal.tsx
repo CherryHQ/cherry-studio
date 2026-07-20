@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 
 type ConversationTopBarPortalContextValue = {
   iconOnly: boolean
+  leadingTarget: HTMLDivElement | null
+  setLeadingTarget: (target: HTMLDivElement | null) => void
   target: HTMLDivElement | null
   setTarget: (target: HTMLDivElement | null) => void
 }
@@ -13,6 +15,7 @@ const ConversationTopBarPortalContext = createContext<ConversationTopBarPortalCo
 
 export function ConversationTopBarPortalProvider({ children }: { children: ReactNode }) {
   const { iconOnly, containerRef } = useOverflowIconOnly()
+  const [leadingTarget, setLeadingTarget] = useState<HTMLDivElement | null>(null)
   const [target, setPortalTarget] = useState<HTMLDivElement | null>(null)
   const setTarget = useCallback(
     (nextTarget: HTMLDivElement | null) => {
@@ -21,9 +24,33 @@ export function ConversationTopBarPortalProvider({ children }: { children: React
     },
     [containerRef]
   )
-  const value = useMemo(() => ({ iconOnly, target, setTarget }), [iconOnly, setTarget, target])
+  const value = useMemo(
+    () => ({ iconOnly, leadingTarget, setLeadingTarget, target, setTarget }),
+    [iconOnly, leadingTarget, setTarget, target]
+  )
 
   return <ConversationTopBarPortalContext value={value}>{children}</ConversationTopBarPortalContext>
+}
+
+export function ConversationTopBarLeadingPortalHost() {
+  const context = use(ConversationTopBarPortalContext)
+
+  return (
+    <div
+      ref={context?.setLeadingTarget}
+      data-conversation-topbar-leading
+      className="flex shrink-0 items-center [-webkit-app-region:no-drag]"
+    />
+  )
+}
+
+export function ConversationTopBarLeadingPortal({ children, enabled }: { children: ReactNode; enabled: boolean }) {
+  const context = use(ConversationTopBarPortalContext)
+
+  if (!enabled || !context) return children
+  if (!context.leadingTarget) return null
+
+  return createPortal(children, context.leadingTarget)
 }
 
 export function ConversationTopBarPortalHost({ className }: { className?: string }) {

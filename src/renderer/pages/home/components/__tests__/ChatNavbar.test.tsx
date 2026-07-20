@@ -1,4 +1,9 @@
 import type * as CherryUi from '@cherrystudio/ui'
+import {
+  ConversationTopBarLeadingPortalHost,
+  ConversationTopBarPortalProvider
+} from '@renderer/components/chat/shell/ConversationTopBarPortal'
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,6 +70,23 @@ describe('ChatNavbar', () => {
 
     expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+  })
+
+  it('moves the sidebar toggle into detached window leading chrome', () => {
+    const { container } = render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <ConversationTopBarPortalProvider>
+          <ConversationTopBarLeadingPortalHost />
+          <ChatNavbar />
+        </ConversationTopBarPortalProvider>
+      </WindowFrameProvider>
+    )
+
+    const leadingHost = container.querySelector<HTMLElement>('[data-conversation-topbar-leading]')
+    const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
+
+    expect(leadingHost).toContainElement(toggle)
+    expect(container.querySelector('[data-navbar-left-occupant]')).not.toContainElement(toggle)
   })
 
   it('hides the new-topic button when the sidebar is visible', () => {

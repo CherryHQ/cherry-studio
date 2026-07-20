@@ -7,7 +7,7 @@ import type { CSSProperties, ReactNode, Ref } from 'react'
 
 import { useOptionalRightPanelState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'
-import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
+import { ConversationTopBarLeadingPortalHost, ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
 import type { ChatPanePosition } from './paneLayout'
 
 export interface ConversationShellProps {
@@ -172,6 +172,7 @@ const ConversationShellTopBar = ({
           shouldReserveTrafficLightInset ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
         ]
       )}>
+      {isWindow && <ConversationTopBarLeadingPortalHost />}
       {leading}
       <div data-conversation-shell-topbar-content className="min-w-0 flex-1">
         {children}
