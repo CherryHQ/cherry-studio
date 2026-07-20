@@ -26,10 +26,26 @@ src/renderer/windows/migrationV2/
 4. Exporters:
    - `ReduxExporter` pulls Redux Persist payload from `localStorage` (`persist:cherry-studio`), parses slices, and returns clean JS objects for main.
    - `DexieExporter` snapshots Dexie tables from IndexedDB to JSON via IPC (`migration:write-export-file`), so main can read from disk without direct browser access.
-5. Components render the per-migrator list (`MigratorProgressList`), skip/close dialogs, window controls, and completion confetti used by the wizard.
+5. Components render the per-migrator list (`MigratorProgressList`), skip/close dialogs, window controls, diagnostic save actions, and completion confetti used by the wizard.
+
+## Diagnostic Failure Handoff
+
+- Exporters report failures with the strict `MigrationRendererExportFailureReport` tag before rethrowing. The report
+  identifies only the source role and operation role; the original UI error remains separate and is never copied into
+  persisted diagnostics.
+- The version-incompatibility page remains part of this window and exposes the same diagnostic save action for
+  `no_version_log`, `v1_too_old`, and `v2_gateway_skipped` blocks.
+- Migration errors, warning-bearing completion, recovered interruption, renderer crash, and renderer unresponsive
+  states can save a bundle. A warning-free completion does not show diagnostic controls.
+- Saving uses the native file dialog. Save and restart/close actions stay disabled while it is open. After success,
+  the window offers reveal, copy-support-address, and open-email-client actions; it never uploads or attaches the ZIP.
+- If a blocking failure occurs before this renderer opens, or the renderer is gone/hung, the main-process native
+  dialog exposes the same save capability without requiring the migration window.
 
 ## Implementation Notes
 
 - The renderer never writes directly to disk; it sends Redux data in-memory and streams Dexie exports to main via IPC. Main drives the actual migration.
+- Diagnostic bundle persistence is also main-owned; renderer code requests a save destination and displays only the
+  bounded result returned over IPC.
 - Progress stages mirror shared types in `@shared/data/migration/v2/types` and must stay in sync with `MigrationIpcHandler` expectations.
 - If you introduce new UI elements, keep the existing layout minimal and ensure they respond to the staged state machine rather than introducing new ad-hoc flags.

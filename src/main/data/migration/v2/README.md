@@ -19,11 +19,24 @@ src/main/data/migration/v2/
 └── index.ts           # Public exports
 ```
 
-## Strict Migration Diagnostics (Scheme A)
+## Blocking-Failure Diagnostics
 
 Migration diagnostics run before normal application bootstrap. `runV2MigrationGate()` constructs a
 preboot-scoped `MigrationDiagnosticsCoordinator` before resolving paths and passes it explicitly to the engine,
 window, and failure surfaces. It is deliberately not a lifecycle service or global singleton.
+
+Only failures that stop migration are persisted. The owner closest to the failed boundary records one fixed
+failure summary:
+
+- the preboot gate owns path resolution, database initialization, version policy, and window startup;
+- the renderer owns Redux/Dexie export read, parse, serialization, and handoff failures;
+- each migrator owns source preparation, writes, invariants, and validation for its domain;
+- the engine owns cross-migrator initialization/finalization and preserves evidence recorded by a throwing migrator;
+- renderer process exit/unresponsive handling owns live process interruption evidence.
+
+Recoverable row normalization and partially rejected optional records remain migration warnings. Diagnostic bundle
+creation and database inspection are support operations: their failures must not replace the migration failure or
+change whether migration may continue.
 
 After paths resolve, the coordinator persists a bounded, strict journal at
 `MigrationPaths.diagnosticsJournalFile` (`{userData}/migration-diagnostics-v2.json`).
@@ -38,10 +51,14 @@ The user-saved diagnostic ZIP has an exact two-file allowlist:
 - `README.txt`
 
 The sum of those entries is limited to 1 MiB **before compression**. The JSON document contains the current and
-immediately previous attempt, failure-only payload-length facts, and bounded read-only database results. It excludes application
-and migration logs, database/WAL/SHM files, the journal, exports, SQL, business rows, raw errors and stacks,
-credentials, absolute paths, and user content. Database diagnostic failure or timeout is represented by a fixed
-partial/unavailable result and does not prevent the remaining bundle from being saved.
+immediately previous attempt, failure-only payload-length facts, and bounded read-only database results. It excludes
+application and migration logs, database/WAL/SHM files, the journal, exports, SQL, business rows, raw errors and
+stacks, credentials, absolute paths, and user content.
+
+Database inspection runs once in a short-lived child process against the database path, never against the live main
+process connection. The parent accepts only the strict final result; timeout, crash, invalid output, or a child that
+hangs after emitting partial output becomes a fixed `unavailable` result. The child is terminated, and the remaining
+two-file bundle can still be saved.
 
 If `KnowledgeIndexStore.rebuildMaterial()` rejects while writing an embedding BLOB, diagnostics profile the real
 `knowledge_vector_rebuild.vectorBlob` boundary. The failure-only producer first returns an O(1) lazy row source, then
@@ -63,8 +80,8 @@ The acceptance matrix is in
 [`diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts`](diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts),
 with shared seeded failures in
 [`diagnostics/__tests__/fixtures/migrationDiagnosticAcceptanceFixtures.ts`](diagnostics/__tests__/fixtures/migrationDiagnosticAcceptanceFixtures.ts).
-It builds and extracts real ZIPs, validates all four strict documents, checks the uncompressed budget and privacy
-canaries, and covers archive publication failure separately.
+It builds and extracts real ZIPs, validates both allowlisted entries, checks the uncompressed budget and privacy
+canaries, and covers archive finalization and database-process partial-output failures as support-chain cases.
 
 ## Path Safety — Use `MigrationPaths` (Strict Requirement)
 
