@@ -1,13 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { exportBackup, getRegistry } = vi.hoisted(() => ({
+const { exportBackup, getRegistry, importBackup, readRestoreJournalMock } = vi.hoisted(() => ({
   exportBackup: vi.fn(),
-  getRegistry: vi.fn(() => ({ domains: [] }))
+  getRegistry: vi.fn(() => ({ domains: [] })),
+  importBackup: vi.fn(),
+  readRestoreJournalMock: vi.fn(() => ({ kind: 'none' as const }))
 }))
 
 vi.mock('../ExportOrchestrator', () => ({
   ExportOrchestrator: vi.fn().mockImplementation(() => ({
     exportBackup
+  }))
+}))
+
+vi.mock('../ImportOrchestrator', () => ({
+  ImportOrchestrator: vi.fn().mockImplementation(() => ({
+    importBackup
   }))
 }))
 
@@ -21,12 +29,17 @@ vi.mock('../ExcludedDomainStripper', () => ({
   SqliteBackupStripper: vi.fn()
 }))
 
+vi.mock('@main/data/db/restore/restoreJournal', () => ({
+  readRestoreJournal: readRestoreJournalMock
+}))
+
 import { BaseService } from '@main/core/lifecycle'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import { app } from 'electron'
 
 import { BackupService } from '../BackupService'
+import { RestoreQuiesceNotImplementedError } from '../errors'
 import { ExportOrchestrator } from '../ExportOrchestrator'
+import { ImportOrchestrator } from '../ImportOrchestrator'
 
 describe('BackupService packaged export path', () => {
   beforeEach(() => {
@@ -34,6 +47,8 @@ describe('BackupService packaged export path', () => {
     vi.clearAllMocks()
     exportBackup.mockResolvedValue({ archivePath: '/tmp/out.cbu' })
     getRegistry.mockReturnValue({ domains: [] })
+    readRestoreJournalMock.mockReturnValue({ kind: 'none' })
+    importBackup.mockRejectedValue(new RestoreQuiesceNotImplementedError())
     Object.defineProperty(app, 'isPackaged', { configurable: true, value: true })
   })
 
@@ -65,10 +80,16 @@ describe('BackupService packaged export path', () => {
     )
   })
 
-  it('startRestore stays not-ready while export path is live', async () => {
-    const service = new BackupService() as any
-    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy((err: unknown) => {
-      return err instanceof IpcError && err.code === 'BACKUP_RESTORE_NOT_READY'
-    })
+  it('startRestore wires ImportOrchestrator and fail-closes on quiesce stub', async () => {
+    const service = await initPackagedService()
+    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toThrow(
+      RestoreQuiesceNotImplementedError
+    )
+    expect(ImportOrchestrator).toHaveBeenCalled()
+    expect(importBackup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        archivePath: '/tmp/in.cbu'
+      })
+    )
   })
 })

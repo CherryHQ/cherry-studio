@@ -15,18 +15,23 @@
 // applied and the wired application paths resolve. Export can therefore never
 // snapshot a pre-migration DB.
 //
-// SLICE SCOPE: export (FULL + LITE presets, DB + file-blob archive).
-// Restore execution (ImportOrchestrator / staging-mvp / quiesce) is deferred to a
-// follow-up PR after write quiesce (#17014). startRestore currently throws
-// BACKUP_RESTORE_NOT_READY so the IPC route stays typed without shipping restore.
+// SLICE SCOPE: export (FULL + LITE presets, DB + file-blob archive) + restore staging
+// spine. The renderer triggers export via backup.start_backup; restore runs the
+// ImportOrchestrator spine (quiesce → fingerprint → snapshot → merge → migrate → seal →
+// stage → 2nd fingerprint → journal → relaunch) but is FAIL-CLOSED until write-quiesce
+// lands — quiesce throws, so no staged journal is written without it. MergeEngine
+// (SKIP/INSERT + junction + FTS) is wired; file-resource staging stays fail-closed.
+// performRestoreRecovery at startup GCs staging residue from a crashed prior restore.
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
 import { lstat, readdir, stat, statfs } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { isPathInside } from '@main/utils/legacyFile'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -34,6 +39,7 @@ import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/ba
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
+import { admitArchive } from './admitArchive'
 import { contributorManager } from './contributors'
 import {
   BackupArchiveCorruptError,
@@ -43,10 +49,25 @@ import {
   InsufficientDiskSpaceError,
   NewerOrDivergedBackupError,
   OutputPathExistsError,
+  RestoreMergeNotImplementedError,
+  RestoreQuiesceNotImplementedError,
+  RestoreStagingNotImplementedError,
   UnsupportedBackupFormatError
 } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
+import { ImportOrchestrator } from './ImportOrchestrator'
+import { MergeEngine } from './merge'
+
+const logger = loggerService.withContext('BackupService')
+
+/**
+ * Boot-once guard for staging-residue GC. `onInit` can re-run on a service restart
+ * (stop→start on the same instance), and `onStop` only signals abort without awaiting
+ * an in-flight restore — so a restart could otherwise re-run `gcStagingResidue` and
+ * delete an active restore's tree. Residue GC only makes sense once per process boot.
+ */
+let stagingResidueGcDone = false
 
 /** Renderer-facing export request (renderer passes preset + path; service fills the rest). */
 export interface BackupV2StartOptions {
@@ -117,6 +138,10 @@ export class BackupService extends BaseService {
         application.get('IpcApiService').broadcast('backup.progress', update)
       })
     )
+    // Restore recovery — production-usable cleanup of a crashed prior restore's
+    // staging residue (must not brick the install with stale staging).
+    this.performRestoreRecovery()
+
     // Lazily run the 26-invariant contributor finalize at startup (dev + packaged).
     // A violation throws ContributorFinalizeError → onInit fails → fail-fast aborts
     // bootstrap (the startup-validation contract; see ContributorManager docstring).
@@ -232,14 +257,150 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Restore entrypoint kept for IPC typing. Full restore spine (admit / quiesce /
-   * staging-mvp / merge) ships in a follow-up PR after write quiesce (#17014).
+   * Restore from a .cbu archive (renderer-facing). Runs the ImportOrchestrator spine:
+   * quiesce → snapshot → merge → migrate → seal → 2nd fingerprint → staged journal,
+   * then relaunches so the preboot promotion gate (#16884) swaps work.sqlite in.
+   *
+   * Fail-closed until write-quiesce lands: the orchestrator's quiesce dep throws, so
+   * NO staged journal is written and NO relaunch occurs. MergeEngine is wired
+   * (SKIP/INSERT + junction + FTS); file-resource staging stays fail-closed.
+   * Mutually exclusive with export (activeOperation).
    */
-  async startRestore(_options: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
-    throw new IpcError(
-      'BACKUP_RESTORE_NOT_READY',
-      'backup restore is not available yet — waiting on write quiesce (#17014)'
-    )
+  async startRestore({ archivePath }: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
+    // Reserve the active slot BEFORE any work (incl. the journal read) so the null-check and
+    // the reservation are atomic — no await between them (mirrors startBackup; without this,
+    // two concurrent startRestore calls could both pass the null check before either reserves).
+    if (this.activeOperation) {
+      throw new Error('BackupService: an operation is already running (cancel it first)')
+    }
+    const restoreId = `rst-${randomUUID()}`
+    const abortController = new AbortController()
+    const active: ActiveOperation = { kind: 'restore', id: restoreId, abortController }
+    this.activeOperation = active
+    try {
+      // Never silently overwrite a prior restore's journal — #16884 has one fixed journal
+      // file, and writeRestoreJournal overwrites. Any present journal (pending or terminal)
+      // must be reported/cleared first; this guard is the backstop behind the preboot gate.
+      const journal = readRestoreJournal()
+      if (journal.kind === 'ok') {
+        throw new IpcError(
+          'BACKUP_RESTORE_PENDING',
+          `backup: a prior restore is in state '${journal.journal.state}' — report or clear it before starting another`
+        )
+      }
+      if (journal.kind === 'corrupt') {
+        throw new IpcError('BACKUP_RESTORE_JOURNAL_CORRUPT', 'backup: restore journal is corrupt — see logs')
+      }
+      const importOrch = new ImportOrchestrator({
+        dbService: application.get('DbService'),
+        migrationsFolder: application.getPath('app.database.migrations'),
+        liveDbPath: application.getPath('app.database.file'),
+        restoreStagingRoot: application.getPath('feature.backup.restore.staging'),
+        userData: application.getPath('app.userdata'),
+        journalPath: application.getPath('feature.backup.restore.file'),
+        // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — SKIP/INSERT +
+        // junction + FTS) are wired. quiesce + file-resource staging stay fail-closed stubs —
+        // restore is still unavailable until they land. quiesce throws before merge runs, so
+        // no product archive reaches the engine; staging returns [] (nothing to promote).
+        admitArchive,
+        quiesceWriters: async () => {
+          throw new RestoreQuiesceNotImplementedError()
+        },
+        mergeBackupIntoWork: (workSqlite, workDb, ctx) => {
+          // Defensive belt: registry must be finalized in onInit. Unreachable in normal
+          // flow (quiesce above throws first), but constructing a half-initialized engine
+          // would silently merge with an empty registry.
+          if (!this.registry) {
+            throw new RestoreMergeNotImplementedError('contributor registry not finalized')
+          }
+          return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
+        },
+        stageFileResources: async () => {
+          throw new RestoreStagingNotImplementedError()
+        }
+      })
+      await importOrch.importBackup({
+        archivePath,
+        restoreId,
+        signal: abortController.signal
+        // onProgress wiring to the renderer lands with the restore progress UI.
+      })
+      // Staged journal written → relaunch so the preboot gate promotes it. application.relaunch
+      // calls app.exit(0), which exits immediately and SKIPS the finally below + onStop — so
+      // clear activeOperation first (and, when quiesce/pause holds land, release them here too)
+      // so no in-flight state outlives the exit. The journal is already durable (committed
+      // above), so skipping onStop is intentional: the preboot gate owns the next state.
+      this.activeOperation = null
+      this.triggerRelaunch()
+      return { restoreId }
+    } catch (e) {
+      throw this.toIpcError(e)
+    } finally {
+      if (this.activeOperation === active) this.activeOperation = null
+    }
+  }
+
+  /**
+   * Relaunch the app so the preboot restore gate runs. Dev mode shows a dialog + exits
+   * (no auto-restart); packaged re-execs + exits. The staged journal is picked up on
+   * the next boot. (application.relaunch, not raw app.relaunch — the latter doesn't
+   * exit the current process, so the gate would never run.)
+   */
+  private triggerRelaunch(): void {
+    application.relaunch()
+  }
+
+  /**
+   * Post-crash restore recovery at startup. Two concerns:
+   *  - staging residue: a restore that crashed mid-staging (before writing the journal)
+   *    leaves a half-built work.sqlite + staging tree with no journal to direct cleanup.
+   *    With no pending/terminal journal, GC the whole staging root.
+   *  - terminal/corrupt journal: kept for post-boot reporting; cleanup lands later.
+   */
+  private performRestoreRecovery(): void {
+    const journal = readRestoreJournal()
+    if (journal.kind === 'none') {
+      this.gcStagingResidue()
+      return
+    }
+    // staged/promoting: the preboot gate (runs before services start) should have
+    // consumed these; reaching BackupService.onInit with one is unexpected — leave it
+    // for the gate on the next boot and warn. terminal/corrupt: reported above, cleanup TBD.
+    if (journal.kind === 'ok') {
+      logger.warn(`restore journal present at BackupService init: state=${journal.journal.state}`)
+    } else if (journal.kind === 'corrupt') {
+      logger.warn('corrupt restore journal present at BackupService init (gate will quarantine)')
+    }
+  }
+
+  /**
+   * GC the restore staging root when no journal directs its cleanup. Only safe at
+   * startup, before any new restore is accepted. A non-empty staging tree with a
+   * 'none' journal means a prior restore crashed before writing the journal — its
+   * half-built work.sqlite + staged files are unrecoverable garbage.
+   *
+   * INVARIANT: boot-once (`stagingResidueGcDone`) + refused while `activeOperation` exists.
+   */
+  private gcStagingResidue(): void {
+    if (stagingResidueGcDone) return
+    if (this.activeOperation) return
+    stagingResidueGcDone = true
+    const stagingRoot = application.getPath('feature.backup.restore.staging')
+    if (!existsSync(stagingRoot)) return
+    let entries: string[]
+    try {
+      entries = readdirSync(stagingRoot)
+    } catch (e) {
+      logger.warn('restore staging root unreadable during residue GC', e as Error)
+      return
+    }
+    if (entries.length === 0) return
+    logger.info(`GC restore staging residue: ${entries.length} orphaned subtree(s)`)
+    try {
+      rmSync(stagingRoot, { recursive: true, force: true })
+    } catch (e) {
+      logger.warn('restore staging residue GC failed', e as Error)
+    }
   }
 
   /**
