@@ -3,7 +3,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'motion/react'
-import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,6 +15,12 @@ import {
   CHAT_SHELL_PANE_WIDTH,
   CHAT_SHELL_TRANSITION
 } from './paneLayout'
+import {
+  buildDockedPaneWidthExpression,
+  getPaneSpaceCap,
+  isPaneResizeHandleUsable,
+  resolveDockedPaneWidth
+} from './paneWidthPolicy'
 import {
   getInitialPersistentRightPaneState,
   getRightPaneDockedClip,
@@ -45,7 +51,6 @@ interface ResizableRightPaneProps extends RightPaneFrameProps {
   defaultWidth?: number
   maxWidth?: number
   cacheKey?: RightPaneResizeCacheKey
-  reservedCenterWidth?: number
 }
 
 export interface RightPaneHostProps extends RightPaneFrameProps {
@@ -56,26 +61,50 @@ export interface PersistentRightPaneHostProps extends ResizableRightPaneProps {
   open: boolean
   maximized?: boolean
   onLayoutAnimationComplete?: (mode: RightPaneLayoutMode) => void
+  /** Reports the full-width phase (maximizing/maximized/minimizing/closing-maximized) upward. */
+  onFullWidthPhaseChange?: (active: boolean) => void
+  onResizingChange?: (active: boolean) => void
 }
 
 function clampRightPaneWidth(width: number, minWidth: number, maxWidth: number): number {
   return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
 }
+/** Width of the pane's containing block (the main region), or null before first measure. */
+function useMainRegionWidth(paneRef: RefObject<HTMLDivElement | null>): number | null {
+  const [width, setWidth] = useState<number | null>(null)
 
-function toCssLength(value: string | number): string {
-  return typeof value === 'number' ? `${value}px` : value
+  useLayoutEffect(() => {
+    const pane = paneRef.current
+    if (!pane || typeof ResizeObserver === 'undefined') return
+    const region = pane.offsetParent
+    if (!(region instanceof HTMLElement)) return
+
+    const update = () => {
+      const next = region.getBoundingClientRect().width
+      setWidth(next > 0 ? next : null)
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(region)
+    return () => observer.disconnect()
+  }, [paneRef])
+
+  return width
 }
 
 function useRightPaneResize({
   cacheKey,
   defaultWidth,
   minWidth,
-  maxWidth
+  maxWidth,
+  spaceCapRef
 }: {
   cacheKey: RightPaneResizeCacheKey
   defaultWidth: number
   minWidth: number
   maxWidth: number
+  /** Current space-imposed display cap; null before the main region is measured. */
+  spaceCapRef?: RefObject<number | null>
 }) {
   const [storedWidth, setStoredWidth] = usePersistCache(cacheKey)
   const paneRef = useRef<HTMLDivElement>(null)
@@ -126,14 +155,32 @@ function useRightPaneResize({
     [maxWidth, minWidth]
   )
 
+  // Commit only when the operation changes the effective (space-clamped) display
+  // width, and commit that effective width — a constrained drag/keystroke must
+  // never silently rewrite the stored preference to an invisible value.
+  const commitWidth = useCallback(
+    (requested: number) => {
+      const cap = spaceCapRef?.current ?? null
+      if (cap === null) {
+        setStoredWidth(clampRightPaneWidth(requested, minWidth, maxWidth))
+        return
+      }
+      const currentStored = clampRightPaneWidth(storedWidth ?? defaultWidth, minWidth, maxWidth)
+      const currentEffective = clampRightPaneWidth(Math.min(currentStored, cap), minWidth, maxWidth)
+      const nextEffective = clampRightPaneWidth(Math.min(requested, cap), minWidth, maxWidth)
+      if (nextEffective !== currentEffective) setStoredWidth(nextEffective)
+    },
+    [defaultWidth, maxWidth, minWidth, setStoredWidth, spaceCapRef, storedWidth]
+  )
+
   const handleResizeEnd = useCallback(() => {
     cancelPendingRaf()
     if (pendingWidthRef.current !== null) {
-      setStoredWidth(pendingWidthRef.current)
+      commitWidth(pendingWidthRef.current)
       pendingWidthRef.current = null
     }
     setLiveWidth(null)
-  }, [cancelPendingRaf, setStoredWidth])
+  }, [cancelPendingRaf, commitWidth])
 
   const { isResizing, startResizing: startResizeDrag } = useResizeDrag({
     onMove: handleMouseMove,
@@ -154,10 +201,7 @@ function useRightPaneResize({
 
   // Keyboard/a11y path (arrow keys via splitterA11y): discrete single calls,
   // committed immediately — no rAF batching needed or wanted here.
-  const setPaneWidth = useCallback(
-    (nextWidth: number) => setStoredWidth(clampRightPaneWidth(nextWidth, minWidth, maxWidth)),
-    [maxWidth, minWidth, setStoredWidth]
-  )
+  const setPaneWidth = useCallback((nextWidth: number) => commitWidth(nextWidth), [commitWidth])
 
   return {
     isResizing,
@@ -249,25 +293,34 @@ export function PersistentRightPaneHost({
   defaultWidth,
   maxWidth = ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   cacheKey = ARTIFACT_RIGHT_PANE_CACHE_KEY,
-  reservedCenterWidth,
-  onLayoutAnimationComplete
+  onLayoutAnimationComplete,
+  onFullWidthPhaseChange,
+  onResizingChange
 }: PersistentRightPaneHostProps) {
   const reduceMotion = useReducedMotion()
   const animationControls = useAnimationControls()
   const resolvedDefaultWidth = defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
+  const spaceCapRef = useRef<number | null>(null)
   const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useRightPaneResize({
     cacheKey,
     defaultWidth: resolvedDefaultWidth,
     minWidth,
-    maxWidth
+    maxWidth,
+    spaceCapRef
   })
+  const mainRegionWidth = useMainRegionWidth(paneRef)
+  useLayoutEffect(() => {
+    spaceCapRef.current = mainRegionWidth === null ? null : getPaneSpaceCap(mainRegionWidth)
+  }, [mainRegionWidth])
   const resolvedWidth = resizable ? paneWidth : width
-  const dockedMaxWidth =
-    reservedCenterWidth === undefined ? undefined : `max(0px, calc(100% - ${reservedCenterWidth}px))`
-  const effectiveDockedWidth = dockedMaxWidth
-    ? `min(${toCssLength(resolvedWidth)}, ${dockedMaxWidth})`
-    : toCssLength(resolvedWidth)
-  const dockedClip = getRightPaneDockedClip(effectiveDockedWidth)
+  // One expression drives the pane, the spacer, and the clip; diverging them would
+  // let the pane paint wider than the reserved space and overlap the center.
+  const dockedWidthExpression = buildDockedPaneWidthExpression(resolvedWidth)
+  const effectiveWidth =
+    mainRegionWidth === null || typeof resolvedWidth !== 'number'
+      ? paneWidth
+      : Math.round(resolveDockedPaneWidth(mainRegionWidth, resolvedWidth))
+  const dockedClip = getRightPaneDockedClip(dockedWidthExpression)
   const hasChildren = children !== null && children !== undefined
   const targetMode: RightPaneLayoutMode = !open || !hasChildren ? 'closed' : maximized ? 'maximized' : 'docked'
   const [visualState, setVisualStateState] = useState<PersistentRightPaneVisualState>(() =>
@@ -376,6 +429,20 @@ export function PersistentRightPaneHost({
   const closed = isClosedRightPanePhase(phase)
   const interactionHidden = targetMode === 'closed'
   const spacerTransition = isResizing || fullWidthLayout ? { duration: 0 } : CHAT_SHELL_TRANSITION
+  const resizeHandleUsable = mainRegionWidth === null || isPaneResizeHandleUsable(mainRegionWidth)
+
+  const onFullWidthPhaseChangeRef = useRef(onFullWidthPhaseChange)
+  const onResizingChangeRef = useRef(onResizingChange)
+  useLayoutEffect(() => {
+    onFullWidthPhaseChangeRef.current = onFullWidthPhaseChange
+    onResizingChangeRef.current = onResizingChange
+  }, [onFullWidthPhaseChange, onResizingChange])
+  useLayoutEffect(() => {
+    onFullWidthPhaseChangeRef.current?.(fullWidthLayout)
+  }, [fullWidthLayout])
+  useLayoutEffect(() => {
+    onResizingChangeRef.current?.(isResizing)
+  }, [isResizing])
 
   return (
     <>
@@ -385,7 +452,7 @@ export function PersistentRightPaneHost({
         animate={{ width: reservesDockedSpace ? resolvedWidth : 0 }}
         transition={spacerTransition}
         className="h-full min-h-0 shrink-0"
-        style={{ maxWidth: dockedMaxWidth }}
+        style={{ maxWidth: dockedWidthExpression }}
       />
       <motion.div
         ref={paneRef}
@@ -405,7 +472,7 @@ export function PersistentRightPaneHost({
         style={{
           ...style,
           width: fullWidthLayout ? '100%' : resolvedWidth,
-          maxWidth: fullWidthLayout ? undefined : dockedMaxWidth,
+          maxWidth: fullWidthLayout ? undefined : dockedWidthExpression,
           visibility: closed ? 'hidden' : undefined
         }}>
         <div
@@ -417,10 +484,10 @@ export function PersistentRightPaneHost({
             resizable && !fullWidthLayout && '[border-left:0.5px_solid_var(--color-border)]'
           )}>
           <RightPaneContents
-            paneWidth={paneWidth}
+            paneWidth={effectiveWidth}
             minWidth={minWidth}
             maxWidth={maxWidth}
-            resizeHandleVisible={resizable && isDocked}
+            resizeHandleVisible={resizable && isDocked && resizeHandleUsable}
             startResizing={startResizing}
             setPaneWidth={setPaneWidth}>
             {children}

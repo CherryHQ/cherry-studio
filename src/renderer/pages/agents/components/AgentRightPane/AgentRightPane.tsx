@@ -142,6 +142,7 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   resourcePane?: ResourcePaneConfig | null
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
+  userOpenIntentSeq?: number
   revealRequest?: ResourceListRevealRequest
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -268,6 +269,7 @@ function AgentRightPaneStateProvider({
   resourcePane = null,
   defaultOpen = false,
   onOpenChange,
+  userOpenIntentSeq,
   revealRequest
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
@@ -370,6 +372,7 @@ function AgentRightPaneStateProvider({
               defaultPanelId={RESOURCE_PANE_TAB}
               defaultOpen={defaultOpen}
               onOpenChange={onOpenChange}
+              userOpenIntentSeq={userOpenIntentSeq}
               present={present}>
               <ResourcePaneLocateOpener revealRequest={revealRequest} />
               <AgentRightPaneActionsProvider

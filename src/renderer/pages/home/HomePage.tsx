@@ -4,7 +4,7 @@ import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
+import { ChatAppShell, type PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
@@ -403,19 +403,28 @@ const HomePage: FC = () => {
   const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
     setAutoCollapsedResourceList(collapsed)
   }, [])
+  const [paneManualToggle, setPaneManualToggle] = useState<PaneManualToggleSignal | undefined>()
+  const markManualPaneToggle = useCallback(
+    (open: boolean) => {
+      setPaneManualToggle((previous) => ({ seq: (previous?.seq ?? 0) + 1, open }))
+      setResourceListOpen(open)
+    },
+    [setResourceListOpen]
+  )
+  const [topicPaneUserOpenIntentSeq, setTopicPaneUserOpenIntentSeq] = useState(0)
   const toggleResourceListOpen = useCallback(() => {
     if (isMessageOnlyView) return
 
     if (effectiveShowSidebar) {
-      setResourceListOpen(false)
+      markManualPaneToggle(false)
       return
     }
 
-    setResourceListOpen(true)
+    markManualPaneToggle(true)
     requestAnimationFrame(() => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
     })
-  }, [effectiveShowSidebar, isMessageOnlyView, setResourceListOpen])
+  }, [effectiveShowSidebar, isMessageOnlyView, markManualPaneToggle])
   useCommandHandler('app.sidebar.toggle', toggleResourceListOpen)
 
   useEffect(() => {
@@ -836,6 +845,7 @@ const HomePage: FC = () => {
         onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
         onSelectedAssistantClick={() => {
           closeSurface()
+          if (!topicPaneOpen) setTopicPaneUserOpenIntentSeq((seq) => seq + 1)
           setTopicPaneOpen(!topicPaneOpen)
         }}
         onCreateTopic={handleCreateEmptyTopicForAssistant}
@@ -908,6 +918,7 @@ const HomePage: FC = () => {
       present={!centerSurface}
       defaultOpen={topicPaneOpen}
       onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
+      userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
@@ -917,8 +928,9 @@ const HomePage: FC = () => {
             pane={pane}
             paneOpen={effectiveShowSidebar}
             panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneCollapse={() => markManualPaneToggle(false)}
             onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+            paneManualToggle={paneManualToggle}
             onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
             onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
             showResourceListControls={!isMessageOnlyView}

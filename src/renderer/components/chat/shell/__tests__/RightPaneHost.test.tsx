@@ -150,16 +150,21 @@ describe('RightPaneHost', () => {
     expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
   })
 
-  it('caps its width when reserving space for the conversation center', () => {
+  it('lets the pane and the center share space instead of clamping the pane to zero', () => {
     const { container } = render(
-      <PersistentRightPaneHost open width={460} reservedCenterWidth={360}>
+      <PersistentRightPaneHost open width={460}>
         <div>artifact pane</div>
       </PersistentRightPaneHost>
     )
 
     const host = container.querySelector('[data-right-pane]')
+    const spacer = container.querySelector('[data-right-pane-spacer]')
 
-    expect(host).toHaveStyle({ maxWidth: 'max(0px, calc(100% - 360px))' })
+    // Yield order: pane first (stored → 255 while the center keeps 360), then the
+    // center (360 → 200 with the pane pinned), then both proportionally — never 0.
+    expect(host).toHaveStyle({ maxWidth: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
+    // The spacer must share the exact expression or the pane would overlap the center.
+    expect(spacer).toHaveStyle({ maxWidth: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
   })
 
   it('renders a left-edge resize handle when resizable', () => {
@@ -251,7 +256,8 @@ describe('RightPaneHost', () => {
       set: ReturnType<typeof vi.fn>
       start: ReturnType<typeof vi.fn>
     }
-    const dockedStripClip = 'inset(0% 0% 0% calc(100% - 460px))'
+    const dockedStripClip =
+      'inset(0% 0% 0% calc(100% - max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))))'
     const { container, rerender } = render(
       <div className="relative">
         <PersistentRightPaneHost open width={460}>
@@ -293,10 +299,10 @@ describe('RightPaneHost', () => {
     expect(controls.start).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
   })
 
-  it('starts the maximize wipe from the constrained docked width', async () => {
+  it('starts the maximize wipe from the space-constrained docked width', async () => {
     const { rerender } = render(
       <div className="relative">
-        <PersistentRightPaneHost open width={460} reservedCenterWidth={360}>
+        <PersistentRightPaneHost open width={460}>
           <div>artifact pane</div>
         </PersistentRightPaneHost>
       </div>
@@ -305,7 +311,7 @@ describe('RightPaneHost', () => {
 
     rerender(
       <div className="relative">
-        <PersistentRightPaneHost open maximized width={460} reservedCenterWidth={360}>
+        <PersistentRightPaneHost open maximized width={460}>
           <div>artifact pane</div>
         </PersistentRightPaneHost>
       </div>
@@ -313,7 +319,8 @@ describe('RightPaneHost', () => {
 
     await waitFor(() =>
       expect(motionTestState.controls.set).toHaveBeenCalledWith({
-        clipPath: 'inset(0% 0% 0% calc(100% - min(460px, max(0px, calc(100% - 360px)))))',
+        clipPath:
+          'inset(0% 0% 0% calc(100% - max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))))',
         opacity: 1
       })
     )
