@@ -1,6 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { startTransition, Suspense, useState } from 'react'
+import { Profiler, startTransition, Suspense, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -151,6 +151,16 @@ describe('PromptPolishActions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(screen.getByTestId('value')).toBeEmptyDOMElement()
+  })
+
+  it('allows generation to introduce protected placeholders when the prompt is blank', async () => {
+    mocks.fetchGenerate.mockResolvedValueOnce('Summarize ${document} for {{audience}}')
+    render(<Harness initialValue="" fallbackSource="Summary prompt" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.generate' }))
+
+    await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('Summarize ${document} for {{audience}}'))
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
   it('does not start a duplicate request while polishing is in flight', async () => {
@@ -331,15 +341,23 @@ describe('PromptPolishActions', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('invalidates undo after a manual edit', async () => {
+  it('invalidates undo after a manual edit without an effect-driven follow-up commit', async () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Polished prompt')
-    render(<Harness initialValue="Original prompt" />)
+    const onRender = vi.fn()
+    render(
+      <Profiler id="prompt-polish-actions" onRender={onRender}>
+        <Harness initialValue="Original prompt" />
+      </Profiler>
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
     await screen.findByRole('button', { name: 'Undo' })
+
+    onRender.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'manual edit' }))
 
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+    expect(onRender).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'restore polished value' }))
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()

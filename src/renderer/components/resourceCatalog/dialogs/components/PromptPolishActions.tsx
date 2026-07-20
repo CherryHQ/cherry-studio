@@ -71,11 +71,9 @@ export function PromptPolishActions({
     }
   }, [])
 
-  useEffect(() => {
-    if (restoreState && restoreState.polished !== value) {
-      setRestoreState(null)
-    }
-  }, [restoreState, value])
+  if (restoreState && restoreState.polished !== value) {
+    setRestoreState(null)
+  }
 
   const canUndo = restoreState?.polished === value
   const undoDisabled = disabled || running
@@ -125,7 +123,7 @@ export function PromptPolishActions({
         toast.error(failureToast)
         return
       }
-      if (!preservesProtectedPromptTokens(source, polished)) {
+      if (!requestUsesFallback && !preservesProtectedPromptTokens(original, polished)) {
         toast.error({
           title: t('library.config.prompt.polish_variables_changed_title'),
           description: t('library.config.prompt.polish_variables_changed_description')
