@@ -11,11 +11,11 @@ import {
   Globe,
   ListTodo,
   NotebookPen,
-  PencilRuler,
   Search,
   Send,
   ShieldCheck,
   Terminal,
+  ToolCase,
   Wrench
 } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
@@ -81,7 +81,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
   [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
-  [AgentToolsType.Skill]: { icon: <PencilRuler size={14} />, labelKey: 'message.tools.labels.skill' }
+  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }
 }
 
 const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI[toolName]?.icon ?? <Wrench size={14} />

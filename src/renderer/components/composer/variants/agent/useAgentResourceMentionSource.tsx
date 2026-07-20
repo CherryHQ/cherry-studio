@@ -6,7 +6,8 @@ import { Folder } from 'lucide-react'
 import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ComposerUnifiedPanelResourceProvider } from '../../quickPanel'
+import { serializeComposerDocument } from '../../composerDraft'
+import type { ComposerSuggestionSource } from '../../quickPanel'
 import { agentComposerTokenId, agentFileToComposerToken } from '../agentComposerTokens'
 import { getAccessiblePathRelativePath } from './accessiblePath'
 
@@ -42,10 +43,12 @@ const createStablePathHash = (value: string) => {
   return hash.toString(36)
 }
 
+// Item id is derived from the file path (not the token's fileTokenSourceId, which is regenerated
+// per query) so the QuickPanel keeps a stable identity — and selection highlight — across keystrokes.
 const createAgentResourceItemId = (filePath: string) =>
   `agent-resource:${createStablePathHash(filePath.replace(/\\/g, '/'))}`
 
-interface AgentResourceSuggestionOptions {
+interface AgentResourceMentionOptions {
   accessiblePaths: readonly string[]
   files: ComposerAttachment[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
@@ -54,26 +57,28 @@ interface AgentResourceSuggestionOptions {
 }
 
 /**
- * Provides lazy workspace file results for the unified composer panel.
- * Empty queries intentionally return no items so files are not exposed by default.
+ * Provides the agent composer's `@`-mention suggestion source, which lists workspace files
+ * and inserts the picked file as a managed file token. An empty query lists the workspace so
+ * files appear as soon as `@` is typed. Returns an empty list when disabled.
  */
-export function useAgentResourceSearchProvider({
+export function useAgentResourceMentionSource({
   accessiblePaths,
   files,
   setFiles,
   enabled
-}: AgentResourceSuggestionOptions): ComposerUnifiedPanelResourceProvider | undefined {
+}: AgentResourceMentionOptions): ComposerSuggestionSource[] {
   const { t } = useTranslation()
-  const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
-  resourceSuggestionStateRef.current = { accessiblePaths, files, setFiles, t }
+  const resourceMentionStateRef = useRef({ accessiblePaths, files, setFiles, t })
+  resourceMentionStateRef.current = { accessiblePaths, files, setFiles, t }
 
-  const resourceProvider = useMemo<ComposerUnifiedPanelResourceProvider>(
-    () =>
-      async (query, { inputAdapter }) => {
-        const { files, setFiles, t } = resourceSuggestionStateRef.current
-        const searchPattern = query.trim()
-        if (!enabled || searchPattern.length === 0) return []
-
+  const resourceMentionSource = useMemo<ComposerSuggestionSource>(
+    () => ({
+      pluginKey: 'agent-resource-mention-suggestion',
+      char: '@',
+      title: t('chat.input.resource_panel.title'),
+      allowedPrefixes: [' ', '\n'],
+      items: async ({ query }) => {
+        const { accessiblePaths, files, setFiles, t } = resourceMentionStateRef.current
         if (accessiblePaths.length === 0) {
           return [
             {
@@ -82,11 +87,13 @@ export function useAgentResourceSearchProvider({
               description: t('chat.input.resource_panel.no_file_found.description'),
               icon: <Folder size={16} />,
               disabled: true,
-              action: () => undefined
+              command: () => undefined
             }
           ]
         }
 
+        // `.` is the list-all sentinel for the file tree search; a real query switches to search mode.
+        const searchPattern = query.trim() || '.'
         const results = await Promise.allSettled(
           accessiblePaths.map((dirPath) =>
             window.api.file.listDirectoryEntries(dirPath, {
@@ -118,7 +125,7 @@ export function useAgentResourceSearchProvider({
               description: t('chat.input.resource_panel.no_file_found.description'),
               icon: <Folder size={16} />,
               disabled: true,
-              action: () => undefined
+              command: () => undefined
             }
           ]
         }
@@ -138,19 +145,21 @@ export function useAgentResourceSearchProvider({
             icon: <Folder size={16} />,
             filterText: `${relativePath} ${filePath}`,
             disabled: files.some(isSelectedFile),
-            action: ({ inputAdapter: actionInputAdapter }) => {
-              const targetInputAdapter = actionInputAdapter ?? inputAdapter
-              if (!files.some(isSelectedFile)) {
-                targetInputAdapter?.insertToken?.(token)
+            command: ({ editor }) => {
+              const exists = serializeComposerDocument(editor).tokens.some(
+                (currentToken) => currentToken.id === token.id
+              )
+              if (!exists) {
+                editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
               }
-              targetInputAdapter?.focus()
               setFiles((prevFiles) => (prevFiles.some(isSelectedFile) ? prevFiles : [...prevFiles, tokenFile]))
             }
           }
         })
-      },
-    [accessiblePaths, enabled]
+      }
+    }),
+    [t]
   )
 
-  return useMemo(() => (enabled ? resourceProvider : undefined), [enabled, resourceProvider])
+  return useMemo(() => (enabled ? [resourceMentionSource] : []), [enabled, resourceMentionSource])
 }

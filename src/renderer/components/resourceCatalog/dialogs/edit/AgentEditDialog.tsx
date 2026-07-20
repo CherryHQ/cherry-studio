@@ -20,6 +20,7 @@ import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { permissionModeCards } from '@renderer/utils/agent'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -35,7 +36,7 @@ import {
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
-import { Sparkles, Wrench } from 'lucide-react'
+import { ToolCase, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -82,13 +83,6 @@ type AgentEditFormValues = {
 type ToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.skills'
 
 const logger = loggerService.withContext('AgentEditDialog')
-const PERMISSION_MODES = ['default', 'plan', 'acceptEdits', 'bypassPermissions'] as const
-const PERMISSION_MODE_LABEL_KEYS: Record<(typeof PERMISSION_MODES)[number], string> = {
-  acceptEdits: 'library.config.agent.field.permission_mode.option.acceptEdits',
-  bypassPermissions: 'library.config.agent.field.permission_mode.option.bypassPermissions',
-  default: 'library.config.agent.field.permission_mode.option.default',
-  plan: 'library.config.agent.field.permission_mode.option.plan'
-}
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
 
 const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
@@ -184,7 +178,14 @@ function createAgentPatcher(form: UseFormReturn<AgentEditFormValues>, resource: 
   }
 }
 
-export function AgentEditDialog({ resource, open, onOpenChange, onSaved, modelFilter }: AgentEditDialogProps) {
+export function AgentEditDialog({
+  resource,
+  open,
+  onOpenChange,
+  onSaved,
+  modelFilter,
+  initialTab
+}: AgentEditDialogProps) {
   if (!resource) return null
 
   return (
@@ -194,6 +195,7 @@ export function AgentEditDialog({ resource, open, onOpenChange, onSaved, modelFi
       onOpenChange={onOpenChange}
       onSaved={onSaved}
       modelFilter={modelFilter}
+      initialTab={initialTab}
     />
   )
 }
@@ -203,10 +205,11 @@ function AgentEditDialogContent({
   open,
   onOpenChange,
   onSaved,
-  modelFilter
+  modelFilter,
+  initialTab
 }: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('basic')
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
@@ -263,12 +266,12 @@ function AgentEditDialogContent({
 
     form.reset(defaultValues)
     form.clearErrors()
-    setActiveTab('basic')
+    setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
     setBaselineSkillIds([])
     setBaselineSkillAgentId(null)
-  }, [defaultValues, form, open, resource])
+  }, [defaultValues, form, initialTab, open, resource])
 
   useEffect(() => {
     if (!open || skillsLoading || baselineSkillAgentId === resource.id) return
@@ -519,9 +522,9 @@ function PermissionModeField({
                 </SelectTrigger>
               </FormControl>
               <SelectContent portalContainer={portalContainer}>
-                {PERMISSION_MODES.map((mode) => (
-                  <SelectItem key={mode} value={mode}>
-                    {t(PERMISSION_MODE_LABEL_KEYS[mode])}
+                {permissionModeCards.map((card) => (
+                  <SelectItem key={card.mode} value={card.mode}>
+                    {t(card.titleKey, card.titleFallback)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -713,7 +716,7 @@ function AgentToolsFields({
         id: skill.id,
         name: skill.name,
         description: skill.description,
-        icon: <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" />
+        icon: <ToolCase size={13} strokeWidth={1.5} className="text-amber-500/60" />
       })),
     [skills]
   )
