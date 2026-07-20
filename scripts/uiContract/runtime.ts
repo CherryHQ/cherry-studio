@@ -10,7 +10,7 @@ function findLast(tokens: string[], predicate: (token: string) => boolean): stri
 }
 
 /**
- * Compose the caller-owned semantic/state tokens with the implementation-owned
+ * Compose the caller-owned semantic/scope tokens with the implementation-owned
  * part and exact-ID tokens. The implementation exact ID wins because it names
  * the real intrinsic DOM node; the most specific caller semantic wins.
  */

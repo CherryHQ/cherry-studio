@@ -5,19 +5,15 @@ export type UiTokenValue = string | false | null | undefined
 
 export interface UiTokenOptions {
   exactId?: string
-  modes?: readonly UiTokenValue[]
   parts?: readonly UiTokenValue[]
   scopes?: readonly UiTokenValue[]
-  states?: readonly UiTokenValue[]
 }
 
 export interface ParsedUiTokens {
   exactId?: string
-  modes: string[]
   parts: string[]
   scopes: string[]
   semanticId?: string
-  states: string[]
 }
 
 function assertSemanticId(value: string): void {
@@ -50,9 +46,7 @@ export function uiTokens(semanticId: string, options: UiTokenOptions = {}): stri
     semanticId,
     ...namespaced('part', options.parts),
     options.exactId ? `id:${options.exactId}` : undefined,
-    ...namespaced('scope', options.scopes),
-    ...namespaced('mode', options.modes),
-    ...namespaced('state', options.states)
+    ...namespaced('scope', options.scopes)
   ]
     .filter((token): token is string => Boolean(token))
     .filter((token, index, tokens) => tokens.indexOf(token) === index)
@@ -61,10 +55,8 @@ export function uiTokens(semanticId: string, options: UiTokenOptions = {}): stri
 
 export function parseUiTokens(value: string | null | undefined): ParsedUiTokens {
   const result: ParsedUiTokens = {
-    modes: [],
     parts: [],
-    scopes: [],
-    states: []
+    scopes: []
   }
   for (const token of value?.split(/\s+/).filter(Boolean) ?? []) {
     const separator = token.indexOf(':')
@@ -77,8 +69,6 @@ export function parseUiTokens(value: string | null | undefined): ParsedUiTokens 
     if (namespace === 'id') result.exactId ??= tokenValue
     else if (namespace === 'part') result.parts.push(tokenValue)
     else if (namespace === 'scope') result.scopes.push(tokenValue)
-    else if (namespace === 'mode') result.modes.push(tokenValue)
-    else if (namespace === 'state') result.states.push(tokenValue)
   }
   return result
 }
@@ -97,9 +87,7 @@ export function uiSelector(options: UiSelectorOptions): string {
     options.semanticId,
     ...namespaced('part', options.parts),
     options.exactId ? `id:${options.exactId}` : undefined,
-    ...namespaced('scope', options.scopes),
-    ...namespaced('mode', options.modes),
-    ...namespaced('state', options.states)
+    ...namespaced('scope', options.scopes)
   ].filter((token): token is string => Boolean(token))
   if (tokens.length === 0) throw new Error('A data-ui selector requires at least one token')
   if (options.semanticId) assertSemanticId(options.semanticId)

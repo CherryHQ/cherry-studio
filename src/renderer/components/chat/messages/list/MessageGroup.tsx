@@ -324,9 +324,7 @@ const MessageGroup = ({
         <MessageWrapper
           id={`message-${message.id}`}
           uiTokenOptions={{
-            modes: [multiModelMessageStyle],
-            scopes: [`message:${message.id}`, `topic:${topic.id}`],
-            states: [message.role, message.status, message.id === selectedMessageId && 'selected']
+            scopes: [`message:${message.id}`, `topic:${topic.id}`]
           }}
           key={message.id}
           className={classNames([
@@ -351,9 +349,7 @@ const MessageGroup = ({
             content={
               <MessageWrapper
                 uiTokenOptions={{
-                  modes: [multiModelMessageStyle, 'popover'],
-                  scopes: [`message:${message.id}`, `topic:${topic.id}`],
-                  states: [message.role, message.status, message.id === selectedMessageId && 'selected']
+                  scopes: [`message:${message.id}`, `topic:${topic.id}`]
                 }}
                 className={classNames([
                   'in-popover',
@@ -393,9 +389,7 @@ const MessageGroup = ({
     <GroupContainer
       id={messages[0].parentId ? `message-group-${messages[0].parentId}` : undefined}
       uiTokenOptions={{
-        modes: [multiModelMessageStyle],
-        scopes: [`group:${messages[0].parentId ?? messages[0].id}`, `topic:${topic.id}`],
-        states: [isGrouped && 'grouped', isMultiSelectMode && 'multi-select']
+        scopes: [`group:${messages[0].parentId ?? messages[0].id}`, `topic:${topic.id}`]
       }}
       className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <GridContainer
