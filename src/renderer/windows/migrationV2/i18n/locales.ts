@@ -131,8 +131,7 @@ export const zhCN = {
       failures: {
         dialog_failed: '无法打开保存对话框，请重试。',
         snapshot_failed: '无法生成诊断快照，请重试。',
-        archive_failed: '无法创建诊断压缩包，请重试。',
-        publish_failed: '无法将诊断包保存到所选位置，请重试。',
+        bundle_save_failed: '无法将诊断包保存到所选位置，请重试。',
         save_in_progress: '另一个诊断包正在保存，请稍候再试。'
       }
     },
@@ -281,8 +280,7 @@ export const enUS = {
       failures: {
         dialog_failed: 'The save dialog could not be opened. Please try again.',
         snapshot_failed: 'The diagnostic snapshot could not be created. Please try again.',
-        archive_failed: 'The diagnostic ZIP could not be created. Please try again.',
-        publish_failed: 'The diagnostic bundle could not be saved to that location. Please try again.',
+        bundle_save_failed: 'The diagnostic bundle could not be saved to that location. Please try again.',
         save_in_progress: 'Another diagnostic bundle is being saved. Please try again shortly.'
       }
     },

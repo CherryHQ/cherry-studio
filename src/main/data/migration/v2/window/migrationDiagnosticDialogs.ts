@@ -26,7 +26,7 @@ export type MigrationDiagnosticNativeSaveResult =
   | { readonly status: 'saved' }
   | {
       readonly status: 'failed'
-      readonly code: 'dialog_failed' | 'snapshot_failed' | 'archive_failed' | 'publish_failed' | 'save_in_progress'
+      readonly code: 'dialog_failed' | 'snapshot_failed' | 'bundle_save_failed' | 'save_in_progress'
     }
 
 export type MigrationDiagnosticNativeDecision = 'retry' | 'use_default' | 'exit'
@@ -71,8 +71,7 @@ const SAVE_FAILURE_PUBLIC_CODES: Record<
 > = {
   dialog_failed: 'MIGRATION-DIAGNOSTIC-DIALOG-FAILED',
   snapshot_failed: 'MIGRATION-DIAGNOSTIC-SNAPSHOT-FAILED',
-  archive_failed: 'MIGRATION-DIAGNOSTIC-ARCHIVE-FAILED',
-  publish_failed: 'MIGRATION-DIAGNOSTIC-PUBLISH-FAILED',
+  bundle_save_failed: 'MIGRATION-DIAGNOSTIC-BUNDLE-SAVE-FAILED',
   save_in_progress: 'MIGRATION-DIAGNOSTIC-SAVE-IN-PROGRESS'
 }
 

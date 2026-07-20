@@ -9,8 +9,8 @@ describe('migrationDiagnosticNativeI18n', () => {
     expect(i18n.locale).toBe('zh-CN')
     expect(i18n.t('failure.title')).toBe('迁移诊断')
     expect(i18n.t('action.save')).toBe('保存诊断包')
-    expect(i18n.t('failure.code', { code: 'MIGRATION-DIAGNOSTIC-ARCHIVE-FAILED' })).toContain(
-      'MIGRATION-DIAGNOSTIC-ARCHIVE-FAILED'
+    expect(i18n.t('failure.code', { code: 'MIGRATION-DIAGNOSTIC-BUNDLE-SAVE-FAILED' })).toContain(
+      'MIGRATION-DIAGNOSTIC-BUNDLE-SAVE-FAILED'
     )
     expect(i18n.t('support.emailSubject')).toBe('Cherry Studio 迁移诊断')
     expect(i18n.t('support.emailBody')).toBe('请描述迁移问题，并手动附上已保存的诊断 ZIP 文件。')

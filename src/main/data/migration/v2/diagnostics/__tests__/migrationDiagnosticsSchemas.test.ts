@@ -124,7 +124,6 @@ describe('migrationDiagnosticFailureSchema', () => {
     expect(MIGRATION_FAILURE_ERROR_CODES).toContain('source_required_records_rejected')
     expect(MIGRATION_FAILURE_ERROR_CODES).toContain('version_window_failed')
     expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('database_diagnostics_timeout')
-    expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('archive_failed')
     expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('bundle_save_failed')
   })
 

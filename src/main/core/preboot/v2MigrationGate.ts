@@ -111,8 +111,7 @@ function toNativeSaveResult(
 ): MigrationDiagnosticNativeSaveResult {
   if (result.status === 'saved') return { status: 'saved' }
   if (result.code === 'save_in_progress') return result
-  if (result.code === 'publish_failed') return { status: 'failed', code: 'publish_failed' }
-  return { status: 'failed', code: 'archive_failed' }
+  return { status: 'failed', code: 'bundle_save_failed' }
 }
 
 function applyNativeDecision(decision: MigrationDiagnosticNativeDecision): V2MigrationGateResult {

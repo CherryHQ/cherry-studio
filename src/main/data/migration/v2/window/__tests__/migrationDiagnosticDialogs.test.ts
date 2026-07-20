@@ -34,7 +34,7 @@ describe('migrationDiagnosticDialogs', () => {
   it('shows only stable follow-up actions after a bundle build failure', async () => {
     showMessageBoxMock.mockResolvedValueOnce({ response: 0 } as never).mockResolvedValueOnce({ response: 0 } as never)
     showSaveDialogMock.mockResolvedValue({ canceled: false, filePath: '/safe/diagnostics.zip' } as never)
-    const saveBundle = vi.fn().mockResolvedValue({ status: 'failed', code: 'archive_failed' })
+    const saveBundle = vi.fn().mockResolvedValue({ status: 'failed', code: 'bundle_save_failed' })
 
     const result = await presentMigrationDiagnosticFailure({
       locale: 'en-US',
@@ -48,7 +48,7 @@ describe('migrationDiagnosticDialogs', () => {
     const failureDialog = showMessageBoxMock.mock.calls[1]?.[0]
     expect(failureDialog.buttons).toEqual(['Retry', 'Exit'])
     expect(failureDialog.buttons).not.toContain('Save diagnostic bundle')
-    expect(failureDialog.detail).toContain('MIGRATION-DIAGNOSTIC-ARCHIVE-FAILED')
+    expect(failureDialog.detail).toContain('MIGRATION-DIAGNOSTIC-BUNDLE-SAVE-FAILED')
   })
 
   it('holds the native save transaction across destination selection and bundle creation', async () => {
@@ -120,7 +120,7 @@ describe('migrationDiagnosticDialogs', () => {
       presentMigrationDiagnosticFailure({
         locale: 'en-US',
         code: 'database_initialize_failed',
-        saveBundle: vi.fn().mockResolvedValue({ status: 'failed', code: 'publish_failed' }),
+        saveBundle: vi.fn().mockResolvedValue({ status: 'failed', code: 'bundle_save_failed' }),
         runSaveTransaction: runSaveTransactionImmediately
       })
     ).resolves.toBe('exit')

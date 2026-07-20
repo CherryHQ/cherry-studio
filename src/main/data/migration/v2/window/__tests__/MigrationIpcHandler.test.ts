@@ -143,7 +143,7 @@ describe('MigrationIpcHandler', () => {
   })
 
   describe('strict diagnostics support actions', () => {
-    it.each(['dialog_failed', 'snapshot_failed', 'archive_failed', 'publish_failed', 'save_in_progress'] as const)(
+    it.each(['dialog_failed', 'snapshot_failed', 'bundle_save_failed', 'save_in_progress'] as const)(
       'returns the stable %s save failure code',
       async (code) => {
         if (code === 'dialog_failed') {
@@ -185,52 +185,44 @@ describe('MigrationIpcHandler', () => {
       expect(shell.showItemInFolder).not.toHaveBeenCalledWith('/renderer-controlled/escape.zip')
     })
 
-    it.each([
-      'canceled',
-      'dialog_failed',
-      'snapshot_failed',
-      'archive_failed',
-      'publish_failed',
-      'save_in_progress'
-    ] as const)('keeps the last successful destination after a later %s save outcome', async (outcome) => {
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
-      vi.mocked(shell.showItemInFolder).mockClear()
+    it.each(['canceled', 'dialog_failed', 'snapshot_failed', 'bundle_save_failed', 'save_in_progress'] as const)(
+      'keeps the last successful destination after a later %s save outcome',
+      async (outcome) => {
+        await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+        vi.mocked(shell.showItemInFolder).mockClear()
 
-      if (outcome === 'canceled') {
-        vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
-      } else if (outcome === 'dialog_failed') {
-        vi.mocked(dialog.showSaveDialog).mockRejectedValueOnce(new Error('native canary'))
-      } else {
-        diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: outcome })
+        if (outcome === 'canceled') {
+          vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
+        } else if (outcome === 'dialog_failed') {
+          vi.mocked(dialog.showSaveDialog).mockRejectedValueOnce(new Error('native canary'))
+        } else {
+          diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: outcome })
+        }
+        await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+        await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+
+        expect(shell.showItemInFolder).toHaveBeenCalledWith('/main-selected/migration-diagnostics.zip')
       }
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
-      await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+    )
 
-      expect(shell.showItemInFolder).toHaveBeenCalledWith('/main-selected/migration-diagnostics.zip')
-    })
+    it.each(['canceled', 'dialog_failed', 'snapshot_failed', 'bundle_save_failed', 'save_in_progress'] as const)(
+      'has no reveal destination after an initial %s save outcome',
+      async (outcome) => {
+        if (outcome === 'canceled') {
+          vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
+        } else if (outcome === 'dialog_failed') {
+          vi.mocked(dialog.showSaveDialog).mockRejectedValueOnce(new Error('native canary'))
+        } else {
+          diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: outcome })
+        }
+        await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
 
-    it.each([
-      'canceled',
-      'dialog_failed',
-      'snapshot_failed',
-      'archive_failed',
-      'publish_failed',
-      'save_in_progress'
-    ] as const)('has no reveal destination after an initial %s save outcome', async (outcome) => {
-      if (outcome === 'canceled') {
-        vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
-      } else if (outcome === 'dialog_failed') {
-        vi.mocked(dialog.showSaveDialog).mockRejectedValueOnce(new Error('native canary'))
-      } else {
-        diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: outcome })
+        await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).rejects.toThrow(
+          /saved diagnostic bundle/i
+        )
+        expect(shell.showItemInFolder).not.toHaveBeenCalled()
       }
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
-
-      await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).rejects.toThrow(
-        /saved diagnostic bundle/i
-      )
-      expect(shell.showItemInFolder).not.toHaveBeenCalled()
-    })
+    )
 
     it('clears the reveal destination when handlers are unregistered and registered again', async () => {
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
@@ -342,7 +334,7 @@ describe('MigrationIpcHandler', () => {
         if (outcome === 'canceled') {
           vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: undefined } as never)
         } else if (outcome === 'failed') {
-          diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: 'archive_failed' })
+          diagnosticsSaveBundleMock.mockResolvedValueOnce({ status: 'failed', code: 'bundle_save_failed' })
         }
 
         await invoke(MigrationIpcChannels.SaveDiagnosticBundle)

@@ -7,32 +7,14 @@ export type {
 } from './MigrationDatabaseDiagnostics'
 export { MigrationDatabaseDiagnostics } from './MigrationDatabaseDiagnostics'
 export type {
-  MigrationDatabaseColumnCountBucket,
   MigrationDatabaseColumnRole,
-  MigrationDatabaseCompletedDiagnosticResult,
-  MigrationDatabaseCompletionFailureCode,
-  MigrationDatabaseCountBucket,
   MigrationDatabaseDiagnosticResult,
   MigrationDatabaseDiagnosticsChildInput,
   MigrationDatabaseDiagnosticsChildMessage,
-  MigrationDatabaseDiagnosticStep,
-  MigrationDatabaseExpectedObjectDefinition,
-  MigrationDatabaseExpectedObjectId,
-  MigrationDatabaseFailedDiagnosticResult,
-  MigrationDatabaseFailureCode,
   MigrationDatabaseFileResult,
-  MigrationDatabaseL0Data,
-  MigrationDatabaseL0Step,
-  MigrationDatabaseL1Data,
-  MigrationDatabaseL1Step,
-  MigrationDatabaseL2Data,
-  MigrationDatabaseL2Step,
   MigrationDatabaseObjectCheck,
-  MigrationDatabaseObjectKind,
   MigrationDatabaseObjectRole,
-  MigrationDatabaseSqliteResult,
-  MigrationDatabaseTimedOutDiagnosticResult,
-  MigrationDatabaseUnknownObjectKind
+  MigrationDatabaseSqliteResult
 } from './migrationDatabaseDiagnosticsSchemas'
 export {
   MIGRATION_DATABASE_OBJECT_DEFINITIONS,
@@ -40,38 +22,29 @@ export {
   migrationDatabaseDiagnosticResultSchema,
   migrationDatabaseDiagnosticsChildInputSchema,
   migrationDatabaseDiagnosticsChildMessageSchema,
-  migrationDatabaseDiagnosticStepSchema,
   migrationDatabaseFileResultSchema,
-  migrationDatabaseL0DataSchema,
-  migrationDatabaseL0StepSchema,
-  migrationDatabaseL1DataSchema,
-  migrationDatabaseL1StepSchema,
-  migrationDatabaseL2DataSchema,
-  migrationDatabaseL2StepSchema,
   migrationDatabaseObjectCheckSchema,
   migrationDatabaseObjectRoleSchema,
   migrationDatabaseSqliteResultSchema,
   migrationDatabaseSqliteUnavailableReasonSchema
 } from './migrationDatabaseDiagnosticsSchemas'
 export type {
+  MigrationDiagnosticBundleBuilderOptions,
   MigrationDiagnosticBundleSaveInput,
   MigrationDiagnosticBundleSaveResult
 } from './MigrationDiagnosticBundleBuilder'
 export {
-  MIGRATION_DIAGNOSTIC_STRICT_ENTRIES,
-  MIGRATION_DIAGNOSTIC_STRICT_LIMIT_BYTES,
+  MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES,
+  MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES,
   MigrationDiagnosticBundleBuilder
 } from './MigrationDiagnosticBundleBuilder'
 export type {
-  MigrationDatabaseDiagnosticsDocument,
-  MigrationDiagnosticEventsDocument,
-  MigrationDiagnosticManifest,
-  MigrationDiagnosticStrictEntryName
+  MigrationDiagnosticBundleDocument,
+  MigrationDiagnosticBundleEntryName
 } from './migrationDiagnosticBundleSchemas'
 export {
-  migrationDatabaseDiagnosticsDocumentSchema,
-  migrationDiagnosticEventsDocumentSchema,
-  migrationDiagnosticManifestSchema
+  migrationDiagnosticBundleDocumentSchema,
+  migrationDiagnosticBundleEntryNameSchema
 } from './migrationDiagnosticBundleSchemas'
 export type {
   MigrationDiagnosticsCoordinatorOptions,

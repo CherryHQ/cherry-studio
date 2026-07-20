@@ -7,7 +7,7 @@ import {
   migrationDatabaseDiagnosticsChildMessageSchema,
   migrationDatabaseSqliteResultSchema,
   MigrationDiagnosticBundleBuilder,
-  migrationDiagnosticManifestSchema
+  migrationDiagnosticBundleDocumentSchema
 } from '../index'
 
 describe('migration database diagnostics barrel', () => {
@@ -17,8 +17,8 @@ describe('migration database diagnostics barrel', () => {
     expect(migrationDatabaseSqliteResultSchema).toBeDefined()
     expect(migrationDatabaseDiagnosticsChildMessageSchema).toBeDefined()
     expect(MigrationDiagnosticBundleBuilder).toBeTypeOf('function')
-    expect(migrationDiagnosticManifestSchema).toBeDefined()
-    expect(diagnostics).not.toHaveProperty('createCanonicalMigrationDiagnosticArchive')
-    expect(diagnostics).not.toHaveProperty('validateCanonicalZipStructure')
+    expect(migrationDiagnosticBundleDocumentSchema).toBeDefined()
+    expect(diagnostics).not.toHaveProperty('migrationDiagnosticManifestSchema')
+    expect(diagnostics).not.toHaveProperty('migrationDiagnosticEventsDocumentSchema')
   })
 })

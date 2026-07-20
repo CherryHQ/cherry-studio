@@ -75,8 +75,7 @@ type MigrationDiagnosticSaveFailureCode = Extract<MigrationDiagnosticSaveResult,
 const diagnosticFailureMessageKey: Record<MigrationDiagnosticSaveFailureCode, string> = {
   dialog_failed: 'migration.diagnostics.failures.dialog_failed',
   snapshot_failed: 'migration.diagnostics.failures.snapshot_failed',
-  archive_failed: 'migration.diagnostics.failures.archive_failed',
-  publish_failed: 'migration.diagnostics.failures.publish_failed',
+  bundle_save_failed: 'migration.diagnostics.failures.bundle_save_failed',
   save_in_progress: 'migration.diagnostics.failures.save_in_progress'
 }
 

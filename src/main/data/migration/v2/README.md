@@ -32,15 +32,13 @@ crash, force quit, or power loss is closed as `process_interrupted` on the next 
 journals are quarantined without changing business data or migration eligibility. A successful migration
 reconciliation deletes the checkpoint while retaining the completed in-memory summary for the current UI session.
 
-The user-saved Scheme A ZIP has an exact four-file allowlist:
+The user-saved diagnostic ZIP has an exact two-file allowlist:
 
-- `manifest.json`
-- `migration-events.json`
-- `database-diagnostics.json`
+- `migration-diagnostics.json`
 - `README.txt`
 
-The sum of those entries is limited to 1 MiB **before compression**. The bundle contains fixed migration events,
-numeric payload-length buckets, and bounded read-only database structure/integrity results. It excludes application
+The sum of those entries is limited to 1 MiB **before compression**. The JSON document contains the current and
+immediately previous attempt, failure-only payload-length facts, and bounded read-only database results. It excludes application
 and migration logs, database/WAL/SHM files, the journal, exports, SQL, business rows, raw errors and stacks,
 credentials, absolute paths, and user content. Database diagnostic failure or timeout is represented by a fixed
 partial/unavailable result and does not prevent the remaining bundle from being saved.

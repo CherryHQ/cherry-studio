@@ -641,7 +641,7 @@ describe('MigrationApp', () => {
       await waitFor(() => expect(openEmail).toBeEnabled())
     })
 
-    it.each(['dialog_failed', 'snapshot_failed', 'archive_failed', 'publish_failed', 'save_in_progress'] as const)(
+    it.each(['dialog_failed', 'snapshot_failed', 'bundle_save_failed', 'save_in_progress'] as const)(
       'maps %s through migration i18n without rendering arbitrary Main data',
       async (code) => {
         migrationHookMock.actions.save.mockResolvedValue({
