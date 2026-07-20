@@ -737,6 +737,101 @@ describe('BootConfigService', () => {
     })
   })
 
+  // ---------- factory-reset slot reconciliation ----------
+
+  describe('temp.factory_reset write reconciliation', () => {
+    // The global electron mock resolves app.getPath('userData') to
+    // '/mock/userData' — that is "self" for the ownership rule.
+    const SELF = '/mock/userData'
+    const foreignMarker = {
+      status: 'pending' as const,
+      userDataPath: '/mock/other/CherryStudioDev',
+      requestedAt: '2026-07-20T00:00:00.000Z'
+    }
+    const selfMarker = { ...foreignMarker, userDataPath: SELF }
+
+    function writtenConfig(): Record<string, unknown> {
+      const call = mockFs.writeFileSync.mock.calls.at(-1)
+      return call ? JSON.parse(call[1] as string) : {}
+    }
+
+    it('writes its own marker from memory regardless of the disk state', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      const service = await createService()
+      service.set('temp.factory_reset', selfMarker)
+      service.persist()
+
+      expect(writtenConfig()['temp.factory_reset']).toEqual(selfMarker)
+    })
+
+    it('clears its own consumed marker even though disk still holds it', async () => {
+      // Load with our own pending marker on disk, clear it in memory, persist:
+      // memory (null) must win because the DISK slot is self-owned.
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.factory_reset': selfMarker }))
+
+      const service = await createService()
+      service.set('temp.factory_reset', null)
+      service.set('app.disable_hardware_acceleration', true) // keep the file non-empty
+      service.persist()
+
+      expect(writtenConfig()).toEqual({ 'app.disable_hardware_acceleration': true })
+    })
+
+    it('does not resurrect a foreign marker the owner already consumed', async () => {
+      // Loaded while a sibling instance's marker was staged…
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.factory_reset': foreignMarker }))
+
+      const service = await createService()
+      expect(service.get('temp.factory_reset')).toEqual(foreignMarker)
+
+      // …then the owner consumed it (disk slot now empty). Our next write must
+      // NOT push the stale in-memory copy back — that would arm a second wipe.
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({}))
+      service.set('app.disable_hardware_acceleration', true)
+      service.persist()
+
+      expect(writtenConfig()).toEqual({ 'app.disable_hardware_acceleration': true })
+    })
+
+    it('preserves a foreign pending marker staged after our load', async () => {
+      // Loaded with no marker…
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({}))
+
+      const service = await createService()
+
+      // …then a sibling instance staged its wipe. Our whole-file write must
+      // carry it through instead of erasing the sibling's reset.
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.factory_reset': foreignMarker }))
+      service.set('app.disable_hardware_acceleration', true)
+      service.persist()
+
+      expect(writtenConfig()['temp.factory_reset']).toEqual(foreignMarker)
+    })
+
+    it('preserves a foreign pending marker even when memory is all-defaults (no unlink)', async () => {
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'app.disable_hardware_acceleration': true }))
+
+      const service = await createService()
+
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.factory_reset': foreignMarker }))
+      service.set('app.disable_hardware_acceleration', false) // back to defaults
+      service.persist()
+
+      // The all-defaults path would unlink the shared file — with a foreign
+      // marker on disk it must write the marker through instead.
+      expect(mockFs.unlinkSync).not.toHaveBeenCalled()
+      expect(writtenConfig()).toEqual({ 'temp.factory_reset': foreignMarker })
+    })
+  })
+
   // ---------- debounce coalescing ----------
 
   describe('debounce coalescing', () => {

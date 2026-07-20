@@ -14,6 +14,7 @@ import { BOOT_CONFIG_PATH } from '@main/core/paths/constants'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import { bootConfigSchema, DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
+import { app } from 'electron'
 
 import type { BootConfigLoadError } from './types'
 
@@ -327,6 +328,15 @@ export class BootConfigService {
       }
     }
 
+    // The factory-reset slot is reconciled against disk instead of trusting
+    // memory — see reconcileFactoryResetSlot for why.
+    const marker = this.reconcileFactoryResetSlot()
+    if (marker === null) {
+      delete diff['temp.factory_reset']
+    } else {
+      diff['temp.factory_reset'] = marker
+    }
+
     if (Object.keys(diff).length === 0) {
       // Delete the file so an all-defaults state leaves no stale non-default
       // config behind. Attempt the unlink directly rather than gating on
@@ -356,6 +366,71 @@ export class BootConfigService {
     fs.writeFileSync(tempPath, content, 'utf-8')
     fs.renameSync(tempPath, this.filePath)
     logger.debug(`Boot config saved to ${this.filePath}`)
+  }
+
+  /**
+   * Decide what the `temp.factory_reset` slot of the next write should hold.
+   *
+   * boot-config.json is one file shared by every instance (dev and packaged),
+   * and every write is whole-file last-writer-wins — so an instance that
+   * loaded the file while ANOTHER instance's wipe marker was staged holds a
+   * copy of that marker in memory, and its later writes would either
+   * resurrect a marker the owner already consumed (arming a second wipe of
+   * freshly created data) or erase a marker the owner has not consumed yet
+   * (silently dropping the reset). Both are wrong, and both are fixed the
+   * same way: never write a foreign marker from memory.
+   *
+   * Rule — memory is authoritative for the slot only when the slot is OURS:
+   * the in-memory marker targets this instance's userData (we just staged or
+   * re-armed it), or the on-disk marker does (we just consumed it and are
+   * clearing the slot). In every other case whatever is currently on disk is
+   * a foreign instance's business and is passed through unchanged.
+   */
+  private reconcileFactoryResetSlot(): BootConfigSchema['temp.factory_reset'] {
+    const memory = this.config['temp.factory_reset']
+    const disk = this.readFactoryResetFromDisk()
+    if (JSON.stringify(memory ?? null) === JSON.stringify(disk ?? null)) return memory
+
+    const self = this.currentUserDataPath()
+    if (self !== null && (memory?.userDataPath === self || disk?.userDataPath === self)) {
+      return memory
+    }
+    logger.info('Preserving a foreign factory-reset marker across a boot config write', {
+      diskMarkerPath: disk?.userDataPath ?? null
+    })
+    return disk
+  }
+
+  /**
+   * Fresh read of the on-disk `temp.factory_reset` value. Anything that
+   * cannot be read, parsed, or validated counts as "no marker" — identical
+   * to how loadSync treats the same states.
+   */
+  private readFactoryResetFromDisk(): BootConfigSchema['temp.factory_reset'] {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.filePath, 'utf-8'))
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
+      const result = bootConfigSchema.shape['temp.factory_reset'].safeParse(
+        (parsed as Record<string, unknown>)['temp.factory_reset']
+      )
+      return result.success ? result.data : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * This instance's userData path — the ownership identity for the
+   * factory-reset slot. Null before Electron has one (never the case for the
+   * write paths that matter: the gate and the request both run after userData
+   * resolution); null means "not provably ours", so disk wins.
+   */
+  private currentUserDataPath(): string | null {
+    try {
+      return app.getPath('userData')
+    } catch {
+      return null
+    }
   }
 
   /**
