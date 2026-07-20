@@ -44,6 +44,19 @@ const rendererEvidenceCases = [
   { kind: 'renderer_export_failure', sourceRole: 'unknown', operationRole: 'unknown' }
 ] as const
 
+const classifiedRendererEvidenceCases = [
+  { semanticEvidence: rendererEvidenceCases[0], code: 'unknown', category: 'unknown' },
+  { semanticEvidence: rendererEvidenceCases[1], code: 'source_parse', category: 'source' },
+  { semanticEvidence: rendererEvidenceCases[2], code: 'unknown', category: 'unknown' },
+  { semanticEvidence: rendererEvidenceCases[3], code: 'unknown', category: 'unknown' },
+  { semanticEvidence: rendererEvidenceCases[4], code: 'unknown', category: 'unknown' },
+  { semanticEvidence: rendererEvidenceCases[5], code: 'permission_denied', category: 'filesystem' },
+  { semanticEvidence: rendererEvidenceCases[6], code: 'unknown', category: 'unknown' },
+  { semanticEvidence: rendererEvidenceCases[7], code: 'unknown', category: 'unknown' },
+  { semanticEvidence: rendererEvidenceCases[8], code: 'disk_full', category: 'filesystem' },
+  { semanticEvidence: rendererEvidenceCases[9], code: 'unknown', category: 'unknown' }
+] as const
+
 const rendererExportEvent = {
   ...validEvent,
   scope: 'renderer_export',
@@ -153,26 +166,70 @@ describe('migrationDiagnosticEventSchema', () => {
     ])
   })
 
+  it.each(classifiedRendererEvidenceCases)(
+    'accepts the fixed renderer $semanticEvidence.sourceRole/$semanticEvidence.operationRole evidence classification',
+    ({ semanticEvidence, code, category }) => {
+      expect(
+        migrationDiagnosticEventSchema.safeParse({ ...rendererExportEvent, code, category, semanticEvidence }).success
+      ).toBe(true)
+    }
+  )
+
+  it.each(['path_unavailable', 'permission_denied', 'disk_full'] as const)(
+    'accepts the fixed %s filesystem classification only for Main-owned writes',
+    (code) => {
+      for (const semanticEvidence of [rendererEvidenceCases[5], rendererEvidenceCases[8]]) {
+        expect(
+          migrationDiagnosticEventSchema.safeParse({
+            ...rendererExportEvent,
+            code,
+            category: 'filesystem',
+            semanticEvidence
+          }).success
+        ).toBe(true)
+      }
+    }
+  )
+
   it.each(rendererEvidenceCases)(
-    'accepts the fixed renderer $sourceRole/$operationRole evidence with source classification',
+    'accepts the safe unknown/unknown fallback for $sourceRole/$operationRole',
     (semanticEvidence) => {
-      expect(migrationDiagnosticEventSchema.safeParse({ ...rendererExportEvent, semanticEvidence }).success).toBe(true)
+      expect(
+        migrationDiagnosticEventSchema.safeParse({
+          ...rendererExportEvent,
+          code: 'unknown',
+          category: 'unknown',
+          semanticEvidence
+        }).success
+      ).toBe(true)
+      expect(semanticEvidence).not.toHaveProperty('failureClass')
     }
   )
 
   it.each([
-    { code: 'permission_denied', category: 'filesystem' },
-    { code: 'unknown', category: 'unknown' }
+    { semanticEvidence: rendererEvidenceCases[1], code: 'sqlite_too_big', category: 'database_write' },
+    { semanticEvidence: rendererEvidenceCases[1], code: 'invalid_identifier', category: 'source' },
+    { semanticEvidence: rendererEvidenceCases[0], code: 'source_parse', category: 'source' },
+    { semanticEvidence: rendererEvidenceCases[3], code: 'source_parse', category: 'source' },
+    { semanticEvidence: rendererEvidenceCases[7], code: 'source_parse', category: 'source' },
+    { semanticEvidence: rendererEvidenceCases[1], code: 'source_parse', category: 'unknown' },
+    { semanticEvidence: rendererEvidenceCases[1], code: 'source_parse', category: undefined },
+    { semanticEvidence: rendererEvidenceCases[3], code: 'permission_denied', category: 'filesystem' },
+    { semanticEvidence: rendererEvidenceCases[5], code: 'permission_denied', category: 'database_write' },
+    { semanticEvidence: rendererEvidenceCases[8], code: 'sqlite_too_big', category: 'filesystem' },
+    { semanticEvidence: rendererEvidenceCases[9], code: 'unknown', category: 'source' },
+    { semanticEvidence: rendererEvidenceCases[9], code: 'unknown', category: undefined }
   ] as const)(
-    'retains the renderer failure classification $code/$category outside semantic evidence',
-    (classification) => {
-      const semanticEvidence = rendererEvidenceCases.at(-1)
-
+    'rejects renderer $semanticEvidence.sourceRole/$semanticEvidence.operationRole with $code/$category',
+    ({ semanticEvidence, code, category }) => {
       expect(
-        migrationDiagnosticEventSchema.safeParse({ ...rendererExportEvent, ...classification, semanticEvidence })
-          .success
-      ).toBe(true)
-      expect(semanticEvidence).not.toHaveProperty('failureClass')
+        migrationDiagnosticEventSchema.safeParse({
+          ...rendererExportEvent,
+          code,
+          category,
+          semanticEvidence
+        }).success
+      ).toBe(false)
     }
   )
 
@@ -205,9 +262,9 @@ describe('migrationDiagnosticEventSchema', () => {
   })
 
   it.each([
-    { ...rendererExportEvent, phase: 'execute', semanticEvidence: rendererEvidenceCases[0] },
-    { ...rendererExportEvent, state: 'warning', semanticEvidence: rendererEvidenceCases[0] },
-    { ...rendererExportEvent, scope: 'migrator', semanticEvidence: rendererEvidenceCases[0] },
+    { ...rendererExportEvent, phase: 'execute', semanticEvidence: rendererEvidenceCases[1] },
+    { ...rendererExportEvent, state: 'warning', semanticEvidence: rendererEvidenceCases[1] },
+    { ...rendererExportEvent, scope: 'migrator', semanticEvidence: rendererEvidenceCases[1] },
     {
       ...missingRequiredFieldEvent,
       phase: 'execute',
@@ -304,7 +361,7 @@ describe('migrationDiagnosticEventSchema', () => {
       migrationDiagnosticEventSchema.safeParse({
         ...rendererExportEvent,
         semanticEvidence: {
-          ...rendererEvidenceCases[0],
+          ...rendererEvidenceCases[1],
           failureClass: 'source_parse'
         }
       }).success

@@ -354,6 +354,36 @@ interface MigrationDiagnosticEventCandidate {
   readonly semanticEvidence?: z.infer<typeof migrationDiagnosticSemanticEvidenceSchema>
 }
 
+type RendererExportFailureEvidence = Extract<
+  z.infer<typeof migrationDiagnosticSemanticEvidenceSchema>,
+  { kind: 'renderer_export_failure' }
+>
+
+function isValidRendererExportFailureClassification(
+  event: MigrationDiagnosticEventCandidate,
+  evidence: RendererExportFailureEvidence
+): boolean {
+  if (event.code === 'unknown' && event.category === 'unknown') {
+    return true
+  }
+
+  if (
+    evidence.sourceRole === 'redux' &&
+    evidence.operationRole === 'parse' &&
+    event.code === 'source_parse' &&
+    event.category === 'source'
+  ) {
+    return true
+  }
+
+  const isMainOwnedWrite =
+    evidence.operationRole === 'write' && (evidence.sourceRole === 'dexie' || evidence.sourceRole === 'local_storage')
+  const isFilesystemError =
+    event.code === 'path_unavailable' || event.code === 'permission_denied' || event.code === 'disk_full'
+
+  return isMainOwnedWrite && isFilesystemError && event.category === 'filesystem'
+}
+
 function validateMigrationDiagnosticEvent(event: MigrationDiagnosticEventCandidate, ctx: z.RefinementCtx): void {
   const isVersionGateEvent =
     event.scope === 'gate' &&
@@ -387,8 +417,12 @@ function validateMigrationDiagnosticEvent(event: MigrationDiagnosticEventCandida
     event.migratorId === 'provider_model'
 
   const evidenceKind = event.semanticEvidence?.kind
+  const rendererExportFailureEvidence =
+    event.semanticEvidence?.kind === 'renderer_export_failure' ? event.semanticEvidence : undefined
   const evidenceMatchesEvent =
-    (evidenceKind === 'renderer_export_failure' && isRendererExportFailureEvent) ||
+    (rendererExportFailureEvidence !== undefined &&
+      isRendererExportFailureEvent &&
+      isValidRendererExportFailureClassification(event, rendererExportFailureEvidence)) ||
     (evidenceKind === 'missing_required_field' && isMissingRequiredFieldEvent) ||
     (evidenceKind === 'invalid_identifier' && isInvalidIdentifierEvent)
   const fixedEventMatchesEvidence =
