@@ -749,6 +749,14 @@ describe('MigrationApp', () => {
       }
     })
 
+    it('uses the wider content container for version-incompatible diagnostics', () => {
+      render(<MigrationApp />)
+
+      const content = screen.getByText('migration.version_incompatible.preamble').closest('div.mx-auto')
+      expect(content).toHaveClass('max-w-140')
+      expect(content).not.toHaveClass('max-w-115')
+    })
+
     it('shows the existing diagnostic save flow on the version-incompatible page', async () => {
       migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
 

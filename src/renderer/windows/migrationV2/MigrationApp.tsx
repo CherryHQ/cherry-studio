@@ -680,7 +680,7 @@ const MigrationApp: React.FC = () => {
 
       case 'version_incompatible':
         return (
-          <div className="mx-auto w-full max-w-115 space-y-4">
+          <div className="mx-auto w-full max-w-140 space-y-4">
             <div className="text-center">
               <StageBadge tone="warning">
                 <AlertTriangle size={26} strokeWidth={1.5} />
