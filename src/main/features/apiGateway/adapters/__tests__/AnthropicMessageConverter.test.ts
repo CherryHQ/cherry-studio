@@ -194,7 +194,7 @@ describe('AnthropicMessageConverter.toAiSdkTools toModelOutput', () => {
       })
     )
     const toModelOutput = (
-      tools?.['shot'] as unknown as {
+      tools!['shot'] as unknown as {
         toModelOutput: (o: { toolCallId: string; input: unknown; output: unknown }) => unknown
       }
     ).toModelOutput
