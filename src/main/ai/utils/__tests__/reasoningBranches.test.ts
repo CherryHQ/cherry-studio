@@ -53,6 +53,16 @@ const withEfforts = (...supportedEfforts: RuntimeReasoning['supportedEfforts']):
   supportedEfforts
 })
 
+const withControls = (
+  controls: NonNullable<RuntimeReasoning['controls']>,
+  limits?: { min: number; max: number }
+): RuntimeReasoning => ({
+  type: '',
+  supportedEfforts: [],
+  controls,
+  ...(limits ? { thinkingTokenLimits: limits } : {})
+})
+
 const a = (effort?: string, maxTokens?: number): Assistant =>
   ({ settings: { ...(effort !== undefined ? { reasoning_effort: effort } : {}), maxTokens } }) as Assistant
 
@@ -407,24 +417,53 @@ describe('getReasoningEffort — legacy tower branch literals', () => {
   })
 })
 
-describe('native adapter params — branch literals', () => {
+describe('native adapter params — descriptor-driven (#16598)', () => {
   describe('getAnthropicReasoningParams', () => {
-    it('claude 4.6 → adaptive + effort (xhigh silently remapped to max — frozen)', () => {
-      const m = model('anthropic', 'claude-opus-4-6', withLimits(1024, 128_000))
-      expect(getAnthropicReasoningParams(a('high'), m)).toEqual({ thinking: { type: 'adaptive' }, effort: 'high' })
-      expect(getAnthropicReasoningParams(a('xhigh'), m)).toEqual({ thinking: { type: 'adaptive' }, effort: 'max' })
-      expect(getAnthropicReasoningParams(a('auto'), m)).toEqual({ thinking: { type: 'adaptive' } })
+    const claude46 = model(
+      'anthropic',
+      'claude-opus-4-6',
+      withControls([{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }], {
+        min: 1024,
+        max: 128_000
+      })
+    )
+
+    it('adaptive generation → declared vocabulary verbatim, stale tiers to the nearest declared one', () => {
+      expect(getAnthropicReasoningParams(a('high'), claude46)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        effort: 'high'
+      })
+      expect(getAnthropicReasoningParams(a('max'), claude46)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        effort: 'max'
+      })
+      // 4.6 declares no 'xhigh' — a stale persisted value lands on the nearest tier.
+      expect(getAnthropicReasoningParams(a('xhigh'), claude46)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        effort: 'max'
+      })
+      expect(getAnthropicReasoningParams(a('minimal'), claude46)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        effort: 'low'
+      })
+      expect(getAnthropicReasoningParams(a('auto'), claude46)).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' }
+      })
     })
 
-    it('claude 4.7 → adaptive + summarized display + native xhigh', () => {
-      const m = model('anthropic', 'claude-opus-4-7', withLimits(1024, 128_000))
-      expect(getAnthropicReasoningParams(a('xhigh'), m)).toEqual({
+    it('post-4.7 generation (fable) → native xhigh rides verbatim', () => {
+      const fable = model(
+        'anthropic',
+        'claude-fable-5',
+        withControls([{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }, { kind: 'toggle' }])
+      )
+      expect(getAnthropicReasoningParams(a('xhigh'), fable)).toEqual({
         thinking: { type: 'adaptive', display: 'summarized' },
         effort: 'xhigh'
       })
     })
 
-    it('pre-4.6 claude → enabled + budgetTokens (no maxTokens cap when unset)', () => {
+    it('pre-4.6 claude (no effort control) → enabled + budgetTokens', () => {
       const m = model('anthropic', 'claude-sonnet-4-5', withLimits(1024, 64_000))
       // floor((64000-1024)*.8+1024) = 51404
       expect(getAnthropicReasoningParams(a('high'), m)).toEqual({
@@ -433,35 +472,77 @@ describe('native adapter params — branch literals', () => {
       expect(getAnthropicReasoningParams(a('none'), m)).toEqual({ thinking: { type: 'disabled' } })
     })
 
-    it('non-Anthropic models via the claude endpoint → sendReasoning + budget', () => {
-      // kimi-k2.5 token map {0, 30720} → floor(30720*.8) = 24576
-      expect(getAnthropicReasoningParams(a('high'), model('my-custom', 'kimi-k2.5'))).toEqual({
-        thinking: { type: 'enabled', budgetTokens: 24_576 },
-        sendReasoning: true
-      })
-      // deepseek-v4 has no token-map entry → conservative fallback {1024,16384}:
-      // floor((16384-1024)*.9+1024) = 14848; xhigh adds effort max
-      expect(getAnthropicReasoningParams(a('xhigh'), model('my-custom', 'deepseek-v4'))).toEqual({
-        thinking: { type: 'enabled', budgetTokens: 14_848 },
+    it('deepseek v4 over the claude wire → effort verbatim (max ≠ xhigh), no fabricated budget', () => {
+      const v4 = model(
+        'my-custom',
+        'deepseek-v4',
+        withControls([{ kind: 'effort', values: ['none', 'high', 'max', 'xhigh'] }, { kind: 'toggle' }])
+      )
+      expect(getAnthropicReasoningParams(a('max'), v4)).toEqual({
+        thinking: { type: 'enabled' },
         sendReasoning: true,
         effort: 'max'
+      })
+      expect(getAnthropicReasoningParams(a('xhigh'), v4)).toEqual({
+        thinking: { type: 'enabled' },
+        sendReasoning: true,
+        effort: 'xhigh'
+      })
+    })
+
+    it('compat model with declared budget (kimi-k3) → budget from the descriptor + effort verbatim', () => {
+      const k3 = model(
+        'my-custom',
+        'kimi-k3',
+        withControls([{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }], { min: 0, max: 30_720 })
+      )
+      // floor(30720*.8) = 24576
+      expect(getAnthropicReasoningParams(a('high'), k3)).toEqual({
+        thinking: { type: 'enabled', budgetTokens: 24_576 },
+        sendReasoning: true,
+        effort: 'high'
+      })
+    })
+
+    it('descriptor-less compat model → enabled envelope only (no fabricated budget)', () => {
+      expect(getAnthropicReasoningParams(a('high'), model('my-custom', 'kimi-k2.5'))).toEqual({
+        thinking: { type: 'enabled' },
+        sendReasoning: true
       })
     })
   })
 
   describe('getGeminiReasoningParams', () => {
-    it('gemini 2.x → thinkingConfig budget (none → 0 for flash)', () => {
-      const m = model('gemini', 'gemini-2.5-flash', withLimits(0, 24_576))
-      expect(getGeminiReasoningParams(a('high'), m)).toEqual({
+    it('gemini 2.x budget path → descriptor limits; hard-off only with a declared toggle', () => {
+      const flash = model(
+        'gemini',
+        'gemini-2.5-flash',
+        withControls([{ kind: 'toggle' }, { kind: 'budget', min: 0, max: 24_576 }], { min: 0, max: 24_576 })
+      )
+      expect(getGeminiReasoningParams(a('high'), flash)).toEqual({
         thinkingConfig: { includeThoughts: true, thinkingBudget: 19_660 }
       })
-      expect(getGeminiReasoningParams(a('none'), m)).toEqual({
+      expect(getGeminiReasoningParams(a('none'), flash)).toEqual({
         thinkingConfig: { includeThoughts: false, thinkingBudget: 0 }
+      })
+
+      // pro declares no toggle — off cannot force budget 0.
+      const pro = model(
+        'gemini',
+        'gemini-2.5-pro',
+        withControls([{ kind: 'budget', min: 128, max: 32_768 }], { min: 128, max: 32_768 })
+      )
+      expect(getGeminiReasoningParams(a('none'), pro)).toEqual({
+        thinkingConfig: { includeThoughts: false }
       })
     })
 
-    it('hosted gemma 4 → thinkingLevel minimal/high only', () => {
-      const m = model('gemini', 'gemma-4-27b-it', withLimits(1024, 30_720))
+    it('hosted gemma 4 → declared minimal/high vocabulary, thoughts only on high', () => {
+      const m = model(
+        'gemini',
+        'gemma-4-27b-it',
+        withControls([{ kind: 'effort', values: ['minimal', 'high'] }], { min: 1024, max: 30_720 })
+      )
       expect(getGeminiReasoningParams(a('high'), m)).toEqual({
         thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' }
       })
@@ -470,8 +551,12 @@ describe('native adapter params — branch literals', () => {
       })
     })
 
-    it('gemini 3 pro → none upgraded to low (pro has no minimal)', () => {
-      const m = model('gemini', 'gemini-3-pro-preview', withLimits(128, 32_768))
+    it('gemini 3 pro → none lands on the vocabulary floor (low)', () => {
+      const m = model(
+        'gemini',
+        'gemini-3-pro-preview',
+        withControls([{ kind: 'effort', values: ['low', 'high'] }], { min: 128, max: 32_768 })
+      )
       expect(getGeminiReasoningParams(a('none'), m)).toEqual({
         thinkingConfig: { includeThoughts: false, thinkingLevel: 'low' }
       })
@@ -479,11 +564,34 @@ describe('native adapter params — branch literals', () => {
   })
 
   describe('getOpenAIReasoningParams', () => {
-    it('openai models with efforts → reasoningEffort + summary passthrough', () => {
-      const m = model('openai', 'gpt-5', withEfforts('minimal', 'low', 'medium', 'high'))
-      expect(getOpenAIReasoningParams(a('high'), m, { summaryText: 'detailed' })).toEqual({
+    it('declared vocabulary verbatim; stale tiers to the nearest declared one', () => {
+      const gpt5 = model(
+        'openai',
+        'gpt-5',
+        withControls([{ kind: 'effort', values: ['minimal', 'low', 'medium', 'high'] }])
+      )
+      expect(getOpenAIReasoningParams(a('high'), gpt5, { summaryText: 'detailed' })).toEqual({
         reasoningEffort: 'high',
         reasoningSummary: 'detailed'
+      })
+      expect(getOpenAIReasoningParams(a('xhigh'), gpt5, { summaryText: 'detailed' })).toEqual({
+        reasoningEffort: 'high',
+        reasoningSummary: 'detailed'
+      })
+    })
+
+    it("OFF never coerces to an ON tier — 'none' outside the vocabulary is omitted", () => {
+      const oss = model('openai', 'gpt-oss-120b', withControls([{ kind: 'effort', values: ['low', 'medium', 'high'] }]))
+      expect(getOpenAIReasoningParams(a('none'), oss)).toEqual({})
+
+      const gpt51 = model(
+        'openai',
+        'gpt-5.1',
+        withControls([{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }])
+      )
+      expect(getOpenAIReasoningParams(a('none'), gpt51, { summaryText: 'auto' })).toEqual({
+        reasoningEffort: 'none',
+        reasoningSummary: 'auto'
       })
     })
 
@@ -495,10 +603,14 @@ describe('native adapter params — branch literals', () => {
   })
 
   describe('getBedrockReasoningParams', () => {
-    it('claude 4.6 → adaptive + maxReasoningEffort (xhigh → max)', () => {
-      const m = model('aws-bedrock', 'claude-opus-4-6', withLimits(1024, 128_000))
+    it('adaptive generation → declared vocabulary verbatim (SDK enum now carries xhigh)', () => {
+      const m = model(
+        'aws-bedrock',
+        'claude-opus-4-7',
+        withControls([{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }], { min: 1024, max: 128_000 })
+      )
       expect(getBedrockReasoningParams(a('xhigh'), m)).toEqual({
-        reasoningConfig: { type: 'adaptive', maxReasoningEffort: 'max' }
+        reasoningConfig: { type: 'adaptive', maxReasoningEffort: 'xhigh' }
       })
       expect(getBedrockReasoningParams(a('none'), m)).toEqual({ reasoningConfig: { type: 'disabled' } })
     })
@@ -512,10 +624,10 @@ describe('native adapter params — branch literals', () => {
   })
 
   describe('getOllamaReasoningParams', () => {
-    it('gpt-oss → string levels, out-of-range coerced to true — frozen', () => {
-      const m = model('ollama', 'gpt-oss-120b')
+    it('gpt-oss → declared string levels, stale tiers to the nearest one', () => {
+      const m = model('ollama', 'gpt-oss-120b', withControls([{ kind: 'effort', values: ['low', 'medium', 'high'] }]))
       expect(getOllamaReasoningParams(a('high'), m)).toEqual({ think: 'high' })
-      expect(getOllamaReasoningParams(a('xhigh'), m)).toEqual({ think: true })
+      expect(getOllamaReasoningParams(a('xhigh'), m)).toEqual({ think: 'high' })
       expect(getOllamaReasoningParams(a('none'), m)).toEqual({ think: false })
     })
 

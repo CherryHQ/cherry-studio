@@ -151,6 +151,7 @@ describe('buildCapabilityProviderOptions', () => {
       name: 'gpt-5',
       capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         supportedEfforts: ['low', 'medium', 'high']
       }
     } as unknown as Model
