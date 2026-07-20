@@ -28,6 +28,7 @@ import { runUserDataRelocation } from '@main/services/userDataRelocation'
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
 requireSingleInstance()
+configureChromiumFlags()
 initCrashTelemetry()
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()
@@ -48,14 +49,6 @@ const startApp = async () => {
   // app when a completed wipe cannot durably clear its marker (booting on
   // would re-wipe freshly created data on the next start).
   runFactoryResetGate()
-
-  // Chromium startup flags — after the factory-reset gate, because this
-  // reads BootConfig values (app.disable_hardware_acceleration) the gate
-  // may have just reset; applying pre-reset flags would leave the reset
-  // session running with stale behavior while the UI shows defaults. Still
-  // synchronously before the first await, so every switch lands before
-  // app.whenReady() fires.
-  configureChromiumFlags()
 
   // userData relocation: a pending/failed relocation makes this a dedicated
   // relocation launch (execute or explain, then relaunch) before any service

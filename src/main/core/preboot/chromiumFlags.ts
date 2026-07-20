@@ -8,11 +8,8 @@ import { app } from 'electron'
  *
  * All calls in this function must be made BEFORE app.whenReady() fires:
  * Chromium reads these once at startup and silently ignores later changes.
- * Callers must invoke this synchronously from main/main.ts during the
- * preboot phase — after the factory-reset gate (which may reset the
- * BootConfig values read here; a reset session must boot on the post-reset
- * values, not the stale ones) and before startApp()'s first await, which
- * keeps it safely ahead of app.whenReady().
+ * Callers must invoke this synchronously from main/index.ts during the
+ * preboot phase, after bootConfigService has loaded.
  *
  * Covers both:
  *   - `app.commandLine.appendSwitch(...)` — raw Chromium switches

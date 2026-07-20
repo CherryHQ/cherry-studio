@@ -281,7 +281,11 @@ export function runFactoryResetGate(): void {
     }
 
     // Reset BootConfig to defaults — which also clears the marker
-    // (DefaultBootConfig['temp.factory_reset'] is null). Deliberately keeps
+    // (DefaultBootConfig['temp.factory_reset'] is null). Known residual:
+    // configureChromiumFlags() already ran at module load (a tested
+    // ordering invariant — see main.ts) with the pre-reset
+    // app.disable_hardware_acceleration value, so this session keeps the
+    // old flag; the next launch self-heals. Deliberately keeps
     // `app.user_data_path`: the custom data-directory *location* is machine
     // configuration like the kept binaries above — the reset wipes the data
     // at that location, not the choice of location. Resetting it here would
