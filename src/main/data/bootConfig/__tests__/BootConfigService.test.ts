@@ -463,13 +463,20 @@ describe('BootConfigService', () => {
     })
 
     it('accepts a well-formed pending relocation without recording an error', async () => {
-      const stored = { 'temp.user_data_relocation': { status: 'pending', from: '/a', to: '/b' } }
+      const relocation = {
+        status: 'pending',
+        taskId: '11111111-1111-4111-8111-111111111111',
+        from: '/a',
+        to: '/b',
+        copy: true
+      }
+      const stored = { 'temp.user_data_relocation': relocation }
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
 
       const service = await createService()
 
-      expect(service.get('temp.user_data_relocation')).toEqual({ status: 'pending', from: '/a', to: '/b' })
+      expect(service.get('temp.user_data_relocation')).toEqual(relocation)
       expect(service.hasLoadError()).toBe(false)
     })
   })
@@ -510,9 +517,16 @@ describe('BootConfigService', () => {
       mockFs.existsSync.mockReturnValue(false)
 
       const service = await createService()
-      service.set('temp.user_data_relocation', { status: 'pending', from: '/a', to: '/b' })
+      const relocation = {
+        status: 'pending' as const,
+        taskId: '11111111-1111-4111-8111-111111111111',
+        from: '/a',
+        to: '/b',
+        copy: true
+      }
+      service.set('temp.user_data_relocation', relocation)
 
-      expect(service.get('temp.user_data_relocation')).toEqual({ status: 'pending', from: '/a', to: '/b' })
+      expect(service.get('temp.user_data_relocation')).toEqual(relocation)
     })
   })
 

@@ -33,6 +33,29 @@ vi.mock('@renderer/components/FilePreview', () => ({
   }
 }))
 
+const virtualizerMocks = vi.hoisted(() => ({
+  measureElement: vi.fn(),
+  scrollToIndex: vi.fn(),
+  useVirtualizer: vi.fn(
+    (options: { count: number; estimateSize: () => number; getItemKey?: (index: number) => string | number }) => ({
+      getTotalSize: () => options.count * options.estimateSize(),
+      getVirtualItems: () =>
+        Array.from({ length: Math.min(options.count, 20) }, (_, index) => ({
+          index,
+          key: options.getItemKey?.(index) ?? index,
+          size: options.estimateSize(),
+          start: index * options.estimateSize()
+        })),
+      measureElement: virtualizerMocks.measureElement,
+      scrollToIndex: virtualizerMocks.scrollToIndex
+    })
+  )
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: virtualizerMocks.useVirtualizer
+}))
+
 vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return platformState.isMac
