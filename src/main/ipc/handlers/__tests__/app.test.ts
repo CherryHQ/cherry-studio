@@ -44,7 +44,7 @@ vi.mock('@application', () => ({
 vi.mock('@main/data/bootConfig', () => ({
   bootConfigService: { get: bootConfigGetMock, set: bootConfigSetMock, persist: bootConfigPersistMock }
 }))
-vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key, getAppLanguage: () => 'zh-CN' }))
 vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,
   requestUserDataRelocation: requestRelocationMock
@@ -159,7 +159,9 @@ describe('appHandlers', () => {
           status: 'pending',
           userDataPath: '/mock/userData',
           // realpath cannot resolve the mock path — falls back to the lexical resolve.
-          canonicalPath: '/mock/userData'
+          canonicalPath: '/mock/userData',
+          // The gate renders its dialogs in the requesting user's language.
+          locale: 'zh-CN'
         })
       )
       // Durability ordering: the marker must be on disk before the relaunch fires.

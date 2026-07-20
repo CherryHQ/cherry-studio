@@ -56,15 +56,14 @@ export const getI18n = (): Record<string, any> => {
 }
 
 /**
- * Get translation by key path (e.g., 'dialog.save_file')
- * This is a simplified version for main process, similar to i18next's t() function.
+ * {@link t} with an explicit language instead of {@link getAppLanguage}.
  *
- * Resolution order: the current app language, then the en-US catalog, then the key
- * itself. Supports i18next-style `{{var}}` interpolation: pass `params` and any
- * `{{name}}` placeholder in the resolved string is replaced with `params.name`.
- * Placeholders without a matching param are left intact.
+ * For callers that run before PreferenceService exists (preboot — e.g. the
+ * factory-reset gate renders its dialogs in the language captured in the
+ * marker) or that must render in a recorded rather than current language.
+ * Unknown languages fall back to the en-US catalog.
  */
-export const t = (key: string, params?: Record<string, string | number>): string => {
+export const tFor = (language: string, key: string, params?: Record<string, string | number>): string => {
   const resolve = (translation: any): string | undefined => {
     let result: any = translation
     for (const k of key.split('.')) {
@@ -76,7 +75,8 @@ export const t = (key: string, params?: Record<string, string | number>): string
     return typeof result === 'string' ? result : undefined
   }
 
-  const value = resolve(getI18n().translation) ?? resolve(locales[defaultLanguage].translation)
+  const catalog = locales[language] ?? locales[defaultLanguage]
+  const value = resolve(catalog.translation) ?? resolve(locales[defaultLanguage].translation)
   if (value === undefined) {
     return key
   }
@@ -87,3 +87,14 @@ export const t = (key: string, params?: Record<string, string | number>): string
     name in params ? String(params[name]) : match
   )
 }
+
+/**
+ * Get translation by key path (e.g., 'dialog.save_file')
+ * This is a simplified version for main process, similar to i18next's t() function.
+ *
+ * Resolution order: the current app language, then the en-US catalog, then the key
+ * itself. Supports i18next-style `{{var}}` interpolation: pass `params` and any
+ * `{{name}}` placeholder in the resolved string is replaced with `params.name`.
+ * Placeholders without a matching param are left intact.
+ */
+export const t = (key: string, params?: Record<string, string | number>): string => tFor(getAppLanguage(), key, params)

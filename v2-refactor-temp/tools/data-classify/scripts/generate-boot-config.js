@@ -106,7 +106,8 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '      userDataPath: z.string(),\n' +
       '      requestedAt: z.string(),\n' +
       '      attempts: z.number().optional(),\n' +
-      '      canonicalPath: z.string().optional()\n' +
+      '      canonicalPath: z.string().optional(),\n' +
+      '      locale: z.string().optional()\n' +
       '    })\n' +
       '    .nullable()',
     defaultValue: null,
@@ -125,15 +126,18 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       'Lifecycle:',
       '  - null: no factory reset pending (default).',
       "  - { status: 'pending', userDataPath, requestedAt, attempts?,",
-      "    canonicalPath? }: the 'app.factory_reset.request' IpcApi handler",
-      '    wrote this request and the next preboot should execute the wipe.',
-      "    `userDataPath` is the requesting instance's resolved userData",
+      "    canonicalPath?, locale? }: the 'app.factory_reset.request' IpcApi",
+      '    handler wrote this request and the next preboot should execute the',
+      "    wipe. `userDataPath` is the requesting instance's resolved userData",
       '    directory; a gate whose resolution differs leaves the marker',
       '    untouched for the owning instance (boot-config.json is shared',
       '    between dev and packaged instances). `canonicalPath` pins the',
       '    realpath-resolved physical directory: a pass whose re-resolution',
       '    disagrees refuses to wipe, so a replaced symlink/junction cannot',
-      '    redirect a recorded authorization onto a new directory.',
+      '    redirect a recorded authorization onto a new directory. `locale`',
+      "    captures the requesting user's app language so the gate can render",
+      '    its dialogs in it — the preference store holding the live value is',
+      '    exactly what the wipe deletes.',
       '',
       'Retry semantics: the gate durably increments `attempts` (treating',
       'absence as 0) before each destructive pass — if that write fails the',

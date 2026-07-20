@@ -57,9 +57,15 @@
   "dialog": {
     "all_files": "所有文件",
     "factory_reset": {
+      "arm_failed_message": "Cherry Studio 无法在 {{path}} 中记录数据重置状态。\n\n现在启动可能导致之后创建的数据被误删，应用将退出。\n\n请检查磁盘空间和文件权限，然后重新启动 Cherry Studio。",
+      "arm_failed_title": "数据重置失败",
       "cancel": "取消",
+      "clear_failed_message": "Cherry Studio 已清除数据，但无法将重置完成状态保存到 {{path}}。\n\n现在启动会导致下次启动时误删新创建的数据，应用将退出。\n\n请检查磁盘空间和文件权限，然后重新启动 Cherry Studio。",
+      "clear_failed_title": "数据重置未完成",
       "confirm": "清除全部数据",
       "detail": "此操作无法撤销。确认后应用将立即重启，并在启动时清除所有对话、助手、知识库、文件和设置。",
+      "incomplete_message": "数据重置过程中未能删除部分数据。\n\n应用将带着剩余数据启动。请检查文件权限（或杀毒软件锁定），然后在设置中重新执行数据重置。",
+      "incomplete_title": "数据重置未完成",
       "message": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
       "title": "重置数据"
     },

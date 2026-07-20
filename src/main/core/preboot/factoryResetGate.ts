@@ -4,6 +4,9 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
+// tFor, not t: t() resolves the language through PreferenceService, which does
+// not exist at preboot. The marker carries the requesting user's language.
+import { tFor } from '@main/i18n'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { app, dialog } from 'electron'
@@ -180,7 +183,7 @@ export function runFactoryResetGate(): void {
       })
       resetBootConfigToDefaults()
       bootConfigService.flush()
-      showIncompleteResetWarning()
+      showIncompleteResetWarning(marker.locale)
       return
     }
 
@@ -194,7 +197,7 @@ export function runFactoryResetGate(): void {
       })
       resetBootConfigToDefaults()
       bootConfigService.flush()
-      showIncompleteResetWarning()
+      showIncompleteResetWarning(marker.locale)
       return
     }
 
@@ -219,11 +222,8 @@ export function runFactoryResetGate(): void {
         error: String(error)
       })
       dialog.showErrorBox(
-        'Data Reset Failed',
-        'Cherry Studio could not record the data reset state ' +
-          `in ${bootConfigService.getFilePath()}.\n\n` +
-          'Starting now could erase data you create later, so the app will quit instead.\n\n' +
-          'Please check disk space and file permissions, then start Cherry Studio again.'
+        tFor(marker.locale ?? '', 'dialog.factory_reset.arm_failed_title'),
+        tFor(marker.locale ?? '', 'dialog.factory_reset.arm_failed_message', { path: bootConfigService.getFilePath() })
       )
       app.exit(1)
       return
@@ -261,7 +261,7 @@ export function runFactoryResetGate(): void {
       })
       resetBootConfigToDefaults()
       bootConfigService.flush()
-      showIncompleteResetWarning()
+      showIncompleteResetWarning(marker.locale)
       return
     }
 
@@ -281,11 +281,10 @@ export function runFactoryResetGate(): void {
         error: String(error)
       })
       dialog.showErrorBox(
-        'Data Reset Incomplete',
-        'Cherry Studio erased its data but could not save the reset completion ' +
-          `to ${bootConfigService.getFilePath()}.\n\n` +
-          'Starting now would erase anything you create on the next launch, so the app will quit instead.\n\n' +
-          'Please check disk space and file permissions, then start Cherry Studio again.'
+        tFor(marker.locale ?? '', 'dialog.factory_reset.clear_failed_title'),
+        tFor(marker.locale ?? '', 'dialog.factory_reset.clear_failed_message', {
+          path: bootConfigService.getFilePath()
+        })
       )
       // Deliberately app.exit(), not application.quit(): non-zero exit code,
       // and no before-quit handlers — nothing may write files after the wipe.
@@ -327,16 +326,15 @@ export function canonicalize(p: string): string {
 }
 
 /**
- * Tell the user the reset gave up with data left behind. Shown
- * synchronously before any window exists — Electron supports showErrorBox
- * pre-ready.
+ * Tell the user the reset gave up with data left behind, in the language the
+ * request captured in the marker (undefined — hand-written marker — falls
+ * back to en-US inside tFor). Shown synchronously before any window exists —
+ * Electron supports showErrorBox pre-ready.
  */
-function showIncompleteResetWarning(): void {
+function showIncompleteResetWarning(locale: string | undefined): void {
   dialog.showErrorBox(
-    'Data Reset Incomplete',
-    'Cherry Studio could not remove some of its data during the data reset.\n\n' +
-      'The app will start with whatever remains. ' +
-      'Please check file permissions (or antivirus locks) and run Data Reset again from Settings.'
+    tFor(locale ?? '', 'dialog.factory_reset.incomplete_title'),
+    tFor(locale ?? '', 'dialog.factory_reset.incomplete_message')
   )
 }
 

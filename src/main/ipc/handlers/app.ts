@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { canonicalize } from '@main/core/preboot/factoryResetGate'
 import { bootConfigService } from '@main/data/bootConfig'
-import { t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -96,6 +96,9 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       // Pin the physical directory the user confirmed: the gate refuses a
       // wipe whose realpath resolution has changed since this moment.
       canonicalPath: canonicalize(userDataPath),
+      // The gate renders its dialogs in this language — the preference store
+      // holding the live value is exactly what the wipe deletes.
+      locale: getAppLanguage(),
       requestedAt: new Date().toISOString()
     })
     try {
