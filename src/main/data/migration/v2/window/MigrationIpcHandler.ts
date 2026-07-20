@@ -6,6 +6,10 @@ import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import {
+  migrationRendererExportFailurePayloadSchema,
+  type MigrationRendererExportFailureReport
+} from '@shared/data/migration/v2/diagnostics'
+import {
   type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
@@ -18,6 +22,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import { migrationEngine } from '../core/MigrationEngine'
+import { classifyMigrationError, type MigrationDiagnosticFailure } from '../diagnostics'
 import {
   type MigrationDiagnosticNativeSaveResult,
   saveMigrationDiagnosticBundleWithDialog
@@ -35,6 +40,14 @@ const DIAGNOSTIC_SAVE_IN_PROGRESS_RESULT: MigrationDiagnosticSaveInProgressResul
   status: 'failed',
   code: 'save_in_progress'
 })
+const UNKNOWN_RENDERER_EXPORT_REPORT: MigrationRendererExportFailureReport = Object.freeze({
+  sourceRole: 'unknown',
+  operationRole: 'unknown'
+})
+type RendererExportFailureErrorCode = Extract<
+  MigrationDiagnosticFailure,
+  { kind: 'renderer_export_failed' }
+>['errorCode']
 
 interface DiagnosticRegistrationState {
   epoch: number
@@ -44,6 +57,7 @@ interface DiagnosticRegistrationState {
   rendererExportPhase: {
     generation: number
     status: 'exporting' | 'reporting_failure'
+    mainWriteFailure?: RendererExportFailureErrorCode
   } | null
 }
 
@@ -58,7 +72,10 @@ let activeDiagnosticRegistration: DiagnosticRegistrationState | null = null
 
 export interface MigrationIpcDiagnosticCapabilities {
   start(): void | Promise<void>
-  reportRendererExportFailure(): void | Promise<void>
+  reportRendererExportFailure(
+    report: MigrationRendererExportFailureReport,
+    mainWriteFailure?: RendererExportFailureErrorCode
+  ): void | Promise<void>
   saveDiagnosticBundle(destination: string): Promise<MigrationDiagnosticNativeSaveResult>
   completeVersionGate(): void
 }
@@ -218,6 +235,10 @@ export function registerMigrationIpcHandlers(
         logger.info('Export file written', { tableName, filePath })
         return true
       } catch (error) {
+        const phase = diagnosticRegistration.rendererExportPhase
+        if (activeDiagnosticRegistration === diagnosticRegistration && phase !== null && phase.status === 'exporting') {
+          phase.mainWriteFailure ??= classifyMainExportWriteFailure(error)
+        }
         logger.error('Error writing export file', error as Error)
         throw error
       }
@@ -315,18 +336,22 @@ export function registerMigrationIpcHandlers(
   })
 
   // Mirror renderer-local failures into main so close handling sees the terminal error stage.
-  ipcMain.handle(MigrationIpcChannels.ReportError, async (event, message: string) => {
+  ipcMain.handle(MigrationIpcChannels.ReportError, async (event, payload: unknown) => {
     assertMigrationSender(event)
     const phase = diagnosticRegistration.rendererExportPhase
     if (activeDiagnosticRegistration !== diagnosticRegistration || phase === null || phase.status !== 'exporting') {
       return false
     }
 
+    const parsed = migrationRendererExportFailurePayloadSchema.safeParse(payload)
+    const message = parsed.success ? parsed.data.message : rendererExportUiMessage(payload)
+    const report = parsed.success ? parsed.data.report : UNKNOWN_RENDERER_EXPORT_REPORT
     diagnosticRegistration.rendererExportPhase = {
       generation: phase.generation,
-      status: 'reporting_failure'
+      status: 'reporting_failure',
+      ...(phase.mainWriteFailure === undefined ? {} : { mainWriteFailure: phase.mainWriteFailure })
     }
-    await diagnosticCapabilities.reportRendererExportFailure()
+    await diagnosticCapabilities.reportRendererExportFailure(report, phase.mainWriteFailure)
     if (
       activeDiagnosticRegistration !== diagnosticRegistration ||
       diagnosticRegistration.rendererExportPhase?.generation !== phase.generation ||
@@ -470,6 +495,35 @@ export async function runMigrationDiagnosticSaveTransaction<T>(
     if (diagnosticSaveInFlight === savePromise) {
       diagnosticSaveInFlight = null
     }
+  }
+}
+
+function classifyMainExportWriteFailure(error: unknown): RendererExportFailureErrorCode {
+  const { errorCode } = classifyMigrationError(error)
+  switch (errorCode) {
+    case 'file_missing':
+    case 'file_permission':
+    case 'file_readonly':
+    case 'file_io':
+    case 'file_unknown':
+      return errorCode
+    default:
+      return 'unknown_error'
+  }
+}
+
+function rendererExportUiMessage(payload: unknown): string {
+  if (typeof payload === 'string' && payload.length > 0 && payload.length <= 4_096) return payload
+  if (typeof payload !== 'object' || payload === null) return 'Migration data export failed'
+
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(payload, 'message')
+    const message = descriptor && 'value' in descriptor ? descriptor.value : undefined
+    return typeof message === 'string' && message.length > 0 && message.length <= 4_096
+      ? message
+      : 'Migration data export failed'
+  } catch {
+    return 'Migration data export failed'
   }
 }
 

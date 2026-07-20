@@ -29,6 +29,7 @@ const diagnosticsReportRendererExportFailureMock = vi.hoisted(() => vi.fn())
 const diagnosticsSaveBundleMock = vi.hoisted(() => vi.fn())
 const diagnosticsCompleteVersionGateMock = vi.hoisted(() => vi.fn())
 const isSafeExternalUrlMock = vi.hoisted(() => vi.fn())
+const fsMocks = vi.hoisted(() => ({ mkdir: vi.fn(), writeFile: vi.fn() }))
 const electronMocks = vi.hoisted(() => ({
   app: { getLocale: vi.fn(), quit: vi.fn() },
   clipboard: { writeText: vi.fn() },
@@ -39,6 +40,7 @@ const electronMocks = vi.hoisted(() => ({
 
 vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: isSafeExternalUrlMock }))
 vi.mock('electron', () => electronMocks)
+vi.mock('fs/promises', () => ({ default: fsMocks }))
 
 vi.mock('../../core/MigrationEngine', () => ({ migrationEngine: engineMock }))
 vi.mock('../MigrationWindowManager', () => ({
@@ -101,6 +103,8 @@ describe('MigrationIpcHandler', () => {
     diagnosticsStartMock.mockResolvedValue(undefined)
     diagnosticsReportRendererExportFailureMock.mockResolvedValue(undefined)
     diagnosticsSaveBundleMock.mockResolvedValue({ status: 'saved' })
+    fsMocks.mkdir.mockResolvedValue(undefined)
+    fsMocks.writeFile.mockResolvedValue(undefined)
     vi.mocked(dialog.showSaveDialog).mockResolvedValue({
       canceled: false,
       filePath: '/main-selected/migration-diagnostics.zip'
@@ -136,10 +140,17 @@ describe('MigrationIpcHandler', () => {
 
   it('reports renderer export failure through the narrow capability without forwarding the raw message', async () => {
     await invoke(MigrationIpcChannels.Start)
-    await invoke(MigrationIpcChannels.ReportError, 'Bearer canary-secret /Users/private')
+    await invoke(MigrationIpcChannels.ReportError, {
+      message: 'Bearer canary-secret /Users/private',
+      report: { sourceRole: 'dexie', operationRole: 'read' }
+    })
 
     expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledTimes(1)
-    expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith()
+    expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+      { sourceRole: 'dexie', operationRole: 'read' },
+      undefined
+    )
+    expect(JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)).not.toContain('Bearer canary-secret')
   })
 
   describe('strict diagnostics support actions', () => {
@@ -501,6 +512,68 @@ describe('MigrationIpcHandler', () => {
 
       expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledTimes(1)
       expect(lastProgress()).toMatchObject({ stage: 'error', error: 'first failure' })
+    })
+
+    it('downgrades an invalid or extended report to the fixed unknown report while keeping message UI-only', async () => {
+      await invoke(MigrationIpcChannels.Start)
+
+      await expect(
+        invoke(MigrationIpcChannels.ReportError, {
+          message: 'PRIVATE_UI_ONLY',
+          report: { sourceRole: 'dexie', operationRole: 'read' },
+          extra: 'not-allowed'
+        })
+      ).resolves.toBe(true)
+
+      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+        { sourceRole: 'unknown', operationRole: 'unknown' },
+        undefined
+      )
+      expect(JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)).not.toContain('PRIVATE_UI_ONLY')
+      expect(lastProgress()).toMatchObject({ stage: 'error', error: 'PRIVATE_UI_ONLY' })
+    })
+
+    it.each([
+      ['ENOSPC', 'file_io'],
+      ['EACCES', 'file_permission']
+    ] as const)('prioritizes a Main-owned %s export write classification', async (code, errorCode) => {
+      const original = Object.assign(new Error(`PRIVATE_MAIN_WRITE_${code}`), { code })
+      fsMocks.writeFile.mockRejectedValueOnce(original)
+      await invoke(MigrationIpcChannels.Start)
+
+      await expect(
+        invoke(MigrationIpcChannels.WriteExportFile, '/private/export', 'topics', 'PRIVATE_JSON')
+      ).rejects.toBe(original)
+      await invoke(MigrationIpcChannels.ReportError, {
+        message: 'renderer received a rejected IPC invoke',
+        report: { sourceRole: 'dexie', operationRole: 'write' }
+      })
+
+      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+        { sourceRole: 'dexie', operationRole: 'write' },
+        errorCode
+      )
+      expect(JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)).not.toContain('PRIVATE_MAIN_WRITE')
+    })
+
+    it('does not carry a Main write failure into a later renderer export generation', async () => {
+      fsMocks.writeFile.mockRejectedValueOnce(Object.assign(new Error('PRIVATE_OLD_WRITE'), { code: 'ENOSPC' }))
+      await invoke(MigrationIpcChannels.Start)
+      await expect(
+        invoke(MigrationIpcChannels.WriteExportFile, '/private/export', 'topics', 'PRIVATE_JSON')
+      ).rejects.toThrow()
+      await invoke(MigrationIpcChannels.Retry)
+      await invoke(MigrationIpcChannels.Start)
+
+      await invoke(MigrationIpcChannels.ReportError, {
+        message: 'current failure',
+        report: { sourceRole: 'redux', operationRole: 'parse' }
+      })
+
+      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenLastCalledWith(
+        { sourceRole: 'redux', operationRole: 'parse' },
+        undefined
+      )
     })
 
     it('deactivates renderer export immediately when StartMigration accepts the handoff', async () => {

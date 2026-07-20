@@ -3,6 +3,8 @@
  * Extracts persisted Redux state from localStorage and parses it for Main process
  */
 
+import { RendererExportError } from './RendererExportError'
+
 const PERSIST_KEY = 'persist:cherry-studio'
 
 // Redux slices that need to be migrated
@@ -34,7 +36,12 @@ export class ReduxExporter {
    * Parses the nested JSON structure and returns clean data
    */
   export(): ReduxExportResult {
-    const rawData = localStorage.getItem(PERSIST_KEY)
+    let rawData: string | null
+    try {
+      rawData = localStorage.getItem(PERSIST_KEY)
+    } catch (error) {
+      throw new RendererExportError({ sourceRole: 'redux', operationRole: 'read' }, error)
+    }
 
     if (!rawData) {
       return {
@@ -49,7 +56,7 @@ export class ReduxExporter {
     try {
       persistedState = JSON.parse(rawData)
     } catch (error) {
-      throw new Error(`Failed to parse Redux Persist root data: ${error}`)
+      throw new RendererExportError({ sourceRole: 'redux', operationRole: 'parse' }, error)
     }
 
     // Parse each slice (Redux Persist stores each slice as a JSON string)

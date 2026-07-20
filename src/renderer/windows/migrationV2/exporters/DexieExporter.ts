@@ -12,6 +12,8 @@
 
 import { Dexie } from 'dexie'
 
+import { RendererExportError } from './RendererExportError'
+
 /** Legacy v1 IndexedDB database name. */
 const DEXIE_DB_NAME = 'CherryStudio'
 
@@ -45,12 +47,16 @@ export class DexieExporter {
    * closing the returned instance.
    */
   private async openLegacyDb(): Promise<Dexie | null> {
-    if (!(await Dexie.exists(DEXIE_DB_NAME))) {
-      return null
+    try {
+      if (!(await Dexie.exists(DEXIE_DB_NAME))) {
+        return null
+      }
+      const db = new Dexie(DEXIE_DB_NAME)
+      await db.open()
+      return db
+    } catch (error) {
+      throw new RendererExportError({ sourceRole: 'dexie', operationRole: 'open' }, error)
     }
-    const db = new Dexie(DEXIE_DB_NAME)
-    await db.open()
-    return db
   }
 
   /**
@@ -81,16 +87,32 @@ export class DexieExporter {
           total: tablesToExport.length
         })
 
-        const data = await db.table(tableName).toArray()
+        let data: unknown[]
+        try {
+          data = await db.table(tableName).toArray()
+        } catch (error) {
+          throw new RendererExportError({ sourceRole: 'dexie', operationRole: 'read' }, error)
+        }
+
+        let serialized: string
+        try {
+          serialized = JSON.stringify(data)
+        } catch (error) {
+          throw new RendererExportError({ sourceRole: 'dexie', operationRole: 'serialize' }, error)
+        }
 
         // Send data to Main process for writing
         // Uses IPC invoke with migration channel
-        await window.electron.ipcRenderer.invoke(
-          'migration:write-export-file',
-          this.exportPath,
-          tableName,
-          JSON.stringify(data)
-        )
+        try {
+          await window.electron.ipcRenderer.invoke(
+            'migration:write-export-file',
+            this.exportPath,
+            tableName,
+            serialized
+          )
+        } catch (error) {
+          throw new RendererExportError({ sourceRole: 'dexie', operationRole: 'write' }, error)
+        }
 
         onProgress?.({
           table: tableName,

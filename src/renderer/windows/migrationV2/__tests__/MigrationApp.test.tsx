@@ -201,7 +201,11 @@ vi.mock('../components', () => {
 vi.mock('../exporters', () => ({
   DexieExporter: vi.fn(),
   LocalStorageExporter: vi.fn(),
-  ReduxExporter: vi.fn()
+  ReduxExporter: vi.fn(),
+  rendererExportMessage: (error: { cause?: unknown }) =>
+    error.cause instanceof Error ? error.cause.message : 'Migration data export failed',
+  rendererExportReport: (error: { report?: unknown }) =>
+    error.report ?? { sourceRole: 'unknown', operationRole: 'unknown' }
 }))
 
 vi.mock('../hooks/useMigrationProgress', () => ({
@@ -213,6 +217,7 @@ vi.mock('../hooks/useMigrationProgress', () => ({
 }))
 
 import { DexieExporter, LocalStorageExporter, ReduxExporter } from '../exporters'
+import { RendererExportError } from '../exporters/RendererExportError'
 import MigrationApp from '../MigrationApp'
 
 describe('MigrationApp', () => {
@@ -446,9 +451,10 @@ describe('MigrationApp', () => {
       () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
     )
     const rendererFailure = 'Dexie export failed: Bearer renderer-canary /Users/private'
-    vi.mocked(DexieExporter).mockImplementation(
-      () => ({ exportAll: vi.fn().mockRejectedValue(new Error(rendererFailure)) }) as unknown as DexieExporter
-    )
+    vi.mocked(DexieExporter).mockImplementation(() => {
+      const error = new RendererExportError({ sourceRole: 'dexie', operationRole: 'read' }, new Error(rendererFailure))
+      return { exportAll: vi.fn().mockRejectedValue(error) } as unknown as DexieExporter
+    })
     invoke.mockResolvedValue('/tmp/userData')
 
     render(<MigrationApp />)
@@ -459,9 +465,15 @@ describe('MigrationApp', () => {
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(new RegExp(rendererFailure))).toBeInTheDocument()
     expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
-    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, rendererFailure)
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
+      message: rendererFailure,
+      report: { sourceRole: 'dexie', operationRole: 'read' }
+    })
     expect(loggerErrorMock).toHaveBeenCalledWith('Migration renderer export failed', expect.any(Error))
-    expect(loggerErrorMock.mock.calls[0]?.[1]).toMatchObject({ message: rendererFailure })
+    expect(loggerErrorMock.mock.calls[0]?.[1]).toMatchObject({
+      message: 'Migration data export failed',
+      cause: { message: rendererFailure }
+    })
   })
 
   it('drives the error stage when the migration handoff rejects', async () => {
@@ -496,7 +508,28 @@ describe('MigrationApp', () => {
 
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(/StartMigration failed/)).toBeInTheDocument()
-    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'StartMigration failed')
+    expect(invoke).not.toHaveBeenCalledWith(MigrationIpcChannels.ReportError, expect.anything())
+  })
+
+  it('starts only one renderer export generation on repeated clicks', async () => {
+    let releaseStart!: () => void
+    migrationHookMock.actions.start.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseStart = resolve
+        })
+    )
+
+    render(<MigrationApp />)
+    const start = screen.getByRole('button', { name: 'migration.buttons.start_migration' })
+    fireEvent.click(start)
+    fireEvent.click(start)
+
+    expect(migrationHookMock.actions.start).toHaveBeenCalledOnce()
+    expect(ReduxExporter).not.toHaveBeenCalled()
+
+    releaseStart()
+    await waitFor(() => expect(ReduxExporter).toHaveBeenCalledOnce())
   })
 
   it('clears the local error latch when main later drives a non-error stage', async () => {

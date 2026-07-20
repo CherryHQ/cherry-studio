@@ -10,6 +10,7 @@ import {
   getBlockMessage,
   isSchemaOutOfSyncError,
   type MigrationDiagnosticBundleSaveResult,
+  type MigrationDiagnosticFailure,
   type MigrationDiagnosticNativeDecision,
   type MigrationDiagnosticNativeFailureCode,
   type MigrationDiagnosticNativeSaveResult,
@@ -30,6 +31,7 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import type { MigrationRendererExportFailureReport } from '@shared/data/migration/v2/diagnostics'
 import { app, dialog } from 'electron'
 import semver from 'semver'
 
@@ -43,6 +45,26 @@ const MEMORY_ONLY_DATABASE_DIAGNOSTICS = Object.freeze({
   }),
   sqlite: Object.freeze({ status: 'unavailable' as const, reason: 'not_attempted' as const })
 })
+
+type RendererExportFailureErrorCode = Extract<
+  MigrationDiagnosticFailure,
+  { kind: 'renderer_export_failed' }
+>['errorCode']
+
+function classifyRendererExportFailure(report: MigrationRendererExportFailureReport): RendererExportFailureErrorCode {
+  switch (report.operationRole) {
+    case 'open':
+    case 'read':
+      return 'source_read_failed'
+    case 'parse':
+      return 'source_parse_failed'
+    case 'serialize':
+      return 'source_serialization_failed'
+    case 'write':
+    case 'unknown':
+      return 'unknown_error'
+  }
+}
 
 function normalizeDiagnosticVersion(value: string | null | undefined): string | null {
   if (!value) return null
@@ -255,17 +277,12 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   const runRendererExportStart = async (): Promise<void> => {
     try {
       const snapshot = await diagnosticsCoordinator.snapshot()
-      if (snapshot.attempts.at(-1)?.outcome !== 'in_progress') {
+      if (snapshot.current?.status !== 'in_progress') {
         if (!beginAttempt('manual_retry')) return
       } else {
         attemptActive = true
       }
-      recordEvent({
-        scope: 'renderer_export',
-        phase: 'prepare',
-        state: 'started',
-        code: 'unknown'
-      })
+      diagnosticsCoordinator.updateLocation({ scope: 'renderer_export', phase: 'prepare' })
     } catch {
       logger.error('Failed to start renderer export diagnostics')
     }
@@ -283,23 +300,29 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     return operation
   }
 
-  const finishRendererExportFailure = async (): Promise<void> => {
+  const finishRendererExportFailure = async (
+    report: MigrationRendererExportFailureReport,
+    mainWriteFailure?: RendererExportFailureErrorCode
+  ): Promise<void> => {
     const pendingStart = startRendererExportInFlight
     if (pendingStart !== null) await pendingStart
 
     try {
       const snapshot = await diagnosticsCoordinator.snapshot()
-      if (snapshot.attempts.at(-1)?.outcome !== 'in_progress') {
+      if (snapshot.current?.status !== 'in_progress') {
         attemptActive = false
         return
       }
       attemptActive = true
-      diagnosticsCoordinator.finishAttempt('failed', {
-        scope: 'renderer_export',
-        phase: 'finalize',
-        state: 'failed',
-        category: 'source',
-        code: 'source_parse'
+      diagnosticsCoordinator.finishAttempt({
+        status: 'failed',
+        failure: {
+          kind: 'renderer_export_failed',
+          scope: 'renderer_export',
+          phase: 'finalize',
+          errorCode: mainWriteFailure ?? classifyRendererExportFailure(report),
+          evidence: { kind: 'renderer_export', ...report }
+        }
       })
     } catch {
       logger.error('Failed to finish renderer export diagnostics')

@@ -55,7 +55,13 @@ import {
   MigratorProgressList,
   SkipMigrationDialog
 } from './components'
-import { DexieExporter, LocalStorageExporter, ReduxExporter } from './exporters'
+import {
+  DexieExporter,
+  LocalStorageExporter,
+  ReduxExporter,
+  rendererExportMessage,
+  rendererExportReport
+} from './exporters'
 import { useMigrationActions, useMigrationProgress } from './hooks/useMigrationProgress'
 
 const logger = loggerService.withContext('MigrationApp')
@@ -332,49 +338,61 @@ const MigrationApp: React.FC = () => {
     setLocalMigrationError(null)
     setDiagnosticSaveResult(null)
     try {
-      logger.info('Starting migration process...')
-      await actions.start()
+      let reduxData: Record<string, unknown>
+      let dexieExportPath: string
+      let localStorageFilePath: string
 
-      // Export Redux data
-      const reduxExporter = new ReduxExporter()
-      const reduxResult = reduxExporter.export()
-      logger.info('Redux data exported', {
-        slicesFound: reduxResult.slicesFound,
-        slicesMissing: reduxResult.slicesMissing
-      })
+      try {
+        logger.info('Starting migration process...')
+        await actions.start()
 
-      // Export Dexie data
-      const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
-      const exportBasePath = `${userDataPath}/migration_temp`
-      const dexieExportPath = `${exportBasePath}/dexie_export`
-      const dexieExporter = new DexieExporter(dexieExportPath)
+        // Export Redux data
+        const reduxExporter = new ReduxExporter()
+        const reduxResult = reduxExporter.export()
+        reduxData = reduxResult.data
+        logger.info('Redux data exported', {
+          slicesFound: reduxResult.slicesFound,
+          slicesMissing: reduxResult.slicesMissing
+        })
 
-      await dexieExporter.exportAll((p) => {
-        logger.info('Dexie export progress', p)
-      })
+        // Export Dexie data
+        const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
+        const exportBasePath = `${userDataPath}/migration_temp`
+        dexieExportPath = `${exportBasePath}/dexie_export`
+        const dexieExporter = new DexieExporter(dexieExportPath)
 
-      logger.info('Dexie data exported', { exportPath: dexieExportPath })
+        await dexieExporter.exportAll((p) => {
+          logger.info('Dexie export progress', p)
+        })
 
-      // Export localStorage data
-      const localStorageExportPath = `${exportBasePath}/localstorage_export`
-      const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
-      const localStorageFilePath = await localStorageExporter.export()
-      logger.info('localStorage data exported', {
-        entryCount: localStorageExporter.getEntryCount(),
-        filePath: localStorageFilePath
-      })
+        logger.info('Dexie data exported', { exportPath: dexieExportPath })
 
-      // Start migration with exported data
-      await actions.startMigration({
-        reduxData: reduxResult.data,
-        dexieExportPath,
-        localStorageExportPath: localStorageFilePath
-      })
-    } catch (error) {
-      logger.error('Migration renderer export failed', error as Error)
-      const message = errorMessage(error)
-      setLocalMigrationError(message)
-      void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)
+        // Export localStorage data
+        const localStorageExportPath = `${exportBasePath}/localstorage_export`
+        const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
+        localStorageFilePath = await localStorageExporter.export()
+        logger.info('localStorage data exported', {
+          entryCount: localStorageExporter.getEntryCount(),
+          filePath: localStorageFilePath
+        })
+      } catch (error) {
+        logger.error('Migration renderer export failed', error as Error)
+        const message = rendererExportMessage(error)
+        setLocalMigrationError(message)
+        void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, {
+          message,
+          report: rendererExportReport(error)
+        })
+        return
+      }
+
+      try {
+        // Main owns the diagnostic attempt after this handoff is accepted.
+        await actions.startMigration({ reduxData, dexieExportPath, localStorageExportPath: localStorageFilePath })
+      } catch (error) {
+        logger.error('Migration handoff failed', error as Error)
+        setLocalMigrationError(errorMessage(error))
+      }
     } finally {
       startGuardRef.current = false
       setIsLoading(false)

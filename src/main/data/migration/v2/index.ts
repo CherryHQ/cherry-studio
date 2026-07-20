@@ -25,6 +25,7 @@ export {
   createMigrationDiagnosticBundleBuilder,
   createMigrationDiagnosticsCoordinator,
   type MigrationDiagnosticBundleSaveResult,
+  type MigrationDiagnosticFailure,
   type MigrationVersionGateContext
 } from './migrationDiagnostics'
 export type {
