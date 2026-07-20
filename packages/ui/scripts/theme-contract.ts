@@ -62,7 +62,7 @@ export const SHADCN_SURFACE_PAIRS = [
   ['sidebar-accent', 'sidebar-accent-foreground']
 ] as const
 
-export const CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS = [
+export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   /* Shared product semantics */
   'background-subtle',
   'background-subtle-foreground',
@@ -112,54 +112,11 @@ export const CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS = [
   'sidebar-glow-line'
 ] as const
 
-export const CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS = [
-  'icon',
-  'text-primary',
-  'text-secondary',
-  'text-tertiary',
-  'text-light',
-  'background-soft',
-  'background-muted',
-  'background-translucent',
-  'border-soft',
-  'border-faint',
-  'fill-secondary',
-  'frame-border',
-  'group-background',
-  'interactive-hover',
-  'interactive-active',
-  'system-gray-1',
-  'system-gray-2',
-  'system-gray-3',
-  'icon-contrast',
-  'primary-soft',
-  'primary-subtle',
-  'list-item',
-  'list-item-foreground',
-  'list-item-hover',
-  'list-item-radius',
-  'navbar',
-  'navbar-foreground',
-  'navbar-translucent',
-  'modal',
-  'modal-foreground',
-  'chat',
-  'chat-foreground',
-  'chat-assistant',
-  'chat-assistant-foreground'
-] as const
-
-export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
-  ...CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS,
-  ...CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS
-] as const
-
 export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'background-subtle',
   'background-subtle-foreground',
   'border-subtle',
   'border-strong',
-  'icon',
   'sidebar-active-bg',
   'sidebar-active-foreground',
   'sidebar-active-border',

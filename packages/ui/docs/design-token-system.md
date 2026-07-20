@@ -1,13 +1,13 @@
 # Cherry Studio Shadcn Variable System
 
-> Status: normative v2 contract. Exact renderer aliases have been migrated and their runtime compatibility
-> bridges have been removed.
+> Status: normative v2 contract. Exact renderer aliases and temporary product parity variables have been
+> migrated; runtime compatibility bridges have been removed.
 
 This document defines the new variable system for Cherry Studio. It is intentionally focused on the Shadcn
 semantic contract and its migration boundary. Historical names now exist only in the migration registry and
 enforcement tooling; they are no longer part of the runtime variable graph.
 
-The executable selection guide and complete public/migration inventory are maintained in
+The executable selection guide and complete public/historical inventory are maintained in
 [variable-catalog.md](./variable-catalog.md).
 
 The visual guidance in the repository root `DESIGN.md` describes how the product should look. This document
@@ -22,7 +22,7 @@ The repository currently contains multiple variable families with different resp
 | `--cs-{palette}-{step}` | Primitive palette | Internal value provider; unchanged in this PR |
 | existing semantic `--cs-*` | Partially standardized and historically mixed semantics | Classified as approved product token or migration source |
 | controlled `--cs-theme-*` | Runtime customization mixed into the semantic layer | Host-written input only; never a component-facing role |
-| approved product `--cs-*` | Core semantics plus visual-parity coverage | Stable product API or explicit migration-only target |
+| approved product `--cs-*` | Consumer-backed Cherry Studio semantics | Stable product API only |
 | generated `--color-*` | Tailwind theme variables and some accidental public API | Tailwind adapter output only |
 | retired renderer semantic `--app-*` aliases | Removed from runtime | Exact migration sources; forbidden from returning |
 | genuine host/component/page variables | Locally owned implementation details | Remain scoped to the owning stylesheet; never generated globally |
@@ -75,13 +75,13 @@ This contract includes:
 4. a canonical `--radius` input and Tailwind radius mappings;
 5. an explicit Tailwind CSS v4 `@theme inline` adapter;
 6. a machine-readable registry and syntax-aware exact-migration codemod;
-7. product variables that preserve values previously owned by renderer compatibility layers;
+7. owner-local values for historical rendering that has no stable shared semantic role;
 8. renderer boundary checks that keep removed compatibility layers from returning.
 
 This contract does not include:
 
 - contextual or review-only migration rules that require UI judgment;
-- consolidation of migration-only `--cs-*` parity roles before visual verification;
+- promotion of historical or owner-local values without semantic and visual review;
 - renaming every primitive to a new reference-token namespace;
 - redesigning spacing, typography, shadow, or motion scales;
 - adopting DTCG JSON as a required build input;
@@ -100,11 +100,10 @@ The prefix alone does not make an existing variable public. New code may consume
 listed by the generated contract. Primitive and unclassified `--cs-*` variables remain internal migration
 sources.
 
-`product.css` is the authored Cherry Studio product layer. Some entries intentionally duplicate nearby roles so
-that every historical renderer value has an exact destination. Migrated consumers now reference these parity
-tokens directly, but the tokens remain migration-classified and forbidden in new feature code. New code must
-prefer an official Shadcn role, then a stable product role. Redundant parity roles may be consolidated only after
-their migrated surfaces have been visually verified.
+`product.css` is the authored Cherry Studio product layer. Every entry is stable public API. Historical renderer
+values without a durable shared meaning stay with their component, feature, or host owner; they are not promoted
+merely to give migration tooling a destination. New code must prefer an official Shadcn role, then a stable
+product role.
 
 ### 3.2 Controlled runtime-input layer
 
@@ -174,15 +173,9 @@ Rules:
 - do not encode palette names or add a token for a single use site;
 - new product variables require addition to the explicit generated allowlist.
 
-Product variables have an explicit stability level:
-
-| Stability | Meaning | New code |
-| --- | --- | --- |
-| `stable` | Owned, consumer-backed Cherry Studio semantics not covered by Shadcn | Allowed when no official Shadcn role fits |
-| `migration` | Exact destination for historical rendering behavior | Forbidden; migration tooling only |
-
-`CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS` and `CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS` are disjoint, explicit
-allowlists. Tailwind exposure is a separate concern and does not make a migration variable stable.
+All product variables are stable, consumer-backed Cherry Studio semantics not covered by Shadcn.
+`CHERRY_PRODUCT_VARIABLE_TOKENS` is the explicit runtime allowlist. Tailwind exposure is a separate concern and
+does not change API stability.
 
 Example:
 
@@ -346,29 +339,19 @@ feedback. They may share palette values without sharing semantics.
 
 Every stable product surface has a declared foreground in `CHERRY_PRODUCT_SURFACE_PAIRS`. A component using a
 product surface must use its paired foreground instead of guessing `foreground`, white, or black. Stable product
-variables may depend on official Shadcn variables or foundations, but never on migration-only variables.
+variables may depend on official Shadcn variables or foundations, but never on historical names.
 
 Hover and active colors are component-state decisions. The shared contract does not multiply every intent into
 global `hover` and `active` variables.
 
-The initial parity layer additionally covers existing renderer behavior by domain. These names remain
-`migration` unless the stable allowlist explicitly promotes a consumer-backed role:
+Historical renderer values that represented content hierarchy, layered surfaces, interaction states, shell
+colors, or platform constants are not automatically product semantics. Exact official aliases use the official
+contract; remaining values stay local to Markdown, RichEditor, Composer, or their other concrete owner. The
+migration registry records the retired names and reports cases that still need contextual review.
 
-| Domain | Product roles |
-| --- | --- |
-| Content hierarchy | `text-primary`, `text-secondary`, `text-tertiary`, `text-light` |
-| Layered surfaces | `background-soft`, `background-muted`, `background-translucent`, `border-soft`, `border-faint`, `fill-secondary`, `frame-border`, `group-background`, `modal` |
-| Rich content | `link`, `code-block`, `inline-code`, `inline-code-foreground` |
-| Interaction | `interactive-hover`, `interactive-active` |
-| References and highlights | `reference`, `reference-foreground`, `reference-subtle`, `highlight`, `highlight-foreground`, `highlight-accent` |
-| Product surfaces | `list-item`, `navbar`, `chat`, plus their documented variants and foregrounds |
-| Application shell | `icon`, `sidebar-active-*`, `sidebar-glow-*` |
-| Platform compatibility | `system-gray-*`, `icon-contrast`, `primary-soft`, `primary-subtle` |
-
-Every name in this table is prefixed with `--cs-`. The explicit
-`CHERRY_PRODUCT_VARIABLE_TOKENS` allowlist is the machine-readable source of the complete set; only the smaller
-`CHERRY_PRODUCT_COLOR_TOKENS` subset is exported as Tailwind color utilities. This avoids generating utilities for
-roles currently consumed only by custom CSS.
+The explicit `CHERRY_PRODUCT_VARIABLE_TOKENS` allowlist is the machine-readable source of the complete stable
+product set; only the smaller `CHERRY_PRODUCT_COLOR_TOKENS` subset is exported as Tailwind color utilities. This
+avoids generating utilities for roles consumed only by custom CSS.
 
 ## 5. Radius contract
 
@@ -444,12 +427,13 @@ Examples:
 | `--cs-background` | `--background` | `exact` |
 | `--cs-foreground` | `--foreground` | `exact` |
 | `--color-background` | Tailwind adapter output | `preserve` |
-| `--color-text-1` | `--cs-text-primary` | `exact` |
-| `--color-text-2` | `--cs-text-secondary` | `exact` |
-| `--color-text-3` | `--cs-text-tertiary` | `exact` |
+| `--color-text-1` | `--foreground` | `exact` |
+| `--color-text-2` | no universal target | `review` |
+| `--color-text-3` | no universal target | `review` |
 | `--cs-foreground-muted` | muted content or disabled component state | `contextual` |
 | duplicated `--app-{shadcn-role}` | matching official Shadcn variable | `exact` |
-| product chat, navbar, and sidebar-glow variables | approved `--cs-{domain}-*` concept | `exact` |
+| historical chat and navbar roots | no universal target | `review` |
+| consumer-backed sidebar glow variables | approved `--cs-sidebar-glow-*` concept | `exact` |
 
 The repository codemod reads this registry and parses CSS plus TS/TSX syntax before changing source files. It is
 idempotent, reports every non-`preserve` migration source, and changes only approved `exact` rules. Generated and
@@ -474,19 +458,18 @@ A proposal must state:
 3. the matching foreground when it is a surface;
 4. intended consumers;
 5. the Tailwind mapping;
-6. migration classification;
+6. migration impact and any registry change;
 7. contract-test and documentation changes.
 
 Do not add a token for one use site, a speculative theme, or a role already represented by the contract. A stable
 role needs concrete current consumers or a documented cross-component invariant; historical value parity alone
-is insufficient. The visual-parity layer is a temporary exception: it exists only where an exact migration
-destination is required. Icons normally inherit `currentColor`; component hover/active states normally stay in
-component variants.
+is insufficient. Icons normally inherit `currentColor`; component hover/active states normally stay in component
+variants.
 
 The generated contract must validate that:
 
 - all required Shadcn variables exist;
-- every public product variable has exactly one `stable` or `migration` classification;
+- every public product variable belongs to the stable allowlist;
 - foundation, runtime-input, Shadcn, product, and adapter dependencies remain one-way;
 - no variable has duplicate ownership across authored layers;
 - every light and dark reference resolves and the variable graph has no cycles;
@@ -505,16 +488,16 @@ writing generated CSS, so an invalid graph cannot silently regenerate the adapte
 The contract is delivered as independent commits. In addition to the initial architecture, Shadcn variables,
 Tailwind adapter, migration registry, and product namespace, the migration phase:
 
-1. adds an authored `product.css` layer with exact light/dark destinations for historical behavior;
+1. adds an authored `product.css` layer for stable Cherry Studio semantics not covered by Shadcn;
 2. aligns shared Shadcn providers with the values previously overridden by the renderer;
-3. records every deprecated alias as an `exact` migration rule and makes the codemod registry-driven;
-4. migrates all repository exact consumers, including consumer tests, to their canonical destinations;
+3. records deprecated aliases with `exact`, `contextual`, `review`, or `preserve` policy and makes the codemod registry-driven;
+4. migrates exact consumers to canonical destinations and localizes parity-only values with their concrete owners;
 5. deletes `legacy-vars.css`, the retired `--app-*` semantic aliases, and the duplicate renderer `@theme` adapter;
-6. validates that the removed bridges cannot be reintroduced.
+6. removes temporary product parity variables and validates that the removed bridges cannot be reintroduced.
 
-The exact pass preserves the same providers previously reached through each alias. Contextual and review rules
-remain outside automatic replacement. A parity product token may be redesigned or merged only after all of its
-migrated consumers have passed visual verification in both light and dark modes.
+The exact pass preserves the same providers or authored values previously reached through each alias. Contextual
+and review rules remain outside automatic replacement. Visual verification in both light and dark modes remains
+required before treating preserved values as a visual redesign baseline.
 
 ## 10. References
 

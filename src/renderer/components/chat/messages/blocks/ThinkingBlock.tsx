@@ -42,8 +42,7 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
       className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
       style={
         {
-          '--cs-text-primary': 'var(--color-foreground-muted)',
-          '--cs-text-light': 'var(--color-foreground-muted)',
+          '--markdown-foreground': 'var(--color-foreground-muted)',
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize
         } as CSSProperties

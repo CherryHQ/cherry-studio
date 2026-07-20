@@ -136,6 +136,7 @@ When submitting PRs, please place components in the correct directory based on t
 ### CSS Variable System
 
 - Official Shadcn semantics remain unprefixed; approved Cherry Studio product semantics use `--cs-*`
+- Every runtime product variable is stable; historical migration names live only in the tooling registry
 - Host-written `--cs-theme-*` values are controlled inputs, not component-facing semantics or Tailwind colors
 - Component-, page-, and App Shell custom properties remain private to their owning stylesheet
 - Primitive and historical `--cs-*` variables remain internal migration sources unless explicitly allowlisted

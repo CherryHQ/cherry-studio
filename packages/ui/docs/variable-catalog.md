@@ -1,7 +1,7 @@
 # Cherry Studio Variable Catalog
 
 This is the operational companion to [design-token-system.md](./design-token-system.md). It tells humans and AI
-which public variable to choose, which CSS property it belongs to, and which names are migration-only.
+which public variable to choose, which CSS property it belongs to, and which historical names are tooling-only.
 
 The machine-readable source of truth is `scripts/theme-contract.ts`. If this document and the manifest disagree,
 the contract checker fails.
@@ -13,7 +13,6 @@ Choose a variable in this order:
 1. Use an official Shadcn role when it expresses the intent.
 2. Use a `stable` Cherry Studio product role only when Shadcn has no equivalent product concept.
 3. If neither fits, keep the value local until a repeated semantic role is proven and reviewed.
-4. Use a `migration` product variable only as the exact target of an existing migration rule.
 
 For Tailwind components, prefer the semantic utility generated from the variable. For authored CSS, reference the
 official or stable product custom property directly.
@@ -136,24 +135,16 @@ Use `--destructive` for a dangerous action. Use the `--cs-error*` family for err
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
 utilities; custom-CSS domains such as rich text intentionally use `var(--cs-*)` directly.
 
-## 6. Migration-only product variables
+## 6. Historical migration names
 
-The following variables preserve historical rendering exactly. Do not introduce them in new code, component APIs,
-or design documentation:
+Historical names are recorded only in `migrations/shadcn-v2.json`. They are not declared by `product.css`, are not
+part of `CHERRY_PRODUCT_VARIABLE_TOKENS`, and do not produce Tailwind utilities. An `exact` registry rule may point
+to an official or stable product variable. A `review`, `contextual`, or `preserve` rule may intentionally have no
+target when the old value belongs to a component, feature, host, or one-off visual implementation.
 
-- Generic icon: `--cs-icon`
-- Historical text hierarchy: `--cs-text-primary`, `--cs-text-secondary`, `--cs-text-tertiary`, `--cs-text-light`
-- Historical surfaces: `--cs-background-soft`, `--cs-background-muted`, `--cs-background-translucent`
-- Historical borders and fills: `--cs-border-soft`, `--cs-border-faint`, `--cs-fill-secondary`, `--cs-frame-border`, `--cs-group-background`
-- Historical interaction states: `--cs-interactive-hover`, `--cs-interactive-active`
-- Historical list rows: `--cs-list-item`, `--cs-list-item-foreground`, `--cs-list-item-hover`, `--cs-list-item-radius`
-- Historical navigation and modal surfaces: `--cs-navbar`, `--cs-navbar-foreground`, `--cs-navbar-translucent`, `--cs-modal`, `--cs-modal-foreground`
-- Historical conversation roots: `--cs-chat`, `--cs-chat-foreground`, `--cs-chat-assistant`, `--cs-chat-assistant-foreground`
-- Platform compatibility: `--cs-system-gray-1`, `--cs-system-gray-2`, `--cs-system-gray-3`, `--cs-icon-contrast`
-- Historical primary variants: `--cs-primary-soft`, `--cs-primary-subtle`
-
-A migration variable can be removed or promoted only after all source aliases and consumers are gone. Promotion
-requires a semantic review, an intended-property definition, and a decision about surface/foreground pairing.
+Do not recreate a shared runtime variable merely to give migration tooling a destination. Promote a historical
+role only after semantic review establishes a repeated product invariant, an intended CSS property, concrete
+consumers, and any required surface/foreground pair.
 
 ## 7. Tailwind and CSS usage
 
@@ -190,7 +181,7 @@ Before adding a variable:
 2. Identify its owner first: shared semantic, runtime input, component, page/feature, or App Shell.
 3. State the intended CSS property and concrete current consumers or cross-component invariant. A speculative or
    single local use stays with its owner.
-4. For a shared product variable, choose `stable` or `migration`; never leave stability implicit.
+4. A shared product variable is stable public API; historical migration-only values stay with their owner.
 5. Add a foreground if the variable represents a public surface.
 6. Define a root value and ensure light/dark resolution is intentional.
 7. Add shared names to `theme-contract.ts`; add Tailwind exposure only when semantic utilities are required.
@@ -205,7 +196,7 @@ When generating or refactoring UI code:
 
 - use official Shadcn utilities first;
 - use only `stable` product variables from this catalog;
-- never select a `migration` variable for new code;
+- never recreate a historical migration name as runtime compatibility API;
 - never infer semantics from a resolved color value or token spelling alone;
 - never add light/dark palette branches when an existing semantic variable already resolves the mode;
 - never edit generated `theme.css` directly;

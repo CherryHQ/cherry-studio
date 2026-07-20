@@ -1,5 +1,7 @@
 .markdown {
-  color: var(--cs-text-primary);
+  --markdown-background-soft: color-mix(in srgb, var(--background) 96%, var(--foreground) 4%);
+  --markdown-background-muted: color-mix(in srgb, var(--background) 92%, var(--foreground) 8%);
+  color: var(--markdown-foreground, var(--foreground));
   line-height: 1.6;
   user-select: text;
   word-break: break-word;
@@ -99,7 +101,7 @@
 }
 
 .markdown li::marker {
-  color: var(--cs-text-tertiary);
+  color: var(--color-foreground-muted);
 }
 
 .markdown li > ul,
@@ -123,7 +125,7 @@
 
 .markdown p code,
 .markdown li code {
-  background: var(--cs-background-muted);
+  background: var(--markdown-background-muted);
   padding: 3px 5px;
   margin: 0 2px;
   border-radius: 5px;
@@ -140,7 +142,7 @@
   border-radius: 8px;
   overflow-x: auto;
   font-family: var(--code-font-family);
-  background-color: var(--cs-background-muted);
+  background-color: var(--markdown-background-muted);
 }
 
 [data-streamdown='code-block-header'] span,
@@ -175,7 +177,7 @@
 .markdown blockquote {
   margin: 1.5em 0;
   padding: 1em 1.5em;
-  background-color: var(--cs-background-soft);
+  background-color: var(--markdown-background-soft);
   border-left: 4px solid var(--color-primary);
   border-radius: 0 8px 8px 0;
   font-style: italic;
@@ -211,13 +213,13 @@
 }
 
 .markdown th {
-  background-color: var(--cs-background-muted);
+  background-color: var(--markdown-background-muted);
   font-weight: 600;
   text-align: left;
 }
 
 .markdown tr:hover {
-  background-color: var(--cs-background-soft);
+  background-color: var(--markdown-background-soft);
 }
 
 .markdown img {
@@ -334,7 +336,7 @@
 .footnotes li {
   font-size: 0.9em;
   margin-bottom: 0.5em;
-  color: var(--cs-text-light);
+  color: var(--markdown-foreground, var(--foreground));
 }
 
 .footnotes li p {

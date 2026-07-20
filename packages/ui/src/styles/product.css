@@ -1,31 +1,14 @@
 /**
  * Cherry Studio product semantics.
  *
- * These variables cover repeated product behavior that is outside the
- * official Shadcn contract. During migration they intentionally preserve the
- * renderer's current light and dark values. Legacy names may alias this file,
- * but product variables must never depend on legacy or renderer-only names.
+ * These variables cover stable, repeated product behavior that is outside the
+ * official Shadcn contract. Feature-local and historical migration values do
+ * not belong in this public runtime contract.
  */
 
 :root {
   /* Stable product-wide surface */
   --cs-background-subtle-foreground: var(--foreground);
-
-  /* Migration parity: content hierarchy */
-  --cs-text-primary: var(--foreground);
-  --cs-text-secondary: var(--cs-foreground-secondary);
-  --cs-text-tertiary: var(--cs-foreground-muted);
-  --cs-text-light: var(--foreground);
-
-  /* Migration parity: layered application surfaces */
-  --cs-background-soft: color-mix(in srgb, var(--background) 96%, var(--foreground) 4%);
-  --cs-background-muted: color-mix(in srgb, var(--background) 92%, var(--foreground) 8%);
-  --cs-background-translucent: color-mix(in srgb, var(--background) 88%, transparent);
-  --cs-border-soft: color-mix(in srgb, var(--border) 60%, transparent);
-  --cs-border-faint: color-mix(in srgb, var(--border) 30%, transparent);
-  --cs-fill-secondary: var(--cs-background-soft);
-  --cs-frame-border: #ddd;
-  --cs-group-background: var(--cs-background-soft);
 
   /* Stable product domain: rich text and code */
   --cs-link: #1677ff;
@@ -33,10 +16,6 @@
   --cs-code-block-foreground: var(--foreground);
   --cs-inline-code: rgba(0, 0, 0, 0.06);
   --cs-inline-code-foreground: rgb(218, 97, 92);
-
-  /* Migration parity: historical interaction states */
-  --cs-interactive-hover: var(--cs-background-muted);
-  --cs-interactive-active: var(--cs-background-soft);
 
   /* Stable product domain: references and search highlights */
   --cs-reference: #cfe1ff;
@@ -46,37 +25,9 @@
   --cs-highlight: rgba(255, 255, 0, 0.5);
   --cs-highlight-accent: rgba(255, 150, 50, 0.5);
 
-  /* Migration parity: historical lists and navigation shell */
-  --cs-list-item: #fff;
-  --cs-list-item-foreground: var(--foreground);
-  --cs-list-item-hover: #fafafa;
-  --cs-list-item-radius: var(--cs-radius-lg);
-  --cs-navbar-translucent: rgba(255, 255, 255, 0.55);
-  --cs-navbar: rgb(244, 244, 244);
-  --cs-navbar-foreground: var(--foreground);
-  --cs-modal: var(--card);
-  --cs-modal-foreground: var(--foreground);
-
-  /* Migration parity: historical conversation roots */
-  --cs-chat: transparent;
-  --cs-chat-foreground: var(--foreground);
-  --cs-chat-assistant: transparent;
-  --cs-chat-assistant-foreground: var(--cs-chat-foreground);
-
   /* Stable product domain: user-message surface */
   --cs-chat-user: rgba(0, 0, 0, 0.045);
   --cs-chat-user-foreground: var(--foreground);
-
-  /* Migration parity: platform compatibility colors */
-  --cs-system-gray-1: #8e8e93;
-  --cs-system-gray-2: #aeaeb2;
-  --cs-system-gray-3: #c7c7cc;
-  --cs-icon-contrast: var(--cs-black);
-  --cs-primary-soft: color-mix(in srgb, var(--primary) 60%, transparent);
-  --cs-primary-subtle: var(--cs-brand-50);
-
-  /* Migration parity: generic icon color */
-  --cs-icon: #00000099;
 
   /* Stable product domain: application shell effects */
   --cs-sidebar-active-bg: rgba(16, 185, 129, 0.08);
@@ -87,17 +38,10 @@
 }
 
 .dark {
-  /* Migration parity: layered application surfaces */
-  --cs-frame-border: #333;
-
   /* Stable product domain: rich text and code */
   --cs-link: #338cff;
   --cs-code-block: #323232;
   --cs-inline-code: #323232;
-
-  /* Migration parity: historical interaction states */
-  --cs-interactive-hover: color-mix(in srgb, var(--background) 82%, var(--foreground) 18%);
-  --cs-interactive-active: color-mix(in srgb, var(--background) 74%, var(--foreground) 26%);
 
   /* Stable product domain: references and search highlights */
   --cs-reference: #404040;
@@ -107,25 +51,9 @@
   --cs-highlight: rgba(255, 255, 0, 0.9);
   --cs-highlight-accent: rgba(255, 150, 50, 0.9);
 
-  /* Migration parity: historical lists and navigation shell */
-  --cs-list-item: rgba(255, 255, 255, 0.1);
-  --cs-list-item-hover: rgba(255, 255, 255, 0.05);
-  --cs-navbar-translucent: rgba(20, 20, 20, 0.55);
-  --cs-navbar: #1f1f1f;
-  --cs-modal: #111;
-
   /* Stable product domain: user-message surface */
   --cs-chat-user: rgba(255, 255, 255, 0.08);
   --cs-chat-user-foreground: var(--cs-black);
-
-  /* Migration parity: platform compatibility colors */
-  --cs-system-gray-1: #515c67;
-  --cs-system-gray-2: #414853;
-  --cs-system-gray-3: #32363f;
-  --cs-icon-contrast: var(--cs-white);
-
-  /* Migration parity: generic icon color */
-  --cs-icon: #ffffff99;
 
   /* Stable product domain: application shell effects */
   --cs-sidebar-active-bg: rgba(114, 255, 121, 0.05);

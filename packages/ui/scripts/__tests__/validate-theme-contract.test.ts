@@ -62,20 +62,10 @@ describe('validateThemeContractSources', () => {
   it('rejects variable cycles in a supported mode', async () => {
     const sources = await loadSources()
     sources.product = sources.product
-      .replace('--cs-text-primary: var(--foreground);', '--cs-text-primary: var(--cs-text-secondary);')
-      .replace('--cs-text-secondary: var(--cs-foreground-secondary);', '--cs-text-secondary: var(--cs-text-primary);')
+      .replace('--cs-code-block: #e3e3e3;', '--cs-code-block: var(--cs-code-block-foreground);')
+      .replace('--cs-code-block-foreground: var(--foreground);', '--cs-code-block-foreground: var(--cs-code-block);')
 
     expect(() => validateThemeContractSources(sources)).toThrow(/light variable cycle/)
-  })
-
-  it('rejects a stable product role that depends on migration-only behavior', async () => {
-    const sources = await loadSources()
-    sources.product = sources.product.replace(
-      '--cs-chat-user-foreground: var(--foreground);',
-      '--cs-chat-user-foreground: var(--cs-text-primary);'
-    )
-
-    expect(() => validateThemeContractSources(sources)).toThrow(/stable product .* cannot depend on migration-only/)
   })
 
   it('rejects an ambiguous semantic entry order', async () => {

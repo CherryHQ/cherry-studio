@@ -24,7 +24,7 @@ const CopyButton: FC<CopyButtonProps> = ({
   tooltip,
   textToCopy,
   label,
-  color = 'var(--cs-text-secondary)',
+  color = 'var(--color-foreground-secondary)',
   hoverColor = 'var(--color-primary)',
   size = 14,
   successFeedback = 'toast'

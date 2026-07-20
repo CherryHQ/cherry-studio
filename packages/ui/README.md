@@ -137,13 +137,13 @@ Import only primitives and existing foundation providers, then decide which valu
 The normative v2 architecture, Shadcn contract, and migration boundary are defined in
 [Design Token System](./docs/design-token-system.md). Official Shadcn variables remain unprefixed; approved
 Cherry Studio product variables use `--cs-*`. Use the [Variable Catalog](./docs/variable-catalog.md) to select a
-role and verify whether it is stable or migration-only.
+stable role and distinguish runtime API from tooling-only historical names.
 
 To avoid mixing value sources, semantic variables, theme mappings, and runtime overrides, use these rules:
 
 1. `--background`, `--primary`, `--muted-foreground`, and the other variables in `shadcn.css` are the official Shadcn contract
 2. Approved Cherry Studio product semantics use `--cs-*`, such as `--cs-success` and `--cs-background-subtle`
-3. Product variables marked `migration` are replacement targets only and must not be introduced in new code
+3. Historical migration names are tooling-only and must not be recreated as runtime product variables
 4. Primitive and unclassified historical `--cs-*` variables remain internal value providers, not automatic public API
 5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; prefer the resulting semantic utilities in components
 6. `--cs-theme-*` is a controlled host-written input, not a component-facing semantic role or Tailwind utility

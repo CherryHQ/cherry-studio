@@ -1,4 +1,7 @@
 .tiptap {
+  --rich-text-border-soft: color-mix(in srgb, var(--border) 60%, transparent);
+  --rich-text-system-gray-2: #aeaeb2;
+  --rich-text-system-gray-3: #c7c7cc;
   /* 预留5px给scrollbar */
   padding: var(--editor-padding, 12px 55px 12px 60px);
   outline: none;
@@ -7,6 +10,11 @@
   word-break: break-word;
   font-size: var(--editor-font-size, 16px);
   line-height: var(--editor-line-height, normal);
+}
+
+.dark .tiptap {
+  --rich-text-system-gray-2: #414853;
+  --rich-text-system-gray-3: #32363f;
 }
 
 .tiptap:focus {
@@ -109,11 +117,11 @@
 .tiptap pre {
   background: var(--cs-code-block);
   border-radius: 0.5rem;
-  color: var(--cs-text-primary);
+  color: var(--foreground);
   font-family: var(--code-font-family);
   margin: 1.5rem 0;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--cs-border-soft);
+  border: 1px solid var(--rich-text-border-soft);
 }
 
 .tiptap pre code {
@@ -126,7 +134,7 @@
 
 .tiptap hr {
   border: none;
-  border-top: 1px solid var(--cs-system-gray-2);
+  border-top: 1px solid var(--rich-text-system-gray-2);
   margin: 2rem 0;
 }
 
@@ -150,7 +158,7 @@
 .tiptap .placeholder:before {
   content: attr(data-placeholder);
   position: absolute;
-  color: var(--cs-text-secondary);
+  color: var(--color-foreground-secondary);
   opacity: 0.6;
   pointer-events: none;
   font-style: var(--editor-placeholder-font-style, italic);
@@ -211,7 +219,7 @@
 
 .tiptap td,
 .tiptap th {
-  border: 1px solid var(--cs-border-soft);
+  border: 1px solid var(--rich-text-border-soft);
   box-sizing: border-box;
   display: table-cell;
   min-width: 120px;
@@ -233,7 +241,7 @@
 
 .tiptap th,
 .tiptap th * {
-  background-color: var(--cs-system-gray-3);
+  background-color: var(--rich-text-system-gray-3);
   font-weight: bold;
   text-align: left;
 }
@@ -352,7 +360,7 @@
   display: none;
   align-items: center;
   justify-content: center;
-  color: var(--cs-text-primary);
+  color: var(--foreground);
   z-index: 20;
   transition: all 0.2s ease;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -493,7 +501,7 @@
 
 /* Checked task item appearance */
 .tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
-  color: var(--cs-text-secondary);
+  color: var(--color-foreground-secondary);
   text-decoration: line-through;
 }
 

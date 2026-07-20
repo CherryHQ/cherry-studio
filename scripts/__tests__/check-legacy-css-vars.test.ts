@@ -66,7 +66,7 @@ describe('check-legacy-css-vars', () => {
 
     expect(findings).toHaveLength(2)
     expect(findings.map((finding) => finding.variable)).toEqual(['--color-text-1', '--color-text-2'])
-    expect(findings.map((finding) => finding.strategy)).toEqual(['exact', 'exact'])
+    expect(findings.map((finding) => finding.strategy)).toEqual(['exact', 'review'])
     expect(findings.map((finding) => finding.line)).toEqual([2, 4])
   })
 
@@ -164,12 +164,12 @@ describe('check-legacy-css-vars', () => {
 
     const result = fixLegacyVarsInContent(content)
 
-    expect(result.replacements).toBe(5)
-    expect(result.content).toContain('text-(--cs-text-secondary) bg-(--cs-background-soft)')
+    expect(result.replacements).toBe(2)
+    expect(result.content).toContain('text-(--color-text-2) bg-(--color-background-soft)')
     expect(result.content).toContain('var(--cs-link)')
-    expect(result.content).toContain('var(--cs-icon)')
+    expect(result.content).toContain('var(--app-icon)')
     expect(result.content).toContain('// var(--color-text-1)')
-    expect(result.content).toContain('--cs-text-primary: var(--color-foreground);')
+    expect(result.content).toContain('--foreground: var(--color-foreground);')
   })
 
   it('reports contextual rules without auto-fixing them', () => {
@@ -198,7 +198,7 @@ describe('check-legacy-css-vars', () => {
     const first = fixLegacyVarsInContent(content, 'src/renderer/example.css')
     const second = fixLegacyVarsInContent(first.content, 'src/renderer/example.css')
 
-    expect(first).toEqual({ content: '.title { color: var(--cs-text-primary); }', replacements: 1 })
+    expect(first).toEqual({ content: '.title { color: var(--foreground); }', replacements: 1 })
     expect(second).toEqual({ content: first.content, replacements: 0 })
   })
 
@@ -213,7 +213,7 @@ describe('check-legacy-css-vars', () => {
     const exitCode = runCli([targetFile, '--fix', '--strict'], { stdout: stdout.stream, stderr: stderr.stream })
 
     expect(exitCode).toBe(0)
-    expect(fs.readFileSync(targetFile, 'utf8')).toBe('.title { color: var(--cs-text-primary); }')
+    expect(fs.readFileSync(targetFile, 'utf8')).toBe('.title { color: var(--foreground); }')
     expect(stdout.output()).toContain('changed 1 files, replaced 1 usages')
     expect(stdout.output()).toContain('No deprecated CSS variable usages found.')
     expect(stderr.output()).toBe('')

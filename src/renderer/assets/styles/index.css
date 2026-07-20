@@ -50,7 +50,7 @@ body,
 body {
   display: flex;
   min-height: 100vh;
-  color: var(--cs-text-primary);
+  color: var(--foreground);
   font-size: 14px;
   line-height: 1.6;
   overflow: hidden;
@@ -192,7 +192,7 @@ ul {
 }
 
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) code {
-  color: var(--cs-text-primary);
+  color: var(--foreground);
 }
 
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .markdown {

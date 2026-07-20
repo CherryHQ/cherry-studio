@@ -123,7 +123,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
 
   const styles: React.CSSProperties = {
     ...getPositionStyles(),
-    background: isDark ? 'var(--cs-background-soft, #222222)' : 'white',
+    background: isDark ? 'color-mix(in srgb, var(--background) 96%, var(--foreground) 4%)' : 'white',
     border: `1px solid ${isDark ? 'var(--color-border, #ffffff19)' : '#d9d9d9'}`,
     borderRadius: 8,
     boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0,0,0,0.15)',

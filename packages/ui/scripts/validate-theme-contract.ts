@@ -3,11 +3,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS,
   CHERRY_PRODUCT_COLOR_TOKENS,
   CHERRY_PRODUCT_SURFACE_PAIRS,
   CHERRY_PRODUCT_VARIABLE_TOKENS,
-  CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS,
   RUNTIME_THEME_INPUT_TOKENS,
   SHADCN_SURFACE_PAIRS,
   SHADCN_VARIABLE_TOKENS
@@ -263,28 +261,19 @@ function assertCatalogCoverage(sources: ThemeContractSources): void {
 export function validateThemeContractSources(sources: ThemeContractSources): void {
   assertUnique('runtime theme inputs', RUNTIME_THEME_INPUT_TOKENS)
   assertUnique('Shadcn variables', SHADCN_VARIABLE_TOKENS)
-  assertUnique('stable product variables', CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS)
-  assertUnique('migration product variables', CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS)
-  assertUnique('all product variables', CHERRY_PRODUCT_VARIABLE_TOKENS)
+  assertUnique('product variables', CHERRY_PRODUCT_VARIABLE_TOKENS)
   assertUnique('Tailwind product colors', CHERRY_PRODUCT_COLOR_TOKENS)
 
-  const stableVariables = new Set<string>(CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS)
-  const migrationVariables = new Set<string>(CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS)
   const productVariables = new Set<string>(CHERRY_PRODUCT_VARIABLE_TOKENS)
   const shadcnVariables = new Set<string>(SHADCN_VARIABLE_TOKENS)
 
-  for (const token of stableVariables) {
-    if (migrationVariables.has(token)) {
-      throw new Error(`[theme-contract] product variable ${token} cannot be both stable and migration-only`)
-    }
-  }
   for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
     if (!productVariables.has(token)) {
       throw new Error(`[theme-contract] Tailwind product color ${token} is missing from the product contract`)
     }
   }
   assertSurfacePairs('Shadcn contract', SHADCN_SURFACE_PAIRS, shadcnVariables)
-  assertSurfacePairs('product contract', CHERRY_PRODUCT_SURFACE_PAIRS, stableVariables)
+  assertSurfacePairs('product contract', CHERRY_PRODUCT_SURFACE_PAIRS, productVariables)
 
   assertExactImports('tokens.css', sources.tokensEntry, ['./tokens/index.css'])
   assertExactImports('contract.css', sources.contractEntry, [
@@ -315,20 +304,6 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
   assertRequiredDeclarations('runtime theme inputs', rootDeclarations, RUNTIME_THEME_INPUT_TOKENS, '--cs-theme-')
   assertRequiredDeclarations('Shadcn contract', rootDeclarations, SHADCN_VARIABLE_TOKENS, '--')
   assertRequiredDeclarations('product contract', rootDeclarations, CHERRY_PRODUCT_VARIABLE_TOKENS, '--cs-')
-
-  const migrationVariableNames = new Set(CHERRY_MIGRATION_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`))
-  for (const token of CHERRY_STABLE_PRODUCT_VARIABLE_TOKENS) {
-    const name = `--cs-${token}`
-    const declaration = rootDeclarations.get(name)
-    if (!declaration) continue
-
-    const migrationDependency = extractReferences(declaration.value).find((reference) =>
-      migrationVariableNames.has(reference)
-    )
-    if (migrationDependency) {
-      throw new Error(`[theme-contract] stable product ${name} cannot depend on migration-only ${migrationDependency}`)
-    }
-  }
 
   const productDeclarationNames = new Set(
     extractDeclarations(sources.product, 'product.css').map((declaration) => declaration.name)

@@ -8,5 +8,5 @@ import type { IconTooltipProps } from './types'
  * Used for providing help or guidance.
  */
 export const HelpTooltip = (props: IconTooltipProps) => {
-  return <IconTooltip icon={HelpCircle} ariaLabel="Help" defaultColor="var(--cs-text-secondary)" {...props} />
+  return <IconTooltip icon={HelpCircle} ariaLabel="Help" defaultColor="var(--color-foreground-secondary)" {...props} />
 }
