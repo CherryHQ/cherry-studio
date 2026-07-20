@@ -26,8 +26,8 @@ const inputGroupVariants = cva(
   [
     'h-auto',
     'rounded-md',
-    'has-[[data-ui~="part:input-group-control"]:focus-visible]:ring-ring/40',
-    'has-[[data-ui~="part:input-group-control"]:focus-visible]:border-[#3CD45A]'
+    'has-[[data-slot=input-group-control]:focus-visible]:ring-ring/40',
+    'has-[[data-slot=input-group-control]:focus-visible]:border-[#3CD45A]'
   ],
   {
     variants: {
@@ -202,15 +202,15 @@ const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foregro
 const selectTriggerVariants = cva(
   [
     'border-none box-content pl-3 aria-expanded:border-none aria-expanded:ring-0 bg-transparent',
-    '*:data-[ui~="part:select-value"]:text-foreground',
+    '*:data-[slot=select-value]:text-foreground',
     '[&_svg]:text-secondary-foreground!'
   ],
   {
     variants: {
       size: {
-        sm: ['h-5', 'pl-6 pr-3xs py-3', '*:data-[ui~="part:select-value"]:text-sm'],
+        sm: ['h-5', 'pl-6 pr-3xs py-3', '*:data-[slot=select-value]:text-sm'],
         md: ['h-5', 'pl-6 pr-3xs py-[13px]'],
-        lg: ['h-6', 'pl-7 pr-2xs py-3', '*:data-[ui~="part:select-value"]:text-lg']
+        lg: ['h-6', 'pl-7 pr-2xs py-3', '*:data-[slot=select-value]:text-lg']
       }
     }
   }

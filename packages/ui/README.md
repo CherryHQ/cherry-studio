@@ -206,6 +206,13 @@ The `packages/ui` workspace contains both runtime code and development-only asse
 
 Only the runtime surface should be treated as consumable package API.
 
+### Structural Markers
+
+`packages/ui` keeps Shadcn-compatible `data-slot` attributes for component-internal styling and its standalone build.
+When Cherry Studio consumes the package source, the app's UI-contract compiler mirrors those markers into public
+`data-ui` `part:*` tokens. Renderer code, application tests, and custom themes must use `data-ui`; they must not depend
+on the component library's private `data-slot` markers.
+
 ## Directory Structure
 
 ```text

@@ -76,7 +76,7 @@ function FormItem({ className, ...props }: React.ComponentProps<'div'>) {
 
   return (
     <FormItemContext value={{ id }}>
-      <div data-ui="part:form-item" className={cn('grid gap-2', className)} {...props} />
+      <div data-slot="form-item" className={cn('grid gap-2', className)} {...props} />
     </FormItemContext>
   )
 }
@@ -86,7 +86,7 @@ function FormLabel({ className, ...props }: React.ComponentProps<typeof Label>) 
 
   return (
     <Label
-      data-ui="part:form-label"
+      data-slot="form-label"
       data-error={!!error}
       className={cn('data-[error=true]:text-destructive', className)}
       htmlFor={formItemId}
@@ -100,7 +100,7 @@ function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
 
   return (
     <Slot
-      data-ui="part:form-control"
+      data-slot="form-control"
       id={formItemId}
       aria-describedby={!error ? `${formDescriptionId}` : `${formDescriptionId} ${formMessageId}`}
       aria-invalid={!!error}
@@ -114,7 +114,7 @@ function FormDescription({ className, ...props }: React.ComponentProps<'p'>) {
 
   return (
     <p
-      data-ui="part:form-description"
+      data-slot="form-description"
       id={formDescriptionId}
       className={cn('text-muted-foreground text-sm', className)}
       {...props}
@@ -131,7 +131,7 @@ function FormMessage({ className, ...props }: React.ComponentProps<'p'>) {
   }
 
   return (
-    <p data-ui="part:form-message" id={formMessageId} className={cn('text-destructive text-sm', className)} {...props}>
+    <p data-slot="form-message" id={formMessageId} className={cn('text-destructive text-sm', className)} {...props}>
       {body}
     </p>
   )

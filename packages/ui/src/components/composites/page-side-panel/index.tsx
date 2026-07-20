@@ -98,7 +98,7 @@ function PageSidePanel({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            data-ui="part:page-side-panel-backdrop"
+            data-slot="page-side-panel-backdrop"
             className={cn(isScopedPortal ? 'absolute inset-0' : 'fixed inset-0', 'z-60 bg-black/50', backdropClassName)}
             onClick={handleClose}
           />
@@ -116,7 +116,7 @@ function PageSidePanel({
             animate={{ x: 0 }}
             exit={{ x: side === 'right' ? '100%' : '-100%' }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            data-ui="part:page-side-panel"
+            data-slot="page-side-panel"
             className={cn(
               isScopedPortal ? 'absolute' : 'fixed',
               'top-3 bottom-3 z-70 flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
@@ -125,7 +125,7 @@ function PageSidePanel({
             )}>
             {hasHeader && (
               <div
-                data-ui="part:page-side-panel-header"
+                data-slot="page-side-panel-header"
                 className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
                 <div id={headerContent ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
                   {headerContent}
@@ -149,7 +149,7 @@ function PageSidePanel({
                       handleClose(event)
                     }}
                     aria-label={closeLabel}
-                    data-ui="part:page-side-panel-close"
+                    data-slot="page-side-panel-close"
                     className={cn(
                       'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
                       closeButtonClassName
@@ -161,14 +161,14 @@ function PageSidePanel({
             )}
 
             <Scrollbar
-              data-ui="part:page-side-panel-body"
+              data-slot="page-side-panel-body"
               className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
               {children}
             </Scrollbar>
 
             {footer && (
               <div
-                data-ui="part:page-side-panel-footer"
+                data-slot="page-side-panel-footer"
                 className={cn('shrink-0 space-y-2.5 px-6 pt-3 pb-6', footerClassName)}>
                 {footer}
               </div>

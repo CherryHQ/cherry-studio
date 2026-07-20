@@ -20,7 +20,7 @@ afterEach(() => {
 })
 
 function getTooltipContentElement(text: string) {
-  const element = screen.getAllByText(text).find((node) => node.matches('[data-ui~="part:tooltip-content"]'))
+  const element = screen.getAllByText(text).find((node) => node.getAttribute('data-slot') === 'tooltip-content')
   expect(element).toBeInTheDocument()
   return element as HTMLElement
 }

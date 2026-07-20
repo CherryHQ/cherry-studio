@@ -30,7 +30,7 @@ describe('Alert', () => {
     render(<Alert type="info" message="Info" showIcon action={<button type="button">Open</button>} />)
 
     expect(screen.getByText('Open')).toBeInTheDocument()
-    expect(document.querySelector('[data-ui~="part:alert-icon"] svg')).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="alert-icon"] svg')).toBeInTheDocument()
   })
 
   it.each(['info', 'success', 'warning', 'error'] as const)(
@@ -39,17 +39,17 @@ describe('Alert', () => {
       render(<Alert type={type} message="Message" showIcon />)
 
       expect(screen.getByRole(type === 'error' ? 'alert' : 'status')).toHaveAttribute('data-type', type)
-      const icon = document.querySelector('[data-ui~="part:alert-icon"] svg')
+      const icon = document.querySelector('[data-slot="alert-icon"] svg')
       expect(icon).toHaveClass('lucide-custom')
-      expect(icon?.closest('[data-ui~="part:alert-icon"]')).toHaveAttribute('data-type', type)
+      expect(icon?.closest('[data-slot="alert-icon"]')).toHaveAttribute('data-type', type)
     }
   )
 
   it('applies semantic color to custom lucide icons', () => {
     render(<Alert type="warning" message="Custom icon" showIcon icon={<Info className="custom-class" />} />)
 
-    const iconSlot = document.querySelector('[data-ui~="part:alert-icon"]')
-    const icon = document.querySelector('[data-ui~="part:alert-icon"] svg')
+    const iconSlot = document.querySelector('[data-slot="alert-icon"]')
+    const icon = document.querySelector('[data-slot="alert-icon"] svg')
     expect(iconSlot).toHaveAttribute('data-type', 'warning')
     expect(icon).toHaveClass('custom-class')
   })

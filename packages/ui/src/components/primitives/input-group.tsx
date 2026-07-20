@@ -19,10 +19,10 @@ const inputGroupVariants = cva(
     'has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3',
 
     // Focus state.
-    'has-[[data-ui~="part:input-group-control"]:focus-visible]:border-ring has-[[data-ui~="part:input-group-control"]:focus-visible]:ring-ring/50 has-[[data-ui~="part:input-group-control"]:focus-visible]:ring-[3px]',
+    'has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50 has-[[data-slot=input-group-control]:focus-visible]:ring-[3px]',
 
     // Error state.
-    'has-[[data-ui][aria-invalid=true]]:ring-destructive/20 has-[[data-ui][aria-invalid=true]]:border-destructive dark:has-[[data-ui][aria-invalid=true]]:ring-destructive/40'
+    'has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40'
   ],
   {
     variants: {
@@ -42,9 +42,7 @@ function InputGroup({
   size,
   ...props
 }: React.ComponentProps<'div'> & VariantProps<typeof inputGroupVariants>) {
-  return (
-    <div data-ui="part:input-group" role="group" className={cn(inputGroupVariants({ size }), className)} {...props} />
-  )
+  return <div data-slot="input-group" role="group" className={cn(inputGroupVariants({ size }), className)} {...props} />
 }
 
 const inputGroupAddonVariants = cva(
@@ -73,7 +71,7 @@ function InputGroupAddon({
   return (
     <div
       role="group"
-      data-ui="part:input-group-addon"
+      data-slot="input-group-addon"
       data-align={align}
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
@@ -134,7 +132,7 @@ function InputGroupText({ className, ...props }: React.ComponentProps<'span'>) {
 function InputGroupInput({ className, ...props }: InputProps) {
   return (
     <Input
-      data-ui="part:input-group-control"
+      data-slot="input-group-control"
       className={cn(
         'flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent',
         className
@@ -147,7 +145,7 @@ function InputGroupInput({ className, ...props }: InputProps) {
 function InputGroupTextarea({ className, ...props }: TextareaInputProps) {
   return (
     <Textarea.Input
-      data-ui="part:input-group-control"
+      data-slot="input-group-control"
       className={cn(
         'flex-1 resize-none rounded-none border-0 bg-transparent py-3 shadow-none focus-visible:ring-0 dark:bg-transparent',
         className

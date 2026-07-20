@@ -134,7 +134,7 @@ describe('DataTable', () => {
   it('uses full parent width with an optional max width', () => {
     render(<DataTable data={people} columns={columns} rowKey="id" maxWidth={480} />)
 
-    const root = screen.getByRole('table').closest('[data-ui~="part:data-table"]')
+    const root = screen.getByRole('table').closest('[data-slot="data-table"]')
     expect(root).toHaveClass('w-full', 'max-w-full')
     expect(root).toHaveStyle({ maxWidth: '480px' })
   })

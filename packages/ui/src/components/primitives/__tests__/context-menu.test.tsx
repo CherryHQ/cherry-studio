@@ -216,10 +216,10 @@ describe('ContextMenu primitive', () => {
 
       openMenu(screen.getByText('Trigger'))
 
-      expect(screen.getByText('Delete').closest('[data-ui~="part:context-menu-content"]')).toHaveClass(
+      expect(screen.getByText('Delete').closest('[data-slot="context-menu-content"]')).toHaveClass(
         '[-webkit-app-region:no-drag]'
       )
-      expect(screen.getByText('Sub item').closest('[data-ui~="part:context-menu-sub-content"]')).toHaveClass(
+      expect(screen.getByText('Sub item').closest('[data-slot="context-menu-sub-content"]')).toHaveClass(
         '[-webkit-app-region:no-drag]'
       )
     })
@@ -274,7 +274,7 @@ describe('ContextMenu primitive', () => {
 
       openMenu(screen.getByText('Trigger'))
 
-      const item = screen.getByText('Delete').closest('[data-ui~="part:context-menu-item"]')
+      const item = screen.getByText('Delete').closest('[data-slot="context-menu-item"]')
       expect(item).toHaveClass("data-[variant=destructive]:[&_svg:not([class*='text-'])]:text-destructive!")
       expect(item).not.toHaveClass('data-[variant=destructive]:*:[svg]:text-destructive!')
     })

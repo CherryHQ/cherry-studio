@@ -233,10 +233,46 @@ const Message = () => {
     expect(result.code).toContain('<div data-ui=')
   })
 
-  it('rejects the obsolete data-slot attribute', () => {
-    expect(() => transformJsx('const Button = () => <button data-slot="save" />', options)).toThrow(
-      'data-slot is obsolete'
+  it('mirrors a packages/ui data-slot into data-ui while preserving the library marker', () => {
+    const result = transformJsx('const Button = (props) => <button data-slot="button" {...props} />', {
+      contractForDescriptor: () => ({ id: 'udomnode', semanticId: 'ui.button' }),
+      sourceFile: 'packages/ui/src/components/primitives/button.tsx'
+    })
+
+    expect(result.descriptors).toHaveLength(1)
+    expect(result.code).toContain('data-ui="ui.button part:button id:udomnode"')
+    expect(result.code).toContain('data-slot="button"')
+    expect(result.code).toContain('__cherryUiContractMergeUiProps(props')
+    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+  })
+
+  it('forwards a packages/ui data-slot through a component boundary as a part token', () => {
+    const result = transformJsx(
+      'const Trigger = (props) => <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />',
+      {
+        contractForDescriptor: () => undefined,
+        sourceFile: 'packages/ui/src/components/primitives/dialog.tsx'
+      }
     )
+
+    expect(result.descriptors).toHaveLength(0)
+    expect(result.code).toContain('data-ui="part:dialog-trigger"')
+    expect(result.code).toContain('data-slot="dialog-trigger"')
+    expect(result.code).toContain('__cherryUiContractMergeUiProps(props')
+  })
+
+  it('rejects data-slot outside packages/ui', () => {
+    expect(() => transformJsx('const Button = () => <button data-slot="save" />', options)).toThrow(
+      'data-slot is reserved for packages/ui/src'
+    )
+  })
+
+  it('rejects dynamic packages/ui data-slot values', () => {
+    expect(() =>
+      transformJsx('const Button = ({ slot }) => <button data-slot={slot} />', {
+        sourceFile: 'packages/ui/src/components/primitives/button.tsx'
+      })
+    ).toThrow('packages/ui data-slot must be a static token')
   })
 
   it('does not register component boundaries that cannot render DOM', () => {
