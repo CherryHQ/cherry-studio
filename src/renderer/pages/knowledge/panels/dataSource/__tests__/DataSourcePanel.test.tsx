@@ -4,10 +4,18 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import DataSourcePanel from '../DataSourcePanel'
+import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
+const defaultOnPreviewFile = vi.fn()
+
+type TestDataSourcePanelProps = Omit<DataSourcePanelProps, 'onPreviewFile'> &
+  Partial<Pick<DataSourcePanelProps, 'onPreviewFile'>>
+
+const DataSourcePanel = ({ onPreviewFile = defaultOnPreviewFile, ...props }: TestDataSourcePanelProps) => (
+  <DataSourcePanelComponent {...props} onPreviewFile={onPreviewFile} />
+)
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
@@ -231,8 +239,12 @@ vi.mock('@renderer/utils/error', () => ({
 
 // Isolate the panel's activate dispatch from the real system-open hook (which touches window.api).
 const previewSourceMock = vi.hoisted(() => vi.fn())
+const invalidatePreviewRequestsMock = vi.hoisted(() => vi.fn())
 vi.mock('../../../hooks/usePreviewKnowledgeSource', () => ({
-  usePreviewKnowledgeSource: () => ({ previewSource: previewSourceMock })
+  usePreviewKnowledgeSource: () => ({
+    invalidatePreviewRequests: invalidatePreviewRequestsMock,
+    previewSource: previewSourceMock
+  })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -605,7 +617,7 @@ describe('DataSourcePanel', () => {
     expect(onDelete).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'file-2' }))
   })
 
-  it('opens the source with the system tool on a file row click instead of viewing chunks', () => {
+  it('dispatches a file row click to source preview instead of viewing chunks', () => {
     const onItemClick = vi.fn()
     const item = createFileItem({ id: 'file-1', originName: '季度报告.pdf' })
 
@@ -627,7 +639,7 @@ describe('DataSourcePanel', () => {
     expect(onItemClick).not.toHaveBeenCalled()
   })
 
-  it('opens the source with the system tool on a url row click', () => {
+  it('dispatches a URL row click to source preview', () => {
     const onItemClick = vi.fn()
     const item = createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })
 
@@ -691,6 +703,10 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(screen.getByText('本地资料夹'))
 
+    expect(invalidatePreviewRequestsMock).toHaveBeenCalledOnce()
+    expect(invalidatePreviewRequestsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onDrillIntoDirectory.mock.invocationCallOrder[0]
+    )
     expect(onDrillIntoDirectory).toHaveBeenCalledWith(item)
     expect(onItemClick).not.toHaveBeenCalled()
     expect(previewSourceMock).not.toHaveBeenCalled()
@@ -720,6 +736,10 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(backButton)
 
+    expect(invalidatePreviewRequestsMock).toHaveBeenCalledOnce()
+    expect(invalidatePreviewRequestsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onNavigateUp.mock.invocationCallOrder[0]
+    )
     expect(onNavigateUp).toHaveBeenCalledTimes(1)
   })
 
