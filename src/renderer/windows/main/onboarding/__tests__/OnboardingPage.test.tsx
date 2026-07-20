@@ -186,6 +186,20 @@ describe('OnboardingPage', () => {
     expect(responsiveStyles).toMatch(/--navbar-height:\s*var\(--app-top-chrome-height\)/)
   })
 
+  it('uses an elevated welcome layout with clear text hierarchy and intentional spacing', () => {
+    render(<OnboardingPage onComplete={vi.fn()} />)
+
+    const logo = screen.getByRole('img', { name: 'Cherry Studio' })
+    const welcomeContent = logo.parentElement
+    const primaryAction = screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })
+
+    expect(welcomeContent?.parentElement).toHaveClass('pb-20')
+    expect(logo.nextElementSibling).toHaveClass('mt-5')
+    expect(screen.getByText('onboarding.welcome.subtitle')).toHaveClass('text-foreground-secondary')
+    expect(primaryAction.parentElement).toHaveClass('mt-8')
+    expect(screen.getByText('onboarding.welcome.setup_hint')).toHaveClass('mt-4')
+  })
+
   it('syncs CherryIN models before moving a fresh install to model selection', async () => {
     enabledProvidersMock.splice(0, enabledProvidersMock.length, { id: 'cherryai', isEnabled: true })
     enabledModelsMock.splice(0, enabledModelsMock.length, {

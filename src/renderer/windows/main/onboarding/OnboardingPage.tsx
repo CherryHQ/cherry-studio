@@ -106,7 +106,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
             type="button"
             variant="ghost"
             size="sm"
-            className="nodrag text-muted-foreground"
+            className="nodrag text-foreground-secondary hover:text-foreground"
             onClick={() => void complete()}
             disabled={isCompleting}>
             {t('onboarding.skip')}
@@ -118,14 +118,14 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
       <div className="flex min-h-0 flex-1 px-2 pb-2">
         <section className="relative flex min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
           {step === 'welcome' && (
-            <div className="flex h-full w-full items-center justify-center px-6">
-              <div className="flex w-full max-w-[420px] flex-col items-center gap-6">
+            <div className="flex h-full w-full items-center justify-center px-6 pb-20">
+              <div className="flex w-full max-w-[420px] flex-col items-center">
                 <img src={AppLogo} alt="Cherry Studio" className="size-16 rounded-xl" />
-                <div className="space-y-2 text-center">
+                <div className="mt-5 space-y-2 text-center">
                   <h1 className="m-0 font-semibold text-2xl text-foreground">{t('onboarding.welcome.title')}</h1>
-                  <p className="m-0 text-foreground-muted text-sm">{t('onboarding.welcome.subtitle')}</p>
+                  <p className="m-0 text-foreground-secondary text-sm">{t('onboarding.welcome.subtitle')}</p>
                 </div>
-                <div className="flex w-full flex-col gap-3">
+                <div className="mt-8 flex w-full flex-col gap-3">
                   <Button
                     type="button"
                     size="lg"
@@ -150,7 +150,9 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                     {t('onboarding.welcome.other_provider')}
                   </Button>
                 </div>
-                <p className="m-0 text-center text-foreground-muted text-xs">{t('onboarding.welcome.setup_hint')}</p>
+                <p className="mt-4 mb-0 text-center text-foreground-muted text-xs">
+                  {t('onboarding.welcome.setup_hint')}
+                </p>
               </div>
             </div>
           )}
