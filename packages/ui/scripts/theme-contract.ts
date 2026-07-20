@@ -144,6 +144,55 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'error-border'
 ] as const
 
+/**
+ * Frozen Tailwind compatibility surface for historical semantic utilities.
+ * These lists are shrink-only: adding a foundation token must not expose a
+ * new utility unless an existing compatibility consumer requires it.
+ */
+export const COMPATIBILITY_SEMANTIC_COLOR_TOKENS = [
+  'primary-hover',
+  'destructive-hover',
+  'foreground-secondary',
+  'foreground-muted',
+  'menu-item-hover',
+  'border-muted',
+  'border-hover',
+  'border-active',
+  'secondary-hover',
+  'secondary-active',
+  'ghost-hover',
+  'ghost-active'
+] as const
+
+export const COMPATIBILITY_STATUS_COLOR_TOKENS = [
+  'error-base',
+  'error-text',
+  'error-bg',
+  'error-text-hover',
+  'error-bg-hover',
+  'error-border-hover',
+  'error-active',
+  'success-base',
+  'success-text-hover',
+  'success-bg',
+  'success-bg-hover',
+  'warning-base',
+  'warning-text-hover',
+  'warning-bg',
+  'warning-bg-hover',
+  'warning-active',
+  'info-base',
+  'info-text-hover',
+  'info-bg',
+  'info-bg-hover',
+  'info-active'
+] as const
+
+export const COMPATIBILITY_COLOR_TOKENS = [
+  ...COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
+  ...COMPATIBILITY_STATUS_COLOR_TOKENS
+] as const
+
 export const CHERRY_PRODUCT_SURFACE_PAIRS = [
   ['background-subtle', 'background-subtle-foreground'],
   ['success', 'success-foreground'],

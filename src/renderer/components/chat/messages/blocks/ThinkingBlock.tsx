@@ -39,10 +39,10 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
 
   return (
     <div
-      className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
+      className="relative text-muted-foreground [&_.markdown>p:only-child]:mb-0!"
       style={
         {
-          '--markdown-foreground': 'var(--color-foreground-muted)',
+          '--markdown-foreground': 'var(--muted-foreground)',
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize
         } as CSSProperties
@@ -94,7 +94,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
             showTitlePreview && previewText ? (
               <span
                 aria-hidden="true"
-                className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] text-foreground-muted leading-5">
+                className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] text-muted-foreground leading-5">
                 {previewText}
               </span>
             ) : null
@@ -104,7 +104,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
       <div
         id={contentId}
         hidden={!isExpanded}
-        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-foreground-secondary leading-5">
+        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-muted-foreground leading-5">
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </div>
     </div>

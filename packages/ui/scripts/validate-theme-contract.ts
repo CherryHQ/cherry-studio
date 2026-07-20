@@ -6,7 +6,11 @@ import {
   CHERRY_PRODUCT_COLOR_TOKENS,
   CHERRY_PRODUCT_SURFACE_PAIRS,
   CHERRY_PRODUCT_VARIABLE_TOKENS,
+  COMPATIBILITY_COLOR_TOKENS,
+  COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
+  COMPATIBILITY_STATUS_COLOR_TOKENS,
   RUNTIME_THEME_INPUT_TOKENS,
+  SHADCN_COLOR_TOKENS,
   SHADCN_SURFACE_PAIRS,
   SHADCN_VARIABLE_TOKENS
 } from './theme-contract'
@@ -133,6 +137,20 @@ function assertRequiredDeclarations(
 
   if (missing.length > 0) {
     throw new Error(`[theme-contract] ${label} is missing root declarations: ${missing.join(', ')}`)
+  }
+}
+
+function assertCompatibilityTokensDeclared(
+  label: string,
+  tokenNames: readonly string[],
+  source: string,
+  sourceName: string
+): void {
+  const declarations = new Set(extractDeclarations(source, sourceName).map((declaration) => declaration.name))
+  const missing = tokenNames.map((token) => `--cs-${token}`).filter((name) => !declarations.has(name))
+
+  if (missing.length > 0) {
+    throw new Error(`[theme-contract] ${label} references missing foundation variables: ${missing.join(', ')}`)
   }
 }
 
@@ -263,15 +281,36 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
   assertUnique('Shadcn variables', SHADCN_VARIABLE_TOKENS)
   assertUnique('product variables', CHERRY_PRODUCT_VARIABLE_TOKENS)
   assertUnique('Tailwind product colors', CHERRY_PRODUCT_COLOR_TOKENS)
+  assertUnique('compatibility semantic colors', COMPATIBILITY_SEMANTIC_COLOR_TOKENS)
+  assertUnique('compatibility status colors', COMPATIBILITY_STATUS_COLOR_TOKENS)
+  assertUnique('compatibility colors', COMPATIBILITY_COLOR_TOKENS)
 
   const productVariables = new Set<string>(CHERRY_PRODUCT_VARIABLE_TOKENS)
   const shadcnVariables = new Set<string>(SHADCN_VARIABLE_TOKENS)
+  const canonicalColors = new Set<string>([...SHADCN_COLOR_TOKENS, ...CHERRY_PRODUCT_COLOR_TOKENS])
 
   for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
     if (!productVariables.has(token)) {
       throw new Error(`[theme-contract] Tailwind product color ${token} is missing from the product contract`)
     }
   }
+  for (const token of COMPATIBILITY_COLOR_TOKENS) {
+    if (canonicalColors.has(token)) {
+      throw new Error(`[theme-contract] compatibility color ${token} overlaps the canonical color contract`)
+    }
+  }
+  assertCompatibilityTokensDeclared(
+    'compatibility semantic colors',
+    COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
+    sources.semanticColors,
+    'tokens/colors/semantic.css'
+  )
+  assertCompatibilityTokensDeclared(
+    'compatibility status colors',
+    COMPATIBILITY_STATUS_COLOR_TOKENS,
+    sources.statusColors,
+    'tokens/colors/status.css'
+  )
   assertSurfacePairs('Shadcn contract', SHADCN_SURFACE_PAIRS, shadcnVariables)
   assertSurfacePairs('product contract', CHERRY_PRODUCT_SURFACE_PAIRS, productVariables)
 

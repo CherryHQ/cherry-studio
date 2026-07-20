@@ -376,7 +376,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                       {t('settings.models.add.supported_text_delta.label')}
                     </span>
                     <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>
-                      <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-foreground-secondary">
+                      <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground">
                         <CircleHelp aria-hidden className="size-3" />
                       </span>
                     </Tooltip>

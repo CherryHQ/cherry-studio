@@ -370,10 +370,7 @@ export function ContentSearch({
                   <ActionIconButton
                     onClick={userOutlinedButtonOnClick}
                     icon={
-                      <User
-                        size={18}
-                        style={{ color: includeUser ? 'var(--color-primary)' : 'var(--color-foreground-secondary)' }}
-                      />
+                      <User size={18} style={{ color: includeUser ? 'var(--primary)' : 'var(--muted-foreground)' }} />
                     }
                   />{' '}
                 </Tooltip>
@@ -385,7 +382,7 @@ export function ContentSearch({
                     <CaseSensitive
                       size={18}
                       style={{
-                        color: isCaseSensitive ? 'var(--color-primary)' : 'var(--color-foreground-secondary)'
+                        color: isCaseSensitive ? 'var(--primary)' : 'var(--muted-foreground)'
                       }}
                     />
                   }
@@ -397,7 +394,7 @@ export function ContentSearch({
                   icon={
                     <WholeWord
                       size={18}
-                      style={{ color: isWholeWord ? 'var(--color-primary)' : 'var(--color-foreground-secondary)' }}
+                      style={{ color: isWholeWord ? 'var(--primary)' : 'var(--muted-foreground)' }}
                     />
                   }
                 />

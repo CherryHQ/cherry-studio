@@ -6,6 +6,9 @@ import { describe, expect, it } from 'vitest'
 import {
   CHERRY_PRODUCT_COLOR_TOKENS,
   CHERRY_PRODUCT_VARIABLE_TOKENS,
+  COMPATIBILITY_COLOR_TOKENS,
+  COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
+  COMPATIBILITY_STATUS_COLOR_TOKENS,
   RUNTIME_THEME_INPUT_TOKENS,
   SHADCN_COLOR_TOKENS,
   SHADCN_VARIABLE_TOKENS
@@ -31,11 +34,16 @@ interface MigrationRegistry {
 describe('design token contract', () => {
   it('keeps every product variable stable and Tailwind exposure explicit', () => {
     const productTokens = new Set<string>(CHERRY_PRODUCT_VARIABLE_TOKENS)
+    const canonicalColorTokens = new Set<string>([...SHADCN_COLOR_TOKENS, ...CHERRY_PRODUCT_COLOR_TOKENS])
 
     expect(productTokens.size).toBe(CHERRY_PRODUCT_VARIABLE_TOKENS.length)
+    expect(new Set(COMPATIBILITY_COLOR_TOKENS).size).toBe(COMPATIBILITY_COLOR_TOKENS.length)
 
     for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
       expect(productTokens.has(token)).toBe(true)
+    }
+    for (const token of COMPATIBILITY_COLOR_TOKENS) {
+      expect(canonicalColorTokens.has(token)).toBe(false)
     }
   })
 
@@ -79,6 +87,14 @@ describe('design token contract', () => {
 
     for (const token of CHERRY_PRODUCT_VARIABLE_TOKENS) {
       expect(productContractSource).toMatch(new RegExp(`^\\s*--cs-${token}:`, 'm'))
+    }
+
+    for (const token of COMPATIBILITY_SEMANTIC_COLOR_TOKENS) {
+      expect(semanticSource).toMatch(new RegExp(`^\\s*--cs-${token}:`, 'm'))
+    }
+
+    for (const token of COMPATIBILITY_STATUS_COLOR_TOKENS) {
+      expect(statusSource).toMatch(new RegExp(`^\\s*--cs-${token}:`, 'm'))
     }
 
     expect(shadcnSource).not.toContain('var(--color-')

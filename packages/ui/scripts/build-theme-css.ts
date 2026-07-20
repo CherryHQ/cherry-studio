@@ -2,13 +2,21 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { CHERRY_PRODUCT_COLOR_TOKENS, SHADCN_COLOR_TOKENS } from './theme-contract'
+import {
+  CHERRY_PRODUCT_COLOR_TOKENS,
+  COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
+  COMPATIBILITY_STATUS_COLOR_TOKENS,
+  SHADCN_COLOR_TOKENS
+} from './theme-contract'
 import { loadThemeContractSources, validateThemeContractSources } from './validate-theme-contract'
 
 export {
   CHERRY_PRODUCT_COLOR_TOKENS,
   CHERRY_PRODUCT_SURFACE_PAIRS,
   CHERRY_PRODUCT_VARIABLE_TOKENS,
+  COMPATIBILITY_COLOR_TOKENS,
+  COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
+  COMPATIBILITY_STATUS_COLOR_TOKENS,
   RUNTIME_THEME_INPUT_TOKENS,
   SHADCN_COLOR_TOKENS,
   SHADCN_SURFACE_PAIRS,
@@ -87,8 +95,6 @@ const ANIMATION_LINES = [
 
 export interface ThemeContractInputs {
   primitiveColors: string[]
-  semanticColors: string[]
-  statusColors: string[]
   typographyTokens: string[]
 }
 
@@ -100,7 +106,7 @@ export function extractTokenNames(source: string): string[] {
   return dedupe([...source.matchAll(/^\s*--cs-([a-z0-9-]+)\s*:/gm)].map((match) => match[1]))
 }
 
-function toPrefixedMappings(tokenNames: string[], targetPrefix: string, sourcePrefix = '--cs-'): string[] {
+function toPrefixedMappings(tokenNames: readonly string[], targetPrefix: string, sourcePrefix = '--cs-'): string[] {
   return tokenNames.map((tokenName) => `--${targetPrefix}${tokenName}: var(${sourcePrefix}${tokenName});`)
 }
 
@@ -119,16 +125,18 @@ function buildSection(title: string, lines: string[]): string {
 }
 
 export function buildThemeContractCss(inputs: ThemeContractInputs): string {
-  const canonicalTokenNames = new Set<string>([...SHADCN_COLOR_TOKENS, ...CHERRY_PRODUCT_COLOR_TOKENS])
-  const compatibilitySemanticTokens = inputs.semanticColors.filter((token) => !canonicalTokenNames.has(token))
-  const compatibilityStatusTokens = inputs.statusColors.filter((token) => !canonicalTokenNames.has(token))
-
   const sections = [
     buildSection('Compatibility: Primitive Colors', toPrefixedMappings(inputs.primitiveColors, 'color-')),
     buildSection('Canonical Shadcn Colors', toColorMappings(SHADCN_COLOR_TOKENS)),
     buildSection('Cherry Studio Product Colors', toColorMappings(CHERRY_PRODUCT_COLOR_TOKENS, '--cs-')),
-    buildSection('Compatibility: Existing Semantic Colors', toPrefixedMappings(compatibilitySemanticTokens, 'color-')),
-    buildSection('Compatibility: Existing Status Colors', toPrefixedMappings(compatibilityStatusTokens, 'color-')),
+    buildSection(
+      'Compatibility: Existing Semantic Colors',
+      toPrefixedMappings(COMPATIBILITY_SEMANTIC_COLOR_TOKENS, 'color-')
+    ),
+    buildSection(
+      'Compatibility: Existing Status Colors',
+      toPrefixedMappings(COMPATIBILITY_STATUS_COLOR_TOKENS, 'color-')
+    ),
     buildSection('Spacing', SPACING_COMMENT_LINES),
     buildSection('Radius', RADIUS_LINES),
     buildSection('Typography', toDirectMappings(inputs.typographyTokens)),
@@ -169,8 +177,6 @@ export async function loadThemeContractInputs(stylesDir = STYLES_DIR): Promise<T
 
   return {
     primitiveColors: extractTokenNames(sources.primitiveColors),
-    semanticColors: extractTokenNames(sources.semanticColors),
-    statusColors: extractTokenNames(sources.statusColors),
     typographyTokens: extractTokenNames(sources.typography)
   }
 }

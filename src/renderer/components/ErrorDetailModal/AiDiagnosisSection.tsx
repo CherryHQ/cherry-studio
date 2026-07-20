@@ -133,7 +133,7 @@ const AiDiagnosisSectionWithStatus = memo(
             <button
               type="button"
               className="cursor-pointer rounded border px-2 py-1 text-xs"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--foreground)' }}
+              style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
               onClick={() => void runDiagnosis()}>
               {t('common.retry')}
             </button>

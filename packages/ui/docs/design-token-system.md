@@ -221,6 +221,11 @@ text-success-foreground
 authored CSS references the official variable or stable product `--cs-*` role directly. Existing non-semantic
 palette utilities remain available during primitive cleanup, but new shared UI should prefer semantic utilities.
 
+Historical semantic and status utilities are exposed only by the frozen
+`COMPATIBILITY_SEMANTIC_COLOR_TOKENS` and `COMPATIBILITY_STATUS_COLOR_TOKENS` lists. Adding a variable to a
+foundation stylesheet does not create a Tailwind color automatically. These compatibility lists are shrink-only
+and must not be used as the registration path for new component APIs.
+
 ### 3.6 Internal ownership boundaries
 
 Shared application concepts use a Cherry Studio domain rather than a second public ownership prefix:
