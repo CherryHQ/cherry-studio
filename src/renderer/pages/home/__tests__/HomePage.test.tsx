@@ -89,6 +89,9 @@ const homeMocks = vi.hoisted(() => ({
   routeSearch: {} as Record<string, unknown>,
   routeTopic: undefined as Topic | undefined,
   routeTopicLoading: false,
+  // Topics resolvable by id through `useTopicById` (resume-by-last-used reads it); an id
+  // missing from the map behaves like a deleted topic.
+  topicsById: new Map<string, Topic>(),
   setShowSidebar: vi.fn(),
   topicPanelTopicsSource: undefined as unknown,
   isActiveTab: false
@@ -294,7 +297,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       }
     },
     useTopicById: (topicId?: string) => ({
-      topic: topicId ? homeMocks.routeTopic : undefined,
+      topic: topicId ? (homeMocks.topicsById.get(topicId) ?? homeMocks.routeTopic) : undefined,
       isLoading: homeMocks.routeTopicLoading,
       error: undefined
     })
@@ -706,6 +709,7 @@ describe('HomePage', () => {
     homeMocks.routeSearch = {}
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
+    homeMocks.topicsById.clear()
     homeMocks.activeTopicOptions = undefined
     homeMocks.assistantResourceListTopicsSource = undefined
     homeMocks.assistantTopicsSourceOptions = []
@@ -1195,6 +1199,53 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-off-page'))
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('resumes the last-used topic over the most-recently-updated one on first entry', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    // The last-viewed topic is older than the latest-edited one; re-entry must land on
+    // what the user was looking at, not what last changed.
+    homeMocks.persistCacheValues.set('ui.chat.last_used_topic_id', 'topic-last-viewed')
+    homeMocks.topicsById.set('topic-last-viewed', {
+      ...historyTopic,
+      id: 'topic-last-viewed',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-09T00:00:00.000Z' }
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-last-viewed'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the most-recently-updated topic when the last-used topic no longer exists', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.persistCacheValues.set('ui.chat.last_used_topic_id', 'topic-deleted')
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-09T00:00:00.000Z' }
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('prefers the route topic over the last-used topic', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.routeSearch = { topicId: 'topic-from-url' }
+    homeMocks.persistCacheValues.set('ui.chat.last_used_topic_id', 'topic-last-viewed')
+    homeMocks.topicsById.set('topic-last-viewed', {
+      ...historyTopic,
+      id: 'topic-last-viewed',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-from-url'))
   })
 
   it('creates an empty topic on modern first entry only when the topic library is empty', async () => {
