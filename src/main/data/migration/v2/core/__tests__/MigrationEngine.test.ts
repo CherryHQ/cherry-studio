@@ -40,10 +40,7 @@ const mockPaths: MigrationPaths = {
   agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   diagnosticsJournalFile: '/tmp/test-userdata/migration-diagnostics-v1.json',
-  migrationExportDir: '/tmp/test-userdata/migration_temp',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
-  logsDir: '/tmp/logs',
-  homeDir: '/tmp',
   migrationsFolder: '/tmp/test-migrations'
 }
 
@@ -463,6 +460,7 @@ describe('MigrationEngine', () => {
   })
 
   it('profiles the real resurrected user_model write and preserves its terminal classification', async () => {
+    const performanceNow = vi.spyOn(performance, 'now').mockReturnValue(0)
     const nameCanary = `PRIVATE_MODEL_NAME_${'n'.repeat(300)}`
     const groupCanary = `PRIVATE_MODEL_GROUP_${'g'.repeat(5_000)}`
     const original = Object.assign(new Error(`SQLITE_TOOBIG ${nameCanary} ${groupCanary}`), {
@@ -520,6 +518,7 @@ describe('MigrationEngine', () => {
     engine.registerMigrators([migrator])
 
     const result = await engine.run({}, '/tmp/dexie_export')
+    performanceNow.mockRestore()
 
     expect(result).toMatchObject({ success: false, error: expect.stringContaining('SQLITE_TOOBIG') })
     expect(diagnostics.recordEvent).toHaveBeenCalledWith(

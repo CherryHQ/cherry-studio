@@ -372,7 +372,7 @@ const MigrationApp: React.FC = () => {
         localStorageExportPath: localStorageFilePath
       })
     } catch (error) {
-      logger.error('Migration renderer export failed')
+      logger.error('Migration renderer export failed', error as Error)
       const message = errorMessage(error)
       setLocalMigrationError(message)
       void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)

@@ -4,6 +4,7 @@ import type {
   MigrationWindowFailureClaim,
   MigrationWindowManager
 } from '@data/migration/v2/window/MigrationWindowManager'
+import type * as PlatformModule from '@main/core/platform'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -128,6 +129,12 @@ function stubMigrationV2(options: MigrationV2StubOptions = {}) {
     const { classifyMigrationError } = await vi.importActual<{
       classifyMigrationError(error: unknown): ClassifiedMigrationError
     }>('@data/migration/v2/diagnostics/migrationErrorClassifier')
+    const { isSchemaOutOfSyncError } = await vi.importActual<{
+      isSchemaOutOfSyncError(error: unknown): boolean
+    }>('@data/migration/v2/core/migrationErrors')
+    const { getBlockMessage } = await vi.importActual<{
+      getBlockMessage(reason: string, details: Record<string, string>): string
+    }>('@data/migration/v2/core/versionPolicy')
     const { createMigrationWindowFailureClaim } = await vi.importActual<{
       createMigrationWindowFailureClaim(): MigrationWindowFailureClaim
     }>('@data/migration/v2/window/MigrationWindowManager')
@@ -154,6 +161,8 @@ function stubMigrationV2(options: MigrationV2StubOptions = {}) {
       setDataLocationNotice: setDataLocationNoticeMock,
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       classifyMigrationError,
+      getBlockMessage,
+      isSchemaOutOfSyncError,
       createMigrationWindowFailureClaim,
       createMigrationDiagnosticsCoordinator: () =>
         options.diagnosticsCoordinator ?? new MigrationDiagnosticsCoordinatorMock(),
@@ -186,6 +195,13 @@ function stubApplication() {
       quit: appQuitMock,
       relaunch: appRelaunchMock
     }
+  }))
+}
+
+function stubPlatform(isDev: boolean) {
+  vi.doMock('@main/core/platform', async () => ({
+    ...(await vi.importActual<typeof PlatformModule>('@main/core/platform')),
+    isDev
   }))
 }
 
@@ -264,6 +280,7 @@ function registeredDiagnosticsCapabilities(): RegisteredMigrationDiagnosticsCapa
 
 beforeEach(() => {
   vi.resetModules()
+  stubPlatform(false)
   resolveMigrationPathsMock.mockReset().mockReturnValue(defaultResolveResult)
   initializeMock.mockReset().mockReturnValue(undefined)
   registerMigratorsMock.mockReset()
@@ -564,23 +581,26 @@ describe('runV2MigrationGate', () => {
   })
 
   describe('handled path — schema out of sync', () => {
-    it('keeps a schema failure on the same safe typed presenter in dev', async () => {
+    it('shows the actionable schema reset guidance only in development', async () => {
       initializeMock.mockImplementation(() => {
         throw schemaOutOfSyncError()
       })
       stubMigrationV2()
       stubElectron()
       stubApplication()
+      stubPlatform(true)
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'database_initialize_failed' })
+      expect(presentDiagnosticFailureMock).not.toHaveBeenCalled()
+      expect(showErrorBoxMock).toHaveBeenCalledWith(
+        'Database Schema Out of Sync (Dev)',
+        expect.stringContaining('/mock/userData/cherrystudio.sqlite')
       )
-      expect(showErrorBoxMock).not.toHaveBeenCalled()
-      expect(JSON.stringify(presentDiagnosticFailureMock.mock.calls)).not.toContain('/mock/userData')
+      expect(showErrorBoxMock.mock.calls[0]?.[1]).toContain('rm -f')
+      expect(showErrorBoxMock.mock.calls[0]?.[1]).toContain('table `agent` already exists')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
@@ -603,22 +623,26 @@ describe('runV2MigrationGate', () => {
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
-    it('does not expose a non-schema raw error or database path in dev', async () => {
+    it('shows both likely causes and the database path for ambiguous development failures', async () => {
       initializeMock.mockImplementation(() => {
         throw new Error('DB unavailable')
       })
       stubMigrationV2()
       stubElectron()
       stubApplication()
+      stubPlatform(true)
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      const rendered = JSON.stringify(presentDiagnosticFailureMock.mock.calls)
-      expect(rendered).not.toContain('DB unavailable')
-      expect(rendered).not.toContain('/mock/userData/cherrystudio.sqlite')
-      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(presentDiagnosticFailureMock).not.toHaveBeenCalled()
+      expect(showErrorBoxMock).toHaveBeenCalledWith(
+        'Migration Failed (Dev) - Application Cannot Start',
+        expect.stringContaining('DB unavailable')
+      )
+      expect(showErrorBoxMock.mock.calls[0]?.[1]).toContain('/mock/userData/cherrystudio.sqlite')
+      expect(showErrorBoxMock.mock.calls[0]?.[1]).toContain('Do NOT just delete the DB')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
   })
@@ -818,13 +842,11 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'version_window_failed' })
-      )
-      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(presentDiagnosticFailureMock).not.toHaveBeenCalled()
+      expect(showErrorBoxMock).toHaveBeenCalledWith('Version Upgrade Required', expect.stringContaining('1.9.0'))
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(closeMock).toHaveBeenCalledTimes(1)
-      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(2)
+      expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
     })
 
     it('proceeds to migration window when version check passes', async () => {
@@ -1194,20 +1216,6 @@ describe('runV2MigrationGate', () => {
         }
       },
       {
-        expectedCode: 'version_window_failed',
-        configure: () => {
-          needsMigrationMock.mockResolvedValue(true)
-          evaluateCandidateVersionMock.mockReturnValue({
-            check: { outcome: 'block', reason: 'no_version_log', details: { requiredVersion: '1.9.12' } },
-            previousVersion: null,
-            versionLogExists: false
-          })
-          migrationWindowCreateMock.mockImplementation(() => {
-            throw new Error('version window')
-          })
-        }
-      },
-      {
         expectedCode: 'migration_window_failed',
         configure: () => {
           needsMigrationMock.mockResolvedValue(true)
@@ -1233,68 +1241,58 @@ describe('runV2MigrationGate', () => {
       expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(expect.objectContaining({ code: expectedCode }))
     })
 
-    it.each([
-      {
-        route: 'version guidance',
-        expectedCode: 'version_window_failed',
-        configure: () => {
-          needsMigrationMock.mockResolvedValue(true)
-          evaluateCandidateVersionMock.mockReturnValue({
-            check: { outcome: 'block', reason: 'no_version_log', details: { requiredVersion: '1.9.12' } },
-            previousVersion: null,
-            versionLogExists: false
-          })
-        }
-      },
-      {
-        route: 'migration',
-        expectedCode: 'migration_window_failed',
-        configure: () => {
-          needsMigrationMock.mockResolvedValue(true)
-          evaluateCandidateVersionMock.mockReturnValue({
-            check: { outcome: 'pass' },
-            previousVersion: '1.9.12',
-            versionLogExists: true
-          })
-        }
-      }
-    ] as const)(
-      'routes a real $route window load rejection through exactly one $expectedCode presenter',
-      async ({ expectedCode, configure }) => {
-        configure()
-        const loadError = new Error('PRIVATE_LOAD_FAILURE_/Users/alice')
-        const nativeWindow = makeGateWindow(() => Promise.reject(loadError))
-        stubElectron(() => nativeWindow)
-        const windowManager = await createRealMigrationWindowManager()
-        stubMigrationV2({ migrationWindowManager: windowManager })
-        stubApplication()
+    it('restores version guidance when its real window load rejects', async () => {
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'block', reason: 'no_version_log', details: { requiredVersion: '1.9.12' } },
+        previousVersion: null,
+        versionLogExists: false
+      })
+      const nativeWindow = makeGateWindow(() => Promise.reject(new Error('PRIVATE_LOAD_FAILURE_/Users/alice')))
+      stubElectron(() => nativeWindow)
+      const windowManager = await createRealMigrationWindowManager()
+      stubMigrationV2({ migrationWindowManager: windowManager })
+      stubApplication()
 
-        const { runV2MigrationGate } = await loadModule()
-        const result = await runV2MigrationGate()
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
 
-        expect(result).toBe('handled')
-        expect(nativeWindow.loadFile).toHaveBeenCalledTimes(1)
-        expect(presentDiagnosticFailureMock).toHaveBeenCalledTimes(1)
-        expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(expect.objectContaining({ code: expectedCode }))
-        expect(JSON.stringify(presentDiagnosticFailureMock.mock.calls)).not.toContain('PRIVATE_LOAD_FAILURE')
-        expect(appQuitMock).toHaveBeenCalledTimes(1)
-      }
-    )
+      expect(result).toBe('handled')
+      expect(nativeWindow.loadFile).toHaveBeenCalledTimes(1)
+      expect(presentDiagnosticFailureMock).not.toHaveBeenCalled()
+      expect(showErrorBoxMock).toHaveBeenCalledWith('Version Upgrade Required', expect.stringContaining('1.9.12'))
+      expect(JSON.stringify(showErrorBoxMock.mock.calls)).not.toContain('PRIVATE_LOAD_FAILURE')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('routes a real migration window load rejection through one typed presenter', async () => {
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.12',
+        versionLogExists: true
+      })
+      const loadError = new Error('PRIVATE_LOAD_FAILURE_/Users/alice')
+      const nativeWindow = makeGateWindow(() => Promise.reject(loadError))
+      stubElectron(() => nativeWindow)
+      const windowManager = await createRealMigrationWindowManager()
+      stubMigrationV2({ migrationWindowManager: windowManager })
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(nativeWindow.loadFile).toHaveBeenCalledTimes(1)
+      expect(presentDiagnosticFailureMock).toHaveBeenCalledTimes(1)
+      expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'migration_window_failed' })
+      )
+      expect(JSON.stringify(presentDiagnosticFailureMock.mock.calls)).not.toContain('PRIVATE_LOAD_FAILURE')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
 
     describe.each([
-      {
-        route: 'version guidance',
-        loadFailureCode: 'version_window_failed',
-        decision: 'exit',
-        configure: () => {
-          needsMigrationMock.mockResolvedValue(true)
-          evaluateCandidateVersionMock.mockReturnValue({
-            check: { outcome: 'block', reason: 'no_version_log', details: { requiredVersion: '1.9.12' } },
-            previousVersion: null,
-            versionLogExists: false
-          })
-        }
-      },
       {
         route: 'migration',
         loadFailureCode: 'migration_window_failed',
@@ -1388,8 +1386,8 @@ describe('runV2MigrationGate', () => {
           expect(recordEvent.mock.calls.filter(([event]) => event.state === 'failed')).toHaveLength(1)
           expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(2)
           expect(closeMock).toHaveBeenCalledTimes(1)
-          expect(appQuitMock).toHaveBeenCalledTimes(decision === 'exit' ? 1 : 0)
-          expect(appRelaunchMock).toHaveBeenCalledTimes(decision === 'retry' ? 1 : 0)
+          expect(appQuitMock).not.toHaveBeenCalled()
+          expect(appRelaunchMock).toHaveBeenCalledTimes(1)
           expect(JSON.stringify(snapshot)).not.toContain('PRIVATE_LOAD_FAILURE')
           expect(JSON.stringify(snapshot)).not.toContain('PRIVATE_ELECTRON_DETAILS')
           expect(JSON.stringify(bundleInput.snapshot)).not.toContain('PRIVATE_LOAD_FAILURE')

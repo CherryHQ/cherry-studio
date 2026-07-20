@@ -7,6 +7,8 @@ import {
   createMigrationWindowFailureClaim,
   evaluateCandidateVersion,
   getAllMigrators,
+  getBlockMessage,
+  isSchemaOutOfSyncError,
   type MigrationDiagnosticBundleSaveResult,
   type MigrationDiagnosticNativeDecision,
   type MigrationDiagnosticNativeFailureCode,
@@ -27,7 +29,8 @@ import {
   type VersionBlockReason
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
-import { app } from 'electron'
+import { isDev } from '@main/core/platform'
+import { app, dialog } from 'electron'
 import semver from 'semver'
 
 const logger = loggerService.withContext('V2MigrationGate')
@@ -157,13 +160,12 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
 
   const presentFailure = async (
     code: MigrationDiagnosticNativeFailureCode,
-    options: { readonly allowUseDefault?: boolean; readonly retry?: 'relaunch' | 'none' } = {}
+    options: { readonly allowUseDefault?: boolean } = {}
   ): Promise<MigrationDiagnosticNativeDecision> => {
     await app.whenReady()
     return presentMigrationDiagnosticFailure({
       locale: app.getLocale(),
       code,
-      retry: options.retry ?? 'relaunch',
       ...(options.allowUseDefault ? { allowUseDefault: true } : {}),
       saveBundle: saveDiagnosticBundle,
       runSaveTransaction: runMigrationDiagnosticSaveTransaction
@@ -413,8 +415,43 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     engineInitialized = true
     migrationEngine.registerMigrators(getAllMigrators())
   } catch (error) {
-    logger.error('Migration database initialization failed')
+    logger.error('Migration database initialization failed', error as Error)
     finishFailedAttempt(error, 'initialize')
+
+    if (isDev) {
+      await app.whenReady()
+      if (isSchemaOutOfSyncError(error)) {
+        dialog.showErrorBox(
+          'Database Schema Out of Sync (Dev)',
+          `During v2 development (before release), the database schema can change at any time. ` +
+            `Your local database no longer matches the bundled migration SQL, so startup migration cannot continue.\n\n` +
+            `To fix this, delete the local database, then restart:\n\n` +
+            `  ${paths.databaseFile}\n\n` +
+            `Or run:\n  rm -f "${paths.databaseFile}"\n\n` +
+            `Then start the app again (pnpm dev).\n\n` +
+            `Original error: ${(error as Error).message}`
+        )
+      } else {
+        dialog.showErrorBox(
+          'Migration Failed (Dev) - Application Cannot Start',
+          `Startup migration failed while applying schema changes:\n\n` +
+            `  ${(error as Error).message}\n\n` +
+            `In development this is usually one of:\n\n` +
+            `  1. Your local database predates a schema change (incompatible legacy data). ` +
+            `If this is throwaway dev data, reset it and restart:\n` +
+            `       rm -f "${paths.databaseFile}"\n\n` +
+            `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
+            `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
+            `with real data.\n\n` +
+            `The application will now exit.`
+        )
+      }
+      if (engineInitialized) migrationEngine.close()
+      engineInitialized = false
+      application.quit()
+      return 'handled'
+    }
+
     const decision = await presentFailure('database_initialize_failed')
     if (engineInitialized) migrationEngine.close()
     engineInitialized = false
@@ -427,7 +464,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     needsMigration = await migrationEngine.needsMigration()
     recordEvent({ scope: 'gate', phase: 'validate', state: 'completed', code: 'unknown' })
   } catch (error) {
-    logger.error('Migration status probe failed')
+    logger.error('Migration status probe failed', error as Error)
     finishFailedAttempt(error, 'validate')
     const decision = await presentFailure('migration_status_probe_failed')
     migrationEngine.close()
@@ -511,9 +548,13 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       return 'handled'
     } catch (error) {
       const failure = windowFailureClaim.claim(async () => {
-        logger.error('Version guidance window failed')
+        logger.error('Version guidance window failed', error as Error)
         finishFailedAttempt(error, 'initialize')
-        await finishWindowFailure('version_window_failed')
+        unregisterMigrationIpcHandlers()
+        if (engineInitialized) migrationEngine.close()
+        engineInitialized = false
+        dialog.showErrorBox('Version Upgrade Required', getBlockMessage(versionCheck.reason, versionCheck.details))
+        application.quit()
       })
       await failure.completion
       return 'handled'
@@ -529,7 +570,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     return 'handled'
   } catch (error) {
     const failure = windowFailureClaim.claim(async () => {
-      logger.error('Migration window failed')
+      logger.error('Migration window failed', error as Error)
       finishFailedAttempt(error, 'initialize')
       await finishWindowFailure('migration_window_failed')
     })

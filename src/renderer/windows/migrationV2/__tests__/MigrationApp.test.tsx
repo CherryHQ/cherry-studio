@@ -460,9 +460,8 @@ describe('MigrationApp', () => {
     expect(screen.getByText(new RegExp(rendererFailure))).toBeInTheDocument()
     expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
     expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, rendererFailure)
-    expect(loggerErrorMock).toHaveBeenCalledWith('Migration renderer export failed')
-    expect(JSON.stringify(loggerErrorMock.mock.calls)).not.toContain('renderer-canary')
-    expect(JSON.stringify(loggerErrorMock.mock.calls)).not.toContain('/Users/private')
+    expect(loggerErrorMock).toHaveBeenCalledWith('Migration renderer export failed', expect.any(Error))
+    expect(loggerErrorMock.mock.calls[0]?.[1]).toMatchObject({ message: rendererFailure })
   })
 
   it('drives the error stage when the migration handoff rejects', async () => {
@@ -566,7 +565,7 @@ describe('MigrationApp', () => {
     })
 
     it('shows exactly the three support actions after a successful save', async () => {
-      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved', outputCount: 1 })
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
 
       render(<MigrationApp />)
       fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
@@ -596,7 +595,7 @@ describe('MigrationApp', () => {
     })
 
     it('catches a rejected support action and renders only a fixed localized failure', async () => {
-      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved', outputCount: 1 })
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
       migrationHookMock.actions.openEmail.mockRejectedValue(new Error('Bearer support-action-canary /Users/private'))
       const unhandledRejection = vi.fn()
       window.addEventListener('unhandledrejection', unhandledRejection)
@@ -615,7 +614,7 @@ describe('MigrationApp', () => {
     })
 
     it('disables all support actions while one is pending and prevents duplicate dispatch', async () => {
-      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved', outputCount: 1 })
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
       let resolveOpenEmail!: () => void
       migrationHookMock.actions.openEmail.mockImplementation(
         () =>
@@ -725,7 +724,7 @@ describe('MigrationApp', () => {
     })
 
     it('shows the existing support actions after saving completed-warning diagnostics', async () => {
-      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved', outputCount: 1 })
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
 
       render(<MigrationApp />)
       fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
@@ -751,7 +750,7 @@ describe('MigrationApp', () => {
     })
 
     it('shows the existing diagnostic save flow on the version-incompatible page', async () => {
-      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved', outputCount: 1 })
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
 
       render(<MigrationApp />)
       fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))

@@ -164,7 +164,7 @@ describe('MigrationIpcHandler', () => {
     it('uses only the Main-selected destination and returns the exact saved result', async () => {
       await expect(
         invoke(MigrationIpcChannels.SaveDiagnosticBundle, '/renderer-controlled/escape.zip', 'attacker@example.com')
-      ).resolves.toEqual({ status: 'saved', outputCount: 1 })
+      ).resolves.toEqual({ status: 'saved' })
 
       expect(diagnosticsSaveBundleMock).toHaveBeenCalledWith('/main-selected/migration-diagnostics.zip')
     })
@@ -262,7 +262,7 @@ describe('MigrationIpcHandler', () => {
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
 
       resolveOldSave({ status: 'saved' })
-      await expect(oldSave).resolves.toEqual({ status: 'saved', outputCount: 1 })
+      await expect(oldSave).resolves.toEqual({ status: 'saved' })
       await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).rejects.toThrow(
         /saved diagnostic bundle/i
       )
@@ -286,7 +286,7 @@ describe('MigrationIpcHandler', () => {
 
       resetMigrationData()
       resolveOldSave({ status: 'saved' })
-      await expect(oldSave).resolves.toEqual({ status: 'saved', outputCount: 1 })
+      await expect(oldSave).resolves.toEqual({ status: 'saved' })
       await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).rejects.toThrow(
         /saved diagnostic bundle/i
       )
@@ -342,10 +342,7 @@ describe('MigrationIpcHandler', () => {
         }
 
         await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
-        await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
-          status: 'saved',
-          outputCount: 1
-        })
+        await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({ status: 'saved' })
 
         expect(dialog.showSaveDialog).toHaveBeenCalledTimes(2)
       }
@@ -378,10 +375,7 @@ describe('MigrationIpcHandler', () => {
 
       resolveOldDialog({ canceled: true, filePath: undefined })
       await oldSave
-      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
-        status: 'saved',
-        outputCount: 1
-      })
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({ status: 'saved' })
       expect(dialog.showSaveDialog).toHaveBeenCalledTimes(2)
     })
 
@@ -464,10 +458,7 @@ describe('MigrationIpcHandler', () => {
 
     it('accepts all six sensitive channels only from the migration window top frame', async () => {
       await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(true)
-      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
-        status: 'saved',
-        outputCount: 1
-      })
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({ status: 'saved' })
       await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.CopySupportEmail)).resolves.toBe(true)

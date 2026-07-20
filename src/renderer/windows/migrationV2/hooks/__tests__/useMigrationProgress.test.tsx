@@ -155,7 +155,7 @@ describe('useMigrationProgress', () => {
   it('publishes only the exact renderer diagnostic-save result union', () => {
     type Expected =
       | { status: 'canceled' }
-      | { status: 'saved'; outputCount: 1 }
+      | { status: 'saved' }
       | {
           status: 'failed'
           code: 'dialog_failed' | 'snapshot_failed' | 'archive_failed' | 'publish_failed' | 'save_in_progress'

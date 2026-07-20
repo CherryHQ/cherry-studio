@@ -48,10 +48,7 @@ function paths(): MigrationPaths {
     customMiniAppsFile: path.join(testDir, 'Data', 'Files', 'custom-minapps.json'),
     legacyConfigFile: path.join(testDir, '.cherrystudio', 'config', 'config.json'),
     migrationsFolder: path.join(testDir, 'migrations'),
-    diagnosticsJournalFile: path.join(testDir, 'migration-diagnostics-v1.json'),
-    migrationExportDir: path.join(testDir, 'migration_temp'),
-    logsDir: path.join(testDir, 'logs'),
-    homeDir: testDir
+    diagnosticsJournalFile: path.join(testDir, 'migration-diagnostics-v1.json')
   })
 }
 

@@ -16,7 +16,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { CHERRY_HOME, LOGS_DIR } from '@main/core/paths/constants'
+import { CHERRY_HOME } from '@main/core/paths/constants'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
@@ -61,17 +61,11 @@ export interface MigrationPaths {
   readonly customMiniAppsFile: string
   /** {userData}/migration-diagnostics-v1.json — crash-safe migration diagnostics journal. */
   readonly diagnosticsJournalFile: string
-  /** {userData}/migration_temp — default migration diagnostic export directory. */
-  readonly migrationExportDir: string
 
   // ── Derived from cherryHome ──
 
   /** {cherryHome}/config/config.json — v1 legacy config file. */
   readonly legacyConfigFile: string
-  /** Central preboot-safe application logs directory. */
-  readonly logsDir: string
-  /** Parent of {cherryHome}; the centrally resolved user home directory. */
-  readonly homeDir: string
 
   // ── Build-time paths ──
 
@@ -223,10 +217,7 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     agentWorkspacesDir: path.join(currentUserData, 'Data', 'Agents'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
     diagnosticsJournalFile: path.join(currentUserData, 'migration-diagnostics-v1.json'),
-    migrationExportDir: path.join(currentUserData, 'migration_temp'),
     legacyConfigFile,
-    logsDir: LOGS_DIR,
-    homeDir: path.dirname(CHERRY_HOME),
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)
       : path.join(__dirname, '../../', MIGRATIONS_BASE_PATH)

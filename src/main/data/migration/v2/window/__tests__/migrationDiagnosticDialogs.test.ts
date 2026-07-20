@@ -20,7 +20,6 @@ describe('migrationDiagnosticDialogs', () => {
     const result = await presentMigrationDiagnosticFailure({
       locale: 'en-US',
       code: 'database_initialize_failed',
-      retry: 'relaunch',
       saveBundle,
       runSaveTransaction: runSaveTransactionImmediately
     })
@@ -40,7 +39,6 @@ describe('migrationDiagnosticDialogs', () => {
     const result = await presentMigrationDiagnosticFailure({
       locale: 'en-US',
       code: 'migration_window_failed',
-      retry: 'relaunch',
       saveBundle,
       runSaveTransaction: runSaveTransactionImmediately
     })
@@ -79,7 +77,6 @@ describe('migrationDiagnosticDialogs', () => {
     const flow = presentMigrationDiagnosticFailure({
       locale: 'en-US',
       code: 'renderer_process_gone',
-      retry: 'relaunch',
       saveBundle,
       runSaveTransaction
     })
@@ -102,7 +99,6 @@ describe('migrationDiagnosticDialogs', () => {
     const result = await presentMigrationDiagnosticFailure({
       locale: 'en-US',
       code: 'migration_status_probe_failed',
-      retry: 'relaunch',
       saveBundle,
       runSaveTransaction: runSaveTransactionImmediately
     })
@@ -124,7 +120,6 @@ describe('migrationDiagnosticDialogs', () => {
       presentMigrationDiagnosticFailure({
         locale: 'en-US',
         code: 'database_initialize_failed',
-        retry: 'relaunch',
         saveBundle: vi.fn().mockResolvedValue({ status: 'failed', code: 'publish_failed' }),
         runSaveTransaction: runSaveTransactionImmediately
       })
@@ -154,7 +149,6 @@ describe('migrationDiagnosticDialogs', () => {
     const result = await presentMigrationDiagnosticFailure({
       locale: 'en-US',
       code: 'legacy_data_location_unavailable',
-      retry: 'relaunch',
       allowUseDefault: true,
       saveBundle: vi.fn(),
       runSaveTransaction: runSaveTransactionImmediately

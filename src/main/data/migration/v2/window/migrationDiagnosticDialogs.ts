@@ -39,7 +39,6 @@ type MigrationDiagnosticSaveTransaction = <T>(operation: () => Promise<T>) => Pr
 export interface MigrationDiagnosticFailureDialogState {
   readonly locale: string
   readonly code: MigrationDiagnosticNativeFailureCode
-  readonly retry: 'relaunch' | 'none'
   readonly allowUseDefault?: boolean
   readonly saveBundle: SaveBundle
   readonly runSaveTransaction: MigrationDiagnosticSaveTransaction
@@ -89,7 +88,7 @@ function failureOptions(
 ): DecisionOption[] {
   return [
     ...(includeSave ? [{ label: i18n.t('action.save'), decision: 'save' as const }] : []),
-    ...(state.retry === 'relaunch' ? [{ label: i18n.t('action.retry'), decision: 'retry' as const }] : []),
+    { label: i18n.t('action.retry'), decision: 'retry' },
     ...(state.allowUseDefault ? [{ label: i18n.t('action.useDefault'), decision: 'use_default' as const }] : []),
     { label: i18n.t('action.exit'), decision: 'exit' }
   ]
@@ -134,7 +133,7 @@ async function saveBundleWithDialog(
   try {
     const result = await operation(destination)
     if (result.status === 'saved') {
-      return { result: { status: 'saved', outputCount: 1 }, destination }
+      return { result: { status: 'saved' }, destination }
     }
     return {
       result:
