@@ -45,13 +45,13 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-2xl">
         <DialogHeader className="pr-8">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning-bg text-warning-text">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning-bg text-warning">
               <Zap size={22} strokeWidth={1.5} />
             </div>
             <div className="min-w-0 pt-0.5">
               <DialogTitle className="truncate">{skill.name}</DialogTitle>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="border-0 bg-warning-bg px-2 py-0.5 text-warning-text text-xs">
+                <Badge variant="secondary" className="border-0 bg-warning-bg px-2 py-0.5 text-warning text-xs">
                   {t('library.type.skill')}
                 </Badge>
                 <span className="text-foreground-muted text-xs">{skill.source}</span>
@@ -67,8 +67,8 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
         </DialogHeader>
 
         <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
-          <Badge variant="secondary" className="gap-1.5 border-0 bg-success-bg px-2 py-0.5 text-success-text text-xs">
-            <span className="size-1.5 rounded-full bg-success-base" aria-hidden="true" />
+          <Badge variant="secondary" className="gap-1.5 border-0 bg-success-bg px-2 py-0.5 text-success text-xs">
+            <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
             {t('library.skill_detail.installed')}
           </Badge>
           <section className="flex flex-col gap-3">

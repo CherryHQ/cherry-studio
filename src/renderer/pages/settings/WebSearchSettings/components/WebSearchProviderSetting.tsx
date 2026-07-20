@@ -412,7 +412,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   content={t('settings.provider.basic_auth.tip')}
                   iconProps={{
                     size: 16,
-                    color: 'var(--color-icon)',
+                    color: 'var(--color-foreground-secondary)',
                     className: 'ml-1 cursor-pointer'
                   }}
                 />

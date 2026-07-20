@@ -21,7 +21,7 @@ export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
   },
   skill: {
     icon: Zap,
-    color: 'bg-warning-bg text-warning-text',
+    color: 'bg-warning-bg text-warning',
     labelKey: 'library.type.skill'
   },
   prompt: {

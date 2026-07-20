@@ -395,7 +395,7 @@ const ToolNameList = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
 const ToolNameChip = ({ className, ...props }: ComponentPropsWithoutRef<'code'>) => (
   <code
     className={[
-      'inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 font-[var(--font-family-mono,monospace)] text-foreground text-xs',
+      'inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 font-[var(--code-font-family)] text-foreground text-xs',
       className
     ]
       .filter(Boolean)
@@ -418,7 +418,7 @@ const ResponseSectionStyled = ({ className, ...props }: ComponentPropsWithoutRef
 const CodeBlock = ({ className, ...props }: ComponentPropsWithoutRef<'pre'>) => (
   <pre
     className={[
-      'wrap-break-word m-0 max-h-[300px] overflow-auto whitespace-pre-wrap rounded bg-muted p-2 font-(--font-family-mono,monospace) text-xs data-[error=true]:text-(--status-color-error,var(--color-foreground-secondary))',
+      'wrap-break-word m-0 max-h-[300px] overflow-auto whitespace-pre-wrap rounded bg-muted p-2 font-(--code-font-family) text-xs data-[error=true]:text-(--status-color-error,var(--color-foreground-secondary))',
       className
     ]
       .filter(Boolean)

@@ -173,7 +173,7 @@ export const drawerClasses = {
     'shrink-0 rounded-lg border-warning bg-warning-bg px-3 py-2.5 text-xs leading-tight text-warning shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-medium',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
   healthProgressTrack:
-    'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',
+    'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--color-muted-foreground)_12%,transparent)]',
   healthProgressFill: 'h-full rounded-full bg-primary transition-[width] duration-300 ease-out',
   healthProgressMeta: 'text-[13px] tabular-nums text-muted-foreground/85',
   healthProgressCurrent: 'truncate text-[13px] text-foreground/80'
