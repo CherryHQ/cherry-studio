@@ -40,8 +40,10 @@ export { mergeDataUi, mergeUiProps } from ${JSON.stringify(runtimePath)}
 
 export const UiDataSlot = forwardRef(function UiDataSlot(props, ref) {
   const { children, ...slotProps } = props
+  // Dynamic asChild={false} renders this wrapper without cloned props. Active
+  // slot implementations may forward behavior props without forwarding data-ui.
+  if (Object.keys(slotProps).length === 0 && ref == null) return children
   const slotDataUi = typeof slotProps['data-ui'] === 'string' ? slotProps['data-ui'] : ''
-  if (!slotDataUi.trim()) return children
   if (Children.count(children) !== 1 || !isValidElement(children)) return null
   const child = children
 
