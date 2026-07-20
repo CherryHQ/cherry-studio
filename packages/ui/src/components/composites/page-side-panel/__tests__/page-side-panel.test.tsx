@@ -9,7 +9,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PageSidePanel, PageSidePanelItem, PageSidePanelSection } from '../index'
 
 const motionSnapshots = vi.hoisted(() => ({
-  propsByPart: new Map<string, Record<string, unknown>>()
+  propsBySlot: new Map<string, Record<string, unknown>>()
 }))
 
 vi.mock('motion/react', async () => {
@@ -22,12 +22,8 @@ vi.mock('motion/react', async () => {
       children,
       ...props
     }: Record<string, unknown> & { children?: React.ReactNode } & { ref?: React.RefObject<HTMLElement | null> }) => {
-      if (typeof props['data-ui'] === 'string') {
-        const part = props['data-ui']
-          .split(/\s+/)
-          .find((token) => token.startsWith('part:'))
-          ?.slice('part:'.length)
-        if (part) motionSnapshots.propsByPart.set(part, props)
+      if (typeof props['data-slot'] === 'string') {
+        motionSnapshots.propsBySlot.set(props['data-slot'], props)
       }
 
       const domProps = Object.fromEntries(Object.entries(props).filter(([key]) => !motionPropNames.has(key)))
@@ -54,14 +50,14 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
-  motionSnapshots.propsByPart.clear()
+  motionSnapshots.propsBySlot.clear()
 })
 
 describe('PageSidePanel', () => {
   describe('open / close', () => {
     it('renders nothing when closed', () => {
       render(<PageSidePanel open={false} onClose={vi.fn()} />)
-      expect(document.querySelector('[data-ui~="part:page-side-panel"]')).not.toBeInTheDocument()
+      expect(document.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
     })
 
     it('renders panel when open', () => {
@@ -72,20 +68,20 @@ describe('PageSidePanel', () => {
     it('calls onClose when backdrop is clicked', () => {
       const onClose = vi.fn()
       render(<PageSidePanel open={true} onClose={onClose} />)
-      const backdrop = document.querySelector('[data-ui~="part:page-side-panel-backdrop"]')!
+      const backdrop = document.querySelector('[data-slot="page-side-panel-backdrop"]')!
       fireEvent.click(backdrop)
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
     it('uses the same backdrop scrim as the dialog', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      const backdrop = document.querySelector('[data-ui~="part:page-side-panel-backdrop"]')!
+      const backdrop = document.querySelector('[data-slot="page-side-panel-backdrop"]')!
       expect(backdrop).toHaveClass('bg-black/50')
     })
 
     it('uses a non-spring panel transition to avoid close rebound', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      const panelProps = motionSnapshots.propsByPart.get('page-side-panel')
+      const panelProps = motionSnapshots.propsBySlot.get('page-side-panel')
       expect(panelProps?.transition).toEqual({ duration: 0.18, ease: [0.16, 1, 0.3, 1] })
       expect(panelProps?.transition).not.toMatchObject({ type: 'spring' })
     })
@@ -200,12 +196,12 @@ describe('PageSidePanel', () => {
     it('renders footer when provided', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} footer={<button type="button">Save</button>} />)
       expect(screen.getByText('Save')).toBeInTheDocument()
-      expect(document.querySelector('[data-ui~="part:page-side-panel-footer"]')).toBeInTheDocument()
+      expect(document.querySelector('[data-slot="page-side-panel-footer"]')).toBeInTheDocument()
     })
 
     it('does not render footer slot when not provided', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      expect(document.querySelector('[data-ui~="part:page-side-panel-footer"]')).not.toBeInTheDocument()
+      expect(document.querySelector('[data-slot="page-side-panel-footer"]')).not.toBeInTheDocument()
     })
 
     it('hides close button when showCloseButton=false and no header', () => {
@@ -247,12 +243,12 @@ describe('PageSidePanel', () => {
       expect(dialog.className).toContain('text-card-foreground')
       expect(dialog.className).toContain('shadow-xl')
 
-      const header = document.querySelector('[data-ui~="part:page-side-panel-header"]')!
+      const header = document.querySelector('[data-slot="page-side-panel-header"]')!
       expect(header.className).toContain('px-6')
       expect(header.className).toContain('pt-6')
       expect(header.className).toContain('pb-3')
 
-      const body = document.querySelector('[data-ui~="part:page-side-panel-body"]')!
+      const body = document.querySelector('[data-slot="page-side-panel-body"]')!
       expect(body.className).toContain('px-6')
       expect(body.className).toContain('py-4')
     })
@@ -264,15 +260,15 @@ describe('PageSidePanel', () => {
         </div>
       )
 
-      expect(container.querySelector('[data-ui~="part:page-side-panel"]')).not.toBeInTheDocument()
-      expect(document.body.querySelector('[data-ui~="part:page-side-panel"]')).toBeInTheDocument()
-      expect(document.body.querySelector('[data-ui~="part:page-side-panel-backdrop"]')).toBeInTheDocument()
+      expect(container.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
+      expect(document.body.querySelector('[data-slot="page-side-panel"]')).toBeInTheDocument()
+      expect(document.body.querySelector('[data-slot="page-side-panel-backdrop"]')).toBeInTheDocument()
     })
 
     it('uses fixed positioning when portaled to document.body', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
 
-      expect(document.querySelector('[data-ui~="part:page-side-panel-backdrop"]')).toHaveClass('fixed')
+      expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('fixed')
       expect(screen.getByRole('dialog')).toHaveClass('fixed')
     })
 
@@ -280,9 +276,9 @@ describe('PageSidePanel', () => {
       const { container } = render(<ScopedPanel />)
 
       const root = screen.getByTestId('panel-root')
-      await waitFor(() => expect(root.querySelector('[data-ui~="part:page-side-panel"]')).toBeInTheDocument())
-      const panel = root.querySelector('[data-ui~="part:page-side-panel"]')
-      const backdrop = root.querySelector('[data-ui~="part:page-side-panel-backdrop"]')
+      await waitFor(() => expect(root.querySelector('[data-slot="page-side-panel"]')).toBeInTheDocument())
+      const panel = root.querySelector('[data-slot="page-side-panel"]')
+      const backdrop = root.querySelector('[data-slot="page-side-panel-backdrop"]')
       expect(container).toContainElement(root)
       expect(panel).toBeInTheDocument()
       expect(backdrop).toBeInTheDocument()
@@ -294,7 +290,7 @@ describe('PageSidePanel', () => {
       render(<ScopedPanel />)
 
       await waitFor(() => expect(screen.getByRole('dialog')).toHaveClass('absolute'))
-      expect(document.querySelector('[data-ui~="part:page-side-panel-backdrop"]')).toHaveClass('absolute')
+      expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('absolute')
     })
 
     it('applies design inset classes by default', () => {

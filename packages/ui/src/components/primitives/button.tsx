@@ -82,7 +82,7 @@ function Button({
 
   return (
     <Comp
-      data-ui="part:button"
+      data-slot="button"
       data-variant={variant ?? 'default'}
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || loading}

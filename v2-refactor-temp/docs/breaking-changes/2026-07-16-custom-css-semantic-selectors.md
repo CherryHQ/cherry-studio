@@ -9,13 +9,16 @@ date: 2026-07-16
 ## What changed
 
 Every app-owned DOM node now gains a stable semantic selector for advanced themes, tests, and automation. Custom CSS is
-injected verbatim into every regular renderer window, including the selection toolbar. Existing component structure
-markers move from `data-slot="dialog-content"` to `part:dialog-content` tokens in that same `data-ui` attribute.
+injected verbatim into every regular renderer window, including the selection toolbar. Renderer-owned component
+structure markers move from `data-slot="dialog-content"` to `part:dialog-content` tokens in that same `data-ui`
+attribute. Shadcn-derived UI-library nodes may still carry private `data-slot` markers, mirrored into the same public
+`part:*` contract.
 
 ## Why this matters to the user
 
 Existing custom CSS keeps its full behavior, including `:root`, `body`, and top-level at-rules, and now applies
-consistently to all regular windows. Selectors that depend on `[data-slot]` must be migrated.
+consistently to all regular windows. Selectors that depend on `[data-slot]` must be migrated because any remaining
+library markers are implementation details, not the application contract.
 
 ## What the user should do
 

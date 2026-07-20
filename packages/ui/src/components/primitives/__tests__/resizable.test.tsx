@@ -48,13 +48,10 @@ describe('Resizable', () => {
       </ResizablePanelGroup>
     )
 
-    expect(screen.getByTestId('artifact-layout')).toHaveAttribute(
-      'data-ui',
-      expect.stringContaining('part:resizable-panel-group')
-    )
+    expect(screen.getByTestId('artifact-layout')).toHaveAttribute('data-slot', 'resizable-panel-group')
     expect(screen.getByTestId('code')).toHaveTextContent('Code')
     expect(screen.getByTestId('preview')).toHaveTextContent('Preview')
-    expect(screen.getByRole('separator')).toHaveAttribute('data-ui', expect.stringContaining('part:resizable-handle'))
+    expect(screen.getByRole('separator')).toHaveAttribute('data-slot', 'resizable-handle')
     expect(screen.getByRole('separator').querySelector('svg')).toBeInTheDocument()
   })
 

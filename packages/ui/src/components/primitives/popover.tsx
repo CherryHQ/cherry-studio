@@ -7,11 +7,11 @@ import * as React from 'react'
 import { usePortalContainer } from './portal-container'
 
 function Popover({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
-  return <PopoverPrimitive.Root {...props} />
+  return <PopoverPrimitive.Root data-slot="popover" {...props} />
 }
 
 function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
-  return <PopoverPrimitive.Trigger data-ui="part:popover-trigger" {...props} />
+  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
 }
 
 function PopoverContent({
@@ -29,7 +29,7 @@ function PopoverContent({
   return (
     <PopoverPrimitive.Portal forceMount={forceMount} container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <PopoverPrimitive.Content
-        data-ui="part:popover-content"
+        data-slot="popover-content"
         align={align}
         sideOffset={sideOffset}
         forceMount={forceMount}
@@ -46,7 +46,7 @@ function PopoverContent({
 }
 
 function PopoverAnchor({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
-  return <PopoverPrimitive.Anchor data-ui="part:popover-anchor" {...props} />
+  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />
 }
 
 export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger }

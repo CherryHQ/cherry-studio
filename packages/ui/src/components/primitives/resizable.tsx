@@ -50,7 +50,7 @@ function ResizablePanelGroup({
 }: ResizablePanelGroupProps) {
   return (
     <ResizablePrimitive.Group
-      data-ui="part:resizable-panel-group"
+      data-slot="resizable-panel-group"
       orientation={direction}
       onLayoutChanged={onLayoutChanged ?? onLayout}
       className={cn('h-full w-full', className)}
@@ -66,7 +66,7 @@ function ResizablePanel(props: ResizablePanelProps) {
 function ResizableHandle({ children, className, withHandle, ...props }: ResizableHandleProps) {
   return (
     <ResizablePrimitive.Separator
-      data-ui="part:resizable-handle"
+      data-slot="resizable-handle"
       className={cn(
         'group relative flex h-full w-px shrink-0 items-center justify-center bg-border transition-colors',
         'after:absolute after:inset-y-0 after:left-1/2 after:w-3 after:-translate-x-1/2',

@@ -70,7 +70,7 @@ function TextareaInput({
 
   return (
     <textarea
-      data-ui="part:textarea-input"
+      data-slot="textarea-input"
       {...props}
       ref={ref}
       value={value}
@@ -97,7 +97,7 @@ interface TextareaCharCountProps extends React.ComponentPropsWithoutRef<'div'> {
 function TextareaCharCount({ value = '', maxLength, className, ...props }: TextareaCharCountProps) {
   return (
     <div
-      data-ui="part:textarea-char-count"
+      data-slot="textarea-char-count"
       {...props}
       className={cn('absolute bottom-2 right-2 text-xs text-muted-foreground', className)}>
       {value.length}/{maxLength}

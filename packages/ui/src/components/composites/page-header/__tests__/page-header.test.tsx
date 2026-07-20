@@ -32,7 +32,7 @@ describe('PageHeader', () => {
   it('forwards extra props like data-testid and merges className', () => {
     render(<PageHeader title="X" data-testid="page-header" className="custom-extra" />)
     const node = screen.getByTestId('page-header')
-    expect(node).toHaveAttribute('data-ui', expect.stringContaining('part:page-header'))
+    expect(node).toHaveAttribute('data-slot', 'page-header')
     expect(node.className).toMatch(/\bcustom-extra\b/)
   })
 

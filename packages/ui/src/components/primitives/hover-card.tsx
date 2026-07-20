@@ -7,11 +7,11 @@ import * as React from 'react'
 import { usePortalContainer } from './portal-container'
 
 function HoverCard({ ...props }: React.ComponentProps<typeof HoverCardPrimitive.Root>) {
-  return <HoverCardPrimitive.Root {...props} />
+  return <HoverCardPrimitive.Root data-slot="hover-card" {...props} />
 }
 
 function HoverCardTrigger({ ...props }: React.ComponentProps<typeof HoverCardPrimitive.Trigger>) {
-  return <HoverCardPrimitive.Trigger data-ui="part:hover-card-trigger" {...props} />
+  return <HoverCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />
 }
 
 function HoverCardContent({
@@ -28,7 +28,7 @@ function HoverCardContent({
   return (
     <HoverCardPrimitive.Portal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <HoverCardPrimitive.Content
-        data-ui="part:hover-card-content"
+        data-slot="hover-card-content"
         align={align}
         sideOffset={sideOffset}
         className={cn(

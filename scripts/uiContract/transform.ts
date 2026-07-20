@@ -40,6 +40,8 @@ const TRANSPARENT_PARENT_PARTS = new Map([
 ])
 const SEMANTIC_ATTRIBUTES = new Set(['data-testid', 'id', 'name', 'role', 'type'])
 const SVG_OPT_IN_ATTRIBUTES = ['data-testid', 'role']
+const UI_PACKAGE_SOURCE_PREFIX = 'packages/ui/src/'
+const DATA_SLOT_VALUE = /^[A-Za-z0-9][A-Za-z0-9._:~-]*$/
 export const UI_CONTRACT_RUNTIME_MODULE_ID = 'virtual:cherry-ui-contract-runtime'
 
 const RUNTIME_MERGE_DATA_UI = '__cherryUiContractMergeDataUi'
@@ -56,6 +58,7 @@ interface AttributeInfo {
 
 interface OpeningElementInfo {
   attributes: Map<string, AttributeInfo>
+  dataSlotPart?: string
   element: string
   handler?: string
   parts: string[]
@@ -66,6 +69,7 @@ interface OpeningElementInfo {
 function hasSvgContractOptIn(info: OpeningElementInfo): boolean {
   return (
     info.attributes.has('data-ui') ||
+    info.dataSlotPart !== undefined ||
     SVG_OPT_IN_ATTRIBUTES.some((name) => info.attributes.has(name)) ||
     [...info.attributes.keys()].some((name) => /^on[A-Z]/.test(name))
   )
@@ -121,7 +125,19 @@ function stablePartSignature(part: string): string {
   return `data-slot=${part}`
 }
 
-function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
+function uiPackageDataSlot(attributes: Map<string, AttributeInfo>, sourceFile: string): string | undefined {
+  const dataSlot = attributes.get('data-slot')
+  if (!dataSlot) return undefined
+  if (!sourceFile.startsWith(UI_PACKAGE_SOURCE_PREFIX)) {
+    throw new Error('data-slot is reserved for packages/ui/src; use a part:* token inside data-ui')
+  }
+  if (dataSlot.dynamic || !dataSlot.value || !DATA_SLOT_VALUE.test(dataSlot.value)) {
+    throw new Error('packages/ui data-slot must be a static token')
+  }
+  return dataSlot.value
+}
+
+function openingElementInfo(opening: JSXOpeningElement, sourceFile: string): OpeningElementInfo {
   const attributes = new Map<string, AttributeInfo>()
   const spreads: SpreadElement[] = []
   let handler: string | undefined
@@ -141,7 +157,10 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
   }
 
   const element = jsxName(opening.name)
-  const parts = namespaceTokenValues(attributes.get('data-ui')?.value, 'part')
+  const dataSlotPart = uiPackageDataSlot(attributes, sourceFile)
+  const parts = [...new Set([...namespaceTokenValues(attributes.get('data-ui')?.value, 'part'), dataSlotPart])].filter(
+    (part): part is string => Boolean(part)
+  )
   const semanticSignature = [...attributes.entries()]
     .filter(([name, info]) => SEMANTIC_ATTRIBUTES.has(name) && !info.dynamic)
     .map(([name, info]) => `${name}=${info.value}`)
@@ -150,6 +169,7 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
 
   return {
     attributes,
+    dataSlotPart,
     element,
     handler,
     parts,
@@ -246,6 +266,18 @@ function mergeDataUi(existing: string | undefined, semanticId: string, id: strin
   return [...new Set([semanticId, ...semanticTokens, ...partTokens, `id:${id}`, ...remainingTokens])].join(' ')
 }
 
+function mergePartDataUi(existing: string | undefined, part: string | undefined): string | undefined {
+  if (!part) return existing
+  const existingTokens = (existing ?? '').split(/\s+/).filter(Boolean)
+  const semanticTokens = existingTokens.filter((token) => !token.includes(':'))
+  const partTokens = [...existingTokens.filter((token) => token.startsWith('part:')), `part:${part}`]
+  const exactIdTokens = existingTokens.filter((token) => token.startsWith('id:'))
+  const remainingTokens = existingTokens.filter(
+    (token) => token.includes(':') && !token.startsWith('id:') && !token.startsWith('part:')
+  )
+  return [...new Set([...semanticTokens, ...partTokens, ...exactIdTokens, ...remainingTokens])].join(' ')
+}
+
 interface TransformJsxOptions {
   contractForDescriptor?: (descriptor: UiNodeDescriptor) => { id: string; semanticId: string } | undefined
   sourceFile: string
@@ -322,10 +354,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     parentSemanticId: string | undefined,
     insideSvg: boolean
   ): string | undefined {
-    const info = openingElementInfo(opening)
-    if (info.attributes.has('data-slot')) {
-      throw new Error('data-slot is obsolete; use a part:* token inside data-ui')
-    }
+    const info = openingElementInfo(opening, options.sourceFile)
     const elementLeaf = info.element.split('.').at(-1) ?? info.element
     if (SKIPPED_COMPONENTS.has(elementLeaf)) return parentSemanticId
     if (NON_DOM_COMPONENTS.has(info.element)) {
@@ -339,13 +368,15 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     const existingDataUi = info.attributes.get('data-ui')
     const isIntrinsicElement = /^[a-z]/.test(info.element)
     if (!isIntrinsicElement) {
+      const staticDataUi = existingDataUi?.dynamic ? undefined : existingDataUi?.value
+      const forwardedDataUi = mergePartDataUi(staticDataUi, info.dataSlotPart)
       if (
-        existingDataUi?.value &&
-        !existingDataUi.dynamic &&
-        info.spreads.length > 0 &&
-        options.contractForDescriptor
+        options.contractForDescriptor &&
+        forwardedDataUi &&
+        (info.dataSlotPart !== undefined ||
+          (existingDataUi?.value && !existingDataUi.dynamic && info.spreads.length > 0))
       ) {
-        injectDataUi(opening, existingDataUi, existingDataUi.value)
+        injectDataUi(opening, existingDataUi, forwardedDataUi)
       }
       return parentSemanticId
     }
@@ -393,7 +424,8 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     const contract = options.contractForDescriptor?.(descriptor)
     if (!contract) return semanticId
     const staticDataUi = existingDataUi?.dynamic ? undefined : existingDataUi?.value
-    injectDataUi(opening, existingDataUi, mergeDataUi(staticDataUi, contract.semanticId, contract.id))
+    const authoredDataUi = mergePartDataUi(staticDataUi, info.dataSlotPart)
+    injectDataUi(opening, existingDataUi, mergeDataUi(authoredDataUi, contract.semanticId, contract.id))
     return semanticId
   }
 
@@ -558,7 +590,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
   for (const tag of tags) {
     if (SKIPPED_HTML_TAGS.has(tag.name)) continue
     if (htmlAttribute(tag, 'data-slot') !== undefined) {
-      throw new Error('data-slot is obsolete; use a part:* token inside data-ui')
+      throw new Error('data-slot is reserved for packages/ui/src; use a part:* token inside data-ui')
     }
     if (tag.insideSvg && tag.name !== 'svg' && !hasHtmlSvgContractOptIn(tag)) continue
     let parentIndex = tag.parentIndex
