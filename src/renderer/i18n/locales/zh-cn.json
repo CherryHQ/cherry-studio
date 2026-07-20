@@ -6869,6 +6869,7 @@
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",
       "empty": "没有模型",
+      "empty_hint": "点击上方的获取模型列表按钮添加模型",
       "enabled_models": "已启用",
       "expand_all": "全部展开",
       "filter": {
@@ -7365,9 +7366,6 @@
         "topup": "充值",
         "usage_title": "用量",
         "usage_unit": "Token"
-      },
-      "openai": {
-        "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"
       },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",

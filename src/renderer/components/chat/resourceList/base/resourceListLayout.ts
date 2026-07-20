@@ -15,7 +15,7 @@ export const RESOURCE_LIST_ITEM_LEADING_SLOT_CLASS =
   'rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0'
 
 export const RESOURCE_LIST_GROUP_HEADER_LEADING_SLOT_CLASS =
-  'rounded-lg text-inherit [&_svg]:size-4 [&_svg]:stroke-current [&_svg]:text-inherit'
+  'rounded-lg text-inherit [&_svg]:size-4 [&_svg]:text-inherit'
 
 export const RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS = RESOURCE_LIST_LEADING_SLOT_BASE_CLASS
 
