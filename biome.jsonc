@@ -30,7 +30,8 @@
       "!**/.conductor/**",
       "!v2-refactor-temp/**",
       "!resources/**",
-      "!**/dist/**"
+      "!**/dist/**",
+      "!ui-contract.registry.json"
     ],
     "maxSize": 2097152
   },

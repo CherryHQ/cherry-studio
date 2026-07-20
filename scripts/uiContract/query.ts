@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
+import { readRegistry, reconcileRegistry, registryIdMap, serializeRegistry } from './registry'
 import { scanUiSources } from './scan'
-import { assertUniqueUiNodeIds, uiContractForDescriptor } from './semanticId'
+import { assertUniqueUiNodeIds } from './semanticId'
 import type { UiContractManifestNode } from './types'
 
 async function main(): Promise<void> {
@@ -14,14 +15,23 @@ async function main(): Promise<void> {
   }
 
   const root = resolve(process.cwd())
+  const registry = await readRegistry(root)
   const descriptors = await scanUiSources(root)
-  assertUniqueUiNodeIds(descriptors)
+  const reconciled = reconcileRegistry(registry, descriptors)
+  if (serializeRegistry(registry) !== serializeRegistry(reconciled)) {
+    process.stderr.write('UI contract registry is stale. Run `pnpm ui:contract:sync`.\n')
+    process.exitCode = 1
+    return
+  }
 
-  const matches = descriptors
-    .flatMap((descriptor): UiContractManifestNode[] => {
-      const node = { ...descriptor, ...uiContractForDescriptor(descriptor) }
-      return node.semanticId === query || node.semanticId.startsWith(`${query}.`) ? [node] : []
-    })
+  const idByAnchor = registryIdMap(registry)
+  const nodes = descriptors.flatMap((descriptor): UiContractManifestNode[] => {
+    const id = idByAnchor.get(descriptor.anchorHash)
+    return id ? [{ ...descriptor, id }] : []
+  })
+  assertUniqueUiNodeIds(nodes)
+  const matches = nodes
+    .filter((node) => node.semanticId === query || node.semanticId.startsWith(`${query}.`))
     .sort((left, right) => left.id.localeCompare(right.id))
 
   const sourceByFile = new Map<string, Promise<string>>()

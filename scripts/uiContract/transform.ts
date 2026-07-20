@@ -9,7 +9,7 @@ import {
 import { Parser } from 'htmlparser2'
 import MagicString from 'magic-string'
 
-import { createDescriptorAnchor, identifierWords, inferSemanticId } from './semanticId'
+import { createDescriptorHashes, identifierWords, inferSemanticId } from './semanticId'
 import type { UiNodeContract, UiNodeDescriptor, UiSourceTransform } from './types'
 
 const SKIPPED_COMPONENTS = new Set(['Consumer', 'Fragment', 'Provider', 'StrictMode', 'Suspense'])
@@ -400,9 +400,10 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     const occurrenceKey = [component, semanticId, info.element, info.signature, parentSemanticId ?? ''].join('\0')
     const occurrence = occurrenceByAnchor.get(occurrenceKey) ?? 0
     occurrenceByAnchor.set(occurrenceKey, occurrence + 1)
-    const anchor = createDescriptorAnchor({
+    const hashes = createDescriptorHashes({
       component,
       element: info.element,
+      explicitSemanticId: explicitId,
       occurrence,
       parentSemanticId,
       semanticId,
@@ -410,7 +411,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       sourceFile: options.sourceFile
     })
     const descriptor: UiNodeDescriptor = {
-      ...anchor,
+      ...hashes,
       component,
       element: info.element,
       kind: 'jsx',
@@ -626,9 +627,10 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
     const occurrenceKey = `${semanticId}\0${tag.name}\0${signature}\0${parentSemanticId ?? ''}`
     const occurrence = occurrences.get(occurrenceKey) ?? 0
     occurrences.set(occurrenceKey, occurrence + 1)
-    const anchor = createDescriptorAnchor({
+    const hashes = createDescriptorHashes({
       component: options.windowName,
       element: tag.name,
+      explicitSemanticId: explicitId,
       occurrence,
       parentSemanticId,
       semanticId,
@@ -636,7 +638,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
       sourceFile: options.sourceFile
     })
     const descriptor: UiNodeDescriptor = {
-      ...anchor,
+      ...hashes,
       component: options.windowName,
       element: tag.name,
       kind: 'html',
