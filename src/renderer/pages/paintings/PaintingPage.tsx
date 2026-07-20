@@ -13,6 +13,7 @@ import { usePaintingList } from './hooks/usePaintingList'
 import { usePaintingModelCatalog } from './hooks/usePaintingModelCatalog'
 import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
+import { usePaintingResultSync } from './hooks/usePaintingResultSync'
 import { createDefaultPainting } from './model/paintingPipeline'
 import type { PaintingData } from './model/types/paintingData'
 import { cacheToPaintingGenerationState } from './model/utils/paintingGenerationParams'
@@ -31,6 +32,11 @@ const PaintingPage: FC = () => {
   const history = usePaintingHistory()
 
   usePaintingInitialSelection({ currentPainting, historyItems: history.items, initialProviderId, setCurrentPainting })
+
+  // Backfill a background generation's output files when they only reached
+  // refreshed history (its completion couldn't update the no-longer-visible
+  // draft), so the Artboard reveal doesn't strand on a permanent skeleton.
+  usePaintingResultSync({ currentPainting, historyItems: history.items, setCurrentPainting })
 
   // Rehydrate the running spinner after a page switch: the cache mirror of
   // generation state survives unmount, so re-mounting picks it back up.
@@ -114,7 +120,7 @@ const PaintingPage: FC = () => {
 
               <div className={paintingClasses.centerPane}>
                 <div className={paintingClasses.centerStage}>
-                  <Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
+                  <Artboard painting={composerPainting} isLoading={generating} />
                 </div>
                 <div className={paintingClasses.promptDock}>
                   <QuickPanelProvider>

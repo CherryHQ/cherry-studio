@@ -887,6 +887,10 @@
           "description": "Quản lý trình lên lịch trong ứng dụng",
           "label": "Trình lập lịch"
         },
+        "CherryGenerateImage": {
+          "description": "Tạo hình ảnh từ lời nhắc văn bản bằng cách sử dụng mô hình vẽ được cấu hình của bạn",
+          "label": "Tạo hình ảnh"
+        },
         "CherryKbManage": {
           "description": "Thêm, xóa hoặc làm mới tài liệu trong cơ sở kiến thức của bạn",
           "label": "Quản lý kiến thức"
@@ -1397,7 +1401,7 @@
         "title": "Đã xếp hàng ({{count}})"
       },
       "generate_image": "Tạo hình ảnh",
-      "generate_image_not_supported": "Mô hình không hỗ trợ tạo hình ảnh.",
+      "generate_image_no_model": "Cấu hình mô hình vẽ trong Cài đặt › Mô hình mặc định",
       "knowledge_base": "Cơ sở tri thức",
       "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
       "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
@@ -1465,12 +1469,29 @@
         },
         "unsupported_model": "Mô hình hiện tại không hỗ trợ lý luận có thể điều chỉnh"
       },
+      "toolbar": {
+        "customize": "Tùy chỉnh thanh công cụ",
+        "drag": {
+          "cancelled": "Đã hủy sắp xếp lại cho {{name}}.",
+          "dropped": "{{name}} đã rơi.",
+          "instructions": "Để sắp xếp lại, nhấn Phím cách hoặc Enter để nhặt công cụ, sử dụng các phím mũi tên để di chuyển, sau đó nhấn Phím cách hoặc Enter để thả công cụ, hoặc Escape để hủy.",
+          "over": "{{name}} đã chuyển qua {{over}}.",
+          "picked_up": "Đã nhận {{name}}."
+        },
+        "drag_handle": "Kéo để sắp xếp lại {{name}}",
+        "restore_default": "Khôi phục mặc định"
+      },
       "tools": {
         "collapse": "Thu gọn",
         "collapse_in": "Thu gọn",
         "collapse_out": "Gỡ khỏi trạng thái thu gọn",
         "expand": "Mở rộng",
         "file_not_found": "Không tìm thấy tệp: {{path}}",
+        "generate_image": {
+          "failed": "Tạo hình ảnh thất bại",
+          "generating": "Đang tạo hình ảnh…",
+          "title": "Hình ảnh đã tạo"
+        },
         "open_file": "Mở Tệp",
         "open_file_error": "Không mở được tệp: {{path}}",
         "reveal_in_finder": "Hiển thị trong Finder"
@@ -1734,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} mã thông báo",
     "topics": {
       "auto_rename": "Umbenennen automatisieren",
+      "auto_rename_failed": "Không thể tự động tạo tên cuộc trò chuyện",
       "clear": {
         "title": "Tin nhắn rõ ràng"
       },
@@ -2432,6 +2454,80 @@
     },
     "user": "Người dùng"
   },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Tệp HTML này không có nội dung.",
+        "title": "Tệp trống"
+      },
+      "mode": {
+        "label": "Chế độ xem HTML",
+        "preview": "Xem trước",
+        "source": "Nguồn"
+      },
+      "read_error": {
+        "title": "Không thể đọc tệp này"
+      },
+      "too_large": {
+        "description": "Các tệp HTML lớn hơn {{limit}} MiB không thể được xem trước.",
+        "title": "Tệp quá lớn"
+      }
+    },
+    "invalid_path": {
+      "description": "Xem trước tệp yêu cầu một đường dẫn tuyệt đối hợp lệ trên máy cục bộ.",
+      "title": "Không thể xem trước tệp này"
+    },
+    "load_error": {
+      "description": "Không thể tải nội dung xem trước.",
+      "title": "Xem trước thất bại"
+    },
+    "loading": "Đang tải bản xem trước...",
+    "markdown": {
+      "empty": {
+        "description": "Tệp Markdown này không có nội dung.",
+        "title": "Tệp trống"
+      },
+      "mode": {
+        "label": "Chế độ xem Markdown",
+        "preview": "Xem trước",
+        "source": "Nguồn"
+      },
+      "read_error": {
+        "title": "Không thể đọc tệp này"
+      },
+      "too_large": {
+        "description": "Các tệp Markdown lớn hơn {{limit}} MiB không thể được xem trước.",
+        "title": "Tệp quá lớn"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Mở bằng ứng dụng mặc định",
+        "description": "Các tệp PDF lớn hơn {{limit}} MiB không thể được xem trước.",
+        "open_error": "Không thể mở tệp này",
+        "title": "Tệp quá lớn"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Tệp văn bản này không có nội dung.",
+        "title": "Tệp rỗng"
+      },
+      "read_error": {
+        "title": "Không thể đọc tệp này"
+      },
+      "too_large": {
+        "description": "Các tệp văn bản lớn hơn {{limit}} MiB không thể được xem trước.",
+        "title": "Tệp quá lớn"
+      }
+    },
+    "unsupported": {
+      "action": "Mở bằng ứng dụng mặc định",
+      "description": "Loại tệp này chưa thể xem trước được.",
+      "open_error": "Không thể mở tệp này",
+      "title": "Xem trước không khả dụng"
+    }
+  },
   "files": {
     "actions": "Hành động",
     "all": "Tất cả các tệp",
@@ -2779,6 +2875,7 @@
           "title": "Nhập một trang web duy nhất"
         }
       },
+      "back_to_parent": "Quay lại",
       "bulk": {
         "delete": "Xóa",
         "delete_confirm_description": "Xóa {{count}} nguồn dữ liệu đã chọn? Thao tác này không thể hoàn tác.",
@@ -2806,6 +2903,7 @@
         "title": "Tải lên Nguồn Dữ liệu Đầu tiên của Bạn"
       },
       "empty_description": "Chưa có nguồn dữ liệu nào",
+      "empty_folder": "Thư mục này trống",
       "filters": {
         "all": "Tất cả",
         "directory": "Thư mục",
@@ -2838,9 +2936,9 @@
           "type": "Kiểu",
           "updated_at": "Đã cập nhật"
         },
+        "open_row": "Mở {{title}}",
         "select_all": "Chọn tất cả",
-        "select_row": "Chọn hàng",
-        "view_chunks_row": "Xem các phần cho {{title}}"
+        "select_row": "Chọn hàng"
       },
       "toolbar": {
         "add": "Thêm Nguồn Dữ Liệu"
@@ -2851,6 +2949,8 @@
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
+    "empty_action": "Tạo Cơ sở Kiến thức",
+    "empty_description": "Bạn chưa có cơ sở kiến thức nào. Hãy tạo một cơ sở kiến thức để bắt đầu tổ chức và tìm kiếm tài liệu của bạn.",
     "error": {
       "directory_not_migrated": "Di chuyển thư mục không thành công. Vui lòng xóa và tải lên lại.",
       "failed_base_unknown": "Cơ sở kiến thức này đã thất bại trong quá trình di chuyển. Hãy xây dựng lại và chọn một mô hình embedding mới.",
@@ -3471,8 +3571,10 @@
       "title": "Thư viện"
     },
     "skill_add": {
+      "add": "Thêm Kỹ Năng",
       "local_import": "Nhập khẩu nội địa",
-      "online_search": "Tìm kiếm trực tuyến"
+      "online_search": "Tìm kiếm trực tuyến",
+      "system_search": "Tìm kiếm hệ thống"
     },
     "skill_detail": {
       "created_at": "Đã tạo",
@@ -3500,6 +3602,19 @@
       "updated": "Sắp xếp theo cập nhật"
     },
     "subtitle": "Quản lý các trợ lý, tác nhân và kỹ năng của bạn",
+    "system_skill": {
+      "conflict": "Xung đột tên",
+      "description": "Nhập các kỹ năng đã được cài đặt trên hệ thống này.",
+      "empty_description": "Không tìm thấy kỹ năng nào có thể nhập từ các công cụ lập trình khác trên thiết bị này.",
+      "empty_title": "Không có kỹ năng nào có sẵn để nhập",
+      "enable_success": "Đã bật {{name}}",
+      "enabled": "Đã bật",
+      "import": "Nhập",
+      "import_success": "Đã nhập {{name}}",
+      "imported": "Đã nhập khẩu",
+      "search_placeholder": "Tìm kiếm kỹ năng hệ thống...",
+      "title": "Kỹ năng hệ thống"
+    },
     "tag_picker": {
       "no_tags": "Chưa có thẻ nào",
       "placeholder": "Tên thẻ mới..."
@@ -4673,6 +4788,7 @@
     "req_error_text": "Máy chủ đang bận hoặc lời nhắc chứa các từ \"bản quyền\" hoặc \"nhạy cảm\". Vui lòng thử lại.",
     "req_error_token": "Vui lòng kiểm tra tính hợp lệ của mã thông báo",
     "required_field": "Trường bắt buộc",
+    "revealing": "Tiết lộ hình ảnh đã tạo",
     "safety_tolerance": "Dung sai an toàn",
     "safety_tolerance_tip": "Cao hơn = bộ lọc dễ dãi hơn; 0 là nghiêm ngặt nhất, 6 là dễ dãi nhất",
     "seed": "Hạt giống",
@@ -5330,7 +5446,7 @@
         "icon": {
           "error": "Nombre de icono no válido, por favor verifique su entrada",
           "label": "Ícono",
-          "placeholder": "Inserisci il nome dell'icona Lucide",
+          "placeholder": "Tên biểu tượng",
           "random": "Biểu tượng Ngẫu nhiên",
           "tooltip": "Tên biểu tượng Lucide viết thường, ví dụ: arrow-right",
           "view_all": "undefined"
@@ -6075,7 +6191,8 @@
           "downloading": "Đang tải xuống…",
           "ready": "Sẵn sàng"
         },
-        "title": "Mô hình cục bộ"
+        "title": "Mô hình cục bộ",
+        "unsupported": "Nền tảng này không hỗ trợ mô hình cục bộ."
       },
       "notInstalled": "Chưa cài đặt",
       "openBinariesDir": "Open binaries directory",
@@ -6549,10 +6666,10 @@
       "user": "Người dùng"
     },
     "menuGroups": {
-      "automation": "Tự động hóa",
-      "capabilities": "Khả năng & Công cụ",
+      "automation": "Hiệu suất",
+      "capabilities": "Công cụ",
       "models": "Mô hình",
-      "personal": "Cá nhân",
+      "personal": "Tùy chọn",
       "quickAccess": "Truy cập nhanh",
       "system": "Hệ thống"
     },
@@ -6827,6 +6944,8 @@
       },
       "more_actions": "Thêm hành động cho danh sách mô hình",
       "not_enabled_models": "Đã tắt",
+      "painting_model": "Mô hình vẽ tranh",
+      "painting_model_description": "Mô hình được sử dụng để tạo hình ảnh",
       "provider_id": "ID Nhà cung cấp",
       "provider_key_add_confirm": "Bạn có muốn thêm khóa API cho {{provider}} không?",
       "provider_key_add_failed_by_empty_data": "Không thể thêm khóa API của nhà cung cấp, dữ liệu trống",
@@ -7707,6 +7826,8 @@
   },
   "tab": {
     "close": "Đóng Tab",
+    "close_others": "Đóng các tab khác",
+    "close_to_right": "Đóng các tab bên phải",
     "move_to_first": "Di chuyển lên đầu",
     "new": "Thẻ Mới",
     "open_in_new_window": "Mở trong cửa sổ mới",

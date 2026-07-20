@@ -1,0 +1,515 @@
+diff --git a/dist/config/config.d.ts b/dist/config/config.d.ts
+index 49299977197597ccb81af0e0ca606b0dcdd72bb2..d9ab1f13f8a22ee6341808f1daae75e2fd32521d 100644
+--- a/dist/config/config.d.ts
++++ b/dist/config/config.d.ts
+@@ -22,6 +22,8 @@ export declare type PickerConfigInternal = {
+     emojiStyle: EmojiStyle;
+     categories: CategoriesConfig;
+     theme: Theme;
++    /** Native emojis to render as a controlled suggested category. */
++    suggestedEmojis?: string[];
+     suggestedEmojisMode: SuggestionMode;
+     lazyLoadEmojis: boolean;
+     previewConfig: PreviewConfig;
+diff --git a/dist/emoji-picker-react.cjs.development.js b/dist/emoji-picker-react.cjs.development.js
+index 7998c41581f23b106005347f626be2f10feaebe1..08fd0ee60c15306753efc19c3851652dc77aea6f 100644
+--- a/dist/emoji-picker-react.cjs.development.js
++++ b/dist/emoji-picker-react.cjs.development.js
+@@ -179,7 +179,7 @@ function compareConfig(prev, next) {
+   var _prev$customEmojis, _next$customEmojis;
+   var prevCustomEmojis = (_prev$customEmojis = prev.customEmojis) != null ? _prev$customEmojis : [];
+   var nextCustomEmojis = (_next$customEmojis = next.customEmojis) != null ? _next$customEmojis : [];
+-  return prev.open === next.open && prev.emojiVersion === next.emojiVersion && prev.reactionsDefaultOpen === next.reactionsDefaultOpen && prev.searchPlaceHolder === next.searchPlaceHolder && prev.searchPlaceholder === next.searchPlaceholder && prev.searchClearButtonLabel === next.searchClearButtonLabel && prev.defaultSkinTone === next.defaultSkinTone && prev.skinTonesDisabled === next.skinTonesDisabled && prev.autoFocusSearch === next.autoFocusSearch && prev.emojiStyle === next.emojiStyle && prev.theme === next.theme && prev.suggestedEmojisMode === next.suggestedEmojisMode && prev.lazyLoadEmojis === next.lazyLoadEmojis && prev.className === next.className && prev.height === next.height && prev.width === next.width && prev.style === next.style && prev.searchDisabled === next.searchDisabled && prev.skinTonePickerLocation === next.skinTonePickerLocation && prevCustomEmojis.length === nextCustomEmojis.length && prev.emojiData === next.emojiData;
++  return prev.open === next.open && prev.emojiVersion === next.emojiVersion && prev.reactionsDefaultOpen === next.reactionsDefaultOpen && prev.searchPlaceHolder === next.searchPlaceHolder && prev.searchPlaceholder === next.searchPlaceholder && prev.searchClearButtonLabel === next.searchClearButtonLabel && prev.defaultSkinTone === next.defaultSkinTone && prev.skinTonesDisabled === next.skinTonesDisabled && prev.autoFocusSearch === next.autoFocusSearch && prev.emojiStyle === next.emojiStyle && prev.theme === next.theme && prev.suggestedEmojis === next.suggestedEmojis && prev.suggestedEmojisMode === next.suggestedEmojisMode && prev.lazyLoadEmojis === next.lazyLoadEmojis && prev.className === next.className && prev.height === next.height && prev.width === next.width && prev.style === next.style && prev.searchDisabled === next.searchDisabled && prev.skinTonePickerLocation === next.skinTonePickerLocation && prevCustomEmojis.length === nextCustomEmojis.length && prev.emojiData === next.emojiData;
+ }
+ 
+ var DEFAULT_REACTIONS = ['1f44d', '2764-fe0f', '1f603', '1f622', '1f64f', '1f44e', '1f621'];
+@@ -460,6 +460,7 @@ function basePickerConfig() {
+     skinTonePickerLocation: exports.SkinTonePickerLocation.SEARCH,
+     skinTonesDisabled: false,
+     style: {},
++    suggestedEmojis: undefined,
+     suggestedEmojisMode: exports.SuggestionMode.FREQUENT,
+     theme: exports.Theme.LIGHT,
+     unicodeToHide: new Set(KNOWN_FAILING_EMOJIS),
+@@ -504,7 +505,7 @@ function useSetConfig(config) {
+     setMergedConfig(mergeConfig(config));
+     // not gonna...
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [(_config$customEmojis = config.customEmojis) == null ? void 0 : _config$customEmojis.length, config.open, config.emojiVersion, config.reactionsDefaultOpen, config.searchPlaceHolder, config.searchPlaceholder, config.searchClearButtonLabel, config.defaultSkinTone, config.skinTonesDisabled, config.autoFocusSearch, config.emojiStyle, config.theme, config.suggestedEmojisMode, config.lazyLoadEmojis, config.className, config.height, config.width, config.searchDisabled, config.skinTonePickerLocation, config.allowExpandReactions, config.emojiData]);
++  }, [(_config$customEmojis = config.customEmojis) == null ? void 0 : _config$customEmojis.length, config.open, config.emojiVersion, config.reactionsDefaultOpen, config.searchPlaceHolder, config.searchPlaceholder, config.searchClearButtonLabel, config.defaultSkinTone, config.skinTonesDisabled, config.autoFocusSearch, config.emojiStyle, config.theme, config.suggestedEmojis, config.suggestedEmojisMode, config.lazyLoadEmojis, config.className, config.height, config.width, config.searchDisabled, config.skinTonePickerLocation, config.allowExpandReactions, config.emojiData]);
+   return mergedConfig;
+ }
+ function usePickerConfig() {
+@@ -22003,6 +22004,12 @@ function getSuggested(mode) {
+     return [];
+   }
+ }
++function nativeEmojiToUnified(emoji) {
++  return Array.from(emoji).map(function (codePoint) {
++    var _codePoint$codePointA;
++    return (_codePoint$codePointA = codePoint.codePointAt(0)) == null ? void 0 : _codePoint$codePointA.toString(16).padStart(4, '0');
++  }).filter(Boolean).join('-');
++}
+ function setSuggested(emoji, skinTone) {
+   var recent = getSuggested();
+   var unified = emojiUnified$1(emoji, skinTone);
+@@ -22065,17 +22072,22 @@ function emojiUnified$1(emoji, skinTone) {
+ }
+ function useGetEmojisByCategory() {
+   var suggestedEmojisModeConfig = useSuggestedEmojisModeConfig();
++  var suggestedEmojisConfig = useSuggestedEmojisConfig();
+   var _useUpdateSuggested = useUpdateSuggested(),
+     suggestedUpdated = _useUpdateSuggested[0];
+   var suggested = React__default.useMemo(function () {
+     var _getSuggested;
+-    var suggested = (_getSuggested = getSuggested(suggestedEmojisModeConfig)) != null ? _getSuggested : [];
++    var suggested = suggestedEmojisConfig ? suggestedEmojisConfig.map(function (emoji) {
++      return {
++        unified: nativeEmojiToUnified(emoji)
++      };
++    }) : (_getSuggested = getSuggested(suggestedEmojisModeConfig)) != null ? _getSuggested : [];
+     return suggested.map(function (s) {
+       return emojiByUnified(s.unified);
+     }).filter(Boolean);
+   },
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+-  [suggestedUpdated, suggestedEmojisModeConfig]);
++  [suggestedUpdated, suggestedEmojisConfig, suggestedEmojisModeConfig]);
+   return function getEmojisByCategory(category) {
+     var _emojis$emojis$catego;
+     if (category === exports.Categories.SUGGESTED) {
+@@ -22196,11 +22208,16 @@ function useGetEmojisByCategory$1() {
+     emojiData = _usePickerDataContext.emojiData,
+     emojiByUnified = _usePickerDataContext.emojiByUnified;
+   var suggestedEmojisModeConfig = useSuggestedEmojisModeConfig();
++  var suggestedEmojisConfig = useSuggestedEmojisConfig();
+   var _useUpdateSuggested = useUpdateSuggested(),
+     suggestedUpdated = _useUpdateSuggested[0];
+   var suggested = React__default.useMemo(function () {
+     var _getSuggested;
+-    var suggested = (_getSuggested = getSuggested(suggestedEmojisModeConfig)) != null ? _getSuggested : [];
++    var suggested = suggestedEmojisConfig ? suggestedEmojisConfig.map(function (emoji) {
++      return {
++        unified: nativeEmojiToUnified(emoji)
++      };
++    }) : (_getSuggested = getSuggested(suggestedEmojisModeConfig)) != null ? _getSuggested : [];
+     return suggested.map(function (s) {
+       var _extends2;
+       var emoji = emojiByUnified(s.unified);
+@@ -22208,7 +22225,7 @@ function useGetEmojisByCategory$1() {
+       return _extends({}, emoji, (_extends2 = {}, _extends2[EmojiProperties.unified] = s.unified, _extends2));
+     }).filter(Boolean);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [suggestedUpdated, suggestedEmojisModeConfig, emojiByUnified]);
++  }, [suggestedUpdated, suggestedEmojisConfig, suggestedEmojisModeConfig, emojiByUnified]);
+   return function getEmojisByCategory(category) {
+     var _emojiData$emojis$cat, _emojiData$emojis;
+     if (category === exports.Categories.SUGGESTED) {
+@@ -22550,9 +22567,14 @@ function useSuggestedEmojisModeConfig() {
+     suggestedEmojisMode = _usePickerConfig12.suggestedEmojisMode;
+   return suggestedEmojisMode;
+ }
+-function useLazyLoadEmojisConfig() {
++function useSuggestedEmojisConfig() {
+   var _usePickerConfig13 = usePickerConfig(),
+-    lazyLoadEmojis = _usePickerConfig13.lazyLoadEmojis;
++    suggestedEmojis = _usePickerConfig13.suggestedEmojis;
++  return suggestedEmojis;
++}
++function useLazyLoadEmojisConfig() {
++  var _usePickerConfig14 = usePickerConfig(),
++    lazyLoadEmojis = _usePickerConfig14.lazyLoadEmojis;
+   return lazyLoadEmojis;
+ }
+ function useClassNameConfig() {
+@@ -24021,6 +24043,7 @@ function useMouseDownHandlers(ContainerRef, mouseEventSource) {
+     updateSuggested = _useUpdateSuggested[1];
+   var getEmojiUrl = useGetEmojiUrlConfig();
+   var activeEmojiStyle = useEmojiStyleConfig();
++  var suggestedEmojis = useSuggestedEmojisConfig();
+   var _usePickerDataContext = usePickerDataContext(),
+     emojiByUnified = _usePickerDataContext.emojiByUnified;
+   var onClick = React.useCallback(function onClick(event) {
+@@ -24035,10 +24058,12 @@ function useMouseDownHandlers(ContainerRef, mouseEventSource) {
+       return;
+     }
+     var skinToneToUse = activeVariationFromUnified$1(unified) || activeSkinTone;
+-    updateSuggested();
+-    setSuggested(emoji, skinToneToUse);
++    if (!suggestedEmojis) {
++      updateSuggested();
++      setSuggested(emoji, skinToneToUse);
++    }
+     onEmojiClick(emojiClickOutput(emoji, skinToneToUse, activeEmojiStyle, getEmojiUrl), event);
+-  }, [activeSkinTone, closeAllOpenToggles, disallowClickRef, emojiByUnified, onEmojiClick, updateSuggested, getEmojiUrl, activeEmojiStyle]);
++  }, [activeSkinTone, closeAllOpenToggles, disallowClickRef, emojiByUnified, onEmojiClick, updateSuggested, getEmojiUrl, activeEmojiStyle, suggestedEmojis]);
+   var onMouseDown = React.useCallback(function onMouseDown(event) {
+     var _window;
+     if (mouseDownTimerRef.current) {
+diff --git a/dist/emoji-picker-react.esm.js b/dist/emoji-picker-react.esm.js
+index 4c4f21c4755e165c5dd2079185984c46943ec2f3..2df44b78d62b171a0f95740786b8a03f9d83c768 100644
+--- a/dist/emoji-picker-react.esm.js
++++ b/dist/emoji-picker-react.esm.js
+@@ -172,7 +172,7 @@ function compareConfig(prev, next) {
+   var _prev$customEmojis, _next$customEmojis;
+   var prevCustomEmojis = (_prev$customEmojis = prev.customEmojis) != null ? _prev$customEmojis : [];
+   var nextCustomEmojis = (_next$customEmojis = next.customEmojis) != null ? _next$customEmojis : [];
+-  return prev.open === next.open && prev.emojiVersion === next.emojiVersion && prev.reactionsDefaultOpen === next.reactionsDefaultOpen && prev.searchPlaceHolder === next.searchPlaceHolder && prev.searchPlaceholder === next.searchPlaceholder && prev.searchClearButtonLabel === next.searchClearButtonLabel && prev.defaultSkinTone === next.defaultSkinTone && prev.skinTonesDisabled === next.skinTonesDisabled && prev.autoFocusSearch === next.autoFocusSearch && prev.emojiStyle === next.emojiStyle && prev.theme === next.theme && prev.suggestedEmojisMode === next.suggestedEmojisMode && prev.lazyLoadEmojis === next.lazyLoadEmojis && prev.className === next.className && prev.height === next.height && prev.width === next.width && prev.style === next.style && prev.searchDisabled === next.searchDisabled && prev.skinTonePickerLocation === next.skinTonePickerLocation && prevCustomEmojis.length === nextCustomEmojis.length && prev.emojiData === next.emojiData;
++  return prev.open === next.open && prev.emojiVersion === next.emojiVersion && prev.reactionsDefaultOpen === next.reactionsDefaultOpen && prev.searchPlaceHolder === next.searchPlaceHolder && prev.searchPlaceholder === next.searchPlaceholder && prev.searchClearButtonLabel === next.searchClearButtonLabel && prev.defaultSkinTone === next.defaultSkinTone && prev.skinTonesDisabled === next.skinTonesDisabled && prev.autoFocusSearch === next.autoFocusSearch && prev.emojiStyle === next.emojiStyle && prev.theme === next.theme && prev.suggestedEmojis === next.suggestedEmojis && prev.suggestedEmojisMode === next.suggestedEmojisMode && prev.lazyLoadEmojis === next.lazyLoadEmojis && prev.className === next.className && prev.height === next.height && prev.width === next.width && prev.style === next.style && prev.searchDisabled === next.searchDisabled && prev.skinTonePickerLocation === next.skinTonePickerLocation && prevCustomEmojis.length === nextCustomEmojis.length && prev.emojiData === next.emojiData;
+ }
+ 
+ var DEFAULT_REACTIONS = ['1f44d', '2764-fe0f', '1f603', '1f622', '1f64f', '1f44e', '1f621'];
+@@ -459,6 +459,7 @@ function basePickerConfig() {
+     skinTonePickerLocation: SkinTonePickerLocation.SEARCH,
+     skinTonesDisabled: false,
+     style: {},
++    suggestedEmojis: undefined,
+     suggestedEmojisMode: SuggestionMode.FREQUENT,
+     theme: Theme.LIGHT,
+     unicodeToHide: new Set(KNOWN_FAILING_EMOJIS),
+@@ -503,7 +504,7 @@ function useSetConfig(config) {
+     setMergedConfig(mergeConfig(config));
+     // not gonna...
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [(_config$customEmojis = config.customEmojis) == null ? void 0 : _config$customEmojis.length, config.open, config.emojiVersion, config.reactionsDefaultOpen, config.searchPlaceHolder, config.searchPlaceholder, config.searchClearButtonLabel, config.defaultSkinTone, config.skinTonesDisabled, config.autoFocusSearch, config.emojiStyle, config.theme, config.suggestedEmojisMode, config.lazyLoadEmojis, config.className, config.height, config.width, config.searchDisabled, config.skinTonePickerLocation, config.allowExpandReactions, config.emojiData]);
++  }, [(_config$customEmojis = config.customEmojis) == null ? void 0 : _config$customEmojis.length, config.open, config.emojiVersion, config.reactionsDefaultOpen, config.searchPlaceHolder, config.searchPlaceholder, config.searchClearButtonLabel, config.defaultSkinTone, config.skinTonesDisabled, config.autoFocusSearch, config.emojiStyle, config.theme, config.suggestedEmojis, config.suggestedEmojisMode, config.lazyLoadEmojis, config.className, config.height, config.width, config.searchDisabled, config.skinTonePickerLocation, config.allowExpandReactions, config.emojiData]);
+   return mergedConfig;
+ }
+ function usePickerConfig() {
+@@ -22002,6 +22003,12 @@ function getSuggested(mode) {
+     return [];
+   }
+ }
++function nativeEmojiToUnified(emoji) {
++  return Array.from(emoji).map(function (codePoint) {
++    var _codePoint$codePointA;
++    return (_codePoint$codePointA = codePoint.codePointAt(0)) == null ? void 0 : _codePoint$codePointA.toString(16).padStart(4, '0');
++  }).filter(Boolean).join('-');
++}
+ function setSuggested(emoji, skinTone) {
+   var recent = getSuggested();
+   var unified = emojiUnified$1(emoji, skinTone);
+@@ -22064,17 +22071,22 @@ function emojiUnified$1(emoji, skinTone) {
+ }
+ function useGetEmojisByCategory() {
+   var suggestedEmojisModeConfig = useSuggestedEmojisModeConfig();
++  var suggestedEmojisConfig = useSuggestedEmojisConfig();
+   var _useUpdateSuggested = useUpdateSuggested(),
+     suggestedUpdated = _useUpdateSuggested[0];
+   var suggested = React__default.useMemo(function () {
+     var _getSuggested;
+-    var suggested = (_getSuggested = getSuggested(suggestedEmojisModeConfig)) != null ? _getSuggested : [];
++    var suggested = suggestedEmojisConfig ? suggestedEmojisConfig.map(function (emoji) {
++      return {
++        unified: nativeEmojiToUnified(emoji)
++      };
++    }) : (_getSuggested = getSuggested(suggestedEmojisModeConfig)) != null ? _getSuggested : [];
+     return suggested.map(function (s) {
+       return emojiByUnified(s.unified);
+     }).filter(Boolean);
+   },
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+-  [suggestedUpdated, suggestedEmojisModeConfig]);
++  [suggestedUpdated, suggestedEmojisConfig, suggestedEmojisModeConfig]);
+   return function getEmojisByCategory(category) {
+     var _emojis$emojis$catego;
+     if (category === Categories.SUGGESTED) {
+@@ -22195,11 +22207,16 @@ function useGetEmojisByCategory$1() {
+     emojiData = _usePickerDataContext.emojiData,
+     emojiByUnified = _usePickerDataContext.emojiByUnified;
+   var suggestedEmojisModeConfig = useSuggestedEmojisModeConfig();
++  var suggestedEmojisConfig = useSuggestedEmojisConfig();
+   var _useUpdateSuggested = useUpdateSuggested(),
+     suggestedUpdated = _useUpdateSuggested[0];
+   var suggested = React__default.useMemo(function () {
+     var _getSuggested;
+-    var suggested = (_getSuggested = getSuggested(suggestedEmojisModeConfig)) != null ? _getSuggested : [];
++    var suggested = suggestedEmojisConfig ? suggestedEmojisConfig.map(function (emoji) {
++      return {
++        unified: nativeEmojiToUnified(emoji)
++      };
++    }) : (_getSuggested = getSuggested(suggestedEmojisModeConfig)) != null ? _getSuggested : [];
+     return suggested.map(function (s) {
+       var _extends2;
+       var emoji = emojiByUnified(s.unified);
+@@ -22207,7 +22224,7 @@ function useGetEmojisByCategory$1() {
+       return _extends({}, emoji, (_extends2 = {}, _extends2[EmojiProperties.unified] = s.unified, _extends2));
+     }).filter(Boolean);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [suggestedUpdated, suggestedEmojisModeConfig, emojiByUnified]);
++  }, [suggestedUpdated, suggestedEmojisConfig, suggestedEmojisModeConfig, emojiByUnified]);
+   return function getEmojisByCategory(category) {
+     var _emojiData$emojis$cat, _emojiData$emojis;
+     if (category === Categories.SUGGESTED) {
+@@ -22549,9 +22566,14 @@ function useSuggestedEmojisModeConfig() {
+     suggestedEmojisMode = _usePickerConfig12.suggestedEmojisMode;
+   return suggestedEmojisMode;
+ }
+-function useLazyLoadEmojisConfig() {
++function useSuggestedEmojisConfig() {
+   var _usePickerConfig13 = usePickerConfig(),
+-    lazyLoadEmojis = _usePickerConfig13.lazyLoadEmojis;
++    suggestedEmojis = _usePickerConfig13.suggestedEmojis;
++  return suggestedEmojis;
++}
++function useLazyLoadEmojisConfig() {
++  var _usePickerConfig14 = usePickerConfig(),
++    lazyLoadEmojis = _usePickerConfig14.lazyLoadEmojis;
+   return lazyLoadEmojis;
+ }
+ function useClassNameConfig() {
+@@ -24020,6 +24042,7 @@ function useMouseDownHandlers(ContainerRef, mouseEventSource) {
+     updateSuggested = _useUpdateSuggested[1];
+   var getEmojiUrl = useGetEmojiUrlConfig();
+   var activeEmojiStyle = useEmojiStyleConfig();
++  var suggestedEmojis = useSuggestedEmojisConfig();
+   var _usePickerDataContext = usePickerDataContext(),
+     emojiByUnified = _usePickerDataContext.emojiByUnified;
+   var onClick = useCallback(function onClick(event) {
+@@ -24034,10 +24057,12 @@ function useMouseDownHandlers(ContainerRef, mouseEventSource) {
+       return;
+     }
+     var skinToneToUse = activeVariationFromUnified$1(unified) || activeSkinTone;
+-    updateSuggested();
+-    setSuggested(emoji, skinToneToUse);
++    if (!suggestedEmojis) {
++      updateSuggested();
++      setSuggested(emoji, skinToneToUse);
++    }
+     onEmojiClick(emojiClickOutput(emoji, skinToneToUse, activeEmojiStyle, getEmojiUrl), event);
+-  }, [activeSkinTone, closeAllOpenToggles, disallowClickRef, emojiByUnified, onEmojiClick, updateSuggested, getEmojiUrl, activeEmojiStyle]);
++  }, [activeSkinTone, closeAllOpenToggles, disallowClickRef, emojiByUnified, onEmojiClick, updateSuggested, getEmojiUrl, activeEmojiStyle, suggestedEmojis]);
+   var onMouseDown = useCallback(function onMouseDown(event) {
+     var _window;
+     if (mouseDownTimerRef.current) {
+diff --git a/src/components/context/PickerConfigContext.tsx b/src/components/context/PickerConfigContext.tsx
+index d7faf685a597e26cbe43eb7ae8e0e2ecf5db6880..8d3fd537dd06e1838482563f35d1104a614f3748 100644
+--- a/src/components/context/PickerConfigContext.tsx
++++ b/src/components/context/PickerConfigContext.tsx
+@@ -51,6 +51,7 @@ export function useSetConfig(config: PickerConfig) {
+     config.autoFocusSearch,
+     config.emojiStyle,
+     config.theme,
++    config.suggestedEmojis,
+     config.suggestedEmojisMode,
+     config.lazyLoadEmojis,
+     config.className,
+diff --git a/src/components/context/PickerDataContext.tsx b/src/components/context/PickerDataContext.tsx
+index 39ee61fbd75be8d237d81521e314164fe6b84929..ec19331dfd60d399d20591f76b8f8fea0c40cd90 100644
+--- a/src/components/context/PickerDataContext.tsx
++++ b/src/components/context/PickerDataContext.tsx
+@@ -1,7 +1,10 @@
+ import React from 'react';
+ 
+ import { CustomEmoji } from '../../config/customEmojiConfig';
+-import { useSuggestedEmojisModeConfig } from '../../config/useConfig';
++import {
++  useSuggestedEmojisConfig,
++  useSuggestedEmojisModeConfig,
++} from '../../config/useConfig';
+ import defaultEmojiData from '../../data/emojis';
+ import {
+   DataEmoji,
+@@ -14,7 +17,10 @@ import {
+   activeVariationFromUnified,
+   unifiedWithoutSkinTone,
+ } from '../../dataUtils/emojiUtils';
+-import { getSuggested } from '../../dataUtils/suggested';
++import {
++  getSuggested,
++  nativeEmojiToUnified,
++} from '../../dataUtils/suggested';
+ import { Categories, EmojiData, SkinTones } from '../../types/exposedTypes';
+ 
+ import { usePickerConfig } from './PickerConfigContext';
+@@ -125,10 +131,15 @@ export function usePickerDataContext() {
+ export function useGetEmojisByCategory() {
+   const { emojiData, emojiByUnified } = usePickerDataContext();
+   const suggestedEmojisModeConfig = useSuggestedEmojisModeConfig();
++  const suggestedEmojisConfig = useSuggestedEmojisConfig();
+   const [suggestedUpdated] = useUpdateSuggested();
+ 
+   const suggested = React.useMemo(() => {
+-    const suggested = getSuggested(suggestedEmojisModeConfig) ?? [];
++    const suggested = suggestedEmojisConfig
++      ? suggestedEmojisConfig.map((emoji) => ({
++          unified: nativeEmojiToUnified(emoji),
++        }))
++      : (getSuggested(suggestedEmojisModeConfig) ?? []);
+ 
+     return suggested
+       .map((s) => {
+@@ -141,7 +152,12 @@ export function useGetEmojisByCategory() {
+       })
+       .filter(Boolean) as DataEmojis;
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [suggestedUpdated, suggestedEmojisModeConfig, emojiByUnified]);
++  }, [
++    suggestedUpdated,
++    suggestedEmojisConfig,
++    suggestedEmojisModeConfig,
++    emojiByUnified,
++  ]);
+ 
+   return function getEmojisByCategory(category: Categories): DataEmojis {
+     if (category === Categories.SUGGESTED) {
+diff --git a/src/config/compareConfig.ts b/src/config/compareConfig.ts
+index a1ceb55d0c3ffc7ed4478f9c42eb331fc5057b74..d3d0ea18f31f3d888d2e174bc26e248433732987 100644
+--- a/src/config/compareConfig.ts
++++ b/src/config/compareConfig.ts
+@@ -16,6 +16,7 @@ export function compareConfig(prev: PickerConfig, next: PickerConfig) {
+     prev.autoFocusSearch === next.autoFocusSearch &&
+     prev.emojiStyle === next.emojiStyle &&
+     prev.theme === next.theme &&
++    prev.suggestedEmojis === next.suggestedEmojis &&
+     prev.suggestedEmojisMode === next.suggestedEmojisMode &&
+     prev.lazyLoadEmojis === next.lazyLoadEmojis &&
+     prev.className === next.className &&
+diff --git a/src/config/config.ts b/src/config/config.ts
+index e1d9176132377c2ed43d8eedd5973aded7e798f9..2a80ca244af6682fdd6d36a84b7d3863084b8af8 100644
+--- a/src/config/config.ts
++++ b/src/config/config.ts
+@@ -104,6 +104,7 @@ export function basePickerConfig(): PickerConfigInternal {
+     skinTonePickerLocation: SkinTonePickerLocation.SEARCH,
+     skinTonesDisabled: false,
+     style: {},
++    suggestedEmojis: undefined,
+     suggestedEmojisMode: SuggestionMode.FREQUENT,
+     theme: Theme.LIGHT,
+     unicodeToHide: new Set<string>(KNOWN_FAILING_EMOJIS),
+@@ -130,6 +131,8 @@ export type PickerConfigInternal = {
+   emojiStyle: EmojiStyle;
+   categories: CategoriesConfig;
+   theme: Theme;
++  /** Native emojis to render as a controlled suggested category. */
++  suggestedEmojis?: string[];
+   suggestedEmojisMode: SuggestionMode;
+   lazyLoadEmojis: boolean;
+   previewConfig: PreviewConfig;
+diff --git a/src/config/useConfig.ts b/src/config/useConfig.ts
+index 2e4e71a92a67cfee07770696ff11d1b859b61aea..b8b5becaf46c416a8bbb2dcc6686f34f0c7014e3 100644
+--- a/src/config/useConfig.ts
++++ b/src/config/useConfig.ts
+@@ -137,6 +137,11 @@ export function useSuggestedEmojisModeConfig(): SuggestionMode {
+   return suggestedEmojisMode;
+ }
+ 
++export function useSuggestedEmojisConfig(): string[] | undefined {
++  const { suggestedEmojis } = usePickerConfig();
++  return suggestedEmojis;
++}
++
+ export function useLazyLoadEmojisConfig(): boolean {
+   const { lazyLoadEmojis } = usePickerConfig();
+   return lazyLoadEmojis;
+diff --git a/src/dataUtils/emojiSelectors.ts b/src/dataUtils/emojiSelectors.ts
+index 36d767dcbf692f693d30ebf18b8dbdbc2151c96f..c644f7668747d8383444466383bc9105a5c935cb 100644
+--- a/src/dataUtils/emojiSelectors.ts
++++ b/src/dataUtils/emojiSelectors.ts
+@@ -4,7 +4,10 @@ import { useUpdateSuggested } from '../components/context/PickerContext';
+ import { Categories } from '../config/categoryConfig';
+ import { cdnUrl } from '../config/cdnUrls';
+ import { CustomEmoji } from '../config/customEmojiConfig';
+-import { useSuggestedEmojisModeConfig } from '../config/useConfig';
++import {
++  useSuggestedEmojisConfig,
++  useSuggestedEmojisModeConfig,
++} from '../config/useConfig';
+ import emojis from '../data/emojis';
+ import skinToneVariations, {
+   skinTonesMapped,
+@@ -13,7 +16,7 @@ import { EmojiStyle, SkinTones } from '../types/exposedTypes';
+ 
+ import { DataEmoji, DataEmojis, EmojiProperties, WithName } from './DataTypes';
+ import { indexEmoji } from './alphaNumericEmojiIndex';
+-import { getSuggested } from './suggested';
++import { getSuggested, nativeEmojiToUnified } from './suggested';
+ 
+ export function emojiNames(emoji: WithName): string[] {
+   return emoji[EmojiProperties.name] ?? [];
+@@ -55,18 +58,23 @@ export function emojiUnified(emoji: DataEmoji, skinTone?: string): string {
+ 
+ export function useGetEmojisByCategory(): (Category: Categories) => DataEmojis {
+   const suggestedEmojisModeConfig = useSuggestedEmojisModeConfig();
++  const suggestedEmojisConfig = useSuggestedEmojisConfig();
+   const [suggestedUpdated] = useUpdateSuggested();
+ 
+   const suggested = React.useMemo(
+     () => {
+-      const suggested = getSuggested(suggestedEmojisModeConfig) ?? [];
++      const suggested = suggestedEmojisConfig
++        ? suggestedEmojisConfig.map((emoji) => ({
++            unified: nativeEmojiToUnified(emoji),
++          }))
++        : (getSuggested(suggestedEmojisModeConfig) ?? []);
+ 
+       return suggested
+         .map((s) => emojiByUnified(s.unified))
+         .filter(Boolean) as DataEmojis;
+     },
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-    [suggestedUpdated, suggestedEmojisModeConfig],
++    [suggestedUpdated, suggestedEmojisConfig, suggestedEmojisModeConfig],
+   );
+ 
+   return function getEmojisByCategory(category: Categories): DataEmojis {
+diff --git a/src/dataUtils/suggested.ts b/src/dataUtils/suggested.ts
+index 53526b3f10c78eb8c09fea606a732c9955798aa2..2efaed696cd0a8d93fef205eb1d6a2d853246b69 100644
+--- a/src/dataUtils/suggested.ts
++++ b/src/dataUtils/suggested.ts
+@@ -13,6 +13,13 @@ type SuggestedItem = {
+ 
+ type Suggested = SuggestedItem[];
+ 
++export function nativeEmojiToUnified(emoji: string): string {
++  return Array.from(emoji)
++    .map((codePoint) => codePoint.codePointAt(0)?.toString(16).padStart(4, '0'))
++    .filter(Boolean)
++    .join('-');
++}
++
+ export function getSuggested(mode?: SuggestionMode): Suggested {
+   try {
+     if (!window?.localStorage) {
+diff --git a/src/hooks/useMouseDownHandlers.ts b/src/hooks/useMouseDownHandlers.ts
+index 26977fb3d79d8978d6d169a0c67b995365e785e9..c07d279328c1dda2931aa450261887bd28ddb9e8 100644
+--- a/src/hooks/useMouseDownHandlers.ts
++++ b/src/hooks/useMouseDownHandlers.ts
+@@ -19,6 +19,7 @@ import {
+   useEmojiStyleConfig,
+   useGetEmojiUrlConfig,
+   useOnEmojiClickConfig,
++  useSuggestedEmojisConfig,
+ } from '../config/useConfig';
+ import { DataEmoji } from '../dataUtils/DataTypes';
+ import {
+@@ -49,6 +50,7 @@ export function useMouseDownHandlers(
+   const [, updateSuggested] = useUpdateSuggested();
+   const getEmojiUrl = useGetEmojiUrlConfig();
+   const activeEmojiStyle = useEmojiStyleConfig();
++  const suggestedEmojis = useSuggestedEmojisConfig();
+   const { emojiByUnified } = usePickerDataContext();
+ 
+   const onClick = React.useCallback(
+@@ -68,8 +70,10 @@ export function useMouseDownHandlers(
+       const skinToneToUse =
+         activeVariationFromUnified(unified) || activeSkinTone;
+ 
+-      updateSuggested();
+-      setSuggested(emoji, skinToneToUse);
++      if (!suggestedEmojis) {
++        updateSuggested();
++        setSuggested(emoji, skinToneToUse);
++      }
+       onEmojiClick(
+         emojiClickOutput(emoji, skinToneToUse, activeEmojiStyle, getEmojiUrl),
+         event,
+@@ -84,6 +88,7 @@ export function useMouseDownHandlers(
+       updateSuggested,
+       getEmojiUrl,
+       activeEmojiStyle,
++      suggestedEmojis,
+     ],
+   );
+ 

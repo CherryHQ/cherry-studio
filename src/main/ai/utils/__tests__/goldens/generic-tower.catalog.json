@@ -1,6 +1,6 @@
 {
-  "rows": 951,
-  "groups": 62,
+  "rows": 958,
+  "groups": 63,
   "behaviors": [
     {
       "behavior": {
@@ -202,8 +202,6 @@
         "anthropic::claude-haiku-latest",
         "anthropic::claude-opus-4-6",
         "anthropic::claude-opus-4-6-v1",
-        "anthropic::claude-opus-4-7-fast",
-        "anthropic::claude-opus-4-8-fast",
         "anthropic::claude-opus-latest",
         "anthropic::claude-sonnet-4-6",
         "anthropic::claude-sonnet-latest",
@@ -1273,7 +1271,11 @@
       },
       "members": [
         "302ai::grok-4-20-multi-agent-beta",
+        "anthropic::claude-opus-4-7-fast",
+        "anthropic::claude-opus-4-8-fast",
         "copilot::gpt-5-2-codex",
+        "gateway::claude-opus-4-7-fast",
+        "gateway::claude-opus-4-8-fast",
         "gateway::gpt-5-1-codex-max",
         "gateway::gpt-5-2-codex",
         "gateway::grok-4-20-multi-agent",
@@ -1392,7 +1394,7 @@
         "dashscope::qwen3-vl",
         "gateway::qwen3-5-flash",
         "gateway::qwen3-5-plus",
-        "gateway::qwen3-max",
+        "huggingface::qwen3-235b-a22b",
         "lanyun::qwen3-235b-a22b",
         "ppio::qwen3-235b-a22b",
         "ppio::qwen3-5-plus",
@@ -2166,6 +2168,69 @@
     {
       "behavior": {
         "minimal": {
+          "reasoningEffort": "minimal"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "medium"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "xhigh"
+        },
+        "max": {
+          "reasoningEffort": "none"
+        },
+        "auto": {
+          "reasoningEffort": "none"
+        }
+      },
+      "members": [
+        "gateway::inkling",
+        "gateway::muse-spark-1-1"
+      ]
+    },
+    {
+      "behavior": {
+        "none": {
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "minimal": {
+          "reasoningEffort": "low"
+        },
+        "low": {
+          "reasoningEffort": "low"
+        },
+        "medium": {
+          "reasoningEffort": "low"
+        },
+        "high": {
+          "reasoningEffort": "high"
+        },
+        "xhigh": {
+          "reasoningEffort": "low"
+        },
+        "max": {
+          "reasoningEffort": "max"
+        },
+        "auto": {
+          "reasoningEffort": "low"
+        }
+      },
+      "members": [
+        "gateway::kimi-k3",
+        "moonshot::kimi-k3"
+      ]
+    },
+    {
+      "behavior": {
+        "minimal": {
           "reasoningEffort": "none"
         },
         "low": {
@@ -2205,34 +2270,6 @@
     {
       "behavior": {
         "minimal": {
-          "reasoningEffort": "minimal"
-        },
-        "low": {
-          "reasoningEffort": "low"
-        },
-        "medium": {
-          "reasoningEffort": "medium"
-        },
-        "high": {
-          "reasoningEffort": "high"
-        },
-        "xhigh": {
-          "reasoningEffort": "xhigh"
-        },
-        "max": {
-          "reasoningEffort": "none"
-        },
-        "auto": {
-          "reasoningEffort": "none"
-        }
-      },
-      "members": [
-        "gateway::muse-spark-1-1"
-      ]
-    },
-    {
-      "behavior": {
-        "minimal": {
           "thinking_budget": 4096
         },
         "low": {
@@ -2256,8 +2293,8 @@
       },
       "members": [
         "gateway::qwen3-235b-a22b",
+        "gateway::qwen3-max",
         "gateway::qwen3-vl",
-        "huggingface::qwen3-235b-a22b",
         "modelscope::qwen3-235b-a22b"
       ]
     },
@@ -2739,15 +2776,18 @@
         "openrouter::grok-4-3",
         "openrouter::grok-4-5",
         "openrouter::hunyuan-a13b-instruct",
+        "openrouter::inkling",
         "openrouter::kimi-k2-5",
         "openrouter::kimi-k2-6",
         "openrouter::kimi-k2-7-code",
+        "openrouter::kimi-k3",
         "openrouter::mercury-2",
         "openrouter::mimo-v2-5",
         "openrouter::mimo-v2-5-pro",
         "openrouter::minimax-m3",
         "openrouter::mistral-medium-3-5",
         "openrouter::mistral-small",
+        "openrouter::muse-spark-1-1",
         "openrouter::nemotron-3-nano-30b-a3b",
         "openrouter::nemotron-3-nano-omni-30b-a3b",
         "openrouter::nemotron-3-super-120b-a12b",
@@ -2827,7 +2867,6 @@
         "openrouter::kat-coder-pro-v2-5",
         "openrouter::kimi-k2",
         "openrouter::kimi-latest",
-        "openrouter::llama-3-3-nemotron-super-49b-v1-5",
         "openrouter::minimax-m1",
         "openrouter::minimax-m2",
         "openrouter::minimax-m2-1",

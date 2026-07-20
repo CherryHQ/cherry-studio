@@ -65,6 +65,7 @@ DataApi must not be used as a general-purpose RPC layer. It is the **data** busi
 │ ┌────────────────────────────────────────────────────────┐ │
 │ │ IpcAdapter                                             │ │
 │ │ - Receives IPC requests                                │ │
+│ │ - Rejects untrusted senders (validateSender)           │ │
 │ │ - Routes to ApiServer                                  │ │
 │ └──────────────────────────┬─────────────────────────────┘ │
 │                            ▼                               │

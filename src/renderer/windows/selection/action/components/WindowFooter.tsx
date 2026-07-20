@@ -158,12 +158,15 @@ const WindowFooter: FC<FooterProps> = ({
     setIsWindowFocus(false)
   }
 
-  const footerButtonClassName = (enabled: boolean, hovered: boolean) =>
+  const footerButtonClassName = (enabled: boolean, hovered: boolean, danger = false) =>
     cn(
       'flex h-[22px] cursor-pointer select-none flex-row items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap rounded bg-muted px-2 text-foreground-secondary text-xs transition-colors',
       enabled ? 'opacity-100' : 'opacity-20',
-      hovered && 'text-primary [&_.btn-icon]:text-primary',
-      'hover:text-primary hover:[&_.btn-icon]:text-primary'
+      danger
+        ? 'hover:text-error-base hover:[&_.btn-icon]:text-error-base'
+        : 'hover:text-foreground hover:[&_.btn-icon]:text-foreground',
+      hovered &&
+        (danger ? 'text-error-base [&_.btn-icon]:text-error-base' : 'text-foreground [&_.btn-icon]:text-foreground')
     )
 
   return (
@@ -175,7 +178,10 @@ const WindowFooter: FC<FooterProps> = ({
         isShowMe || isContainerHovered ? 'opacity-100' : 'opacity-0'
       )}>
       <div className="flex flex-row items-center justify-center gap-1.5 text-foreground-secondary text-xs">
-        <button type="button" onClick={handleEsc} className={footerButtonClassName(isWindowFocus, isEscHovered)}>
+        <button
+          type="button"
+          onClick={handleEsc}
+          className={footerButtonClassName(isWindowFocus, isEscHovered, loading)}>
           {loading ? (
             <>
               <span className="relative size-4">
