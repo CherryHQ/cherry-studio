@@ -1,36 +1,22 @@
 import { spawn } from 'node:child_process'
 import type { EventEmitter } from 'node:events'
-import { isDeepStrictEqual } from 'node:util'
+import fs from 'node:fs'
 
 // oxlint-disable-next-line import/default -- Electron Vite exposes ?modulePath imports as default asset paths.
 import migrationDatabaseDiagnosticsChildPath from './migrationDatabaseDiagnosticsChild?modulePath'
-import type { MigrationDatabaseDiagnosticsLease } from './migrationDatabaseDiagnosticsLease'
-import type {
-  MigrationDatabaseCompletedDiagnosticResult,
-  MigrationDatabaseCompletionFailureCode,
-  MigrationDatabaseDiagnosticResult,
-  MigrationDatabaseDiagnosticsChildInput,
-  MigrationDatabaseDiagnosticStep,
-  MigrationDatabaseFailedDiagnosticResult,
-  MigrationDatabaseL0Step,
-  MigrationDatabaseL1Step,
-  MigrationDatabaseL2Step,
-  MigrationDatabaseTimedOutDiagnosticResult
-} from './migrationDatabaseDiagnosticsSchemas'
 import {
-  MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES,
-  MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
-  MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION,
+  type MigrationDatabaseDiagnosticResult,
+  migrationDatabaseDiagnosticResultSchema,
+  type MigrationDatabaseDiagnosticsChildInput,
   migrationDatabaseDiagnosticsChildInputSchema,
   migrationDatabaseDiagnosticsChildMessageSchema,
-  migrationDatabaseDiagnosticsChildReadySchema
+  type MigrationDatabaseFileResult,
+  type MigrationDatabaseSqliteResult
 } from './migrationDatabaseDiagnosticsSchemas'
 
-export type { MigrationDatabaseDiagnosticsLease } from './migrationDatabaseDiagnosticsLease'
-export { MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES } from './migrationDatabaseDiagnosticsSchemas'
-
-const DEFAULT_MIGRATION_DATABASE_DIAGNOSTIC_TIMEOUT_MS = 3_000
-const MAX_DRAINED_STDERR_BYTES = 65_536
+const SQLITE_HEADER = Buffer.from('SQLite format 3\0', 'binary')
+const MAX_HEADER_BYTES = 100
+const DEFAULT_TIMEOUT_MS = 3_000
 
 export interface MigrationDatabaseDiagnosticsChildStderrLike {
   on(event: 'data', listener: (chunk: unknown) => void): EventEmitter
@@ -67,85 +53,81 @@ export interface MigrationDatabaseDiagnosticsOptions {
   readonly timeoutMs?: number
 }
 
-interface CompletedSteps {
-  l0?: MigrationDatabaseL0Step
-  l1?: MigrationDatabaseL1Step
-  l2?: MigrationDatabaseL2Step
-}
-
-function createTerminalResult(
-  completed: CompletedSteps,
-  completion:
-    | { readonly status: 'failed'; readonly code: MigrationDatabaseCompletionFailureCode }
-    | { readonly status: 'timed_out'; readonly code: 'process_timeout' }
-): MigrationDatabaseDiagnosticResult {
-  const base = {
-    version: MIGRATION_DATABASE_DIAGNOSTIC_VERSION,
-    expectedSchemaVersion: MIGRATION_DATABASE_EXPECTED_SCHEMA_VERSION,
-    ...completed
-  }
-  if (completion.status === 'failed') {
-    const result: MigrationDatabaseFailedDiagnosticResult = { ...base, completion }
-    return result
-  }
-  const result: MigrationDatabaseTimedOutDiagnosticResult = { ...base, completion }
-  return result
-}
-
-function getMessageByteLength(message: unknown): number | null {
-  try {
-    const serialized = JSON.stringify(message)
-    return serialized === undefined ? null : Buffer.byteLength(serialized, 'utf8')
-  } catch {
-    return null
-  }
-}
-
-function isExpectedIncrement(completed: CompletedSteps, step: MigrationDatabaseDiagnosticStep): boolean {
-  if (step.level === 'l0') return completed.l0 === undefined && completed.l1 === undefined && completed.l2 === undefined
-  if (step.level === 'l1') return completed.l0 !== undefined && completed.l1 === undefined && completed.l2 === undefined
-  return completed.l0 !== undefined && completed.l1 !== undefined && completed.l2 === undefined
-}
-
-function rememberStep(completed: CompletedSteps, step: MigrationDatabaseDiagnosticStep): void {
-  if (step.level === 'l0') completed.l0 = step
-  else if (step.level === 'l1') completed.l1 = step
-  else completed.l2 = step
-}
-
-function isCompleteConsistentFinal(
-  completed: CompletedSteps,
-  result: MigrationDatabaseCompletedDiagnosticResult
-): boolean {
-  return (
-    completed.l0 !== undefined &&
-    completed.l1 !== undefined &&
-    completed.l2 !== undefined &&
-    isDeepStrictEqual(completed.l0, result.l0) &&
-    isDeepStrictEqual(completed.l1, result.l1) &&
-    isDeepStrictEqual(completed.l2, result.l2)
-  )
-}
-
-function createL0OnlyInput(databaseFile: string): MigrationDatabaseDiagnosticsChildInput | null {
-  const parsed = migrationDatabaseDiagnosticsChildInputSchema.safeParse({ mode: 'l0_only', databaseFile })
-  return parsed.success ? parsed.data : null
-}
-
-function createFullInput(lease: MigrationDatabaseDiagnosticsLease): MigrationDatabaseDiagnosticsChildInput | null {
-  const parsed = migrationDatabaseDiagnosticsChildInputSchema.safeParse({
-    mode: 'full',
-    databaseFile: lease.databaseFile,
-    identity: lease.identity
-  })
-  return parsed.success ? parsed.data : null
-}
-
 function spawnDiagnosticsChild(
   modulePath: string,
   options: MigrationDatabaseDiagnosticsSpawnOptions
 ): MigrationDatabaseDiagnosticsChildLike {
   return spawn(process.execPath, [modulePath], options) as MigrationDatabaseDiagnosticsChildLike
+}
+
+function sizeBucket(size: number): NonNullable<MigrationDatabaseFileResult['sizeBucket']> {
+  if (size === 0) return '0'
+  if (size < 4_096) return '1-4095'
+  if (size <= 1_048_576) return '4096-1m'
+  if (size <= 104_857_600) return '1m-100m'
+  return '100m+'
+}
+
+function sidecarPresent(file: string): boolean | undefined {
+  try {
+    return fs.lstatSync(file).isFile()
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') return false
+    return undefined
+  }
+}
+
+function inspectFile(databaseFile: string): MigrationDatabaseFileResult {
+  let stats: fs.Stats
+  try {
+    stats = fs.lstatSync(databaseFile)
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') {
+      return {
+        status: 'missing',
+        sqliteHeader: 'unavailable',
+        walPresent: sidecarPresent(`${databaseFile}-wal`),
+        shmPresent: sidecarPresent(`${databaseFile}-shm`)
+      }
+    }
+    return { status: 'unreadable', sqliteHeader: 'unavailable' }
+  }
+
+  if (!stats.isFile() || stats.isSymbolicLink()) return { status: 'not_regular', sqliteHeader: 'unavailable' }
+
+  const base = {
+    sizeBucket: sizeBucket(stats.size),
+    walPresent: sidecarPresent(`${databaseFile}-wal`),
+    shmPresent: sidecarPresent(`${databaseFile}-shm`)
+  }
+  let fd: number | undefined
+  try {
+    fd = fs.openSync(databaseFile, 'r')
+    const header = Buffer.alloc(MAX_HEADER_BYTES)
+    const bytesRead = fs.readSync(fd, header, 0, header.length, 0)
+    return {
+      status: 'readable',
+      ...base,
+      sqliteHeader:
+        bytesRead >= SQLITE_HEADER.byteLength && header.subarray(0, SQLITE_HEADER.byteLength).equals(SQLITE_HEADER)
+          ? 'valid'
+          : 'invalid'
+    }
+  } catch {
+    return { status: 'unreadable', ...base, sqliteHeader: 'unavailable' }
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd)
+      } catch {
+        // File evidence is best-effort and never changes the migration result.
+      }
+    }
+  }
+}
+
+function unavailable(reason: Extract<MigrationDatabaseSqliteResult, { status: 'unavailable' }>['reason']) {
+  return { status: 'unavailable' as const, reason }
 }
 
 export class MigrationDatabaseDiagnostics {
@@ -157,24 +139,26 @@ export class MigrationDatabaseDiagnostics {
     this.timeoutMs =
       options.timeoutMs !== undefined && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
         ? Math.floor(options.timeoutMs)
-        : DEFAULT_MIGRATION_DATABASE_DIAGNOSTIC_TIMEOUT_MS
+        : DEFAULT_TIMEOUT_MS
   }
 
   inspect(databaseFile: string): Promise<MigrationDatabaseDiagnosticResult> {
-    const input = createL0OnlyInput(databaseFile)
-    return input === null
-      ? Promise.resolve(createTerminalResult({}, { status: 'failed', code: 'invalid_input' }))
-      : this.runChild(input)
+    const input = migrationDatabaseDiagnosticsChildInputSchema.safeParse({ databaseFile })
+    const file = input.success
+      ? inspectFile(input.data.databaseFile)
+      : ({ status: 'unreadable', sqliteHeader: 'unavailable' } as const)
+    if (!input.success || file.status === 'missing' || file.status === 'not_regular' || file.status === 'unreadable') {
+      return Promise.resolve(
+        migrationDatabaseDiagnosticResultSchema.parse({ file, sqlite: unavailable('not_attempted') })
+      )
+    }
+    return this.runChild(input.data, file)
   }
 
-  inspectWithLease(lease: MigrationDatabaseDiagnosticsLease): Promise<MigrationDatabaseDiagnosticResult> {
-    const input = createFullInput(lease)
-    return input === null
-      ? Promise.resolve(createTerminalResult({}, { status: 'failed', code: 'invalid_input' }))
-      : this.runChild(input)
-  }
-
-  private runChild(input: MigrationDatabaseDiagnosticsChildInput): Promise<MigrationDatabaseDiagnosticResult> {
+  private runChild(
+    input: MigrationDatabaseDiagnosticsChildInput,
+    file: MigrationDatabaseFileResult
+  ): Promise<MigrationDatabaseDiagnosticResult> {
     let child: MigrationDatabaseDiagnosticsChildLike
     try {
       child = this.createChild(migrationDatabaseDiagnosticsChildPath, {
@@ -188,18 +172,15 @@ export class MigrationDatabaseDiagnostics {
         shell: false
       })
     } catch {
-      return Promise.resolve(createTerminalResult({}, { status: 'failed', code: 'process_error' }))
+      return Promise.resolve(migrationDatabaseDiagnosticResultSchema.parse({ file, sqlite: unavailable('child_exit') }))
     }
 
     return new Promise((resolve) => {
-      const completed: CompletedSteps = {}
-      let ready = false
       let settled = false
+      let received: MigrationDatabaseSqliteResult | undefined
       let killRequested = false
-      let pendingResult: MigrationDatabaseDiagnosticResult | undefined
-      let pendingFinal: MigrationDatabaseCompletedDiagnosticResult | undefined
-      let drainedStderrBytes = 0
 
+      const handleStderr = (): void => {}
       const cleanup = (): void => {
         clearTimeout(timeout)
         child.removeListener('message', handleMessage)
@@ -207,140 +188,60 @@ export class MigrationDatabaseDiagnostics {
         child.removeListener('close', handleClose)
         child.stderr?.removeListener('data', handleStderr)
       }
-
-      const settleAfterClose = (result: MigrationDatabaseDiagnosticResult): void => {
+      const settle = (sqlite: MigrationDatabaseSqliteResult): void => {
         if (settled) return
         settled = true
         cleanup()
-        resolve(result)
+        resolve(migrationDatabaseDiagnosticResultSchema.parse({ file, sqlite }))
       }
-
       const killOnce = (): void => {
         if (killRequested) return
         killRequested = true
         try {
           child.kill('SIGKILL')
         } catch {
-          // A thrown kill still waits for the process close event. Releasing the
-          // diagnostics lease before stdio closes would reopen the WAL race.
+          // The fixed unavailable result remains authoritative.
         }
       }
-
-      const stop = (result: MigrationDatabaseDiagnosticResult): void => {
-        if (pendingResult !== undefined || settled) return
-        pendingFinal = undefined
-        pendingResult = result
+      const rejectOutput = (): void => {
         killOnce()
+        settle(unavailable('invalid_output'))
       }
-
-      const stopFailed = (code: MigrationDatabaseCompletionFailureCode): void => {
-        stop(createTerminalResult(completed, { status: 'failed', code }))
-      }
-
-      const handleStderr = (chunk: unknown): void => {
-        if (drainedStderrBytes < MAX_DRAINED_STDERR_BYTES) {
-          const byteLength = Buffer.isBuffer(chunk)
-            ? chunk.byteLength
-            : typeof chunk === 'string'
-              ? Buffer.byteLength(chunk)
-              : 0
-          drainedStderrBytes = Math.min(MAX_DRAINED_STDERR_BYTES, drainedStderrBytes + byteLength)
-        }
-      }
-
       const handleMessage = (message: unknown): void => {
-        if (settled || pendingResult !== undefined) return
-        if (pendingFinal !== undefined) {
-          stopFailed('protocol_error')
-          return
-        }
-        const byteLength = getMessageByteLength(message)
-        if (byteLength === null || byteLength > MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES) {
-          stopFailed('protocol_error')
-          return
-        }
-
-        const parsedReady = migrationDatabaseDiagnosticsChildReadySchema.safeParse(message)
-        if (!ready) {
-          if (!parsedReady.success) {
-            stopFailed('protocol_error')
-            return
-          }
-          ready = true
-          try {
-            child.send(input, (error) => {
-              if (error !== null) stopFailed('process_error')
-            })
-          } catch {
-            stopFailed('process_error')
-          }
-          return
-        }
-        if (parsedReady.success) {
-          stopFailed('protocol_error')
-          return
-        }
-
+        if (settled) return
         const parsed = migrationDatabaseDiagnosticsChildMessageSchema.safeParse(message)
-        if (!parsed.success) {
-          stopFailed('protocol_error')
+        if (!parsed.success || received !== undefined) {
+          rejectOutput()
           return
         }
-        if (parsed.data.type === 'step') {
-          if (!isExpectedIncrement(completed, parsed.data.step)) {
-            stopFailed('protocol_error')
-            return
-          }
-          if (input.mode === 'l0_only' && parsed.data.step.level !== 'l0') {
-            stopFailed('protocol_error')
-            return
-          }
-          rememberStep(completed, parsed.data.step)
-          return
-        }
-
-        if (input.mode !== 'full' || !isCompleteConsistentFinal(completed, parsed.data.result)) {
-          stopFailed('protocol_error')
-          return
-        }
-        pendingFinal = parsed.data.result
+        received = parsed.data.result
       }
-
       const handleError = (): void => {
-        stopFailed('process_error')
+        killOnce()
+        settle(unavailable('child_exit'))
       }
-
       const handleClose = (code: number | null, signal: NodeJS.Signals | null): void => {
         if (settled) return
-        if (pendingResult !== undefined) {
-          settleAfterClose(pendingResult)
-          return
-        }
-        if (code === 0 && signal === null && pendingFinal !== undefined) {
-          settleAfterClose(pendingFinal)
-          return
-        }
-        if (code === 0 && signal === null && input.mode === 'l0_only' && completed.l0 !== undefined) {
-          settleAfterClose(createTerminalResult(completed, { status: 'failed', code: 'lease_unavailable' }))
-          return
-        }
-        settleAfterClose(
-          createTerminalResult(completed, {
-            status: 'failed',
-            code: code === 0 && signal === null ? 'process_no_result' : 'process_exit'
-          })
-        )
+        settle(code === 0 && signal === null && received !== undefined ? received : unavailable('child_exit'))
       }
-
       const timeout = setTimeout(() => {
-        stop(createTerminalResult(completed, { status: 'timed_out', code: 'process_timeout' }))
+        killOnce()
+        settle(unavailable('timeout'))
       }, this.timeoutMs)
       timeout.unref()
+
       child.on('message', handleMessage)
       child.once('error', handleError)
       child.once('close', handleClose)
       child.stderr?.on('data', handleStderr)
       child.unref()
+      try {
+        child.send(input, (error) => {
+          if (error !== null) handleError()
+        })
+      } catch {
+        handleError()
+      }
     })
   }
 }

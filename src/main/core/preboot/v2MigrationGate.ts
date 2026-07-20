@@ -36,9 +36,12 @@ import semver from 'semver'
 const logger = loggerService.withContext('V2MigrationGate')
 
 const MEMORY_ONLY_DATABASE_DIAGNOSTICS = Object.freeze({
-  version: 1 as const,
-  expectedSchemaVersion: 1 as const,
-  completion: Object.freeze({ status: 'failed' as const, code: 'lease_unavailable' as const })
+  file: Object.freeze({
+    status: 'unreadable' as const,
+    sizeBucket: '0' as const,
+    sqliteHeader: 'unavailable' as const
+  }),
+  sqlite: Object.freeze({ status: 'unavailable' as const, reason: 'not_attempted' as const })
 })
 
 function normalizeDiagnosticVersion(value: string | null | undefined): string | null {
@@ -146,9 +149,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           snapshot,
           collectDatabaseDiagnostics: () => {
             if (resolvedPaths === null) return Promise.resolve(MEMORY_ONLY_DATABASE_DIAGNOSTICS)
-            return engineInitialized
-              ? migrationEngine.collectDatabaseDiagnostics(databaseDiagnostics)
-              : databaseDiagnostics.inspect(resolvedPaths.databaseFile)
+            return databaseDiagnostics.inspect(resolvedPaths.databaseFile)
           }
         })
       )

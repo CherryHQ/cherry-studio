@@ -1,365 +1,148 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  EXPECTED_MIGRATION_DATABASE_OBJECTS,
-  type MigrationDatabaseColumnCountBucket,
+  MIGRATION_DATABASE_OBJECT_DEFINITIONS,
   migrationDatabaseDiagnosticResultSchema,
   migrationDatabaseDiagnosticsChildInputSchema,
-  migrationDatabaseDiagnosticsChildReadySchema,
-  migrationDatabaseL0DataSchema,
-  migrationDatabaseL0StepSchema,
-  type MigrationDatabaseL1Data,
-  migrationDatabaseL1DataSchema,
-  type MigrationDatabaseL2Data,
-  migrationDatabaseL2StepSchema
+  migrationDatabaseDiagnosticsChildMessageSchema,
+  migrationDatabaseSqliteResultSchema
 } from '../migrationDatabaseDiagnosticsSchemas'
 
-function bucketColumnCount(count: number | undefined): MigrationDatabaseColumnCountBucket {
-  if (count === undefined) return 'unavailable'
-  if (count === 0) return '0'
-  if (count <= 5) return '1_to_5'
-  if (count <= 10) return '6_to_10'
-  if (count <= 20) return '11_to_20'
-  if (count <= 40) return '21_to_40'
-  return '41_plus'
-}
+const objects = MIGRATION_DATABASE_OBJECT_DEFINITIONS.map((definition) => ({
+  role: definition.role,
+  status: 'present' as const
+}))
 
-function makeL1Data(): MigrationDatabaseL1Data {
-  return {
-    metadata: {
-      pageSize: '4096',
-      encoding: 'utf8',
-      userVersionBucket: '0',
-      schemaVersionBucket: '1_to_10',
-      applicationId: 'unset',
-      queryOnly: true
-    },
-    objects: EXPECTED_MIGRATION_DATABASE_OBJECTS.map((object) => ({
-      id: object.id,
-      kind: object.kind,
-      status: 'ok' as const,
-      columnCountBucket: bucketColumnCount('columnCount' in object ? object.columnCount : undefined)
-    })),
-    unknownObjects: []
-  }
-}
+const availableSqlite = {
+  status: 'available',
+  quickCheck: 'ok',
+  foreignKeyViolationCountBucket: '0',
+  objects
+} as const
 
-function makeL2Data(): MigrationDatabaseL2Data {
-  return {
-    quickCheck: {
-      outcome: 'ok',
-      issueCountBucket: '0',
-      categories: [],
-      truncated: false
-    },
-    foreignKeys: {
-      outcome: 'ok',
-      scannedCountBucket: '0',
-      violations: [],
-      truncated: false
-    }
-  }
-}
+const result = {
+  file: {
+    status: 'readable',
+    sizeBucket: '4096-1m',
+    sqliteHeader: 'valid',
+    walPresent: false,
+    shmPresent: false
+  },
+  sqlite: availableSqlite
+} as const
 
-describe('migration database diagnostic semantic schemas', () => {
-  it('accepts only fixed L0-only/full child inputs and closed file identities', () => {
-    const identity = {
-      database: { device: '1', inode: '10' },
-      wal: { device: '1', inode: '11' },
-      shm: { device: '1', inode: '12' }
-    }
-
-    expect(
-      migrationDatabaseDiagnosticsChildInputSchema.safeParse({
-        mode: 'l0_only',
-        databaseFile: '/private/database.sqlite'
-      }).success
-    ).toBe(true)
-    expect(
-      migrationDatabaseDiagnosticsChildInputSchema.safeParse({
-        mode: 'full',
-        databaseFile: '/private/database.sqlite',
-        identity
-      }).success
-    ).toBe(true)
-    expect(
-      migrationDatabaseDiagnosticsChildInputSchema.safeParse({
-        mode: 'full',
-        databaseFile: '/private/database.sqlite',
-        identity,
-        sql: 'SELECT secret FROM message'
-      }).success
-    ).toBe(false)
-    expect(
-      migrationDatabaseDiagnosticsChildInputSchema.safeParse({
-        mode: 'full',
-        databaseFile: '/private/database.sqlite',
-        identity: { ...identity, wal: { ...identity.wal, path: '/private/wal' } }
-      }).success
-    ).toBe(false)
+describe('migrationDatabaseDiagnosticResultSchema', () => {
+  it('accepts only native-free file facts plus the one-shot SQLite result', () => {
+    expect(migrationDatabaseDiagnosticResultSchema.parse(result)).toEqual(result)
   })
 
-  it('keeps the ready handshake versioned and closed', () => {
-    expect(migrationDatabaseDiagnosticsChildReadySchema.safeParse({ type: 'ready', version: 1 }).success).toBe(true)
-    expect(
-      migrationDatabaseDiagnosticsChildReadySchema.safeParse({ type: 'ready', version: 1, path: '/private/db' }).success
-    ).toBe(false)
-  })
+  it.each(['version', 'expectedSchemaVersion', 'completion', 'l0', 'l1', 'l2', 'databaseFile', 'path', 'message'])(
+    'rejects the legacy or private %s field',
+    (field) => {
+      expect(migrationDatabaseDiagnosticResultSchema.safeParse({ ...result, [field]: 'privacy-canary' }).success).toBe(
+        false
+      )
+    }
+  )
 
   it.each([
     {
-      name: 'a missing file that claims to be regular',
-      value: {
-        exists: false,
-        fileKind: 'regular',
-        sizeBucket: 'empty',
-        mtimeAgeBucket: 'unavailable',
-        header: 'insufficient',
-        writeMode: 'unavailable',
-        walSidecars: 'none'
-      }
+      file: { status: 'missing', sqliteHeader: 'unavailable', walPresent: false, shmPresent: false },
+      sqlite: { status: 'unavailable', reason: 'not_attempted' }
     },
     {
-      name: 'a missing file with a visible header',
-      value: {
-        exists: false,
-        fileKind: 'missing',
-        sizeBucket: 'unavailable',
-        mtimeAgeBucket: 'unavailable',
-        header: 'valid',
-        writeMode: 'unavailable',
-        walSidecars: 'none'
-      }
+      file: { status: 'not_regular', sqliteHeader: 'unavailable' },
+      sqlite: { status: 'unavailable', reason: 'not_attempted' }
     },
     {
-      name: 'a non-regular file with a byte size',
-      value: {
-        exists: true,
-        fileKind: 'not_regular',
-        sizeBucket: '4_kib_to_1_mib',
-        mtimeAgeBucket: 'under_1_hour',
-        header: 'unavailable',
-        writeMode: 'unavailable',
-        walSidecars: 'none'
-      }
+      file: { status: 'unreadable', sizeBucket: '1-4095', sqliteHeader: 'unavailable' },
+      sqlite: { status: 'unavailable', reason: 'open_failed' }
     }
-  ])('rejects contradictory L0 data: $name', ({ value }) => {
-    expect(migrationDatabaseL0DataSchema.safeParse(value).success).toBe(false)
+  ] as const)('accepts the bounded $file.status file outcome', (value) => {
+    expect(migrationDatabaseDiagnosticResultSchema.safeParse(value).success).toBe(true)
   })
 
-  it('rejects a WAL write mode when the SQLite header is not valid', () => {
-    expect(
-      migrationDatabaseL0DataSchema.safeParse({
-        exists: true,
-        fileKind: 'regular',
-        sizeBucket: '4_kib_to_1_mib',
-        mtimeAgeBucket: 'under_1_hour',
-        header: 'invalid',
-        writeMode: 'wal',
-        walSidecars: 'complete'
-      }).success
-    ).toBe(false)
-  })
-
-  it.each([
-    { level: 'l0', status: 'timed_out', code: 'process_timeout' },
-    { level: 'l0', status: 'failed', code: 'process_error' }
-  ])('rejects host-only terminal state from a child diagnostic layer: $status/$code', (step) => {
-    expect(migrationDatabaseL0StepSchema.safeParse(step).success).toBe(false)
-  })
-
-  it('rejects L0 states that the child cannot produce', () => {
-    const validData = {
-      exists: true,
-      fileKind: 'regular' as const,
-      sizeBucket: '4_kib_to_1_mib' as const,
-      mtimeAgeBucket: 'under_1_hour' as const,
-      header: 'valid' as const,
-      writeMode: 'rollback' as const,
-      walSidecars: 'none' as const
-    }
-
-    expect(migrationDatabaseL0StepSchema.safeParse({ level: 'l0', status: 'truncated', data: validData }).success).toBe(
-      false
-    )
-    expect(
-      migrationDatabaseL0DataSchema.safeParse({ ...validData, sizeBucket: 'empty', header: 'valid' }).success
-    ).toBe(false)
-    expect(migrationDatabaseL0DataSchema.safeParse({ ...validData, writeMode: 'unavailable' }).success).toBe(false)
-  })
-
-  it('accepts the complete fixed L1 expected-object set', () => {
-    expect(migrationDatabaseL1DataSchema.safeParse(makeL1Data()).success).toBe(true)
-  })
-
-  it('rejects an ok L1 table whose column bucket disagrees with the fixed protocol definition', () => {
-    const data = makeL1Data()
-    const tableIndex = data.objects.findIndex((object) => object.id === 'agent')
-    data.objects[tableIndex] = { ...data.objects[tableIndex], columnCountBucket: '1_to_5' }
-
-    expect(migrationDatabaseL1DataSchema.safeParse(data).success).toBe(false)
-  })
-
-  it.each([
-    {
-      name: 'an incomplete expected-object set',
-      mutate: (data: MigrationDatabaseL1Data) => data.objects.pop()
-    },
-    {
-      name: 'a duplicate expected-object ID',
-      mutate: (data: MigrationDatabaseL1Data) => {
-        data.objects[data.objects.length - 1] = { ...data.objects[0] }
-      }
-    },
-    {
-      name: 'the wrong fixed kind for an expected object',
-      mutate: (data: MigrationDatabaseL1Data) => {
-        data.objects[0] = { ...data.objects[0], kind: 'table' }
-      }
-    },
-    {
-      name: 'an impossible column mismatch for an index',
-      mutate: (data: MigrationDatabaseL1Data) => {
-        data.objects[0] = { ...data.objects[0], status: 'column_mismatch', columnCountBucket: '1_to_5' }
-      }
-    },
-    {
-      name: 'a duplicate unknown-object kind',
-      mutate: (data: MigrationDatabaseL1Data) => {
-        data.unknownObjects = [
-          { kind: 'table', countBucket: '1' },
-          { kind: 'table', countBucket: '2_to_5' }
-        ]
-      }
-    },
-    {
-      name: 'a zero-count unknown-object summary',
-      mutate: (data: MigrationDatabaseL1Data) => {
-        data.unknownObjects = [{ kind: 'other', countBucket: '0' }]
-      }
-    }
-  ])('rejects contradictory L1 data: $name', ({ mutate }) => {
-    const data = makeL1Data()
-    mutate(data)
-    expect(migrationDatabaseL1DataSchema.safeParse(data).success).toBe(false)
-  })
-
-  it('rejects an unknown-object kind outside the fixed vocabulary', () => {
-    const data = makeL1Data() as unknown as Record<string, unknown>
-    data.unknownObjects = [{ kind: 'private_table_name', countBucket: '1' }]
-    expect(migrationDatabaseL1DataSchema.safeParse(data).success).toBe(false)
-  })
-
-  it.each([
-    {
-      name: 'quick-check ok with a nonzero issue count',
-      mutate: (data: MigrationDatabaseL2Data) => {
-        data.quickCheck.issueCountBucket = '1'
-      }
-    },
-    {
-      name: 'quick-check issues without a category',
-      mutate: (data: MigrationDatabaseL2Data) => {
-        data.quickCheck.outcome = 'issues'
-        data.quickCheck.issueCountBucket = '1'
-      }
-    },
-    {
-      name: 'foreign-key ok with a scanned violation',
-      mutate: (data: MigrationDatabaseL2Data) => {
-        data.foreignKeys.scannedCountBucket = '1'
-      }
-    },
-    {
-      name: 'foreign-key violations with a zero scanned count',
-      mutate: (data: MigrationDatabaseL2Data) => {
-        data.foreignKeys.outcome = 'violations'
-        data.foreignKeys.violations = [
-          { childObjectId: 'assistant_knowledge_base', parentObjectId: 'assistant', countBucket: '1' }
-        ]
-      }
-    },
-    {
-      name: 'a duplicate foreign-key object pair',
-      mutate: (data: MigrationDatabaseL2Data) => {
-        data.foreignKeys.outcome = 'violations'
-        data.foreignKeys.scannedCountBucket = '2_to_5'
-        data.foreignKeys.violations = [
-          { childObjectId: 'assistant_knowledge_base', parentObjectId: 'assistant', countBucket: '1' },
-          { childObjectId: 'assistant_knowledge_base', parentObjectId: 'assistant', countBucket: '1' }
-        ]
-      }
-    },
-    {
-      name: 'a zero-count foreign-key group',
-      mutate: (data: MigrationDatabaseL2Data) => {
-        data.foreignKeys.outcome = 'violations'
-        data.foreignKeys.scannedCountBucket = '1'
-        data.foreignKeys.violations = [
-          { childObjectId: 'assistant_knowledge_base', parentObjectId: 'assistant', countBucket: '0' }
-        ]
-      }
-    }
-  ])('rejects contradictory L2 data: $name', ({ mutate }) => {
-    const data = makeL2Data()
-    mutate(data)
-    expect(migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'success', data }).success).toBe(false)
-  })
-
-  it('requires L2 step status to agree with nested truncation', () => {
-    const truncatedData = makeL2Data()
-    truncatedData.foreignKeys.truncated = true
-    expect(
-      migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'success', data: truncatedData }).success
-    ).toBe(false)
-    expect(
-      migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'truncated', data: makeL2Data() }).success
-    ).toBe(false)
-  })
-
-  it('rejects L2 count and truncation states beyond the child hard limits', () => {
-    const quickOverflow = makeL2Data()
-    quickOverflow.quickCheck = {
-      outcome: 'issues',
-      issueCountBucket: '21_to_100',
-      categories: ['unknown'],
-      truncated: true
-    }
-    expect(
-      migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'truncated', data: quickOverflow }).success
-    ).toBe(false)
-
-    const foreignKeyOverflow = makeL2Data()
-    foreignKeyOverflow.foreignKeys = {
-      outcome: 'violations',
-      scannedCountBucket: '257_plus',
-      violations: [{ childObjectId: 'unknown', parentObjectId: 'unknown', countBucket: '257_plus' }],
-      truncated: true
-    }
-    expect(
-      migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'truncated', data: foreignKeyOverflow }).success
-    ).toBe(false)
-
-    const impossibleTruncation = makeL2Data()
-    impossibleTruncation.foreignKeys = {
-      outcome: 'violations',
-      scannedCountBucket: '1',
-      violations: [{ childObjectId: 'unknown', parentObjectId: 'unknown', countBucket: '1' }],
-      truncated: true
-    }
-    expect(
-      migrationDatabaseL2StepSchema.safeParse({ level: 'l2', status: 'truncated', data: impossibleTruncation }).success
-    ).toBe(false)
-  })
-
-  it('rejects terminal partial results whose diagnostic layers are not a prefix', () => {
+  it('rejects inconsistent file facts', () => {
     expect(
       migrationDatabaseDiagnosticResultSchema.safeParse({
-        version: 1,
-        expectedSchemaVersion: 1,
-        completion: { status: 'failed', code: 'process_error' },
-        l1: { level: 'l1', status: 'failed', code: 'query_failed' }
+        ...result,
+        file: { status: 'missing', sizeBucket: '4096-1m', sqliteHeader: 'valid' }
       }).success
     ).toBe(false)
+    expect(
+      migrationDatabaseDiagnosticResultSchema.safeParse({
+        ...result,
+        file: { status: 'readable', sqliteHeader: 'unavailable' }
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('migrationDatabaseSqliteResultSchema', () => {
+  it('requires exactly one result for every fixed object role', () => {
+    expect(migrationDatabaseSqliteResultSchema.parse(availableSqlite)).toEqual(availableSqlite)
+    expect(
+      migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: objects.slice(1) }).success
+    ).toBe(false)
+    expect(
+      migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: [...objects.slice(1), objects[1]] })
+        .success
+    ).toBe(false)
+  })
+
+  it('allows only fixed missing-column roles and only on missing_columns', () => {
+    const missing = objects.map((object) =>
+      object.role === 'user_model'
+        ? { role: object.role, status: 'missing_columns' as const, missingColumnRoles: ['model_id'] }
+        : object
+    )
+    expect(migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: missing }).success).toBe(true)
+    expect(
+      migrationDatabaseSqliteResultSchema.safeParse({
+        ...availableSqlite,
+        objects: objects.map((object) =>
+          object.role === 'user_model' ? { ...object, missingColumnRoles: ['private_column_name'] } : object
+        )
+      }).success
+    ).toBe(false)
+  })
+
+  it.each(['not_attempted', 'open_failed', 'query_failed', 'timeout', 'child_exit', 'invalid_output'] as const)(
+    'accepts the fixed unavailable reason %s',
+    (reason) => {
+      expect(migrationDatabaseSqliteResultSchema.parse({ status: 'unavailable', reason })).toEqual({
+        status: 'unavailable',
+        reason
+      })
+    }
+  )
+})
+
+describe('one-shot child protocol', () => {
+  it('accepts one strict path input and one strict final result message', () => {
+    expect(migrationDatabaseDiagnosticsChildInputSchema.parse({ databaseFile: '/private/database.sqlite' })).toEqual({
+      databaseFile: '/private/database.sqlite'
+    })
+    expect(migrationDatabaseDiagnosticsChildMessageSchema.parse({ type: 'result', result: availableSqlite })).toEqual({
+      type: 'result',
+      result: availableSqlite
+    })
+  })
+
+  it.each([
+    { mode: 'full', databaseFile: '/private/database.sqlite' },
+    { databaseFile: '/private/database.sqlite', identity: { inode: '1' } },
+    { databaseFile: '/private/database.sqlite', message: 'raw failure' }
+  ])('rejects legacy/extra child input %#', (input) => {
+    expect(migrationDatabaseDiagnosticsChildInputSchema.safeParse(input).success).toBe(false)
+  })
+
+  it.each([
+    { type: 'ready', version: 1 },
+    { type: 'step', level: 'l0' },
+    { type: 'result', result: availableSqlite, databaseFile: '/private/database.sqlite' },
+    { type: 'result', result: availableSqlite, message: 'raw failure' }
+  ])('rejects handshake, partial, or private output %#', (message) => {
+    expect(migrationDatabaseDiagnosticsChildMessageSchema.safeParse(message).success).toBe(false)
   })
 })

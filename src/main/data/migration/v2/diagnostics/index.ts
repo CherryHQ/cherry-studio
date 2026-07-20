@@ -1,41 +1,57 @@
 export type {
   MigrationDatabaseDiagnosticsChildFactory,
   MigrationDatabaseDiagnosticsChildLike,
-  MigrationDatabaseDiagnosticsLease,
+  MigrationDatabaseDiagnosticsChildStderrLike,
   MigrationDatabaseDiagnosticsOptions,
   MigrationDatabaseDiagnosticsSpawnOptions
 } from './MigrationDatabaseDiagnostics'
 export { MigrationDatabaseDiagnostics } from './MigrationDatabaseDiagnostics'
 export type {
   MigrationDatabaseColumnCountBucket,
+  MigrationDatabaseColumnRole,
   MigrationDatabaseCompletedDiagnosticResult,
   MigrationDatabaseCompletionFailureCode,
   MigrationDatabaseCountBucket,
   MigrationDatabaseDiagnosticResult,
+  MigrationDatabaseDiagnosticsChildInput,
+  MigrationDatabaseDiagnosticsChildMessage,
   MigrationDatabaseDiagnosticStep,
   MigrationDatabaseExpectedObjectDefinition,
   MigrationDatabaseExpectedObjectId,
   MigrationDatabaseFailedDiagnosticResult,
   MigrationDatabaseFailureCode,
+  MigrationDatabaseFileResult,
   MigrationDatabaseL0Data,
   MigrationDatabaseL0Step,
   MigrationDatabaseL1Data,
   MigrationDatabaseL1Step,
   MigrationDatabaseL2Data,
   MigrationDatabaseL2Step,
+  MigrationDatabaseObjectCheck,
   MigrationDatabaseObjectKind,
+  MigrationDatabaseObjectRole,
+  MigrationDatabaseSqliteResult,
   MigrationDatabaseTimedOutDiagnosticResult,
   MigrationDatabaseUnknownObjectKind
 } from './migrationDatabaseDiagnosticsSchemas'
 export {
+  MIGRATION_DATABASE_OBJECT_DEFINITIONS,
+  migrationDatabaseColumnRoleSchema,
   migrationDatabaseDiagnosticResultSchema,
+  migrationDatabaseDiagnosticsChildInputSchema,
+  migrationDatabaseDiagnosticsChildMessageSchema,
   migrationDatabaseDiagnosticStepSchema,
+  migrationDatabaseFileResultSchema,
   migrationDatabaseL0DataSchema,
   migrationDatabaseL0StepSchema,
   migrationDatabaseL1DataSchema,
   migrationDatabaseL1StepSchema,
   migrationDatabaseL2DataSchema,
-  migrationDatabaseL2StepSchema
+  migrationDatabaseL2StepSchema,
+  migrationDatabaseObjectCheckSchema,
+  migrationDatabaseObjectRoleSchema,
+  migrationDatabaseSqliteResultSchema,
+  migrationDatabaseSqliteUnavailableReasonSchema
 } from './migrationDatabaseDiagnosticsSchemas'
 export type {
   MigrationDiagnosticBundleSaveInput,

@@ -17,20 +17,16 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import fs from 'fs'
 import path from 'path'
 
-import type { MigrationDatabaseDiagnosticsLease } from '../diagnostics'
 import type { MigrationPaths } from './MigrationPaths'
 
 const logger = loggerService.withContext('MigrationDbService')
 
 export class MigrationDbService {
-  private activeDiagnosticsLeases = 0
-  private closeRequested = false
   private closed = false
 
   private constructor(
     private readonly db: DbType,
-    private readonly sqlite: Database.Database,
-    private readonly databaseFile: string
+    private readonly sqlite: Database.Database
   ) {}
 
   /**
@@ -75,38 +71,14 @@ export class MigrationDbService {
     }
 
     logger.info('Migration database ready')
-    return new MigrationDbService(db, sqlite, paths.databaseFile)
+    return new MigrationDbService(db, sqlite)
   }
 
   getDb(): DbType {
     return this.db
   }
 
-  async withDiagnosticsLease<T>(
-    run: (lease: MigrationDatabaseDiagnosticsLease) => T | Promise<T>
-  ): Promise<{ readonly kind: 'leased'; readonly value: T } | { readonly kind: 'unavailable' }> {
-    if (this.closed || this.closeRequested || !this.sqlite.open) return { kind: 'unavailable' }
-
-    const identity = captureDiagnosticsIdentity(this.databaseFile)
-    if (identity === undefined) return { kind: 'unavailable' }
-
-    this.activeDiagnosticsLeases += 1
-    try {
-      const lease = createDiagnosticsLease(this.databaseFile, identity)
-      return { kind: 'leased', value: await run(lease) }
-    } finally {
-      this.activeDiagnosticsLeases -= 1
-      if (this.closeRequested && this.activeDiagnosticsLeases === 0) this.closeNow()
-    }
-  }
-
   close(): void {
-    if (this.closed || this.closeRequested) return
-    this.closeRequested = true
-    if (this.activeDiagnosticsLeases === 0) this.closeNow()
-  }
-
-  private closeNow(): void {
     if (this.closed) return
     this.closed = true
     try {
@@ -116,39 +88,6 @@ export class MigrationDbService {
       logger.warn('Failed to close migration database connection', error as Error)
     }
   }
-}
-
-type MigrationDatabaseFileIdentity = MigrationDatabaseDiagnosticsLease['identity']['database']
-
-function createDiagnosticsLease(
-  databaseFile: string,
-  identity: MigrationDatabaseDiagnosticsLease['identity']
-): MigrationDatabaseDiagnosticsLease {
-  return Object.freeze({
-    databaseFile,
-    identity: Object.freeze({
-      database: Object.freeze(identity.database),
-      wal: Object.freeze(identity.wal),
-      shm: Object.freeze(identity.shm)
-    })
-  }) as MigrationDatabaseDiagnosticsLease
-}
-
-function regularFileIdentity(file: string): MigrationDatabaseFileIdentity | undefined {
-  try {
-    const stats = fs.lstatSync(file, { bigint: true })
-    if (!stats.isFile() || stats.isSymbolicLink()) return undefined
-    return { device: stats.dev.toString(), inode: stats.ino.toString() }
-  } catch {
-    return undefined
-  }
-}
-
-function captureDiagnosticsIdentity(databaseFile: string): MigrationDatabaseDiagnosticsLease['identity'] | undefined {
-  const database = regularFileIdentity(databaseFile)
-  const wal = regularFileIdentity(`${databaseFile}-wal`)
-  const shm = regularFileIdentity(`${databaseFile}-shm`)
-  return database === undefined || wal === undefined || shm === undefined ? undefined : { database, wal, shm }
 }
 
 /**

@@ -150,12 +150,7 @@ export class MigrationEngine {
   async collectDatabaseDiagnostics(
     diagnostics: MigrationDatabaseDiagnostics
   ): Promise<MigrationDatabaseDiagnosticResult> {
-    const databaseFile = this.paths.databaseFile
-    const migrationDb = this.migrationDb
-    if (migrationDb === null) return diagnostics.inspect(databaseFile)
-
-    const inspected = await migrationDb.withDiagnosticsLease((lease) => diagnostics.inspectWithLease(lease))
-    return inspected.kind === 'leased' ? inspected.value : diagnostics.inspect(databaseFile)
+    return diagnostics.inspect(this.paths.databaseFile)
   }
 
   private getDb(): DbType {

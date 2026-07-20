@@ -1,31 +1,30 @@
 import { EventEmitter } from 'node:events'
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import type {
-  MigrationDatabaseColumnCountBucket,
-  MigrationDatabaseCompletedDiagnosticResult,
-  MigrationDatabaseDiagnosticsChildMessage,
-  MigrationDatabaseDiagnosticStep
-} from '../migrationDatabaseDiagnosticsSchemas'
-import { EXPECTED_MIGRATION_DATABASE_OBJECTS } from '../migrationDatabaseDiagnosticsSchemas'
 
 vi.mock('../migrationDatabaseDiagnosticsChild?modulePath', () => ({
   default: '/fixed/migrationDatabaseDiagnosticsChild.js'
 }))
 
 import {
-  MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES,
   MigrationDatabaseDiagnostics,
   type MigrationDatabaseDiagnosticsChildFactory,
-  type MigrationDatabaseDiagnosticsChildLike,
-  type MigrationDatabaseDiagnosticsLease
+  type MigrationDatabaseDiagnosticsChildLike
 } from '../MigrationDatabaseDiagnostics'
+import { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from '../migrationDatabaseDiagnosticsSchemas'
 
-class FakeStderr extends EventEmitter {}
+const available = {
+  status: 'available',
+  quickCheck: 'ok',
+  foreignKeyViolationCountBucket: '0',
+  objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role }) => ({ role, status: 'present' as const }))
+} as const
 
 class FakeChild extends EventEmitter implements MigrationDatabaseDiagnosticsChildLike {
-  readonly stderr = new FakeStderr()
+  readonly stderr = new EventEmitter()
   readonly send = vi.fn((_message: unknown, callback?: (error: Error | null) => void) => {
     callback?.(null)
     return true
@@ -34,136 +33,81 @@ class FakeChild extends EventEmitter implements MigrationDatabaseDiagnosticsChil
   readonly unref = vi.fn()
 }
 
-function makeLease(databaseFile = '/Users/private/database.sqlite'): MigrationDatabaseDiagnosticsLease {
-  return {
-    databaseFile,
-    identity: {
-      database: { device: '1', inode: '10' },
-      wal: { device: '1', inode: '11' },
-      shm: { device: '1', inode: '12' }
-    }
-  } as MigrationDatabaseDiagnosticsLease
+let testDir = ''
+let databaseFile = ''
+let children: FakeChild[] = []
+let createChild: ReturnType<typeof vi.fn<MigrationDatabaseDiagnosticsChildFactory>>
+
+function writeSqliteHeader(file = databaseFile, size = 4_096): void {
+  const bytes = Buffer.alloc(size)
+  Buffer.from('SQLite format 3\0', 'binary').copy(bytes)
+  writeFileSync(file, bytes)
 }
 
-function makeL0Step(): MigrationDatabaseDiagnosticStep {
-  return {
-    level: 'l0',
-    status: 'success',
-    data: {
-      exists: true,
-      fileKind: 'regular',
-      sizeBucket: '4_kib_to_1_mib',
-      mtimeAgeBucket: 'under_1_hour',
-      header: 'valid',
-      writeMode: 'wal',
-      walSidecars: 'complete'
-    }
-  }
-}
+beforeEach(() => {
+  vi.useRealTimers()
+  testDir = mkdtempSync(path.join(tmpdir(), 'migration-database-parent-'))
+  databaseFile = path.join(testDir, 'cherrystudio.sqlite')
+  children = []
+  createChild = vi.fn(() => {
+    const child = new FakeChild()
+    children.push(child)
+    return child
+  })
+})
 
-function bucketColumnCount(count: number | undefined): MigrationDatabaseColumnCountBucket {
-  if (count === undefined) return 'unavailable'
-  if (count === 0) return '0'
-  if (count <= 5) return '1_to_5'
-  if (count <= 10) return '6_to_10'
-  if (count <= 20) return '11_to_20'
-  if (count <= 40) return '21_to_40'
-  return '41_plus'
-}
+afterEach(() => {
+  vi.useRealTimers()
+  rmSync(testDir, { recursive: true, force: true })
+})
 
-function makeL1Step(): MigrationDatabaseDiagnosticStep {
-  return {
-    level: 'l1',
-    status: 'success',
-    data: {
-      metadata: {
-        pageSize: '4096',
-        encoding: 'utf8',
-        userVersionBucket: '0',
-        schemaVersionBucket: '1_to_10',
-        applicationId: 'unset',
-        queryOnly: true
+describe('native-free file inspection', () => {
+  it('does not spawn for a missing or non-regular database', async () => {
+    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
+
+    await expect(diagnostics.inspect(databaseFile)).resolves.toEqual({
+      file: { status: 'missing', sqliteHeader: 'unavailable', walPresent: false, shmPresent: false },
+      sqlite: { status: 'unavailable', reason: 'not_attempted' }
+    })
+    expect(createChild).not.toHaveBeenCalled()
+
+    writeFileSync(path.join(testDir, 'target'), 'outside')
+    const symlink = path.join(testDir, 'database-link')
+    symlinkSync(path.join(testDir, 'target'), symlink)
+    await expect(diagnostics.inspect(symlink)).resolves.toMatchObject({
+      file: { status: 'not_regular', sqliteHeader: 'unavailable' },
+      sqlite: { status: 'unavailable', reason: 'not_attempted' }
+    })
+    expect(createChild).not.toHaveBeenCalled()
+  })
+
+  it('retains bounded header/size/sidecar facts when SQLite is unavailable', async () => {
+    writeFileSync(databaseFile, Buffer.alloc(100, 'x'))
+    writeFileSync(`${databaseFile}-wal`, '')
+    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
+    const inspection = diagnostics.inspect(databaseFile)
+    const child = children[0]
+    child.emit('message', { type: 'result', result: { status: 'unavailable', reason: 'open_failed' } })
+    child.emit('close', 0, null)
+
+    await expect(inspection).resolves.toEqual({
+      file: {
+        status: 'readable',
+        sizeBucket: '1-4095',
+        sqliteHeader: 'invalid',
+        walPresent: true,
+        shmPresent: false
       },
-      objects: EXPECTED_MIGRATION_DATABASE_OBJECTS.map((object) => ({
-        id: object.id,
-        kind: object.kind,
-        status: 'ok' as const,
-        columnCountBucket: bucketColumnCount('columnCount' in object ? object.columnCount : undefined)
-      })),
-      unknownObjects: []
-    }
-  }
-}
-
-function makeL2Step(): MigrationDatabaseDiagnosticStep {
-  return {
-    level: 'l2',
-    status: 'success',
-    data: {
-      quickCheck: { outcome: 'ok', issueCountBucket: '0', categories: [], truncated: false },
-      foreignKeys: { outcome: 'ok', scannedCountBucket: '0', violations: [], truncated: false }
-    }
-  }
-}
-
-function makeResult(
-  overrides: Partial<MigrationDatabaseCompletedDiagnosticResult> = {}
-): MigrationDatabaseCompletedDiagnosticResult {
-  return {
-    version: 1,
-    expectedSchemaVersion: 1,
-    completion: { status: 'completed' },
-    l0: makeL0Step() as Extract<MigrationDatabaseDiagnosticStep, { level: 'l0' }>,
-    l1: makeL1Step() as Extract<MigrationDatabaseDiagnosticStep, { level: 'l1' }>,
-    l2: makeL2Step() as Extract<MigrationDatabaseDiagnosticStep, { level: 'l2' }>,
-    ...overrides
-  }
-}
-
-function emitMessage(child: FakeChild, message: MigrationDatabaseDiagnosticsChildMessage): void {
-  child.emit('message', message)
-}
-
-function emitReady(child: FakeChild): void {
-  child.emit('message', { type: 'ready', version: 1 })
-}
-
-function emitAllSteps(child: FakeChild, result: MigrationDatabaseCompletedDiagnosticResult): void {
-  emitMessage(child, { type: 'step', step: result.l0 })
-  emitMessage(child, { type: 'step', step: result.l1 })
-  emitMessage(child, { type: 'step', step: result.l2 })
-}
-
-function emitClose(child: FakeChild, code: number | null = 0, signal: NodeJS.Signals | null = null): void {
-  child.emit('close', code, signal)
-}
-
-async function flushPromises(): Promise<void> {
-  await Promise.resolve()
-  await Promise.resolve()
-}
-
-describe('MigrationDatabaseDiagnostics', () => {
-  let children: FakeChild[]
-  let createChild: ReturnType<typeof vi.fn<MigrationDatabaseDiagnosticsChildFactory>>
-
-  beforeEach(() => {
-    children = []
-    createChild = vi.fn(() => {
-      const child = new FakeChild()
-      children.push(child)
-      return child
+      sqlite: { status: 'unavailable', reason: 'open_failed' }
     })
   })
+})
 
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('spawns a fixed child without the database path and sends the lease only after ready', async () => {
-    const databaseFile = '/Users/private/path-canary.sqlite'
+describe('one-shot child lifecycle', () => {
+  it('keeps the database path out of spawn arguments and sends it exactly once', async () => {
+    writeSqliteHeader()
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    const inspection = diagnostics.inspectWithLease(makeLease(databaseFile))
+    const inspection = diagnostics.inspect(databaseFile)
     const child = children[0]
 
     expect(createChild).toHaveBeenCalledOnce()
@@ -173,373 +117,77 @@ describe('MigrationDatabaseDiagnostics', () => {
       stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
       windowsHide: true,
       shell: false,
-      env: { ELECTRON_RUN_AS_NODE: '1' }
+      env: { ELECTRON_RUN_AS_NODE: '1', CHERRY_MIGRATION_DATABASE_DIAGNOSTICS_CHILD: '1' }
     })
     expect(JSON.stringify([modulePath, options])).not.toContain(databaseFile)
-    expect(child.send).not.toHaveBeenCalled()
-
-    emitReady(child)
     expect(child.send).toHaveBeenCalledOnce()
-    expect(child.send.mock.calls[0][0]).toMatchObject({ mode: 'full', databaseFile })
+    expect(child.send).toHaveBeenCalledWith({ databaseFile }, expect.any(Function))
 
-    const result = makeResult()
-    emitAllSteps(child, result)
-    emitMessage(child, { type: 'result', result })
-    emitClose(child)
-    await expect(inspection).resolves.toEqual(result)
+    child.emit('message', { type: 'result', result: available })
+    child.emit('close', 0, null)
+    await expect(inspection).resolves.toMatchObject({ sqlite: available })
+    expect(child.kill).not.toHaveBeenCalled()
   })
 
-  it('waits for a clean child close after a complete ordered and identical final result', async () => {
+  it('waits for clean close after the single valid result and removes listeners', async () => {
+    writeSqliteHeader()
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
     let settled = false
-    const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
+    const inspection = diagnostics.inspect(databaseFile).then((value) => {
       settled = true
-      return result
+      return value
     })
     const child = children[0]
-    const result = makeResult()
 
-    emitReady(child)
-    emitAllSteps(child, result)
-    emitMessage(child, { type: 'result', result })
-    await flushPromises()
+    child.emit('message', { type: 'result', result: available })
+    await Promise.resolve()
     expect(settled).toBe(false)
-    expect(child.kill).not.toHaveBeenCalled()
+    child.emit('close', 0, null)
 
-    emitClose(child)
-    await expect(inspection).resolves.toEqual(result)
-    expect(child.unref).toHaveBeenCalledOnce()
-  })
-
-  it('settles a final exactly once when close repeats and a captured error handler arrives late', async () => {
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    let settlementCount = 0
-    const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
-      settlementCount += 1
-      return result
-    })
-    const child = children[0]
-    const lateErrorHandler = child.listeners('error')[0] as ((error: Error) => void) | undefined
-    if (lateErrorHandler === undefined) throw new Error('Expected an error handler')
-    const result = makeResult()
-
-    emitReady(child)
-    emitAllSteps(child, result)
-    emitMessage(child, { type: 'result', result })
-    emitClose(child)
-    emitClose(child, 9)
-    lateErrorHandler(new Error('late-error-secret'))
-
-    await expect(inspection).resolves.toEqual(result)
-    await flushPromises()
-    expect(settlementCount).toBe(1)
-    expect(child.kill).not.toHaveBeenCalled()
+    await inspection
     expect(child.listenerCount('message')).toBe(0)
     expect(child.listenerCount('error')).toBe(0)
     expect(child.listenerCount('close')).toBe(0)
     expect(child.stderr.listenerCount('data')).toBe(0)
   })
 
-  it.each([
-    {
-      caseName: 'duplicate step',
-      makeLateMessage: (result: MigrationDatabaseCompletedDiagnosticResult) => ({ type: 'step', step: result.l2 })
-    },
-    { caseName: 'unknown object', makeLateMessage: () => ({ type: 'unknown' }) },
-    { caseName: 'arbitrary value', makeLateMessage: () => 'unexpected-after-final' }
-  ])('rejects a $caseName received after final but before close', async ({ makeLateMessage }) => {
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    let settled = false
-    const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
-      settled = true
-      return result
-    })
-    const child = children[0]
-    const completed = makeResult()
+  it('maps timeout, exit, and invalid output to unavailable without losing file facts', async () => {
+    writeSqliteHeader()
 
-    emitReady(child)
-    emitAllSteps(child, completed)
-    emitMessage(child, { type: 'result', result: completed })
-    child.emit('message', makeLateMessage(completed))
-
-    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
-    await flushPromises()
-    expect(settled).toBe(false)
-    emitClose(child, null, 'SIGKILL')
-
-    const result = await inspection
-    expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
-    expect(result.l0).toEqual(completed.l0)
-    expect(result.l1).toEqual(completed.l1)
-    expect(result.l2).toEqual(completed.l2)
-  })
-
-  it('times out and kills a child that sends a complete final result but never closes', async () => {
     vi.useFakeTimers()
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild, timeoutMs: 25 })
-    let settled = false
-    const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
-      settled = true
-      return result
-    })
-    const child = children[0]
-    const completed = makeResult()
-
-    emitReady(child)
-    emitAllSteps(child, completed)
-    emitMessage(child, { type: 'result', result: completed })
+    const timeoutDiagnostics = new MigrationDatabaseDiagnostics({ createChild, timeoutMs: 25 })
+    const timedOut = timeoutDiagnostics.inspect(databaseFile)
+    const timedOutChild = children[0]
     await vi.advanceTimersByTimeAsync(25)
+    await expect(timedOut).resolves.toMatchObject({
+      file: { status: 'readable', sqliteHeader: 'valid' },
+      sqlite: { status: 'unavailable', reason: 'timeout' }
+    })
+    expect(timedOutChild.kill).toHaveBeenCalledOnce()
+    vi.useRealTimers()
 
-    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
-    expect(settled).toBe(false)
-    emitClose(child, null, 'SIGKILL')
+    const exitDiagnostics = new MigrationDatabaseDiagnostics({ createChild })
+    const exited = exitDiagnostics.inspect(databaseFile)
+    children[1].emit('close', 2, null)
+    await expect(exited).resolves.toMatchObject({ sqlite: { status: 'unavailable', reason: 'child_exit' } })
 
-    const result = await inspection
-    expect(result.completion).toEqual({ status: 'timed_out', code: 'process_timeout' })
-    expect(result.l0).toEqual(completed.l0)
-    expect(result.l1).toEqual(completed.l1)
-    expect(result.l2).toEqual(completed.l2)
+    const invalidDiagnostics = new MigrationDatabaseDiagnostics({ createChild })
+    const invalid = invalidDiagnostics.inspect(databaseFile)
+    children[2].emit('message', { type: 'step', databaseFile, message: 'private error' })
+    await expect(invalid).resolves.toMatchObject({ sqlite: { status: 'unavailable', reason: 'invalid_output' } })
+    expect(JSON.stringify(await invalid)).not.toContain(databaseFile)
+    expect(children[2].kill).toHaveBeenCalledOnce()
   })
 
-  it('returns only L0 with lease_unavailable when no database lease exists', async () => {
+  it('treats a second result as invalid output', async () => {
+    writeSqliteHeader()
     const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    const inspection = diagnostics.inspect('/private/database.sqlite')
-    const child = children[0]
-    const l0 = makeL0Step()
-
-    emitReady(child)
-    expect(child.send.mock.calls[0][0]).toEqual({ mode: 'l0_only', databaseFile: '/private/database.sqlite' })
-    emitMessage(child, { type: 'step', step: l0 })
-    emitClose(child)
-
-    await expect(inspection).resolves.toEqual({
-      version: 1,
-      expectedSchemaVersion: 1,
-      completion: { status: 'failed', code: 'lease_unavailable' },
-      l0
-    })
-  })
-
-  it('rejects final-before-steps and waits for the killed child to close', async () => {
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    let settled = false
-    const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
-      settled = true
-      return result
-    })
+    const inspection = diagnostics.inspect(databaseFile)
     const child = children[0]
 
-    emitReady(child)
-    emitMessage(child, { type: 'result', result: makeResult() })
-    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
-    await flushPromises()
-    expect(settled).toBe(false)
+    child.emit('message', { type: 'result', result: available })
+    child.emit('message', { type: 'result', result: available })
 
-    emitClose(child, null, 'SIGKILL')
-    const result = await inspection
-    expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
-    expect(result).not.toHaveProperty('l0')
-  })
-
-  it('rejects a final missing L2 and preserves only the real L0/L1 prefix', async () => {
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    const inspection = diagnostics.inspectWithLease(makeLease())
-    const child = children[0]
-    const completed = makeResult()
-
-    emitReady(child)
-    emitMessage(child, { type: 'step', step: completed.l0 })
-    emitMessage(child, { type: 'step', step: completed.l1 })
-    emitMessage(child, { type: 'result', result: completed })
-    emitClose(child, null, 'SIGKILL')
-
-    const result = await inspection
-    expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
-    expect(result.l0).toEqual(completed.l0)
-    expect(result.l1).toEqual(completed.l1)
-    expect(result).not.toHaveProperty('l2')
-  })
-
-  it.each([
-    { level: 'l0', finalResult: makeResult({ l0: { level: 'l0', status: 'failed', code: 'read_failed' } }) },
-    { level: 'l1', finalResult: makeResult({ l1: { level: 'l1', status: 'failed', code: 'query_failed' } }) },
-    { level: 'l2', finalResult: makeResult({ l2: { level: 'l2', status: 'failed', code: 'query_failed' } }) }
-  ])('rejects a final whose $level differs from the saved prefix', async ({ finalResult }) => {
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    const inspection = diagnostics.inspectWithLease(makeLease())
-    const child = children[0]
-    const completed = makeResult()
-
-    emitReady(child)
-    emitAllSteps(child, completed)
-    emitMessage(child, { type: 'result', result: finalResult })
-    emitClose(child, null, 'SIGKILL')
-
-    const result = await inspection
-    expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
-    expect(result.l0).toEqual(completed.l0)
-    expect(result.l1).toEqual(completed.l1)
-    expect(result.l2).toEqual(completed.l2)
-  })
-
-  it('SIGKILLs on timeout and does not resolve or release its caller before close', async () => {
-    vi.useFakeTimers()
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild, timeoutMs: 25 })
-    let settled = false
-    const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
-      settled = true
-      return result
-    })
-    const child = children[0]
-    const completed = makeResult()
-
-    emitReady(child)
-    emitMessage(child, { type: 'step', step: completed.l0 })
-    emitMessage(child, { type: 'step', step: completed.l1 })
-    await vi.advanceTimersByTimeAsync(25)
-
-    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
-    expect(settled).toBe(false)
-    emitClose(child, null, 'SIGKILL')
-
-    const result = await inspection
-    expect(result.completion).toEqual({ status: 'timed_out', code: 'process_timeout' })
-    expect(result.l0).toEqual(completed.l0)
-    expect(result.l1).toEqual(completed.l1)
-    expect(result).not.toHaveProperty('l2')
-  })
-
-  it('contains kill throws and still waits for a later observed close', async () => {
-    vi.useFakeTimers()
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild, timeoutMs: 25 })
-    let settled = false
-    const inspection = diagnostics.inspectWithLease(makeLease()).then((result) => {
-      settled = true
-      return result
-    })
-    const child = children[0]
-    child.kill.mockImplementation(() => {
-      throw new Error('kill secret')
-    })
-
-    emitReady(child)
-    await vi.advanceTimersByTimeAsync(25)
-    expect(settled).toBe(false)
-    emitClose(child, null, 'SIGKILL')
-
-    await expect(inspection).resolves.toMatchObject({
-      completion: { status: 'timed_out', code: 'process_timeout' }
-    })
-  })
-
-  it('kills on child or IPC errors, preserves the prefix, and never echoes details', async () => {
-    const cases: Array<(child: FakeChild) => void> = [
-      (child) => child.emit('error', new Error('sk-child-error /private/path')),
-      (child) => child.send.mock.calls[0][1]!(new Error('sk-ipc-error /private/path'))
-    ]
-
-    for (const fail of cases) {
-      const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-      const inspection = diagnostics.inspectWithLease(makeLease())
-      const child = children.at(-1)!
-      const l0 = makeL0Step()
-      emitReady(child)
-      emitMessage(child, { type: 'step', step: l0 })
-      fail(child)
-      expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGKILL')
-      emitClose(child, -2, null)
-
-      const result = await inspection
-      expect(result.completion).toEqual({ status: 'failed', code: 'process_error' })
-      expect(result.l0).toEqual(l0)
-      expect(JSON.stringify(result)).not.toMatch(/sk-|private/)
-    }
-  })
-
-  it.each([
-    { code: 9, expected: 'process_exit' as const },
-    { code: 0, expected: 'process_no_result' as const }
-  ])('maps an unprompted close code $code to $expected without killing again', async ({ code, expected }) => {
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    const inspection = diagnostics.inspectWithLease(makeLease())
-    const child = children[0]
-    const l0 = makeL0Step()
-
-    emitReady(child)
-    emitMessage(child, { type: 'step', step: l0 })
-    emitClose(child, code)
-
-    const result = await inspection
-    expect(result.completion).toEqual({ status: 'failed', code: expected })
-    expect(result.l0).toEqual(l0)
-    expect(child.kill).not.toHaveBeenCalled()
-  })
-
-  it('rejects oversized/malformed/late messages, drains stderr, and cleans all listeners once', async () => {
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    const inspection = diagnostics.inspectWithLease(makeLease())
-    const child = children[0]
-    const completed = makeResult()
-
-    child.stderr.emit('data', Buffer.from('stderr-secret-canary'))
-    emitReady(child)
-    emitAllSteps(child, completed)
-    child.emit('message', {
-      type: 'result',
-      result: { ...completed, payload: 'x'.repeat(MIGRATION_DATABASE_DIAGNOSTIC_MAX_MESSAGE_BYTES + 1) }
-    })
-    emitClose(child, null, 'SIGKILL')
-
-    const result = await inspection
-    expect(result.completion).toEqual({ status: 'failed', code: 'protocol_error' })
-    expect(result.l0).toEqual(completed.l0)
-    expect(result.l1).toEqual(completed.l1)
-    expect(result.l2).toEqual(completed.l2)
-    expect(JSON.stringify(result)).not.toContain('stderr-secret-canary')
-    expect(child.listenerCount('message')).toBe(0)
-    expect(child.listenerCount('error')).toBe(0)
-    expect(child.listenerCount('close')).toBe(0)
-    expect(child.stderr.listenerCount('data')).toBe(0)
-    child.emit('message', { rawError: 'late-secret' })
-    emitClose(child, 8)
-    expect(child.kill).toHaveBeenCalledOnce()
-  })
-
-  it('returns stable invalid-input and spawn-failure results without leaking input', async () => {
-    const invalid = await new MigrationDatabaseDiagnostics({ createChild }).inspect('')
-    expect(invalid).toMatchObject({ completion: { status: 'failed', code: 'invalid_input' } })
-    expect(createChild).not.toHaveBeenCalled()
-
-    const spawnFailure = new MigrationDatabaseDiagnostics({
-      createChild: () => {
-        throw new Error('/private/path spawn secret')
-      }
-    })
-    const failed = await spawnFailure.inspect('/private/database.sqlite')
-    expect(failed).toMatchObject({ completion: { status: 'failed', code: 'process_error' } })
-    expect(JSON.stringify(failed)).not.toContain('/private')
-  })
-
-  it('does not share prefixes or kills across concurrent inspections', async () => {
-    const diagnostics = new MigrationDatabaseDiagnostics({ createChild })
-    const first = diagnostics.inspectWithLease(makeLease('/private/first.sqlite'))
-    const second = diagnostics.inspectWithLease(makeLease('/private/second.sqlite'))
-    const [firstChild, secondChild] = children
-    const l0 = makeL0Step()
-
-    emitReady(firstChild)
-    emitReady(secondChild)
-    emitMessage(firstChild, { type: 'step', step: l0 })
-    firstChild.emit('error', new Error('first failed'))
-    secondChild.emit('error', new Error('second failed'))
-    emitClose(firstChild, null, 'SIGKILL')
-    emitClose(secondChild, null, 'SIGKILL')
-
-    const [firstResult, secondResult] = await Promise.all([first, second])
-    expect(firstResult.l0).toEqual(l0)
-    expect(firstResult.completion).toEqual({ status: 'failed', code: 'process_error' })
-    expect(secondResult).not.toHaveProperty('l0')
-    expect(firstChild.kill).toHaveBeenCalledOnce()
-    expect(secondChild.kill).toHaveBeenCalledOnce()
+    await expect(inspection).resolves.toMatchObject({ sqlite: { status: 'unavailable', reason: 'invalid_output' } })
   })
 })
