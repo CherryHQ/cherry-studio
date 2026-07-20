@@ -72,6 +72,14 @@ const translationMock = vi.hoisted(() => ({
   t: (key: string) => key
 }))
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 vi.mock('@renderer/data/DataApiService', () => ({
   dataApiService: dataApiMock
 }))
@@ -406,6 +414,8 @@ describe('TasksSettings task logs', () => {
     taskLogsMock.logs = [taskLogsMock.defaultTaskLog]
     taskDataMock.task = { ...taskDataMock.defaultTask }
     channelDataMock.channels = []
+    taskMutationMocks.runTask.mockResolvedValue(true)
+    taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
     dataApiMock.get.mockImplementation((path: string) => {
       if (path === '/agents') {
         return Promise.resolve({
@@ -583,6 +593,136 @@ describe('TasksSettings task logs', () => {
 
     await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
   })
+
+  it('waits for a pending channel save before running the task', async () => {
+    const save = createDeferred<typeof taskDataMock.task>()
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      }
+    ]
+    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
+
+    render(<TasksSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+
+    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
+
+    await act(async () => save.resolve(taskDataMock.task))
+
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+  })
+
+  it('does not run the task when the pending save fails', async () => {
+    const save = createDeferred<typeof taskDataMock.task | undefined>()
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      }
+    ]
+    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
+
+    render(<TasksSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+
+    await act(async () => save.resolve(undefined))
+
+    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
+  })
+
+  it('waits for saves appended while the run action is already waiting', async () => {
+    const firstSave = createDeferred<typeof taskDataMock.task>()
+    const secondSave = createDeferred<typeof taskDataMock.task>()
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      }
+    ]
+    taskMutationMocks.updateTask.mockReturnValueOnce(firstSave.promise).mockReturnValueOnce(secondSave.promise)
+
+    render(<TasksSettings />)
+
+    const channelButton = await screen.findByRole('button', { name: 'Agent One Telegram' })
+    fireEvent.click(channelButton)
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+    fireEvent.click(channelButton)
+
+    await act(async () => firstSave.resolve(taskDataMock.task))
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(2))
+
+    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
+
+    await act(async () => secondSave.resolve(taskDataMock.task))
+
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+  })
+
+  it.each([
+    { initialStatus: 'active' as const, initiallyEnabled: true, nextEnabled: false },
+    { initialStatus: 'paused' as const, initiallyEnabled: false, nextEnabled: true }
+  ])(
+    'waits for a pending channel save before toggling a $initialStatus task',
+    async ({ initialStatus, initiallyEnabled, nextEnabled }) => {
+      const save = createDeferred<typeof taskDataMock.task>()
+      taskDataMock.task = {
+        ...taskDataMock.defaultTask,
+        enabled: initiallyEnabled,
+        status: initialStatus
+      }
+      channelDataMock.channels = [
+        {
+          id: 'channel-agent-1',
+          agentId: 'agent-1',
+          name: 'Agent One Telegram',
+          isActive: true,
+          activeChatIds: ['chat-1']
+        }
+      ]
+      taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
+
+      render(<TasksSettings />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
+      await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+      fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
+
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
+
+      await act(async () => save.resolve(taskDataMock.task))
+
+      await waitFor(() =>
+        expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', {
+          enabled: nextEnabled
+        })
+      )
+    }
+  )
 
   it('toggles the selected task status from the header switch', async () => {
     render(<TasksSettings />)

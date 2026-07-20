@@ -73,7 +73,7 @@ import {
   Trash2,
   X
 } from 'lucide-react'
-import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TasksSettings')
@@ -1001,6 +1001,7 @@ const TasksSettings: FC = () => {
   const [loading, setLoading] = useState(true)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const taskUpdateStatesRef = useRef(new Map<string, { tail: Promise<void>; lastUpdateSucceeded: boolean }>())
 
   const channels: ChannelInfo[] = useMemo(
     () =>
@@ -1077,14 +1078,36 @@ const TasksSettings: FC = () => {
   )
 
   const handleUpdate = useCallback(
-    async (taskId: string, updates: UpdateTaskRequest) => {
+    (taskId: string, updates: UpdateTaskRequest): Promise<void> => {
       const task = tasks.find((t) => t.id === taskId)
-      if (!task) return
-      await updateTask(task.agentId, taskId, updates)
-      void loadData()
+      if (!task) return Promise.resolve()
+
+      let state = taskUpdateStatesRef.current.get(taskId)
+      if (!state) {
+        state = { tail: Promise.resolve(), lastUpdateSucceeded: true }
+        taskUpdateStatesRef.current.set(taskId, state)
+      }
+
+      const current = state.tail.then(async () => {
+        const updated = await updateTask(task.agentId, taskId, updates)
+        state.lastUpdateSucceeded = updated !== undefined
+        if (updated) await loadData()
+      })
+      state.tail = current
+      return current
     },
     [updateTask, tasks, loadData]
   )
+
+  const waitForTaskUpdates = useCallback(async (taskId: string): Promise<boolean> => {
+    const state = taskUpdateStatesRef.current.get(taskId)
+    if (!state) return true
+    while (true) {
+      const tail = state.tail
+      await tail
+      if (state.tail === tail) return state.lastUpdateSucceeded
+    }
+  }, [])
 
   const handleDelete = useCallback(
     async (taskId: string) => {
@@ -1099,6 +1122,7 @@ const TasksSettings: FC = () => {
 
   const handleRun = useCallback(
     async (taskId: string) => {
+      if (!(await waitForTaskUpdates(taskId))) return
       await runTask(taskId)
       void loadData()
       // Task runs asynchronously — refresh again after a delay to capture completion
@@ -1106,11 +1130,12 @@ const TasksSettings: FC = () => {
         void loadData()
       }, 1000)
     },
-    [runTask, loadData]
+    [runTask, loadData, waitForTaskUpdates]
   )
 
   const handleToggleStatus = useCallback(
     async (taskId: string, newStatus: string) => {
+      if (!(await waitForTaskUpdates(taskId))) return
       const task = tasks.find((t) => t.id === taskId)
       if (!task) return
       // newStatus is the renderer's existing 'active' | 'paused' contract — keep
@@ -1119,7 +1144,7 @@ const TasksSettings: FC = () => {
       await updateTask(task.agentId, taskId, { enabled: newStatus === 'active' })
       void loadData()
     },
-    [updateTask, tasks, loadData]
+    [updateTask, tasks, loadData, waitForTaskUpdates]
   )
 
   if (loading) {
