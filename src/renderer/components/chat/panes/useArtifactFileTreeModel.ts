@@ -24,7 +24,6 @@ const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
   maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH
 }
 export const ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
-  ...WORKSPACE_TREE_OPTIONS,
   allowMissingRoot: true
 }
 

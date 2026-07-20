@@ -167,6 +167,20 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.map.set(this.rootPath, this.root)
   }
 
+  private shouldIgnorePath(absPath: string): boolean {
+    const normalized = normalizePath(absPath)
+    const relativePath = path.posix.relative(this.rootPath, normalized)
+    const isDescendant = relativePath !== '..' && !relativePath.startsWith('../')
+    if (
+      !this.options.includeHidden &&
+      isDescendant &&
+      relativePath.split('/').some((segment) => segment.startsWith('.'))
+    ) {
+      return true
+    }
+    return this.ignorePredicate?.(normalized) ?? false
+  }
+
   async init(): Promise<void> {
     // Load `.gitignore` off the event loop before the scan starts — slow
     // FS reads (network shares, fuse) must not block other main-process
@@ -224,7 +238,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     const normalized = paths
       .map(normalizePath)
       .filter((p) => p !== this.rootPath)
-      .filter((p) => !(this.ignorePredicate && this.ignorePredicate(p)))
+      .filter((p) => !this.shouldIgnorePath(p))
     normalized.sort((a, b) => {
       const da = a.split('/').length
       const db = b.split('/').length
@@ -269,10 +283,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // is a real code repo with a `node_modules` blob. The predicate
     // fires before chokidar recurses into the dir, so the cost stays
     // at "one Ignore.ignores() call per entry".
-    const predicate = this.ignorePredicate
-    const watcherIgnore = predicate
-      ? (((p: FilePath) => predicate(normalizePath(p))) as (path: FilePath) => boolean)
-      : undefined
+    const watcherIgnore = ((p: FilePath) => this.shouldIgnorePath(p)) as (path: FilePath) => boolean
     const watcherMaxDepth =
       this.options.maxDepth === Number.MAX_SAFE_INTEGER ? undefined : Math.max(0, this.options.maxDepth)
 
@@ -327,7 +338,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // Belt-and-suspenders: chokidar's ignore predicate runs before
     // recursion, but in case of races (a `node_modules` event arrives
     // before chokidar processes the ignore for it), drop it here too.
-    if (this.ignorePredicate && this.ignorePredicate(evPath)) return
+    if (this.shouldIgnorePath(evPath)) return
 
     // Suppress the chokidar `unlink(oldPath)` + `add(newPath)` pair that
     // follows an explicit `rename()`. Without this the renderer would see
@@ -479,6 +490,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       // double-apply over what the renderer is about to receive.
       this.markRenamed(oldNorm, newNorm)
       return false
+    }
+
+    if (this.shouldIgnorePath(newNorm)) {
+      this.markRenamed(oldNorm, newNorm)
+      this.removeNode(oldNorm, /* emit */ true)
+      return true
     }
 
     // Capture descendant paths before mutation so we can re-key the map.

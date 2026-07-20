@@ -186,20 +186,33 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('starts empty and observes files created after an allowed missing root appears', async () => {
+  it('ignores hidden files after an allowed missing root appears and observes visible artifacts', async () => {
     const root = path.join(tmp, 'system-workspace')
     const builder = await createDirectoryTree(root, { allowMissingRoot: true })
     try {
       expect(builder.root.children).toEqual({})
 
+      const events: TreeMutationEvent[] = []
+      const subscription = builder.onMutation((event) => events.push(event))
       const addedPromise = waitForEvent(
         builder,
         (event) => event.type === 'added' && event.path.endsWith('/artifact.md')
       )
       await mkdir(root)
+      await mkdir(path.join(root, '.claude'))
+      await writeFile(path.join(root, '.claude', 'plugins.json'), '{}')
+      await mkdir(path.join(root, 'output'))
+      await writeFile(path.join(root, 'output', '.result.json'), '{}')
       await writeFile(path.join(root, 'artifact.md'), '# Artifact')
 
       await addedPromise
+      subscription.dispose()
+      expect(events.some((event) => 'path' in event && event.path.includes('/.claude'))).toBe(false)
+      expect(events.some((event) => 'path' in event && event.path.endsWith('/.result.json'))).toBe(false)
+      expect(builder.getNode(path.join(root, '.claude'))).toBeNull()
+      expect(builder.getNode(path.join(root, '.claude', 'plugins.json'))).toBeNull()
+      expect(builder.getNode(path.join(root, 'output'))).not.toBeNull()
+      expect(builder.getNode(path.join(root, 'output', '.result.json'))).toBeNull()
       expect(builder.getNode(path.join(root, 'artifact.md'))).not.toBeNull()
     } finally {
       await builder.disposeAsync()
@@ -384,6 +397,33 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
       expect(suppressed).toEqual([])
 
       sub.dispose()
+    } finally {
+      await builder.disposeAsync()
+    }
+  })
+
+  it('rename() removes a visible node when its new path is hidden', async () => {
+    const visiblePath = path.join(tmp, 'visible.md')
+    const hiddenPath = path.join(tmp, '.visible.md')
+    const normalizedVisiblePath = visiblePath.replace(/\\/g, '/')
+    await writeFile(visiblePath, 'x')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+    try {
+      const events: TreeMutationEvent[] = []
+      const subscription = builder.onMutation((event) => events.push(event))
+
+      const applied = builder.rename(visiblePath, hiddenPath)
+
+      expect(applied).toBe(true)
+      expect(builder.getNode(visiblePath)).toBeNull()
+      expect(builder.getNode(hiddenPath)).toBeNull()
+      expect(events).toContainEqual({ type: 'removed', path: normalizedVisiblePath })
+
+      await rename(visiblePath, hiddenPath)
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      expect(builder.getNode(hiddenPath)).toBeNull()
+
+      subscription.dispose()
     } finally {
       await builder.disposeAsync()
     }

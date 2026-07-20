@@ -41,6 +41,7 @@ import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
   Bot,
@@ -72,6 +73,16 @@ import {
 const FLOW_TAB_PREFIX = 'flow:'
 const MAX_FLOW_TAB_TITLE_LENGTH = 32
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
+
+function containsFile(root: TreeDirRoot | null): boolean {
+  let found = false
+  root?.walk((node) => {
+    if (!node.isTreeFile()) return
+    found = true
+    return false
+  })
+  return found
+}
 
 function getFlowTabValue(toolCallId: string): string {
   return `${FLOW_TAB_PREFIX}${toolCallId}`
@@ -296,7 +307,7 @@ function AgentRightPaneStateProvider({
   )
   const hasSystemWorkspaceFiles = useMemo(() => {
     void systemWorkspaceTreeVersion
-    return Boolean(systemWorkspaceRoot && Object.keys(systemWorkspaceRoot.children).length > 0)
+    return containsFile(systemWorkspaceRoot)
   }, [systemWorkspaceRoot, systemWorkspaceTreeVersion])
 
   useEffect(() => {
