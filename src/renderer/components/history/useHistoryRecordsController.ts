@@ -8,7 +8,7 @@ import { ALL_SOURCE_ID, findAdjacentHistoryRecordAfterBulkDelete } from './histo
  * wrapper's server-side query: search and source scope are applied by the
  * server, so the state must exist before the data hook runs.
  */
-export interface HistoryRecordsFilterState {
+interface HistoryRecordsFilterState {
   searchText: string
   setSearchText: (value: string) => void
   selectedSourceId: string

@@ -44,10 +44,7 @@ import { useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePinMutations, usePins } from '@renderer/hooks/usePins'
-import {
-  type ResourceRemovalSnapshot,
-  useResourceRemovalCoordinator
-} from '@renderer/hooks/useResourceRemovalCoordinator'
+import { useResourceRemovalCoordinator } from '@renderer/hooks/useResourceRemovalCoordinator'
 import {
   finishTopicRenaming,
   getTopicMessages,
@@ -57,7 +54,6 @@ import {
   useTopics,
   useTopicStats
 } from '@renderer/hooks/useTopic'
-import { useTopicSessionSortPreference } from '@renderer/hooks/useTopicSessionSortPreference'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -273,7 +269,7 @@ export function Topics({
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
-  const [topicSortBy, setTopicSortBy] = useTopicSessionSortPreference('topic.sort_type')
+  const [topicSortBy, setTopicSortBy] = usePreference('topic.sort_type')
   const [storedPanePosition, setStoredPanePosition] = usePreference('topic.tab.position')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
@@ -940,15 +936,14 @@ export function Topics({
     topicStats,
     ordinaryTopicsSource.error
   ])
-  const loadedTopicCountByGroupId = useMemo(() => {
-    const result = new Map<string, number>()
+  const topicFlatGroupStates = useMemo(() => {
+    if (isAssistantDisplayMode) return undefined
+
+    const loadedTopicCountByGroupId = new Map<string, number>()
     for (const topic of topics) {
       const groupId = topicGroupBy(topic)?.id
-      if (groupId) result.set(groupId, (result.get(groupId) ?? 0) + 1)
+      if (groupId) loadedTopicCountByGroupId.set(groupId, (loadedTopicCountByGroupId.get(groupId) ?? 0) + 1)
     }
-    return result
-  }, [topicGroupBy, topics])
-  const topicGroupStates = useMemo(() => {
     const result: Record<string, ResourceListRemoteGroupState> = {}
     for (const seed of topicGroupSeeds) {
       const loadedCount = loadedTopicCountByGroupId.get(seed.id) ?? 0
@@ -985,13 +980,15 @@ export function Topics({
   }, [
     ordinaryTopicsSource.error,
     hasMoreOrdinaryTopics,
+    isAssistantDisplayMode,
     isOrdinaryTopicsLoading,
     isOrdinaryTopicsRefreshing,
-    loadedTopicCountByGroupId,
     pinnedTopicsSource.error,
     pinnedTopicsSource.isLoading,
     pinnedTopicsSource.isRefreshing,
-    topicGroupSeeds
+    topicGroupBy,
+    topicGroupSeeds,
+    topics
   ])
 
   const baseGroupedTopics = useMemo(
@@ -1027,21 +1024,8 @@ export function Topics({
     activeTopicIdRef.current = ''
     onClearActiveTopic?.()
   }, [onClearActiveTopic])
-  const refillTopicRemovalGroup = useCallback(
-    async (snapshot: ResourceRemovalSnapshot<Topic>) => {
-      if (snapshot.band === 'pinned') await refetchPinnedTopics()
-      else await refetchOrdinaryTopics()
-      return {
-        items: snapshot.displayedItems.filter(
-          (topic) => topic.id !== snapshot.itemId && getTopicDisplayGroupId(topic) === snapshot.groupId
-        )
-      }
-    },
-    [getTopicDisplayGroupId, refetchOrdinaryTopics, refetchPinnedTopics]
-  )
   const resolveTopicOwnerFallback = useCallback(
-    async (snapshot: ResourceRemovalSnapshot<Topic>) => {
-      const deletedTopic = snapshot.item
+    async (deletedTopic: Topic) => {
       const hasLiveOwner = !!deletedTopic.assistantId && assistantById.has(deletedTopic.assistantId)
       const currentOwnerLatest = await loadLatestTopic(hasLiveOwner ? deletedTopic.assistantId : null)
       if (currentOwnerLatest) return undefined
@@ -1064,10 +1048,8 @@ export function Topics({
   )
   const { remove: coordinateTopicRemoval } = useResourceRemovalCoordinator<Topic>({
     getActiveId: getActiveTopicId,
-    getBand: (topic) => (topic.pinned ? 'pinned' : 'ordinary'),
     getGroupId: getTopicDisplayGroupId,
     getItemId: (topic) => topic.id,
-    refillGroup: refillTopicRemovalGroup,
     resolveOwnerFallback: isAssistantDisplayMode ? resolveTopicOwnerFallback : undefined,
     optimisticallyRemove: optimisticallyRemoveTopic,
     restoreOptimisticRemoval: restoreOptimisticallyRemovedTopic,
@@ -1081,7 +1063,6 @@ export function Topics({
           item: topic,
           displayedItems: filteredTopics,
           groupOrder: topicGroupSeeds.map((group) => group.id),
-          context: undefined,
           commit: () => removeTopic(topic)
         })
       } catch (err) {
@@ -1131,6 +1112,7 @@ export function Topics({
         loadNextPinnedTopics()
         return
       }
+      if (groupId !== TOPIC_ORDINARY_GROUP_ID) return
       if (ordinaryTopicsSource.error) {
         await refetchOrdinaryTopics()
         return
@@ -1148,18 +1130,22 @@ export function Topics({
   )
   const topicListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
-      groupStates: topicGroupStates,
-      loadMoreGroup: loadMoreTopicGroup,
+      ...(topicFlatGroupStates ? { groupStates: topicFlatGroupStates, loadMoreGroup: loadMoreTopicGroup } : {}),
       onQueryChange: setRemoteQuery,
       query: remoteQuery
     }),
-    [loadMoreTopicGroup, remoteQuery, topicGroupStates]
+    [loadMoreTopicGroup, remoteQuery, topicFlatGroupStates]
   )
-  // Stream failures are recoverable at their remote group footer. Keeping them out of the
-  // top-level status is what leaves that error group mounted even before any rows have loaded.
+  // Flat stream failures are recoverable at their real pinned/ordinary group footer.
+  // Grouped mode has no independent remote group windows, so surface its global stream failure.
   const listError =
     topicStatsError ||
-    (isAssistantDisplayMode ? (assistantsError ?? (isGroupGrouping ? assistantGroupsError : undefined)) : undefined)
+    (isAssistantDisplayMode
+      ? (pinnedTopicsSource.error ??
+        ordinaryTopicsSource.error ??
+        assistantsError ??
+        (isGroupGrouping ? assistantGroupsError : undefined))
+      : undefined)
   const listLoading =
     topics.length === 0 &&
     (isTopicStatsLoading ||
@@ -1546,15 +1532,12 @@ export function Topics({
   const topicItemDragReady =
     !isRightPanel &&
     topicSortBy === 'orderKey' &&
-    (isAssistantDisplayMode || (!isOrdinaryTopicsLoading && !isOrdinaryTopicsRefreshing))
-  const isTopicItemGroupStable = useCallback(
-    (groupId: string) => topicGroupStates[groupId]?.status === 'idle',
-    [topicGroupStates]
-  )
+    !ordinaryTopicsSource.error &&
+    !isOrdinaryTopicsLoading &&
+    !isOrdinaryTopicsRefreshing
   const canDragTopicItem = useCallback(
-    ({ item, group }: { item: Topic; group: ResourceListGroup }) =>
-      topicItemDragReady && !item.pinned && isTopicItemGroupStable(group.id),
-    [isTopicItemGroupStable, topicItemDragReady]
+    ({ item }: { item: Topic; group: ResourceListGroup }) => topicItemDragReady && !item.pinned,
+    [topicItemDragReady]
   )
 
   const canDropTopicItem = useCallback(
@@ -1569,14 +1552,7 @@ export function Topics({
       sourceGroupId: string
       targetGroupId: string
     }) => {
-      if (
-        !topicItemDragReady ||
-        overType !== 'item' ||
-        !overItem ||
-        targetGroupId === TOPIC_PINNED_GROUP_ID ||
-        !isTopicItemGroupStable(sourceGroupId) ||
-        !isTopicItemGroupStable(targetGroupId)
-      ) {
+      if (!topicItemDragReady || overType !== 'item' || !overItem || targetGroupId === TOPIC_PINNED_GROUP_ID) {
         return false
       }
       if (!isAssistantDisplayMode) {
@@ -1585,7 +1561,7 @@ export function Topics({
       if (targetGroupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return sourceGroupId === targetGroupId
       return resolveAssistantIdForTopicGroup(targetGroupId, assistantById) !== undefined
     },
-    [assistantById, isAssistantDisplayMode, isTopicItemGroupStable, topicItemDragReady]
+    [assistantById, isAssistantDisplayMode, topicItemDragReady]
   )
 
   const canDragTopicGroup = useCallback(
@@ -1670,13 +1646,7 @@ export function Topics({
         return
       }
 
-      if (
-        !topicItemDragReady ||
-        !isTopicItemGroupStable(payload.sourceGroupId) ||
-        !isTopicItemGroupStable(payload.targetGroupId)
-      ) {
-        return
-      }
+      if (!topicItemDragReady) return
 
       if (payload.sourceGroupId === TOPIC_PINNED_GROUP_ID || payload.targetGroupId === TOPIC_PINNED_GROUP_ID) return
 
@@ -1727,7 +1697,6 @@ export function Topics({
     [
       assistantById,
       isAssistantDisplayMode,
-      isTopicItemGroupStable,
       orderedAssistants,
       refreshAssistants,
       refreshTopics,
@@ -1842,7 +1811,7 @@ export function Topics({
           onConfirmDelete={handleConfirmDeleteTopic}
           onDeleteClick={handleDeleteTopicClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
-          onEndReached={handleTopicEndReached}
+          onEndReached={isAssistantDisplayMode ? undefined : handleTopicEndReached}
           onMoveToAssistant={handleMoveTopicToAssistant}
           onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}

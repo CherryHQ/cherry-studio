@@ -188,9 +188,8 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
  * Cursor-paginated session list. With `agentId` undefined / null the result
  * spans every agent (the global session view); pass an id to scope the
  * listing. Flat sort profiles include immutable creation order (`createdAt`),
- * activity order (`lastActivityAt`), and manual order (`orderKey`). Consumers page
- * explicitly with `loadMore()`; grouped sidebars own independent per-group
- * cursor windows.
+ * activity order (`lastActivityAt`), and manual order (`orderKey`). Consumers
+ * page explicitly with `loadMore()`.
  */
 export const useSessions = (agentId: string | null | undefined, options: UseSessionsOptions) => {
   const { t } = useTranslation()

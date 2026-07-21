@@ -361,7 +361,7 @@ function setupAgentHistory({
     ownerScope?: string,
     q?: string,
     pinned?: boolean,
-    sortBy: 'createdAt' | 'updatedAt' | 'orderKey' = 'createdAt'
+    sortBy: 'createdAt' | 'lastActivityAt' | 'orderKey' = 'createdAt'
   ) => {
     const normalizedQuery = q?.trim().toLowerCase()
     return projectedSessions

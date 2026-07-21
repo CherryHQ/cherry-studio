@@ -942,7 +942,7 @@ describe('HistoryRecordsView assistant mode', () => {
           if (options?.sortBy === 'orderKey') {
             return left.orderKey.localeCompare(right.orderKey) || left.id.localeCompare(right.id)
           }
-          const sortBy = options?.sortBy === 'createdAt' ? 'createdAt' : 'updatedAt'
+          const sortBy = options?.sortBy === 'createdAt' ? 'createdAt' : 'lastActivityAt'
           return Date.parse(right[sortBy]) - Date.parse(left[sortBy]) || left.id.localeCompare(right.id)
         }),
       error: undefined,

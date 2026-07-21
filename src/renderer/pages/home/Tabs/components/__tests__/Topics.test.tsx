@@ -576,21 +576,7 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
 type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
 
 function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTopicsSource {
-  const source =
-    topics !== undefined
-      ? {
-          pages: [{ items: topics }],
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext: false,
-          loadNext: vi.fn(),
-          refresh: vi.fn(),
-          reset: vi.fn(),
-          mutate: vi.fn()
-        }
-      : mockUseInfiniteQuery('/topics', { limit: 200 })
-  const items = source.pages.flatMap((page) => page.items)
+  const items = topics ?? createDefaultTopicFixture()
   const byAssistant = Array.from(new Set(items.map((topic) => topic.assistantId ?? null))).map((assistantId) => ({
     assistantId,
     count: items.filter((topic) => (topic.assistantId ?? null) === assistantId).length,
@@ -598,19 +584,13 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
   }))
 
   return {
-    error: source.error,
-    hasNext: source.hasNext,
-    isLoading: source.isLoading,
-    isRefreshing: source.isRefreshing,
-    loadNext: source.loadNext,
+    isStatsLoading: false,
+    statsError: undefined,
+    refetchStats: vi.fn().mockResolvedValue(undefined),
     loadLatestTopic: vi.fn().mockResolvedValue(null),
     loadReusableTopic: vi.fn().mockResolvedValue(null),
-    mutate: source.mutate,
-    pages: source.pages,
-    refetch: source.refresh,
-    topics: items,
     stats: { total: items.length, pinnedCount: 0, byAssistant }
-  } as unknown as AssistantTopicsSource
+  }
 }
 
 function renderTopicList({
@@ -725,7 +705,7 @@ function openTopicListOptions() {
 }
 
 // Derive `/topics/stats` from a fixture so the assistant group headers, pinned band, and
-// grouped cursor windows have the aggregate facts the component reads. Wraps the current
+// grouped projections have the aggregate facts the component reads. Wraps the current
 // `mockUseQuery` implementation so `/pins` and `/assistants` handling is preserved.
 function applyTopicStats(topics: readonly ApiTopic[], pinnedIds: readonly string[] = []) {
   const pinnedIdSet = new Set(pinnedIds)
@@ -1009,38 +989,6 @@ describe('Topics', () => {
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/topics',
       expect.objectContaining({ query: { pinned: false, sortBy: 'createdAt' }, limit: 50, enabled: true })
-    )
-  })
-
-  it('migrates the legacy updatedAt sort while keeping the pin-order stream independent', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'updatedAt')
-
-    renderTopicList()
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-      '/topics',
-      expect.objectContaining({ query: { pinned: true }, limit: 50, enabled: true })
-    )
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-      '/topics',
-      expect.objectContaining({ query: { pinned: false, sortBy: 'lastActivityAt' }, limit: 50, enabled: true })
-    )
-    await vi.waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('topic.sort_type' as never)).toBe('lastActivityAt')
-    })
-  })
-
-  it('uses the shared ordinary topic stream for grouped sorting', () => {
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'lastActivityAt')
-    applyTopicStats(createDefaultTopicFixture())
-
-    renderTopicList()
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-      '/topics',
-      expect.objectContaining({ query: { pinned: false, sortBy: 'lastActivityAt' }, limit: 50, enabled: true })
     )
   })
 
@@ -1963,7 +1911,7 @@ describe('Topics', () => {
     expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a2-first' }))
   })
 
-  it('uses the pre-delete topic snapshot when refresh completes before deletion resolves', async () => {
+  it('keeps the optimistic loaded neighbour selected when the list rerenders before deletion resolves', async () => {
     const topics = [
       createApiTopic({
         id: 'topic-a1-first',
@@ -1978,6 +1926,7 @@ describe('Topics', () => {
         orderKey: 'b'
       })
     ]
+    setTopicInfiniteQueryPages(topics)
     const assistantTopicsSource = createAssistantTopicsSource(topics)
     let resolveDelete: (() => void) | undefined
     topicDataMocks.deleteTopic.mockImplementationOnce(
@@ -2004,10 +1953,7 @@ describe('Topics', () => {
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
 
     const refreshedTopics = topics.filter((topic) => topic.id !== 'topic-a1-second')
-    Object.assign(assistantTopicsSource, {
-      pages: [{ items: refreshedTopics }],
-      topics: refreshedTopics
-    })
+    setTopicInfiniteQueryPages(refreshedTopics)
     rerenderTopicList()
     await act(async () => {
       resolveDelete?.()
@@ -2024,6 +1970,7 @@ describe('Topics', () => {
       createApiTopic({ id: 'topic-a1-first', name: 'A1 First', assistantId: 'assistant-1', orderKey: 'a' }),
       createApiTopic({ id: 'topic-a1-second', name: 'A1 Second', assistantId: 'assistant-1', orderKey: 'b' })
     ]
+    setTopicInfiniteQueryPages(topics)
     const assistantTopicsSource = createAssistantTopicsSource(topics)
     let rejectDelete: ((error: Error) => void) | undefined
     topicDataMocks.deleteTopic.mockImplementationOnce(
@@ -2298,7 +2245,9 @@ describe('Topics', () => {
       const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
       return entityType === 'assistant' ? assistantPinsQuery : topicPinsQuery
     })
-    const assistantTopicsSource = createAssistantTopicsSource(createTopicPageItems(3))
+    const topics = createTopicPageItems(3)
+    setTopicInfiniteQueryPages(topics)
+    const assistantTopicsSource = createAssistantTopicsSource(topics)
     const { rerenderTopicList } = renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-1', name: 'Topic 1' }),
       assistantTopicsSource,

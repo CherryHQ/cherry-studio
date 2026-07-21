@@ -14,19 +14,19 @@ export type UseResourceListPinnedStateResult = {
   togglingIds: ReadonlySet<string>
 }
 
-export type ResourceListPinnableItem = {
+type ResourceListPinnableItem = {
   id: string
   pinned?: boolean
 }
 
-export type UseResourceListPinnedItemsOptions<T extends ResourceListPinnableItem> = {
+type UseResourceListPinnedItemsOptions<T extends ResourceListPinnableItem> = {
   disabled?: boolean
   items: readonly T[]
   onTogglePin: (item: T) => Promise<void>
   resetKey?: string
 }
 
-export type UseResourceListPinnedItemsResult<T extends ResourceListPinnableItem> = {
+type UseResourceListPinnedItemsResult<T extends ResourceListPinnableItem> = {
   items: T[]
   togglePinned: (item: T) => Promise<void>
   togglingIds: ReadonlySet<string>

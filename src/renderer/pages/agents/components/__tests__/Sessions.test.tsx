@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as UseAgentModule from '@renderer/hooks/agent/useAgent'
+import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -283,9 +284,10 @@ vi.mock('@dnd-kit/utilities', () => ({
 const sessionDataMocks = vi.hoisted(() => ({
   createSession: vi.fn().mockResolvedValue({ id: 'created-session' }),
   deleteSession: vi.fn().mockResolvedValue(true),
+  listSource: null as unknown as Record<string, unknown>,
   reload: vi.fn().mockResolvedValue(undefined),
   reorderSession: vi.fn().mockResolvedValue(true),
-  source: null as unknown,
+  source: null as unknown as AgentSessionsSource,
   stats: { total: 0, pinnedCount: 0, byAgent: [], byWorkspace: [] } as {
     total: number
     pinnedCount: number
@@ -672,7 +674,7 @@ type SessionsForTestProps = Partial<ComponentProps<typeof Sessions>> & {
 
 function SessionsForTest({
   activeSessionId = cacheMocks.state.activeSessionId,
-  agentSessionsSource = sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource'],
+  agentSessionsSource = sessionDataMocks.source,
   setActiveSessionId = cacheMocks.setActiveSessionId,
   ...props
 }: SessionsForTestProps) {
@@ -798,7 +800,16 @@ function openSessionListOptions() {
 }
 
 function setupSessions(overrides: Record<string, unknown> = {}) {
-  const source = {
+  const loadLatestSession =
+    (overrides.loadLatestSession as AgentSessionsSource['loadLatestSession'] | undefined) ??
+    vi.fn().mockResolvedValue(null)
+  const loadReusableSessions =
+    (overrides.loadReusableSessions as AgentSessionsSource['loadReusableSessions'] | undefined) ??
+    vi.fn().mockResolvedValue([])
+  const listOverrides = { ...overrides }
+  delete listOverrides.loadLatestSession
+  delete listOverrides.loadReusableSessions
+  const listSource = {
     sessions: [
       createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
       createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })
@@ -812,22 +823,24 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
     isLoadingMore: false,
     isValidating: false,
     reload: sessionDataMocks.reload,
-    loadLatestSession: vi.fn().mockResolvedValue(null),
     reorderSession: sessionDataMocks.reorderSession,
-    stats: sessionDataMocks.stats,
     togglePin: sessionDataMocks.togglePin,
-    ...overrides
+    ...listOverrides
   }
-  sessionDataMocks.source = source
-  sessionDataMocks.useSessions.mockReturnValue(source)
-  const sessions = source.sessions as AgentSessionEntity[]
+  sessionDataMocks.listSource = listSource
+  const sessions = listSource.sessions as AgentSessionListItem[]
+  const pinnedListSource = { ...listSource, sessions: sessions.filter((session) => session.pinned) }
+  const ordinaryListSource = { ...listSource, sessions: sessions.filter((session) => !session.pinned) }
+  sessionDataMocks.useSessions.mockImplementation((_agentId, options: { pinned?: boolean }) =>
+    options.pinned ? pinnedListSource : ordinaryListSource
+  )
   sessionDataMocks.stats = {
     total: sessions.length,
     pinnedCount: sessions.filter((session) => 'pinned' in session && session.pinned === true).length,
     byAgent: Array.from(new Set(sessions.map((session) => session.agentId))).map((agentId) => ({
       agentId,
       count: sessions.filter((session) => session.agentId === agentId).length,
-      pinnedCount: 0
+      pinnedCount: sessions.filter((session) => session.agentId === agentId && session.pinned).length
     })),
     byWorkspace: Array.from(
       new Set(sessions.map((session) => (session.workspace.type === 'system' ? 'system' : session.workspaceId)))
@@ -836,10 +849,21 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
       count: sessions.filter((session) =>
         workspaceId === 'system' ? session.workspace.type === 'system' : session.workspaceId === workspaceId
       ).length,
-      pinnedCount: 0
+      pinnedCount: sessions.filter(
+        (session) =>
+          (workspaceId === 'system' ? session.workspace.type === 'system' : session.workspaceId === workspaceId) &&
+          session.pinned
+      ).length
     }))
   }
-  source.stats = sessionDataMocks.stats
+  sessionDataMocks.source = {
+    stats: sessionDataMocks.stats,
+    isStatsLoading: false,
+    statsError: undefined,
+    refetchStats: vi.fn().mockResolvedValue(undefined),
+    loadLatestSession,
+    loadReusableSessions
+  }
 }
 
 describe('Sessions', () => {
@@ -905,7 +929,7 @@ describe('Sessions', () => {
     vi.useRealTimers()
   })
 
-  it('loads all sessions and renders collapsed workspace groups with drag in manual order', () => {
+  it('renders loaded sessions in collapsed workspace groups with drag in manual order', () => {
     setSessionGroupExpansionCache({
       ...createExpandedSessionGroupExpansionFixture(),
       // Collapse the workspace groups; sections stay expanded.
@@ -1116,56 +1140,11 @@ describe('Sessions', () => {
     )
   })
 
-  it('migrates the legacy updatedAt sort while keeping the pin-order stream independent', async () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'time')
-    preferenceMocks.values.set('agent.session.sort_type', 'updatedAt')
-
-    render(<SessionsForTest />)
-
-    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
-      undefined,
-      expect.objectContaining({ pinned: true, pageSize: 50, enabled: true })
-    )
-    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
-      undefined,
-      expect.objectContaining({ pinned: false, sortBy: 'lastActivityAt', pageSize: 50, enabled: true })
-    )
-    const pinnedCall = sessionDataMocks.useSessions.mock.calls.find(([, options]) => options?.pinned === true)
-    expect(pinnedCall?.[1]).not.toHaveProperty('sortBy')
-    await vi.waitFor(() => {
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'lastActivityAt')
-    })
-  })
-
-  it('uses the shared ordinary session stream for agent grouping', () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    preferenceMocks.values.set('agent.session.sort_type', 'lastActivityAt')
-
-    render(<SessionsForTest />)
-
-    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
-      undefined,
-      expect.objectContaining({ pinned: false, sortBy: 'lastActivityAt', pageSize: 50, enabled: true })
-    )
-  })
-
-  it('uses the shared ordinary session stream for work-directory grouping', () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
-    preferenceMocks.values.set('agent.session.sort_type', 'createdAt')
-
-    render(<SessionsForTest />)
-
-    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
-      undefined,
-      expect.objectContaining({ pinned: false, sortBy: 'createdAt', pageSize: 50, enabled: true })
-    )
-  })
-
   it('keeps a creation-stream retry available before any rows have loaded', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     sessionDataMocks.stats = { total: 0, pinnedCount: 0, byAgent: [], byWorkspace: [] }
     const retryCreatedSessions = vi.fn().mockResolvedValue(undefined)
-    const baseSource = sessionDataMocks.source as Record<string, unknown>
+    const baseSource = sessionDataMocks.listSource
     sessionDataMocks.useSessions.mockImplementation((_agentId, options) => {
       const pinned = (options as { pinned?: boolean }).pinned
       return {
@@ -1190,7 +1169,7 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     sessionDataMocks.stats = { total: 0, pinnedCount: 0, byAgent: [], byWorkspace: [] }
     const retryPinnedSessions = vi.fn().mockResolvedValue(undefined)
-    const baseSource = sessionDataMocks.source as Record<string, unknown>
+    const baseSource = sessionDataMocks.listSource
     sessionDataMocks.useSessions.mockImplementation((_agentId, options) => {
       const pinned = (options as { pinned?: boolean }).pinned
       return {
@@ -1978,7 +1957,7 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null, null))
   })
 
-  it('reveals a history-selected session hidden by search and show-more with row focus', async () => {
+  it('reveals a history-selected session hidden by the group display limit with row focus', async () => {
     setupSessions({
       sessions: Array.from({ length: 6 }, (_, index) =>
         createSession({

@@ -13,7 +13,6 @@ import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssi
 import { useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
-import { useTopicSessionSortPreference } from '@renderer/hooks/useTopicSessionSortPreference'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -92,7 +91,7 @@ export function AssistantResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
-  const [topicSortBy, setTopicSortBy] = useTopicSessionSortPreference('topic.sort_type')
+  const [topicSortBy, setTopicSortBy] = usePreference('topic.sort_type')
   // Keep the persisted legacy token (`tags`) for preference compatibility; runtime grouping uses Group rows.
   const isGroupGrouping = assistantSortType === 'tags'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false

@@ -13,7 +13,7 @@ export interface PinnedBandSource<T> {
   reload: () => Promise<unknown>
 }
 
-export interface PinnedBandPaginationResult<T> {
+interface PinnedBandPaginationResult<T> {
   /** Pinned band first; unpinned band appended only once the pinned band is complete. */
   items: T[]
   /** Every pin page is known from this key's current or last successful completed snapshot. */

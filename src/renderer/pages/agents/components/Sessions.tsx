@@ -43,12 +43,8 @@ import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePinMutations, usePins } from '@renderer/hooks/usePins'
-import {
-  type ResourceRemovalSnapshot,
-  useResourceRemovalCoordinator
-} from '@renderer/hooks/useResourceRemovalCoordinator'
+import { useResourceRemovalCoordinator } from '@renderer/hooks/useResourceRemovalCoordinator'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
-import { useTopicSessionSortPreference } from '@renderer/hooks/useTopicSessionSortPreference'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -384,7 +380,7 @@ const Sessions = ({
     yuque: 'data.export.menus.yuque'
   })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [sessionSortBy, setSessionSortBy] = useTopicSessionSortPreference('agent.session.sort_type')
+  const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   const [storedWorkdirSectionOrder, setStoredWorkdirSectionOrder] = usePreference('agent.session.workdir_section_order')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
@@ -556,7 +552,9 @@ const Sessions = ({
   const itemDragReady =
     !isRightPanel &&
     sessionSortBy === 'orderKey' &&
-    (displayMode !== 'time' || (!isOrdinarySessionsLoading && !isOrdinarySessionsValidating))
+    !ordinarySessionsSource.error &&
+    !isOrdinarySessionsLoading &&
+    !isOrdinarySessionsValidating
   const workspaceRowsForDisplay = useMemo(() => {
     if (!optimisticWorkspaceOrderIds) return workspaceRows
 
@@ -1035,15 +1033,14 @@ const Sessions = ({
     workdirSectionRank,
     workdirSessionStatsByGroupId
   ])
-  const loadedSessionCountByGroupId = useMemo(() => {
-    const result = new Map<string, number>()
+  const sessionFlatGroupStates = useMemo(() => {
+    if (displayMode !== 'time') return undefined
+
+    const loadedSessionCountByGroupId = new Map<string, number>()
     for (const session of sessionItems) {
       const groupId = sessionGroupBy(session)?.id
-      if (groupId) result.set(groupId, (result.get(groupId) ?? 0) + 1)
+      if (groupId) loadedSessionCountByGroupId.set(groupId, (loadedSessionCountByGroupId.get(groupId) ?? 0) + 1)
     }
-    return result
-  }, [sessionGroupBy, sessionItems])
-  const sessionGroupStates = useMemo(() => {
     const result: Record<string, ResourceListRemoteGroupState> = {}
     for (const seed of sessionGroupSeeds) {
       const loadedCount = loadedSessionCountByGroupId.get(seed.id) ?? 0
@@ -1078,14 +1075,16 @@ const Sessions = ({
     return result
   }, [
     ordinarySessionsSource.error,
+    displayMode,
     hasMoreOrdinarySessions,
     isOrdinarySessionsLoading,
     isOrdinarySessionsValidating,
-    loadedSessionCountByGroupId,
     pinnedSessionsSource.error,
     pinnedSessionsSource.isLoading,
     pinnedSessionsSource.isValidating,
-    sessionGroupSeeds
+    sessionGroupBy,
+    sessionGroupSeeds,
+    sessionItems
   ])
 
   const collapsedSessionState = useMemo(() => {
@@ -1141,21 +1140,8 @@ const Sessions = ({
   )
   const getActiveSessionId = useCallback(() => activeSessionIdRef.current, [])
   const clearSessionSelection = useCallback(() => setActiveSessionId(null), [setActiveSessionId])
-  const refillSessionRemovalGroup = useCallback(
-    async (snapshot: ResourceRemovalSnapshot<AgentSessionListItem>) => {
-      if (snapshot.band === 'pinned') await reloadPinnedSessions()
-      else await reloadOrdinarySessions()
-      return {
-        items: snapshot.displayedItems.filter(
-          (session) => session.id !== snapshot.itemId && getSessionDisplayGroupId(session) === snapshot.groupId
-        )
-      }
-    },
-    [getSessionDisplayGroupId, reloadOrdinarySessions, reloadPinnedSessions]
-  )
   const resolveSessionOwnerFallback = useCallback(
-    async (snapshot: ResourceRemovalSnapshot<AgentSessionListItem>) => {
-      const deletedSession = snapshot.item
+    async (deletedSession: AgentSessionListItem) => {
       const hasLiveOwner = !!deletedSession.agentId && agentById.has(deletedSession.agentId)
       const currentOwnerLatest = await loadLatestSession(hasLiveOwner ? deletedSession.agentId : null)
       if (currentOwnerLatest) return undefined
@@ -1178,10 +1164,8 @@ const Sessions = ({
   )
   const { remove: coordinateSessionRemoval } = useResourceRemovalCoordinator<AgentSessionListItem>({
     getActiveId: getActiveSessionId,
-    getBand: (session) => (session.pinned ? 'pinned' : 'ordinary'),
     getGroupId: getSessionDisplayGroupId,
     getItemId: (session) => session.id,
-    refillGroup: refillSessionRemovalGroup,
     resolveOwnerFallback: displayMode === 'agent' ? resolveSessionOwnerFallback : undefined,
     optimisticallyRemove: optimisticallyRemoveSession,
     restoreOptimisticRemoval: restoreOptimisticallyRemovedSession,
@@ -1199,7 +1183,6 @@ const Sessions = ({
         item: session,
         displayedItems: filteredGroupedSessions,
         groupOrder: sessionGroupSeeds.map((group) => group.id),
-        context: undefined,
         commit: () => deleteSession(id)
       })
     },
@@ -1714,6 +1697,7 @@ const Sessions = ({
         loadMorePinnedSessions()
         return
       }
+      if (groupId !== SESSION_ORDINARY_GROUP_ID) return
       if (ordinarySessionsSource.error) {
         await reloadOrdinarySessions()
         return
@@ -1731,21 +1715,15 @@ const Sessions = ({
   )
   const sessionListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
-      groupStates: sessionGroupStates,
-      loadMoreGroup: loadMoreSessionGroup,
+      ...(sessionFlatGroupStates ? { groupStates: sessionFlatGroupStates, loadMoreGroup: loadMoreSessionGroup } : {}),
       onQueryChange: setRemoteQuery,
       query: remoteQuery
     }),
-    [loadMoreSessionGroup, remoteQuery, sessionGroupStates]
-  )
-  const isSessionItemGroupStable = useCallback(
-    (groupId: string) => sessionGroupStates[groupId]?.status === 'idle',
-    [sessionGroupStates]
+    [loadMoreSessionGroup, remoteQuery, sessionFlatGroupStates]
   )
   const canDragSessionItem = useCallback(
-    ({ item, group }: { item: SessionListItem; group: ResourceListGroup }) =>
-      itemDragReady && !item.pinned && isSessionItemGroupStable(group.id),
-    [isSessionItemGroupStable, itemDragReady]
+    ({ item }: { item: SessionListItem; group: ResourceListGroup }) => itemDragReady && !item.pinned,
+    [itemDragReady]
   )
 
   const canDropSessionItem = useCallback(
@@ -1763,10 +1741,8 @@ const Sessions = ({
       itemDragReady &&
       overType === 'item' &&
       !!overItem &&
-      isSessionItemGroupStable(sourceGroupId) &&
-      isSessionItemGroupStable(targetGroupId) &&
       canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
-    [displayMode, isSessionItemGroupStable, itemDragReady]
+    [displayMode, itemDragReady]
   )
 
   const canDragSessionGroup = useCallback(
@@ -1922,13 +1898,7 @@ const Sessions = ({
         return
       }
 
-      if (
-        !itemDragReady ||
-        !isSessionItemGroupStable(payload.sourceGroupId) ||
-        !isSessionItemGroupStable(payload.targetGroupId)
-      ) {
-        return
-      }
+      if (!itemDragReady) return
       if (
         !canDropSessionItemInDisplayGroup({
           mode: displayMode,
@@ -1958,7 +1928,6 @@ const Sessions = ({
       agentDragReady,
       agentsForDisplay,
       itemDragReady,
-      isSessionItemGroupStable,
       refetchAgents,
       refetchWorkspaces,
       reorderAgent,
@@ -2269,10 +2238,11 @@ const Sessions = ({
     ]
   )
 
-  // Pinned/created stream failures remain recoverable inside their remote group. Only
-  // metadata failures that prevent group construction should replace the whole list.
+  // Flat stream failures remain recoverable inside their real pinned/ordinary group.
+  // Grouped mode has no independent remote group windows, so surface its global stream failure.
   const listError =
     sessionStatsError ??
+    (displayMode === 'time' ? undefined : (pinnedSessionsSource.error ?? ordinarySessionsSource.error)) ??
     (displayMode === 'agent' ? agentsError : displayMode === 'workdir' ? workspacesError : undefined)
   const listLoading =
     sessionItems.length === 0 &&
@@ -2436,7 +2406,7 @@ const Sessions = ({
         isValidating={listValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
-        onEndReached={handleSessionEndReached}
+        onEndReached={displayMode === 'time' ? handleSessionEndReached : undefined}
         onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
         onOpenInNewWindow={openSessionInNewWindow}
         onRetry={handleRetry}

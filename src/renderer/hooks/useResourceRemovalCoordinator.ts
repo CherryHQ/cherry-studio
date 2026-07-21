@@ -1,43 +1,30 @@
 import { useCallback, useRef } from 'react'
 
-export type ResourceRemovalBand = 'pinned' | 'ordinary'
-
-export interface ResourceRemovalSnapshot<T, TContext = undefined> {
-  item: T
+interface ResourceRemovalSnapshot<T> {
   itemId: string
   groupId: string
-  band: ResourceRemovalBand
-  displayedIndex: number
-  loadedWindowSize: number
   displayedItems: readonly T[]
   groupOrder: readonly string[]
-  context: TContext
 }
 
-export interface ResourceRemovalRefill<T> {
-  items: readonly T[]
-}
-
-interface ResourceRemovalRequest<T, TContext> {
+interface ResourceRemovalRequest<T> {
   item: T
   displayedItems: readonly T[]
   groupOrder: readonly string[]
-  context: TContext
   commit: () => Promise<boolean | void>
 }
 
-interface UseResourceRemovalCoordinatorOptions<T, TContext> {
+interface UseResourceRemovalCoordinatorOptions<T> {
   getActiveId: () => string | null | undefined
-  getBand: (item: T) => ResourceRemovalBand
   getGroupId: (item: T) => string
   getItemId: (item: T) => string
-  refillGroup: (snapshot: ResourceRemovalSnapshot<T, TContext>) => Promise<ResourceRemovalRefill<T>>
   /**
    * Authoritative post-delete owner check for grouped owner presentations.
-   * `undefined` keeps normal visible-neighbour selection because the owner
-   * still has records; an item or `null` handles an emptied owner explicitly.
+   * `undefined` means the owner still has unloaded records, so the current
+   * loaded projection cannot select a replacement. An item or `null` handles
+   * an emptied owner explicitly.
    */
-  resolveOwnerFallback?: (snapshot: ResourceRemovalSnapshot<T, TContext>) => Promise<T | null | undefined>
+  resolveOwnerFallback?: (item: T) => Promise<T | null | undefined>
   /** Hide the row immediately while its delete request is in flight. */
   optimisticallyRemove?: (item: T) => void
   /** Restore a hidden row when the delete request rejects or returns false. */
@@ -46,13 +33,13 @@ interface UseResourceRemovalCoordinatorOptions<T, TContext> {
   clearSelection: () => void
 }
 
-function pickRefilledNeighbour<T>(items: readonly T[], removedIndex: number): T | undefined {
+function pickLoadedNeighbour<T>(items: readonly T[], removedIndex: number): T | undefined {
   if (items.length === 0) return undefined
   return items[removedIndex] ?? items[Math.min(removedIndex - 1, items.length - 1)]
 }
 
 function pickSiblingGroupNeighbour<T>(
-  snapshot: ResourceRemovalSnapshot<T, unknown>,
+  snapshot: ResourceRemovalSnapshot<T>,
   getGroupId: (item: T) => string,
   getItemId: (item: T) => string
 ): T | undefined {
@@ -81,48 +68,41 @@ function pickSiblingGroupNeighbour<T>(
  * Shared Topic/Session removal state machine.
  *
  * The coordinator snapshots the active row's presentation before deletion,
- * delegates collection refresh to the caller, then selects from the returned
- * current-group candidates (or falls back to a sibling group).
+ * selects an already-loaded neighbour optimistically, then uses an optional
+ * authoritative owner lookup when the loaded owner projection becomes empty.
  * A monotonically increasing operation id plus the live active id prevent a
- * stale refresh or owner lookup from re-activating a removed record.
+ * stale owner lookup from re-activating a removed record.
  */
-export function useResourceRemovalCoordinator<T, TContext = undefined>({
+export function useResourceRemovalCoordinator<T>({
   getActiveId,
-  getBand,
   getGroupId,
   getItemId,
-  refillGroup,
   resolveOwnerFallback,
   optimisticallyRemove,
   restoreOptimisticRemoval,
   selectItem,
   clearSelection
-}: UseResourceRemovalCoordinatorOptions<T, TContext>) {
+}: UseResourceRemovalCoordinatorOptions<T>) {
   const operationIdRef = useRef(0)
 
   const remove = useCallback(
-    async ({ item, displayedItems, groupOrder, context, commit }: ResourceRemovalRequest<T, TContext>) => {
+    async ({ item, displayedItems, groupOrder, commit }: ResourceRemovalRequest<T>) => {
       const itemId = getItemId(item)
       const groupId = getGroupId(item)
       const groupItems = displayedItems.filter((candidate) => getGroupId(candidate) === groupId)
       const displayedIndex = groupItems.findIndex((candidate) => getItemId(candidate) === itemId)
-      const snapshot: ResourceRemovalSnapshot<T, TContext> = {
-        item,
+      const snapshot: ResourceRemovalSnapshot<T> = {
         itemId,
         groupId,
-        band: getBand(item),
-        displayedIndex: Math.max(displayedIndex, 0),
-        loadedWindowSize: Math.max(groupItems.length, 1),
         displayedItems,
-        groupOrder,
-        context
+        groupOrder
       }
       const operationId = ++operationIdRef.current
       const wasActive = getActiveId() === itemId
       const immediateNeighbour = wasActive
-        ? pickRefilledNeighbour(
+        ? pickLoadedNeighbour(
             groupItems.filter((candidate) => getItemId(candidate) !== itemId),
-            snapshot.displayedIndex
+            Math.max(displayedIndex, 0)
           )
         : undefined
 
@@ -153,22 +133,16 @@ export function useResourceRemovalCoordinator<T, TContext = undefined>({
       if (!wasActive) return true
 
       const isCurrent = () => operationIdRef.current === operationId && getActiveId() === optimisticActiveId
-      const replacement = await refillGroup(snapshot)
-      if (!isCurrent()) return true
+      if (!isCurrent() || immediateNeighbour) return true
 
       if (resolveOwnerFallback) {
-        const fallback = await resolveOwnerFallback(snapshot)
+        const fallback = await resolveOwnerFallback(item)
         if (!isCurrent()) return true
         if (fallback !== undefined) {
           if (fallback) selectItem(fallback)
           else clearSelection()
           return true
         }
-      }
-
-      const neighbour = pickRefilledNeighbour(replacement.items, snapshot.displayedIndex)
-      if (neighbour) {
-        selectItem(neighbour)
         return true
       }
 
@@ -180,11 +154,9 @@ export function useResourceRemovalCoordinator<T, TContext = undefined>({
     [
       clearSelection,
       getActiveId,
-      getBand,
       getGroupId,
       getItemId,
       optimisticallyRemove,
-      refillGroup,
       resolveOwnerFallback,
       restoreOptimisticRemoval,
       selectItem

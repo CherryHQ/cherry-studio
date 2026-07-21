@@ -99,8 +99,6 @@ const agentPageMocks = vi.hoisted(() => ({
     workspaceId?: string
     workspace?: { type?: string }
   }>,
-  sessionsFirstPageLoading: false,
-  sessionsLoadingAll: false,
   isLatestSessionLoading: false,
   // `undefined` → derive the latest from `resourceLayoutSessions`; `null` → none; a session → that exact
   // session (used to prove first-entry restore reads the dedicated latest query, not the paged list).
@@ -139,10 +137,9 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
       pinnedCount: 0
     }))
     const source = {
-      sessions,
-      isLoading: agentPageMocks.sessionsFirstPageLoading,
-      isStatsLoading: agentPageMocks.sessionsLoadingAll,
-      hasMore: false,
+      isStatsLoading: false,
+      statsError: undefined,
+      refetchStats: vi.fn().mockResolvedValue(undefined),
       stats: { total: sessions.length, pinnedCount: 0, byAgent, byWorkspace: [] },
       loadLatestSession: vi.fn(async (agentId?: string) => {
         if (agentId !== undefined) {
@@ -818,8 +815,6 @@ describe('AgentPage', () => {
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.resourceLayoutSessions = []
-    agentPageMocks.sessionsFirstPageLoading = false
-    agentPageMocks.sessionsLoadingAll = false
     agentPageMocks.isLatestSessionLoading = false
     agentPageMocks.latestSessionOverride = undefined
     agentPageMocks.loadLatestSessionOverride = undefined
@@ -1414,23 +1409,6 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-latest'))
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-latest')
-    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
-  })
-
-  it('resumes the latest session in modern layout from the dedicated latest query, without waiting for full history', async () => {
-    agentPageMocks.sessionDisplayMode = 'time'
-    agentPageMocks.routeSearch = {}
-    // The paged history is still loading in the background; the dedicated latest query has resolved.
-    agentPageMocks.sessionsFirstPageLoading = true
-    agentPageMocks.sessionsLoadingAll = true
-    agentPageMocks.resourceLayoutSessions = [
-      { ...agentPageMocks.persistedSession, id: 'session-older', lastActivityAt: '2026-01-01T00:00:00.000Z' },
-      { ...agentPageMocks.persistedSession, id: 'session-latest', lastActivityAt: '2026-01-03T00:00:00.000Z' }
-    ]
-
-    render(<AgentPage />)
-
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-latest'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 

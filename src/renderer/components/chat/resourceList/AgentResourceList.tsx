@@ -11,7 +11,6 @@ import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
-import { useTopicSessionSortPreference } from '@renderer/hooks/useTopicSessionSortPreference'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -82,7 +81,7 @@ export function AgentResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [sessionSortBy, setSessionSortBy] = useTopicSessionSortPreference('agent.session.sort_type')
+  const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     stats: sessionStats,

@@ -56,13 +56,7 @@ export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
 export { RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS, RESOURCE_LIST_SELECTED_ROW_CLASS } from './resourceListLayout'
 export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
 export { TopicListOptionsMenu } from './TopicListOptionsMenu'
-export type {
-  ResourceListPinnableItem,
-  UseResourceListPinnedItemsOptions,
-  UseResourceListPinnedItemsResult,
-  UseResourceListPinnedStateOptions,
-  UseResourceListPinnedStateResult
-} from './useResourceListPinnedState'
+export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
 export { useResourceListPinnedItems, useResourceListPinnedState } from './useResourceListPinnedState'
 export type { ResourceListOrderAnchor } from '@renderer/utils/chat/resourceListBase'
 export {

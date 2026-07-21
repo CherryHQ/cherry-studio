@@ -35,7 +35,7 @@ function pinRefreshTargets(entityType: EntityType): ConcreteApiPaths[] {
   }
 }
 
-export interface UsePinMutationsResult {
+interface UsePinMutationsResult {
   /** Any in-flight pin/unpin write. */
   isMutating: boolean
   /** Most recent pin/unpin write error, if any. */

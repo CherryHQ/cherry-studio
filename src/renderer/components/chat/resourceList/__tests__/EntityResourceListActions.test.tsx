@@ -330,26 +330,18 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 
 function createAgentSessionsSource(): AgentSessionsSource {
   return {
-    createSession: vi.fn(),
-    deleteSession: vi.fn(),
-    deleteSessions: vi.fn(),
-    error: null,
-    hasMore: false,
-    isFullyLoaded: true,
-    isLoading: false,
-    isLoadingAll: false,
-    isLoadingMore: false,
-    isPinsLoading: false,
-    isValidating: false,
-    loadMore: vi.fn(),
-    pinIdBySessionId: new Map(),
-    reload: vi.fn(),
-    reorderSession: vi.fn(),
-    reorderSessions: vi.fn(),
-    sessions: [{ id: 'session-1', agentId: 'agent-1', name: 'Session 1' }],
-    togglePin: vi.fn(),
-    total: 1
-  } as unknown as AgentSessionsSource
+    stats: {
+      total: 1,
+      pinnedCount: 0,
+      byAgent: [{ agentId: 'agent-1', count: 1, pinnedCount: 0 }],
+      byWorkspace: []
+    },
+    isStatsLoading: false,
+    statsError: undefined,
+    refetchStats: vi.fn().mockResolvedValue(undefined),
+    loadLatestSession: vi.fn().mockResolvedValue(null),
+    loadReusableSessions: vi.fn().mockResolvedValue([])
+  }
 }
 
 function createAssistantTopicsSource(): AssistantTopicsSource {
@@ -365,11 +357,11 @@ function createAssistantTopicsSource(): AssistantTopicsSource {
       byAssistant: Array.from(byAssistantCounts, ([assistantId, count]) => ({ assistantId, count, pinnedCount: 0 }))
     },
     isStatsLoading: false,
-    statsError: null,
-    refetchStats: vi.fn(),
+    statsError: undefined,
+    refetchStats: vi.fn().mockResolvedValue(undefined),
     loadLatestTopic: vi.fn().mockResolvedValue(null),
     loadReusableTopic: vi.fn().mockResolvedValue(null)
-  } as unknown as AssistantTopicsSource
+  }
 }
 
 function TestAssistantResourceList({

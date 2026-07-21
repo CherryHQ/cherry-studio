@@ -69,8 +69,6 @@ const homeMocks = vi.hoisted(() => ({
     updatedAt: string
   }>,
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
-  isTopicsFirstPageLoading: false,
-  isTopicsLoadingAll: false,
   isLatestTopicLoading: false,
   // `undefined` → derive the latest from `resourceLayoutTopics`; `null` → empty; a topic → that exact topic
   // (used to prove first-entry restore reads the dedicated latest query, not the paged list).
@@ -270,10 +268,9 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
           })
         )
         return {
-          topics,
-          isLoading: homeMocks.isTopicsFirstPageLoading,
-          isStatsLoading: homeMocks.isTopicsLoadingAll,
-          error: undefined,
+          isStatsLoading: false,
+          statsError: undefined,
+          refetchStats: vi.fn().mockResolvedValue(undefined),
           stats: { total: topics.length, pinnedCount: 0, byAssistant },
           loadLatestTopic: vi.fn(async (assistantId?: string | null) => {
             if (assistantId !== undefined) {
@@ -828,8 +825,6 @@ describe('HomePage', () => {
     homeMocks.currentTab = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-1' }]
     homeMocks.resourceLayoutTopics = []
-    homeMocks.isTopicsFirstPageLoading = false
-    homeMocks.isTopicsLoadingAll = false
     homeMocks.isLatestTopicLoading = false
     homeMocks.latestTopicOverride = undefined
     homeMocks.loadLatestTopicOverride = undefined
@@ -1303,23 +1298,6 @@ describe('HomePage', () => {
   it('selects the latest historical topic by default when entering modern layout without a route topic', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
-    homeMocks.resourceLayoutTopics = [
-      { ...historyTopic, id: 'topic-older', lastActivityAt: '2026-01-01T00:00:00.000Z' },
-      { ...historyTopic, id: 'topic-latest', lastActivityAt: '2026-01-03T00:00:00.000Z' }
-    ]
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
-  })
-
-  it('resumes the latest topic in modern layout from the dedicated latest query, without waiting for full history', async () => {
-    homeMocks.locationState = undefined
-    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
-    // The paged history is still loading in the background; the dedicated latest query has resolved.
-    homeMocks.isTopicsFirstPageLoading = true
-    homeMocks.isTopicsLoadingAll = true
     homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-older', lastActivityAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-latest', lastActivityAt: '2026-01-03T00:00:00.000Z' }
