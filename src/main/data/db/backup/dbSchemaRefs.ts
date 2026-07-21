@@ -236,6 +236,7 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'emoji', dbName: 'emoji', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'description', dbName: 'description', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'modelId', dbName: 'modelId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'groupId', dbName: 'groupId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'settings', dbName: 'settings', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'orderKey', dbName: 'orderKey', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
@@ -705,7 +706,10 @@ export const DB_FOREIGN_KEYS = {
   ],
   agent_workspace: [],
   app_state: [],
-  assistant: [{ columns: ['modelId'], targetTable: 'user_model', targetColumns: ['id'], onDelete: 'set null' }],
+  assistant: [
+    { columns: ['modelId'], targetTable: 'user_model', targetColumns: ['id'], onDelete: 'set null' },
+    { columns: ['groupId'], targetTable: 'group', targetColumns: ['id'], onDelete: 'set null' }
+  ],
   assistant_knowledge_base: [
     { columns: ['assistantId'], targetTable: 'assistant', targetColumns: ['id'], onDelete: 'cascade' },
     { columns: ['knowledgeBaseId'], targetTable: 'knowledge_base', targetColumns: ['id'], onDelete: 'cascade' }
@@ -903,5 +907,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-21T18:55:31.955Z'
+  generatedAt: '2026-07-21T19:33:53.452Z'
 } as const
