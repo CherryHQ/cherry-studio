@@ -28,14 +28,26 @@ vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
+    className,
     onClick,
-    'aria-label': ariaLabel
+    'aria-label': ariaLabel,
+    variant,
+    size
   }: {
     children?: ReactNode
+    className?: string
     onClick?: () => void
     'aria-label'?: string
+    variant?: string
+    size?: string
   }) => (
-    <button type="button" onClick={onClick} aria-label={ariaLabel}>
+    <button
+      type="button"
+      className={className}
+      onClick={onClick}
+      aria-label={ariaLabel}
+      data-variant={variant}
+      data-size={size}>
       {children}
     </button>
   )
@@ -62,15 +74,24 @@ describe('LocalModelsSection', () => {
     render(<LocalModelsSection />)
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' }))
 
-    fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.download'))
+    const downloadButton = within(embeddingCard()).getByRole('button', {
+      name: 'settings.dependencies.localModels.download'
+    })
+    expect(downloadButton).toHaveAttribute('data-variant', 'outline')
+    expect(downloadButton).toHaveClass('h-7', 'w-28', 'shrink-0')
+
+    fireEvent.click(downloadButton)
     await waitFor(() =>
-      expect(within(embeddingCard()).getByText('settings.dependencies.localModels.cancel')).toBeInTheDocument()
+      expect(
+        within(embeddingCard()).getByRole('button', { name: 'settings.dependencies.localModels.cancel' })
+      ).toHaveClass('h-7', 'w-28', 'shrink-0')
     )
 
     act(() => progressHandlers.forEach((h) => h({ model: 'embedding', status: 'downloading', percent: 45 })))
     expect(within(embeddingCard()).getByText('45%')).toBeInTheDocument()
+    expect(within(embeddingCard()).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '45')
 
-    fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.cancel'))
+    fireEvent.click(within(embeddingCard()).getByRole('button', { name: 'settings.dependencies.localModels.cancel' }))
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.cancel', { model: 'embedding' }))
 
     // Backend aborts → the in-flight download rejects. A user cancel must not

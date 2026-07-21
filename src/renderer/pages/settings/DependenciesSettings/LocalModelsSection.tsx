@@ -144,52 +144,55 @@ const ModelCard: FC<ModelCardProps> = ({
                 {t('settings.dependencies.localModels.status.ready')}
               </Badge>
             )}
+            {ready && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="ml-auto"
+                onClick={onRemove}
+                aria-label={t('settings.dependencies.localModels.remove')}>
+                <Trash2 className="size-3.5" />
+              </Button>
+            )}
+            {!ready &&
+              (downloading ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="relative ml-auto h-7 w-28 shrink-0 gap-1 overflow-hidden font-medium text-xs"
+                  onClick={onCancel}
+                  aria-label={t('settings.dependencies.localModels.cancel')}>
+                  <span
+                    role="progressbar"
+                    aria-label={t('settings.dependencies.localModels.status.downloading')}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={percent}
+                    className="pointer-events-none absolute inset-y-0 left-0 bg-primary/10 transition-[width]"
+                    style={{ width: `${percent}%` }}
+                  />
+                  <X className="relative size-3.5 shrink-0" />
+                  <span className="relative truncate">{percent}%</span>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-7 w-28 shrink-0 gap-1 font-medium text-xs"
+                  onClick={onDownload}>
+                  <Download className="size-3.5 shrink-0" />
+                  <span className="truncate">{t('settings.dependencies.localModels.download')}</span>
+                </Button>
+              ))}
           </div>
           <p className="mt-0.5 truncate text-muted-foreground text-xs">{subtitle}</p>
         </div>
-        {ready && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onRemove}
-            aria-label={t('settings.dependencies.localModels.remove')}>
-            <Trash2 className="size-3.5" />
-          </Button>
-        )}
       </div>
 
       {notice && (
         <p className={cn('mt-2 text-xs leading-4', notice === 'inUse' ? 'text-muted-foreground' : 'text-destructive')}>
           {t(`settings.dependencies.localModels.notice.${notice}`)}
         </p>
-      )}
-
-      {downloading && (
-        <div className="mt-3 space-y-1.5">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
-          </div>
-          <div className="flex items-center justify-between text-muted-foreground text-xs">
-            <span>{t('settings.dependencies.localModels.status.downloading')}</span>
-            <span>{percent}%</span>
-          </div>
-        </div>
-      )}
-
-      {!ready && (
-        <div className="mt-3 border-border border-t pt-3">
-          {downloading ? (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onCancel}>
-              <X className="size-3.5" />
-              {t('settings.dependencies.localModels.cancel')}
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onDownload}>
-              <Download className="size-3.5" />
-              {t('settings.dependencies.localModels.download')}
-            </Button>
-          )}
-        </div>
       )}
     </div>
   )
