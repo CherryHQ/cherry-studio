@@ -404,8 +404,11 @@ function getDropPosition<TGroup, TItem>(
   return getItemDropPosition(event, active, over)
 }
 
-function buildDropPayloadFromEvent<TGroup, TItem>(event: Pick<DragEndEvent, 'active' | 'over'>) {
-  const active = getEventData<TGroup, TItem>(event.active.data.current)
+function buildDropPayloadFromEvent<TGroup, TItem>(
+  event: Pick<DragEndEvent, 'active' | 'over'>,
+  activeDragData: RowDragData<TGroup, TItem> | null
+) {
+  const active = getEventData<TGroup, TItem>(event.active.data.current) ?? activeDragData
   const over = getEventData<TGroup, TItem>(event.over?.data.current)
   if (!active || !over) return null
 
@@ -429,10 +432,11 @@ function getDropPositionFromState<TGroup, TItem>(over: RowDragData<TGroup, TItem
 
 function buildDropPayloadFromStateOrEvent<TGroup, TItem>(
   event: Pick<DragEndEvent, 'active' | 'over'>,
+  activeDragData: RowDragData<TGroup, TItem> | null,
   dropState: OverDropState | null,
   groupAppendDropTargets?: Map<UniqueIdentifier, ItemDragData<TGroup, TItem>>
 ) {
-  const active = getEventData<TGroup, TItem>(event.active.data.current)
+  const active = getEventData<TGroup, TItem>(event.active.data.current) ?? activeDragData
   const over = getEventData<TGroup, TItem>(event.over?.data.current)
   if (!active || !over) return null
 
@@ -808,6 +812,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
   )
   const [activeDragState, setActiveDragState] = useState<ActiveDragState<TGroup, TItem> | null>(null)
   const [overDropState, setOverDropState] = useState<OverDropState | null>(null)
+  const activeDragDataRef = useRef<RowDragData<TGroup, TItem> | null>(null)
   const overDropStateRef = useRef<OverDropState | null>(null)
 
   const sensors = useSensors(
@@ -1028,6 +1033,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
   }, [])
 
   const clearDragState = useCallback(() => {
+    activeDragDataRef.current = null
     setActiveDragState((current) => (current === null ? current : null))
     overDropStateRef.current = null
     setOverDropState((current) => (current === null ? current : null))
@@ -1054,6 +1060,8 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       clearDragState()
       const active = getEventData<TGroup, TItem>(event.active.data.current)
       if (active && canDragActive(active)) {
+        // dnd-kit drops active.data when virtualization unmounts the source row while scrolling.
+        activeDragDataRef.current = active
         const initialRect = event.active.rect.current.initial
         setActiveDragState({
           active,
@@ -1068,7 +1076,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
 
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
-      const result = buildDropPayloadFromEvent<TGroup, TItem>(event)
+      const result = buildDropPayloadFromEvent<TGroup, TItem>(event, activeDragDataRef.current)
       if (!result || !canDragActive(result.active)) {
         clearOverDropState()
         return
@@ -1146,6 +1154,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     (event: DragEndEvent) => {
       const result = buildDropPayloadFromStateOrEvent<TGroup, TItem>(
         event,
+        activeDragDataRef.current,
         overDropStateRef.current,
         groupAppendDropTargets
       )
