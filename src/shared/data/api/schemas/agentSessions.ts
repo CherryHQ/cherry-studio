@@ -154,25 +154,49 @@ export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
 export const AgentSessionSearchScopeSchema = z.enum(['name', 'name-or-owner'])
 export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSchema>
 
+const ListAgentSessionsPageQueryShape = {
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(200).optional()
+} as const
+
+const ListAgentSessionsFilterQueryShape = {
+  agentId: AgentSessionOwnerScopeSchema.optional(),
+  q: z.string().optional(),
+  searchScope: AgentSessionSearchScopeSchema.optional(),
+  /** Concrete user workspace id, or `system`. */
+  workspaceId: AgentSessionWorkspaceScopeSchema.optional()
+} as const
+
+const LegacyAgentSessionOwnerIdSchema = AgentSessionOwnerScopeSchema.refine((agentId) => agentId !== 'unlinked', {
+  message: 'The unlinked owner scope requires an explicit pinned stream'
+})
+
 /**
  * Query for `GET /agent-sessions`.
  *
- * During the PR1 backend transition, omitting `pinned` preserves the existing
- * composed pinned-then-ordinary list. Passing it explicitly selects one of two
- * independent streams and enables server-side sort/owner/workspace/search filters.
+ * During the PR1 backend transition, omitting `pinned` preserves only the
+ * legacy cursor/limit/concrete-Agent contract. Explicit pinned and ordinary
+ * streams expose their independently implemented filters, while only the
+ * ordinary stream accepts a sort profile.
  */
-export const ListAgentSessionsQuerySchema = z.strictObject({
-  agentId: AgentSessionOwnerScopeSchema.optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional(),
-  sortBy: AgentSessionSortBySchema.optional(),
-  q: z.string().optional(),
-  searchScope: AgentSessionSearchScopeSchema.optional(),
-  /** true = pinned-only, false = ordinary-only, omitted = compatibility stream. */
-  pinned: z.boolean().optional(),
-  /** Concrete user workspace id, or `system`. */
-  workspaceId: AgentSessionWorkspaceScopeSchema.optional()
-})
+export const ListAgentSessionsQuerySchema = z.union([
+  z.strictObject({
+    ...ListAgentSessionsPageQueryShape,
+    agentId: LegacyAgentSessionOwnerIdSchema.optional(),
+    pinned: z.undefined().optional()
+  }),
+  z.strictObject({
+    ...ListAgentSessionsPageQueryShape,
+    ...ListAgentSessionsFilterQueryShape,
+    pinned: z.literal(true)
+  }),
+  z.strictObject({
+    ...ListAgentSessionsPageQueryShape,
+    ...ListAgentSessionsFilterQueryShape,
+    pinned: z.literal(false),
+    sortBy: AgentSessionSortBySchema.optional()
+  })
+])
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 

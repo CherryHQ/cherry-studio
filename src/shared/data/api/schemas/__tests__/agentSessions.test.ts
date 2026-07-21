@@ -8,6 +8,7 @@ import {
   CreateAgentSessionMessagesSchema,
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
+  ListAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
@@ -62,6 +63,21 @@ describe('AgentSessionMessage schemas', () => {
 })
 
 describe('AgentSession schemas', () => {
+  it('keeps compatibility list queries limited to parameters they execute', () => {
+    expect(ListAgentSessionsQuerySchema.parse({ agentId: 'agent-1', limit: '10' })).toEqual({
+      agentId: 'agent-1',
+      limit: 10
+    })
+    expect(ListAgentSessionsQuerySchema.safeParse({ q: 'needle' }).success).toBe(false)
+    expect(ListAgentSessionsQuerySchema.safeParse({ agentId: 'unlinked' }).success).toBe(false)
+  })
+
+  it('separates pinned and ordinary list dimensions', () => {
+    expect(ListAgentSessionsQuerySchema.safeParse({ pinned: true, agentId: 'unlinked' }).success).toBe(true)
+    expect(ListAgentSessionsQuerySchema.safeParse({ pinned: true, sortBy: 'lastActivityAt' }).success).toBe(false)
+    expect(ListAgentSessionsQuerySchema.safeParse({ pinned: false, sortBy: 'lastActivityAt' }).success).toBe(true)
+  })
+
   it('accepts workspace changes through the dedicated workspace source body', () => {
     expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user', workspaceId: 'workspace-1' }).success).toBe(true)
     expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'system' }).success).toBe(true)

@@ -61,30 +61,50 @@ export type TopicSearchScope = z.infer<typeof TopicSearchScopeSchema>
 /** Collection projection; pin ordering remains internal to the pin stream. */
 export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
 
-/**
- * Query parameters for `GET /topics`.
- *
- * During the PR1 backend transition, omitting `pinned` preserves the existing
- * composed pinned-then-ordinary list. Passing it explicitly selects one of two
- * independent streams and enables server-side sort/owner/search filtering.
- */
-export const ListTopicsQuerySchema = z.strictObject({
+const ListTopicsPageQueryShape = {
   /** Opaque cursor from previous page's `nextCursor`. */
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */
-  limit: z.coerce.number().int().positive().max(200).optional(),
+  limit: z.coerce.number().int().positive().max(200).optional()
+} as const
+
+const ListTopicsFilterQueryShape = {
   /** Literal substring search term (`%`, `_`, and `\\` are escaped). */
   q: z.string().optional(),
   /** Search topic name only, or topic/owning-live-Assistant name. */
   searchScope: TopicSearchScopeSchema.optional(),
-  /** Ordinary-stream sort profile; ignored for pinned and compatibility streams. */
-  sortBy: TopicSortBySchema.optional(),
   /** Concrete live Assistant id, or `unlinked`. */
-  assistantId: TopicOwnerScopeSchema.optional(),
-  /** true = pinned-only, false = ordinary-only, omitted = compatibility stream. */
-  pinned: z.boolean().optional()
-})
-export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+  assistantId: TopicOwnerScopeSchema.optional()
+} as const
+
+/**
+ * Query parameters for `GET /topics`.
+ *
+ * During the PR1 backend transition, omitting `pinned` preserves only the
+ * legacy cursor/limit/name-search contract. Explicit pinned and ordinary
+ * streams expose their independently implemented filters, while only the
+ * ordinary stream accepts a sort profile.
+ */
+export const ListTopicsQuerySchema = z.union([
+  z.strictObject({
+    ...ListTopicsPageQueryShape,
+    q: z.string().optional(),
+    pinned: z.undefined().optional()
+  }),
+  z.strictObject({
+    ...ListTopicsPageQueryShape,
+    ...ListTopicsFilterQueryShape,
+    pinned: z.literal(true)
+  }),
+  z.strictObject({
+    ...ListTopicsPageQueryShape,
+    ...ListTopicsFilterQueryShape,
+    pinned: z.literal(false),
+    sortBy: TopicSortBySchema.optional()
+  })
+])
+export type ListTopicsQueryParams = z.input<typeof ListTopicsQuerySchema>
+export type ListTopicsQuery = z.output<typeof ListTopicsQuerySchema>
 
 export const LatestTopicQuerySchema = z.strictObject({
   assistantId: TopicOwnerScopeSchema.optional()
@@ -204,7 +224,7 @@ export type TopicSchemas = {
      * the flag preserves the existing composed view until the renderer moves.
      */
     GET: {
-      query?: ListTopicsQuery
+      query?: ListTopicsQueryParams
       response: CursorPaginationResponse<TopicListItem>
     }
     /** Create a new topic. */

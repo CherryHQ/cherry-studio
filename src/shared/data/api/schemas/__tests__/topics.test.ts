@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateTopicSchema, DuplicateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import {
+  CreateTopicSchema,
+  DuplicateTopicSchema,
+  ListTopicsQuerySchema,
+  SetActiveNodeSchema,
+  UpdateTopicSchema
+} from '../topics'
+
+describe('ListTopicsQuerySchema', () => {
+  it('keeps the compatibility branch limited to parameters it executes', () => {
+    expect(ListTopicsQuerySchema.parse({ q: 'needle', limit: '10' })).toEqual({ q: 'needle', limit: 10 })
+    expect(ListTopicsQuerySchema.safeParse({ assistantId: 'unlinked' }).success).toBe(false)
+  })
+
+  it('separates pinned and ordinary stream dimensions', () => {
+    expect(ListTopicsQuerySchema.safeParse({ pinned: true, q: 'needle' }).success).toBe(true)
+    expect(ListTopicsQuerySchema.safeParse({ pinned: true, sortBy: 'lastActivityAt' }).success).toBe(false)
+    expect(ListTopicsQuerySchema.safeParse({ pinned: false, sortBy: 'lastActivityAt' }).success).toBe(true)
+  })
+})
 
 describe('CreateTopicSchema', () => {
   it.each(['sourceNodeId', 'groupId'])('rejects unsupported key %s', (key) => {
