@@ -3,20 +3,21 @@ import { isCodexProviderId } from '@shared/data/presets/codex'
 import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 import type { Provider } from '@shared/data/types/provider'
 import { isAwsBedrockProvider, isProviderSupportAuth, isVertexProvider, matchesPreset } from '@shared/utils/provider'
-import type { ReactNode } from 'react'
+import { lazy, type ReactNode } from 'react'
 
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
-import AwsBedrockSettings from './AwsBedrockSettings'
-import CherryInOauth from './CherryInOauth'
-import ClaudeCodeSettings from './ClaudeCodeSettings'
-import DmxapiSettings from './DmxapiSettings'
-import GithubCopilotSettings from './GithubCopilotSettings'
-import GpuStackSettings from './GpuStackSettings'
-import LmStudioSettings from './LmStudioSettings'
-import LoginOauthPanel from './LoginOauthPanel'
-import OvmsSettings from './OvmsSettings'
-import ProviderOauth from './ProviderOauth'
-import VertexAiSettings from './VertexAiSettings'
+
+const AwsBedrockSettings = lazy(() => import('./AwsBedrockSettings'))
+const CherryInOauth = lazy(() => import('./CherryInOauth'))
+const ClaudeCodeSettings = lazy(() => import('./ClaudeCodeSettings'))
+const DmxapiSettings = lazy(() => import('./DmxapiSettings'))
+const GithubCopilotSettings = lazy(() => import('./GithubCopilotSettings'))
+const GpuStackSettings = lazy(() => import('./GpuStackSettings'))
+const LmStudioSettings = lazy(() => import('./LmStudioSettings'))
+const LoginOauthPanel = lazy(() => import('./LoginOauthPanel'))
+const OvmsSettings = lazy(() => import('./OvmsSettings'))
+const ProviderOauth = lazy(() => import('./ProviderOauth'))
+const VertexAiSettings = lazy(() => import('./VertexAiSettings'))
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
 

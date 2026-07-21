@@ -1,5 +1,5 @@
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Fragment } from 'react'
+import { Suspense } from 'react'
 
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { PROVIDER_SPECIFIC_SETTINGS_REGISTRY, type ProviderSpecificPlacement } from './providerSpecificSettingsRegistry'
@@ -22,7 +22,9 @@ export default function ProviderSpecificSettings({ providerId, placement }: Prov
       {PROVIDER_SPECIFIC_SETTINGS_REGISTRY[placement]
         .filter((entry) => entry.when({ provider, meta }))
         .map((entry) => (
-          <Fragment key={entry.key}>{entry.render(provider.id)}</Fragment>
+          <Suspense key={entry.key} fallback={null}>
+            {entry.render(provider.id)}
+          </Suspense>
         ))}
     </>
   )
