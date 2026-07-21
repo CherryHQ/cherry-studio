@@ -70,14 +70,20 @@ describe('internal/entry/lifecycle', () => {
   })
 
   async function makeInternal(): Promise<FileEntryId> {
-    const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'n', ext: 'txt' })
+    const e = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'n',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
     return e.id
   }
 
   async function makeExternal(): Promise<FileEntryId> {
     const file = path.join(tmp, 'ext.txt')
     await writeFile(file, 'x')
-    const e = await ensureExternal(deps, { externalPath: file as FilePath })
+    const e = await ensureExternal(deps, { externalPath: file as FilePath, cleanupPolicy: 'manual' })
     return e.id
   }
 

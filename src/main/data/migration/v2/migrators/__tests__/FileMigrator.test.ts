@@ -790,6 +790,7 @@ describe('FileMigrator write/read validation invariant', () => {
         origin: 'internal',
         name: e.name,
         ext: e.ext,
+        cleanupPolicy: e.cleanupPolicy,
         size: e.size,
         createdAt: e.createdAt,
         updatedAt: e.updatedAt

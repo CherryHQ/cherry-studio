@@ -86,7 +86,8 @@ describe('internal/content/write', () => {
         source: 'bytes',
         data: new Uint8Array([0x01]),
         name: 'a',
-        ext: 'bin'
+        ext: 'bin',
+        cleanupPolicy: 'manual'
       })
       const next = await write(deps, e.id, new Uint8Array([0x01, 0x02, 0x03]))
       expect(next.size).toBe(3)
@@ -99,7 +100,7 @@ describe('internal/content/write', () => {
     it('overwrites external file content; DB size stays null for external rows', async () => {
       const file = path.join(tmp, 'ext.txt')
       await writeFile(file, 'old')
-      const e = await ensureExternal(deps, { externalPath: file as FilePath })
+      const e = await ensureExternal(deps, { externalPath: file as FilePath, cleanupPolicy: 'manual' })
       const next = await write(deps, e.id, 'new-payload')
       expect(next.size).toBe('new-payload'.length)
       expect(await readFile(file, 'utf-8')).toBe('new-payload')
@@ -120,7 +121,8 @@ describe('internal/content/write', () => {
         source: 'bytes',
         data: new Uint8Array([0x01]),
         name: 'desync',
-        ext: 'bin'
+        ext: 'bin',
+        cleanupPolicy: 'manual'
       })
       const updateErr = new Error('SQLITE_BUSY: database is locked')
       vi.spyOn(fileEntryService, 'update').mockImplementationOnce(() => {
@@ -144,7 +146,13 @@ describe('internal/content/write', () => {
 
   describe('writeIfUnchanged', () => {
     it('writes when expected matches current', async () => {
-      const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([1]), name: 'a', ext: 'bin' })
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([1]),
+        name: 'a',
+        ext: 'bin',
+        cleanupPolicy: 'manual'
+      })
       const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
       const { stat: fsStat } = await import('node:fs/promises')
       const s = await fsStat(physical)
@@ -154,7 +162,13 @@ describe('internal/content/write', () => {
     })
 
     it('throws StaleVersionError on size mismatch', async () => {
-      const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([1, 2, 3]), name: 'a', ext: 'bin' })
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([1, 2, 3]),
+        name: 'a',
+        ext: 'bin',
+        cleanupPolicy: 'manual'
+      })
       await expect(writeIfUnchanged(deps, e.id, new Uint8Array([9]), { mtime: 1, size: 9999 })).rejects.toBeInstanceOf(
         StaleVersionError
       )
@@ -165,7 +179,8 @@ describe('internal/content/write', () => {
         source: 'bytes',
         data: new Uint8Array([1, 2, 3]),
         name: 'a',
-        ext: 'bin'
+        ext: 'bin',
+        cleanupPolicy: 'manual'
       })
       // Poison the cache with a stale version
       cacheStore.set(e.id, { mtime: 0, size: 9999 })
@@ -183,7 +198,8 @@ describe('internal/content/write', () => {
         source: 'bytes',
         data: new Uint8Array([1, 2, 3, 4]),
         name: 'a',
-        ext: 'bin'
+        ext: 'bin',
+        cleanupPolicy: 'manual'
       })
       const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
       await utimes(physical, 1700000000, 1700000000)
@@ -198,7 +214,8 @@ describe('internal/content/write', () => {
         source: 'bytes',
         data: new Uint8Array([1, 2, 3, 4]),
         name: 'hash-match',
-        ext: 'bin'
+        ext: 'bin',
+        cleanupPolicy: 'manual'
       })
       const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
       await utimes(physical, 1700000000, 1700000000)
@@ -217,7 +234,8 @@ describe('internal/content/write', () => {
         source: 'bytes',
         data: new Uint8Array([1, 2, 3, 4]),
         name: 'hash-mismatch',
-        ext: 'bin'
+        ext: 'bin',
+        cleanupPolicy: 'manual'
       })
       const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
       await utimes(physical, 1700000000, 1700000000)
@@ -250,7 +268,8 @@ describe('internal/content/write', () => {
         source: 'bytes',
         data: new Uint8Array([0x01]),
         name: 'b',
-        ext: 'bin'
+        ext: 'bin',
+        cleanupPolicy: 'manual'
       })
       const stream = createWriteStream(deps, e.id)
       const payload = Buffer.from([0x10, 0x20, 0x30, 0x40, 0x50])
@@ -276,7 +295,7 @@ describe('internal/content/write', () => {
       const { createWriteStream } = await import('../write')
       const file = path.join(tmp, 'ext-stream.txt')
       await writeFile(file, 'seed')
-      const e = await ensureExternal(deps, { externalPath: file as FilePath })
+      const e = await ensureExternal(deps, { externalPath: file as FilePath, cleanupPolicy: 'manual' })
       const stream = createWriteStream(deps, e.id)
       stream.write(Buffer.from('updated payload'))
       stream.end()
@@ -309,7 +328,8 @@ describe('internal/content/write', () => {
         source: 'bytes',
         data: new Uint8Array([0x01]),
         name: 'desync',
-        ext: 'bin'
+        ext: 'bin',
+        cleanupPolicy: 'manual'
       })
       mockLoggerError.mockClear()
       const statErr = new Error('post-commit stat boom')

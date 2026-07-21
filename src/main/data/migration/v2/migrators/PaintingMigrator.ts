@@ -16,6 +16,7 @@ import {
   type NormalizedPaintingRow,
   transformLegacyPaintingRecord
 } from './mappings/PaintingMappings'
+import { markEntriesAutoCleanup } from './markEntriesAutoCleanup'
 
 const logger = loggerService.withContext('PaintingMigrator')
 
@@ -218,6 +219,13 @@ export class PaintingMigrator extends BaseMigrator {
             const batch = refRows.slice(i, i + INSERT_BATCH_SIZE)
             tx.insert(paintingFileRefTable).values(batch).onConflictDoNothing().run()
           }
+
+          // Applies to every referenced id regardless of whether its ref row insert was
+          // skipped by onConflictDoNothing (e.g. a retry) — the file is referenced either way.
+          markEntriesAutoCleanup(
+            tx,
+            refRows.map((row) => row.fileEntryId)
+          )
 
           logger.info('[execute] painting_file_ref summary', {
             referenced: refRows.length,

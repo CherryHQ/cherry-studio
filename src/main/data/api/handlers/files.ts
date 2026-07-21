@@ -1,9 +1,9 @@
 /**
  * File API Handlers — read-only DataApi surface.
  *
- * Phase 1b.1 implements all five read endpoints. Mutations are intentionally
- * absent: write operations live on File IPC (FileManager); ref writes are
- * called directly by business services via fileRefService.
+ * Mutations are intentionally absent: write operations live on File IPC
+ * (FileManager); ref writes are called directly by business services via
+ * fileRefService.
  *
  * DataApi boundary rule (CLAUDE.md / docs/references/data/api-design-guidelines.md):
  * pure SQL, no FS IO, no main-side resolvers, no in-memory caches outside the DB.

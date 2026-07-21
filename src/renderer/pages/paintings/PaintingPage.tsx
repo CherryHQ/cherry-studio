@@ -128,7 +128,6 @@ const PaintingPage: FC = () => {
                       painting={composerPainting}
                       generating={generating}
                       onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-                      onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
                       onGenerate={submit}
                       onCancel={onCancel}
                       onModelSelect={switchModel}

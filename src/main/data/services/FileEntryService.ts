@@ -20,27 +20,27 @@
 
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
-import {
-  chatMessageFileRefTable,
-  miniAppLogoFileRefTable,
-  paintingFileRefTable,
-  type PersistentFileRefSourceType,
-  providerLogoFileRefTable
-} from '@data/db/schemas/fileRelations'
+import { persistentRefAbsenceConditions } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryListResponse, FileEntryStats } from '@shared/data/api/schemas/files'
-import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
+import type {
+  CanonicalExternalPath,
+  CleanupPolicy,
+  FileEntry,
+  FileEntryId,
+  FileEntryOrigin
+} from '@shared/data/types/file'
 import {
   AbsolutePathSchema,
+  CleanupPolicySchema,
   ExternalEntrySchema,
   FileEntrySchema,
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { chatMessageSourceType, miniAppLogoRef, paintingSourceType, providerLogoRef } from '@shared/data/types/file'
-import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, count, eq, isNotNull, isNull, lt, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
 import { ZodError } from 'zod'
@@ -49,18 +49,25 @@ import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrderi
 
 const logger = loggerService.withContext('FileEntryService')
 
+// `cleanupPolicy` MUST stay required on both branches — no `.default()` / `.optional()`.
+// This is the single compile-time forcing point that makes every creation surface
+// choose a policy explicitly (file-entry-cleanup.md §4.1). Adding a default here would
+// silently let a forgotten assignment fall through to the DB backstop, defeating the
+// "leak recoverably rather than delete unrecoverably" invariant.
 const CreateFileEntryRowSchema = z.discriminatedUnion('origin', [
   z.strictObject({
     id: InternalEntrySchema.shape.id,
     origin: z.literal('internal'),
     name: InternalEntrySchema.shape.name,
     ext: InternalEntrySchema.shape.ext,
+    cleanupPolicy: CleanupPolicySchema,
     size: InternalEntrySchema.shape.size
   }),
   z.strictObject({
     origin: z.literal('external'),
     name: ExternalEntrySchema.shape.name,
     ext: ExternalEntrySchema.shape.ext,
+    cleanupPolicy: CleanupPolicySchema,
     externalPath: ExternalEntrySchema.shape.externalPath
   })
 ])
@@ -81,6 +88,7 @@ export type CreateFileEntryRow = z.input<typeof CreateFileEntryRowSchema>
 export interface UpdateFileEntryRow {
   readonly name?: string
   readonly ext?: string | null
+  readonly cleanupPolicy?: CleanupPolicy
   readonly size?: number
   readonly deletedAt?: number | null
 }
@@ -191,13 +199,27 @@ export interface FileEntryService {
   getStats(): FileEntryStats
 
   /**
-   * Active (non-trashed) entries with zero persistent association rows pointing
-   * at them. Temp-session refs live in CacheService and are filtered by the
+   * Active (non-trashed) **manual-policy** entries with zero persistent
+   * association rows pointing at them — the DB orphan report's data source.
+   * `delete_when_unreferenced` entries are deliberately excluded: they are
+   * owned by the cleanup pass (`findCleanupCandidates`), so reporting them
+   * here too would double-count auto entries still pending reclamation
+   * (young, safety-aborted, or beyond the per-pass batch) as manual orphans.
+   * Temp-session refs live in CacheService and are filtered by the
    * orphan-sweep layer.
    *
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
-  findUnreferenced(query?: { origin?: FileEntryOrigin }): FileEntry[]
+  findManualUnreferenced(query?: { origin?: FileEntryOrigin }): FileEntry[]
+
+  /** Auto-policy entries past grace with zero persistent refs (trashed included) — backs the GC pass. */
+  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[]
+
+  /** Count of `findCleanupCandidates` matches, ignoring `limit`. */
+  countCleanupCandidates(graceMs: number): number
+
+  /** Total row count across all entries, regardless of trashed state. */
+  countAll(): number
 
   /**
    * All entry ids regardless of trashed state — backs the on-demand orphan
@@ -266,6 +288,7 @@ function rowToFileEntry(row: FileEntryRow): FileEntry {
       origin: 'internal',
       name: row.name,
       ext: row.ext,
+      cleanupPolicy: row.cleanupPolicy,
       size: row.size,
       // deletedAt is `optional` on the BO — present iff the DB column is
       // non-null. Bypass `nullsToUndefined` so we don't pull in a helper
@@ -281,6 +304,7 @@ function rowToFileEntry(row: FileEntryRow): FileEntry {
     origin: 'external',
     name: row.name,
     ext: row.ext,
+    cleanupPolicy: row.cleanupPolicy,
     externalPath: row.externalPath,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -527,21 +551,11 @@ class FileEntryServiceImpl implements FileEntryService {
     }
   }
 
-  findUnreferenced(query: { origin?: FileEntryOrigin } = {}): FileEntry[] {
-    const persistentRefAbsenceConditions = {
-      [chatMessageSourceType]: () =>
-        sql`NOT EXISTS (SELECT 1 FROM ${chatMessageFileRefTable} WHERE ${chatMessageFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
-      [paintingSourceType]: () =>
-        sql`NOT EXISTS (SELECT 1 FROM ${paintingFileRefTable} WHERE ${paintingFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
-      [providerLogoRef.sourceType]: () =>
-        sql`NOT EXISTS (SELECT 1 FROM ${providerLogoFileRefTable} WHERE ${providerLogoFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
-      [miniAppLogoRef.sourceType]: () =>
-        sql`NOT EXISTS (SELECT 1 FROM ${miniAppLogoFileRefTable} WHERE ${miniAppLogoFileRefTable.fileEntryId} = ${fileEntryTable.id})`
-    } satisfies Record<PersistentFileRefSourceType, () => SQL>
-
+  findManualUnreferenced(query: { origin?: FileEntryOrigin } = {}): FileEntry[] {
     const conditions: SQL[] = [
       isNull(fileEntryTable.deletedAt),
-      ...Object.values(persistentRefAbsenceConditions).map((buildCondition) => buildCondition())
+      eq(fileEntryTable.cleanupPolicy, 'manual'),
+      ...persistentRefAbsenceConditions()
     ]
     if (query.origin) conditions.push(eq(fileEntryTable.origin, query.origin))
     const rows = this.getDb()
@@ -551,6 +565,40 @@ class FileEntryServiceImpl implements FileEntryService {
       .orderBy(asc(fileEntryTable.createdAt))
       .all()
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
+  }
+
+  private cleanupCandidateConditions(graceMs: number): SQL[] {
+    return [
+      // NOTE: no deletedAt filter — trashed auto entries are reclaimed too (spec §5.1)
+      eq(fileEntryTable.cleanupPolicy, 'delete_when_unreferenced'),
+      lt(fileEntryTable.createdAt, Date.now() - graceMs),
+      ...persistentRefAbsenceConditions()
+    ]
+  }
+
+  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[] {
+    const rows = this.getDb()
+      .select({ entry: fileEntryTable })
+      .from(fileEntryTable)
+      .where(and(...this.cleanupCandidateConditions(opts.graceMs)))
+      .orderBy(asc(fileEntryTable.createdAt))
+      .limit(opts.limit)
+      .all()
+    return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
+  }
+
+  countCleanupCandidates(graceMs: number): number {
+    const rows = this.getDb()
+      .select({ c: count() })
+      .from(fileEntryTable)
+      .where(and(...this.cleanupCandidateConditions(graceMs)))
+      .all()
+    return rows[0]?.c ?? 0
+  }
+
+  countAll(): number {
+    const rows = this.getDb().select({ c: count() }).from(fileEntryTable).all()
+    return rows[0]?.c ?? 0
   }
 
   listAllIds(): Set<FileEntryId> {
@@ -573,6 +621,7 @@ class FileEntryServiceImpl implements FileEntryService {
         origin: parsed.origin,
         name: parsed.name,
         ext: parsed.ext,
+        cleanupPolicy: parsed.cleanupPolicy,
         size: parsed.origin === 'internal' ? parsed.size : null,
         externalPath: parsed.origin === 'external' ? parsed.externalPath : null,
         deletedAt: null,
@@ -596,11 +645,13 @@ class FileEntryServiceImpl implements FileEntryService {
     // un-parseable.
     if (values.name !== undefined) SafeNameSchema.parse(values.name)
     if (values.ext !== undefined) InternalEntrySchema.shape.ext.parse(values.ext)
+    if (values.cleanupPolicy !== undefined) CleanupPolicySchema.parse(values.cleanupPolicy)
     const updates: Partial<typeof fileEntryTable.$inferInsert> = {
       updatedAt: Date.now()
     }
     if (values.name !== undefined) updates.name = values.name
     if (values.ext !== undefined) updates.ext = values.ext
+    if (values.cleanupPolicy !== undefined) updates.cleanupPolicy = values.cleanupPolicy
     if (values.size !== undefined) updates.size = values.size
     if (values.deletedAt !== undefined) updates.deletedAt = values.deletedAt
     const rows = tx.update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning().all()

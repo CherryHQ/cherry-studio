@@ -103,8 +103,7 @@ export interface PaintingComposerProps {
   painting: PaintingData
   generating: boolean
   onPromptChange: (value: string) => void
-  onInputFilesChange: (files: FileEntry[]) => void
-  onGenerate: () => void
+  onGenerate: (inputFiles: FileEntry[]) => void
   onCancel: () => void
   onModelSelect: (selection: { providerId: string; modelId: string }) => void
   onConfigChange: (updates: Partial<PaintingData>) => void
@@ -166,7 +165,6 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   painting,
   generating,
   onPromptChange,
-  onInputFilesChange,
   onGenerate,
   onCancel,
   onModelSelect,
@@ -185,12 +183,11 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
 
-  usePaintingComposerInputFiles({
+  const { materializeInputs } = usePaintingComposerInputFiles({
     paintingId: painting.id,
     inputFiles: painting.inputFiles ?? [],
     files,
-    setFiles,
-    onInputFilesChange
+    setFiles
   })
 
   const tokens = useMemo(() => files.map(fileToComposerToken), [files])
@@ -204,12 +201,14 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     [onPromptChange]
   )
 
-  // The prompt + input files are kept synced to page state per edit, so the
-  // serialized draft is unused here — sending just triggers generation.
-  const handleSendDraft = useCallback(() => {
+  // Inputs are materialized to FileEntry[] here at send (mirroring chat's
+  // send-time buildFileParts), then handed to generation. Nothing is persisted
+  // during the draft window — see usePaintingComposerInputFiles.
+  const handleSendDraft = useCallback(async () => {
     if (generating) return
-    onGenerate()
-  }, [generating, onGenerate])
+    const inputFiles = await materializeInputs()
+    onGenerate(inputFiles)
+  }, [generating, materializeInputs, onGenerate])
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>

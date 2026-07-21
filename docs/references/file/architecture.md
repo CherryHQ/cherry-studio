@@ -68,7 +68,7 @@ File Module (src/main/services/file/)
 │     ├── system/
 │     │    ├── shell.ts         — open / showInFolder
 │     │    └── tempCopy.ts      — withTempCopy
-│     └── orphanSweep.ts        — temp-session ref prune + FS-level orphan sweep
+│     └── orphanSweep.ts        — FS-level orphan sweep
 │
 │
 ├── utils/                ← file-module path/API helpers (not raw FS primitives)
@@ -112,7 +112,7 @@ Pure FS primitives (src/main/utils/file/) — shared raw FS primitives, open to 
 
 Data Module dependencies (src/main/data/)
 ├── FileEntryService (data repository, pure DB) — file_entry table
-├── FileRefService (read facade + temp-session store) — aggregates chat/painting refs; owns temp-session CacheService refs
+├── FileRefService (read facade) — aggregates chat/painting refs
 └── DataApi Handler (files.ts) — SQL-first read endpoints; no FS access, no main-side resolvers
 ```
 
@@ -457,7 +457,7 @@ Predicate-based invalidation is an optimization; prefix-based is the default.
 
 ### 4.1 No-FS-Side-Effect Path (DataApi)
 
-FileEntryService / FileRefService are data services under `src/main/data/services/`, following the project's existing DataApi layered pattern. They **are not standalone lifecycle services**, but are exposed to the Renderer through the DataApiService bridge. FileRefService is a read facade over persistent association tables plus the explicit `temp_session` CacheService memory tier.
+FileEntryService / FileRefService are data services under `src/main/data/services/`, following the project's existing DataApi layered pattern. They **are not standalone lifecycle services**, but are exposed to the Renderer through the DataApiService bridge. FileRefService is a read facade over persistent association tables.
 
 (`FileUploadRepository` is deferred along with FileUploadService.)
 
@@ -474,7 +474,7 @@ Renderer                              Main
                                | FileRefService  (read facade)   |
                                |   |                             |
                                |   v                             |
-                               | DB association refs + temp cache |
+                               | DB association refs             |
                                +---------------------------------+
 ```
 
@@ -486,13 +486,13 @@ DataApi endpoints (read-only, SQL-only, fixed-shape):
 | -------------------------------- | ------ | ----------------------------------------------------------------------- |
 | `/files/entries`                 | GET    | FileEntry list (supports origin / trashed / time-range filters). Fixed shape. |
 | `/files/entries/:id`             | GET    | Single entry lookup. Fixed shape.                                       |
-| `/files/entries/ref-counts`      | GET    | Ref-count aggregation for a batch of entry ids (association tables + temp-session cache). |
+| `/files/entries/ref-counts`      | GET    | Ref-count aggregation for a batch of entry ids (association tables). |
 | `/files/entries/stats`           | GET    | Aggregate entry counts for sidebar/footer stats (pure SQL aggregation). |
 | `/files/entries/:id/refs`        | GET    | All references to a file.                                               |
 | `/files/refs`                    | GET    | All files referenced by a business object (`?sourceType=…&sourceId=…`). |
 
 > **DataApi vs File IPC decision criteria (strict boundary)**:
-> - **DataApi** = **pure data read queries only**. Handlers MUST NOT touch FS, MUST NOT call main-side resolvers (`resolvePhysicalPath`), and MUST NOT consult runtime caches such as `danglingCache` or `versionCache`. The one file-ref exception is FileRefService's main-process `temp_session` memory tier, because those refs are intentionally not persisted in SQLite but still participate in ref reads/counts. The response shape is **fixed per endpoint**.
+> - **DataApi** = **pure data read queries only**. Handlers MUST NOT touch FS, MUST NOT call main-side resolvers (`resolvePhysicalPath`), and MUST NOT consult runtime caches such as `danglingCache` or `versionCache`. The response shape is **fixed per endpoint**.
 > - **File IPC** = everything else. All mutations (create / rename / delete / move / write / trash), **and** every read that needs FS IO or main-side computation (content read, dangling probe, path resolution, dialogs, streams, `open`).
 >
 > Rule of thumb: if a handler must call anything outside the Drizzle / `@db/*` surface to answer the request, it belongs in IPC. If two callers want the same data in different shapes, the answer is **two endpoints**, not one endpoint with a flag.
@@ -505,7 +505,7 @@ DataApi handlers are strictly SQL-backed. A handler:
 
 - MUST NOT read or `stat` the filesystem
 - MUST NOT call main-side resolvers (`resolvePhysicalPath`, etc.)
-- MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`); FileRefService's `temp_session` memory refs are the explicit exception for ref endpoints
+- MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`)
 - MUST return a fixed shape per endpoint
 
 The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROUP BY / COUNT), because that stays in the DB layer.
@@ -656,7 +656,7 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 | On-demand Orphan Sweep                                                  |
 |                                                                         |
 | Role: explicit cleanup of internal UUID files + *.tmp-<uuid> residues   |
-|       plus temp-session ref pruning / orphan-entry reporting            |
+|       plus orphan-entry reporting                                       |
 | Trigger: cleanup UI / caller invokes FileManager.runSweep() via IPC     |
 | Startup: no auto-run                                                    |
 +-------------------------------------------------------------------------+
@@ -689,7 +689,7 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 | FileEntryService / FileRefService  (data services, not lifecycle)       |
 |                                                                         |
 | Role: entry CRUD + ref read/count aggregation, exposed via DataApi       |
-| FS:   none; FileRefService also reads main-process temp-session cache    |
+| FS:   none                                                              |
 +-------------------------------------------------------------------------+
 ```
 
@@ -705,7 +705,7 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 | **`@main/utils/file/*`** | shared helpers  | No             | Yes                     | shell (open/showInFolder) | No                  |
 | **direct `node:fs`**     | raw platform API | No            | Yes                     | No                        | No                  |
 | **FileEntryService**     | data repository | Yes (direct)   | No                      | No                        | Yes (via DataApi)   |
-| **FileRefService**       | read facade + temp store | Yes (direct) + temp cache | No              | No                        | Yes (via DataApi reads) |
+| **FileRefService**       | read facade     | Yes (direct)   | No              | No                        | Yes (via DataApi reads) |
 **Core principles**:
 
 - **File IPC adapter owns renderer transport and dispatch**—it depends on FileManager for entry arms and `services/file/utils/*` for path arms; it does not directly import `node:fs`.
@@ -791,9 +791,8 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 |  |  getById / list / create / update / delete                |    |
 |  +-----------------------------------------------------------+    |
 |  +-----------------------------------------------------------+    |
-|  | FileRefService (read facade + temp-session store)         |    |
+|  | FileRefService (read facade)                              |    |
 |  |  findByEntryId / findBySource / countByEntryIds           |    |
-|  |  createTempSessionRef / cleanupTempSessionSource          |    |
 |  +-----------------------------------------------------------+    |
 |                                                                   |
 |  Business Services (examples — each module chooses its own       |
@@ -810,7 +809,6 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 |  On-demand cleanup (inside FileManager.runSweep)                  |
 |  +---------------------------------------------------------+      |
 |  | DB orphan sweep                                         |      |
-|  |  prunes missing-entry temp-session cache refs           |      |
 |  |  reports active file_entry rows with zero refs          |      |
 |  +---------------------------------------------------------+      |
 +===================================================================+
@@ -840,21 +838,11 @@ Current examples:
 
 - `chat_message_file_ref` is owned by chat/topic/message flows (`TopicService` copies rows when duplicating message paths; migrators backfill rows directly).
 - `painting_file_ref` is owned by `PaintingService` (`create`/`update` write rows directly; source deletion relies on FK cascade).
+- `job_file_ref` is owned by `AiService.generateImageViaJob` (writes rows at enqueue so the async image job's `delete_when_unreferenced` inputs stay referenced for its lifetime; terminal-row pruning cascades them away — see [file-entry-cleanup.md §5.1](./file-entry-cleanup.md#51-candidate-query)).
 
 `FileRefService` does **not** create/copy/replace persistent refs. It is the cross-source read facade used by DataApi and sweep (`findByEntryId`, `findBySource`, `countByEntryIds`).
 
-#### (2) Temp-Session Refs — Owned by FileRefService
-
-`temp_session` is the only mutable ref source owned by `FileRefService`. These refs are stored in main-process `CacheService` memory and intentionally disappear on restart.
-
-```typescript
-await fileRefService.createTempSessionRef({ fileEntryId, sourceId: sessionId, role: 'pending' })
-await fileRefService.cleanupTempSessionSource(sessionId)
-```
-
-The orphan sweep prunes temp-session refs whose `file_entry` row no longer exists, then reports active file entries with zero refs. Persistent source cleanup is not scanned generically because FK cascades own that path.
-
-#### (2b) Developer Checklist for Adding a New sourceType
+#### (2) Developer Checklist for Adding a New sourceType
 
 To avoid the governance pitfall of "added a sourceType but forgot to wire up some step", follow the order below when adding a new variant (every step is required):
 
@@ -864,13 +852,13 @@ To avoid the governance pitfall of "added a sourceType but forgot to wire up som
 | 2 | `src/shared/data/types/file/ref/index.ts` | Add the variant to `allSourceTypes` (type aggregation) + `FileRefSchema` discriminated union | Type system narrow failure |
 | 3 | `src/main/data/db/schemas/*` | Add the dedicated FK-constrained association table | Migration + schema tests |
 | 4 | Owning business service/migrator | Write/copy/delete relationship rows directly; use FK cascade for source and `file_entry` deletion | Unit/integration tests |
-| 5 | `FileRefService` | Add the table to read/ref-count aggregation only | DataApi + sweep tests |
+| 5 | `FileRefService` | Add the table to read/ref-count aggregation only — the registry-driven cleanup anti-join (`persistentRefAbsenceConditions`) picks it up automatically; a missing `persistentFileRefTablesBySourceType` entry fails compilation (`satisfies Record<PersistentFileRefSourceType, …>` in `fileRelations.ts`), and the vitest coverage test additionally pins that `persistentRefAbsenceConditions()` stays registry-derived rather than hand-enumerated | DataApi + sweep tests |
 
 **Design intent**:
 
 - **Ownership is local**: business services own their persistent relationship tables and update semantics.
 - **Cascade first**: when a persistent source table exists, the association table owns an FK to it and source deletion cascades automatically.
-- **Sweep is narrow**: the DB sweep is a report/prune pass, not a generic source-deletion reconciler. It prunes stale CacheService-backed temp-session refs and reports active entries with zero refs.
+- **Sweep is narrow**: the DB sweep is a report pass, not a generic source-deletion reconciler. It reports active entries with zero refs.
 - **There is no per-sourceType `onSourceDeleted` hook**: persistent source deletion should be modeled with FKs; business-specific cleanup belongs to the business service's own delete flow and should not be coupled to the ref facade.
 
 #### (3) Ways Business Services Access Files
@@ -884,7 +872,6 @@ BusinessService
     |   +-- fileRefService.findByEntryId(entryId)   -> FileRef[]
     |   +-- fileRefService.countByEntryIds(ids)     -> Map<FileEntryId, number>
     |   +-- own *_file_ref table writes             -> persistent business refs
-    |   +-- fileRefService.createTempSessionRef(...) -> temp_session only
     |
     +-- via FileManager (has FS side effect)
     |   +-- read(entryId, opts?)                    -> ReadResult
@@ -944,11 +931,14 @@ WhenReady (after app.whenReady(), Electron API available)
        ordering handles it automatically per the lifecycle decorator
        rules; WindowManager dep lands together with the §3.6 broadcast
        pipeline in Phase 2)
-      onInit(): awaits DanglingCache.initFromDb(). Legacy File_* compatibility
-                handlers may still be registered here during migration, but
-                new File IPC responsibility belongs to the IpcApi adapter layer.
-                No startup auto-sweep — an explicit cleanup UI/caller
-                triggers `runSweep` via IPC on demand.
+      onInit(): awaits DanglingCache.initFromDb(), then fires the entry-cleanup
+                reaper (auto-policy reclamation) — a non-awaited startup pass
+                (`runEntryCleanup`) plus an idle-gated interval (see
+                file-entry-cleanup.md §5.5). Legacy File_* compatibility handlers
+                may still be registered here during migration, but new File IPC
+                responsibility belongs to the IpcApi adapter layer. The on-demand
+                orphan `runSweep` is separate — it never auto-triggers; an
+                explicit cleanup UI/caller invokes it via IPC.
 
 On-Demand (user-triggered via File_RunSweep IPC)
 +-- FileManager.runSweep -- runs two concurrent passes and returns one
@@ -957,7 +947,7 @@ On-Demand (user-triggered via File_RunSweep IPC)
                                                   *.tmp-<uuid> residues
                             • runDbSweep (internal helper — NOT a separate
                               lifecycle service, NOT scheduled):
-                              temp-session ref prune + orphan-entry report
+                              orphan-entry report
                               per §7 Layer 3
 
 Singletons / Primitives (no lifecycle):
@@ -968,7 +958,7 @@ Singletons / Primitives (no lifecycle):
 
 Data Services (not lifecycle, managed by DataApiService):
 +-- FileEntryService              -- entry CRUD (pure DB)
-+-- FileRefService                -- ref reads/counts + temp-session memory refs
++-- FileRefService                -- ref reads/counts
 ```
 
 **Deferred introduction (after AI SDK is stable)**:
@@ -994,6 +984,9 @@ Data Services (not lifecycle, managed by DataApiService):
                           handlers that have not yet moved to IpcApi
                           (version cache constructs at field-init time;
                            §3.6 broadcast wiring is deferred to Phase 2)
+                       3. fire the entry-cleanup reaper (auto-policy reclamation):
+                          a non-awaited `runEntryCleanup` startup pass + an
+                          idle-gated interval (file-entry-cleanup.md §5.5)
                                    │
                           (ready signal emitted immediately)
                           │
@@ -1004,12 +997,12 @@ Data Services (not lifecycle, managed by DataApiService):
                  FileManager.runSweep — runs concurrently:
                    • FS-level: UUID files not in DB → unlink,
                      *.tmp-<uuid> → unlink
-                   • DB-level: temp-session ref prune + orphan-entry report
+                   • DB-level: orphan-entry report
                  (uuid here is v4 from node:crypto.randomUUID;
                   orphan sweep regex is version-agnostic)
 ```
 
-**Key**: `onInit` is non-blocking — only the DanglingCache reverse-index init is awaited (a synchronous DB query, fast for typical <10k external-entry counts). No sweep runs at startup; the cleanup UI is the sole trigger for `runSweep` via the `File_RunSweep` IPC channel.
+**Key**: `onInit` is non-blocking — only the DanglingCache reverse-index init is awaited (a synchronous DB query, fast for typical <10k external-entry counts). The entry-cleanup reaper (`delete_when_unreferenced` reclamation, file-entry-cleanup.md) *does* fire at startup — a non-awaited `runEntryCleanup` pass plus an idle-gated interval — but it is distinct from the on-demand orphan `runSweep` (FS orphan unlink + `manual` orphan report), which never runs automatically: the cleanup UI/caller is its sole trigger via the `File_RunSweep` IPC channel.
 
 ### 6.3 Dependency Declarations for Business Services
 
@@ -1019,7 +1012,7 @@ Any business service that consumes FileManager needs `@DependsOn(FileManager)`:
 <AnyBusinessService>
   @DependsOn(FileManager)
   +-- queries entries via fileEntryService (no FS side effect)
-  +-- owns persistent *_file_ref rows directly; uses fileRefService for ref reads/counts or temp_session refs
+  +-- owns persistent *_file_ref rows directly; uses fileRefService for ref reads/counts
   +-- reads file content via FileManager (FS)
   +-- (optional) owns DirectoryWatcher instances via the factory
 ```
@@ -1034,12 +1027,12 @@ Specific services and their dependency declarations are registered by each busin
 src/main/data/                        -- data layer
   services/
     FileEntryService.ts               -- repository: exports fileEntryService
-    FileRefService.ts                 -- read facade + temp-session store: exports fileRefService
+    FileRefService.ts                 -- read facade: exports fileRefService
   api/handlers/
     files.ts                          -- DataApi handler, no FS side effect
   db/schemas/
     file.ts                           -- file_entry
-    fileRelations.ts                  -- chat_message_file_ref / painting_file_ref
+    fileRelations.ts                  -- chat_message_file_ref / painting_file_ref / job_file_ref
 
 src/main/ipc/handlers/
   file.ts                            -- File IPC adapter: schema-validated routes,
@@ -1084,7 +1077,7 @@ src/main/utils/file/                  -- shared raw FS helpers, open to the enti
 - **External entry DB row carries no `size`**: `size` is `null` on every external row by design (enforced by `fe_size_internal_only` CHECK). `name` / `ext` are pure projections of `externalPath` and do not drift. Live `size` / `mtime` are served by File IPC `getMetadata(handle)` / `batchGetMetadata({ items })`; DataApi never exposes them.
 - **Dangling state exposed via DanglingCache + File IPC query methods** (`getDanglingState` / `batchGetDanglingStates`); never exposed via DataApi: not persisted to DB; watcher events + cold-path stat push updates
 - **Physical paths are not persisted**: internal is derived from `application.getPath('feature.files.data', ...)`; external is read from the `externalPath` column
-- **Persistent FileRef associations are FK-constrained**: each business source owns its `*_file_ref` table with cascades to `file_entry` and the source row; only `temp_session` refs are non-persistent CacheService memory.
+- **Persistent FileRef associations are FK-constrained**: each business source owns its `*_file_ref` table with cascades to `file_entry` and the source row.
 - **File Module does not do directory import / bidirectional sync**: business modules implement this with DirectoryWatcher + their own mapping tables
 - **File Module does not start any chokidar watcher**: watcher lifecycles are managed by business modules; when created via the factory, DanglingCache is automatically wired
 

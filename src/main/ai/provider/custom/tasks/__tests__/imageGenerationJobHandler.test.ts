@@ -17,7 +17,6 @@ const {
   appGetMock,
   readMock,
   createInternalEntryMock,
-  permanentDeleteMock,
   resolveImageTransportMock,
   submitMock,
   pollMock,
@@ -30,7 +29,6 @@ const {
   appGetMock: vi.fn(),
   readMock: vi.fn(),
   createInternalEntryMock: vi.fn(),
-  permanentDeleteMock: vi.fn(),
   resolveImageTransportMock: vi.fn(),
   submitMock: vi.fn(),
   pollMock: vi.fn(),
@@ -62,7 +60,8 @@ function createCtx(
       n: 1,
       size: '1024x1024',
       modelDescriptor: { id: 'qwen-image', endpoint: '/v3/async/qwen-image', isSync: false },
-      providerParams: {}
+      providerParams: {},
+      cleanupPolicy: 'delete_when_unreferenced'
     },
     attempt: 0,
     signal: controller.signal,
@@ -78,7 +77,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
     if (name === 'FileManager') {
-      return { read: readMock, createInternalEntry: createInternalEntryMock, permanentDelete: permanentDeleteMock }
+      return { read: readMock, createInternalEntry: createInternalEntryMock }
     }
     throw new Error(`Unexpected application.get(${name})`)
   })
@@ -86,7 +85,6 @@ beforeEach(() => {
   getByKeyMock.mockResolvedValue({ id: 'qwen-image', apiModelId: 'qwen-image' })
   providerToAiSdkConfigMock.mockResolvedValue({ providerId: 'ppio', providerSettings: { apiKey: 'k' } })
   cancelMock.mockResolvedValue(undefined)
-  permanentDeleteMock.mockResolvedValue(undefined)
   resolveImageTransportMock.mockReturnValue({ submit: submitMock, poll: pollMock, cancel: cancelMock })
   downloadMock.mockResolvedValue({ data: 'AAAA', media_type: 'image/png' })
   createInternalEntryMock.mockImplementation(async () => ({ id: 'file-1' }))
@@ -99,7 +97,8 @@ describe('imageGenerationJobHandler contract', () => {
       imageGenerationJobHandler.defaultQueue?.({
         uniqueModelId: 'ppio::qwen-image',
         n: 1,
-        providerParams: {}
+        providerParams: {},
+        cleanupPolicy: 'delete_when_unreferenced'
       })
     ).toBe('image-generation.ppio')
     expect(imageGenerationJobHandler.defaultConcurrency).toBe(2)
@@ -133,6 +132,11 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(50, { stage: 'polling' })
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
     expect(downloadMock).toHaveBeenCalledWith('https://cdn.example.com/a.png')
+    // Persisted output entries carry no FileManager ref, so they must be
+    // classified for GC reclaim instead of relying on an ad-hoc delete.
+    expect(createInternalEntryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ cleanupPolicy: 'delete_when_unreferenced' })
+    )
   })
 
   it('resume: metadata.taskId present → skips submit, polls the persisted task', async () => {
@@ -161,6 +165,7 @@ describe('imageGenerationJobHandler.execute', () => {
     const ctx = createCtx({
       input: {
         uniqueModelId: 'ppio::qwen-image',
+        cleanupPolicy: 'delete_when_unreferenced',
         prompt: 'a cat',
         n: 1,
         providerParams: { modelDescriptor: legacyDescriptor }
@@ -180,6 +185,7 @@ describe('imageGenerationJobHandler.execute', () => {
       metadata: { taskId: 'resumed-task' },
       input: {
         uniqueModelId: 'ppio::qwen-image',
+        cleanupPolicy: 'delete_when_unreferenced',
         prompt: 'a cat',
         n: 1,
         providerParams: { modelDescriptor: legacyDescriptor }
@@ -201,6 +207,7 @@ describe('imageGenerationJobHandler.execute', () => {
     const ctx = createCtx({
       input: {
         uniqueModelId: 'ppio::qwen-image',
+        cleanupPolicy: 'delete_when_unreferenced',
         prompt: 'a cat',
         n: 1,
         modelDescriptor: typedDescriptor,
@@ -219,6 +226,7 @@ describe('imageGenerationJobHandler.execute', () => {
     const ctx = createCtx({
       input: {
         uniqueModelId: 'ppio::qwen-image',
+        cleanupPolicy: 'delete_when_unreferenced',
         prompt: 'a cat',
         n: 1,
         providerParams: {}
@@ -262,7 +270,8 @@ describe('imageGenerationJobHandler.execute', () => {
         prompt: 'edit',
         n: 1,
         providerParams: {},
-        inputFileIds: ['in-1']
+        inputFileIds: ['in-1'],
+        cleanupPolicy: 'delete_when_unreferenced'
       }
     })
     await imageGenerationJobHandler.execute(ctx)
@@ -272,35 +281,20 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(submitArg.files).toEqual([{ type: 'file', mediaType: 'image/jpeg', data: 'BBBB' }])
   })
 
-  it('deletes the temp input/mask entries after completion (no storage leak)', async () => {
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/edit.png'] })
-    readMock.mockResolvedValue({ content: 'BBBB', mime: 'image/jpeg' })
+  it('propagates the submit error unchanged (no swallowing/cleanup wrapper)', async () => {
+    submitMock.mockRejectedValue(new Error('vendor 500'))
 
     const ctx = createCtx({
       input: {
         uniqueModelId: 'ppio::qwen-image',
-        prompt: 'edit',
+        prompt: 'x',
         n: 1,
         providerParams: {},
-        inputFileIds: ['in-1', 'in-2'],
-        maskFileId: 'mask-1'
+        inputFileIds: ['in-1'],
+        cleanupPolicy: 'delete_when_unreferenced'
       }
     })
-    await imageGenerationJobHandler.execute(ctx)
-
-    expect(permanentDeleteMock).toHaveBeenCalledWith('in-1')
-    expect(permanentDeleteMock).toHaveBeenCalledWith('in-2')
-    expect(permanentDeleteMock).toHaveBeenCalledWith('mask-1')
-  })
-
-  it('deletes the temp input entries even when the job fails', async () => {
-    submitMock.mockRejectedValue(new Error('vendor 500'))
-
-    const ctx = createCtx({
-      input: { uniqueModelId: 'ppio::qwen-image', prompt: 'x', n: 1, providerParams: {}, inputFileIds: ['in-1'] }
-    })
     await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow('vendor 500')
-    expect(permanentDeleteMock).toHaveBeenCalledWith('in-1')
   })
 
   it('fails (not silently completes) when submit returns neither imageUrls nor a taskId', async () => {

@@ -5,7 +5,7 @@ import { createComposerFileTokenSourceId } from '@renderer/utils/message/compose
 import type { FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('usePaintingComposerInputFiles')
@@ -15,7 +15,6 @@ interface Params {
   inputFiles: FileEntry[]
   files: ComposerAttachment[]
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
-  onInputFilesChange: (files: FileEntry[]) => void
 }
 
 const withDot = (ext: string | null | undefined): string => {
@@ -30,41 +29,37 @@ const withDot = (ext: string | null | undefined): string => {
  *
  * - SEED: when the painting changes, project its `inputFiles` onto composer
  *   attachments so existing input images render as file chips, and prime the
- *   source-id→entry cache so the writeback recognises them as unchanged.
- * - WRITEBACK: when composer attachments change (added via picker/paste/drop,
- *   removed via file-token deletion), promote each attachment to a `FileEntry`
- *   (`createInternalEntry source:'path'`, cached by token source id so the same
- *   attachment never re-imports its bytes) and report the new list — but only
- *   after the seed has run, so the pre-seed empty list never wipes a painting
- *   that has input files.
+ *   source-id→entry cache so a re-opened input maps back to its existing entry.
+ * - MATERIALIZE: `materializeInputs()` is called at generate time (mirroring chat's
+ *   send-time `buildFileParts`), NOT eagerly during the draft. It promotes each
+ *   composer attachment to a `FileEntry` (`createInternalEntry source:'path'`,
+ *   cached by token source id so a seeded/promoted attachment never re-imports its
+ *   bytes) and returns the resolved list. Nothing is written to the DB during the
+ *   draft window, so the cleanup reaper has no unreferenced input row to reclaim.
  */
-export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles, onInputFilesChange }: Params) {
+export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles }: Params) {
   const { t } = useTranslation()
   const entryCacheRef = useRef(new Map<string, FileEntry>())
   // Input files that failed to resolve to a physical path during SEED: they get no
-  // composer chip, but must survive the writeback so a transient read error never
-  // rewrites the persisted painting (see WRITEBACK).
+  // composer chip, but must survive materialization so a transient read error never
+  // shrinks the input list handed to generation (see materializeInputs).
   const unseededEntriesRef = useRef<FileEntry[]>([])
   const seededPaintingIdRef = useRef<string | null>(null)
-  const seedCompleteRef = useRef(false)
-  const writebackEpochRef = useRef(0)
-  const onInputFilesChangeRef = useRef(onInputFilesChange)
-  onInputFilesChangeRef.current = onInputFilesChange
   const inputFilesRef = useRef(inputFiles)
   inputFilesRef.current = inputFiles
+  const filesRef = useRef(files)
+  filesRef.current = files
 
   // SEED — once per painting.
   useEffect(() => {
     if (seededPaintingIdRef.current === paintingId) return
     seededPaintingIdRef.current = paintingId
-    seedCompleteRef.current = false
     unseededEntriesRef.current = []
 
     const entries = inputFilesRef.current
     if (entries.length === 0) {
       entryCacheRef.current = new Map()
       setFiles([])
-      seedCompleteRef.current = true
       return
     }
 
@@ -96,7 +91,6 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
       entryCacheRef.current = cache
       unseededEntriesRef.current = unseeded
       setFiles(attachments)
-      seedCompleteRef.current = true
     })()
 
     return () => {
@@ -104,58 +98,48 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
     }
   }, [paintingId, setFiles])
 
-  // WRITEBACK — on attachment change, after the seed has run.
-  useEffect(() => {
-    if (seededPaintingIdRef.current !== paintingId || !seedCompleteRef.current) return
-    const epoch = ++writebackEpochRef.current
-    let cancelled = false
-
-    void (async () => {
-      const cache = entryCacheRef.current
-      const entries: FileEntry[] = []
-      const failedSourceIds: string[] = []
-      for (const file of files) {
-        const cached = cache.get(file.fileTokenSourceId)
-        if (cached) {
-          entries.push(cached)
-          continue
-        }
-        try {
-          const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path as FilePath })
-          cache.set(file.fileTokenSourceId, entry)
-          entries.push(entry)
-        } catch (error) {
-          logger.error('failed to create input file entry from composer attachment', error as Error)
-          failedSourceIds.push(file.fileTokenSourceId)
-        }
+  // MATERIALIZE — at generate time. Promote the current composer attachments to
+  // FileEntry[]; a cache hit (seeded, or promoted earlier this session) is reused,
+  // a miss is imported via `createInternalEntry`.
+  const materializeInputs = useCallback(async (): Promise<FileEntry[]> => {
+    const cache = entryCacheRef.current
+    const entries: FileEntry[] = []
+    const failedSourceIds: string[] = []
+    for (const file of filesRef.current) {
+      const cached = cache.get(file.fileTokenSourceId)
+      if (cached) {
+        entries.push(cached)
+        continue
       }
-      if (cancelled || epoch !== writebackEpochRef.current) return
-
-      // A visible chip must imply a file that will reach generation. A promote failure
-      // (swept temp file, disk/IPC error on a path the renderer doesn't own) breaks
-      // that, so drop the chip and tell the user instead of silently generating
-      // without the image — the chip is the only feedback channel.
-      if (failedSourceIds.length > 0) {
-        const failed = new Set(failedSourceIds)
-        setFiles((prev) => prev.filter((file) => !failed.has(file.fileTokenSourceId)))
-        toast.error(t('paintings.image_file_retry'))
+      try {
+        const entry = await window.api.file.createInternalEntry({
+          source: 'path',
+          path: file.path as FilePath,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+        cache.set(file.fileTokenSourceId, entry)
+        entries.push(entry)
+      } catch (error) {
+        logger.error('failed to create input file entry from composer attachment', error as Error)
+        failedSourceIds.push(file.fileTokenSourceId)
       }
-
-      // Carry through entries that failed to seed so a transient read error can't
-      // shrink the persisted list. When the whole painting failed to resolve, this
-      // reproduces the original list and the unchanged guard suppresses the wipe.
-      // Failed entries land at the tail, so a *partial* failure persists a one-time
-      // reorder on open; widen to original-order merge only if that bites.
-      const preserved = unseededEntriesRef.current
-      const nextEntries = preserved.length ? [...entries, ...preserved] : entries
-      const nextIds = nextEntries.map((entry) => entry.id)
-      const currentIds = inputFilesRef.current.map((entry) => entry.id)
-      const unchanged = nextIds.length === currentIds.length && nextIds.every((id, index) => id === currentIds[index])
-      if (!unchanged) onInputFilesChangeRef.current(nextEntries)
-    })()
-
-    return () => {
-      cancelled = true
     }
-  }, [files, paintingId])
+
+    // A visible chip must imply a file that reaches generation. A promote failure
+    // (swept temp file, disk/IPC error on a path the renderer doesn't own) breaks
+    // that, so drop the chip and tell the user instead of silently generating
+    // without the image — the chip is the only feedback channel.
+    if (failedSourceIds.length > 0) {
+      const failed = new Set(failedSourceIds)
+      setFiles((prev) => prev.filter((file) => !failed.has(file.fileTokenSourceId)))
+      toast.error(t('paintings.image_file_retry'))
+    }
+
+    // Carry through inputs that failed to seed (transient read error) so they are
+    // not silently dropped from the generation; they land at the tail.
+    const preserved = unseededEntriesRef.current
+    return preserved.length ? [...entries, ...preserved] : entries
+  }, [setFiles, t])
+
+  return { materializeInputs }
 }

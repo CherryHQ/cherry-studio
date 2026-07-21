@@ -1,5 +1,7 @@
+import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { chatMessageFileRefTable, jobFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { jobTable } from '@data/db/schemas/job'
 import { messageTable } from '@data/db/schemas/message'
 import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
@@ -7,7 +9,6 @@ import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -86,20 +87,35 @@ describe('FileRefService', () => {
     await dbh.db.insert(chatMessageFileRefTable).values({ fileEntryId, sourceId, role: 'attachment' })
   }
 
+  async function seedJob(id = uuidv4()): Promise<string> {
+    await dbh.db.insert(jobTable).values({
+      id,
+      type: 'image-generation.generate',
+      status: 'running',
+      queue: 'image-generation.test',
+      scheduledAt: Date.now(),
+      input: {}
+    })
+    return id
+  }
+
+  async function seedJobRef(fileEntryId: FileEntryId, sourceId: string, role: 'input' | 'mask'): Promise<void> {
+    await dbh.db.insert(jobFileRefTable).values({ fileEntryId, sourceId, role })
+  }
+
   describe('read aggregation', () => {
-    it('findByEntryId returns refs across persistent tables and temp-session cache', async () => {
+    it('findByEntryId returns refs across persistent tables', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000aa01' as FileEntryId
       const paintingId = await seedPainting()
       const messageId = await seedChatMessage()
       await seedEntry(entryId)
       await seedPaintingRef(entryId, paintingId, 'output')
       await seedChatRef(entryId, messageId)
-      fileRefService.createTempSessionRef({ fileEntryId: entryId, sourceId: 'session-A', role: 'pending' })
 
       const refs = fileRefService.findByEntryId(entryId)
-      expect(refs).toHaveLength(3)
+      expect(refs).toHaveLength(2)
       expect(refs.every((r) => r.fileEntryId === entryId)).toBe(true)
-      expect(refs.map((r) => r.sourceType).sort()).toEqual(['chat_message', 'painting', 'temp_session'])
+      expect(refs.map((r) => r.sourceType).sort()).toEqual(['chat_message', 'painting'])
     })
 
     it('findBySource reads persistent sources without owning their write path', async () => {
@@ -114,115 +130,48 @@ describe('FileRefService', () => {
     })
 
     it('findBySource returns empty array when source key has no refs', async () => {
-      expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'no-such' })).toEqual([])
+      expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: 'no-such' })).toEqual([])
     })
-  })
 
-  describe('temp-session writes', () => {
-    it('creates a single temp ref and returns it parsed', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000bb01' as FileEntryId
+    it('aggregates job refs (findByEntryId / findBySource) so job-held inputs are visible', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000aa03' as FileEntryId
+      const jobId = await seedJob()
       await seedEntry(entryId)
+      await seedJobRef(entryId, jobId, 'input')
 
-      const ref = fileRefService.createTempSessionRef({
-        fileEntryId: entryId,
-        sourceId: 'session-K',
-        role: 'pending'
-      })
-
-      expect(ref).toEqual(
-        expect.objectContaining({
-          fileEntryId: entryId,
-          sourceType: 'temp_session',
-          sourceId: 'session-K',
-          role: 'pending'
-        })
-      )
-    })
-
-    it('rejects temp refs for missing file_entry rows', async () => {
-      const missing = '019606a0-0000-7000-8000-00000000bb08' as FileEntryId
-
-      expect(() =>
-        fileRefService.createTempSessionRef({ fileEntryId: missing, sourceId: 'missing-entry', role: 'pending' })
-      ).toThrow(`FileEntry not found: ${missing}`)
-    })
-
-    it('throws on duplicate temp ref (entryId, sourceId, role)', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000bb02' as FileEntryId
-      await seedEntry(entryId)
-      const values = { fileEntryId: entryId, sourceId: 'dup', role: 'pending' as const }
-      fileRefService.createTempSessionRef(values)
-      expect(() => fileRefService.createTempSessionRef(values)).toThrow()
-    })
-
-    it('createManyTempSessionRefs skips conflicting rows and returns inserted ones', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000bb03' as FileEntryId
-      await seedEntry(entryId)
-      const base = { fileEntryId: entryId, role: 'pending' as const }
-      fileRefService.createTempSessionRef({ ...base, sourceId: 'one' })
-
-      const result = fileRefService.createManyTempSessionRefs([
-        { ...base, sourceId: 'one' },
-        { ...base, sourceId: 'two' },
-        { ...base, sourceId: 'three' }
+      expect(fileRefService.findByEntryId(entryId)).toEqual([
+        expect.objectContaining({ fileEntryId: entryId, sourceType: 'job', sourceId: jobId, role: 'input' })
       ])
-
-      expect(result).toHaveLength(2)
-      expect(result.map((r) => r.sourceId).sort()).toEqual(['three', 'two'])
-    })
-
-    it('cleanupTempSessionSource removes all temp refs owned by one source', async () => {
-      const entryA = '019606a0-0000-7000-8000-00000000bb04' as FileEntryId
-      const entryB = '019606a0-0000-7000-8000-00000000bb05' as FileEntryId
-      await seedEntry(entryA)
-      await seedEntry(entryB)
-      fileRefService.createManyTempSessionRefs([
-        { fileEntryId: entryA, sourceId: 'cleanup-A', role: 'pending' },
-        { fileEntryId: entryB, sourceId: 'cleanup-A', role: 'pending' }
+      expect(fileRefService.findBySource({ sourceType: 'job', sourceId: jobId })).toEqual([
+        expect.objectContaining({ fileEntryId: entryId, sourceType: 'job', sourceId: jobId, role: 'input' })
       ])
-
-      expect(fileRefService.cleanupTempSessionSource('cleanup-A')).toBe(2)
-      expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'cleanup-A' })).toEqual([])
-    })
-
-    it('cleanupTempSessionSources removes temp refs across multiple sourceIds', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000bb06' as FileEntryId
-      await seedEntry(entryId)
-      const make = (sourceId: string) => ({ fileEntryId: entryId, sourceId, role: 'pending' as const })
-      fileRefService.createManyTempSessionRefs([make('s1'), make('s2'), make('s3')])
-
-      expect(fileRefService.cleanupTempSessionSources(['s1', 's3'])).toBe(2)
-      const remaining = fileRefService.findByEntryId(entryId)
-      expect(remaining.map((r) => r.sourceId)).toEqual(['s2'])
     })
   })
 
   describe('sweep helpers', () => {
-    it('countByEntryIds counts refs across chat, painting, and temp-session sources', async () => {
-      const idA = '019606a0-0000-7000-8000-00000000cc01' as FileEntryId
+    it('countByEntryIds counts refs across chat, painting, and job sources', async () => {
       const idB = '019606a0-0000-7000-8000-00000000cc02' as FileEntryId
       const idC = '019606a0-0000-7000-8000-00000000cc03' as FileEntryId
       const idD = '019606a0-0000-7000-8000-00000000cc06' as FileEntryId
+      const idE = '019606a0-0000-7000-8000-00000000cc07' as FileEntryId
       const paintingId = await seedPainting()
       const secondPaintingId = await seedPainting()
       const messageId = await seedChatMessage()
-      await seedEntry(idA)
+      const jobId = await seedJob()
       await seedEntry(idB)
       await seedEntry(idC)
       await seedEntry(idD)
-      fileRefService.createManyTempSessionRefs([
-        { fileEntryId: idA, sourceId: 's1', role: 'pending' },
-        { fileEntryId: idA, sourceId: 's2', role: 'pending' }
-      ])
+      await seedEntry(idE)
       await seedPaintingRef(idB, paintingId, 'output')
       await seedChatRef(idD, messageId)
       await seedPaintingRef(idD, secondPaintingId, 'input')
+      await seedJobRef(idE, jobId, 'input')
 
-      const result = fileRefService.countByEntryIds([idA, idB, idC, idD])
-      expect(result.get(idA)).toBe(2)
+      const result = fileRefService.countByEntryIds([idB, idC, idD, idE])
       expect(result.get(idB)).toBe(1)
       expect(result.has(idC)).toBe(false)
       expect(result.get(idD)).toBe(2)
+      expect(result.get(idE)).toBe(1)
     })
 
     it('countByEntryIds chunks batches above the SQLite IN parameter cap', async () => {
@@ -241,24 +190,33 @@ describe('FileRefService', () => {
       expect(result.get(boundaryId)).toBe(1)
       expect(result.size).toBe(2)
     })
+  })
 
-    it('pruneMissingTempSessionRefs removes stale temp refs and keeps existing ones', async () => {
-      const existing = '019606a0-0000-7000-8000-00000000cc04' as FileEntryId
-      const missing = '019606a0-0000-7000-8000-00000000cc05' as FileEntryId
-      await seedEntry(existing)
-      await seedEntry(missing)
-      fileRefService.createManyTempSessionRefs([
-        { fileEntryId: existing, sourceId: 's', role: 'pending' },
-        { fileEntryId: missing, sourceId: 's', role: 'pending' }
-      ])
-      await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, missing))
+  describe('countPersistentRefsByEntryIdTx', () => {
+    it('counts across all persistent tables inside a tx', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000ee01' as FileEntryId
+      const paintingId = await seedPainting()
+      const messageId = await seedChatMessage()
+      await seedEntry(entryId)
+      await seedPaintingRef(entryId, paintingId, 'output')
+      await seedChatRef(entryId, messageId)
 
-      const removed = fileRefService.pruneMissingTempSessionRefs(new Set([existing]))
+      const n = application
+        .get('DbService')
+        .withWriteTx((tx) => fileRefService.countPersistentRefsByEntryIdTx(tx, entryId))
 
-      expect(removed).toBe(1)
-      expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 's' })).toEqual([
-        expect.objectContaining({ fileEntryId: existing })
-      ])
+      expect(n).toBe(2)
+    })
+
+    it('returns 0 for an entry with no persistent refs', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000ee02' as FileEntryId
+      await seedEntry(entryId)
+
+      const n = application
+        .get('DbService')
+        .withWriteTx((tx) => fileRefService.countPersistentRefsByEntryIdTx(tx, entryId))
+
+      expect(n).toBe(0)
     })
   })
 })

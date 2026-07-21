@@ -15,7 +15,7 @@ import { realpath } from 'node:fs/promises'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file'
-import type { FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
@@ -119,6 +119,23 @@ function basenameForExtProjection(p: string): string {
   return base.replace(/[\s.]+$/, '')
 }
 
+/**
+ * Upgrade-only policy transition (spec §4.2): an explicit `manual` intent
+ * pins a previously business-owned entry; the reverse never happens
+ * implicitly — a library file @-mentioned in a chat must not become a
+ * cleanup candidate. Applied at every `ensureExternal` reuse return path.
+ */
+function upgradeCleanupPolicyIfNeeded(
+  deps: FileManagerDeps,
+  existing: FileEntry,
+  requestedPolicy: CleanupPolicy
+): FileEntry {
+  if (existing.cleanupPolicy === 'delete_when_unreferenced' && requestedPolicy === 'manual') {
+    return deps.fileEntryService.update(existing.id, { cleanupPolicy: 'manual' })
+  }
+  return existing
+}
+
 function urlTail(url: string): string {
   try {
     const u = new URL(url)
@@ -154,6 +171,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
       origin: 'internal',
       name: source.name,
       ext: source.ext,
+      cleanupPolicy: params.cleanupPolicy,
       size: stats.size
     })
   } catch (err) {
@@ -171,7 +189,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
 export async function ensureExternal(deps: FileManagerDeps, params: EnsureExternalEntryParams): Promise<FileEntry> {
   const canonical = canonicalizeExternalPath(params.externalPath)
   const existing = deps.fileEntryService.findByExternalPath(canonical)
-  if (existing) return existing
+  if (existing) return upgradeCleanupPolicyIfNeeded(deps, existing, params.cleanupPolicy)
   // Every downstream derivation must consume the canonical path, not the
   // raw `params.externalPath`. On macOS APFS the raw input can arrive in
   // NFD form while `canonical` is NFC; deriving `name` / `ext` from raw
@@ -216,7 +234,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
         peerId: reusable.id,
         peerPath: (reusable as { externalPath: string }).externalPath
       })
-      return reusable
+      return upgradeCleanupPolicyIfNeeded(deps, reusable, params.cleanupPolicy)
     }
     // No peer is the same FS entity. On a case-sensitive filesystem these
     // are legitimately distinct files, but the DB unique constraint forbids
@@ -244,6 +262,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
     origin: 'external',
     name,
     ext,
+    cleanupPolicy: params.cleanupPolicy,
     externalPath: canonical
   })
   // Reverse-index hook: subsequent watcher / opportunistic ops events for

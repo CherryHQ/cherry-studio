@@ -32,7 +32,11 @@ describe('buildFilePartsForAttachments', () => {
   it('creates the FileEntry at send time and emits a file:// url + file identities + the disk MIME', async () => {
     const [part] = await buildFilePartsForAttachments([attachment()])
 
-    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/image.png' })
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/image.png',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(window.api.file.getPhysicalPath).toHaveBeenCalledWith({ id: 'fe-1' })
     expect(window.api.file.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/p/fe-1.png' })
     expect(part).toEqual({

@@ -46,6 +46,16 @@ export const fileEntryTable = sqliteTable(
     /** Absolute path to the user-provided file. Non-null iff origin='external' */
     externalPath: text(),
 
+    // ─── Cleanup policy ───
+    /**
+     * Cleanup intent stored as data (docs/references/file/file-entry-cleanup.md §4).
+     * 'manual' = keep at zero refs; 'delete_when_unreferenced' = the cleanup
+     * pass may reclaim once zero persistent refs + no temp refs + past grace.
+     * DB default 'manual' is the safe backstop; TS creation surfaces require
+     * an explicit value.
+     */
+    cleanupPolicy: text().notNull().default('manual'),
+
     // ─── Timestamps ───
     // `deletedAt` is soft-delete (NULL = not deleted). Internal-only —
     // external entries cannot be soft-deleted (enforced by
@@ -86,6 +96,7 @@ export const fileEntryTable = sqliteTable(
     index('fe_external_path_idx').on(t.externalPath),
     // Origin must be 'internal' or 'external'
     check('fe_origin_check', sql`${t.origin} IN ('internal', 'external')`),
+    check('fe_cleanup_policy_check', sql`${t.cleanupPolicy} IN ('manual', 'delete_when_unreferenced')`),
     // externalPath must be non-null iff origin='external'
     check(
       'fe_origin_consistency',

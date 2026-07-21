@@ -1,3 +1,4 @@
+import type { FileEntry } from '@shared/data/types/file'
 import { useCallback, useRef } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
@@ -35,20 +36,23 @@ export function usePaintingGenerationSubmit({
 
   const submittingRef = useRef(false)
 
-  const submit = useCallback(async () => {
-    if (submittingRef.current) return
-    submittingRef.current = true
-    try {
-      const guardResult = await validateBeforeGenerate()
-      if (!guardResult.ok) {
-        void presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
-        return
+  const submit = useCallback(
+    async (inputFiles: FileEntry[]) => {
+      if (submittingRef.current) return
+      submittingRef.current = true
+      try {
+        const guardResult = await validateBeforeGenerate()
+        if (!guardResult.ok) {
+          void presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
+          return
+        }
+        await generate(inputFiles)
+      } finally {
+        submittingRef.current = false
       }
-      await generate()
-    } finally {
-      submittingRef.current = false
-    }
-  }, [generate, painting.providerId, validateBeforeGenerate])
+    },
+    [generate, painting.providerId, validateBeforeGenerate]
+  )
 
   return { generating, submit, cancel }
 }

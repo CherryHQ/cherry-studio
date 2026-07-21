@@ -1,5 +1,5 @@
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
@@ -99,7 +99,9 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@shared/utils/model', () => ({ isEditImageModel: () => false }))
 
-vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({ usePaintingComposerInputFiles: vi.fn() }))
+vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({
+  usePaintingComposerInputFiles: () => ({ materializeInputs: async () => [] })
+}))
 
 vi.mock('../../hooks/useImageGenerationSupport', () => ({
   useImageGenerationSupport: mockUseImageGenerationSupport
@@ -134,7 +136,6 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
     painting: makePainting(),
     generating: false,
     onPromptChange,
-    onInputFilesChange: vi.fn(),
     onGenerate,
     onCancel: vi.fn(),
     onModelSelect: vi.fn(),
@@ -169,10 +170,12 @@ describe('PaintingComposer', () => {
     expect(onPromptChange).toHaveBeenCalledWith('a cat')
   })
 
-  it('triggers generation on send', () => {
+  it('triggers generation on send with the materialized inputs', async () => {
     const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     fireEvent.click(screen.getByLabelText('send'))
-    expect(onGenerate).toHaveBeenCalledTimes(1)
+    // Send is async now (materialize inputs → generate), so onGenerate fires after a tick.
+    await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1))
+    expect(onGenerate).toHaveBeenCalledWith([])
   })
 
   it('disables send while generating', () => {

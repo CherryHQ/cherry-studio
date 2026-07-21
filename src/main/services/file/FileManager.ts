@@ -128,13 +128,15 @@ import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
+import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
+import { AbsolutePathSchema, CleanupPolicySchema, FileEntryIdSchema, FileHandleSchema } from '@shared/data/types/file'
+import { createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   BatchCreateResult,
@@ -145,7 +147,6 @@ import type {
   FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
-import { SafeExtSchema } from '@shared/types/file'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -174,6 +175,8 @@ import {
   trash as internalTrash
 } from './internal/entry/lifecycle'
 import { rename as internalRename } from './internal/entry/rename'
+import type { EntryCleanupReport } from './internal/entryCleanup'
+import { runEntryCleanup as internalRunEntryCleanup, summariseEntryCleanup } from './internal/entryCleanup'
 import { observeExternalAccess } from './internal/observe'
 import {
   type DbSweepReport,
@@ -228,25 +231,21 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 // Phase 2 schemas — reuse the canonical essential.ts validators so the IPC
 // boundary is the gate (path-traversal / null bytes / whitespace-only names
 // rejected here, before downstream factories see them).
-const SafeExtNullableSchema = SafeExtSchema.nullable()
+//
+// The create-entry union is shared with the IpcApi batch route — single
+// source of truth in `@shared/ipc/schemas/file`.
+export const CreateInternalEntryIpcSchema = createInternalEntryInputSchema
 
-export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
-  z.strictObject({ source: z.literal('url'), url: z.url() }),
-  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
-  z.strictObject({
-    source: z.literal('bytes'),
-    data: z.instanceof(Uint8Array),
-    name: SafeNameSchema,
-    ext: SafeExtNullableSchema
-  })
-])
-
-export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
+export const EnsureExternalEntryIpcSchema = z.strictObject({
+  externalPath: AbsolutePathSchema,
+  cleanupPolicy: CleanupPolicySchema
+})
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
 export const PermanentDeleteIpcSchema = FileHandleSchema
+
+export const RunSweepIpcSchema = z.void()
 
 // ─── Version types ───
 
@@ -594,13 +593,16 @@ export interface IFileManager {
   // ─── Orphan sweep (cleanup UI) ───
 
   /**
-   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
-   * temp-session ref prune / entry report (§7 Layer 3) concurrently, returning a single
-   * `OrphanReport` once both settle. The `outcome` discriminator on the
-   * report distinguishes `'completed'` / `'partial'` / `'failed'` so the
-   * renderer cannot read a failed run as a healthy zero.
+   * Run the scan-based entry cleanup pass, then the FS-level orphan sweep
+   * (architecture §10) and the DB-level temp-session ref prune / entry
+   * report (§7 Layer 3) concurrently, returning a single `OrphanReport` once
+   * all three settle. The `outcome` discriminator on the report distinguishes
+   * `'completed'` / `'partial'` / `'failed'` so the renderer cannot read a
+   * failed run as a healthy zero; the cleanup pass's own outcome rides in
+   * `entryCleanup` without affecting the umbrella `outcome`.
    *
-   * User-triggered via IPC (`File_RunSweep`); no startup auto-run. See
+   * Caller-initiated maintenance via IPC (`File_RunSweep`); no startup auto-run
+   * and no user-facing UI calls it (the cleanup it wraps is silent). See
    * architecture §10 for the sweep mechanics.
    */
   runSweep(): Promise<OrphanReport>
@@ -640,6 +642,7 @@ export interface IFileManager {
  */
 @Injectable('FileManager')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['PowerService'])
 export class FileManager extends BaseService implements IFileManager {
   // Per-instance VersionCache so each `new FileManager()` (e.g. in tests) gets
   // a fresh cache — file-manager-architecture.md §1.6.1 / §12 mandate this is
@@ -653,9 +656,36 @@ export class FileManager extends BaseService implements IFileManager {
     versionCache: this._versionCache
   }
 
+  private static readonly CLEANUP_INTERVAL_MS = 30 * 60 * 1000
+  private static readonly CLEANUP_IDLE_THRESHOLD_S = 60
+  private static readonly CLEANUP_MAX_DEFER_MS = 2 * 60 * 60 * 1000
+
+  private lastCleanupCompletedAt = 0
+
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
+
+    // Previous-session backlog (crashed sends, pre-upgrade leaks) — ungated.
+    void this.runEntryCleanup()
+    this.registerInterval(() => this.entryCleanupTick(), FileManager.CLEANUP_INTERVAL_MS)
+  }
+
+  /** Run one cleanup pass now. Never throws — failures land in the report. */
+  async runEntryCleanup(): Promise<EntryCleanupReport> {
+    const report = await internalRunEntryCleanup(this.deps)
+    if (report.outcome === 'completed') {
+      this.lastCleanupCompletedAt = Date.now()
+    }
+    return report
+  }
+
+  /** Idle gate (spec §5.5): run only when idle ≥60s, with a 2h reliability floor. */
+  private async entryCleanupTick(): Promise<void> {
+    const idleSeconds = application.get('PowerService').getSystemIdleTime()
+    const overdue = Date.now() - this.lastCleanupCompletedAt > FileManager.CLEANUP_MAX_DEFER_MS
+    if (idleSeconds < FileManager.CLEANUP_IDLE_THRESHOLD_S && !overdue) return
+    await this.runEntryCleanup()
   }
 
   /**
@@ -710,11 +740,16 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   /**
-   * Run the FS-level orphan sweep (file-manager-architecture §10) and
-   * the DB-level temp-session ref prune / entry report (file-manager-architecture §7
-   * Layer 3) concurrently, returning a single `OrphanReport` once both
-   * settle. User-triggered via the `File_RunSweep` IPC channel; there is
-   * no startup auto-run.
+   * Run the scan-based entry cleanup pass (`runEntryCleanup`) first, then
+   * the FS-level orphan sweep (file-manager-architecture §10) and the
+   * DB-level temp-session ref prune / entry report (file-manager-architecture
+   * §7 Layer 3) concurrently, returning a single `OrphanReport` once all
+   * three settle. Running the cleanup pass first means the DB sweep's
+   * zero-ref report doesn't re-report entries the pass just reclaimed.
+   * Caller-initiated via the `File_RunSweep` IPC channel; there is no startup
+   * auto-run and no user-facing UI trigger. The cleanup pass's own outcome
+   * rides in `counts.entryCleanup` and never changes the umbrella `outcome`
+   * below.
    *
    * Each branch absorbs its own errors via inner try/catch and surfaces
    * them through the umbrella `OrphanReport`:
@@ -734,6 +769,7 @@ export class FileManager extends BaseService implements IFileManager {
    * - Both clean → `outcome: 'completed'`.
    */
   async runSweep(): Promise<OrphanReport> {
+    const cleanupReport = await this.runEntryCleanup()
     const startedAt = Date.now()
     const fsSweepPromise = runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch(
       (err): FileSweepReport => {
@@ -785,7 +821,8 @@ export class FileManager extends BaseService implements IFileManager {
       orphanRefsByType: dbReport.orphanRefsByType,
       orphanRefsTotal: dbReport.orphanRefsTotal,
       orphanEntriesByOrigin: dbReport.orphanEntriesByOrigin,
-      orphanEntriesTotal: dbReport.orphanEntriesTotal
+      orphanEntriesTotal: dbReport.orphanEntriesTotal,
+      entryCleanup: summariseEntryCleanup(cleanupReport)
     }
     const fsSweepIssue = summariseFsSweepIssue(fsReport)
     switch (dbReport.outcome) {

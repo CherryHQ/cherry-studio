@@ -2211,7 +2211,11 @@ describe('AgentComposer', () => {
       ]
     })
     expect(mocks.createInternalEntry).toHaveBeenCalledTimes(1)
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/local.md' })
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/local.md',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
 
     const userMessageParts = mocks.sendMessage.mock.calls[0]?.[1]?.body?.userMessageParts
     expect(userMessageParts?.map((part) => part.type)).toEqual(['text', 'file', 'file', 'file'])
@@ -2348,7 +2352,11 @@ describe('AgentComposer', () => {
     // The FileEntry is created at send time: the file part carries both file identities,
     // a file:// URL, and a real MIME instead of the raw path / literal extension.
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
-    expect(mocks.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/notes.md' })
+    expect(mocks.createInternalEntry).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/notes.md',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {

@@ -1,4 +1,4 @@
-import type { FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { ImageTransportDescriptor } from '../imageGenerationModel'
@@ -29,6 +29,8 @@ export interface ImageGenerationJobPayload {
    *  here so a restart-resume reaches the right endpoint / response family. */
   modelDescriptor?: ImageTransportDescriptor
   providerParams: Record<string, unknown>
+  /** Stamped on the persisted output FileEntries — decided by the requesting business feature. */
+  cleanupPolicy: CleanupPolicy
 }
 
 /** Job output — the persisted result FileEntries the IPC layer returns verbatim. */
