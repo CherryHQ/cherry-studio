@@ -222,6 +222,10 @@ vi.mock('react-i18next', async (importOriginal) => {
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
+          'agent.settings.tooling.permissionMode.acceptEdits.title': 'Auto-edit Mode',
+          'agent.settings.tooling.permissionMode.bypassPermissions.title': 'Full Auto Mode',
+          'agent.settings.tooling.permissionMode.default.title': 'Normal Mode',
+          'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
           'common.avatar': 'Avatar',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
@@ -260,10 +264,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.env_vars.label': 'Environment variables',
           'library.config.agent.field.env_vars.placeholder': 'KEY=value\nANOTHER_KEY=another_value',
           'library.config.agent.field.permission_mode.label': 'Permission mode',
-          'library.config.agent.field.permission_mode.option.acceptEdits': 'Auto-edit Mode',
-          'library.config.agent.field.permission_mode.option.bypassPermissions': 'Full Auto Mode',
-          'library.config.agent.field.permission_mode.option.default': 'Normal Mode',
-          'library.config.agent.field.permission_mode.option.plan': 'Plan Mode',
           'library.config.agent.section.permission.desc': 'Permission options.',
           'library.config.agent.section.permission.title': 'Permission',
           'library.config.agent.section.tools.add': 'Add',
@@ -962,6 +962,21 @@ describe('edit dialogs', () => {
 
     selectTab('Skills')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('opens the agent edit dialog directly on the requested initial tab', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
+
+    expect(screen.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('opens the assistant edit dialog directly on the requested initial tab', () => {
+    render(
+      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.mcp" />
+    )
+
+    expect(screen.getByRole('tab', { name: 'MCP' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('auto-saves agent skill toggles after a debounce', async () => {

@@ -1852,6 +1852,9 @@ export default function ComposerSurface({
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
   const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
+  // Preserve the open-time category seed so a re-list keeps category views (opened via a toolbar
+  // shortcut) distinct from the bare root panel — e.g. it keeps the "customize toolbar" chrome hidden.
+  const rootQuickPanelInitialSearchText = quickPanel.initialSearchText
   useEffect(() => {
     if (!isRootQuickPanelVisible) {
       unifiedPanelListRefreshKeyRef.current = undefined
@@ -1862,6 +1865,7 @@ export default function ComposerSurface({
     const nextList = createUnifiedPanelOptions({
       inputAdapter,
       resourceItems: unifiedResourceItems,
+      initialSearchText: rootQuickPanelInitialSearchText,
       queryAnchor: rootQuickPanelQueryAnchor,
       triggerInfo: rootQuickPanelTriggerInfo
     }).list
@@ -1891,6 +1895,7 @@ export default function ComposerSurface({
     createUnifiedPanelOptions,
     inputAdapter,
     isRootQuickPanelVisible,
+    rootQuickPanelInitialSearchText,
     rootQuickPanelQueryAnchor,
     rootQuickPanelTriggerInfo,
     rootPanelAdditionalItems,
