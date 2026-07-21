@@ -1436,8 +1436,11 @@ export class BinaryManager extends BaseService {
     if (dependentBackends.size === 0) return []
 
     // This full scan is deliberately separate from the targeted absence probe:
-    // unreadable backend state must block a destructive runtime removal.
-    const { stdout } = await this.runMise(['ls', '--json'])
+    // unreadable backend state must block a destructive runtime removal. `--installed`
+    // is required: a plain `mise ls` also lists tools declared in config but not
+    // installed (each carries `installed: false`), which would otherwise be counted
+    // as a live dependent and block the runtime removal indefinitely.
+    const { stdout } = await this.runMise(['ls', '--installed', '--json'])
     const installed: unknown = JSON.parse(stdout)
     if (!installed || typeof installed !== 'object' || Array.isArray(installed)) {
       throw new Error('mise returned invalid installed-tool state')

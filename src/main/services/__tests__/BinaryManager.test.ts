@@ -1158,13 +1158,11 @@ describe('BinaryManager', () => {
     it('blocks a runtime removal as query_failed when the dependent scan is unreadable', async () => {
       const service = makeService()
       manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: '22.0.0' }]
-      let fullListings = 0
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls' && args.length === 2) {
-          fullListings++
-          if (fullListings > 1) throw new Error('dependent scan failed')
+        // The dependent scan is the `--installed` listing; make only it unreadable.
+        if (args[0] === 'ls' && args.includes('--installed')) throw new Error('dependent scan failed')
+        if (args[0] === 'ls')
           return { stdout: JSON.stringify({ node: [{ version: '22.0.0', active: true }] }), stderr: '' }
-        }
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/node\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
@@ -1207,6 +1205,35 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['uninstall', '--all', 'core:node'])
       expect(manifestRef.value).toContainEqual({ name: 'node', tool: 'core:node', requestedVersion: '22.0.0' })
       expect(operations()).toEqual({})
+    })
+
+    it('does not treat a config-declared but uninstalled dependent as a runtime blocker', async () => {
+      const service = makeService()
+      manifestRef.value = [
+        { name: 'node', tool: 'core:node', requestedVersion: '22.0.0' },
+        { name: 'ntn', tool: 'npm:ntn' }
+      ]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        // Post-cleanup absence probe for the exact runtime spec.
+        if (args[0] === 'ls' && args.includes('core:node')) return { stdout: '{}', stderr: '' }
+        // Dependent scan uses --installed, so the config-only npm:ntn is filtered out.
+        if (args[0] === 'ls' && args.includes('--installed'))
+          return { stdout: JSON.stringify({ node: [{ version: '22.0.0', active: true }] }), stderr: '' }
+        // Plain listing still surfaces npm:ntn as declared-but-not-installed.
+        if (args[0] === 'ls')
+          return {
+            stdout: JSON.stringify({
+              node: [{ version: '22.0.0', active: true }],
+              'npm:ntn': [{ version: '1.0.0', installed: false }]
+            }),
+            stderr: ''
+          }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/node\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.removeTool({ name: 'node' })).resolves.toEqual({ status: 'removed' })
+      expect(miseArgs()).toContainEqual(['uninstall', '--all', 'core:node'])
     })
 
     it('blocks with cleanup_failed when a cleanup command fails, retaining the custom definition', async () => {
