@@ -8,8 +8,8 @@
  * - FileStager / KB / Notes resource staging are **deferred** — `stageFileResources`
  *   returns `[]` (same DB-only contract as packaged `BackupService.startRestore`).
  *
- * Out of scope: file blob promotion, knowledge/notes stagers, OVERWRITE/RENAME,
- * natural-key FIELD_MERGE (those throw `MergeStrategyNotImplementedError`).
+ * Out of scope: file blob promotion, knowledge/notes stagers, explicit OVERWRITE/RENAME
+ * strategies, and the multi-domain backfill/conflict matrix (see `restore.full.test.ts`).
  */
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'

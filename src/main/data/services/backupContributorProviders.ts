@@ -11,12 +11,14 @@
 // FIELD_MERGE, §6.2) — column-level merge keeps the local API key and fills in
 // fields only present remotely, preventing API key loss on restore.
 //
-// renamable:false — user_model.id is a derived key (NOT a stable cross-device
-// identity; two devices generate different ids for the same provider+model pair).
-// The real model identity is the UNIQUE(providerId, modelId) pair. A RENAME clone
-// would have to re-derive model ids and rewrite every cross-domain FK that points
-// at them (message.modelId, assistant.modelId, knowledge_base.embeddingModelId,
-// etc.) — no safe clone path, so RENAME degrades to SKIP (architecture §3.5/§5).
+// renamable:false — user_model.id is a derived key ("providerId::modelId",
+// deterministic: the same provider+model pair yields the SAME id across devices —
+// which is exactly why backfill-INSERT keeping the backup PK lets cross-domain FKs
+// like message.modelId resolve naturally on a fresh install). The business model
+// identity is the UNIQUE(providerId, modelId) pair. A RENAME clone would have to
+// re-derive model ids and rewrite every cross-domain FK that points at them
+// (message.modelId, assistant.modelId, knowledge_base.embeddingModelId, etc.) —
+// no safe clone path, so RENAME degrades to SKIP (architecture §3.5/§5).
 //
 // Preset: full + lite (configuration domain — users need their model service
 // config + API keys on a new machine).

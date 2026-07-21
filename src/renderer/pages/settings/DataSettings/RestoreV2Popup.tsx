@@ -97,8 +97,10 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       const message = error instanceof Error ? error.message : String(error)
       const code = (error as { code?: string }).code ?? null
       logger.warn('v2 restore failed', error as Error)
-      // MVP merge is SKIP-only — OVERWRITE/RENAME / natural-key FIELD_MERGE surface as
-      // BACKUP_MERGE_STRATEGY_UNSUPPORTED (or the raw MergeStrategyNotImplementedError name).
+      // The default restore path (backfill + SKIP-on-conflict) never raises a strategy
+      // error; an explicit OVERWRITE/RENAME/FIELD_MERGE strategy (no UI sends one yet)
+      // surfaces as BACKUP_MERGE_STRATEGY_UNSUPPORTED (or the raw
+      // MergeStrategyNotImplementedError name). Kept as a defensive branch.
       const skipOnly =
         code === 'BACKUP_MERGE_STRATEGY_UNSUPPORTED' ||
         (error as { name?: string }).name === 'MergeStrategyNotImplementedError'

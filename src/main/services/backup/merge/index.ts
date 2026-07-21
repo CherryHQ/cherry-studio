@@ -8,11 +8,10 @@
 // Deep imports into individual files are disallowed by the main-process architecture rule
 // (Naming Conventions §6.4 — a topic directory's index.ts is the boundary).
 //
-// Wiring status: the engine is landed + unit-tested (junction phase, FTS rebuild,
-// FTS + app_state consistency checks) and wired into BackupService.startRestore via
-// MergeEngine.mergeBackupIntoWork. Production restore stays fail-closed on the
-// quiesce stub (throws RestoreQuiesceNotImplementedError before merge runs) and on
-// file-resource staging until those tracks land.
+// Wiring status: the engine is landed + unit-tested (backfill/SKIP decisions, junction
+// phase, dangling-ref repair, FTS rebuild, FTS + app_state consistency checks) and wired
+// into BackupService.startRestore via MergeEngine.mergeBackupIntoWork under partial
+// quiesce. File-resource staging is still deferred (DB-only journal).
 //
 // No logic, no `export *` — only curated re-exports.
 
