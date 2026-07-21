@@ -193,7 +193,13 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
               isLaunchpad &&
                 'size-[58px] rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none'
             )}>
-            <MiniAppIcon size={size} app={app} appearance={isLaunchpad ? 'plain' : 'avatar'} />
+            {isLaunchpad ? (
+              <div className="mini-app-icon-clip flex size-full items-center justify-center overflow-hidden rounded-[inherit]">
+                <MiniAppIcon size={size} app={app} appearance="plain" />
+              </div>
+            ) : (
+              <MiniAppIcon size={size} app={app} appearance="avatar" />
+            )}
             {isOpened && (
               <div
                 className={cn(

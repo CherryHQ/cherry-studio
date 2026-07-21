@@ -1058,13 +1058,13 @@ describe('ModelService — reasoning descriptor enrichment', () => {
       { dto: { providerId: 'my-compat', modelId: 'glm-4.6', capabilities: [MODEL_CAPABILITY.REASONING] } }
     ])
 
-    expect(created.reasoning?.controls).toEqual([{ kind: 'budget', min: 0, max: 30_720 }, { kind: 'toggle' }])
+    expect(created.reasoning?.controls).toEqual([{ kind: 'toggle' }])
 
     const [row] = await dbh.db
       .select()
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'my-compat'), eq(userModelTable.modelId, 'glm-4.6')))
-    expect((row.reasoning as { thinkingTokenLimits?: unknown })?.thinkingTokenLimits).toEqual({ min: 0, max: 30_720 })
+    expect((row.reasoning as { controls?: unknown })?.controls).toEqual([{ kind: 'toggle' }])
   })
 
   it('keeps a DTO-supplied descriptor over inference at create time', async () => {

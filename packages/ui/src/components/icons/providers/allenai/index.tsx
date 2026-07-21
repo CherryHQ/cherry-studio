@@ -9,7 +9,7 @@ const Allenai = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AllenaiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Allenai, {
   Avatar: AllenaiAvatar,
-  colorPrimary: '#F8F0E9'
+  colorPrimary: '#F0529C'
 })
 
 export default AllenaiIcon

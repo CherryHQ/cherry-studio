@@ -2282,6 +2282,7 @@
     "swap": "Swap",
     "topics": "Conversations",
     "translate_text": "Translate text",
+    "undo": "Undo",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
     "unsubscribe": "Unsubscribe",
@@ -3418,6 +3419,11 @@
         "insert_variable": "Insert variable",
         "label": "System prompt",
         "placeholder": "Enter instructions for the assistant, such as response style, role, or background context",
+        "polish": "Polish prompt",
+        "polish_failed_description": "Check or change the default model, then try again.",
+        "polish_failed_title": "Failed to polish prompt",
+        "polish_variables_changed_description": "The polished result changed or removed prompt variables. Try again.",
+        "polish_variables_changed_title": "Could not apply polished prompt",
         "title": "Prompt",
         "tokens_label": "Tokens: ",
         "variables_description": "Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.",
@@ -4888,6 +4894,7 @@
     "install": "Install",
     "install_plugins_from_browser": "Browse available skills to get started",
     "installing": "Installing...",
+    "manage_skills": "Manage skills",
     "name": "Name",
     "no_description": "No description available",
     "no_installed_plugins": "No skills installed yet",
@@ -5630,16 +5637,17 @@
         "path_changed_without_copy": "Path changed successfully",
         "restart_notice": "The app may need to restart multiple times to apply the changes",
         "select": "Modify Directory",
-        "select_error": "Failed to change data directory",
+        "select_error": "The selected directory may be used by another Cherry Studio instance. Close other instances and try again. If none are running, remove stale SingletonLock and SingletonSocket files from that directory.",
         "select_error_in_app_path": "New path is the same as the application installation path, please select another path",
+        "select_error_protected_path": "The selected path is protected by the operating system or Cherry Studio. Please choose another folder.",
         "select_error_root_path": "New path cannot be the root path",
         "select_error_same_path": "New path is the same as the old path, please select another path",
         "select_error_write_permission": "New path does not have write permission",
         "select_not_empty_dir": "New path is not empty",
-        "select_not_empty_dir_content": "New path is not empty, it will overwrite the data in the new path, there is a risk of data loss and copy failure, continue?",
         "select_success": "Data directory changed, the app will restart to apply changes",
         "select_title": "Change App Data Directory",
-        "stop_quit_app_reason": "The app is currently migrating data and cannot be exited"
+        "stop_quit_app_reason": "The app is currently migrating data and cannot be exited",
+        "switch_existing_notice": "This non-empty directory will be used as-is. Its existing files will not be overwritten."
       },
       "app_logs": {
         "button": "Open Logs",
@@ -6863,6 +6871,7 @@
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
       "empty": "No models found",
+      "empty_hint": "Click the Get model list button above to add models.",
       "enabled_models": "Enabled",
       "expand_all": "Expand all",
       "filter": {
@@ -7377,9 +7386,6 @@
         "usage_title": "Usage",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
-      },
       "reasoning_dialect": {
         "anthropic": "thinking (Claude)",
         "dashscope": "enable_thinking + streaming (DashScope)",
@@ -7470,6 +7476,7 @@
         "autoEmpty": "No enabled MCP servers",
         "description": "View current MCP server status",
         "disabled": "MCP is disabled for this assistant",
+        "open_config": "Configure MCP servers",
         "unknownServer": "Unknown MCP server"
       },
       "multiple": "Multiple Select",

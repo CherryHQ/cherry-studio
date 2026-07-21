@@ -38,8 +38,9 @@ vi.mock('../ModelDrawer', () => ({
   EditModelDrawer: () => null
 }))
 
-const { modelListGroupMock, searchTextMock } = vi.hoisted(() => ({
+const { modelListGroupMock, modelListStateMock, searchTextMock } = vi.hoisted(() => ({
   modelListGroupMock: vi.fn(({ groupName }: { groupName: string }) => <div>{groupName}</div>),
+  modelListStateMock: { hasNoModels: false, hasVisibleModels: true },
   searchTextMock: { value: '' }
 }))
 
@@ -51,15 +52,15 @@ vi.mock('../useProviderModelList', () => ({
   useProviderModelList: () => ({
     header: {
       modelCount: 1,
-      hasVisibleModels: true,
-      hasNoModels: false,
+      hasVisibleModels: modelListStateMock.hasVisibleModels,
+      hasNoModels: modelListStateMock.hasNoModels,
       searchText: searchTextMock.value,
       setSearchText: vi.fn()
     },
     sections: {
       isLoading: false,
-      hasNoModels: false,
-      hasVisibleModels: true,
+      hasNoModels: modelListStateMock.hasNoModels,
+      hasVisibleModels: modelListStateMock.hasVisibleModels,
       displayEnabledModelCount: 1,
       enabledSections: [{ groupName: 'OpenAI', items: [] }],
       disabled: false,
@@ -80,7 +81,20 @@ vi.mock('../useProviderModelList', () => ({
 describe('ProviderModelList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    modelListStateMock.hasNoModels = false
+    modelListStateMock.hasVisibleModels = true
     searchTextMock.value = ''
+  })
+
+  it('shows guidance to get models when the provider has no models', () => {
+    modelListStateMock.hasNoModels = true
+    modelListStateMock.hasVisibleModels = false
+
+    const { container } = render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
+    expect(screen.getByText('settings.models.empty_hint')).toBeInTheDocument()
+    expect(container.querySelector('.lucide-box')).toBeInTheDocument()
   })
 
   it('renders model groups without section action rows', () => {
