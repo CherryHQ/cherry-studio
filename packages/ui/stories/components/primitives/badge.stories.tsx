@@ -64,7 +64,7 @@ export const Outline: Story = {
 }
 
 // Highlight — feature-pill for tagging "New" / "PRO" / "Beta" next to titles.
-// Mint-green accent that's deliberately distinct from the success status family.
+// Uses the existing success palette so the variant does not require additional tokens.
 export const Highlight: Story = {
   args: {
     variant: 'highlight',
