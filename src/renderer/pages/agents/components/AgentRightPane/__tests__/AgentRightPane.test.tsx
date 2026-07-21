@@ -14,16 +14,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
-const { buildAgentToolFlowProjectionMock, fileTreeModelState, useArtifactFileTreeModelMock, useCommandHandlerMock } =
-  vi.hoisted(() => ({
-    buildAgentToolFlowProjectionMock: vi.fn(),
-    fileTreeModelState: {
-      hasLoaded: false,
-      nodeById: new Map<string, { kind: string }>()
-    },
-    useArtifactFileTreeModelMock: vi.fn(),
-    useCommandHandlerMock: vi.fn()
-  }))
+const {
+  buildAgentToolFlowProjectionMock,
+  fileTreeModelState,
+  tracePaneModuleLoadMock,
+  useArtifactFileTreeModelMock,
+  useCommandHandlerMock
+} = vi.hoisted(() => ({
+  buildAgentToolFlowProjectionMock: vi.fn(),
+  fileTreeModelState: {
+    hasLoaded: false,
+    nodeById: new Map<string, { kind: string }>()
+  },
+  tracePaneModuleLoadMock: vi.fn(),
+  useArtifactFileTreeModelMock: vi.fn(),
+  useCommandHandlerMock: vi.fn()
+}))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
   const actual = await importActual<typeof AgentRightPaneProjection>()
@@ -160,9 +166,12 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
   useArtifactFileTreeModel: useArtifactFileTreeModelMock
 }))
 
-vi.mock('@renderer/components/chat/trace/TracePane', () => ({
-  TracePane: () => <div data-testid="trace-pane" />
-}))
+vi.mock('@renderer/components/chat/trace/TracePane', () => {
+  tracePaneModuleLoadMock()
+  return {
+    TracePane: () => <div data-testid="trace-pane" />
+  }
+})
 
 vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
@@ -548,7 +557,7 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
-  it('keeps a visited trace capability mounted while inactive', () => {
+  it('loads the trace capability on demand and keeps it mounted while inactive', async () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
@@ -556,8 +565,11 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
+    expect(tracePaneModuleLoadMock).not.toHaveBeenCalled()
+
     fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
-    const tracePane = screen.getByTestId('trace-pane')
+    const tracePane = await screen.findByTestId('trace-pane')
+    expect(tracePaneModuleLoadMock).toHaveBeenCalledOnce()
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
     expect(screen.getByTestId('trace-pane')).toBe(tracePane)

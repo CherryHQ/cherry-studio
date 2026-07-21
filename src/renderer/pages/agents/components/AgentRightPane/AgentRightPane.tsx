@@ -28,7 +28,6 @@ import {
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -51,7 +50,19 @@ import {
   Waypoints
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  lazy,
+  memo,
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
@@ -69,6 +80,10 @@ import {
 const FLOW_TAB_PREFIX = 'flow:'
 const MAX_FLOW_TAB_TITLE_LENGTH = 32
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
+
+const TracePane = lazy(() =>
+  import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
+)
 
 function getFlowTabValue(toolCallId: string): string {
   return `${FLOW_TAB_PREFIX}${toolCallId}`
@@ -638,7 +653,11 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
 
 function AgentTraceRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const traceTopicId = scope.meta.sessionId ? buildAgentSessionTopicId(scope.meta.sessionId) : ''
-  return <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />
+  return (
+    <Suspense fallback={null}>
+      <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />
+    </Suspense>
+  )
 }
 
 function resolveAgentFilesReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
