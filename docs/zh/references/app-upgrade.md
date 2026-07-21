@@ -1,6 +1,6 @@
 # 更新配置系统设计文档
 
-> **兼容性说明**：当前客户端已经不再读取 `app-upgrade-config.json`。该文件和自动化工作流仅为已经发布、仍依赖旧配置的客户端保留，请勿直接删除。
+> **兼容性说明**：当前客户端已经不再读取 `app-upgrade-config.json`。该文件仅作为旧版本客户端的兼容遗留保留，本仓库不再自动更新它。
 
 当前客户端统一通过 `https://releases.cherry-ai.com` 检查更新。客户端只负责选择 `latest`、`rc` 或 `beta` 清单，并发送 `App-Version`、`OS`、`Client-Id` 和 `X-Region`；客户端是默认请求方，因此不发送 `X-Release-Channel`。具体版本、国内外镜像、灰度范围和中转版本由发布服务决定。
 
@@ -8,7 +8,7 @@
 
 ## 旧客户端背景
 
-当前 AppUpdater 直接请求 GitHub API 获取 beta 和 rc 的更新信息。为了支持国内用户，需要根据 IP 地理位置，分别从 GitHub/GitCode 获取一个固定的 JSON 配置文件，该文件包含所有渠道的更新地址。
+旧版 AppUpdater 会根据 IP 地理位置，从 GitHub 或 GitCode 获取固定的 JSON 配置文件，其中包含各渠道的更新地址。这里保留相关说明，仅用于解释旧客户端的升级路径。
 
 ## 设计目标
 
@@ -23,39 +23,9 @@
 - **v1.7.0 以下**的用户必须先升级到 v1.7.0（或更高的 1.7.x 版本）
 - **v1.7.0 及以上**的用户可以直接升级到 v2.x.x
 
-## 自动化工作流
+## 旧配置状态
 
-`x-files/app-upgrade-config/app-upgrade-config.json` 由 [`Update App Upgrade Config`](../../.github/workflows/update-app-upgrade-config.yml) workflow 自动同步。工作流会调用 [`scripts/update-app-upgrade-config.ts`](../../scripts/update-app-upgrade-config.ts) 脚本，根据指定 tag 更新 `x-files/app-upgrade-config` 分支上的配置文件。
-
-### 触发条件
-
-- **Release 事件（`release: released/prereleased`）**  
-  - Draft release 会被忽略。  
-  - 当 GitHub 将 release 标记为 *prerelease* 时，tag 必须包含 `-beta`/`-rc`（可带序号），否则直接跳过。  
-  - 当 release 标记为稳定版时，tag 必须与 GitHub API 返回的最新稳定版本一致，防止发布历史 tag 时意外挂起工作流。  
-  - 满足上述条件后，工作流会根据语义化版本判断渠道（`latest`/`beta`/`rc`），并通过 `IS_PRERELEASE` 传递给脚本。
-- **手动触发（`workflow_dispatch`）**  
-  - 必填：`tag`（例：`v2.0.1`）；选填：`is_prerelease`（默认 `false`）。  
-  - 当 `is_prerelease=true` 时，同样要求 tag 带有 beta/rc 后缀。  
-  - 手动运行仍会请求 GitHub 最新 release 信息，用于在 PR 说明中标注该 tag 是否是最新稳定版。
-
-### 工作流步骤
-
-1. **检查与元数据准备**：`Check if should proceed` 和 `Prepare metadata` 步骤会计算 tag、prerelease 标志、是否最新版本以及用于分支名的 `safe_tag`。若任意校验失败，工作流立即退出。
-2. **检出分支**：默认分支被检出到 `main/`，长期维护的 `x-files/app-upgrade-config` 分支则在 `cs/` 中，所有改动都发生在 `cs/`。
-3. **安装工具链**：安装 Node.js 22、启用 Corepack，并在 `main/` 目录执行 `pnpm install --frozen-lockfile`。
-4. **运行更新脚本**：执行 `pnpm tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json --is-prerelease <flag>`。  
-   - 脚本会标准化 tag（去掉 `v` 前缀等）、识别渠道、加载 `config/app-upgrade-segments.json` 中的分段规则。  
-   - 校验 prerelease 标志与语义后缀是否匹配、强制锁定的 segment 是否满足、生成镜像的下载地址，并检查 release 是否已经在 GitHub/GitCode 可用（latest 渠道在 GitCode 不可用时会回退到 `https://releases.cherry-ai.com`）。  
-   - 更新对应的渠道配置后，脚本会按 semver 排序写回 JSON，并刷新 `lastUpdated`。
-5. **检测变更并创建 PR**：若 `cs/app-upgrade-config.json` 有变更，则创建 `chore/update-app-upgrade-config/<safe_tag>` 分支，提交信息为 `🤖 chore: sync app-upgrade-config for <tag>`，并向 `x-files/app-upgrade-config` 提 PR；无变更则输出提示。
-
-### 手动触发指南
-
-1. 进入 Cherry Studio 仓库的 GitHub **Actions** 页面，选择 **Update App Upgrade Config** 工作流。
-2. 点击 **Run workflow**，保持默认分支（通常为 `main`），填写 `tag`（如 `v2.1.0`）。  
-3. 只有在 tag 带 `-beta`/`-rc` 后缀时才勾选 `is_prerelease`，稳定版保持默认。  
-4. 启动运行并等待完成，随后到 `x-files/app-upgrade-config` 分支的 PR 查看 `app-upgrade-config.json` 的变更并在验证后合并。
+`x-files/app-upgrade-config` 分支及其镜像上的 `app-upgrade-config.json` 仅为已经发布的旧客户端保留。本仓库不再提供更新它们的 workflow、脚本或 package 命令；如需退役这些旧文件，必须另行制定旧客户端迁移方案。
 
 ## JSON 配置文件格式
 
@@ -64,7 +34,7 @@
 - **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json`
 - **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/x-files/app-upgrade-config/app-upgrade-config.json`
 
-**说明**：两个镜像源提供相同的配置文件，统一托管在 `x-files/app-upgrade-config` 分支上。客户端根据 IP 地理位置自动选择最优镜像源。
+**说明**：两个镜像源提供相同的配置文件，统一托管在 `x-files/app-upgrade-config` 分支上。旧客户端根据 IP 地理位置选择镜像源。
 
 ### 配置结构（当前实际配置）
 
@@ -172,9 +142,9 @@
       - `feedUrls`: 多镜像源 URL 配置
         - `github`: GitHub 镜像源的 electron-updater feed URL
         - `gitcode`: GitCode 镜像源的 electron-updater feed URL
-  - `metadata`: 自动化匹配所需的稳定标识
-    - `segmentId`: 来自 `config/app-upgrade-segments.json` 的段位 ID
-    - `segmentType`: 可选字段（`legacy` | `breaking` | `latest`），便于文档/调试
+  - `metadata`: 历史段位信息
+    - `segmentId`: 遗留段位标识
+    - `segmentType`: 可选的遗留标记（`legacy` | `breaking` | `latest`）
 
 ## TypeScript 类型定义
 
@@ -217,22 +187,9 @@ interface ChannelConfig {
 }
 ```
 
-## 段位元数据（Break Change 标记）
+## 遗留段位元数据
 
-- 所有段位定义（如 `legacy-v1`、`gateway-v2` 等）集中在 `config/app-upgrade-segments.json`，用于描述匹配范围、`segmentId`、`segmentType`、默认 `minCompatibleVersion/description` 以及各渠道的 URL 模板。
-- `versions` 下的每个节点都会带上 `metadata.segmentId`。自动脚本始终依据该 ID 来定位并更新条目，即便 key 从 `2.1.5` 切换到 `2.1.6` 也不会错位。
-- 如果某段需要锁死在特定版本（例如 `2.0.0` 的 break change），可在段定义中设置 `segmentType: "breaking"` 并提供 `lockedVersion`，脚本在遇到不匹配的 tag 时会短路报错，保证升级路径安全。
-- 面对未来新的断层（例如 `3.0.0`），只需要在段定义里新增一段，自动化即可识别并更新。
-
-## 自动化工作流
-
-`.github/workflows/update-app-upgrade-config.yml` 会在 GitHub Release（包含正常发布与 Pre Release）触发：
-
-1. 同时 Checkout 仓库默认分支（用于脚本）和 `x-files/app-upgrade-config` 分支（真实托管配置的分支）。
-2. 在默认分支目录执行 `pnpm tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json`，直接重写 `x-files/app-upgrade-config` 分支里的配置文件。
-3. 如果 `app-upgrade-config.json` 有变化，则通过 `peter-evans/create-pull-request` 自动创建一个指向 `x-files/app-upgrade-config` 的 PR，Diff 仅包含该文件。
-
-如需本地调试，可执行 `pnpm update:upgrade-config --tag v2.1.6 --config ../cs/app-upgrade-config.json`（加 `--dry-run` 仅打印结果）来复现 CI 行为。若需要暂时跳过 GitHub/GitCode Release 页面是否就绪的校验，可在 `--dry-run` 的同时附加 `--skip-release-checks`。不加 `--config` 时默认更新当前工作目录（通常是 main 分支）下的副本，方便文档/审查。
+配置条目中可能仍包含由已删除自动化生成的 `metadata.segmentId` 和 `metadata.segmentType`。它们只是保留在旧配置中的历史数据，当前客户端不会读取。
 
 ## 版本匹配逻辑
 

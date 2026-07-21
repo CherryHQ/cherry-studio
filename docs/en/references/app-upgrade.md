@@ -1,6 +1,6 @@
 # Update Configuration System Design Document
 
-> **Compatibility note**: Current clients no longer read `app-upgrade-config.json`. The file and its automation remain only for already-released clients that still depend on the legacy configuration and must not be removed without a separate migration plan.
+> **Compatibility note**: Current clients no longer read `app-upgrade-config.json`. The file remains only as a legacy artifact for already-released clients, but this repository no longer updates it automatically.
 
 Current clients check for updates through `https://releases.cherry-ai.com`. The client selects only the `latest`, `rc`, or `beta` manifest and sends `App-Version`, `OS`, `Client-Id`, and `X-Region`. Client requests are the default, so the app omits `X-Release-Channel`. The release service determines the concrete version, regional mirror, rollout audience, and required upgrade gateway.
 
@@ -8,7 +8,7 @@ A test channel expresses the least stable build the user accepts; it does not pe
 
 ## Legacy Client Background
 
-Currently, AppUpdater directly queries the GitHub API to retrieve beta and rc update information. To support users in China, we need to fetch a static JSON configuration file from GitHub/GitCode based on IP geolocation, which contains update URLs for all channels.
+Legacy AppUpdater implementations queried a static JSON configuration file from GitHub or GitCode based on IP geolocation. The file contains update URLs for each channel and remains documented only to explain the old-client upgrade path.
 
 ## Design Goals
 
@@ -23,39 +23,9 @@ Currently, AppUpdater directly queries the GitHub API to retrieve beta and rc up
 - Users **below v1.7.0** must first upgrade to v1.7.0 (or higher 1.7.x version)
 - Users **v1.7.0 and above** can directly upgrade to v2.x.x
 
-## Automation Workflow
+## Legacy Configuration Status
 
-The `x-files/app-upgrade-config/app-upgrade-config.json` file is synchronized by the [`Update App Upgrade Config`](../../.github/workflows/update-app-upgrade-config.yml) workflow. The workflow runs the [`scripts/update-app-upgrade-config.ts`](../../scripts/update-app-upgrade-config.ts) helper so that every release tag automatically updates the JSON in `x-files/app-upgrade-config`.
-
-### Trigger Conditions
-
-- **Release events (`release: released/prereleased`)**  
-  - Draft releases are ignored.  
-  - When GitHub marks the release as _prerelease_, the tag must include `-beta`/`-rc` (with optional numeric suffix). Otherwise the workflow exits early.  
-  - When GitHub marks the release as stable, the tag must match the latest release returned by the GitHub API. This prevents out-of-order updates when publishing historical tags.  
-  - If the guard clauses pass, the version is tagged as `latest` or `beta/rc` based on its semantic suffix and propagated to the script through the `IS_PRERELEASE` flag.
-- **Manual dispatch (`workflow_dispatch`)**  
-  - Required input: `tag` (e.g., `v2.0.1`). Optional input: `is_prerelease` (defaults to `false`).  
-  - When `is_prerelease=true`, the tag must carry a beta/rc suffix, mirroring the automatic validation.  
-  - Manual runs still download the latest release metadata so that the workflow knows whether the tag represents the newest stable version (for documentation inside the PR body).
-
-### Workflow Steps
-
-1. **Guard + metadata preparation** – the `Check if should proceed` and `Prepare metadata` steps compute the target tag, prerelease flag, whether the tag is the newest release, and a `safe_tag` slug used for branch names. When any rule fails, the workflow stops without touching the config.
-2. **Checkout source branches** – the default branch is checked out into `main/`, while the long-lived `x-files/app-upgrade-config` branch lives in `cs/`. All modifications happen in the latter directory.
-3. **Install toolchain** – Node.js 22, Corepack, and frozen pnpm dependencies are installed inside `main/`.
-4. **Run the update script** – `pnpm tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json --is-prerelease <flag>` updates the JSON in-place.  
-   - The script normalizes the tag (e.g., strips `v` prefix), detects the release channel (`latest`, `rc`, `beta`), and loads segment rules from `config/app-upgrade-segments.json`.  
-   - It validates that prerelease flags and semantic suffixes agree, enforces locked segments, builds mirror feed URLs, and performs release-availability checks (GitHub HEAD request for every channel; GitCode GET for latest channels, falling back to `https://releases.cherry-ai.com` when gitcode is delayed).  
-   - After updating the relevant channel entry, the script rewrites the config with semver-sort order and a new `lastUpdated` timestamp.
-5. **Detect changes + create PR** – if `cs/app-upgrade-config.json` changed, the workflow opens a PR `chore/update-app-upgrade-config/<safe_tag>` against `x-files/app-upgrade-config` with a commit message `🤖 chore: sync app-upgrade-config for <tag>`. Otherwise it logs that no update is required.
-
-### Manual Trigger Guide
-
-1. Open the Cherry Studio repository on GitHub → **Actions** tab → select **Update App Upgrade Config**.
-2. Click **Run workflow**, choose the default branch (usually `main`), and fill in the `tag` input (e.g., `v2.1.0`).  
-3. Toggle `is_prerelease` only when the tag carries a prerelease suffix (`-beta`, `-rc`). Leave it unchecked for stable releases.  
-4. Start the run and wait for it to finish. Check the generated PR in the `x-files/app-upgrade-config` branch, verify the diff in `app-upgrade-config.json`, and merge once validated.
+The `app-upgrade-config.json` copies hosted on the `x-files/app-upgrade-config` branch and its mirrors are retained only for already-released clients. This repository no longer provides a workflow, script, or package command for updating them. Retiring the legacy files requires a separate migration plan for those clients.
 
 ## JSON Configuration File Format
 
@@ -64,7 +34,7 @@ The `x-files/app-upgrade-config/app-upgrade-config.json` file is synchronized by
 - **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json`
 - **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/x-files/app-upgrade-config/app-upgrade-config.json`
 
-**Note**: Both mirrors provide the same configuration file hosted on the `x-files/app-upgrade-config` branch. The client automatically selects the optimal mirror based on IP geolocation.
+**Note**: Both mirrors provide the same configuration file hosted on the `x-files/app-upgrade-config` branch. Legacy clients select the mirror based on IP geolocation.
 
 ### Configuration Structure (Current Implementation)
 
@@ -172,9 +142,9 @@ When releasing v3.0, if users need to first upgrade to v2.8, you can add:
       - `feedUrls`: Multi-mirror URL configuration
         - `github`: electron-updater feed URL for GitHub mirror
         - `gitcode`: electron-updater feed URL for GitCode mirror
-  - `metadata`: Stable mapping info for automation
-    - `segmentId`: ID from `config/app-upgrade-segments.json`
-    - `segmentType`: Optional flag (`legacy` | `breaking` | `latest`) for documentation/debugging
+  - `metadata`: Historical segment information
+    - `segmentId`: Legacy segment identifier
+    - `segmentType`: Optional legacy flag (`legacy` | `breaking` | `latest`)
 
 ## TypeScript Type Definitions
 
@@ -217,22 +187,9 @@ interface ChannelConfig {
 }
 ```
 
-## Segment Metadata & Breaking Markers
+## Legacy Segment Metadata
 
-- **Segment definitions** now live in `config/app-upgrade-segments.json`. Each segment describes a semantic-version range (or exact matches) plus metadata such as `segmentId`, `segmentType`, `minCompatibleVersion`, and per-channel feed URL templates.
-- Each entry under `versions` carries a `metadata.segmentId`. This acts as the stable key that scripts use to decide which slot to update, even if the actual semantic version string changes.
-- Mark major upgrade gateways (e.g., `2.0.0`) by giving the related segment a `segmentType: "breaking"` and (optionally) `lockedVersion`. This prevents automation from accidentally moving that entry when other 2.x builds ship.
-- Adding another breaking hop (e.g., `3.0.0`) only requires defining a new segment in the JSON file; the automation will pick it up on the next run.
-
-## Automation Workflow
-
-Starting from this change, `.github/workflows/update-app-upgrade-config.yml` listens to GitHub release events (published + prerelease). The workflow:
-
-1. Checks out the default branch (for scripts) and the `x-files/app-upgrade-config` branch (where the config is hosted).
-2. Runs `pnpm tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json` to regenerate the config directly inside the `x-files/app-upgrade-config` working tree.
-3. If the file changed, it opens a PR against `x-files/app-upgrade-config` via `peter-evans/create-pull-request`, with the generated diff limited to `app-upgrade-config.json`.
-
-You can run the same script locally via `pnpm update:upgrade-config --tag v2.1.6 --config ../cs/app-upgrade-config.json` (add `--dry-run` to preview) to reproduce or debug whatever the workflow does. Passing `--skip-release-checks` along with `--dry-run` lets you bypass the release-page existence check (useful when the GitHub/GitCode pages aren't published yet). Running without `--config` continues to update the copy in your current working directory (main branch) for documentation purposes.
+Entries may still contain `metadata.segmentId` and `metadata.segmentType` values produced by the removed automation. They are historical data in the retained legacy configuration and are not consumed by current clients.
 
 ## Version Matching Logic
 
