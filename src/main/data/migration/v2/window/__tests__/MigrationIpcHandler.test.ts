@@ -100,12 +100,24 @@ describe('MigrationIpcHandler', () => {
   })
 
   it('derives summary and warnings on successful completion', async () => {
+    const promptWarning = {
+      key: 'migration.completed.warnings.prompt.repaired_timestamps',
+      params: { count: 2 },
+      defaultValue: 'Quick phrase timestamps repaired: 2'
+    }
     const result: MigrationResult = {
       success: true,
       totalDuration: 4200,
       migratorResults: [
         { migratorId: 'a', migratorName: 'A', success: true, recordsProcessed: 10, duration: 1000, warnings: ['w1'] },
-        { migratorId: 'b', migratorName: 'B', success: true, recordsProcessed: 5, duration: 3200 }
+        {
+          migratorId: 'b',
+          migratorName: 'B',
+          success: true,
+          recordsProcessed: 5,
+          duration: 3200,
+          warnings: [promptWarning]
+        }
       ]
     }
     engineMock.run.mockResolvedValue(result)
@@ -120,7 +132,7 @@ describe('MigrationIpcHandler', () => {
       itemsProcessed: 15,
       durationMs: 4200
     })
-    expect(progress.warnings).toEqual(['w1'])
+    expect(progress.warnings).toEqual(['w1', promptWarning])
   })
 
   it('uses the live migrator count for totalMigrators, distinct from completedMigrators', async () => {

@@ -514,7 +514,9 @@ const MigrationApp: React.FC = () => {
                     <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs leading-relaxed">
                       {warnings.map((warning, index) => (
                         <li key={index} className="wrap-break-words">
-                          {warning}
+                          {typeof warning === 'string'
+                            ? warning
+                            : t(warning.key, { ...warning.params, defaultValue: warning.defaultValue })}
                         </li>
                       ))}
                     </ul>

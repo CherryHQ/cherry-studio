@@ -119,11 +119,24 @@ describe('MigrationEngine', () => {
     ])
   })
 
-  it('aggregates prepare and execute warnings into the migrator result on success', async () => {
+  it('surfaces translatable prepare warnings without exposing raw prepare diagnostics', async () => {
     const events: string[] = []
     const migrator = createTestMigrator('knowledge', 1, events)
-    migrator.prepare.mockResolvedValueOnce({ success: true, itemCount: 0, warnings: ['prepare warn'] } as any)
-    migrator.execute.mockResolvedValueOnce({ success: true, processedCount: 0, warnings: ['execute warn'] } as any)
+    const prepareUserWarning = {
+      key: 'migration.completed.warnings.prepare',
+      defaultValue: 'localized prepare warn'
+    }
+    migrator.prepare.mockResolvedValueOnce({
+      success: true,
+      itemCount: 0,
+      warnings: ['prepare warn'],
+      userWarnings: [prepareUserWarning]
+    } as any)
+    migrator.execute.mockResolvedValueOnce({
+      success: true,
+      processedCount: 0,
+      warnings: ['execute warn']
+    } as any)
 
     engine.registerMigrators([migrator as any])
 
@@ -131,7 +144,30 @@ describe('MigrationEngine', () => {
 
     expect(result.success).toBe(true)
     expect(result.migratorResults).toHaveLength(1)
-    expect(result.migratorResults[0].warnings).toEqual(['prepare warn', 'execute warn'])
+    expect(result.migratorResults[0].warnings).toEqual([prepareUserWarning, 'execute warn'])
+  })
+
+  it('uses translatable warning fallback text when prepare fails without an error', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('prompt', 1, events)
+    migrator.prepare.mockResolvedValueOnce({
+      success: false,
+      itemCount: 0,
+      userWarnings: [
+        {
+          key: 'migration.completed.warnings.prompt.prepare_failed',
+          defaultValue: 'prompt prepare fallback'
+        }
+      ]
+    } as any)
+
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('prompt prepare fallback')
+    expect(result.error).not.toContain('[object Object]')
   })
 
   it('omits the warnings field when a migrator reports none', async () => {

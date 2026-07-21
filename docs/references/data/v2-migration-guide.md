@@ -83,7 +83,8 @@ src/main/data/migration/v2/
 
 - Base contract: extend `migrators/BaseMigrator.ts` and implement:
   - `id`, `name`, `description`, `order` (lower runs first)
-  - `prepare(ctx)`: dry-run checks, counts, and staging data; return `PrepareResult`
+  - `prepare(ctx)`: dry-run checks, counts, and staging data; return `PrepareResult`. Keep internal diagnostics in
+    `warnings`; completion-screen notices must use `userWarnings` with an i18n key and fallback text.
   - `execute(ctx)`: perform inserts/updates; manage your own transactions; report progress via `reportProgress`; self-check FK integrity of owned tables via `assertOwnedForeignKeys` (see Conventions → Foreign keys)
   - `validate(ctx)`: verify counts and integrity; return `ValidateResult` with stats (`sourceCount`, `targetCount`, `skippedCount`) and any `errors`
 - Registration: list migrators (in order) in `migrators/migratorRegistry.ts` so the engine can sort and run them.
