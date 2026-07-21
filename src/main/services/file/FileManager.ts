@@ -16,6 +16,7 @@
  * class only owns:
  * - lifecycle (`onInit` / `onStop`; remaining legacy IPC handlers via `BaseService`)
  * - per-instance `versionCache` (LRU backing `writeIfUnchanged` / `getVersion`)
+ * - per-instance content-write lock shared by foreground writes and hash backfill
  *
  * External Main callers go through the lifecycle-managed singleton via
  * `application.get('FileManager')`. The `internal/*` tree is a private
@@ -123,13 +124,15 @@ import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
+import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
-import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
-import { FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
+import type { ContentHash, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
+import { ContentHashSchema, FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AbsoluteFilePath,
@@ -181,6 +184,7 @@ import {
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { safeOpen } from './system'
+import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { getMetadataByPath } from './utils/metadata'
 import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -227,14 +231,24 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 const SafeExtNullableSchema = SafeExtSchema.nullable()
 
 export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsoluteFilePathSchema }),
-  z.strictObject({ source: z.literal('url'), url: z.url() }),
-  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
+  z.strictObject({
+    source: z.literal('path'),
+    path: AbsoluteFilePathSchema,
+    contentHash: ContentHashSchema.optional()
+  }),
+  z.strictObject({ source: z.literal('url'), url: z.url(), contentHash: ContentHashSchema.optional() }),
+  z.strictObject({
+    source: z.literal('base64'),
+    data: z.string().min(1),
+    name: SafeNameSchema.optional(),
+    contentHash: ContentHashSchema.optional()
+  }),
   z.strictObject({
     source: z.literal('bytes'),
     data: z.instanceof(Uint8Array),
     name: SafeNameSchema,
-    ext: SafeExtNullableSchema
+    ext: SafeExtNullableSchema,
+    contentHash: ContentHashSchema.optional()
   })
 ])
 
@@ -263,7 +277,7 @@ export const PermanentDeleteIpcSchema = FileHandleSchema
  *
  * ## Opt-in hash fallback
  *
- * `writeIfUnchanged` accepts an optional `expectedContentHash` (xxhash-h64 hex
+ * `writeIfUnchanged` accepts an optional algorithm-tagged `expectedContentHash`
  * of the content the caller last observed). When supplied AND the observed
  * mtime is ambiguous (ms === 0 AND size matches), the implementation re-hashes
  * the file on disk and throws `StaleVersionError` on mismatch. When omitted
@@ -326,7 +340,7 @@ export interface AtomicWriteStream extends Writable {
  * Thrown by `writeIfUnchanged` when the current file version does not match the
  * caller's expected version. Caller should refresh or present a conflict UX.
  *
- * Note: this implementation uses the xxhash-h64 fallback path described on
+ * Note: this implementation uses the tagged XXH3-64 fallback path described on
  * `FileVersion` when mtime resolution is ambiguous — a `StaleVersionError`
  * under that branch means the hash also diverged, i.e. the content genuinely
  * differs even when `(mtime, size)` looked equal.
@@ -378,6 +392,9 @@ export class StaleVersionError extends Error {
  * otherwise.
  */
 export interface IFileManager {
+  /** Return active internal entries matching a content hash; consumers choose whether to reuse one. */
+  findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]>
+
   // ─── Entry Creation ───
   //
   // Naming follows strict create-vs-ensure convention:
@@ -464,8 +481,8 @@ export interface IFileManager {
   /** Get FileVersion (stat-based) — live for both origins. */
   getVersion(id: FileEntryId): Promise<FileVersion>
 
-  /** Compute xxhash-h64 of file content. Reads full file. */
-  getContentHash(id: FileEntryId): Promise<string>
+  /** Compute an algorithm-tagged xxh3-64 hash of file content. Reads full file. */
+  getContentHash(id: FileEntryId): Promise<ContentHash>
 
   // ─── Writing ───
 
@@ -491,7 +508,7 @@ export interface IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: string
+    expectedContentHash?: ContentHash
   ): Promise<FileVersion>
 
   /** Stream write with atomic commit (tmp + rename on close). Works for both origins. */
@@ -639,22 +656,41 @@ export interface IFileManager {
  */
 @Injectable('FileManager')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['JobManager'])
 export class FileManager extends BaseService implements IFileManager {
   // Per-instance VersionCache so each `new FileManager()` (e.g. in tests) gets
   // a fresh cache — file-manager-architecture.md §1.6.1 / §12 mandate this is
   // a class private field, not a module singleton, for test-isolation reasons.
   private readonly _versionCache: VersionCache = createVersionCacheImpl(2000)
+  private readonly _contentWriteLock = new KeyedMutex()
 
   private readonly deps: FileManagerDeps = {
     fileEntryService,
     fileRefService,
     danglingCache,
-    versionCache: this._versionCache
+    versionCache: this._versionCache,
+    contentWriteLock: this._contentWriteLock
   }
+
+  private readonly contentHashBackfillJobHandler = createContentHashBackfillJobHandler(this.deps)
 
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
+    application.get('JobManager').registerHandler('file.contenthash-backfill', this.contentHashBackfillJobHandler)
+  }
+
+  protected override onAllReady(): void {
+    try {
+      const pending = this.deps.fileEntryService.countInternalMissingContentHash()
+      if (pending === 0) return
+      application
+        .get('JobManager')
+        .enqueue('file.contenthash-backfill', {}, { idempotencyKey: 'file.contenthash-backfill' })
+      fileManagerLogger.info('contentHash backfill: enqueued', { pending })
+    } catch (err) {
+      fileManagerLogger.warn('contentHash backfill: failed to enqueue at startup', { err })
+    }
   }
 
   /**
@@ -831,6 +867,10 @@ export class FileManager extends BaseService implements IFileManager {
     return this.deps.fileEntryService.findByExternalPath(canonicalizeFilePath(path))
   }
 
+  async findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]> {
+    return this.deps.fileEntryService.findInternalByContentHash(contentHash)
+  }
+
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
     return internalEnsureExternal(this.deps, params)
   }
@@ -890,7 +930,7 @@ export class FileManager extends BaseService implements IFileManager {
     return { mtime: s.modifiedAt, size: s.size }
   }
 
-  async getContentHash(id: FileEntryId): Promise<string> {
+  async getContentHash(id: FileEntryId): Promise<ContentHash> {
     return internalHash(this.deps, id)
   }
 
@@ -982,7 +1022,7 @@ export class FileManager extends BaseService implements IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: string
+    expectedContentHash?: ContentHash
   ): Promise<FileVersion> {
     return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
   }

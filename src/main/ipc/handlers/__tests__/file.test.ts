@@ -1,4 +1,5 @@
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
+import { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -80,6 +81,11 @@ beforeEach(() => {
 const ctx = { senderId: null }
 
 describe('fileHandlers', () => {
+  it('does not expose the pure-SQL content-hash lookup through IpcApi', () => {
+    expect('file.find_internal_by_content_hash' in fileRequestSchemas).toBe(false)
+    expect('file.find_internal_by_content_hash' in fileHandlers).toBe(false)
+  })
+
   it('reads binary content by path through the generic FileHandle route', async () => {
     const result = { content: new Uint8Array([3, 4]), mime: 'text/markdown', version }
     readByPathMock.mockResolvedValueOnce(result)

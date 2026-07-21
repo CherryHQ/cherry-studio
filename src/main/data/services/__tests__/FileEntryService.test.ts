@@ -11,7 +11,7 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { FileEntryId } from '@shared/data/types/file'
+import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { CanonicalFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -223,6 +223,106 @@ describe('FileEntryService', () => {
       const causeMsg = (caught as Error & { cause?: { message?: string } }).cause?.message ?? ''
       const envelope = (caught as Error).message
       expect(causeMsg + envelope).toMatch(/UNIQUE|fe_external_path_lower_unique_idx/i)
+    })
+  })
+
+  describe('content hash queries', () => {
+    const hash = 'xxh3-64:9555e8555c62dcfd' as ContentHash
+
+    it('returns active internal candidates in creation/id order and excludes trashed rows', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-000000000032' as FileEntryId,
+          origin: 'internal',
+          name: 'later-id',
+          ext: 'txt',
+          size: 1,
+          contentHash: hash,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000031' as FileEntryId,
+          origin: 'internal',
+          name: 'earlier-id',
+          ext: 'txt',
+          size: 1,
+          contentHash: hash,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000033' as FileEntryId,
+          origin: 'internal',
+          name: 'trashed',
+          ext: 'txt',
+          size: 1,
+          contentHash: hash,
+          externalPath: null,
+          deletedAt: now,
+          createdAt: now - 1,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-000000000034' as FileEntryId,
+          origin: 'external',
+          name: 'external',
+          ext: 'txt',
+          size: null,
+          contentHash: null,
+          externalPath: '/Users/me/external.txt',
+          deletedAt: null,
+          createdAt: now - 2,
+          updatedAt: now
+        }
+      ])
+
+      expect(fileEntryService.findInternalByContentHash(hash).map((entry) => entry.id)).toEqual([
+        '019606a0-0000-7000-8000-000000000031',
+        '019606a0-0000-7000-8000-000000000032'
+      ])
+    })
+
+    it('counts and pages every internal null hash, including trashed rows', () => {
+      const ids = [
+        '019606a0-0000-7000-8000-000000000041',
+        '019606a0-0000-7000-8000-000000000042',
+        '019606a0-0000-7000-8000-000000000043'
+      ] as FileEntryId[]
+      for (const [index, id] of ids.entries()) {
+        fileEntryService.create({ id, origin: 'internal', name: `missing-${index}`, ext: 'txt', size: 1 })
+      }
+      fileEntryService.update(ids[1], { deletedAt: Date.now() })
+      fileEntryService.update(ids[2], { contentHash: hash })
+      fileEntryService.create({
+        origin: 'external',
+        name: 'external',
+        ext: 'txt',
+        externalPath: '/Users/me/missing-hash.txt'
+      })
+
+      expect(fileEntryService.countInternalMissingContentHash()).toBe(2)
+      const firstPage = fileEntryService.findInternalMissingContentHash(null, 1)
+      expect(firstPage.map((entry) => entry.id)).toEqual([ids[0]])
+      const secondPage = fileEntryService.findInternalMissingContentHash(firstPage[0].id, 1)
+      expect(secondPage.map((entry) => entry.id)).toEqual([ids[1]])
+      expect(fileEntryService.findInternalMissingContentHash(secondPage[0].id, 1)).toEqual([])
+    })
+
+    it('fills an internal null content hash once without overwriting a foreground value', () => {
+      const id = '019606a0-0000-7000-8000-000000000044' as FileEntryId
+      const firstHash = 'xxh3-64:1111111111111111' as ContentHash
+      const staleHash = 'xxh3-64:2222222222222222' as ContentHash
+      fileEntryService.create({ id, origin: 'internal', name: 'missing', ext: 'txt', size: 1 })
+
+      expect(fileEntryService.updateContentHashIfMissing(id, firstHash)).toBe(true)
+      expect(fileEntryService.updateContentHashIfMissing(id, staleHash)).toBe(false)
+      expect(fileEntryService.getById(id)).toMatchObject({ contentHash: firstHash })
     })
   })
 
@@ -986,9 +1086,24 @@ describe('FileEntryService', () => {
       expect(entry.origin).toBe('internal')
       if (entry.origin === 'internal') {
         expect(entry.size).toBe(11)
+        expect(entry.contentHash).toBeNull()
       }
       expect(entry.createdAt).toBeGreaterThan(0)
       expect(entry.updatedAt).toBeGreaterThan(0)
+    })
+
+    it('persists an internal content hash', () => {
+      const id = '019606a0-0000-7000-8000-000000000a02' as FileEntryId
+      const contentHash = 'xxh3-64:9555e8555c62dcfd' as ContentHash
+      const entry = fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 'hashed',
+        ext: 'txt',
+        size: 5,
+        contentHash
+      })
+      expect(entry).toMatchObject({ id, contentHash })
     })
 
     it('inserts an external row with size=null in DB; size absent on BO projection', async () => {
@@ -1088,6 +1203,13 @@ describe('FileEntryService', () => {
       const updated = fileEntryService.update(id, { deletedAt })
       if (updated.origin !== 'internal') throw new Error('expected internal entry')
       expect(updated.deletedAt).toBe(deletedAt)
+    })
+
+    it('updates an internal content hash', () => {
+      const id = '019606a0-0000-7000-8000-000000000b03' as FileEntryId
+      const contentHash = 'xxh3-64:9555e8555c62dcfd' as ContentHash
+      fileEntryService.create({ id, origin: 'internal', name: 'hash', ext: 'txt', size: 1 })
+      expect(fileEntryService.update(id, { contentHash })).toMatchObject({ contentHash })
     })
 
     it('throws when setting deletedAt on an external row (CHECK fe_external_no_delete)', async () => {
