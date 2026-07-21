@@ -3,10 +3,17 @@ import { APICallError, tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
-import { markTrustedWebLookupTerminalFailure } from '../../../../tools/adapters/aiSdk/builtin/webLookupTerminalFailure'
+import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import { createToolCallLimitStopCondition } from '../toolLoopTermination'
 
 const mockCreateAgent = vi.fn()
+const TEST_USAGE = {
+  inputTokens: 1,
+  outputTokens: 2,
+  totalTokens: 3,
+  inputTokenDetails: {},
+  outputTokenDetails: {}
+}
 
 vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: (...args: unknown[]) => mockCreateAgent(...args)
@@ -15,6 +22,148 @@ vi.mock('@cherrystudio/ai-core', () => ({
 describe('Agent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe('generate', () => {
+    it('routes a trusted terminal tool failure through onError without calling onFinish', async () => {
+      const output = markTrustedLocalToolTerminalFailure({
+        error: 'terminal failure',
+        retryable: false,
+        terminal: true,
+        userMessage: 'Fix the configuration.',
+        i18nKey: 'web_search_provider_unavailable'
+      })
+      mockCreateAgent.mockResolvedValue({
+        generate: vi.fn().mockResolvedValue({
+          text: '',
+          usage: TEST_USAGE,
+          steps: [
+            {
+              toolResults: [{ type: 'tool-result', toolCallId: 'tool-1', toolName: 'local_lookup', output }]
+            }
+          ]
+        })
+      })
+
+      const calls: string[] = []
+      const onFinish = vi.fn(() => void calls.push('finish'))
+      const onError = vi.fn(() => {
+        calls.push('error')
+        return 'abort' as const
+      })
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        hookParts: [{ onFinish, onError }]
+      })
+
+      await expect(agent.generate({ prompt: 'hello' })).rejects.toMatchObject({
+        name: 'ToolLoopTerminalError',
+        message: 'Fix the configuration.',
+        i18nKey: 'web_search_provider_unavailable'
+      })
+      expect(onFinish).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledOnce()
+      expect(calls).toEqual(['error'])
+    })
+
+    it('routes an actually-triggered cap through onError without calling onFinish', async () => {
+      const steps = [
+        { toolResults: [] },
+        { toolResults: [{ type: 'tool-result', toolCallId: 'tool-2', toolName: 'local_lookup', output: [] }] }
+      ]
+      const stopWhen = createToolCallLimitStopCondition(2)
+      await stopWhen({ steps: steps as never })
+      mockCreateAgent.mockResolvedValue({
+        generate: vi.fn().mockResolvedValue({ text: '', usage: TEST_USAGE, steps })
+      })
+
+      const calls: string[] = []
+      const onFinish = vi.fn(() => void calls.push('finish'))
+      const onError = vi.fn(() => {
+        calls.push('error')
+        return 'abort' as const
+      })
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        options: { stopWhen },
+        hookParts: [{ onFinish, onError }]
+      })
+
+      await expect(agent.generate({ prompt: 'hello' })).rejects.toMatchObject({
+        name: 'ToolLoopTerminalError',
+        i18nKey: 'tool_call_limit_reached'
+      })
+      expect(onFinish).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledOnce()
+      expect(calls).toEqual(['error'])
+    })
+
+    it('calls only onFinish when generation completes without a terminal outcome', async () => {
+      const stopWhen = createToolCallLimitStopCondition(2)
+      const steps = [{ toolResults: [] }]
+      await expect(stopWhen({ steps: steps as never })).resolves.toBe(false)
+      mockCreateAgent.mockResolvedValue({
+        generate: vi.fn().mockResolvedValue({ text: 'done', usage: TEST_USAGE, steps })
+      })
+
+      const calls: string[] = []
+      const onFinish = vi.fn(() => void calls.push('finish'))
+      const onError = vi.fn(() => {
+        calls.push('error')
+        return 'abort' as const
+      })
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        options: { stopWhen },
+        hookParts: [{ onFinish, onError }]
+      })
+
+      await expect(agent.generate({ prompt: 'hello' })).resolves.toEqual({ text: 'done', usage: TEST_USAGE })
+      expect(onFinish).toHaveBeenCalledOnce()
+      expect(onError).not.toHaveBeenCalled()
+      expect(calls).toEqual(['finish'])
+    })
+
+    it('routes a clean cancellation through onAbort even when generation resolves during the abort', async () => {
+      const abortError = Object.assign(new Error('cancelled'), { name: 'AbortError' })
+      const controller = new AbortController()
+      mockCreateAgent.mockResolvedValue({
+        generate: vi.fn().mockImplementation(async () => {
+          controller.abort(abortError)
+          return { text: 'ignored', usage: TEST_USAGE, steps: [] }
+        })
+      })
+
+      const calls: string[] = []
+      const onAbort = vi.fn(() => void calls.push('abort'))
+      const onFinish = vi.fn(() => void calls.push('finish'))
+      const onError = vi.fn(() => {
+        calls.push('error')
+        return 'abort' as const
+      })
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        hookParts: [{ onAbort, onFinish, onError }]
+      })
+
+      await expect(agent.generate({ prompt: 'hello' }, controller.signal)).rejects.toBe(abortError)
+      expect(onAbort).toHaveBeenCalledOnce()
+      expect(onFinish).not.toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
+      expect(calls).toEqual(['abort'])
+    })
   })
 
   it('pairs a terminal API error with its original after an earlier tool error', async () => {
@@ -68,7 +217,7 @@ describe('Agent', () => {
   })
 
   it('turns a terminal tool output into an error instead of forwarding a success finish', async () => {
-    const output = markTrustedWebLookupTerminalFailure({
+    const output = markTrustedLocalToolTerminalFailure({
       error: 'Unsafe remote url',
       retryable: false,
       terminal: true,
@@ -522,6 +671,7 @@ describe('Agent', () => {
       stream: vi.fn().mockResolvedValue({ toUIMessageStream: () => source })
     })
 
+    const onAbort = vi.fn()
     const onError = vi.fn()
     const { Agent } = await import('../../Agent')
     const controller = new AbortController()
@@ -529,7 +679,7 @@ describe('Agent', () => {
       providerId: 'openai' as never,
       providerSettings: {} as never,
       modelId: 'test-model',
-      hookParts: [{ onError }]
+      hookParts: [{ onAbort, onError }]
     })
     const reader = agent.stream([], controller.signal).getReader()
 
@@ -547,6 +697,7 @@ describe('Agent', () => {
     const next = await reader.read()
     expect(next.done).toBe(true)
     // Abort is not an error: onError must not fire on the abort path.
+    expect(onAbort).toHaveBeenCalledOnce()
     expect(onError).not.toHaveBeenCalled()
   })
 
@@ -576,6 +727,7 @@ describe('Agent', () => {
       })
     })
 
+    const onAbort = vi.fn()
     const onError = vi.fn()
     const { Agent } = await import('../../Agent')
     const controller = new AbortController()
@@ -583,7 +735,7 @@ describe('Agent', () => {
       providerId: 'openai' as never,
       providerSettings: {} as never,
       modelId: 'test-model',
-      hookParts: [{ onError }]
+      hookParts: [{ onAbort, onError }]
     })
     const reader = agent.stream([], controller.signal).getReader()
     const read = reader.read()
@@ -593,6 +745,7 @@ describe('Agent', () => {
     rejectSteps(abortError)
 
     await expect(read).resolves.toEqual({ value: undefined, done: true })
+    expect(onAbort).toHaveBeenCalledOnce()
     expect(onError).not.toHaveBeenCalled()
   })
 

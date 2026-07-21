@@ -7,6 +7,7 @@
  * exact same logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
+import { markTrustedLocalToolTerminalFailure } from '@main/ai/runtime/aiSdk'
 import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
@@ -19,7 +20,6 @@ import * as z from 'zod'
 import { searchWeb, WEB_SEARCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
-import { markTrustedWebLookupTerminalFailure } from './webLookupTerminalFailure'
 
 export { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME }
 
@@ -33,7 +33,7 @@ const webSearchTool = tool({
   // (in AiService) handles providers that don't honour `strict`.
   strict: true,
   execute: async ({ query }, options) =>
-    markTrustedWebLookupTerminalFailure(await searchWeb(query, getToolCallContext(options).request.abortSignal)),
+    markTrustedLocalToolTerminalFailure(await searchWeb(query, getToolCallContext(options).request.abortSignal)),
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 

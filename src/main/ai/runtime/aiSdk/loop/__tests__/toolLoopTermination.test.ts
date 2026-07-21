@@ -1,7 +1,7 @@
 import type { StepResult, ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { markTrustedWebLookupTerminalFailure } from '../../../../tools/adapters/aiSdk/builtin/webLookupTerminalFailure'
+import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import {
   createToolCallLimitStopCondition,
   getLastTerminalToolFailure,
@@ -19,7 +19,7 @@ type ToolResultOverrides = {
 function makeSteps(
   outputs: unknown[],
   count = 1,
-  { toolName = 'web_fetch', input = { urls: ['https://example.com'] }, providerExecuted }: ToolResultOverrides = {}
+  { toolName = 'local_lookup', input = {}, providerExecuted }: ToolResultOverrides = {}
 ): Array<StepResult<ToolSet>> {
   return Array.from(
     { length: count },
@@ -51,8 +51,8 @@ function terminalFailure() {
 }
 
 describe('tool-loop termination', () => {
-  it('stops on a terminal failure carrying builtin web-tool provenance', async () => {
-    const output = markTrustedWebLookupTerminalFailure(terminalFailure())
+  it('stops on a terminal failure carrying trusted local-tool provenance', async () => {
+    const output = markTrustedLocalToolTerminalFailure(terminalFailure())
     const steps = makeSteps([output])
 
     expect(getLastTerminalToolFailure(steps)).toEqual({
@@ -74,32 +74,25 @@ describe('tool-loop termination', () => {
     expect(await stopOnTerminalToolFailure({ steps })).toBe(false)
   })
 
-  it('requires local execution and the builtin web tool name even for a marked object', () => {
-    const output = markTrustedWebLookupTerminalFailure(terminalFailure())
+  it('rejects a provider-executed result even when the object is locally marked', () => {
+    const output = markTrustedLocalToolTerminalFailure(terminalFailure())
 
     expect(getLastTerminalToolFailure(makeSteps([output], 1, { providerExecuted: true }))).toBeUndefined()
-    expect(
-      getLastTerminalToolFailure(makeSteps([output], 1, { toolName: 'mcp__server__lookup', input: {} }))
-    ).toBeUndefined()
   })
 
-  it('accepts a deferred builtin web failure only when tool_invoke names that web tool', () => {
-    const output = markTrustedWebLookupTerminalFailure(terminalFailure())
-    const webInvoke = makeSteps([output], 1, {
+  it('accepts a trusted result returned unchanged by a local wrapper without parsing its private input', () => {
+    const output = markTrustedLocalToolTerminalFailure(terminalFailure())
+    const wrapped = makeSteps([output], 1, {
       toolName: 'tool_invoke',
-      input: { name: 'web_fetch', params: { urls: ['https://example.com'] } }
-    })
-    const mcpInvoke = makeSteps([output], 1, {
-      toolName: 'tool_invoke',
-      input: { name: 'mcp__server__lookup', params: {} }
+      input: { opaque: 'wrapper-owned-payload' }
     })
 
-    expect(getLastTerminalToolFailure(webInvoke)).toMatchObject({ error: 'raw failure' })
-    expect(getLastTerminalToolFailure(mcpInvoke)).toBeUndefined()
+    expect(getLastTerminalToolFailure(wrapped)).toMatchObject({ error: 'raw failure' })
   })
 
-  it('does not stop on a transient builtin web error', async () => {
-    const steps = makeSteps([{ error: 'upstream 503', retryable: true }])
+  it('does not mark or stop on a transient local-tool error', async () => {
+    const output = markTrustedLocalToolTerminalFailure({ error: 'upstream 503', retryable: true })
+    const steps = makeSteps([output])
 
     expect(getLastTerminalToolFailure(steps)).toBeUndefined()
     expect(await stopOnTerminalToolFailure({ steps })).toBe(false)

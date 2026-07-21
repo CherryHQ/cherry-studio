@@ -109,12 +109,14 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     const hooks = this.composedHooks()
     try {
       await safeCall('onStart', hooks.onStart)
+      signal?.throwIfAborted()
       const aiAgent = await this.buildAiSdkAgent(hooks)
       const generateInput =
         'prompt' in input
           ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
           : { messages: input.messages, ...(signal && { abortSignal: signal }) }
       const result = await aiAgent.generate(generateInput)
+      signal?.throwIfAborted()
       const terminalError = resolveToolLoopTerminalError({
         steps: result.steps,
         stopWhen: this.params.options?.stopWhen
@@ -123,6 +125,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       await safeCall('onFinish', hooks.onFinish)
       return { text: result.text, usage: result.usage }
     } catch (err) {
+      const isCancellation = signal?.aborted === true && (err === signal.reason || isAbortError(err))
+      if (isCancellation) {
+        await safeCall('onAbort', hooks.onAbort)
+        throw err
+      }
+
       logger.error('agent generate error', err as Error)
       if (hooks.onError) {
         try {
@@ -241,10 +249,16 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         reader.releaseLock()
       }
       if (readFailure) throw readFailure.error
-      if (signal.aborted) return
+      if (signal.aborted) {
+        await safeCall('onAbort', hooks.onAbort)
+        return
+      }
 
       const steps = await Promise.resolve(result.steps)
-      if (signal.aborted) return
+      if (signal.aborted) {
+        await safeCall('onAbort', hooks.onAbort)
+        return
+      }
       const terminalError = resolveToolLoopTerminalError({
         steps: steps ?? [],
         stopWhen: params.options?.stopWhen
@@ -264,6 +278,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       .catch(async (err) => {
         const isCancellation = signal.aborted && (err === signal.reason || isAbortError(err))
         if (isCancellation) {
+          await safeCall('onAbort', hooks.onAbort)
           await settleWriter()
           return
         }

@@ -1,14 +1,8 @@
-import { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { stepCountIs, type StepResult, type StopCondition, type ToolSet } from 'ai'
 
-import { isTrustedWebLookupTerminalFailure } from '../../../tools/adapters/aiSdk/builtin/webLookupTerminalFailure'
-import { TOOL_INVOKE_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolInvoke'
+import { getTrustedLocalToolTerminalFailure, type TerminalToolFailure } from './localToolTerminalOutcome'
 
-export interface TerminalToolFailure {
-  error: string
-  userMessage?: string
-  i18nKey?: string
-}
+export type { TerminalToolFailure } from './localToolTerminalOutcome'
 
 type ToolLoopStopWhen = StopCondition<ToolSet> | Array<StopCondition<ToolSet>> | undefined
 
@@ -26,8 +20,6 @@ type TrackedStopState = {
 }
 
 const trackedStopConditions = new WeakMap<StopCondition<ToolSet>, TrackedStopState>()
-
-const WEB_TOOL_NAMES = new Set<string>([WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME])
 
 const TOOL_CALL_LIMIT_MESSAGE =
   'The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.'
@@ -68,47 +60,20 @@ function wasStopReasonTriggered(
   })
 }
 
-function terminalToolFailureFromOutput(output: unknown): TerminalToolFailure | undefined {
-  if (typeof output !== 'object' || output === null || Array.isArray(output)) return undefined
-
-  const candidate = output as Record<string, unknown>
-  if (candidate.terminal !== true || candidate.retryable !== false || typeof candidate.error !== 'string') {
-    return undefined
-  }
-
-  return {
-    error: candidate.error,
-    ...(typeof candidate.userMessage === 'string' && { userMessage: candidate.userMessage }),
-    ...(typeof candidate.i18nKey === 'string' && { i18nKey: candidate.i18nKey })
-  }
-}
-
-function isTrustedWebToolResult(result: StepResult<ToolSet>['toolResults'][number]): boolean {
-  if (result.providerExecuted || !isTrustedWebLookupTerminalFailure(result.output)) return false
-  if (WEB_TOOL_NAMES.has(result.toolName)) return true
-  if (result.toolName !== TOOL_INVOKE_TOOL_NAME) return false
-
-  const input = result.input
-  if (typeof input !== 'object' || input === null || Array.isArray(input)) return false
-
-  const innerToolName = (input as Record<string, unknown>).name
-  return typeof innerToolName === 'string' && WEB_TOOL_NAMES.has(innerToolName)
-}
-
 export function getLastTerminalToolFailure(steps: Array<StepResult<ToolSet>>): TerminalToolFailure | undefined {
   const lastStep = steps.at(-1)
   if (!lastStep) return undefined
 
   for (const result of lastStep.toolResults) {
-    if (!isTrustedWebToolResult(result)) continue
-    const failure = terminalToolFailureFromOutput(result.output)
+    if (result.providerExecuted) continue
+    const failure = getTrustedLocalToolTerminalFailure(result.output)
     if (failure) return failure
   }
 
   return undefined
 }
 
-/** Stop at the step boundary immediately after a trusted builtin web tool reports a terminal failure. */
+/** Stop at the step boundary immediately after a trusted local tool reports a terminal failure. */
 export const stopOnTerminalToolFailure: StopCondition<ToolSet> = ({ steps }) =>
   getLastTerminalToolFailure(steps) !== undefined
 

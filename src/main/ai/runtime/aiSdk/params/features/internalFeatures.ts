@@ -44,7 +44,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
-  // Stop when a trusted builtin web lookup cannot succeed without an external change.
+  // Stop when a trusted local tool cannot succeed without an external change.
   terminalToolFailureFeature,
   // Stop condition only (no plugins/hooks) — yields a chat turn when a steer is queued.
   steerYieldFeature

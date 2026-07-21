@@ -7,6 +7,7 @@
  * file is just the AI-SDK `tool()` wrapper.
  */
 
+import { markTrustedLocalToolTerminalFailure } from '@main/ai/runtime/aiSdk'
 import { WEB_FETCH_TOOL_NAME, webFetchInputSchema, webFetchOutputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
@@ -14,7 +15,6 @@ import * as z from 'zod'
 import { fetchWeb, WEB_FETCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
-import { markTrustedWebLookupTerminalFailure } from './webLookupTerminalFailure'
 
 const webFetchResultSchema = z.union([webFetchOutputSchema, webLookupErrorSchema])
 
@@ -24,7 +24,7 @@ const webFetchTool = tool({
   outputSchema: webFetchResultSchema,
   strict: true,
   execute: async ({ urls }, options) =>
-    markTrustedWebLookupTerminalFailure(await fetchWeb(urls, getToolCallContext(options).request.abortSignal)),
+    markTrustedLocalToolTerminalFailure(await fetchWeb(urls, getToolCallContext(options).request.abortSignal)),
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 

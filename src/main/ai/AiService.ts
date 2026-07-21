@@ -429,6 +429,7 @@ export class AiService extends BaseService {
         if (step.usage) total = mergeUsage(total, step.usage)
       },
       onFinish: flush,
+      onAbort: flush,
       onError: () => {
         flush()
         return 'abort'
