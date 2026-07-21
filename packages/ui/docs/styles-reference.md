@@ -23,6 +23,7 @@ Runtime styles and design tokens live under `src/styles`:
 - [tokens/colors/semantic.css](../src/styles/tokens/colors/semantic.css)
 - [tokens/colors/status.css](../src/styles/tokens/colors/status.css)
 - [tokens/radius.css](../src/styles/tokens/radius.css)
+- [tokens/spacing.css](../src/styles/tokens/spacing.css)
 - [tokens/typography.css](../src/styles/tokens/typography.css)
 - [migrations/shadcn-v2.json](../src/styles/migrations/shadcn-v2.json)
 
