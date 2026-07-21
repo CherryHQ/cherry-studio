@@ -42,6 +42,7 @@ const windowGetMock = vi.hoisted(() => vi.fn())
 const diagnosticsStartMock = vi.hoisted(() => vi.fn())
 const diagnosticsReportRendererExportFailureMock = vi.hoisted(() => vi.fn())
 const diagnosticsSaveBundleMock = vi.hoisted(() => vi.fn())
+const diagnosticsSnapshotMock = vi.hoisted(() => vi.fn())
 const diagnosticsCompleteVersionGateMock = vi.hoisted(() => vi.fn())
 const isSafeExternalUrlMock = vi.hoisted(() => vi.fn())
 const fsMocks = vi.hoisted(() => ({ lstat: vi.fn(), mkdir: vi.fn(), writeFile: vi.fn() }))
@@ -57,6 +58,25 @@ function createMigrationIpcPaths(userData: string) {
   })
 }
 const migrationIpcPaths = createMigrationIpcPaths('/mock/userData')
+const diagnosticSnapshot = {
+  formatVersion: 1,
+  app: { version: '2.0.0', platform: 'darwin', arch: 'arm64' },
+  state: 'failed',
+  current: {
+    trigger: 'initial',
+    startedAt: '2026-07-21T08:00:00.000Z',
+    endedAt: '2026-07-21T08:01:00.000Z',
+    lastLocation: { scope: 'renderer_export', phase: 'finalize' },
+    status: 'failed',
+    failure: {
+      kind: 'renderer_export_failed',
+      scope: 'renderer_export',
+      phase: 'finalize',
+      errorCode: 'source_parse_failed',
+      evidence: { kind: 'renderer_export', sourceRole: 'redux', operationRole: 'parse' }
+    }
+  }
+} as const
 const electronMocks = vi.hoisted(() => ({
   app: { getLocale: vi.fn(), quit: vi.fn() },
   clipboard: { writeText: vi.fn() },
@@ -143,6 +163,7 @@ describe('MigrationIpcHandler', () => {
     diagnosticsStartMock.mockResolvedValue(undefined)
     diagnosticsReportRendererExportFailureMock.mockResolvedValue(undefined)
     diagnosticsSaveBundleMock.mockResolvedValue({ status: 'saved' })
+    diagnosticsSnapshotMock.mockResolvedValue(diagnosticSnapshot)
     fsMocks.mkdir.mockResolvedValue(undefined)
     fsMocks.writeFile.mockResolvedValue(undefined)
     fsMocks.lstat.mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }))
@@ -157,6 +178,7 @@ describe('MigrationIpcHandler', () => {
       start: diagnosticsStartMock,
       reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
       saveDiagnosticBundle: diagnosticsSaveBundleMock,
+      snapshot: diagnosticsSnapshotMock,
       completeVersionGate: diagnosticsCompleteVersionGateMock
     })
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -288,6 +310,7 @@ describe('MigrationIpcHandler', () => {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        snapshot: diagnosticsSnapshotMock,
         completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -310,6 +333,7 @@ describe('MigrationIpcHandler', () => {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        snapshot: diagnosticsSnapshotMock,
         completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -417,6 +441,7 @@ describe('MigrationIpcHandler', () => {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        snapshot: diagnosticsSnapshotMock,
         completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -433,7 +458,7 @@ describe('MigrationIpcHandler', () => {
       expect(dialog.showSaveDialog).toHaveBeenCalledTimes(2)
     })
 
-    it('opens a fixed, safely encoded English support mailto only after URL validation', async () => {
+    it('gets the current snapshot and opens a percent-encoded English support mailto only after URL validation', async () => {
       await invoke(
         MigrationIpcChannels.OpenDiagnosticEmail,
         'attacker@example.com',
@@ -443,11 +468,17 @@ describe('MigrationIpcHandler', () => {
 
       const mailto = isSafeExternalUrlMock.mock.calls[0]?.[0] as string
       expect(mailto).toMatch(/^mailto:support@cherry-ai\.com\?/)
+      expect(mailto).toContain('Cherry%20Studio')
+      expect(mailto).toContain('%0A')
+      expect(mailto).not.toContain('+')
       const parsed = new URL(mailto)
-      expect(parsed.searchParams.get('subject')).toBe('Cherry Studio migration diagnostics')
-      expect(parsed.searchParams.get('body')).toBe(
-        'Please describe the migration issue and manually attach the saved diagnostic ZIP.'
+      expect(parsed.searchParams.get('subject')).toBe(
+        'Cherry Studio migration diagnostics — source_parse_failed — 2.0.0 — darwin-arm64'
       )
+      expect(parsed.searchParams.get('body')).toContain(
+        'Failure kind / error code: renderer_export_failed / source_parse_failed'
+      )
+      expect(diagnosticsSnapshotMock).toHaveBeenCalledTimes(1)
       expect(isSafeExternalUrlMock).toHaveBeenCalledWith(mailto)
       expect(shell.openExternal).toHaveBeenCalledWith(mailto)
       expect(isSafeExternalUrlMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -461,9 +492,22 @@ describe('MigrationIpcHandler', () => {
       await invoke(MigrationIpcChannels.OpenDiagnosticEmail, 'attacker@example.com', 'renderer-controlled copy')
 
       const parsed = new URL(isSafeExternalUrlMock.mock.calls[0]?.[0] as string)
-      expect(parsed.searchParams.get('subject')).toBe('Cherry Studio 迁移诊断')
-      expect(parsed.searchParams.get('body')).toBe('请描述迁移问题，并手动附上已保存的诊断 ZIP 文件。')
-      expect(shell.openExternal).toHaveBeenCalledWith(parsed.toString())
+      expect(parsed.searchParams.get('subject')).toBe(
+        'Cherry Studio 迁移诊断 — source_parse_failed — 2.0.0 — darwin-arm64'
+      )
+      expect(parsed.searchParams.get('body')).toContain(
+        '失败类型 / 错误码：renderer_export_failed / source_parse_failed'
+      )
+      expect(shell.openExternal).toHaveBeenCalledWith(isSafeExternalUrlMock.mock.calls[0]?.[0])
+    })
+
+    it('does not validate or open an external URL when the snapshot capability fails', async () => {
+      diagnosticsSnapshotMock.mockRejectedValueOnce(new Error('snapshot canary'))
+
+      await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail)).rejects.toThrow('snapshot canary')
+
+      expect(isSafeExternalUrlMock).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
     })
 
     it('rejects an unsafe fixed mailto without opening it', async () => {
@@ -569,6 +613,7 @@ describe('MigrationIpcHandler', () => {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        snapshot: diagnosticsSnapshotMock,
         completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       await expect(
@@ -674,6 +719,7 @@ describe('MigrationIpcHandler', () => {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        snapshot: diagnosticsSnapshotMock,
         completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -750,6 +796,7 @@ describe('MigrationIpcHandler', () => {
           })
           return result.status === 'saved' ? { status: 'saved' } : result
         },
+        snapshot: () => coordinator.snapshot(),
         completeVersionGate: () => undefined
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -824,6 +871,7 @@ describe('MigrationIpcHandler', () => {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        snapshot: diagnosticsSnapshotMock,
         completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -869,6 +917,7 @@ describe('MigrationIpcHandler', () => {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        snapshot: diagnosticsSnapshotMock,
         completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -1029,6 +1078,7 @@ describe('MigrationIpcHandler', () => {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        snapshot: diagnosticsSnapshotMock,
         completeVersionGate: diagnosticsCompleteVersionGateMock
       })
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))

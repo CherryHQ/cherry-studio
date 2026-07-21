@@ -12,8 +12,17 @@ describe('migrationDiagnosticNativeI18n', () => {
     expect(i18n.t('failure.code', { code: 'MIGRATION-DIAGNOSTIC-BUNDLE-SAVE-FAILED' })).toContain(
       'MIGRATION-DIAGNOSTIC-BUNDLE-SAVE-FAILED'
     )
-    expect(i18n.t('support.emailSubject')).toBe('Cherry Studio 迁移诊断')
-    expect(i18n.t('support.emailBody')).toBe('请描述迁移问题，并手动附上已保存的诊断 ZIP 文件。')
+    expect(
+      i18n.t('support.emailSubject', {
+        errorCode: 'sqlite_io',
+        appVersion: '2.0.0',
+        platformArch: 'darwin-arm64'
+      })
+    ).toBe('Cherry Studio 迁移诊断 — sqlite_io — 2.0.0 — darwin-arm64')
+    expect(i18n.t('support.emailSummaryTitle')).toBe('自动诊断摘要')
+    expect(i18n.t('support.emailQuestionCustomDataDirectory')).toBe('是否使用了自定义数据目录？')
+    expect(i18n.t('support.emailPrivacyNotice')).toContain('不会自动附加、上传或发送')
+    expect(i18n.t('support.unknown')).toBe('unknown')
   })
 
   it('renders the native migration diagnostic copy in en-US', async () => {
@@ -22,10 +31,17 @@ describe('migrationDiagnosticNativeI18n', () => {
     expect(i18n.locale).toBe('en-US')
     expect(i18n.t('failure.title')).toBe('Migration diagnostics')
     expect(i18n.t('action.save')).toBe('Save diagnostic bundle')
-    expect(i18n.t('support.emailSubject')).toBe('Cherry Studio migration diagnostics')
-    expect(i18n.t('support.emailBody')).toBe(
-      'Please describe the migration issue and manually attach the saved diagnostic ZIP.'
-    )
+    expect(
+      i18n.t('support.emailSubject', {
+        errorCode: 'sqlite_io',
+        appVersion: '2.0.0',
+        platformArch: 'darwin-arm64'
+      })
+    ).toBe('Cherry Studio migration diagnostics — sqlite_io — 2.0.0 — darwin-arm64')
+    expect(i18n.t('support.emailSummaryTitle')).toBe('Automatic diagnostic summary')
+    expect(i18n.t('support.emailQuestionCustomDataDirectory')).toBe('Did you use a custom data directory?')
+    expect(i18n.t('support.emailPrivacyNotice')).toContain('does not automatically attach, upload, or send')
+    expect(i18n.t('support.unknown')).toBe('unknown')
   })
 
   it('falls back to en-US for an unknown locale', async () => {
@@ -34,9 +50,7 @@ describe('migrationDiagnosticNativeI18n', () => {
     expect(i18n.locale).toBe('en-US')
     expect(i18n.t('recovery.title')).toBe('Previous migration interrupted')
     expect(i18n.t('action.exit')).toBe('Exit')
-    expect(i18n.t('support.emailSubject')).toBe('Cherry Studio migration diagnostics')
-    expect(i18n.t('support.emailBody')).toBe(
-      'Please describe the migration issue and manually attach the saved diagnostic ZIP.'
-    )
+    expect(i18n.t('support.emailSummaryTitle')).toBe('Automatic diagnostic summary')
+    expect(i18n.t('support.emailQuestionCustomDataDirectory')).toBe('Did you use a custom data directory?')
   })
 })

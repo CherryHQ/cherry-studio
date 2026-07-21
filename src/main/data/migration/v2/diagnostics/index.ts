@@ -14,6 +14,7 @@ export type {
   MigrationDiagnosticFailureEvidence,
   MigrationDiagnosticLocation,
   MigrationDiagnosticMigratorId,
+  MigrationDiagnosticsSnapshot,
   MigrationVersionGateContext
 } from './migrationDiagnosticsSchemas'
 export type { ClassifiedMigrationError } from './migrationErrorClassifier'

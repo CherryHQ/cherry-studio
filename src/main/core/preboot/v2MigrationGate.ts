@@ -245,6 +245,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     start: startRendererExport,
     reportRendererExportFailure: finishRendererExportFailure,
     saveDiagnosticBundle,
+    snapshot: () => diagnosticsCoordinator.snapshot(),
     completeVersionGate
   }
 

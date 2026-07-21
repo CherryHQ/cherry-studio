@@ -273,6 +273,7 @@ interface RegisteredMigrationDiagnosticsCapabilities {
     }
   ): Promise<void>
   saveDiagnosticBundle(destination: string): Promise<unknown>
+  snapshot(): Promise<unknown>
   completeVersionGate(): void
 }
 
@@ -1099,6 +1100,24 @@ describe('runV2MigrationGate', () => {
           complete: expect.any(Function)
         })
       )
+    })
+
+    it('exposes the real coordinator snapshot through the registered IPC capability', async () => {
+      const coordinator = await createMemoryDiagnosticsCoordinator()
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.12',
+        versionLogExists: true
+      })
+      stubMigrationV2({ diagnosticsCoordinator: coordinator })
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+
+      await expect(registeredDiagnosticsCapabilities().snapshot()).resolves.toEqual(await coordinator.snapshot())
     })
 
     it('finishes the recovery decision before beginning a recovered retry or initializing the database', async () => {

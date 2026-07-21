@@ -79,6 +79,16 @@ user's external email client with instructions, reveal the ZIP, or copy the supp
 is available. It never uploads, sends, or attaches the bundle automatically; the user must review and attach the ZIP
 manually.
 
+The support email is built in Main from the coordinator's current strict snapshot and fixed native i18n resources;
+Renderer cannot provide its subject or body. Its summary is limited to app version, platform/architecture,
+failure scope/phase/kind/error code, Renderer export source/operation roles (otherwise `unknown`), and a previous app
+version only when strict version-gate evidence contains one. A snapshot without a failed or interrupted attempt uses
+fixed `unknown` failure fields. Paths, raw errors, messages, stacks, user content, and diagnostic/session identifiers
+are not included. The `mailto:` query uses `encodeURIComponent` for subject and body (`%20` spaces and `%0A` line
+breaks, never `+`) and is checked by `isSafeExternalUrl` before opening. The body asks the user for missing context and
+states that the saved diagnostic ZIP must be attached manually; neither the ZIP nor the email is uploaded, attached,
+or sent automatically.
+
 Real fault coverage is split by boundary: database integration tests mutate real SQLite tables and columns, the
 process integration test runs and terminates a real native SQLite hang, journal/coordinator tests exercise durable
 recovery, bundle tests build and inspect real ZIPs, and the renderer-export handler tests use temporary filesystem

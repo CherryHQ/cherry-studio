@@ -23,19 +23,19 @@ import path from 'path'
 
 import { migrationEngine } from '../core/MigrationEngine'
 import type { MigrationPaths } from '../core/MigrationPaths'
-import { classifyMigrationError } from '../diagnostics'
+import { classifyMigrationError, type MigrationDiagnosticsSnapshot } from '../diagnostics'
 import type { MigrationRendererExportMainWriteFailure } from '../migrationDiagnostics'
 import {
   type MigrationDiagnosticNativeSaveResult,
   saveMigrationDiagnosticBundleWithDialog
 } from './migrationDiagnosticDialogs'
+import { createMigrationDiagnosticEmailUrl, MIGRATION_DIAGNOSTIC_SUPPORT_EMAIL } from './migrationDiagnosticEmail'
 import { createMigrationDiagnosticNativeI18n } from './migrationDiagnosticNativeI18n'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 const RENDERER_EXPORT_NOT_ACTIVE_ERROR = 'Renderer export is not active.'
-const SUPPORT_EMAIL = 'support@cherry-ai.com'
 type MigrationDiagnosticSaveInProgressResult = Extract<MigrationDiagnosticSaveResult, { status: 'failed' }> & {
   code: 'save_in_progress'
 }
@@ -84,6 +84,7 @@ export interface MigrationIpcDiagnosticCapabilities {
     mainWriteFailure?: MigrationRendererExportMainWriteFailure
   ): void | Promise<void>
   saveDiagnosticBundle(destination: string): Promise<MigrationDiagnosticNativeSaveResult>
+  snapshot(): Promise<MigrationDiagnosticsSnapshot>
   completeVersionGate(): void
 }
 
@@ -170,8 +171,9 @@ export function registerMigrationIpcHandlers(
 
   ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event) => {
     assertMigrationSender(event)
+    const snapshot = await diagnosticCapabilities.snapshot()
     const i18n = await createMigrationDiagnosticNativeI18n(app.getLocale())
-    const mailto = createSupportEmailUrl(i18n.t('support.emailSubject'), i18n.t('support.emailBody'))
+    const mailto = createMigrationDiagnosticEmailUrl(snapshot, i18n)
     if (!isSafeExternalUrl(mailto)) {
       throw new Error('Could not create a safe support email URL.')
     }
@@ -193,7 +195,7 @@ export function registerMigrationIpcHandlers(
 
   ipcMain.handle(MigrationIpcChannels.CopySupportEmail, (event) => {
     assertMigrationSender(event)
-    clipboard.writeText(SUPPORT_EMAIL)
+    clipboard.writeText(MIGRATION_DIAGNOSTIC_SUPPORT_EMAIL)
     return true
   })
 
@@ -689,15 +691,6 @@ function assertRendererExportActive(registration: DiagnosticRegistrationState): 
   ) {
     throw new Error(RENDERER_EXPORT_NOT_ACTIVE_ERROR)
   }
-}
-
-function createSupportEmailUrl(subject: string, body: string): string {
-  const url = new URL(`mailto:${SUPPORT_EMAIL}`)
-  url.search = new URLSearchParams({
-    subject,
-    body
-  }).toString()
-  return url.toString()
 }
 
 /**
