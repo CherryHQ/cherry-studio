@@ -158,7 +158,14 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
   }
 }
 
-export function AssistantEditDialog({ resource, open, onOpenChange, onSaved, modelFilter }: AssistantEditDialogProps) {
+export function AssistantEditDialog({
+  resource,
+  open,
+  onOpenChange,
+  onSaved,
+  modelFilter,
+  initialTab
+}: AssistantEditDialogProps) {
   if (!resource) return null
 
   return (
@@ -168,6 +175,7 @@ export function AssistantEditDialog({ resource, open, onOpenChange, onSaved, mod
       onOpenChange={onOpenChange}
       onSaved={onSaved}
       modelFilter={modelFilter}
+      initialTab={initialTab}
     />
   )
 }
@@ -177,10 +185,11 @@ function AssistantEditDialogContent({
   open,
   onOpenChange,
   onSaved,
-  modelFilter
+  modelFilter,
+  initialTab
 }: EditDialogBaseProps<AssistantEditDialogResource> & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('basic')
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
@@ -220,10 +229,10 @@ function AssistantEditDialogContent({
 
     form.reset(defaultValues)
     form.clearErrors()
-    setActiveTab('basic')
+    setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
-  }, [defaultValues, form, open, resource])
+  }, [defaultValues, form, initialTab, open, resource])
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0

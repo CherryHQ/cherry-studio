@@ -4891,6 +4891,7 @@
     "install": "Install",
     "install_plugins_from_browser": "Browse available skills to get started",
     "installing": "Installing...",
+    "manage_skills": "Manage skills",
     "name": "Name",
     "no_description": "No description available",
     "no_installed_plugins": "No skills installed yet",
@@ -7440,6 +7441,7 @@
         "autoEmpty": "No enabled MCP servers",
         "description": "View current MCP server status",
         "disabled": "MCP is disabled for this assistant",
+        "open_config": "Configure MCP servers",
         "unknownServer": "Unknown MCP server"
       },
       "multiple": "Multiple Select",
