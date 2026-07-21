@@ -3,7 +3,7 @@ import path from 'node:path'
 import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 import { describe, expect, it, vi } from 'vitest'
 
-import { USER_DATA_KEPT, USER_DATA_WIPE, USER_DATA_WIPE_PREFIXES } from '../factoryResetGate'
+import { USER_DATA_KEPT, USER_DATA_WIPE } from '../factoryResetGate'
 
 // Conformance test: factoryResetGate's wipe list is literal entry names,
 // while the paths they refer to are owned by pathRegistry. This suite pins
@@ -49,17 +49,19 @@ function firstSegment(child: string, parent: string): string {
 
 /** Same membership rule the gate applies to a directory entry. */
 function isWiped(entry: string): boolean {
-  return USER_DATA_WIPE.includes(entry) || USER_DATA_WIPE_PREFIXES.some((prefix) => entry.startsWith(prefix))
+  return USER_DATA_WIPE.includes(entry)
 }
 
 describe('factoryResetGate ↔ pathRegistry conformance', () => {
-  it('the sqlite prefix family is rooted at the app.database.file basename', () => {
+  it('the sqlite family is the app.database.file basename plus its -wal/-shm sidecars', () => {
     const dbFile = path.basename(registry['app.database.file'])
-    expect(USER_DATA_WIPE_PREFIXES).toContain(dbFile)
-    // The prefix covers the sidecars an exact-name list would miss.
+    expect(isWiped(dbFile)).toBe(true)
     expect(isWiped(`${dbFile}-wal`)).toBe(true)
     expect(isWiped(`${dbFile}-shm`)).toBe(true)
-    expect(isWiped(`${dbFile}.bak-20260101000000`)).toBe(true)
+    // Exact names only: a user's own file that merely starts with the db name
+    // must NOT be swept up (#17138 review).
+    expect(isWiped(`${dbFile}-personal-backup`)).toBe(false)
+    expect(isWiped(`${dbFile}.bak-20260101000000`)).toBe(false)
   })
 
   it('USER_DATA_WIPE names the registry-owned userData user state', () => {

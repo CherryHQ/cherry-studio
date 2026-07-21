@@ -38,7 +38,7 @@ const DEFAULT_LISTING = [
   // wiped — Cherry user state
   'cherrystudio.sqlite',
   'cherrystudio.sqlite-wal',
-  'cherrystudio.sqlite.bak-20260712163756',
+  'cherrystudio.sqlite-shm',
   'Data',
   'Data.restore',
   'IndexedDB.restore',
@@ -64,13 +64,16 @@ const DEFAULT_LISTING = [
   // kept — unknown provenance (old-build debris, user files)
   'migration_temp',
   '.pi',
-  'holiday-photos'
+  'holiday-photos',
+  // kept — a user's own file that only *looks* like a db sibling: the sqlite
+  // family is matched by exact name, so this survives (#17138 review).
+  'cherrystudio.sqlite-personal-backup'
 ]
 
 const EXPECTED_WIPED = [
   'cherrystudio.sqlite',
   'cherrystudio.sqlite-wal',
-  'cherrystudio.sqlite.bak-20260712163756',
+  'cherrystudio.sqlite-shm',
   'Data',
   'Data.restore',
   'IndexedDB.restore',
@@ -96,7 +99,8 @@ const EXPECTED_KEPT = [
   'tesseract',
   'migration_temp',
   '.pi',
-  'holiday-photos'
+  'holiday-photos',
+  'cherrystudio.sqlite-personal-backup'
 ]
 
 function stubElectron() {

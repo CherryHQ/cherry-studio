@@ -31,6 +31,12 @@ const MAX_WIPE_ATTEMPTS = 2
  * directory a marker can legitimately point at (#17138 review).
  *
  * Cherry user state:
+ * - `cherrystudio.sqlite` (+ `-wal`/`-shm`) — the app database and its WAL
+ *   sidecars. Exact names, NOT a `cherrystudio.sqlite` prefix: a prefix match
+ *   would also delete a user's own `cherrystudio.sqlite-personal-backup` in an
+ *   adopted directory, and the engine leaves no other sqlite siblings — the
+ *   -wal/-shm pair is all DbService/MigrationDbService ever recognise
+ *   (#17138 review).
  * - `Data` — all business files (Files/Notes/KnowledgeBase/Workspace/…).
  * - `Data.restore` / `IndexedDB.restore` / `Local Storage.restore` —
  *   staging sidecars written by LegacyBackupManager's v1 restore path
@@ -57,6 +63,9 @@ const MAX_WIPE_ATTEMPTS = 2
  * documented as residue otherwise:
  */
 export const USER_DATA_WIPE = [
+  'cherrystudio.sqlite',
+  'cherrystudio.sqlite-wal',
+  'cherrystudio.sqlite-shm',
   'Data',
   'Data.restore',
   'IndexedDB.restore',
@@ -84,13 +93,6 @@ export const USER_DATA_WIPE = [
   'Network Persistent State',
   'DIPS'
 ]
-
-/**
- * Prefix-matched wipe entries: `cherrystudio.sqlite` plus its `-wal`/`-shm`
- * companions and the `.bak-<timestamp>` copies the migration engine leaves
- * next to it — an exact-name list would silently miss the backups.
- */
-export const USER_DATA_WIPE_PREFIXES = ['cherrystudio.sqlite']
 
 /**
  * userData entries deliberately KEPT, documented here (and pinned by the
@@ -304,9 +306,9 @@ export function runFactoryResetGate(): void {
   }
 }
 
-/** Whitelist membership: exact names plus the sqlite prefix family. */
+/** Whitelist membership: exact names only. */
 function shouldWipe(entry: string): boolean {
-  return USER_DATA_WIPE.includes(entry) || USER_DATA_WIPE_PREFIXES.some((prefix) => entry.startsWith(prefix))
+  return USER_DATA_WIPE.includes(entry)
 }
 
 /**
