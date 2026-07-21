@@ -20,7 +20,7 @@ import { isExternalCliProvider, isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN 
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
-import { withDeepSeek1mSuffix } from './deepseekContext'
+import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import { buildClaudeCodeSessionSettings, buildSkillWhitelist, type McpServerSnapshotMap } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
@@ -35,6 +35,7 @@ interface RuntimeModelRef {
   providerId: string
   modelId: string
   apiModelId: string
+  contextWindow?: number
   provider?: Provider
 }
 
@@ -335,6 +336,7 @@ function deriveRouteFacts(
     providerId: primaryProvider.id,
     modelId: primaryModelId,
     apiModelId: primaryModel.apiModelId ?? primaryModelId,
+    contextWindow: primaryModel.contextWindow,
     provider: primaryProvider
   }
   const opusRef = primaryRef
@@ -398,15 +400,19 @@ function deriveRouteFacts(
   // that rotate onto different keys still sign identically, while enabling/disabling/editing a key
   // invalidates warm reuse.
   const enabledKeys = providerService.getApiKeys(primaryProvider.id, { enabled: true }).map((entry) => entry.key)
+  // Every slot resolves to the same `anthropicBaseUrl`, so one host check gates them all. Decide
+  // first-party by resolved host, NOT preset origin: a provider copied from the Anthropic preset but
+  // repointed at a custom 1M proxy is not first-party and must still get the `[1m]` suffix.
+  const isAnthropicNative = isAnthropicOfficialHost(anthropicBaseUrl)
   return {
     branch: 'direct',
     baseUrl: anthropicBaseUrl,
     credentialsFingerprint: fingerprintCredentials(enabledKeys),
     modelIds: {
-      primary: withDeepSeek1mSuffix(primaryRef.apiModelId, anthropicBaseUrl),
-      opus: withDeepSeek1mSuffix(opusRef.apiModelId, anthropicBaseUrl),
-      sonnet: withDeepSeek1mSuffix(sonnetRef.apiModelId, anthropicBaseUrl),
-      haiku: withDeepSeek1mSuffix(haikuRef.apiModelId, anthropicBaseUrl)
+      primary: with1mSuffix(primaryRef.apiModelId, primaryRef.contextWindow, isAnthropicNative),
+      opus: with1mSuffix(opusRef.apiModelId, opusRef.contextWindow, isAnthropicNative),
+      sonnet: with1mSuffix(sonnetRef.apiModelId, sonnetRef.contextWindow, isAnthropicNative),
+      haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
     }
   }
 }
@@ -480,6 +486,7 @@ function resolveRuntimeModelRef(
       providerId,
       modelId,
       apiModelId: model?.apiModelId ?? modelId,
+      contextWindow: model?.contextWindow,
       provider
     }
   } catch {
