@@ -364,7 +364,7 @@ function createAssistantTopicsSource(): AssistantTopicsSource {
     statsError: null,
     refetchStats: vi.fn(),
     loadLatestTopic: vi.fn().mockResolvedValue(null),
-    loadTopicReuseCandidates: vi.fn().mockResolvedValue([])
+    loadReusableTopic: vi.fn().mockResolvedValue(null)
   } as unknown as AssistantTopicsSource
 }
 

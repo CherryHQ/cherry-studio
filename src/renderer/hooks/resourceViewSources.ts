@@ -1,21 +1,18 @@
 import { dataApiService } from '@renderer/data/DataApiService'
-import type { AgentSessionListItem } from '@shared/data/api/schemas/agentSessions'
-import type { TopicListItem } from '@shared/data/api/schemas/topics'
+import type { AgentSessionWorkspaceScope } from '@shared/data/api/schemas/agentSessions'
 import { useCallback } from 'react'
 
 import { useAgentSessionStats } from './agent/useSession'
 import { useTopicStats } from './useTopic'
 
 /**
- * Page-level resource facts and bounded seed lookups shared by classic rails,
+ * Page-level resource facts and exact derived lookups shared by classic rails,
  * conversation pages, and their right-panel lists.
  */
 
-const RESOURCE_REUSE_CANDIDATE_PAGE_SIZE = 50
-
 /**
  * Factual counts drive group visibility. Imperative lookups use scoped latest
- * for owner navigation and bounded pages for placeholder reuse.
+ * for owner navigation and domain reads for placeholder reuse.
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useTopicStats({ enabled })
@@ -26,18 +23,11 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
         : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
     return result.topic
   }, [])
-  const loadTopicReuseCandidates = useCallback(async (assistantId: string | null): Promise<TopicListItem[]> => {
-    const query = {
-      assistantId: assistantId ?? 'unlinked',
-      limit: RESOURCE_REUSE_CANDIDATE_PAGE_SIZE,
-      sortBy: 'orderKey' as const
-    }
-    const [pinnedPage, ordinaryPage] = await Promise.all([
-      dataApiService.get('/topics', { query: { ...query, pinned: true } }),
-      dataApiService.get('/topics', { query: { ...query, pinned: false } })
-    ])
-    const pinnedIds = new Set(pinnedPage.items.map((topic) => topic.id))
-    return [...pinnedPage.items, ...ordinaryPage.items.filter((topic) => !pinnedIds.has(topic.id))]
+  const loadReusableTopic = useCallback(async (assistantId: string | null) => {
+    const result = await dataApiService.get('/topics/reusable-placeholder', {
+      query: { assistantId: assistantId ?? 'unassigned' }
+    })
+    return result.topic
   }, [])
 
   return {
@@ -46,7 +36,7 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
     statsError: statsSource.error,
     refetchStats: statsSource.refetch,
     loadLatestTopic,
-    loadTopicReuseCandidates
+    loadReusableTopic
   }
 }
 
@@ -60,14 +50,11 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
         : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
     return result.session
   }, [])
-  const loadSessionReuseCandidates = useCallback(async (agentId: string): Promise<AgentSessionListItem[]> => {
-    const query = { agentId, limit: RESOURCE_REUSE_CANDIDATE_PAGE_SIZE, sortBy: 'orderKey' as const }
-    const [pinnedPage, ordinaryPage] = await Promise.all([
-      dataApiService.get('/agent-sessions', { query: { ...query, pinned: true } }),
-      dataApiService.get('/agent-sessions', { query: { ...query, pinned: false } })
-    ])
-    const pinnedIds = new Set(pinnedPage.items.map((session) => session.id))
-    return [...pinnedPage.items, ...ordinaryPage.items.filter((session) => !pinnedIds.has(session.id))]
+  const loadReusableSessions = useCallback(async (agentId: string, workspaceId?: AgentSessionWorkspaceScope) => {
+    const result = await dataApiService.get('/agent-sessions/reusable-placeholders', {
+      query: { agentId, ...(workspaceId ? { workspaceId } : {}) }
+    })
+    return result.sessions
   }, [])
 
   return {
@@ -76,7 +63,7 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
     statsError: statsSource.error,
     refetchStats: statsSource.refetch,
     loadLatestSession,
-    loadSessionReuseCandidates
+    loadReusableSessions
   }
 }
 

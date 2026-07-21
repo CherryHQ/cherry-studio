@@ -62,6 +62,7 @@ const homeMocks = vi.hoisted(() => ({
     id: string
     assistantId?: string
     name: string
+    isNameManuallyEdited?: boolean
     activeNodeId?: string
     createdAt?: string
     lastActivityAt?: string
@@ -288,9 +289,30 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
               ? (topics[0] ?? null)
               : homeMocks.loadLatestTopicOverride
           }),
-          loadTopicReuseCandidates: vi.fn(async (assistantId: string | null) =>
-            topics.filter((topic) => (topic.assistantId ?? null) === assistantId)
-          )
+          loadReusableTopic: vi.fn(async (assistantId: string | null) => {
+            const byId = new Map(
+              [...topics, ...(homeMocks.locationState?.topic ? [homeMocks.locationState.topic] : [])].map((topic) => [
+                topic.id,
+                topic
+              ])
+            )
+            const reusable = Array.from(byId.values()).filter(
+              (topic) =>
+                (topic.assistantId ?? null) === assistantId &&
+                !topic.activeNodeId &&
+                !topic.name.trim() &&
+                !topic.isNameManuallyEdited
+            )
+            reusable.sort((left, right) => {
+              const leftMs = left.createdAt ? Date.parse(left.createdAt) : Number.NEGATIVE_INFINITY
+              const rightMs = right.createdAt ? Date.parse(right.createdAt) : Number.NEGATIVE_INFINITY
+              return (
+                (Number.isFinite(rightMs) ? rightMs : Number.NEGATIVE_INFINITY) -
+                (Number.isFinite(leftMs) ? leftMs : Number.NEGATIVE_INFINITY)
+              )
+            })
+            return reusable[0] ?? null
+          })
         }
       }, [options.enabled])
       homeMocks.assistantTopicsSourceOptions.push(options)
@@ -1691,7 +1713,7 @@ describe('HomePage', () => {
     fireEvent.click(button)
 
     // The synchronous re-entry guard drops the second click, but `createTopic` now sits behind an awaited
-    // reuse-candidate lookup, so wait for the single in-flight create to land.
+    // reusable-placeholder lookup, so wait for the single in-flight create to land.
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(1))
   })
 

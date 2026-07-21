@@ -21,6 +21,7 @@ import type {
   LatestTopicQuery,
   ListTopicsQuery,
   MoveTopicDto,
+  ReusableTopicPlaceholderQuery,
   TopicListItem,
   TopicSearchScope,
   TopicSortBy,
@@ -199,6 +200,36 @@ export class TopicService {
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
       .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
+      .limit(1)
+      .all()
+
+    return row ? rowToTopic(row.topic) : null
+  }
+
+  /**
+   * Return the newest reusable placeholder for one exact creation owner.
+   * This is a domain read rather than a list-page scan: pin membership and
+   * manual list order cannot hide an older empty placeholder.
+   */
+  getReusablePlaceholder(query: ReusableTopicPlaceholderQuery): Topic | null {
+    const db = application.get('DbService').getDb()
+    const ownerFilter =
+      query.assistantId === 'unassigned' ? isNull(topicTable.assistantId) : eq(assistantTable.id, query.assistantId)
+
+    const [row] = db
+      .select({ topic: topicTable })
+      .from(topicTable)
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(
+        and(
+          isNull(topicTable.deletedAt),
+          ownerFilter,
+          isNull(topicTable.activeNodeId),
+          eq(topicTable.isNameManuallyEdited, false),
+          sql`trim(${topicTable.name}) = ''`
+        )
+      )
+      .orderBy(desc(topicTable.createdAt), desc(topicTable.updatedAt), asc(topicTable.id))
       .limit(1)
       .all()
 
@@ -573,8 +604,8 @@ export class TopicService {
    * response or cursor:
    *
    * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
-   *   topic.id ASC`. New pins are inserted at the front of that order. This is
-   *   independent of `sortBy` (ignored on this path).
+   *   topic.id ASC`. New pins are inserted at the front of that order. The
+   *   pinned stream has no `sortBy` dimension.
    * - `pinned === false` → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
    *   (`createdAt`/`lastActivityAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
    *   Pinned rows are excluded from this stream.
@@ -591,7 +622,7 @@ export class TopicService {
 
   /**
    * Pinned-only page in persisted manual order. New pins are inserted first by
-   * PinService, and this read deliberately ignores `query.sortBy`.
+   * PinService; the pinned query variant does not accept `sortBy`.
    */
   private listPinnedByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
     const db = application.get('DbService').getDb()

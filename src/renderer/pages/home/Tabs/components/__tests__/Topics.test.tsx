@@ -627,7 +627,7 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
     isRefreshing: source.isRefreshing,
     loadNext: source.loadNext,
     loadLatestTopic: vi.fn().mockResolvedValue(null),
-    loadTopicReuseCandidates: vi.fn().mockResolvedValue([]),
+    loadReusableTopic: vi.fn().mockResolvedValue(null),
     mutate: source.mutate,
     pages: source.pages,
     refetch: source.refresh,

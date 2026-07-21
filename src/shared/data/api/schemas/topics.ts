@@ -86,14 +86,14 @@ export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
  *
  * Two independent streams that never mix in one response or cursor:
  * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
- *   PinService inserts new pins first and `sortBy` is ignored on this path.
+ *   PinService inserts new pins first and this variant does not accept `sortBy`.
  * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
  *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *
  * The record filters below apply on either path. Omitting `sortBy` means
  * `createdAt`, never a legacy composite pinned-then-ordinary view.
  */
-export const ListTopicsQuerySchema = z.strictObject({
+const ListTopicsCommonQuerySchema = z.strictObject({
   /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */
@@ -102,13 +102,22 @@ export const ListTopicsQuerySchema = z.strictObject({
   q: z.string().optional(),
   /** Search scope for `q`; defaults to `name` in the service. */
   searchScope: TopicSearchScopeSchema.optional(),
-  /** Sort profile for the ordinary stream; defaults to `createdAt`. Ignored when `pinned=true`. */
-  sortBy: TopicSortBySchema.optional(),
   /** Owner scope: concrete live assistant id, or 'unlinked' (no live assistant). */
-  assistantId: TopicOwnerScopeSchema.optional(),
-  /** true → pin-owned stream; false → ordinary stream excluding pinned rows. */
-  pinned: z.boolean()
+  assistantId: TopicOwnerScopeSchema.optional()
 })
+
+export const ListTopicsQuerySchema = z.discriminatedUnion('pinned', [
+  ListTopicsCommonQuerySchema.extend({
+    /** Pin-owned stream; persisted pin order is the only valid ordering. */
+    pinned: z.literal(true)
+  }),
+  ListTopicsCommonQuerySchema.extend({
+    /** Ordinary stream excluding pinned rows. */
+    pinned: z.literal(false),
+    /** Sort profile for the ordinary stream; defaults to `createdAt`. */
+    sortBy: TopicSortBySchema.optional()
+  })
+])
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
 /** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
@@ -116,6 +125,16 @@ export const LatestTopicQuerySchema = z.strictObject({
   assistantId: TopicOwnerScopeSchema.optional()
 })
 export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
+
+/**
+ * Exact owner target for reusable empty-topic lookup. `unassigned` means
+ * `assistantId IS NULL` only; unlike the list's `unlinked` aggregate it does
+ * not include topics whose former assistant was soft-deleted.
+ */
+export const ReusableTopicPlaceholderQuerySchema = z.strictObject({
+  assistantId: z.union([z.uuidv4(), z.literal('unassigned')])
+})
+export type ReusableTopicPlaceholderQuery = z.infer<typeof ReusableTopicPlaceholderQuerySchema>
 
 /**
  * Query parameters for `GET /topics/stats`. Only filters used by current
@@ -202,6 +221,11 @@ export interface LatestTopicResponse {
   topic: Topic | null
 }
 
+/** The newest reusable empty topic for the exact creation owner, or `null`. */
+export interface ReusableTopicPlaceholderResponse {
+  topic: Topic | null
+}
+
 const DeleteTopicsIdsQueryValueSchema = z
   .string()
   .transform((value) =>
@@ -281,6 +305,17 @@ export type TopicSchemas = {
     GET: {
       query?: LatestTopicQuery
       response: LatestTopicResponse
+    }
+  }
+
+  /**
+   * Newest structurally empty, untitled placeholder for one exact creation
+   * owner. This derived read is independent of list pagination and pin order.
+   */
+  '/topics/reusable-placeholder': {
+    GET: {
+      query: ReusableTopicPlaceholderQuery
+      response: ReusableTopicPlaceholderResponse
     }
   }
 

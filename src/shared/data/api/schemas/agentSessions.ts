@@ -176,7 +176,7 @@ export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSche
  *
  * Two independent streams that never mix in one response or cursor:
  * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
- *   PinService inserts new pins first and `sortBy` is ignored on this path.
+ *   PinService inserts new pins first and this variant does not accept `sortBy`.
  * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
  *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
  *
@@ -184,24 +184,33 @@ export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSche
  * `createdAt`, never a legacy composite view. Workspace grouping uses the
  * stable workspace id; path remains presentation metadata.
  */
-export const ListAgentSessionsQuerySchema = z.strictObject({
+const ListAgentSessionsCommonQuerySchema = z.strictObject({
   /** Owner scope: concrete live agent id, or 'unlinked' (no live agent). */
   agentId: AgentSessionOwnerScopeSchema.optional(),
   /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */
   limit: z.coerce.number().int().positive().max(200).optional(),
-  /** Sort profile for the ordinary stream; defaults to `createdAt`. Ignored when `pinned=true`. */
-  sortBy: AgentSessionSortBySchema.optional(),
   /** Literal substring search term (escaped LIKE; `%`/`_`/`\` are not wildcards). */
   q: z.string().optional(),
   /** Search scope for `q`; defaults to `name` in the service. */
   searchScope: AgentSessionSearchScopeSchema.optional(),
-  /** true → pin-owned stream; false → ordinary stream excluding pinned rows. */
-  pinned: z.boolean(),
   /** Concrete user workspace id, or 'system' for generated/no-workdir sessions. */
   workspaceId: AgentSessionWorkspaceScopeSchema.optional()
 })
+
+export const ListAgentSessionsQuerySchema = z.discriminatedUnion('pinned', [
+  ListAgentSessionsCommonQuerySchema.extend({
+    /** Pin-owned stream; persisted pin order is the only valid ordering. */
+    pinned: z.literal(true)
+  }),
+  ListAgentSessionsCommonQuerySchema.extend({
+    /** Ordinary stream excluding pinned rows. */
+    pinned: z.literal(false),
+    /** Sort profile for the ordinary stream; defaults to `createdAt`. */
+    sortBy: AgentSessionSortBySchema.optional()
+  })
+])
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
@@ -210,6 +219,14 @@ export const LatestAgentSessionQuerySchema = z.strictObject({
   agentId: AgentSessionOwnerScopeSchema.optional()
 })
 export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
+
+/** Exact owner and optional workspace target for reusable empty-session lookup. */
+export const ReusableAgentSessionPlaceholdersQuerySchema = z.strictObject({
+  agentId: z.uuidv4(),
+  /** Concrete user workspace id, `system`, or omitted for every workspace. */
+  workspaceId: AgentSessionWorkspaceScopeSchema.optional()
+})
+export type ReusableAgentSessionPlaceholdersQuery = z.infer<typeof ReusableAgentSessionPlaceholdersQuerySchema>
 
 /**
  * Query for `GET /agent-sessions/stats`. This endpoint accepts owner scope and
@@ -244,6 +261,11 @@ export interface DeleteAgentSessionsResult {
 /** Response for `GET /agent-sessions/latest` — the most-recently-active session in the requested scope, or `null`. */
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
+}
+
+/** Every reusable empty session for the exact target, newest first. */
+export interface ReusableAgentSessionPlaceholdersResponse {
+  sessions: AgentSessionEntity[]
 }
 
 export const AGENT_SESSION_DELETE_MAX_IDS = 200
@@ -304,6 +326,17 @@ export type AgentSessionSchemas = {
     GET: {
       query?: LatestAgentSessionQuery
       response: LatestAgentSessionResponse
+    }
+  }
+
+  /**
+   * Structurally empty, untitled placeholders for one live agent and optional
+   * exact workspace scope. This derived read is independent of list pagination.
+   */
+  '/agent-sessions/reusable-placeholders': {
+    GET: {
+      query: ReusableAgentSessionPlaceholdersQuery
+      response: ReusableAgentSessionPlaceholdersResponse
     }
   }
 

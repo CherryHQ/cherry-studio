@@ -46,11 +46,9 @@ import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { findLatestCreated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useLocation, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
@@ -81,55 +79,6 @@ type InitialTopicStartState = {
 
 type NewTopicAssistantTargetOptions = {
   excludedAssistantIds?: readonly string[]
-}
-
-// A topic is a reusable empty placeholder when it is structurally empty *and* not a deliberately
-// named one. Emptiness is read straight from `activeNodeId`: a fresh topic starts with no active node
-// and the first real message points it at one (the virtual root can never be the active node), so
-// `!activeNodeId` provably means "no conversation started". This is authoritative and migration-safe —
-// unlike an `updatedAt`-vs-`createdAt` timestamp proxy, which reads persisted / migrated rows as
-// "untouched" even when they already carry messages, and so would reopen a real conversation (#16434).
-// The name guard mirrors the agent-session `isUntitledPlaceholderSession`: it keeps a placeholder the
-// user manually renamed from being silently repurposed on the next "new topic".
-function isReusableEmptyTopic(topic: { activeNodeId?: string; name: string; isNameManuallyEdited?: boolean }): boolean {
-  return !topic.activeNodeId && !topic.name.trim() && !topic.isNameManuallyEdited
-}
-
-// Reuse the assistant's latest empty placeholder topic instead of stacking a new one. The empty topic
-// only exists to surface the assistant in the classic-layout rail, so on repeated adds we reopen the
-// existing placeholder rather than pile up blanks.
-function findReusableEmptyTopic<
-  T extends {
-    assistantId?: string
-    activeNodeId?: string
-    name: string
-    isNameManuallyEdited?: boolean
-    createdAt?: string
-  }
->(topics: readonly T[], assistantId: string | null | undefined): T | undefined {
-  // `undefined` → no reuse target (e.g. runtime fallback with no assistants). `null` → the
-  // default/unassigned group: match empty topics that likewise have no assistant, so repeated "new
-  // topic" there reopens the placeholder instead of stacking blanks. `!topic.assistantId` covers every
-  // "no assistant" encoding (undefined / null / '').
-  if (assistantId === undefined) return undefined
-  const matchesTarget = (topic: T) => (assistantId === null ? !topic.assistantId : topic.assistantId === assistantId)
-  // Creation time only ranks the already-confirmed-empty matches; it never decides emptiness.
-  return findLatestCreated(topics.filter((topic) => matchesTarget(topic) && isReusableEmptyTopic(topic)))
-}
-
-function mergeReusableTopicCandidates(apiTopics: readonly ApiTopic[], visibleTopic?: Topic): Topic[] {
-  const byId = new Map<string, Topic>()
-
-  for (const topic of apiTopics) {
-    byId.set(topic.id, mapApiTopicToRendererTopic(topic))
-  }
-  // The in-memory active topic may be a just-created placeholder not yet in the persisted source;
-  // include it (only while still empty) so it is reusable before the topic list refetches.
-  if (visibleTopic?.id && isReusableEmptyTopic(visibleTopic)) {
-    byId.set(visibleTopic.id, visibleTopic)
-  }
-
-  return Array.from(byId.values())
 }
 
 const HomePage: FC = () => {
@@ -169,9 +118,9 @@ const HomePage: FC = () => {
     enabled: isAssistantResourceLayout,
     defaultOpen: !isWindowFrame && panePosition === 'right'
   })
-  // Shared topic facts plus bounded seed lookups for rails, restore, and empty-topic reuse.
+  // Shared topic facts plus exact derived lookups for rails, restore, and empty-topic reuse.
   const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
-  const { stats: topicStats, loadLatestTopic, loadTopicReuseCandidates } = assistantTopicsSource
+  const { stats: topicStats, loadLatestTopic, loadReusableTopic } = assistantTopicsSource
   // First-entry selection resumes the most-recently-active topic. A dedicated `lastActivityAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full topic history to paginate in nor
   // depends on either independently paged `/topics` stream or its visible ordering.
@@ -276,11 +225,6 @@ const HomePage: FC = () => {
     setRightPaneAssistantScopeId(visibleTopicAssistantScopeId)
     setIsSelectedAssistantScopeEmpty(false)
   }, [visibleTopicAssistantScopeId, visibleTopicId])
-  const loadReusableTopicCandidates = useCallback(
-    async (assistantId: string | null) =>
-      mergeReusableTopicCandidates(await loadTopicReuseCandidates(assistantId), visibleTopic),
-    [loadTopicReuseCandidates, visibleTopic]
-  )
   const resourceConversationKey = useMemo(() => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
     return 'empty'
@@ -528,8 +472,9 @@ const HomePage: FC = () => {
       try {
         const assistantId = await resolveAssistantIdForSelection(selection)
 
-        // Reuse the assistant's latest empty placeholder topic (see findReusableEmptyTopic).
-        const reusableTopic = findReusableEmptyTopic(await loadReusableTopicCandidates(assistantId), assistantId)
+        // Reuse the assistant's newest exact empty placeholder, independent of list pagination.
+        const reusableApiTopic = await loadReusableTopic(assistantId)
+        const reusableTopic = reusableApiTopic ? mapApiTopicToRendererTopic(reusableApiTopic) : undefined
 
         const rendererTopic = reusableTopic ?? mapApiTopicToRendererTopic(await createTopic({ assistantId }))
 
@@ -548,7 +493,7 @@ const HomePage: FC = () => {
     },
     [
       createTopic,
-      loadReusableTopicCandidates,
+      loadReusableTopic,
       refreshTopics,
       resolveAssistantIdForSelection,
       setActiveTopicAndCloseResourceView,
@@ -564,10 +509,11 @@ const HomePage: FC = () => {
         const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
         // The explicit default/unassigned group (`payload.assistantId === null`) resolves to no target
         // assistant, but its empty placeholders must still be reused rather than restacked — mark it with
-        // `null` so `findReusableEmptyTopic` matches "no assistant" topics.
+        // `null` so the exact reusable-placeholder read targets "no assistant" topics.
         const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
-        const topicReuseCandidates = await loadReusableTopicCandidates(reuseTargetAssistantId ?? null)
-        const reusableTopic = findReusableEmptyTopic(topicReuseCandidates, reuseTargetAssistantId)
+        const reusableApiTopic =
+          reuseTargetAssistantId === undefined ? null : await loadReusableTopic(reuseTargetAssistantId)
+        const reusableTopic = reusableApiTopic ? mapApiTopicToRendererTopic(reusableApiTopic) : undefined
         const rendererTopic =
           reusableTopic ??
           mapApiTopicToRendererTopic(
@@ -593,7 +539,7 @@ const HomePage: FC = () => {
     },
     [
       createTopic,
-      loadReusableTopicCandidates,
+      loadReusableTopic,
       refreshTopics,
       resolveNewTopicAssistantTarget,
       setActiveTopicAndCloseResourceView,

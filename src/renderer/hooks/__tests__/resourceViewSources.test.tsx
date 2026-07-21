@@ -23,7 +23,7 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 
 describe('resourceViewSources', () => {
   beforeEach(() => {
-    mocks.get.mockReset().mockResolvedValue({ items: [] })
+    mocks.get.mockReset()
     mocks.useAgentSessionStats.mockReturnValue({
       stats: undefined,
       isLoading: false,
@@ -38,31 +38,25 @@ describe('resourceViewSources', () => {
     })
   })
 
-  it('loads topic seed candidates across pinned and unpinned rows', async () => {
+  it('loads the exact reusable topic independently of list streams', async () => {
+    mocks.get.mockResolvedValueOnce({ topic: null })
     const { result } = renderHook(() => useAssistantTopicsSource())
 
-    await result.current.loadTopicReuseCandidates('assistant-a')
+    await result.current.loadReusableTopic('assistant-a')
 
-    expect(mocks.get).toHaveBeenCalledWith('/topics', {
-      query: {
-        assistantId: 'assistant-a',
-        limit: 50,
-        sortBy: 'orderKey'
-      }
+    expect(mocks.get).toHaveBeenCalledWith('/topics/reusable-placeholder', {
+      query: { assistantId: 'assistant-a' }
     })
   })
 
-  it('loads session seed candidates across pinned and unpinned rows', async () => {
+  it('loads exact reusable sessions with an optional workspace scope', async () => {
+    mocks.get.mockResolvedValueOnce({ sessions: [] })
     const { result } = renderHook(() => useAgentSessionsSource())
 
-    await result.current.loadSessionReuseCandidates('agent-a')
+    await result.current.loadReusableSessions('agent-a', 'system')
 
-    expect(mocks.get).toHaveBeenCalledWith('/agent-sessions', {
-      query: {
-        agentId: 'agent-a',
-        limit: 50,
-        sortBy: 'orderKey'
-      }
+    expect(mocks.get).toHaveBeenCalledWith('/agent-sessions/reusable-placeholders', {
+      query: { agentId: 'agent-a', workspaceId: 'system' }
     })
   })
 })

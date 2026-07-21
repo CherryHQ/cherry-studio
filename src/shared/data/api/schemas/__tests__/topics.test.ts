@@ -6,6 +6,7 @@ import {
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
   MoveTopicSchema,
+  ReusableTopicPlaceholderQuerySchema,
   SetActiveNodeSchema,
   TopicStatsQuerySchema,
   UpdateTopicSchema
@@ -106,16 +107,30 @@ describe('ListTopicsQuerySchema', () => {
     expect(() => TopicStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
   })
 
-  it('accepts the pin-owned stream without sortBy and rejects pinOrderKey', () => {
+  it('accepts the pin-owned stream without sortBy and rejects every sort dimension', () => {
     expect(ListTopicsQuerySchema.parse({ pinned: true, assistantId: 'unlinked' })).toEqual({
       pinned: true,
       assistantId: 'unlinked'
     })
-    expect(ListTopicsQuerySchema.parse({ sortBy: 'lastActivityAt', pinned: true })).toEqual({
-      sortBy: 'lastActivityAt',
-      pinned: true
-    })
+    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'lastActivityAt', pinned: true })).toThrow(/unrecognized/i)
     expect(() => ListTopicsQuerySchema.parse({ sortBy: 'pinOrderKey', pinned: true })).toThrow()
+  })
+})
+
+describe('ReusableTopicPlaceholderQuerySchema', () => {
+  it('accepts an exact live owner or the unassigned creation target', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
+    expect(ReusableTopicPlaceholderQuerySchema.parse({ assistantId })).toEqual({ assistantId })
+    expect(ReusableTopicPlaceholderQuerySchema.parse({ assistantId: 'unassigned' })).toEqual({
+      assistantId: 'unassigned'
+    })
+  })
+
+  it('rejects list-only and unlinked aggregate dimensions', () => {
+    expect(() => ReusableTopicPlaceholderQuerySchema.parse({ assistantId: 'unlinked' })).toThrow()
+    expect(() => ReusableTopicPlaceholderQuerySchema.parse({ assistantId: 'unassigned', pinned: false })).toThrow(
+      /unrecognized/i
+    )
   })
 })
 

@@ -82,6 +82,7 @@ const agentPageMocks = vi.hoisted(() => ({
   dataApiGet: vi.fn(),
   dataApiPost: vi.fn(),
   dataApiDelete: vi.fn(),
+  nonEmptySessionIds: new Set<string>(),
   updateSession: vi.fn(),
   setSessionWorkspace: vi.fn(),
   invalidateCache: vi.fn(),
@@ -157,9 +158,42 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
           ? (sessions[0] ?? null)
           : agentPageMocks.loadLatestSessionOverride
       }),
-      loadSessionReuseCandidates: vi.fn(async (agentId: string) =>
-        sessions.filter((session) => session.agentId === agentId)
-      )
+      loadReusableSessions: vi.fn(async (agentId: string, workspaceId?: string) => {
+        const byId = new Map<string, (typeof sessions)[number]>()
+        for (const session of [activeSessionMocks.session, ...sessions]) {
+          if (session?.id) byId.set(session.id, session)
+        }
+        const reusable = Array.from(byId.values()).filter((session) => {
+          if (
+            session.agentId !== agentId ||
+            session.name.trim() ||
+            session.isNameManuallyEdited ||
+            agentPageMocks.nonEmptySessionIds.has(session.id)
+          ) {
+            return false
+          }
+          const isSystem =
+            session.workspace?.type === 'system' || (!session.workspaceId && session.workspace?.type !== 'user')
+          if (workspaceId === 'system') return isSystem
+          if (workspaceId !== undefined) return !isSystem && session.workspaceId === workspaceId
+          return true
+        })
+        reusable.sort((left, right) => {
+          const leftCreatedMs = left.createdAt ? Date.parse(left.createdAt) : Number.NEGATIVE_INFINITY
+          const rightCreatedMs = right.createdAt ? Date.parse(right.createdAt) : Number.NEGATIVE_INFINITY
+          const createdDelta =
+            (Number.isFinite(rightCreatedMs) ? rightCreatedMs : Number.NEGATIVE_INFINITY) -
+            (Number.isFinite(leftCreatedMs) ? leftCreatedMs : Number.NEGATIVE_INFINITY)
+          if (createdDelta !== 0) return createdDelta
+          const leftUpdatedMs = Date.parse(left.updatedAt)
+          const rightUpdatedMs = Date.parse(right.updatedAt)
+          return (
+            (Number.isFinite(rightUpdatedMs) ? rightUpdatedMs : Number.NEGATIVE_INFINITY) -
+            (Number.isFinite(leftUpdatedMs) ? leftUpdatedMs : Number.NEGATIVE_INFINITY)
+          )
+        })
+        return reusable
+      })
     }
     agentPageMocks.agentSessionsSourceOptions.push(options)
     agentPageMocks.createdAgentSessionsSource = source
@@ -802,6 +836,7 @@ describe('AgentPage', () => {
     agentPageMocks.resourcePaneOpen = null
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.pendingSession = null
+    agentPageMocks.nonEmptySessionIds.clear()
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.showSidebar = false
@@ -1672,7 +1707,6 @@ describe('AgentPage', () => {
         workspace: { type: 'user' }
       }
     ]
-
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
@@ -1920,8 +1954,8 @@ describe('AgentPage', () => {
       workspace: agentPageMocks.workspace
     }
     activeSessionMocks.sessionSource = 'query'
-    // Auto-naming off keeps the name blank, but the message probe finds content — a real
-    // conversation that must NOT be reused as an empty placeholder (#16434).
+    // Auto-naming off keeps the name blank, but the exact derived read excludes rows with content —
+    // a real conversation that must NOT be reused as an empty placeholder (#16434).
     agentPageMocks.resourceLayoutSessions = [
       {
         id: 'session-chatted-blank',
@@ -1934,6 +1968,7 @@ describe('AgentPage', () => {
         workspace: { type: 'user' }
       }
     ]
+    agentPageMocks.nonEmptySessionIds.add('session-chatted-blank')
     agentPageMocks.dataApiPost.mockResolvedValue({
       ...agentPageMocks.persistedSession,
       id: 'session-composer-empty',
@@ -1960,7 +1995,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-composer-empty')
   })
 
-  it('bounds message probes for touched blank session reuse candidates', async () => {
+  it('reuses an empty session beyond the former renderer probe bound', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     activeSessionMocks.session = {
       ...agentPageMocks.persistedSession,
@@ -1981,31 +2016,16 @@ describe('AgentPage', () => {
       workspaceId: 'workspace-a',
       workspace: { type: 'user' }
     }))
-    agentPageMocks.dataApiPost.mockResolvedValue({
-      ...agentPageMocks.persistedSession,
-      id: 'session-composer-empty',
-      agentId: 'agent-a',
-      name: '',
-      workspaceId: 'workspace-a',
-      workspace: agentPageMocks.workspace
-    })
-
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
 
-    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-blank-touched-11'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
     const messageProbeCalls = agentPageMocks.dataApiGet.mock.calls.filter(
       ([path]) => typeof path === 'string' && path.startsWith('/agent-sessions/') && path.endsWith('/messages')
     )
-    expect(messageProbeCalls).toHaveLength(8)
-    expect(messageProbeCalls).toEqual(
-      Array.from({ length: 8 }, (_, index) => [
-        `/agent-sessions/session-blank-touched-${11 - index}/messages`,
-        { query: { limit: 1 } }
-      ])
-    )
-    expect(agentPageMocks.dataApiGet).not.toHaveBeenCalledWith('/agent-sessions', expect.anything())
+    expect(messageProbeCalls).toHaveLength(0)
   })
 
   it('toasts when the classic-layout composer empty-session creation fails', async () => {

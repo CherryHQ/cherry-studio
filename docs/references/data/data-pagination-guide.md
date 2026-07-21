@@ -199,6 +199,15 @@ lists require callers to select either the pinned or ordinary stream. Each
 response therefore has one `(key, id)` tuple and uses `keysetOrdering`. The
 tuple token does not encode its query identity, so callers must discard the
 cursor chain whenever the selected stream, sort profile, or filters change.
+The pinned query variant has one persisted pin order and therefore does not
+accept `sortBy`; only the ordinary variant exposes a sort profile.
+
+**Do not use a page as an existence proof.** A bounded page can answer only
+"which rows are visible in this cursor window," not "does any matching row
+exist?" or "which matching row is globally newest?" Domain decisions such as
+reusing an empty topic/session placeholder need a dedicated derived read whose
+SQL applies the complete predicate independently of pin membership, list order,
+and pagination.
 
 **Determinism under ties.** `keysetOrdering` always appends the `id` tiebreaker
 (`[<major> keyCol, <tie> idCol]`), so page-walking stays deterministic even when

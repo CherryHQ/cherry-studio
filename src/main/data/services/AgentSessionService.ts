@@ -25,6 +25,7 @@ import type {
   DeleteAgentSessionsResult,
   LatestAgentSessionQuery,
   ListAgentSessionsQuery,
+  ReusableAgentSessionPlaceholdersQuery,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -258,6 +259,37 @@ export class AgentSessionService {
     return row ? rowToSession(row) : null
   }
 
+  /**
+   * Return every reusable placeholder for one exact creation target, newest
+   * first. The message anti-join proves emptiness without a bounded renderer
+   * scan, while the optional workspace scope keeps create-or-reuse semantics
+   * exact for both user and system workspaces.
+   */
+  listReusablePlaceholders(query: ReusableAgentSessionPlaceholdersQuery): AgentSessionEntity[] {
+    const db = application.get('DbService').getDb()
+    const filters = buildSessionRecordFilters(query)
+    filters.push(eq(sessionsTable.isNameManuallyEdited, false))
+    filters.push(sql`trim(${sessionsTable.name}) = ''`)
+    filters.push(
+      sql`NOT EXISTS (
+        SELECT 1
+        FROM ${agentSessionMessageTable}
+        WHERE ${agentSessionMessageTable.sessionId} = ${sessionsTable.id}
+      )`
+    )
+
+    const rows = db
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(desc(sessionsTable.createdAt), desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .all()
+
+    return rows.map(rowToSession)
+  }
+
   /** Monotonically advance a session's activity time within the caller's write transaction. */
   advanceLastActivityAtTx(tx: DbOrTx, sessionId: string, timestamp: number): void {
     const updated = tx
@@ -320,8 +352,8 @@ export class AgentSessionService {
    * response or cursor:
    *
    * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
-   *   session.id ASC`. New pins are inserted at the front of that order. This is
-   *   independent of `sortBy` (ignored on this path).
+   *   session.id ASC`. New pins are inserted at the front of that order. The
+   *   pinned stream has no `sortBy` dimension.
    * - `pinned === false` → ordinary keyset stream ordered by `sortBy ?? 'createdAt'`
    *   (`createdAt`/`lastActivityAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
    *   Pinned rows are excluded from this stream.
@@ -338,7 +370,7 @@ export class AgentSessionService {
 
   /**
    * Pinned-only page in persisted manual order. New pins are inserted first by
-   * PinService, and this read deliberately ignores `query.sortBy`.
+   * PinService; the pinned query variant does not accept `sortBy`.
    */
   private listPinnedByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
     const db = application.get('DbService').getDb()

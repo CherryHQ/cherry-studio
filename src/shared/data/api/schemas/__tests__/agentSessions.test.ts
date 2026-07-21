@@ -11,6 +11,7 @@ import {
   DeleteAgentSessionsQuerySchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
+  ReusableAgentSessionPlaceholdersQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
@@ -66,15 +67,34 @@ describe('ListAgentSessionsQuerySchema', () => {
     expect(() => AgentSessionStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
   })
 
-  it('accepts the pin-owned stream without sortBy and rejects pinOrderKey', () => {
+  it('accepts the pin-owned stream without sortBy and rejects every sort dimension', () => {
     expect(
       ListAgentSessionsQuerySchema.parse({ pinned: true, q: 'x', searchScope: 'name-or-owner', workspaceId: 'system' })
     ).toEqual({ pinned: true, q: 'x', searchScope: 'name-or-owner', workspaceId: 'system' })
-    expect(ListAgentSessionsQuerySchema.parse({ sortBy: 'lastActivityAt', pinned: true })).toEqual({
-      sortBy: 'lastActivityAt',
-      pinned: true
-    })
+    expect(() => ListAgentSessionsQuerySchema.parse({ sortBy: 'lastActivityAt', pinned: true })).toThrow(
+      /unrecognized/i
+    )
     expect(() => ListAgentSessionsQuerySchema.parse({ sortBy: 'pinOrderKey', pinned: true })).toThrow()
+  })
+})
+
+describe('ReusableAgentSessionPlaceholdersQuerySchema', () => {
+  it('requires one concrete agent and accepts an optional exact workspace scope', () => {
+    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID })).toEqual({ agentId: AGENT_ID })
+    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID, workspaceId: 'system' })).toEqual({
+      agentId: AGENT_ID,
+      workspaceId: 'system'
+    })
+    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID, workspaceId: WORKSPACE_ID })).toEqual(
+      { agentId: AGENT_ID, workspaceId: WORKSPACE_ID }
+    )
+  })
+
+  it('rejects aggregate owners and list-only dimensions', () => {
+    expect(() => ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: 'unlinked' })).toThrow()
+    expect(() => ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID, pinned: false })).toThrow(
+      /unrecognized/i
+    )
   })
 })
 
