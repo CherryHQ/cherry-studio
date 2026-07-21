@@ -1,7 +1,6 @@
 import {
   ChatBottomOverlayInsetProvider,
-  type ChatBottomOverlayInsets,
-  useSetChatMaximizedOverlayBottomInset
+  type ChatBottomOverlayInsets
 } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import {
   getComposerDockMotionAttributes,
@@ -13,7 +12,6 @@ import type { ReactNode } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 const COMPOSER_MESSAGE_GAP_PX = 16
-const COMPOSER_OVERLAY_GAP_PX = 16
 
 export type ComposerDockPlacement = 'home' | 'docked'
 
@@ -21,7 +19,6 @@ interface ComposerDockTransitionFrameProps {
   placement: ComposerDockPlacement
   main: ReactNode
   composer: ReactNode
-  homeHeader?: ReactNode
   mainVisible?: boolean
   /** Lift the composer above a full-area overlay (e.g. a maximized side pane). */
   composerElevated?: boolean
@@ -39,7 +36,6 @@ export default function ComposerDockTransitionFrame({
   placement,
   main,
   composer,
-  homeHeader,
   mainVisible = placement === 'docked',
   composerElevated = false,
   overlay
@@ -53,7 +49,6 @@ export default function ComposerDockTransitionFrame({
   const dockMotionTransition = useComposerDockMotionTransition(placement)
   const dockMotionAttributes = getComposerDockMotionAttributes(dockMotionTransition)
   const quickPanel = useOptionalQuickPanel()
-  const setMaximizedOverlayBottomInset = useSetChatMaximizedOverlayBottomInset()
 
   // Home placement asks the quick panel to fill the available height above the input.
   // Pushed explicitly through context (no DOM contract); no-op when there is no provider.
@@ -66,10 +61,7 @@ export default function ComposerDockTransitionFrame({
 
   useLayoutEffect(() => {
     const node = composerRef.current
-    if (!node) {
-      setMaximizedOverlayBottomInset(0)
-      return
-    }
+    if (!node) return
 
     const updateInset = () => {
       if (!isDocked || !hasComposer) {
@@ -77,7 +69,6 @@ export default function ComposerDockTransitionFrame({
         setComposerInlineInsets((current) =>
           current.left === 0 && current.right === 0 ? current : ZERO_COMPOSER_INLINE_INSETS
         )
-        setMaximizedOverlayBottomInset(0)
         return
       }
       const insetTarget =
@@ -89,7 +80,6 @@ export default function ComposerDockTransitionFrame({
         setComposerInlineInsets((current) =>
           current.left === 0 && current.right === 0 ? current : ZERO_COMPOSER_INLINE_INSETS
         )
-        setMaximizedOverlayBottomInset(0)
         return
       }
       const insetTargetRect = insetTarget.getBoundingClientRect()
@@ -117,13 +107,10 @@ export default function ComposerDockTransitionFrame({
           ? current
           : nextComposerInlineInsets
       )
-      setMaximizedOverlayBottomInset(Math.max(0, rootRect.bottom - composerRect.top + COMPOSER_OVERLAY_GAP_PX))
     }
     updateInset()
 
-    if (typeof ResizeObserver === 'undefined') {
-      return () => setMaximizedOverlayBottomInset(0)
-    }
+    if (typeof ResizeObserver === 'undefined') return
 
     const observer = new ResizeObserver(updateInset)
     if (rootRef.current) observer.observe(rootRef.current)
@@ -134,11 +121,8 @@ export default function ComposerDockTransitionFrame({
     if (insetTarget) observer.observe(insetTarget)
     const scroller = rootRef.current?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
     if (scroller) observer.observe(scroller)
-    return () => {
-      observer.disconnect()
-      setMaximizedOverlayBottomInset(0)
-    }
-  }, [hasComposer, isDocked, setMaximizedOverlayBottomInset])
+    return () => observer.disconnect()
+  }, [hasComposer, isDocked])
 
   return (
     <div ref={rootRef} className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -168,7 +152,6 @@ export default function ComposerDockTransitionFrame({
             : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh] has-[.inputbar-container.expanded]:pb-0'
         )}>
         <div className="pointer-events-auto w-full">
-          {!isDocked && homeHeader ? <div className="mb-6 flex justify-center">{homeHeader}</div> : null}
           <div
             ref={composerRef}
             data-composer-dock-surface=""

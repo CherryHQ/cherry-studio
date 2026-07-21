@@ -1,3 +1,6 @@
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -36,7 +39,8 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeUserInput
+  AgentRuntimeUserInput,
+  AgentSessionLiveIndex
 } from '../runtime/types'
 import {
   PersistenceListener,
@@ -50,6 +54,8 @@ import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } 
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+const SESSION_FILE_SWEEP_INTERVAL_MS = 30 * 60 * 1000
+const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
@@ -203,6 +209,76 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+
+    // Session deletion and message edits are plain DB writes with no side-effect hooks — the
+    // external session stores (transcripts etc.) are reconciled against the DB by a periodic
+    // sweep instead: boot catches residue from prior runs, the interval catches this run's.
+    this.registerInterval(() => void this.sweepExternalSessionFiles(), SESSION_FILE_SWEEP_INTERVAL_MS)
+    void this.sweepExternalSessionFiles()
+  }
+
+  /**
+   * Garbage-collect on-disk session residue: anything keyed by a session id / resume token that
+   * the DB and the in-memory runtime no longer know is orphaned (deleted session, or messages
+   * edited away). Host removes the auto-created system workspace dirs; each driver with an
+   * external session store sweeps its own files. Best-effort — failures only log.
+   */
+  private sweeping = false
+  private async sweepExternalSessionFiles(): Promise<void> {
+    if (this.sweeping) return
+    this.sweeping = true
+    try {
+      const liveEntryTokens = new Set<string>()
+      for (const entry of this.entries.values()) {
+        if (entry.lastResumeToken) liveEntryTokens.add(entry.lastResumeToken)
+      }
+      // Snapshot the persisted resume tokens once — `runtime_resume_token` is unindexed, so probing
+      // it per on-disk token would turn each sweep into many full-table scans on the synchronous main
+      // thread. The 24h age guard still protects tokens minted after this snapshot; at worst a
+      // concurrent deletion is reclaimed on the next sweep.
+      const persistedTokens = agentSessionMessageService.getReferencedRuntimeResumeTokens()
+      const live: AgentSessionLiveIndex = {
+        isSessionLive: (sessionId) => this.entries.has(sessionId) || agentSessionService.exists(sessionId),
+        isResumeTokenLive: (token) => liveEntryTokens.has(token) || persistedTokens.has(token)
+      }
+
+      // Drivers sweep first: their contract includes releasing session resources they still hold
+      // for dead sessions (e.g. Claude's prewarmed queries, whose subprocess sits in the workspace
+      // cwd) — only after that is removing the workspace directories safe.
+      for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
+        if (!driver.sweepSessionFiles) continue
+        try {
+          await driver.sweepSessionFiles(live)
+        } catch (error) {
+          logger.warn('Runtime session file sweep failed', { driver: driver.type, error })
+        }
+      }
+      await this.sweepSystemWorkspaceDirectories(live)
+    } catch (error) {
+      logger.warn('Session file sweep failed', { error })
+    } finally {
+      this.sweeping = false
+    }
+  }
+
+  /** Auto-created system workspace dirs are named by session id — the row is gone, so is the dir. */
+  private async sweepSystemWorkspaceDirectories(live: AgentSessionLiveIndex): Promise<void> {
+    const root = application.getPath('feature.agents.workspaces')
+    let entries: string[]
+    try {
+      entries = await fs.readdir(root)
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (!SESSION_UUID_RE.test(entry) || live.isSessionLive(entry)) continue
+      try {
+        await fs.rm(path.join(root, entry), { recursive: true, force: true })
+        logger.info('Swept orphaned session workspace directory', { entry })
+      } catch (error) {
+        logger.warn('Failed to sweep session workspace directory', { entry, error })
+      }
+    }
   }
 
   private reconcileStalePendingMessages(): void {
