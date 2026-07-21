@@ -1008,6 +1008,24 @@ const TasksSettings: FC = () => {
     return taskUpdateTailsRef.current
   }, [])
 
+  const enqueueTaskOperation = useCallback(
+    (taskId: string, operation: (previousSucceeded: boolean) => Promise<boolean>): Promise<boolean> => {
+      const tails = getTaskUpdateTails()
+      const previous = tails.get(taskId) ?? Promise.resolve(true)
+      const current = previous
+        .catch(() => false)
+        .then(operation)
+        .catch(() => false)
+
+      tails.set(taskId, current)
+      void current.then(() => {
+        if (tails.get(taskId) === current) tails.delete(taskId)
+      })
+      return current
+    },
+    [getTaskUpdateTails]
+  )
+
   const channels: ChannelInfo[] = useMemo(
     () =>
       rawChannels.map((ch: any) => ({
@@ -1044,6 +1062,23 @@ const TasksSettings: FC = () => {
       setLoading(false)
     }
   }, [t])
+
+  const refreshTask = useCallback(
+    async (agentId: string, taskId: string) => {
+      try {
+        const refreshed = (await dataApiService.get(
+          `/agents/${agentId}/tasks/${taskId}` as never
+        )) as ScheduledTaskEntity
+        setTasks((currentTasks) =>
+          currentTasks.map((currentTask) => (currentTask.id === taskId ? refreshed : currentTask))
+        )
+      } catch (error) {
+        logger.error('Failed to refresh scheduled task', error as Error)
+        toast.error(t('agent.tasks.error.loadFailed'))
+      }
+    },
+    [t]
+  )
 
   useEffect(() => {
     void loadData()
@@ -1082,45 +1117,35 @@ const TasksSettings: FC = () => {
     [createTask, loadData]
   )
 
-  const handleUpdate = useCallback(
-    (taskId: string, updates: UpdateTaskRequest): Promise<void> => {
-      const task = tasks.find((t) => t.id === taskId)
-      if (!task) return Promise.resolve()
-
-      const tails = getTaskUpdateTails()
-      const previous = tails.get(taskId) ?? Promise.resolve(true)
-      const current = previous
-        .catch(() => false)
-        .then(async () => {
-          const updated = await updateTask(task.agentId, taskId, updates)
-          if (!updated) return false
-          setTasks((currentTasks) =>
-            currentTasks.map((currentTask) => (currentTask.id === taskId ? updated : currentTask))
-          )
-          return true
-        })
-        .catch(() => false)
-
-      tails.set(taskId, current)
-      void current.then(() => {
-        if (tails.get(taskId) === current) tails.delete(taskId)
-      })
-      return current.then(() => undefined)
+  const persistTaskUpdate = useCallback(
+    async (agentId: string, taskId: string, updates: UpdateTaskRequest): Promise<boolean> => {
+      const updated = await updateTask(agentId, taskId, updates)
+      if (!updated) {
+        // The detail form owns draft state and syncs it from the task prop. Give
+        // the last persisted entity a fresh identity so a failed draft rolls back.
+        setTasks((currentTasks) =>
+          currentTasks.map((currentTask) => (currentTask.id === taskId ? { ...currentTask } : currentTask))
+        )
+        return false
+      }
+      setTasks((currentTasks) => currentTasks.map((currentTask) => (currentTask.id === taskId ? updated : currentTask)))
+      return true
     },
-    [getTaskUpdateTails, updateTask, tasks]
+    [updateTask]
   )
 
-  const waitForTaskUpdates = useCallback(async (taskId: string): Promise<boolean> => {
-    const tails = taskUpdateTailsRef.current
-    if (!tails) return true
-    while (true) {
-      const tail = tails.get(taskId)
-      if (!tail) return true
-      const succeeded = await tail
-      const latest = tails.get(taskId)
-      if (!latest || latest === tail) return succeeded
-    }
-  }, [])
+  const handleUpdate = useCallback(
+    (taskId: string, updates: UpdateTaskRequest): Promise<void> => {
+      const task = tasks.find((currentTask) => currentTask.id === taskId)
+      if (!task) return Promise.resolve()
+
+      return enqueueTaskOperation(taskId, async (previousSucceeded) => {
+        const currentSucceeded = await persistTaskUpdate(task.agentId, taskId, updates)
+        return previousSucceeded && currentSucceeded
+      }).then(() => undefined)
+    },
+    [enqueueTaskOperation, persistTaskUpdate, tasks]
+  )
 
   const handleDelete = useCallback(
     async (taskId: string) => {
@@ -1135,25 +1160,38 @@ const TasksSettings: FC = () => {
 
   const handleRun = useCallback(
     async (taskId: string) => {
-      if (!(await waitForTaskUpdates(taskId))) return
-      await runTask(taskId)
-      void loadData()
-      // Task runs asynchronously — refresh again after a delay to capture completion
-      setTimeout(() => {
-        void loadData()
-      }, 1000)
+      const task = tasks.find((currentTask) => currentTask.id === taskId)
+      if (!task) return
+      await enqueueTaskOperation(taskId, async (previousSucceeded) => {
+        if (!previousSucceeded) return false
+        await runTask(taskId)
+        await refreshTask(task.agentId, taskId)
+        // Task runs asynchronously — refresh again after a delay to capture completion
+        setTimeout(() => {
+          void enqueueTaskOperation(taskId, async (latestSucceeded) => {
+            await refreshTask(task.agentId, taskId)
+            return latestSucceeded
+          })
+        }, 1000)
+        return true
+      })
     },
-    [runTask, loadData, waitForTaskUpdates]
+    [enqueueTaskOperation, refreshTask, runTask, tasks]
   )
 
   const handleToggleStatus = useCallback(
     async (taskId: string, newStatus: string) => {
+      const task = tasks.find((currentTask) => currentTask.id === taskId)
+      if (!task) return
       // newStatus is the renderer's existing 'active' | 'paused' contract — keep
       // it so consumers don't need to think in terms of `enabled`, then translate
       // at the IPC boundary.
-      await handleUpdate(taskId, { enabled: newStatus === 'active' })
+      await enqueueTaskOperation(taskId, async (previousSucceeded) => {
+        if (!previousSucceeded) return false
+        return persistTaskUpdate(task.agentId, taskId, { enabled: newStatus === 'active' })
+      })
     },
-    [handleUpdate]
+    [enqueueTaskOperation, persistTaskUpdate, tasks]
   )
 
   if (loading) {

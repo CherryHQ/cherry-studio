@@ -429,6 +429,10 @@ describe('TasksSettings task logs', () => {
         })
       }
 
+      if (path === '/agents/agent-1/tasks/task-1') {
+        return Promise.resolve(taskDataMock.task)
+      }
+
       throw new Error(`unexpected path: ${path}`)
     })
   })
@@ -671,33 +675,8 @@ describe('TasksSettings task logs', () => {
     expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
   })
 
-  it('runs the task after a failed save has already settled', async () => {
-    const save = createDeferred<typeof taskDataMock.task | undefined>()
-    channelDataMock.channels = [
-      {
-        id: 'channel-agent-1',
-        agentId: 'agent-1',
-        name: 'Agent One Telegram',
-        isActive: true,
-        activeChatIds: ['chat-1']
-      }
-    ]
-    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
-
-    render(<TasksSettings />)
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-    await act(async () => save.resolve(undefined))
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
-  })
-
-  it('waits for saves appended while the run action is already waiting', async () => {
-    const firstSave = createDeferred<typeof taskDataMock.task>()
+  it('keeps an already-waiting run blocked when an earlier save fails before a later save succeeds', async () => {
+    const firstSave = createDeferred<typeof taskDataMock.task | undefined>()
     const secondSave = createDeferred<typeof taskDataMock.task>()
     channelDataMock.channels = [
       {
@@ -712,22 +691,93 @@ describe('TasksSettings task logs', () => {
 
     render(<TasksSettings />)
 
+    const nameInput = await screen.findByDisplayValue('Daily task')
+    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
+    fireEvent.blur(nameInput)
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Agent One Telegram' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+
+    await act(async () => firstSave.resolve(undefined))
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(2))
+    await act(async () => secondSave.resolve({ ...taskDataMock.task, channelIds: ['channel-agent-1'] }))
+
+    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
+  })
+
+  it('reconciles a settled failed save before allowing a later run', async () => {
+    const save = createDeferred<typeof taskDataMock.task | undefined>()
+    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
+
+    render(<TasksSettings />)
+
+    const nameInput = await screen.findByDisplayValue('Daily task')
+    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
+    fireEvent.blur(nameInput)
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+    await act(async () => save.resolve(undefined))
+    await waitFor(() => expect(screen.getByDisplayValue('Daily task')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+  })
+
+  it('runs before saves appended after the run action', async () => {
+    const firstSave = createDeferred<typeof taskDataMock.task>()
+    const secondSave = createDeferred<typeof taskDataMock.task>()
+    const run = createDeferred<boolean>()
+    const staleTaskRefresh = createDeferred<typeof taskDataMock.task>()
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      }
+    ]
+    taskMutationMocks.updateTask.mockReturnValueOnce(firstSave.promise).mockReturnValueOnce(secondSave.promise)
+    taskMutationMocks.runTask.mockReturnValueOnce(run.promise)
+
+    render(<TasksSettings />)
+
     const channelButton = await screen.findByRole('button', { name: 'Agent One Telegram' })
+    dataApiMock.get.mockImplementation((path: string) => {
+      if (path === '/agents') {
+        return Promise.resolve({ items: [{ id: 'agent-1', name: 'Agent One', configuration: {} }] })
+      }
+      if (path === '/agents/agent-1/tasks/task-1') return staleTaskRefresh.promise
+      throw new Error(`unexpected path: ${path}`)
+    })
+
     fireEvent.click(channelButton)
     await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-    fireEvent.click(channelButton)
+    const nameInput = screen.getByDisplayValue('Daily task')
+    fireEvent.change(nameInput, { target: { value: 'Edited after run' } })
+    fireEvent.blur(nameInput)
 
     await act(async () => firstSave.resolve(taskDataMock.task))
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(2))
-
-    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
-
-    await act(async () => secondSave.resolve(taskDataMock.task))
-
     await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+
+    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
+
+    await act(async () => run.resolve(true))
+    await act(async () => {})
+    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      staleTaskRefresh.resolve(taskDataMock.task)
+    })
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(2))
+    await act(async () => secondSave.resolve({ ...taskDataMock.task, name: 'Edited after run' }))
+    await waitFor(() => expect(screen.getByDisplayValue('Edited after run')).toBeInTheDocument())
   })
 
   it.each([
@@ -771,6 +821,30 @@ describe('TasksSettings task logs', () => {
       )
     }
   )
+
+  it('does not resume when a preceding configuration save fails', async () => {
+    const save = createDeferred<typeof taskDataMock.task | undefined>()
+    taskDataMock.task = {
+      ...taskDataMock.defaultTask,
+      enabled: false,
+      status: 'paused'
+    }
+    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
+
+    render(<TasksSettings />)
+
+    const nameInput = await screen.findByDisplayValue('Daily task')
+    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
+    fireEvent.blur(nameInput)
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
+    await act(async () => save.resolve(undefined))
+
+    await act(async () => {})
+    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
+    expect(taskMutationMocks.updateTask).not.toHaveBeenCalledWith('agent-1', 'task-1', { enabled: true })
+  })
 
   it('toggles the selected task status from the header switch', async () => {
     render(<TasksSettings />)
