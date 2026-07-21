@@ -194,7 +194,12 @@ export class ImportOrchestrator {
       }
       const result = await this.deps.mergeBackupIntoWork(workSqlite, workDb, ctx)
       if (result.degradedToSkips.length > 0) {
-        logger.info('merge degraded to SKIP', { count: result.degradedToSkips.length })
+        // Credential domains (PROVIDERS/SKILLS/AGENTS/...) whose FIELD_MERGE is not implemented
+        // degraded to SKIP — local rows survive, backup values not merged. Logged for diagnostics;
+        // UI disclosure of which domains were skipped is a follow-up.
+        logger.info('merge degraded credential domains to SKIP', {
+          domains: result.degradedToSkips.map((s) => `${s.table} (${s.count})`)
+        })
       }
       this.assertNotCancelled(options)
 

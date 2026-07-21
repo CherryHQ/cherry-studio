@@ -5,9 +5,9 @@
 // INSERT (new aggregate), member cascade, the global junction phase (pure junction tables
 // resolved via the role-aware identityMap), FTS5 rebuild backstop, and offline
 // FK/integrity/FTS/app_state consistency checks. FIELD_MERGE / OVERWRITE / RENAME and
-// identity propagation remain stubbed — they throw NotImplemented (Stage 4 cannot restore
-// any product archive; the production stub in BackupService stays fail-closed until the
-// lite milestone lands).
+// identity propagation remain stubbed — FIELD_MERGE/OVERWRITE/RENAME throw NotImplemented.
+// Production restore runs via partial quiesce + SKIP merge; natural-key credential domains
+// degrade to SKIP (recorded in degradedToSkips for UI disclosure) until FIELD_MERGE lands.
 //
 // See spec `backup-restore-safety/import-orchestrator.md` + plan `cryptic-inventing-toucan.md`.
 
@@ -98,9 +98,9 @@ export class MergeEngine {
     const backupDb = new Database(ctx.backupDbPath, { readonly: true })
     try {
       const ordered = this.registry.topoSort(ctx.domains)
-      const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx)
-      const identityMap: IdentityMap = { sourceMap: new Map(), targetMap: new Map() }
       const degradedToSkips: DegradedSkip[] = []
+      const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx, degradedToSkips)
+      const identityMap: IdentityMap = { sourceMap: new Map(), targetMap: new Map() }
       // Snapshot app_state keys BEFORE the tx — the merge tx must not add/drop keys. PREFERENCES
       // may UPDATE values (forward-compat), but the key-set is invariant. app_state is ALWAYS_STRIP
       // (backup holds none), so any key-set change is a merge bug. undefined when app_state is absent.
@@ -142,7 +142,8 @@ export class MergeEngine {
     workSqlite: Database.Database,
     ordered: readonly BackupDomain[],
     backupDb: Database.Database,
-    ctx: MergeContext
+    ctx: MergeContext,
+    degradedToSkips: DegradedSkip[]
   ): AggregateDecision[] {
     // Honor an explicit user strategy override. The MVP supports only SKIP conflict
     // resolution for uuid-entity aggregates; FIELD_MERGE/OVERWRITE/RENAME are unsupported
@@ -156,18 +157,29 @@ export class MergeEngine {
       for (const agg of this.registry.getAggregatesForDomain(domain)) {
         const pkColumns = this.registry.getPrimaryKey(agg.root).columns
         const naturalKey = (agg.identityClass ?? 'uuid-entity') !== 'uuid-entity'
-        // natural-key needs FIELD_MERGE (not implemented). Default → fail loud. An explicit
-        // SKIP override opts out of FIELD_MERGE → forceSkip every backup row (skip-with-warning
-        // semantics; local rows survive = available). Other overrides already rejected above.
-        if (naturalKey && ctx.userStrategy !== 'SKIP') {
-          throw new MergeStrategyNotImplementedError(`FIELD_MERGE for ${agg.root} (natural-key/slot)`)
-        }
-        const forceSkip = naturalKey && ctx.userStrategy === 'SKIP'
+        // natural-key aggregates need FIELD_MERGE (not implemented in MVP). Production omits
+        // userStrategy (ImportOrchestrator avoids UI SKIP masking PROVIDERS FIELD_MERGE), so a
+        // natural-key aggregate degrades to SKIP — restore completes with the local row
+        // surviving. PREFERENCES is conflictDefault 'SKIP' (settings-class, spec-allowed), so
+        // its skip is NOT a degradation; other natural-key credential domains (PROVIDERS /
+        // SKILLS / AGENTS / ...) ARE degraded and recorded for UI disclosure. An explicit
+        // userStrategy!=='SKIP' was already rejected at the top of this method.
+        const forceSkip = naturalKey
+        const degradedNaturalKey =
+          naturalKey && ctx.userStrategy === undefined && (agg.conflictDefault ?? 'FIELD_MERGE') !== 'SKIP'
         // TODO(Stage3): stream via prepare().iterate() instead of .all() to avoid OOM on
-        // unbounded roots (TOPICS chat history / translate_history) — spec MAJOR 2. Acceptable
-        // for the non-production scaffold (production restore stays fail-closed via BackupService
-        // stub; no large archive reaches this engine until Stage 3 wires it in).
+        // unbounded roots (TOPICS chat history / translate_history) — spec MAJOR 2. Production
+        // restore now reaches this engine (partial quiesce + SKIP merge), so large archives
+        // exercise the .all() load until Stage 3 streams.
         const backupRoots = backupDb.prepare(`SELECT * FROM ${agg.root}`).all() as Record<string, unknown>[]
+        if (degradedNaturalKey) {
+          degradedToSkips.push({
+            table: agg.root,
+            count: backupRoots.length,
+            reason:
+              'FIELD_MERGE not implemented in MVP; credential domain skipped (local rows survive, backup values not merged). Re-configure credentials after restore.'
+          })
+        }
         for (const backupRow of backupRoots) {
           // backupRow keys are physical (SELECT *); pkColumns are logical → convert.
           const backupPrimaryKey = pkColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
@@ -235,9 +247,9 @@ export class MergeEngine {
           // (the FIELD_MERGE local-wins case) is NOT found here → targetMap stays empty → the
           // junction row cascade-prunes, silently losing that relationship. Correct identityKey-
           // based canonicalization (backup PK → local canonical PK) is the FIELD_MERGE milestone's
-          // job (identityKey scan + identity propagation); Stage 4 is a non-production scaffold
-          // (BackupService stays fail-closed), so this limitation does not affect any product
-          // archive.
+          // job (identityKey scan + identity propagation); production restore runs via SKIP
+          // merge (natural-key degrades to SKIP), so this PK-only limitation cascade-prunes a
+          // FIELD_MERGE local-wins junction row — accept until the FIELD_MERGE milestone.
           const pkStr = String(decision.backupPrimaryKey[0])
           const pkCols = this.registry.getPrimaryKey(decision.aggregate.root).columns
           if (this.workHasIdentity(workSqlite, decision.aggregate, pkCols, decision.backupPrimaryKey)) {

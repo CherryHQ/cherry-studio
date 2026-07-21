@@ -182,13 +182,17 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(countRows('message')).toBe(messagesAfterFirst)
   })
 
-  it('throws MergeStrategyNotImplementedError for a natural-key domain (scanAggregates guard)', async () => {
-    // PROVIDERS aggregates finalize to identityClass 'natural-key'; scanAggregates
-    // refuses them until FIELD_MERGE lands. Empty backup is enough — the guard
-    // fires before any row read.
-    await expect(
-      runMerge({ backupDbPath: backupPath, domains: ['PROVIDERS'], skippedFileEntryIds: new Set<string>() })
-    ).rejects.toThrow(MergeStrategyNotImplementedError)
+  it('degrades a natural-key credential domain to SKIP when FIELD_MERGE is not implemented', async () => {
+    // PROVIDERS finalize to identityClass 'natural-key' + conflictDefault FIELD_MERGE. With no
+    // userStrategy (production default — ImportOrchestrator omits it), the engine degrades to
+    // SKIP so restore completes (local rows survive) and records the credential domain in
+    // degradedToSkips for UI disclosure. Empty backup is enough — the degrade fires at scan.
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>()
+    })) as { degradedToSkips: { reason: string }[] }
+    expect(result.degradedToSkips.some((s) => s.reason.includes('FIELD_MERGE not implemented'))).toBe(true)
   })
 
   it('throws MergeConsistencyCheckError when an inserted row dangles a cross-domain FK', async () => {
