@@ -32,6 +32,7 @@ import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
+const RENDERER_EXPORT_NOT_ACTIVE_ERROR = 'Renderer export is not active.'
 const SUPPORT_EMAIL = 'support@cherry-ai.com'
 type MigrationDiagnosticSaveInProgressResult = Extract<MigrationDiagnosticSaveResult, { status: 'failed' }> & {
   code: 'save_in_progress'
@@ -223,7 +224,9 @@ export function registerMigrationIpcHandlers(
   // Write export file from Renderer
   ipcMain.handle(
     MigrationIpcChannels.WriteExportFile,
-    async (_event, exportPath: string, tableName: string, jsonData: string) => {
+    async (event, exportPath: string, tableName: string, jsonData: string) => {
+      assertMigrationSender(event)
+      assertRendererExportActive(diagnosticRegistration)
       try {
         // Ensure export directory exists
         await fs.mkdir(exportPath, { recursive: true })
@@ -246,11 +249,13 @@ export function registerMigrationIpcHandlers(
   )
 
   // Start the migration process
-  ipcMain.handle(MigrationIpcChannels.StartMigration, async (_event, payload: StartMigrationPayload) => {
+  ipcMain.handle(MigrationIpcChannels.StartMigration, async (event, payload: StartMigrationPayload) => {
+    assertMigrationSender(event)
     if (inFlightMigration) {
       logger.warn(CONCURRENT_MIGRATION_ERROR)
       throw new Error(CONCURRENT_MIGRATION_ERROR)
     }
+    assertRendererExportActive(diagnosticRegistration)
 
     let runPromise: Promise<MigrationResult> | null = null
 
@@ -546,6 +551,16 @@ function assertMigrationSender(event: IpcMainInvokeEvent): void {
     event.senderFrame !== migrationWebContents.mainFrame
   ) {
     throw new Error('Migration IPC is restricted to the migration window.')
+  }
+}
+
+function assertRendererExportActive(registration: DiagnosticRegistrationState): void {
+  if (
+    activeDiagnosticRegistration !== registration ||
+    currentProgress.stage !== 'introduction' ||
+    registration.rendererExportPhase?.status !== 'exporting'
+  ) {
+    throw new Error(RENDERER_EXPORT_NOT_ACTIVE_ERROR)
   }
 }
 

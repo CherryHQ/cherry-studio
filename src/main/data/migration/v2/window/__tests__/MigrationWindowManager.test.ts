@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMigrationWindowFailureClaim, MigrationWindowManager } from '../MigrationWindowManager'
 
 const platformState = vi.hoisted(() => ({ isDev: false, isMac: false }))
+const RENDERER_UNRESPONSIVE_GRACE_MS = 10_000
 
 vi.mock('@main/core/platform', () => ({
   get isDev() {
@@ -97,6 +98,7 @@ describe('MigrationWindowManager', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllEnvs()
   })
 
@@ -168,6 +170,7 @@ describe('MigrationWindowManager', () => {
     })
 
     it('ignores renderer failure signals from a closed window after recreation', async () => {
+      vi.useFakeTimers()
       const oldWindow = fakeWindow
       const oldRendererFailure = vi.fn().mockResolvedValue(undefined)
       manager = new MigrationWindowManager()
@@ -181,10 +184,12 @@ describe('MigrationWindowManager', () => {
 
       oldWindow.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
       currentWindow.webContents.emit('unresponsive')
-      await vi.waitFor(() => expect(currentRendererFailure).toHaveBeenCalledTimes(1))
+      vi.advanceTimersByTime(RENDERER_UNRESPONSIVE_GRACE_MS)
+      await Promise.resolve()
 
       expect(oldRendererFailure).not.toHaveBeenCalled()
       expect(currentRendererFailure).toHaveBeenCalledWith('renderer_unresponsive', expect.any(Promise))
+      vi.useRealTimers()
     })
   })
 
@@ -331,13 +336,33 @@ describe('MigrationWindowManager', () => {
       expect(requester).toHaveBeenCalledTimes(1)
     })
 
-    it('force-quits when the renderer is unresponsive', () => {
+    it('force-quits only after the renderer stays unresponsive for the grace period', () => {
+      vi.useFakeTimers()
       const requester = wireRequester()
       manager.setStage('migration')
 
       fakeWindow.webContents.emit('unresponsive')
+      vi.advanceTimersByTime(RENDERER_UNRESPONSIVE_GRACE_MS - 1)
+      expect(requester).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(1)
 
       expect(requester).toHaveBeenCalledTimes(1)
+      vi.useRealTimers()
+    })
+
+    it('cancels a transient unresponsive signal when the renderer becomes responsive', () => {
+      vi.useFakeTimers()
+      const onRendererFailure = vi.fn().mockResolvedValue(undefined)
+      manager = new MigrationWindowManager()
+      manager.create({ onRendererFailure })
+
+      fakeWindow.webContents.emit('unresponsive')
+      vi.advanceTimersByTime(RENDERER_UNRESPONSIVE_GRACE_MS - 1)
+      fakeWindow.webContents.emit('responsive')
+      vi.advanceTimersByTime(RENDERER_UNRESPONSIVE_GRACE_MS)
+
+      expect(onRendererFailure).not.toHaveBeenCalled()
+      vi.useRealTimers()
     })
 
     it('shares one native failure callback across consecutive crash and hang signals', async () => {
@@ -387,7 +412,7 @@ describe('MigrationWindowManager', () => {
       manager.setWriteWaiter(waitForWrites)
       manager.create({ onRendererFailure })
 
-      fakeWindow.webContents.emit('unresponsive')
+      fakeWindow.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
       expect(onRendererFailure).toHaveBeenCalledTimes(1)
       expect(receivedWritesSettled).toBeInstanceOf(Promise)
       expect(order).toEqual(['marker-recorded'])

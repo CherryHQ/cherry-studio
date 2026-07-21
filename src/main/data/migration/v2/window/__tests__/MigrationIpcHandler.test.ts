@@ -476,6 +476,21 @@ describe('MigrationIpcHandler', () => {
       await expect(invoke(MigrationIpcChannels.CopySupportEmail)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.Retry)).resolves.toBe(true)
     })
+
+    it.each([
+      [MigrationIpcChannels.WriteExportFile, ['/private/export', 'topics', '{}']],
+      [MigrationIpcChannels.StartMigration, [{ reduxData: {}, dexieExportPath: '/dexie' }]]
+    ] as const)('rejects %s from a foreign window before using its payload', async (channel, args) => {
+      await expect(
+        invokeFrom(
+          { sender: foreignWebContents, senderFrame: foreignMainFrame },
+          channel,
+          ...(args as readonly unknown[])
+        )
+      ).rejects.toThrow(/migration window/i)
+      expect(fsMocks.writeFile).not.toHaveBeenCalled()
+      expect(engineMock.run).not.toHaveBeenCalled()
+    })
   })
 
   describe('renderer export phase', () => {
@@ -483,6 +498,53 @@ describe('MigrationIpcHandler', () => {
     const foreignWebContents = { id: 'foreign-web-contents', getType: () => 'window', mainFrame: foreignMainFrame }
     const webviewMainFrame = { id: 'webview-main-frame', parent: null }
     const webviewWebContents = { id: 'webview-web-contents', getType: () => 'webview', mainFrame: webviewMainFrame }
+
+    it('requires an accepted renderer-export generation before writing files or handing off to the engine', async () => {
+      await expect(invoke(MigrationIpcChannels.WriteExportFile, '/private/export', 'topics', '{}')).rejects.toThrow(
+        /renderer export/i
+      )
+      await expect(
+        invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      ).rejects.toThrow(/renderer export/i)
+      expect(fsMocks.writeFile).not.toHaveBeenCalled()
+      expect(engineMock.run).not.toHaveBeenCalled()
+
+      await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.WriteExportFile, '/private/export', 'topics', '{}')).resolves.toBe(true)
+      await expect(
+        invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      ).resolves.toMatchObject({ success: true })
+    })
+
+    it('rejects a stale registration and a non-introduction stage before engine handoff', async () => {
+      const staleStart = handlers.get(MigrationIpcChannels.Start)
+      const staleHandoff = handlers.get(MigrationIpcChannels.StartMigration)
+      if (staleStart === undefined || staleHandoff === undefined) throw new Error('Expected migration handlers')
+      await staleStart({ sender: migrationWebContents, senderFrame: migrationMainFrame })
+
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers('/mock/userData', {
+        start: diagnosticsStartMock,
+        reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+        saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        completeVersionGate: diagnosticsCompleteVersionGateMock
+      })
+      await expect(
+        Promise.resolve(
+          staleHandoff(
+            { sender: migrationWebContents, senderFrame: migrationMainFrame },
+            { reduxData: {}, dexieExportPath: '/dexie' }
+          )
+        )
+      ).rejects.toThrow(/renderer export/i)
+
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+      setVersionIncompatible('v1_too_old', { previousVersion: '1.0.0', requiredVersion: '1.9.12' })
+      await expect(
+        invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      ).rejects.toThrow(/renderer export/i)
+      expect(engineMock.run).not.toHaveBeenCalled()
+    })
 
     it.each([
       ['same-webContents subframe', { sender: migrationWebContents, senderFrame: { parent: migrationMainFrame } }],
@@ -709,6 +771,7 @@ describe('MigrationIpcHandler', () => {
       return { success: true, totalDuration: 1, migratorResults: [] }
     })
 
+    await invoke(MigrationIpcChannels.Start)
     await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
 
     expect(stageAtRunStart).toBe('migration')
@@ -723,6 +786,7 @@ describe('MigrationIpcHandler', () => {
           release = resolve
         })
     )
+    await invoke(MigrationIpcChannels.Start)
     const start = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
     await vi.waitFor(() => expect(engineMock.run).toHaveBeenCalledTimes(1))
     const waiter = windowSetWriteWaiterMock.mock.calls.at(-1)?.[0] as (() => Promise<void>) | undefined
@@ -764,6 +828,7 @@ describe('MigrationIpcHandler', () => {
     }
     engineMock.run.mockResolvedValue(result)
 
+    await invoke(MigrationIpcChannels.Start)
     await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
 
     const progress = lastProgress()
@@ -807,6 +872,7 @@ describe('MigrationIpcHandler', () => {
       } satisfies MigrationResult
     })
 
+    await invoke(MigrationIpcChannels.Start)
     await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
 
     const progress = lastProgress()
@@ -829,6 +895,7 @@ describe('MigrationIpcHandler', () => {
       ]
     } satisfies MigrationResult)
 
+    await invoke(MigrationIpcChannels.Start)
     await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
 
     // No tick → currentProgress.migrators is [], so totalMigrators uses the result-length
@@ -853,6 +920,7 @@ describe('MigrationIpcHandler', () => {
         return { success: false, error: 'Validation failed', totalDuration: 1200, migratorResults: [] }
       })
 
+      await invoke(MigrationIpcChannels.Start)
       const result = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
 
       expect(result).toMatchObject({ success: false, error: 'Validation failed' })
@@ -868,6 +936,7 @@ describe('MigrationIpcHandler', () => {
     it('broadcasts the error stage when the run rejects, then frees the in-flight guard so a retry is not blocked', async () => {
       engineMock.run.mockRejectedValueOnce(new Error('Engine exploded'))
 
+      await invoke(MigrationIpcChannels.Start)
       await expect(
         invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
       ).rejects.toThrow('Engine exploded')
@@ -878,6 +947,8 @@ describe('MigrationIpcHandler', () => {
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
 
       engineMock.run.mockResolvedValueOnce({ success: true, totalDuration: 1, migratorResults: [] })
+      await invoke(MigrationIpcChannels.Retry)
+      await invoke(MigrationIpcChannels.Start)
       const retry = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
 
       expect(retry).toMatchObject({ success: true })
@@ -1027,6 +1098,7 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
+      await invoke(MigrationIpcChannels.Start)
       const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
       await Promise.resolve()
 
@@ -1045,6 +1117,7 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
+      await invoke(MigrationIpcChannels.Start)
       const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
       await Promise.resolve()
 
@@ -1067,6 +1140,7 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
+      await invoke(MigrationIpcChannels.Start)
       const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
       await Promise.resolve()
 

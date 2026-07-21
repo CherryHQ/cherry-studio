@@ -30,10 +30,12 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
+  ClipboardCopy,
   Database,
   Download,
   FolderOpen,
   Loader2,
+  Mail,
   Monitor,
   Moon,
   Rocket,
@@ -50,7 +52,6 @@ import { useTranslation } from 'react-i18next'
 import {
   CloseMigrationDialog,
   Confetti,
-  MigrationDiagnosticsSavedActions,
   MigrationWindowControls,
   MigratorProgressList,
   SkipMigrationDialog
@@ -262,6 +263,7 @@ const MigrationApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   // Some runMigration failures happen before progress can reliably move to error.
   const [localMigrationError, setLocalMigrationError] = useState<string | null>(null)
+  const [localMigrationDiagnosticsAvailable, setLocalMigrationDiagnosticsAvailable] = useState(false)
   const [skipOpen, setSkipOpen] = useState(false)
   const [skipMenuOpen, setSkipMenuOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
@@ -323,6 +325,7 @@ const MigrationApp: React.FC = () => {
   useEffect(() => {
     if (progress.stage !== 'error') {
       setLocalMigrationError(null)
+      setLocalMigrationDiagnosticsAvailable(false)
     }
   }, [progress.stage])
 
@@ -336,6 +339,7 @@ const MigrationApp: React.FC = () => {
     startGuardRef.current = true
     setIsLoading(true)
     setLocalMigrationError(null)
+    setLocalMigrationDiagnosticsAvailable(false)
     setDiagnosticSaveResult(null)
     try {
       let reduxData: Record<string, unknown>
@@ -344,7 +348,7 @@ const MigrationApp: React.FC = () => {
 
       try {
         logger.info('Starting migration process...')
-        await actions.start()
+        if ((await actions.start()) !== true) return
 
         // Export Redux data
         const reduxExporter = new ReduxExporter()
@@ -378,11 +382,18 @@ const MigrationApp: React.FC = () => {
       } catch (error) {
         logger.error('Migration renderer export failed', error as Error)
         const message = rendererExportMessage(error)
+        let diagnosticsAvailable = false
+        try {
+          diagnosticsAvailable =
+            (await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, {
+              message,
+              report: rendererExportReport(error)
+            })) === true
+        } catch (reportError) {
+          logger.error('Migration renderer export failure report failed', reportError as Error)
+        }
+        setLocalMigrationDiagnosticsAvailable(diagnosticsAvailable)
         setLocalMigrationError(message)
-        void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, {
-          message,
-          report: rendererExportReport(error)
-        })
         return
       }
 
@@ -391,6 +402,7 @@ const MigrationApp: React.FC = () => {
         await actions.startMigration({ reduxData, dexieExportPath, localStorageExportPath: localStorageFilePath })
       } catch (error) {
         logger.error('Migration handoff failed', error as Error)
+        setLocalMigrationDiagnosticsAvailable(false)
         setLocalMigrationError(errorMessage(error))
       }
     } finally {
@@ -456,12 +468,35 @@ const MigrationApp: React.FC = () => {
             {t('migration.diagnostics.saved.description')}
           </p>
         </div>
-        <MigrationDiagnosticsSavedActions
-          disabled={isRunningDiagnosticSupportAction}
-          onOpenEmail={() => void runDiagnosticSupportAction(actions.openEmail)}
-          onShowInFolder={() => void runDiagnosticSupportAction(actions.showInFolder)}
-          onCopyEmail={() => void runDiagnosticSupportAction(actions.copyEmail)}
-        />
+        <div className="grid grid-cols-3 gap-2" data-testid="migration-diagnostics-saved-actions">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            disabled={isRunningDiagnosticSupportAction}
+            onClick={() => void runDiagnosticSupportAction(actions.openEmail)}>
+            <Mail size={14} />
+            {t('migration.diagnostics.actions.open_email')}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            disabled={isRunningDiagnosticSupportAction}
+            onClick={() => void runDiagnosticSupportAction(actions.showInFolder)}>
+            <FolderOpen size={14} />
+            {t('migration.diagnostics.actions.show_in_folder')}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            disabled={isRunningDiagnosticSupportAction}
+            onClick={() => void runDiagnosticSupportAction(actions.copyEmail)}>
+            <ClipboardCopy size={14} />
+            {t('migration.diagnostics.actions.copy_email')}
+          </Button>
+        </div>
         {diagnosticSupportActionFailed && (
           <p className="text-center text-error-text text-xs" role="alert">
             {t('migration.diagnostics.actions.failed')}
@@ -628,29 +663,26 @@ const MigrationApp: React.FC = () => {
             </Button>
 
             {warnings.length > 0 && (
-              <>
-                <Accordion
-                  type="single"
-                  collapsible
-                  className="rounded-xl border border-warning-bg-hover bg-warning-bg px-4">
-                  <AccordionItem value="migration-warnings" className="border-0 first:border-t-0">
-                    <AccordionTrigger className="py-3 font-medium text-sm text-warning hover:no-underline">
-                      {t('migration.completed.warning_heading', { count: warnings.length })}
-                    </AccordionTrigger>
-                    <AccordionContent className="pt-0 pb-3" contentClassName="text-foreground-secondary">
-                      <p className="text-xs leading-relaxed">{t('migration.completed.warning_description')}</p>
-                      <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs leading-relaxed">
-                        {warnings.map((warning, index) => (
-                          <li key={index} className="wrap-break-words">
-                            {warning}
-                          </li>
-                        ))}
-                      </ul>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-                {renderDiagnosticsPanel()}
-              </>
+              <Accordion
+                type="single"
+                collapsible
+                className="rounded-xl border border-warning-bg-hover bg-warning-bg px-4">
+                <AccordionItem value="migration-warnings" className="border-0 first:border-t-0">
+                  <AccordionTrigger className="py-3 font-medium text-sm text-warning hover:no-underline">
+                    {t('migration.completed.warning_heading', { count: warnings.length })}
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-0 pb-3" contentClassName="text-foreground-secondary">
+                    <p className="text-xs leading-relaxed">{t('migration.completed.warning_description')}</p>
+                    <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs leading-relaxed">
+                      {warnings.map((warning, index) => (
+                        <li key={index} className="wrap-break-words">
+                          {warning}
+                        </li>
+                      ))}
+                    </ul>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             )}
           </div>
         )
@@ -672,7 +704,7 @@ const MigrationApp: React.FC = () => {
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
-            {renderDiagnosticsPanel()}
+            {(progress.stage === 'error' || localMigrationDiagnosticsAvailable) && renderDiagnosticsPanel()}
             <div className="flex items-center gap-2">
               <Button variant="outline" size="lg" disabled={isSavingDiagnostics} onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}
@@ -686,6 +718,7 @@ const MigrationApp: React.FC = () => {
                   setDiagnosticSaveResult(null)
                   setDiagnosticSupportActionFailed(false)
                   setLocalMigrationError(null)
+                  setLocalMigrationDiagnosticsAvailable(false)
                   void actions.retry()
                 }}>
                 <RotateCcw size={14} />

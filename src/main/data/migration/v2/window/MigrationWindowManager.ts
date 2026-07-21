@@ -9,6 +9,7 @@ import { app, BrowserWindow, dialog } from 'electron'
 import { join } from 'path'
 
 const logger = loggerService.withContext('MigrationWindowManager')
+const RENDERER_UNRESPONSIVE_GRACE_MS = 10_000
 
 // Exhaustive by stage so adding a MigrationStage requires an explicit close-confirm decision.
 const CLOSE_CONFIRM_BY_STAGE: Record<MigrationStage, boolean> = {
@@ -89,6 +90,7 @@ export class MigrationWindowManager {
   private waitForWrites: (() => Promise<void>) | null = null
   private onRendererFailure: MigrationWindowCreateOptions['onRendererFailure'] = undefined
   private rendererFailurePromise: Promise<void> | null = null
+  private rendererUnresponsiveTimer: NodeJS.Timeout | null = null
   private windowLoadPromise: Promise<void> | null = null
 
   /**
@@ -123,6 +125,7 @@ export class MigrationWindowManager {
     this.closeConfirmPending = false
     this.onRendererFailure = options.onRendererFailure
     this.rendererFailurePromise = null
+    this.clearRendererUnresponsiveTimer()
     const failureClaim = options.failureClaim ?? createMigrationWindowFailureClaim()
 
     const window = new BrowserWindow({
@@ -173,15 +176,31 @@ export class MigrationWindowManager {
       this.routeQuit()
     })
 
-    // A crashed or hung renderer cannot present diagnostics itself. Route either signal into
-    // one native, write-safe failure flow; the promise guard deduplicates consecutive signals.
+    // A crashed renderer cannot present diagnostics; a transient hang may still recover. Route a
+    // crash immediately and a persistent hang after the grace period into one write-safe native flow.
     window.webContents.on('render-process-gone', (_event, details) => {
+      if (this.window !== window) return
+      this.clearRendererUnresponsiveTimer()
       logger.error('Migration renderer process gone; opening native failure flow', { reason: details.reason })
       this.handleRendererFailure(window, failureClaim, 'renderer_process_gone')
     })
     window.webContents.on('unresponsive', () => {
-      logger.error('Migration renderer unresponsive; opening native failure flow')
-      this.handleRendererFailure(window, failureClaim, 'renderer_unresponsive')
+      if (this.window !== window || this.rendererFailurePromise !== null || this.rendererUnresponsiveTimer !== null) {
+        return
+      }
+      logger.warn('Migration renderer unresponsive; waiting for recovery')
+      this.rendererUnresponsiveTimer = setTimeout(() => {
+        this.rendererUnresponsiveTimer = null
+        if (this.window !== window || this.rendererFailurePromise !== null) return
+        logger.error('Migration renderer remained unresponsive; opening native failure flow')
+        this.handleRendererFailure(window, failureClaim, 'renderer_unresponsive')
+      }, RENDERER_UNRESPONSIVE_GRACE_MS)
+      this.rendererUnresponsiveTimer.unref()
+    })
+    window.webContents.on('responsive', () => {
+      if (this.window !== window || this.rendererUnresponsiveTimer === null) return
+      this.clearRendererUnresponsiveTimer()
+      logger.info('Migration renderer recovered before the failure grace period')
     })
 
     // Load the migration window.
@@ -202,6 +221,7 @@ export class MigrationWindowManager {
 
     window.on('closed', () => {
       if (this.window !== window) return
+      this.clearRendererUnresponsiveTimer()
       this.window = null
       this.windowLoadPromise = null
       this.onRendererFailure = undefined
@@ -226,6 +246,7 @@ export class MigrationWindowManager {
    */
   close(): void {
     const window = this.window
+    this.clearRendererUnresponsiveTimer()
     if (window !== null && !window.isDestroyed()) {
       this.programmaticClose = true
       window.close()
@@ -349,6 +370,12 @@ export class MigrationWindowManager {
       if (writesSettled !== null) await writesSettled
       this.forceQuit('renderer-failure-flow')
     })
+  }
+
+  private clearRendererUnresponsiveTimer(): void {
+    if (this.rendererUnresponsiveTimer === null) return
+    clearTimeout(this.rendererUnresponsiveTimer)
+    this.rendererUnresponsiveTimer = null
   }
 
   /**

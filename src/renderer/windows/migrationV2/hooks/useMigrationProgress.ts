@@ -110,7 +110,7 @@ export function useMigrationProgress() {
  * Hook for migration actions
  */
 export function useMigrationActions() {
-  const start = useCallback(() => {
+  const start = useCallback((): Promise<boolean> => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.Start)
   }, [])
 

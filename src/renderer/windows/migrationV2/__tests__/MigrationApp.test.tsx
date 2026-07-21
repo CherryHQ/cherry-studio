@@ -159,36 +159,6 @@ vi.mock('../components', () => {
           )
         : null,
     Confetti: () => null,
-    MigrationDiagnosticsSavedActions: ({
-      onCopyEmail,
-      onOpenEmail,
-      onShowInFolder,
-      disabled
-    }: {
-      disabled?: boolean
-      onCopyEmail: () => void
-      onOpenEmail: () => void
-      onShowInFolder: () => void
-    }) =>
-      React.createElement(
-        'div',
-        { 'data-testid': 'migration-diagnostics-saved-actions' },
-        React.createElement(
-          'button',
-          { type: 'button', disabled, onClick: onOpenEmail },
-          'migration.diagnostics.actions.open_email'
-        ),
-        React.createElement(
-          'button',
-          { type: 'button', disabled, onClick: onShowInFolder },
-          'migration.diagnostics.actions.show_in_folder'
-        ),
-        React.createElement(
-          'button',
-          { type: 'button', disabled, onClick: onCopyEmail },
-          'migration.diagnostics.actions.copy_email'
-        )
-      ),
     MigrationWindowControls: (props: { disabled?: boolean }) => {
       migrationWindowControlsPropsMock(props)
       return null
@@ -249,7 +219,7 @@ describe('MigrationApp', () => {
     vi.mocked(migrationHookMock.actions.save).mockReset().mockResolvedValue({ status: 'canceled' })
     vi.mocked(migrationHookMock.actions.showInFolder).mockReset().mockResolvedValue(undefined)
     vi.mocked(migrationHookMock.actions.skipMigration).mockClear()
-    vi.mocked(migrationHookMock.actions.start).mockReset().mockResolvedValue(undefined)
+    vi.mocked(migrationHookMock.actions.start).mockReset().mockResolvedValue(true)
     vi.mocked(migrationHookMock.actions.startMigration).mockClear()
     vi.mocked(ReduxExporter).mockReset()
     vi.mocked(DexieExporter).mockReset()
@@ -418,7 +388,9 @@ describe('MigrationApp', () => {
           getEntryCount: vi.fn(() => 1)
         }) as unknown as LocalStorageExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockImplementation((channel) =>
+      Promise.resolve(channel === MigrationIpcChannels.ReportError ? true : '/tmp/userData')
+    )
 
     render(<MigrationApp />)
 
@@ -435,6 +407,19 @@ describe('MigrationApp', () => {
       dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
       localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json'
     })
+  })
+
+  it('does not export or hand off when main rejects the renderer-export start', async () => {
+    migrationHookMock.actions.start.mockResolvedValue(false)
+
+    render(<MigrationApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+    await waitFor(() => expect(migrationHookMock.actions.start).toHaveBeenCalledOnce())
+    expect(ReduxExporter).not.toHaveBeenCalled()
+    expect(DexieExporter).not.toHaveBeenCalled()
+    expect(LocalStorageExporter).not.toHaveBeenCalled()
+    expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
   })
 
   // A renderer-side exporter rejection used to be swallowed (only logged), leaving the user
@@ -476,6 +461,59 @@ describe('MigrationApp', () => {
     })
   })
 
+  it('waits for main to accept the failure before showing a savable renderer-export error', async () => {
+    vi.mocked(ReduxExporter).mockImplementation(
+      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+    )
+    vi.mocked(DexieExporter).mockImplementation(
+      () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
+    )
+    let acceptFailure!: (accepted: boolean) => void
+    invoke.mockImplementation((channel) =>
+      channel === MigrationIpcChannels.ReportError
+        ? new Promise<boolean>((resolve) => {
+            acceptFailure = resolve
+          })
+        : Promise.resolve('/tmp/userData')
+    )
+
+    render(<MigrationApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith(
+        MigrationIpcChannels.ReportError,
+        expect.objectContaining({ report: { sourceRole: 'unknown', operationRole: 'unknown' } })
+      )
+    )
+    expect(screen.queryByText('migration.error.title')).not.toBeInTheDocument()
+
+    acceptFailure(true)
+    expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['a rejected report', () => Promise.reject(new Error('report unavailable'))],
+    ['an obsolete report', () => Promise.resolve(false)]
+  ] as const)('shows no diagnostic save action for %s', async (_case, reportResult) => {
+    vi.mocked(ReduxExporter).mockImplementation(
+      () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+    )
+    vi.mocked(DexieExporter).mockImplementation(
+      () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
+    )
+    invoke.mockImplementation((channel) =>
+      channel === MigrationIpcChannels.ReportError ? reportResult() : Promise.resolve('/tmp/userData')
+    )
+
+    render(<MigrationApp />)
+    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+    expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
+  })
+
   it('drives the error stage when the migration handoff rejects', async () => {
     migrationHookMock.progress = {
       currentMessage: 'Ready',
@@ -515,8 +553,8 @@ describe('MigrationApp', () => {
     let releaseStart!: () => void
     migrationHookMock.actions.start.mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          releaseStart = resolve
+        new Promise<boolean>((resolve) => {
+          releaseStart = () => resolve(true)
         })
     )
 
@@ -545,7 +583,9 @@ describe('MigrationApp', () => {
     vi.mocked(DexieExporter).mockImplementation(
       () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockImplementation((channel) =>
+      Promise.resolve(channel === MigrationIpcChannels.ReportError ? true : '/tmp/userData')
+    )
 
     const { rerender } = render(<MigrationApp />)
     fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
@@ -703,69 +743,19 @@ describe('MigrationApp', () => {
     })
   })
 
-  describe('strict diagnostic bundle completed-warning actions', () => {
-    beforeEach(() => {
-      migrationHookMock.progress = {
-        currentMessage: 'Migration completed with warnings',
-        migrators: [],
-        overallProgress: 100,
-        stage: 'completed',
-        warnings: ['Knowledge vector base could not be rebuilt']
-      }
-    })
+  it('keeps completed warnings visible without offering failure diagnostics', () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Migration completed with warnings',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'completed',
+      warnings: ['Knowledge vector base could not be rebuilt']
+    }
 
-    it('shows diagnostics only when the completed migration has warnings', () => {
-      const { rerender } = render(<MigrationApp />)
+    render(<MigrationApp />)
 
-      expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
-
-      migrationHookMock.progress = {
-        currentMessage: 'Migration completed',
-        migrators: [],
-        overallProgress: 100,
-        stage: 'completed',
-        warnings: []
-      }
-      rerender(<MigrationApp />)
-
-      expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
-      expect(screen.queryByTestId('migration-diagnostics-saved-actions')).not.toBeInTheDocument()
-    })
-
-    it('disables Save and Restart while saving and prevents duplicate saves', async () => {
-      let resolveSave!: (result: { status: 'canceled' }) => void
-      migrationHookMock.actions.save.mockImplementation(
-        () => new Promise<{ status: 'canceled' }>((resolve) => (resolveSave = resolve))
-      )
-
-      render(<MigrationApp />)
-      const save = screen.getByRole('button', { name: 'migration.diagnostics.save' })
-      const restart = screen.getByRole('button', { name: 'migration.buttons.restart' })
-      fireEvent.click(save)
-
-      await waitFor(() => {
-        expect(save).toBeDisabled()
-        expect(restart).toBeDisabled()
-        expect(migrationWindowControlsPropsMock).toHaveBeenLastCalledWith(expect.objectContaining({ disabled: true }))
-      })
-      fireEvent.click(save)
-      fireEvent.click(restart)
-      expect(migrationHookMock.actions.save).toHaveBeenCalledTimes(1)
-      expect(migrationHookMock.actions.restart).not.toHaveBeenCalled()
-
-      await act(async () => resolveSave({ status: 'canceled' }))
-    })
-
-    it('shows the existing support actions after saving completed-warning diagnostics', async () => {
-      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
-
-      render(<MigrationApp />)
-      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
-
-      const actions = await screen.findByTestId('migration-diagnostics-saved-actions')
-      expect(within(actions).getAllByRole('button')).toHaveLength(3)
-      expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
-    })
+    expect(screen.getByText('Knowledge vector base could not be rebuilt')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
   })
 
   describe('strict diagnostic bundle version-incompatible actions', () => {
