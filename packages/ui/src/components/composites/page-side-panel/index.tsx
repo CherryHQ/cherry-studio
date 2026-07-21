@@ -54,7 +54,7 @@ function PageSidePanel({
   footerClassName,
   closeButtonClassName
 }: PageSidePanelProps) {
-  const standardTitle = title ? <span className="font-semibold text-base text-foreground">{title}</span> : null
+  const standardTitle = title ? <span className="font-[550] text-base text-foreground">{title}</span> : null
   const headerContent = header ?? standardTitle
   const hasHeader = !!headerContent || showCloseButton
   const headerId = useId()
@@ -73,6 +73,38 @@ function PageSidePanel({
       onClose()
     },
     [onClose]
+  )
+
+  const handlePanelKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Escape') {
+        handleClose(event)
+        return
+      }
+      if (event.key !== 'Tab' || !panelRef.current) return
+
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true')
+      if (focusable.length === 0) {
+        event.preventDefault()
+        panelRef.current.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && (document.activeElement === panelRef.current || document.activeElement === first)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    },
+    [handleClose]
   )
 
   useEffect(() => {
@@ -109,9 +141,7 @@ function PageSidePanel({
             aria-modal="true"
             aria-labelledby={headerContent ? headerId : undefined}
             tabIndex={-1}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') handleClose(e)
-            }}
+            onKeyDown={handlePanelKeyDown}
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: side === 'right' ? '100%' : '-100%' }}
