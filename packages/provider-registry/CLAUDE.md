@@ -18,7 +18,7 @@ To change the catalog, edit the **source** and regenerate:
 | a model's metadata (capabilities, modalities, context/limits, name) | `src/creators/<creator>.ts` | `pnpm generate` |
 | how a provider connects / which models it serves / its pricing & overrides | `src/providers/<provider>.ts` | `pnpm generate` |
 
-`pnpm generate` reads the upstream catalogs (models.dev / OpenRouter) **live**; set `MODELSDEV_CACHE` / `OPENROUTER_CACHE` to a local file to cache them during dev. Always commit the **source change and the regenerated `data/*.json` together** — a data change with no source change reads as a hand-edit and CI blocks it.
+`pnpm generate` reads the upstream catalogs (models.dev / OpenRouter text + image models) **live**; set `MODELSDEV_CACHE` / `OPENROUTER_CACHE` / `OPENROUTER_IMAGE_CACHE` to local files to cache them during dev. Always commit the **source change and the regenerated `data/*.json` together** — a data change with no source change reads as a hand-edit and CI blocks it.
 
 ## Source of truth
 
