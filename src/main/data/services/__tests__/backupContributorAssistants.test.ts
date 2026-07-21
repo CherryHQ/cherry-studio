@@ -90,7 +90,7 @@ describe('ASSISTANTS contributor', () => {
       rootRow: { id: 'old-id', name: 'a', prompt: 'p' },
       newRootKey: 'new-id'
     } as unknown as CloneAggregateContext
-    const result = await cloneAggregate(ctx)
+    const result = cloneAggregate(ctx)
     expect(result.rootRow.id).toBe('new-id')
     expect(result.rootRow.name).toBe('a') // non-PK fields preserved by the spread
   })

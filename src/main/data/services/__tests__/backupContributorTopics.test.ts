@@ -145,7 +145,7 @@ describe('TOPICS contributor', () => {
       newRootKey: 'topic-new',
       memberKeyMap
     } as unknown as CloneAggregateContext
-    const result = await cloneAggregate(ctx)
+    const result = cloneAggregate(ctx)
     expect(result.rootRow.id).toBe('topic-new')
     expect(result.rootRow.name).toBe('t') // non-PK fields preserved by the spread
     expect(result.rootRow.activeNodeId).toBe('msg-new') // rewritten to cloned message id
@@ -162,7 +162,7 @@ describe('TOPICS contributor', () => {
       newRootKey: 'topic-new',
       memberKeyMap
     } as unknown as CloneAggregateContext
-    const result = await cloneAggregate(ctx)
+    const result = cloneAggregate(ctx)
     expect(result.rootRow.activeNodeId).toBeNull() // cleared instead of dangling
   })
 

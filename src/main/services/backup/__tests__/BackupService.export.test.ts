@@ -117,7 +117,7 @@ describe('BackupService packaged export path', () => {
     const holdDispose = vi.fn()
     jobManagerPause.mockReturnValue({ dispose: holdDispose })
     // Fail AFTER quiesce ran: importBackup invokes the injected quiesceWriters first, then throws.
-    importBackup.mockImplementation(async (_options: unknown) => {
+    importBackup.mockImplementation(async () => {
       const deps = (ImportOrchestrator as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
         quiesceWriters: () => Promise<void>
       }
