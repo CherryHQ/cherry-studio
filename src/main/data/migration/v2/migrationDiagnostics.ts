@@ -75,6 +75,7 @@ export function classifyMigrationPrebootFailure(
     case 'sqlite_locked':
     case 'sqlite_io':
     case 'sqlite_unknown':
+    case 'file_invalid_type':
     case 'file_missing':
     case 'file_permission':
     case 'file_readonly':

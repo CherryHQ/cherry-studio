@@ -32,7 +32,7 @@ const diagnosticsReportRendererExportFailureMock = vi.hoisted(() => vi.fn())
 const diagnosticsSaveBundleMock = vi.hoisted(() => vi.fn())
 const diagnosticsCompleteVersionGateMock = vi.hoisted(() => vi.fn())
 const isSafeExternalUrlMock = vi.hoisted(() => vi.fn())
-const fsMocks = vi.hoisted(() => ({ mkdir: vi.fn(), writeFile: vi.fn() }))
+const fsMocks = vi.hoisted(() => ({ lstat: vi.fn(), mkdir: vi.fn(), writeFile: vi.fn() }))
 const electronMocks = vi.hoisted(() => ({
   app: { getLocale: vi.fn(), quit: vi.fn() },
   clipboard: { writeText: vi.fn() },
@@ -108,6 +108,7 @@ describe('MigrationIpcHandler', () => {
     diagnosticsSaveBundleMock.mockResolvedValue({ status: 'saved' })
     fsMocks.mkdir.mockResolvedValue(undefined)
     fsMocks.writeFile.mockResolvedValue(undefined)
+    fsMocks.lstat.mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }))
     vi.mocked(dialog.showSaveDialog).mockResolvedValue({
       canceled: false,
       filePath: '/main-selected/migration-diagnostics.zip'
@@ -617,9 +618,156 @@ describe('MigrationIpcHandler', () => {
 
       expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
         { sourceRole: 'dexie', operationRole: 'write' },
-        errorCode
+        { errorCode }
       )
       expect(JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)).not.toContain('PRIVATE_MAIN_WRITE')
+    })
+
+    it('captures a fixed migration-temp blocker when local-storage mkdir fails with ENOTDIR', async () => {
+      const original = Object.assign(new Error('PRIVATE_MAIN_WRITE /mock/userData/migration_temp'), {
+        code: 'ENOTDIR'
+      })
+      fsMocks.mkdir.mockRejectedValueOnce(original)
+      fsMocks.lstat.mockResolvedValueOnce({
+        isFile: () => true,
+        isDirectory: () => false
+      })
+      await invoke(MigrationIpcChannels.Start)
+
+      await expect(
+        invoke(
+          MigrationIpcChannels.WriteExportFile,
+          '/mock/userData/migration_temp/localstorage_export',
+          'localStorage',
+          'PRIVATE_JSON'
+        )
+      ).rejects.toBe(original)
+      await invoke(MigrationIpcChannels.ReportError, {
+        message: 'renderer received a rejected IPC invoke',
+        report: { sourceRole: 'local_storage', operationRole: 'write' }
+      })
+
+      expect(fsMocks.lstat).toHaveBeenCalledWith('/mock/userData/migration_temp')
+      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+        { sourceRole: 'local_storage', operationRole: 'write' },
+        {
+          errorCode: 'file_invalid_type',
+          filesystemEvidence: {
+            causeCode: 'ENOTDIR',
+            filesystemOperation: 'mkdir',
+            targetRole: 'local_storage_export_file',
+            blockingNodeRole: 'migration_temp_root',
+            expectedNodeType: 'file',
+            observedNodeType: 'file'
+          }
+        }
+      )
+      const capabilityPayload = JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)
+      expect(capabilityPayload).not.toContain('PRIVATE_MAIN_WRITE')
+      expect(capabilityPayload).not.toContain('/mock/userData')
+      expect(capabilityPayload).not.toContain('PRIVATE_JSON')
+    })
+
+    it('identifies the write boundary and fixed Dexie blocker for EEXIST', async () => {
+      const original = Object.assign(new Error('PRIVATE_WRITE_STACK'), { code: 'EEXIST' })
+      fsMocks.writeFile.mockRejectedValueOnce(original)
+      fsMocks.lstat
+        .mockResolvedValueOnce({ isFile: () => false, isDirectory: () => true })
+        .mockResolvedValueOnce({ isFile: () => true, isDirectory: () => false })
+      await invoke(MigrationIpcChannels.Start)
+
+      await expect(
+        invoke(
+          MigrationIpcChannels.WriteExportFile,
+          '/mock/userData/migration_temp/dexie_export',
+          'topics',
+          'PRIVATE_JSON'
+        )
+      ).rejects.toBe(original)
+      await invoke(MigrationIpcChannels.ReportError, {
+        message: 'renderer received a rejected IPC invoke',
+        report: { sourceRole: 'dexie', operationRole: 'write' }
+      })
+
+      expect(fsMocks.lstat.mock.calls).toEqual([
+        ['/mock/userData/migration_temp'],
+        ['/mock/userData/migration_temp/dexie_export']
+      ])
+      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+        { sourceRole: 'dexie', operationRole: 'write' },
+        {
+          errorCode: 'file_invalid_type',
+          filesystemEvidence: {
+            causeCode: 'EEXIST',
+            filesystemOperation: 'write',
+            targetRole: 'dexie_export_directory',
+            blockingNodeRole: 'dexie_export_directory',
+            expectedNodeType: 'directory',
+            observedNodeType: 'file'
+          }
+        }
+      )
+    })
+
+    it('keeps the original type conflict when the controlled lstat probe fails', async () => {
+      const original = Object.assign(new Error('PRIVATE_ORIGINAL_FAILURE'), { code: 'ENOTDIR' })
+      fsMocks.mkdir.mockRejectedValueOnce(original)
+      fsMocks.lstat.mockRejectedValueOnce(new Error('PRIVATE_PROBE_FAILURE'))
+      await invoke(MigrationIpcChannels.Start)
+
+      await expect(
+        invoke(
+          MigrationIpcChannels.WriteExportFile,
+          '/mock/userData/migration_temp/dexie_export',
+          'topics',
+          'PRIVATE_JSON'
+        )
+      ).rejects.toBe(original)
+      await invoke(MigrationIpcChannels.ReportError, {
+        message: 'renderer received a rejected IPC invoke',
+        report: { sourceRole: 'dexie', operationRole: 'write' }
+      })
+
+      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+        { sourceRole: 'dexie', operationRole: 'write' },
+        {
+          errorCode: 'file_invalid_type',
+          filesystemEvidence: expect.objectContaining({
+            causeCode: 'ENOTDIR',
+            blockingNodeRole: 'unknown',
+            observedNodeType: 'unavailable'
+          })
+        }
+      )
+    })
+
+    it('never probes a Renderer-submitted path outside the fixed export nodes', async () => {
+      const original = Object.assign(new Error('PRIVATE_ESCAPE'), { code: 'ENOTDIR' })
+      fsMocks.mkdir.mockRejectedValueOnce(original)
+      await invoke(MigrationIpcChannels.Start)
+
+      await expect(
+        invoke(MigrationIpcChannels.WriteExportFile, '/private/renderer-controlled', 'topics', 'PRIVATE_JSON')
+      ).rejects.toBe(original)
+      await invoke(MigrationIpcChannels.ReportError, {
+        message: 'renderer received a rejected IPC invoke',
+        report: { sourceRole: 'dexie', operationRole: 'write' }
+      })
+
+      expect(fsMocks.lstat).not.toHaveBeenCalled()
+      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+        { sourceRole: 'dexie', operationRole: 'write' },
+        {
+          errorCode: 'file_invalid_type',
+          filesystemEvidence: expect.objectContaining({
+            blockingNodeRole: 'unknown',
+            observedNodeType: 'unavailable'
+          })
+        }
+      )
+      expect(JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)).not.toContain(
+        '/private/renderer-controlled'
+      )
     })
 
     it('does not carry a Main write failure into a later renderer export generation', async () => {

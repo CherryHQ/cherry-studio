@@ -569,6 +569,25 @@ describe('MigrationEngine', () => {
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_STATUS_PATH')
   })
 
+  it('preserves a filesystem type conflict at the finalization boundary', async () => {
+    const error = Object.assign(new Error('PRIVATE_STATUS_PATH'), { code: 'ENOTDIR' })
+    vi.mocked((engine as any).markCompleted).mockRejectedValueOnce(error)
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(false)
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'migration_finalize_failed',
+        scope: 'database',
+        phase: 'finalize',
+        errorCode: 'file_invalid_type'
+      }
+    })
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_STATUS_PATH')
+  })
+
   it('maps an Agents owned-table FK failure to one invariant outcome', async () => {
     const events: string[] = []
     const failing = createTestMigrator('agents', 1, events)

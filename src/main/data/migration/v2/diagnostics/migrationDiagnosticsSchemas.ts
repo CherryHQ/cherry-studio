@@ -113,6 +113,7 @@ const MIGRATION_FAILURE_ERROR_CODES = [
   'sqlite_locked',
   'sqlite_io',
   'sqlite_unknown',
+  'file_invalid_type',
   'file_missing',
   'file_permission',
   'file_readonly',
@@ -169,11 +170,27 @@ const migrationVersionGateFailureEvidenceSchema = z
   })
   .strict()
 
+const migrationRendererFilesystemEvidenceSchema = z
+  .object({
+    causeCode: z.enum(['ENOTDIR', 'EEXIST']),
+    filesystemOperation: z.enum(['mkdir', 'write']),
+    targetRole: z.enum(['dexie_export_directory', 'local_storage_export_file']),
+    blockingNodeRole: z.enum(['migration_temp_root', 'dexie_export_directory', 'unknown']),
+    expectedNodeType: z.enum(['directory', 'file']),
+    observedNodeType: z.enum(['file', 'directory', 'other', 'unavailable'])
+  })
+  .strict()
+
+const migrationRendererExportEvidenceFields = {
+  kind: z.literal('renderer_export'),
+  filesystemEvidence: migrationRendererFilesystemEvidenceSchema.optional()
+}
+
 const migrationRendererExportEvidenceSchema = z.discriminatedUnion('sourceRole', [
-  rendererExportReportSchemas[0].extend({ kind: z.literal('renderer_export') }),
-  rendererExportReportSchemas[1].extend({ kind: z.literal('renderer_export') }),
-  rendererExportReportSchemas[2].extend({ kind: z.literal('renderer_export') }),
-  rendererExportReportSchemas[3].extend({ kind: z.literal('renderer_export') })
+  rendererExportReportSchemas[0].extend(migrationRendererExportEvidenceFields),
+  rendererExportReportSchemas[1].extend(migrationRendererExportEvidenceFields),
+  rendererExportReportSchemas[2].extend(migrationRendererExportEvidenceFields),
+  rendererExportReportSchemas[3].extend(migrationRendererExportEvidenceFields)
 ])
 
 const migrationAllRequiredRowsRejectedEvidenceSchema = z
@@ -296,6 +313,7 @@ const databaseOrFileFailureCodeSchema = z.enum([
   'sqlite_locked',
   'sqlite_io',
   'sqlite_unknown',
+  'file_invalid_type',
   'file_missing',
   'file_permission',
   'file_readonly',
@@ -343,6 +361,7 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
         'source_read_failed',
         'source_parse_failed',
         'source_serialization_failed',
+        'file_invalid_type',
         'file_missing',
         'file_permission',
         'file_readonly',
@@ -432,6 +451,16 @@ export const migrationDiagnosticFailureSchema = migrationDiagnosticFailureUnionS
         code: 'custom',
         message: 'Only a version-window preboot failure carries version-gate evidence',
         path: ['evidence']
+      })
+    }
+  }
+  if (failure.kind === 'renderer_export_failed') {
+    const hasFilesystemEvidence = failure.evidence.filesystemEvidence !== undefined
+    if ((failure.errorCode === 'file_invalid_type') !== hasFilesystemEvidence) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Only a renderer file type conflict carries filesystem evidence',
+        path: ['evidence', 'filesystemEvidence']
       })
     }
   }

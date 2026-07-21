@@ -1,6 +1,7 @@
 import { createUniqueModelId } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
+import { classifyMigrationPrebootFailure } from '../../migrationDiagnostics'
 import { classifyMigrationError } from '../migrationErrorClassifier'
 
 function errorWithCode(code: string, cause?: unknown): Error {
@@ -28,7 +29,8 @@ describe('classifyMigrationError', () => {
     ['SQLITE_IOERR_READ', 'sqlite_io'],
     ['SQLITE_FULL', 'sqlite_io'],
     ['ENOENT', 'file_missing'],
-    ['ENOTDIR', 'file_missing'],
+    ['ENOTDIR', 'file_invalid_type'],
+    ['EEXIST', 'file_invalid_type'],
     ['EACCES', 'file_permission'],
     ['EPERM', 'file_permission'],
     ['EROFS', 'file_readonly'],
@@ -124,5 +126,13 @@ describe('classifyMigrationError', () => {
     expect(Object.keys(result)).toEqual(['errorCode'])
     expect(result).not.toHaveProperty('message')
     expect(result).not.toHaveProperty('stack')
+  })
+})
+
+describe('classifyMigrationPrebootFailure', () => {
+  it('preserves a filesystem type conflict instead of replacing it with the fallback', () => {
+    expect(classifyMigrationPrebootFailure(errorWithCode('ENOTDIR'), 'database_initialize_failed')).toBe(
+      'file_invalid_type'
+    )
   })
 })

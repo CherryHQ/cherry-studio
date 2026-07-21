@@ -49,6 +49,26 @@ type RendererExportFailureErrorCode = Extract<
   MigrationDiagnosticFailure,
   { kind: 'renderer_export_failed' }
 >['errorCode']
+type RendererExportFilesystemEvidence = NonNullable<
+  Extract<MigrationDiagnosticFailure, { kind: 'renderer_export_failed' }>['evidence']['filesystemEvidence']
+>
+type MainExportWriteErrorCode = Extract<
+  RendererExportFailureErrorCode,
+  'unknown_error' | 'file_invalid_type' | 'file_missing' | 'file_permission' | 'file_readonly' | 'file_io'
+>
+
+export type MigrationRendererExportMainWriteFailure =
+  | { readonly errorCode: Exclude<MainExportWriteErrorCode, 'file_invalid_type'> }
+  | {
+      readonly errorCode: 'file_invalid_type'
+      readonly filesystemEvidence: RendererExportFilesystemEvidence
+    }
+
+interface ControlledRendererExportPaths {
+  readonly migrationTempRoot: string
+  readonly dexieExportDirectory: string
+  readonly localStorageExportDirectory: string
+}
 
 interface DiagnosticRegistrationState {
   epoch: number
@@ -58,7 +78,7 @@ interface DiagnosticRegistrationState {
   rendererExportPhase: {
     generation: number
     status: 'exporting' | 'reporting_failure'
-    mainWriteFailure?: RendererExportFailureErrorCode
+    mainWriteFailure?: MigrationRendererExportMainWriteFailure
   } | null
 }
 
@@ -75,7 +95,7 @@ export interface MigrationIpcDiagnosticCapabilities {
   start(): void | Promise<void>
   reportRendererExportFailure(
     report: MigrationRendererExportFailureReport,
-    mainWriteFailure?: RendererExportFailureErrorCode
+    mainWriteFailure?: MigrationRendererExportMainWriteFailure
   ): void | Promise<void>
   saveDiagnosticBundle(destination: string): Promise<MigrationDiagnosticNativeSaveResult>
   completeVersionGate(): void
@@ -110,6 +130,12 @@ export function registerMigrationIpcHandlers(
     rendererExportGeneration: 0,
     rendererExportPhase: null
   }
+  const migrationTempRoot = path.join(userDataPath, 'migration_temp')
+  const controlledExportPaths: ControlledRendererExportPaths = Object.freeze({
+    migrationTempRoot,
+    dexieExportDirectory: path.join(migrationTempRoot, 'dexie_export'),
+    localStorageExportDirectory: path.join(migrationTempRoot, 'localstorage_export')
+  })
   activeDiagnosticRegistration = diagnosticRegistration
   const requestRegisteredQuit = (): boolean => requestQuit(diagnosticRegistration, diagnosticCapabilities)
 
@@ -227,10 +253,42 @@ export function registerMigrationIpcHandlers(
     async (event, exportPath: string, tableName: string, jsonData: string) => {
       assertMigrationSender(event)
       assertRendererExportActive(diagnosticRegistration)
+      const rememberFailure = async (error: unknown, filesystemOperation: 'mkdir' | 'write'): Promise<void> => {
+        const phase = diagnosticRegistration.rendererExportPhase
+        if (
+          activeDiagnosticRegistration !== diagnosticRegistration ||
+          phase === null ||
+          phase.status !== 'exporting' ||
+          phase.mainWriteFailure !== undefined
+        ) {
+          return
+        }
+        const mainWriteFailure = await classifyMainExportWriteFailure(
+          error,
+          filesystemOperation,
+          exportPath,
+          tableName,
+          controlledExportPaths
+        )
+        if (
+          activeDiagnosticRegistration === diagnosticRegistration &&
+          diagnosticRegistration.rendererExportPhase === phase &&
+          phase.status === 'exporting'
+        ) {
+          phase.mainWriteFailure = mainWriteFailure
+        }
+      }
+
       try {
         // Ensure export directory exists
         await fs.mkdir(exportPath, { recursive: true })
+      } catch (error) {
+        await rememberFailure(error, 'mkdir')
+        logger.error('Error creating export directory', error as Error)
+        throw error
+      }
 
+      try {
         // Write table data to file
         const filePath = path.join(exportPath, `${tableName}.json`)
         await fs.writeFile(filePath, jsonData, 'utf-8')
@@ -238,10 +296,7 @@ export function registerMigrationIpcHandlers(
         logger.info('Export file written', { tableName, filePath })
         return true
       } catch (error) {
-        const phase = diagnosticRegistration.rendererExportPhase
-        if (activeDiagnosticRegistration === diagnosticRegistration && phase !== null && phase.status === 'exporting') {
-          phase.mainWriteFailure ??= classifyMainExportWriteFailure(error)
-        }
+        await rememberFailure(error, 'write')
         logger.error('Error writing export file', error as Error)
         throw error
       }
@@ -504,17 +559,98 @@ export async function runMigrationDiagnosticSaveTransaction<T>(
   }
 }
 
-function classifyMainExportWriteFailure(error: unknown): RendererExportFailureErrorCode {
+async function classifyMainExportWriteFailure(
+  error: unknown,
+  filesystemOperation: 'mkdir' | 'write',
+  exportPath: string,
+  tableName: string,
+  controlledPaths: ControlledRendererExportPaths
+): Promise<MigrationRendererExportMainWriteFailure> {
   const { errorCode } = classifyMigrationError(error)
   switch (errorCode) {
+    case 'file_invalid_type': {
+      const causeCode = findFilesystemTypeCauseCode(error)
+      if (causeCode === null) return { errorCode: 'unknown_error' }
+
+      const targetRole = tableName === 'localStorage' ? 'local_storage_export_file' : 'dexie_export_directory'
+      const isControlledExportPath =
+        path.normalize(exportPath) ===
+        path.normalize(
+          targetRole === 'local_storage_export_file'
+            ? controlledPaths.localStorageExportDirectory
+            : controlledPaths.dexieExportDirectory
+        )
+      const blocker = isControlledExportPath
+        ? await probeControlledFilesystemBlocker(controlledPaths, targetRole)
+        : { blockingNodeRole: 'unknown' as const, observedNodeType: 'unavailable' as const }
+      return {
+        errorCode,
+        filesystemEvidence: {
+          causeCode,
+          filesystemOperation,
+          targetRole,
+          ...blocker,
+          expectedNodeType: targetRole === 'dexie_export_directory' ? 'directory' : 'file'
+        }
+      }
+    }
     case 'file_missing':
     case 'file_permission':
     case 'file_readonly':
     case 'file_io':
-      return errorCode
+      return { errorCode }
     default:
-      return 'unknown_error'
+      return { errorCode: 'unknown_error' }
   }
+}
+
+async function probeControlledFilesystemBlocker(
+  paths: ControlledRendererExportPaths,
+  targetRole: RendererExportFilesystemEvidence['targetRole']
+): Promise<Pick<RendererExportFilesystemEvidence, 'blockingNodeRole' | 'observedNodeType'>> {
+  try {
+    const migrationTempType = nodeType(await fs.lstat(paths.migrationTempRoot))
+    if (migrationTempType !== 'directory') {
+      return { blockingNodeRole: 'migration_temp_root', observedNodeType: migrationTempType }
+    }
+    if (targetRole !== 'dexie_export_directory') {
+      return { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
+    }
+
+    const dexieExportType = nodeType(await fs.lstat(paths.dexieExportDirectory))
+    return dexieExportType === 'directory'
+      ? { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
+      : { blockingNodeRole: 'dexie_export_directory', observedNodeType: dexieExportType }
+  } catch {
+    return { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
+  }
+}
+
+function nodeType(stats: Awaited<ReturnType<typeof fs.lstat>>): RendererExportFilesystemEvidence['observedNodeType'] {
+  if (stats.isFile()) return 'file'
+  if (stats.isDirectory()) return 'directory'
+  return 'other'
+}
+
+function findFilesystemTypeCauseCode(error: unknown): 'ENOTDIR' | 'EEXIST' | null {
+  let current = error
+  const visited = new WeakSet<object>()
+  for (let causeDepth = 0; causeDepth <= 4; causeDepth++) {
+    if (((typeof current !== 'object' || current === null) && typeof current !== 'function') || visited.has(current)) {
+      return null
+    }
+    visited.add(current)
+    try {
+      const codeDescriptor = Object.getOwnPropertyDescriptor(current, 'code')
+      const code = codeDescriptor && 'value' in codeDescriptor ? codeDescriptor.value : undefined
+      if (code === 'ENOTDIR' || code === 'EEXIST') return code
+      const causeDescriptor = Object.getOwnPropertyDescriptor(current, 'cause')
+      current = causeDescriptor && 'value' in causeDescriptor ? causeDescriptor.value : undefined
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
 function rendererExportUiMessage(payload: unknown): string {

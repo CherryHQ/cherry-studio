@@ -255,8 +255,18 @@ type RendererFailureCallback = (
 interface RegisteredMigrationDiagnosticsCapabilities {
   start(): Promise<void>
   reportRendererExportFailure(
-    report: { sourceRole: 'redux'; operationRole: 'parse' },
-    mainWriteFailure?: 'file_io'
+    report: { sourceRole: 'redux'; operationRole: 'parse' } | { sourceRole: 'local_storage'; operationRole: 'write' },
+    mainWriteFailure?: {
+      errorCode: 'file_invalid_type'
+      filesystemEvidence: {
+        causeCode: 'ENOTDIR'
+        filesystemOperation: 'mkdir'
+        targetRole: 'local_storage_export_file'
+        blockingNodeRole: 'migration_temp_root'
+        expectedNodeType: 'file'
+        observedNodeType: 'file'
+      }
+    }
   ): Promise<void>
   saveDiagnosticBundle(destination: string): Promise<unknown>
   completeVersionGate(): void
@@ -474,6 +484,63 @@ describe('runV2MigrationGate', () => {
       })
       expect(JSON.stringify(snapshot)).not.toContain('canary-secret')
       expect(JSON.stringify(snapshot)).not.toContain('/Users/private')
+    })
+
+    it('preserves Main-owned filesystem evidence in the renderer export checkpoint', async () => {
+      const coordinator = await createMemoryDiagnosticsCoordinator()
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
+      stubMigrationV2({ diagnosticsCoordinator: coordinator })
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+      const capabilities = registeredDiagnosticsCapabilities()
+
+      await capabilities.start()
+      await capabilities.reportRendererExportFailure(
+        { sourceRole: 'local_storage', operationRole: 'write' },
+        {
+          errorCode: 'file_invalid_type',
+          filesystemEvidence: {
+            causeCode: 'ENOTDIR',
+            filesystemOperation: 'mkdir',
+            targetRole: 'local_storage_export_file',
+            blockingNodeRole: 'migration_temp_root',
+            expectedNodeType: 'file',
+            observedNodeType: 'file'
+          }
+        }
+      )
+
+      const snapshot = await coordinator.snapshot()
+      expect(snapshot.current).toMatchObject({
+        status: 'failed',
+        failure: {
+          kind: 'renderer_export_failed',
+          errorCode: 'file_invalid_type',
+          evidence: {
+            kind: 'renderer_export',
+            sourceRole: 'local_storage',
+            operationRole: 'write',
+            filesystemEvidence: {
+              causeCode: 'ENOTDIR',
+              filesystemOperation: 'mkdir',
+              targetRole: 'local_storage_export_file',
+              blockingNodeRole: 'migration_temp_root',
+              expectedNodeType: 'file',
+              observedNodeType: 'file'
+            }
+          }
+        }
+      })
+      expect(JSON.stringify(snapshot)).not.toContain('/mock/userData')
+      expect(JSON.stringify(snapshot)).not.toContain('PRIVATE_')
     })
   })
 

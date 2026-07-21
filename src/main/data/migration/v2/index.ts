@@ -69,6 +69,7 @@ export {
   presentMigrationDiagnosticRecovery
 } from './window/migrationDiagnosticDialogs'
 export {
+  type MigrationRendererExportMainWriteFailure,
   registerMigrationIpcHandlers,
   resetMigrationData,
   runMigrationDiagnosticSaveTransaction,

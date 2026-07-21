@@ -65,6 +65,11 @@ For an actual blocking string or JSON write failure, the failed boundary may rec
 byte lengths and whether the sample was truncated. Optional row failures and warning-only work do not produce this
 evidence, and diagnostics never serialize the failed values themselves.
 
+Renderer export node-type conflicts are recorded as `file_invalid_type` with fixed `ENOTDIR` / `EEXIST`, operation,
+target, blocking-node, expected-type, and observed-type enums. Main derives and probes only its predefined
+`migration_temp` / `dexie_export` nodes; probe failure becomes `unavailable` and never replaces the original failure.
+Renderer-provided paths, raw filesystem messages, stacks, and user content are not persisted or added to the ZIP.
+
 The same save operation is available from renderer migration errors, version-incompatibility blocks, pre-window
 native failures, renderer crashes, renderer hangs that persist for 10 seconds, and unfinished-session recovery.
 Completed migrations do not show diagnostic controls, including completions that contain warnings. While saving,

@@ -68,8 +68,10 @@ function classifyCode(code: string): MigrationFailureErrorCode | undefined {
       return 'file_permission'
     case 'EROFS':
       return 'file_readonly'
-    case 'ENOENT':
     case 'ENOTDIR':
+    case 'EEXIST':
+      return 'file_invalid_type'
+    case 'ENOENT':
       return 'file_missing'
     case 'ENOSPC':
     case 'EIO':

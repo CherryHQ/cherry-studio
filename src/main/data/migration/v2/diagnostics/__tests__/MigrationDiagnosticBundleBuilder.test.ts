@@ -63,6 +63,40 @@ function failedSnapshot(): MigrationDiagnosticsSnapshot {
   }
 }
 
+function filesystemTypeFailureSnapshot(): MigrationDiagnosticsSnapshot {
+  return {
+    formatVersion: 1,
+    app: { version: '2.0.0', platform: 'darwin', arch: 'arm64' },
+    state: 'failed',
+    current: {
+      trigger: 'initial',
+      status: 'failed',
+      startedAt: '2026-07-21T08:00:00.000Z',
+      endedAt: '2026-07-21T08:01:00.000Z',
+      lastLocation: { scope: 'renderer_export', phase: 'prepare' },
+      failure: {
+        kind: 'renderer_export_failed',
+        scope: 'renderer_export',
+        phase: 'finalize',
+        errorCode: 'file_invalid_type',
+        evidence: {
+          kind: 'renderer_export',
+          sourceRole: 'local_storage',
+          operationRole: 'write',
+          filesystemEvidence: {
+            causeCode: 'ENOTDIR',
+            filesystemOperation: 'mkdir',
+            targetRole: 'local_storage_export_file',
+            blockingNodeRole: 'migration_temp_root',
+            expectedNodeType: 'file',
+            observedNodeType: 'file'
+          }
+        }
+      }
+    }
+  }
+}
+
 function databaseDiagnostics() {
   return {
     file: {
@@ -158,6 +192,56 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
 
     expect(collectDatabaseDiagnostics).not.toHaveBeenCalled()
     expect(existsSync(destination())).toBe(false)
+  })
+
+  it('preserves bounded filesystem evidence in the real ZIP without raw failure details', async () => {
+    const snapshot = filesystemTypeFailureSnapshot()
+    const failure = snapshot.current?.status === 'failed' ? snapshot.current.failure : {}
+    Object.defineProperty(failure, 'rawError', {
+      value: Object.assign(new Error('RAW_NODE_ERROR_CANARY /Users/private/migration_temp'), {
+        stack: 'STACK_CANARY'
+      }),
+      enumerable: false
+    })
+
+    const result = await new MigrationDiagnosticBundleBuilder({
+      clock: () => new Date('2026-07-21T08:02:00.000Z')
+    }).save({
+      destination: destination('filesystem-evidence.zip'),
+      snapshot,
+      collectDatabaseDiagnostics: async () => databaseDiagnostics()
+    })
+
+    expect(result.status).toBe('saved')
+    const entries = await readArchive(destination('filesystem-evidence.zip'))
+    const document = migrationDiagnosticBundleDocumentSchema.parse(
+      JSON.parse(entries.get('migration-diagnostics.json')?.toString('utf8') ?? '')
+    )
+    expect(document.current).toMatchObject({
+      status: 'failed',
+      failure: {
+        kind: 'renderer_export_failed',
+        errorCode: 'file_invalid_type',
+        evidence: {
+          kind: 'renderer_export',
+          sourceRole: 'local_storage',
+          operationRole: 'write',
+          filesystemEvidence: {
+            causeCode: 'ENOTDIR',
+            filesystemOperation: 'mkdir',
+            targetRole: 'local_storage_export_file',
+            blockingNodeRole: 'migration_temp_root',
+            expectedNodeType: 'file',
+            observedNodeType: 'file'
+          }
+        }
+      }
+    })
+    const serialized = Buffer.concat([...entries.values()]).toString('utf8')
+    expect(serialized).not.toContain('/Users/private')
+    expect(serialized).not.toContain('RAW_NODE_ERROR_CANARY')
+    expect(serialized).not.toContain('STACK_CANARY')
+    expect(serialized).not.toContain('rawError')
   })
 
   it('never serializes rejected fields, collector errors, or test-only causes', async () => {

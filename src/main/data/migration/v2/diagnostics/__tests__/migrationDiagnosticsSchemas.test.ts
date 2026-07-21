@@ -24,6 +24,26 @@ const versionGateEvidence = {
 
 const location = { scope: 'migrator', phase: 'execute', migratorId: 'chat' } as const
 
+const rendererFilesystemTypeFailure = {
+  kind: 'renderer_export_failed',
+  scope: 'renderer_export',
+  phase: 'finalize',
+  errorCode: 'file_invalid_type',
+  evidence: {
+    kind: 'renderer_export',
+    sourceRole: 'dexie',
+    operationRole: 'write',
+    filesystemEvidence: {
+      causeCode: 'ENOTDIR',
+      filesystemOperation: 'mkdir',
+      targetRole: 'dexie_export_directory',
+      blockingNodeRole: 'migration_temp_root',
+      expectedNodeType: 'directory',
+      observedNodeType: 'file'
+    }
+  }
+} as const
+
 const failures = [
   {
     kind: 'upgrade_path_blocked',
@@ -109,7 +129,8 @@ const failures = [
     phase: 'interrupted',
     errorCode: 'process_interrupted',
     evidence: { kind: 'interruption', recoverySource: 'checkpoint' }
-  }
+  },
+  rendererFilesystemTypeFailure
 ] as const
 
 describe('migrationDiagnosticFailureSchema', () => {
@@ -194,6 +215,65 @@ describe('migrationDiagnosticFailureSchema', () => {
         phase: 'initialize',
         errorCode: 'database_initialize_failed',
         evidence: versionGateEvidence
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires filesystem evidence exactly for renderer file type conflicts', () => {
+    expect(migrationDiagnosticFailureSchema.parse(rendererFilesystemTypeFailure)).toEqual(rendererFilesystemTypeFailure)
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          kind: 'renderer_export',
+          sourceRole: 'dexie',
+          operationRole: 'write'
+        }
+      }).success
+    ).toBe(false)
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        ...rendererFilesystemTypeFailure,
+        errorCode: 'file_missing'
+      }).success
+    ).toBe(false)
+  })
+
+  it.each(['rawError', 'path', 'message', 'stack'])('rejects nested filesystem %s evidence', (field) => {
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          [field]: 'privacy-canary'
+        }
+      }).success
+    ).toBe(false)
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            [field]: 'privacy-canary'
+          }
+        }
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects non-enumerated filesystem evidence', () => {
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            causeCode: 'ENOENT'
+          }
+        }
       }).success
     ).toBe(false)
   })

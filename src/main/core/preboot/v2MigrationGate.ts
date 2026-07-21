@@ -16,6 +16,7 @@ import {
   type MigrationDiagnosticNativeFailureCode,
   type MigrationDiagnosticNativeSaveResult,
   migrationEngine,
+  type MigrationRendererExportMainWriteFailure,
   type MigrationRendererFailureReason,
   type MigrationVersionGateContext,
   migrationWindowManager,
@@ -43,11 +44,6 @@ const MEMORY_ONLY_DATABASE_DIAGNOSTICS = Object.freeze({
   }),
   sqlite: Object.freeze({ status: 'unavailable' as const, reason: 'not_attempted' as const })
 })
-
-type RendererExportFailureErrorCode = Extract<
-  MigrationDiagnosticFailure,
-  { kind: 'renderer_export_failed' }
->['errorCode']
 
 /**
  * Outcome of the v1→v2 migration gate.
@@ -214,7 +210,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
 
   const finishRendererExportFailure = async (
     report: MigrationRendererExportFailureReport,
-    mainWriteFailure?: RendererExportFailureErrorCode
+    mainWriteFailure?: MigrationRendererExportMainWriteFailure
   ): Promise<void> => {
     const pendingStart = startRendererExportInFlight
     if (pendingStart !== null) await pendingStart
@@ -232,8 +228,14 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           kind: 'renderer_export_failed',
           scope: 'renderer_export',
           phase: 'finalize',
-          errorCode: mainWriteFailure ?? classifyMigrationRendererExportFailure(report),
-          evidence: { kind: 'renderer_export', ...report }
+          errorCode: mainWriteFailure?.errorCode ?? classifyMigrationRendererExportFailure(report),
+          evidence: {
+            kind: 'renderer_export',
+            ...report,
+            ...(mainWriteFailure?.errorCode === 'file_invalid_type'
+              ? { filesystemEvidence: mainWriteFailure.filesystemEvidence }
+              : {})
+          }
         }
       })
     } catch {
