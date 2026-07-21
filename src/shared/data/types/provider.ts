@@ -236,6 +236,7 @@ export type ReasoningFormatType = z.infer<typeof ReasoningFormatTypeSchema>
 export const ModelsApiUrlsSchema = z.object({
   default: z.string().optional(),
   embedding: z.string().optional(),
+  image: z.string().optional(),
   reranker: z.string().optional()
 })
 
