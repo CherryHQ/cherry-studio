@@ -21,7 +21,6 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListRemoteData,
   type ResourceListRemoteGroupState,
-  type ResourceListRemoteRevealFailure,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -38,7 +37,6 @@ import type { ResourceEditDialogTarget } from '@renderer/components/resourceCata
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
-import { useAnchoredResourceWindow } from '@renderer/hooks/useAnchoredResourceWindow'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useCursorGroupWindows } from '@renderer/hooks/useCursorGroupWindows'
@@ -562,11 +560,6 @@ export function Topics({
     refillGroup: refillAssistantTopicGroup,
     windows: assistantTopicWindows
   } = useCursorGroupWindows<TopicResourceItem>({
-    continuityKey: JSON.stringify({
-      mode: 'assistant',
-      ownerScope: rightPanelOwnerScope,
-      q: debouncedRemoteQuery
-    }),
     enabled: isTopicListEnabled && isAssistantDisplayMode,
     fetchPage: fetchAssistantTopicPage,
     getItemId: getTopicResourceItemId,
@@ -574,47 +567,6 @@ export function Topics({
     initialGroupIds: initialAssistantTopicGroupIds,
     queryKey: JSON.stringify({
       groups: orderedAssistantTopicGroupIds,
-      ownerScope: rightPanelOwnerScope,
-      q: debouncedRemoteQuery,
-      sortBy: topicSortBy
-    })
-  })
-  const fetchAnchoredTopicPage = useCallback(
-    async (identity: { band: 'pinned' | 'ordinary'; groupId: string }, cursor: string) => {
-      const groupedOwnerScope =
-        identity.band === 'ordinary' && isAssistantDisplayMode
-          ? identity.groupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID
-            ? 'unlinked'
-            : getAssistantIdFromTopicGroupId(identity.groupId)
-          : undefined
-      const page = await dataApiService.get('/topics', {
-        query: {
-          cursor,
-          limit: TOPIC_PAGE_SIZE,
-          pinned: identity.band === 'pinned',
-          ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery } : {}),
-          ...(rightPanelOwnerScope || groupedOwnerScope
-            ? { assistantId: rightPanelOwnerScope ?? groupedOwnerScope }
-            : {}),
-          ...(identity.band === 'ordinary' ? { sortBy: topicSortBy } : {})
-        }
-      })
-      return { ...page, items: page.items.map(mapApiTopicListItem) }
-    },
-    [debouncedRemoteQuery, isAssistantDisplayMode, rightPanelOwnerScope, topicSortBy]
-  )
-  const {
-    clear: clearAnchoredTopicWindow,
-    isLoading: isAnchoredTopicWindowLoading,
-    loadMoreGroup: loadMoreAnchoredTopicGroup,
-    loadPreviousGroup: loadPreviousAnchoredTopicGroup,
-    replace: replaceAnchoredTopicWindow,
-    window: anchoredTopicWindow
-  } = useAnchoredResourceWindow<TopicResourceItem>({
-    fetchPage: fetchAnchoredTopicPage,
-    getItemId: getTopicResourceItemId,
-    resetKey: JSON.stringify({
-      displayMode,
       ownerScope: rightPanelOwnerScope,
       q: debouncedRemoteQuery,
       sortBy: topicSortBy
@@ -635,22 +587,10 @@ export function Topics({
   const sourceTopics = useMemo(() => {
     const byId = new Map<string, TopicResourceItem>()
     const ordinarySource = isAssistantDisplayMode ? assistantWindowTopics : ordinaryTopics
-    for (const topic of ordinarySource) {
-      if (
-        anchoredTopicWindow?.band === 'ordinary' &&
-        (!isAssistantDisplayMode || getTopicAssistantDisplayGroupId(topic) === anchoredTopicWindow.groupId)
-      ) {
-        continue
-      }
-      byId.set(topic.id, topic)
-    }
-    for (const topic of anchoredTopicWindow?.band === 'pinned' ? [] : pinnedTopics) byId.set(topic.id, topic)
-    for (const topic of anchoredTopicWindow?.items ?? []) byId.set(topic.id, topic)
+    for (const topic of ordinarySource) byId.set(topic.id, topic)
+    for (const topic of pinnedTopics) byId.set(topic.id, topic)
     return [...byId.values()]
-  }, [anchoredTopicWindow, assistantWindowTopics, ordinaryTopics, isAssistantDisplayMode, pinnedTopics])
-  useEffect(() => {
-    if (anchoredTopicWindow && activeTopic?.id !== anchoredTopicWindow.anchorId) clearAnchoredTopicWindow()
-  }, [activeTopic?.id, anchoredTopicWindow, clearAnchoredTopicWindow])
+  }, [assistantWindowTopics, ordinaryTopics, isAssistantDisplayMode, pinnedTopics])
   const { items: projectedTopics, togglePinned: togglePinnedTopicItem } = useResourceListPinnedItems({
     disabled: isPinsMutating,
     items: sourceTopics,
@@ -1030,13 +970,11 @@ export function Topics({
     for (const seed of topicGroupSeeds) {
       const loadedCount = loadedTopicCountByGroupId.get(seed.id) ?? 0
       const totalCount = seed.count ?? 0
-      const anchored = anchoredTopicWindow?.groupId === seed.id ? anchoredTopicWindow : undefined
 
       if (seed.id === TOPIC_PINNED_GROUP_ID) {
         result[seed.id] = {
           totalCount,
-          hasMore: anchored ? !!anchored.nextCursor : loadedCount < totalCount || !!pinnedTopicsSource.error,
-          hasPrevious: !!anchored?.previousCursor,
+          hasMore: loadedCount < totalCount || !!pinnedTopicsSource.error,
           status: pinnedTopicsSource.error
             ? 'error'
             : loadedCount === 0 && (pinnedTopicsSource.isLoading || pinnedTopicsSource.isRefreshing)
@@ -1052,8 +990,7 @@ export function Topics({
         const window = assistantTopicWindows[seed.id]
         result[seed.id] = {
           totalCount,
-          hasMore: anchored ? !!anchored.nextCursor : window ? !!window.nextCursor : totalCount > 0,
-          hasPrevious: !!anchored?.previousCursor,
+          hasMore: window ? !!window.nextCursor : totalCount > 0,
           status: window?.status ?? (initialAssistantTopicGroupIds.includes(seed.id) ? 'loading' : 'idle')
         }
         continue
@@ -1061,8 +998,7 @@ export function Topics({
 
       result[seed.id] = {
         totalCount,
-        hasMore: anchored ? !!anchored.nextCursor : hasMoreOrdinaryTopics || !!ordinaryTopicsSource.error,
-        hasPrevious: !!anchored?.previousCursor,
+        hasMore: hasMoreOrdinaryTopics || !!ordinaryTopicsSource.error,
         status: ordinaryTopicsSource.error
           ? 'error'
           : loadedCount === 0 && (isOrdinaryTopicsLoading || isOrdinaryTopicsRefreshing)
@@ -1074,7 +1010,6 @@ export function Topics({
     }
     return result
   }, [
-    anchoredTopicWindow,
     assistantTopicWindows,
     ordinaryTopicsSource.error,
     hasMoreOrdinaryTopics,
@@ -1124,61 +1059,7 @@ export function Topics({
   }, [onClearActiveTopic])
   const refillTopicRemovalGroup = useCallback(
     async (snapshot: ResourceRemovalSnapshot<Topic>) => {
-      const currentAnchoredWindow =
-        anchoredTopicWindow?.groupId === snapshot.groupId &&
-        anchoredTopicWindow.items.some((topic) => topic.id === snapshot.itemId)
-          ? anchoredTopicWindow
-          : undefined
-
-      if (currentAnchoredWindow) {
-        const nextVisible = snapshot.groupItems[snapshot.displayedIndex + 1]
-        const previousVisible = snapshot.groupItems[snapshot.displayedIndex - 1]
-        const survivingAnchor = nextVisible ?? previousVisible
-
-        if (survivingAnchor) {
-          const groupedOwnerScope =
-            snapshot.band === 'ordinary' && isAssistantDisplayMode
-              ? snapshot.groupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID
-                ? 'unlinked'
-                : getAssistantIdFromTopicGroupId(snapshot.groupId)
-              : undefined
-          const result = await dataApiService.get('/topics/window', {
-            query: {
-              anchorId: survivingAnchor.id,
-              limit: TOPIC_PAGE_SIZE,
-              sortBy: topicSortBy,
-              ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery } : {}),
-              ...(rightPanelOwnerScope || groupedOwnerScope
-                ? { assistantId: rightPanelOwnerScope ?? groupedOwnerScope }
-                : {})
-            }
-          })
-          if (result.status === 'FOUND') {
-            const items = result.items.map(mapApiTopicListItem)
-            const survivingAnchorIndex = items.findIndex((topic) => topic.id === survivingAnchor.id)
-            const selectionIndex = nextVisible
-              ? survivingAnchorIndex
-              : items[survivingAnchorIndex + 1]
-                ? survivingAnchorIndex + 1
-                : survivingAnchorIndex
-            const selected = items[selectionIndex]
-            if (selected) {
-              replaceAnchoredTopicWindow({
-                anchorId: selected.id,
-                band: result.band,
-                groupId: snapshot.groupId,
-                items,
-                previousCursor: result.previousCursor,
-                nextCursor: result.nextCursor
-              })
-            }
-            return { items, selectionIndex }
-          }
-        }
-      }
-
       if (snapshot.band === 'ordinary' && isAssistantDisplayMode) {
-        clearAnchoredTopicWindow()
         const items = await refillAssistantTopicGroup(snapshot.groupId, snapshot.loadedWindowSize)
         return { items }
       }
@@ -1191,7 +1072,6 @@ export function Topics({
           : undefined
       const byId = new Map<string, TopicResourceItem>()
       let cursor: string | undefined
-      let nextCursor: string | undefined
       do {
         const page = await dataApiService.get('/topics', {
           query: {
@@ -1210,39 +1090,19 @@ export function Topics({
           byId.set(mapped.id, mapped)
         }
         cursor = page.nextCursor
-        nextCursor = page.nextCursor
       } while (byId.size < snapshot.loadedWindowSize && cursor)
 
       const items = [...byId.values()]
       if (snapshot.band === 'pinned') await refetchPinnedTopics()
       else await refetchOrdinaryTopics()
-
-      if (currentAnchoredWindow) {
-        const selectionIndex = Math.min(snapshot.displayedIndex, Math.max(items.length - 1, 0))
-        const selected = items[selectionIndex]
-        if (selected) {
-          replaceAnchoredTopicWindow({
-            anchorId: selected.id,
-            band: snapshot.band,
-            groupId: snapshot.groupId,
-            items,
-            nextCursor
-          })
-        } else {
-          clearAnchoredTopicWindow()
-        }
-      }
       return { items }
     },
     [
-      anchoredTopicWindow,
-      clearAnchoredTopicWindow,
       debouncedRemoteQuery,
       isAssistantDisplayMode,
       refillAssistantTopicGroup,
       refetchOrdinaryTopics,
       refetchPinnedTopics,
-      replaceAnchoredTopicWindow,
       rightPanelOwnerScope,
       topicSortBy
     ]
@@ -1340,10 +1200,6 @@ export function Topics({
   )
   const loadMoreTopicGroup = useCallback(
     async (groupId: string) => {
-      if (anchoredTopicWindow?.groupId === groupId) {
-        await loadMoreAnchoredTopicGroup(groupId)
-        return
-      }
       if (groupId === TOPIC_PINNED_GROUP_ID) {
         if (pinnedTopicsSource.error) {
           await refetchPinnedTopics()
@@ -1363,10 +1219,8 @@ export function Topics({
       loadNextOrdinaryTopics()
     },
     [
-      anchoredTopicWindow?.groupId,
       ordinaryTopicsSource.error,
       isAssistantDisplayMode,
-      loadMoreAnchoredTopicGroup,
       loadMoreAssistantTopicGroup,
       loadNextOrdinaryTopics,
       loadNextPinnedTopics,
@@ -1375,98 +1229,15 @@ export function Topics({
       refetchPinnedTopics
     ]
   )
-  const revealTopic = useCallback(
-    async (request: ResourceListRevealRequest) => {
-      const fetchWindow = (q: string | undefined, assistantId?: string) =>
-        dataApiService.get('/topics/window', {
-          query: {
-            anchorId: request.itemId,
-            limit: TOPIC_PAGE_SIZE,
-            sortBy: topicSortBy,
-            ...(q ? { q } : {}),
-            ...(assistantId ? { assistantId } : {})
-          }
-        })
-
-      let resolvedQuery = debouncedRemoteQuery || undefined
-      let result = await fetchWindow(resolvedQuery, rightPanelOwnerScope)
-      if (result.status === 'ANCHOR_OUTSIDE_QUERY' && resolvedQuery) {
-        if (!request.clearQuery) {
-          setModeRevealRequest((current) =>
-            current?.request?.requestId === request.requestId ? { ...current, request: undefined } : current
-          )
-          return true
-        }
-        setRemoteQuery('')
-        resolvedQuery = undefined
-        result = await fetchWindow(undefined, rightPanelOwnerScope)
-      }
-      if (result.status !== 'FOUND') return false
-
-      let groupId = result.band === 'pinned' ? TOPIC_PINNED_GROUP_ID : TOPIC_ORDINARY_GROUP_ID
-      if (result.band === 'ordinary' && isAssistantDisplayMode) {
-        const anchor = result.items[result.anchorIndex]
-        groupId = getTopicDisplayGroupId(mapApiTopicListItem(anchor))
-        const ownerScope =
-          groupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID
-            ? 'unlinked'
-            : resolveAssistantIdForTopicGroup(groupId, assistantById)
-        if (!ownerScope) return false
-        result = await fetchWindow(resolvedQuery, ownerScope)
-        if (result.status !== 'FOUND') return false
-      }
-
-      replaceAnchoredTopicWindow({
-        anchorId: request.itemId,
-        band: result.band,
-        groupId,
-        items: result.items.map(mapApiTopicListItem),
-        previousCursor: result.previousCursor,
-        nextCursor: result.nextCursor
-      })
-      return true
-    },
-    [
-      assistantById,
-      debouncedRemoteQuery,
-      getTopicDisplayGroupId,
-      isAssistantDisplayMode,
-      replaceAnchoredTopicWindow,
-      rightPanelOwnerScope,
-      topicSortBy
-    ]
-  )
-  const handleTopicRevealError = useCallback(
-    (failure: ResourceListRemoteRevealFailure, request: ResourceListRevealRequest) => {
-      if (failure.kind === 'not-found') {
-        toast.error(t('history.error.topic_not_found'))
-        return
-      }
-      logger.error('Failed to reveal topic', { err: failure.error, topicId: request.itemId })
-      toast.error(formatErrorMessageWithPrefix(failure.error, t('common.error')))
-    },
-    [t]
-  )
   const topicListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
       groupStates: topicGroupStates,
       loadGroup: loadTopicGroup,
       loadMoreGroup: loadMoreTopicGroup,
-      loadPreviousGroup: loadPreviousAnchoredTopicGroup,
-      onRevealError: handleTopicRevealError,
       onQueryChange: setRemoteQuery,
-      query: remoteQuery,
-      revealItem: revealTopic
+      query: remoteQuery
     }),
-    [
-      handleTopicRevealError,
-      loadMoreTopicGroup,
-      loadPreviousAnchoredTopicGroup,
-      loadTopicGroup,
-      remoteQuery,
-      revealTopic,
-      topicGroupStates
-    ]
+    [loadMoreTopicGroup, loadTopicGroup, remoteQuery, topicGroupStates]
   )
   // Stream failures are recoverable at their remote group footer. Keeping them out of the
   // top-level status is what leaves that error group mounted even before any rows have loaded.
@@ -1869,10 +1640,8 @@ export function Topics({
     topicSortBy === 'orderKey' &&
     (isAssistantDisplayMode || (!isOrdinaryTopicsLoading && !isOrdinaryTopicsRefreshing))
   const isTopicItemGroupStable = useCallback(
-    (groupId: string) =>
-      topicGroupStates[groupId]?.status === 'idle' &&
-      !(anchoredTopicWindow?.groupId === groupId && isAnchoredTopicWindowLoading),
-    [anchoredTopicWindow?.groupId, isAnchoredTopicWindowLoading, topicGroupStates]
+    (groupId: string) => topicGroupStates[groupId]?.status === 'idle',
+    [topicGroupStates]
   )
   const canDragTopicItem = useCallback(
     ({ item, group }: { item: Topic; group: ResourceListGroup }) =>

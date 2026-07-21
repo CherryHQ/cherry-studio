@@ -395,7 +395,6 @@ const cursorGroupWindowMocks = vi.hoisted(() => ({
   options: undefined as
     | undefined
     | {
-        continuityKey: string
         fetchPage: (groupId: string, cursor?: string) => Promise<{ items: unknown[] }>
         groupIds: readonly string[]
         queryKey: string
@@ -409,7 +408,7 @@ vi.mock('@renderer/hooks/useCursorGroupWindows', () => ({
       items: (sessionDataMocks.source as { sessions?: AgentSessionEntity[] } | null)?.sessions ?? [],
       loadGroup: vi.fn().mockResolvedValue(null),
       loadMoreGroup: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
+      refillGroup: vi.fn().mockResolvedValue([]),
       windows: {}
     }
   }
@@ -1174,7 +1173,6 @@ describe('Sessions', () => {
       expect(JSON.parse(cursorGroupWindowMocks.options?.queryKey ?? '{}')).toEqual(
         expect.objectContaining({ mode: 'agent', sortBy: 'lastActivityAt' })
       )
-      expect(JSON.parse(cursorGroupWindowMocks.options?.continuityKey ?? '{}')).toEqual({ mode: 'agent', q: '' })
       expect(cursorGroupWindowMocks.options?.groupIds).toContain('session:agent:agent-a')
       await cursorGroupWindowMocks.options?.fetchPage('session:agent:agent-a')
       expect(getSpy).toHaveBeenCalledWith(

@@ -8,8 +8,8 @@
 import * as z from 'zod'
 
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
-import type { AnchorWindowResponse, CursorPaginationResponse } from '../types'
-import { ConcreteOrderRequestSchema, type OrderEndpoints } from './_endpointHelpers'
+import type { CursorPaginationResponse } from '../types'
+import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -47,7 +47,7 @@ export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
  */
 export const MoveTopicSchema = z.strictObject({
   assistantId: z.uuidv4(),
-  order: ConcreteOrderRequestSchema
+  order: z.union([z.object({ before: z.string().min(1) }).strict(), z.object({ after: z.string().min(1) }).strict()])
 })
 export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
 
@@ -110,11 +110,6 @@ export const ListTopicsQuerySchema = z.strictObject({
   pinned: z.boolean()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
-
-export const TopicWindowQuerySchema = ListTopicsQuerySchema.omit({ cursor: true, pinned: true }).extend({
-  anchorId: z.string().min(1)
-})
-export type TopicWindowQuery = z.infer<typeof TopicWindowQuerySchema>
 
 /** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
 export const LatestTopicQuerySchema = z.strictObject({
@@ -207,8 +202,6 @@ export interface LatestTopicResponse {
   topic: Topic | null
 }
 
-export type TopicWindowResponse = AnchorWindowResponse<TopicListItem>
-
 const DeleteTopicsIdsQueryValueSchema = z
   .string()
   .transform((value) =>
@@ -288,13 +281,6 @@ export type TopicSchemas = {
     GET: {
       query?: LatestTopicQuery
       response: LatestTopicResponse
-    }
-  }
-
-  '/topics/window': {
-    GET: {
-      query: TopicWindowQuery
-      response: TopicWindowResponse
     }
   }
 

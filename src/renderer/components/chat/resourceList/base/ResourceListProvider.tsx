@@ -20,7 +20,6 @@ import {
   ResourceListMetaContext,
   type ResourceListRemoteData,
   type ResourceListRemoteGroupState,
-  type ResourceListRemoteRevealFailure,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -158,7 +157,6 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
         totalCount,
         visibleCount: items.length,
         hasMore: remoteState?.hasMore ?? false,
-        hasPrevious: remoteState?.hasPrevious ?? false,
         canCollapseToDefault: false,
         collapsed: false,
         status: remoteState?.status ?? (totalCount === 0 ? 'empty' : 'idle')
@@ -201,7 +199,6 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
       totalCount,
       visibleCount: collapsed ? 0 : visibleCount,
       hasMore,
-      hasPrevious: !collapsed && (remoteState?.hasPrevious ?? false),
       canCollapseToDefault,
       collapsed,
       status: remoteState?.status ?? (totalCount === 0 ? 'empty' : 'idle')
@@ -266,7 +263,6 @@ function buildResourceListSections<T extends ResourceListItemBase>({
           items: [],
           visibleCount: 0,
           hasMore: false,
-          hasPrevious: false,
           canCollapseToDefault: false
         }))
       : groups
@@ -292,7 +288,6 @@ function buildSectionStateGroups<T extends ResourceListItemBase>(
     totalCount: section.totalCount,
     visibleCount: section.collapsed ? 0 : section.groups.reduce((count, group) => count + group.visibleCount, 0),
     hasMore: false,
-    hasPrevious: false,
     canCollapseToDefault: false,
     collapsed: section.collapsed,
     status: section.groups.some((group) => group.status === 'error')
@@ -621,8 +616,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const effectiveSelectedId = selectedIdProp !== undefined ? selectedIdProp : state.selectedId
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)
-  const pendingRevealRequestRef = useRef<string | null>(null)
-  const currentRevealRequestKeyRef = useRef<string | null>(null)
   const pendingGroupLoadsRef = useRef(new Set<string>())
   const collapsedStateRef = useRef<readonly string[]>([])
   const uiStoreRef = useRef<ResourceListUiService | null>(null)
@@ -644,13 +637,9 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const seedGroups = useMemo(() => groupSeeds.map(getResourceListGroupFromSeed), [groupSeeds])
 
   useEffect(() => {
-    if (!revealRequest) {
-      currentRevealRequestKeyRef.current = null
-      return
-    }
+    if (!revealRequest) return
 
     const requestKey = `${revealRequest.requestId}:${revealRequest.itemId}`
-    currentRevealRequestKeyRef.current = requestKey
     if (handledRevealRequestRef.current === requestKey) return
     const query = revealRequest.clearQuery ? '' : effectiveQuery
     const filters = revealRequest.clearFilters ? [] : effectiveFilters
@@ -690,8 +679,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       dispatch({
         type: 'revealItem',
         clearFilters: revealRequest.clearFilters,
-        // Remote membership is authoritative. Its resolver clears the query
-        // only after the backend proves that the target is excluded.
+        // A loaded remote item already belongs to the controlled query.
         clearQuery: remoteData ? false : revealRequest.clearQuery,
         groupIds: revealIds,
         itemId: revealRequest.itemId,
@@ -705,26 +693,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         { groupId: revealTarget.targetGroupId, sectionId: revealTarget.targetSectionId },
         revealTarget.visibleCount
       )
-      return
     }
-    if (!remoteData?.revealItem || pendingRevealRequestRef.current === requestKey) return
-
-    pendingRevealRequestRef.current = requestKey
-    const reportRevealFailure = (failure: ResourceListRemoteRevealFailure) => {
-      if (currentRevealRequestKeyRef.current !== requestKey) return
-      handledRevealRequestRef.current = requestKey
-      remoteData.onRevealError?.(failure, revealRequest)
-    }
-    void remoteData
-      .revealItem(revealRequest)
-      .then((found) => {
-        if (currentRevealRequestKeyRef.current !== requestKey) return
-        if (!found) reportRevealFailure({ kind: 'not-found' })
-      })
-      .catch((error: unknown) => reportRevealFailure({ kind: 'error', error }))
-      .finally(() => {
-        if (pendingRevealRequestRef.current === requestKey) pendingRevealRequestRef.current = null
-      })
   }, [
     effectiveCollapsedIds,
     effectiveFilters,
@@ -968,12 +937,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         } catch {
           return false
         }
-      },
-      loadPreviousInGroup: async (groupId: string) => {
-        if (!remoteData?.loadPreviousGroup) return
-        const group = viewGroupsRef.current.find((candidate) => candidate.group.id === groupId)
-        if (!group?.hasPrevious || pendingGroupLoadsRef.current.has(groupId)) return
-        await runRemoteGroupLoad(groupId, () => remoteData.loadPreviousGroup?.(groupId) ?? Promise.resolve())
       },
       showMoreInGroup: async (groupId: string) => {
         if (!remoteData) {

@@ -52,7 +52,6 @@ export type {
   ResourceListMeta,
   ResourceListRemoteData,
   ResourceListRemoteGroupState,
-  ResourceListRemoteRevealFailure,
   ResourceListReorderPayload,
   ResourceListRevealRequest,
   ResourceListSection,

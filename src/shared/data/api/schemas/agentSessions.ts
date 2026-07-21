@@ -12,7 +12,7 @@ import {
 import { TraceIdSchema } from '@shared/data/types/trace'
 import * as z from 'zod'
 
-import type { AnchorWindowResponse, CursorPaginationResponse } from '../types'
+import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import {
   type AgentSessionWorkspaceSource,
@@ -205,12 +205,6 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
-export const AgentSessionWindowQuerySchema = ListAgentSessionsQuerySchema.omit({ cursor: true, pinned: true }).extend({
-  anchorId: z.string().min(1)
-})
-export type AgentSessionWindowQueryParams = z.input<typeof AgentSessionWindowQuerySchema>
-export type AgentSessionWindowQuery = z.output<typeof AgentSessionWindowQuerySchema>
-
 /** Optional live or unlinked owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
 export const LatestAgentSessionQuerySchema = z.strictObject({
   agentId: AgentSessionOwnerScopeSchema.optional()
@@ -251,8 +245,6 @@ export interface DeleteAgentSessionsResult {
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
 }
-
-export type AgentSessionWindowResponse = AnchorWindowResponse<AgentSessionListItem>
 
 export const AGENT_SESSION_DELETE_MAX_IDS = 200
 
@@ -312,13 +304,6 @@ export type AgentSessionSchemas = {
     GET: {
       query?: LatestAgentSessionQuery
       response: LatestAgentSessionResponse
-    }
-  }
-
-  '/agent-sessions/window': {
-    GET: {
-      query: AgentSessionWindowQueryParams
-      response: AgentSessionWindowResponse
     }
   }
 

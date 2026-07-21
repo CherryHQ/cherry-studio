@@ -13,7 +13,6 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListRemoteData,
   type ResourceListRemoteGroupState,
-  type ResourceListRemoteRevealFailure,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -39,7 +38,6 @@ import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStats, useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
-import { useAnchoredResourceWindow } from '@renderer/hooks/useAnchoredResourceWindow'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useCursorGroupWindows } from '@renderer/hooks/useCursorGroupWindows'
 import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
@@ -741,10 +739,8 @@ const Sessions = ({
     loadGroup: loadSessionGroupWindow,
     loadMoreGroup: loadMoreSessionGroupWindow,
     refillGroup: refillSessionGroupWindow,
-    reset: resetSessionGroupWindows,
     windows: sessionGroupWindows
   } = useCursorGroupWindows<AgentSessionListItem>({
-    continuityKey: JSON.stringify({ mode: displayMode, q: debouncedRemoteQuery }),
     enabled: isSessionListEnabled && displayMode !== 'time',
     fetchPage: fetchSessionGroupPage,
     getItemId: getSessionResourceItemId,
@@ -758,58 +754,6 @@ const Sessions = ({
             ? orderedWorkdirSessionGroupIds
             : [],
       mode: displayMode,
-      q: debouncedRemoteQuery,
-      sortBy: sessionSortBy
-    })
-  })
-  const fetchAnchoredSessionPage = useCallback(
-    async (identity: { band: 'pinned' | 'ordinary'; groupId: string }, cursor: string) => {
-      const commonQuery = {
-        cursor,
-        limit: SESSION_PAGE_SIZE,
-        pinned: identity.band === 'pinned',
-        ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery, searchScope: 'name' as const } : {}),
-        ...(identity.band === 'ordinary' ? { sortBy: sessionSortBy } : {})
-      }
-      if (rightPanelAgentScope) {
-        return dataApiService.get('/agent-sessions', {
-          query: { ...commonQuery, agentId: rightPanelAgentScope }
-        })
-      }
-      if (identity.band === 'ordinary' && displayMode === 'agent') {
-        const agentId = getAgentIdFromSessionGroupId(identity.groupId)
-        const ownerScope = identity.groupId === SESSION_UNLINKED_AGENT_GROUP_ID ? 'unlinked' : agentId
-        if (ownerScope) {
-          return dataApiService.get('/agent-sessions', { query: { ...commonQuery, agentId: ownerScope } })
-        }
-      }
-      if (identity.band === 'ordinary' && displayMode === 'workdir') {
-        const workspaceId =
-          identity.groupId === SESSION_SYSTEM_WORKSPACE_GROUP_ID || identity.groupId === SESSION_NO_WORKDIR_GROUP_ID
-            ? 'system'
-            : (workdirDisplay.workspaceIdByGroupId.get(identity.groupId) ??
-              getWorkspaceIdFromSessionGroupId(identity.groupId))
-        if (workspaceId) {
-          return dataApiService.get('/agent-sessions', { query: { ...commonQuery, workspaceId } })
-        }
-      }
-      return dataApiService.get('/agent-sessions', { query: commonQuery })
-    },
-    [debouncedRemoteQuery, displayMode, rightPanelAgentScope, sessionSortBy, workdirDisplay.workspaceIdByGroupId]
-  )
-  const {
-    clear: clearAnchoredSessionWindow,
-    isLoading: isAnchoredSessionWindowLoading,
-    loadMoreGroup: loadMoreAnchoredSessionGroup,
-    loadPreviousGroup: loadPreviousAnchoredSessionGroup,
-    replace: replaceAnchoredSessionWindow,
-    window: anchoredSessionWindow
-  } = useAnchoredResourceWindow<AgentSessionListItem>({
-    fetchPage: fetchAnchoredSessionPage,
-    getItemId: getSessionResourceItemId,
-    resetKey: JSON.stringify({
-      agentScope: rightPanelAgentScope,
-      displayMode,
       q: debouncedRemoteQuery,
       sortBy: sessionSortBy
     })
@@ -841,30 +785,11 @@ const Sessions = ({
   const sourceSessionItems = useMemo<AgentSessionListItem[]>(() => {
     const byId = new Map<string, AgentSessionListItem>()
     for (const session of displayMode === 'time' ? ordinarySessions : sessionGroupWindowItems) {
-      if (
-        anchoredSessionWindow?.band === 'ordinary' &&
-        getSessionDisplayGroupId(session) === anchoredSessionWindow.groupId
-      ) {
-        continue
-      }
       byId.set(session.id, session)
     }
-    for (const session of anchoredSessionWindow?.band === 'pinned' ? [] : pinnedSessions) {
-      byId.set(session.id, session)
-    }
-    for (const session of anchoredSessionWindow?.items ?? []) byId.set(session.id, session)
+    for (const session of pinnedSessions) byId.set(session.id, session)
     return [...byId.values()]
-  }, [
-    anchoredSessionWindow,
-    displayMode,
-    getSessionDisplayGroupId,
-    ordinarySessions,
-    pinnedSessions,
-    sessionGroupWindowItems
-  ])
-  useEffect(() => {
-    if (anchoredSessionWindow && activeSessionId !== anchoredSessionWindow.anchorId) clearAnchoredSessionWindow()
-  }, [activeSessionId, anchoredSessionWindow, clearAnchoredSessionWindow])
+  }, [displayMode, ordinarySessions, pinnedSessions, sessionGroupWindowItems])
   const { items: projectedSessionItems, togglePinned: togglePinnedSessionItem } = useResourceListPinnedItems({
     disabled: isSessionPinMutating,
     items: sourceSessionItems,
@@ -1005,9 +930,8 @@ const Sessions = ({
     [isSessionPinMutating, t, togglePinnedSessionItem]
   )
   const reloadSessionViews = useCallback(async () => {
-    resetSessionGroupWindows()
     await Promise.all([reloadPinnedSessions(), reloadOrdinarySessions(), refetchSessionStats()])
-  }, [refetchSessionStats, reloadOrdinarySessions, reloadPinnedSessions, resetSessionGroupWindows])
+  }, [refetchSessionStats, reloadOrdinarySessions, reloadPinnedSessions])
   const workspaceOrderSignature = useMemo(
     () => workspaceRows.map((workspace) => `${workspace.id}:${workspace.orderKey}`).join('|'),
     [workspaceRows]
@@ -1215,12 +1139,10 @@ const Sessions = ({
     for (const seed of sessionGroupSeeds) {
       const loadedCount = loadedSessionCountByGroupId.get(seed.id) ?? 0
       const totalCount = seed.count ?? 0
-      const anchored = anchoredSessionWindow?.groupId === seed.id ? anchoredSessionWindow : undefined
       if (seed.id === SESSION_PINNED_GROUP_ID) {
         result[seed.id] = {
           totalCount,
-          hasMore: anchored ? !!anchored.nextCursor : loadedCount < totalCount || !!pinnedSessionsSource.error,
-          hasPrevious: !!anchored?.previousCursor,
+          hasMore: loadedCount < totalCount || !!pinnedSessionsSource.error,
           status: pinnedSessionsSource.error
             ? 'error'
             : loadedCount === 0 && (pinnedSessionsSource.isLoading || pinnedSessionsSource.isValidating)
@@ -1236,8 +1158,7 @@ const Sessions = ({
         const window = sessionGroupWindows[seed.id]
         result[seed.id] = {
           totalCount,
-          hasMore: anchored ? !!anchored.nextCursor : window ? !!window.nextCursor : totalCount > 0,
-          hasPrevious: !!anchored?.previousCursor,
+          hasMore: window ? !!window.nextCursor : totalCount > 0,
           status: window?.status ?? (initialSessionGroupIds.includes(seed.id) ? 'loading' : 'idle')
         }
         continue
@@ -1245,8 +1166,7 @@ const Sessions = ({
 
       result[seed.id] = {
         totalCount,
-        hasMore: anchored ? !!anchored.nextCursor : hasMoreOrdinarySessions || !!ordinarySessionsSource.error,
-        hasPrevious: !!anchored?.previousCursor,
+        hasMore: hasMoreOrdinarySessions || !!ordinarySessionsSource.error,
         status: ordinarySessionsSource.error
           ? 'error'
           : loadedCount === 0 && (isOrdinarySessionsLoading || isOrdinarySessionsValidating)
@@ -1258,7 +1178,6 @@ const Sessions = ({
     }
     return result
   }, [
-    anchoredSessionWindow,
     ordinarySessionsSource.error,
     displayMode,
     hasMoreOrdinarySessions,
@@ -1328,12 +1247,6 @@ const Sessions = ({
   const clearSessionSelection = useCallback(() => setActiveSessionId(null), [setActiveSessionId])
   const refillSessionRemovalGroup = useCallback(
     async (snapshot: ResourceRemovalSnapshot<AgentSessionListItem>) => {
-      const currentAnchoredWindow =
-        anchoredSessionWindow?.groupId === snapshot.groupId &&
-        anchoredSessionWindow.items.some((session) => session.id === snapshot.itemId)
-          ? anchoredSessionWindow
-          : undefined
-
       const getGroupScope = () => {
         if (snapshot.band !== 'ordinary') return {}
         if (displayMode === 'agent') {
@@ -1352,53 +1265,13 @@ const Sessions = ({
         return {}
       }
 
-      if (currentAnchoredWindow) {
-        const nextVisible = snapshot.groupItems[snapshot.displayedIndex + 1]
-        const previousVisible = snapshot.groupItems[snapshot.displayedIndex - 1]
-        const survivingAnchor = nextVisible ?? previousVisible
-        if (survivingAnchor) {
-          const result = await dataApiService.get('/agent-sessions/window', {
-            query: {
-              anchorId: survivingAnchor.id,
-              limit: SESSION_PAGE_SIZE,
-              sortBy: sessionSortBy,
-              ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery, searchScope: 'name' as const } : {}),
-              ...(rightPanelAgentScope ? { agentId: rightPanelAgentScope } : getGroupScope())
-            }
-          })
-          if (result.status === 'FOUND') {
-            const items = result.items
-            const survivingAnchorIndex = items.findIndex((session) => session.id === survivingAnchor.id)
-            const selectionIndex = nextVisible
-              ? survivingAnchorIndex
-              : items[survivingAnchorIndex + 1]
-                ? survivingAnchorIndex + 1
-                : survivingAnchorIndex
-            const selected = items[selectionIndex]
-            if (selected) {
-              replaceAnchoredSessionWindow({
-                anchorId: selected.id,
-                band: result.band,
-                groupId: snapshot.groupId,
-                items,
-                previousCursor: result.previousCursor,
-                nextCursor: result.nextCursor
-              })
-            }
-            return { items, selectionIndex }
-          }
-        }
-      }
-
       if (snapshot.band === 'ordinary' && displayMode !== 'time') {
-        clearAnchoredSessionWindow()
         const items = await refillSessionGroupWindow(snapshot.groupId, snapshot.loadedWindowSize)
         return { items }
       }
 
       const byId = new Map<string, AgentSessionListItem>()
       let cursor: string | undefined
-      let nextCursor: string | undefined
       do {
         const page = await dataApiService.get('/agent-sessions', {
           query: {
@@ -1412,39 +1285,19 @@ const Sessions = ({
         })
         for (const session of page.items) byId.set(session.id, session)
         cursor = page.nextCursor
-        nextCursor = page.nextCursor
       } while (byId.size < snapshot.loadedWindowSize && cursor)
 
       const items = [...byId.values()]
       if (snapshot.band === 'pinned') await reloadPinnedSessions()
       else await reloadOrdinarySessions()
-
-      if (currentAnchoredWindow) {
-        const selectionIndex = Math.min(snapshot.displayedIndex, Math.max(items.length - 1, 0))
-        const selected = items[selectionIndex]
-        if (selected) {
-          replaceAnchoredSessionWindow({
-            anchorId: selected.id,
-            band: snapshot.band,
-            groupId: snapshot.groupId,
-            items,
-            nextCursor
-          })
-        } else {
-          clearAnchoredSessionWindow()
-        }
-      }
       return { items }
     },
     [
-      anchoredSessionWindow,
-      clearAnchoredSessionWindow,
       debouncedRemoteQuery,
       displayMode,
       refillSessionGroupWindow,
       reloadOrdinarySessions,
       reloadPinnedSessions,
-      replaceAnchoredSessionWindow,
       rightPanelAgentScope,
       sessionSortBy,
       workdirDisplay.workspaceIdByGroupId
@@ -2012,10 +1865,6 @@ const Sessions = ({
   )
   const loadMoreSessionGroup = useCallback(
     async (groupId: string) => {
-      if (anchoredSessionWindow?.groupId === groupId) {
-        await loadMoreAnchoredSessionGroup(groupId)
-        return
-      }
       if (groupId === SESSION_PINNED_GROUP_ID) {
         if (pinnedSessionsSource.error) {
           await reloadPinnedSessions()
@@ -2035,10 +1884,8 @@ const Sessions = ({
       loadMoreOrdinarySessions()
     },
     [
-      anchoredSessionWindow?.groupId,
       ordinarySessionsSource.error,
       displayMode,
-      loadMoreAnchoredSessionGroup,
       loadMoreOrdinarySessions,
       loadMorePinnedSessions,
       loadMoreSessionGroupWindow,
@@ -2047,115 +1894,19 @@ const Sessions = ({
       reloadOrdinarySessions
     ]
   )
-  const revealSession = useCallback(
-    async (request: ResourceListRevealRequest) => {
-      type WindowScope = { agentId?: string; workspaceId?: string }
-      const fetchWindow = (q: string | undefined, scope: WindowScope = {}) =>
-        dataApiService.get('/agent-sessions/window', {
-          query: {
-            anchorId: request.itemId,
-            limit: SESSION_PAGE_SIZE,
-            sortBy: sessionSortBy,
-            ...(q ? { q, searchScope: 'name' as const } : {}),
-            ...scope
-          }
-        })
-
-      let resolvedQuery = debouncedRemoteQuery || undefined
-      const initialScope: WindowScope = rightPanelAgentScope ? { agentId: rightPanelAgentScope } : {}
-      let result = await fetchWindow(resolvedQuery, initialScope)
-      if (result.status === 'ANCHOR_OUTSIDE_QUERY' && resolvedQuery) {
-        if (!request.clearQuery) {
-          setModeRevealRequest((current) =>
-            current?.request?.requestId === request.requestId ? { ...current, request: undefined } : current
-          )
-          return true
-        }
-        setRemoteQuery('')
-        resolvedQuery = undefined
-        result = await fetchWindow(undefined, initialScope)
-      }
-      if (result.status !== 'FOUND') return false
-
-      let groupId = result.band === 'pinned' ? SESSION_PINNED_GROUP_ID : SESSION_ORDINARY_GROUP_ID
-      if (result.band === 'ordinary' && displayMode !== 'time' && !rightPanelAgentScope) {
-        const anchor = result.items[result.anchorIndex]
-        groupId = getSessionDisplayGroupId(anchor)
-
-        let groupScope: WindowScope
-        if (displayMode === 'agent') {
-          groupScope = { agentId: anchor.agentId && agentById.has(anchor.agentId) ? anchor.agentId : 'unlinked' }
-        } else {
-          const workspaceId =
-            groupId === SESSION_SYSTEM_WORKSPACE_GROUP_ID || groupId === SESSION_NO_WORKDIR_GROUP_ID
-              ? 'system'
-              : (workdirDisplay.workspaceIdByGroupId.get(groupId) ?? getWorkspaceIdFromSessionGroupId(groupId))
-          if (!workspaceId) return false
-          groupScope = { workspaceId }
-        }
-
-        result = await fetchWindow(resolvedQuery, groupScope)
-        if (result.status !== 'FOUND') return false
-      }
-
-      replaceAnchoredSessionWindow({
-        anchorId: request.itemId,
-        band: result.band,
-        groupId,
-        items: result.items,
-        previousCursor: result.previousCursor,
-        nextCursor: result.nextCursor
-      })
-      return true
-    },
-    [
-      agentById,
-      debouncedRemoteQuery,
-      displayMode,
-      getSessionDisplayGroupId,
-      replaceAnchoredSessionWindow,
-      rightPanelAgentScope,
-      sessionSortBy,
-      workdirDisplay.workspaceIdByGroupId
-    ]
-  )
-  const handleSessionRevealError = useCallback(
-    (failure: ResourceListRemoteRevealFailure, request: ResourceListRevealRequest) => {
-      if (failure.kind === 'not-found') {
-        toast.error(t('agent.session.get.error.not_found'))
-        return
-      }
-      logger.error('Failed to reveal agent session', { err: failure.error, sessionId: request.itemId })
-      toast.error(formatErrorMessageWithPrefix(failure.error, t('common.error')))
-    },
-    [t]
-  )
   const sessionListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
       groupStates: sessionGroupStates,
       loadGroup: loadSessionGroup,
       loadMoreGroup: loadMoreSessionGroup,
-      loadPreviousGroup: loadPreviousAnchoredSessionGroup,
-      onRevealError: handleSessionRevealError,
       onQueryChange: setRemoteQuery,
-      query: remoteQuery,
-      revealItem: revealSession
+      query: remoteQuery
     }),
-    [
-      handleSessionRevealError,
-      loadMoreSessionGroup,
-      loadPreviousAnchoredSessionGroup,
-      loadSessionGroup,
-      remoteQuery,
-      revealSession,
-      sessionGroupStates
-    ]
+    [loadMoreSessionGroup, loadSessionGroup, remoteQuery, sessionGroupStates]
   )
   const isSessionItemGroupStable = useCallback(
-    (groupId: string) =>
-      sessionGroupStates[groupId]?.status === 'idle' &&
-      !(anchoredSessionWindow?.groupId === groupId && isAnchoredSessionWindowLoading),
-    [anchoredSessionWindow?.groupId, isAnchoredSessionWindowLoading, sessionGroupStates]
+    (groupId: string) => sessionGroupStates[groupId]?.status === 'idle',
+    [sessionGroupStates]
   )
   const canDragSessionItem = useCallback(
     ({ item, group }: { item: SessionListItem; group: ResourceListGroup }) =>

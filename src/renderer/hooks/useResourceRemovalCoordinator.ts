@@ -9,7 +9,6 @@ export interface ResourceRemovalSnapshot<T, TContext = undefined> {
   band: ResourceRemovalBand
   displayedIndex: number
   loadedWindowSize: number
-  groupItems: readonly T[]
   displayedItems: readonly T[]
   groupOrder: readonly string[]
   context: TContext
@@ -17,12 +16,6 @@ export interface ResourceRemovalSnapshot<T, TContext = undefined> {
 
 export interface ResourceRemovalRefill<T> {
   items: readonly T[]
-  /**
-   * Index that now occupies the removed row's displayed position. Callers that
-   * rebuild an anchored window can override the snapshot index with the
-   * equivalent position in the replacement window.
-   */
-  selectionIndex?: number
 }
 
 interface ResourceRemovalRequest<T, TContext> {
@@ -53,10 +46,9 @@ interface UseResourceRemovalCoordinatorOptions<T, TContext> {
   clearSelection: () => void
 }
 
-function pickRefilledNeighbour<T>(items: readonly T[], removedIndex: number, selectionIndex?: number): T | undefined {
+function pickRefilledNeighbour<T>(items: readonly T[], removedIndex: number): T | undefined {
   if (items.length === 0) return undefined
-  const nextIndex = selectionIndex ?? removedIndex
-  return items[nextIndex] ?? items[Math.min(nextIndex - 1, items.length - 1)]
+  return items[removedIndex] ?? items[Math.min(removedIndex - 1, items.length - 1)]
 }
 
 function pickSiblingGroupNeighbour<T>(
@@ -121,7 +113,6 @@ export function useResourceRemovalCoordinator<T, TContext = undefined>({
         band: getBand(item),
         displayedIndex: Math.max(displayedIndex, 0),
         loadedWindowSize: Math.max(groupItems.length, 1),
-        groupItems,
         displayedItems,
         groupOrder,
         context
@@ -175,7 +166,7 @@ export function useResourceRemovalCoordinator<T, TContext = undefined>({
         }
       }
 
-      const neighbour = pickRefilledNeighbour(replacement.items, snapshot.displayedIndex, replacement.selectionIndex)
+      const neighbour = pickRefilledNeighbour(replacement.items, snapshot.displayedIndex)
       if (neighbour) {
         selectItem(neighbour)
         return true

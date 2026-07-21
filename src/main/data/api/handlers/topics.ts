@@ -21,7 +21,6 @@ import {
   SetActiveNodeSchema,
   type TopicSchemas,
   TopicStatsQuerySchema,
-  TopicWindowQuerySchema,
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -48,13 +47,6 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     GET: async ({ query }) => {
       const parsed = LatestTopicQuerySchema.parse(query ?? {})
       return { topic: topicService.getLatestActive(parsed) }
-    }
-  },
-
-  '/topics/window': {
-    GET: async ({ query }) => {
-      const parsed = TopicWindowQuerySchema.parse(query)
-      return topicService.getWindow(parsed)
     }
   },
 

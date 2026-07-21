@@ -1887,42 +1887,6 @@ describe('ResourceList', () => {
     expect(onEndReached).toHaveBeenCalledTimes(2)
   })
 
-  it('loads preceding pages when a non-leading anchored group reaches its own start', async () => {
-    const loadPreviousGroup = vi.fn().mockResolvedValue(undefined)
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider
-        items={ITEMS}
-        groupBy={(item) => ({ id: item.kind, label: item.kind })}
-        remoteData={{
-          query: '',
-          groupStates: {
-            session: { totalCount: 2, hasMore: false, status: 'idle' },
-            topic: { totalCount: 2, hasMore: false, hasPrevious: true, status: 'idle' }
-          },
-          onQueryChange: vi.fn(),
-          loadPreviousGroup
-        }}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    const viewport = screen.getByRole('listbox')
-    Object.defineProperty(viewport, 'scrollTop', { configurable: true, value: 650, writable: true })
-    fireEvent.scroll(viewport)
-
-    await waitFor(() => expect(loadPreviousGroup).toHaveBeenCalledWith('topic'))
-  })
-
   it('limits each group to the default visible count and expands the group independently', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({
@@ -2157,50 +2121,6 @@ describe('ResourceList', () => {
     expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('remote-first')
   })
 
-  it('lets the remote reveal resolver clear an incompatible controlled query', async () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const revealItem = vi.fn()
-
-    function RemoteRevealHarness() {
-      const [items, setItems] = useState<TestItem[]>([])
-      const [query, setQuery] = useState('needle')
-      const [collapsed, setCollapsed] = useState<string[]>(['remote'])
-
-      return (
-        <Provider
-          items={items}
-          collapsedState={collapsed}
-          onCollapsedStateChange={setCollapsed}
-          groupBy={() => ({ id: 'remote', label: 'Remote' })}
-          groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
-          revealRequest={{ itemId: 'outside-window', requestId: 1, clearQuery: true }}
-          remoteData={{
-            query,
-            groupStates: { remote: { totalCount: 1, hasMore: true, status: 'idle' } },
-            onQueryChange: setQuery,
-            revealItem: async (request) => {
-              revealItem(request)
-              setQuery('')
-              setItems([{ id: 'outside-window', name: 'Outside window', kind: 'topic', updatedAt: 1 }])
-              return true
-            }
-          }}>
-          <Inspector />
-        </Provider>
-      )
-    }
-
-    render(<RemoteRevealHarness />)
-
-    await waitFor(() => expect(revealItem).toHaveBeenCalledWith(expect.objectContaining({ itemId: 'outside-window' })))
-    await waitFor(() =>
-      expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
-        query: '',
-        collapsedGroups: []
-      })
-    )
-  })
-
   it('preserves a remote query when the requested item already belongs to its result', () => {
     const Provider = ResourceList.Provider<TestItem>
     const onQueryChange = vi.fn()
@@ -2222,69 +2142,6 @@ describe('ResourceList', () => {
 
     expect(onQueryChange).not.toHaveBeenCalled()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'match' })
-  })
-
-  it('reports a missing remote reveal without clearing the controlled query', async () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const onQueryChange = vi.fn()
-    const onRevealError = vi.fn()
-    const revealItem = vi.fn().mockResolvedValue(false)
-
-    render(
-      <Provider
-        items={[]}
-        groupBy={() => ({ id: 'remote', label: 'Remote' })}
-        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
-        revealRequest={{ itemId: 'missing', requestId: 1, clearQuery: true }}
-        remoteData={{
-          query: 'needle',
-          groupStates: { remote: { totalCount: 1, hasMore: true, status: 'idle' } },
-          onQueryChange,
-          onRevealError,
-          revealItem
-        }}>
-        <Inspector />
-      </Provider>
-    )
-
-    await waitFor(() =>
-      expect(onRevealError).toHaveBeenCalledWith({ kind: 'not-found' }, expect.objectContaining({ itemId: 'missing' }))
-    )
-    expect(onQueryChange).not.toHaveBeenCalled()
-    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'needle' })
-  })
-
-  it('reports a remote reveal request error without clearing the controlled query', async () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const error = new Error('request failed')
-    const onQueryChange = vi.fn()
-    const onRevealError = vi.fn()
-
-    render(
-      <Provider
-        items={[]}
-        groupBy={() => ({ id: 'remote', label: 'Remote' })}
-        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
-        revealRequest={{ itemId: 'unavailable', requestId: 1, clearQuery: true }}
-        remoteData={{
-          query: 'needle',
-          groupStates: { remote: { totalCount: 1, hasMore: true, status: 'idle' } },
-          onQueryChange,
-          onRevealError,
-          revealItem: vi.fn().mockRejectedValue(error)
-        }}>
-        <Inspector />
-      </Provider>
-    )
-
-    await waitFor(() =>
-      expect(onRevealError).toHaveBeenCalledWith(
-        { kind: 'error', error },
-        expect.objectContaining({ itemId: 'unavailable' })
-      )
-    )
-    expect(onQueryChange).not.toHaveBeenCalled()
-    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'needle' })
   })
 
   it('bounds remote expand-all group loading concurrency', async () => {

@@ -49,7 +49,7 @@ describe('useCursorGroupWindows', () => {
     expect(result.current.items).toEqual([{ id: 'item-a', name: 'A' }])
   })
 
-  it('appends cursor pages without duplicating overlapping rows', async () => {
+  it('appends the next cursor page to the loaded group window', async () => {
     const fetchPage = vi
       .fn()
       .mockResolvedValueOnce({
@@ -60,10 +60,7 @@ describe('useCursorGroupWindows', () => {
         nextCursor: 'cursor-b'
       })
       .mockResolvedValueOnce({
-        items: [
-          { id: 'item-b', name: 'B updated' },
-          { id: 'item-c', name: 'C' }
-        ]
+        items: [{ id: 'item-c', name: 'C' }]
       })
     const { result } = renderHook(() =>
       useCursorGroupWindows<Item>({
@@ -85,7 +82,7 @@ describe('useCursorGroupWindows', () => {
     expect(fetchPage).toHaveBeenNthCalledWith(2, 'group-a', 'cursor-b')
     expect(result.current.windows['group-a']?.items).toEqual([
       { id: 'item-a', name: 'A' },
-      { id: 'item-b', name: 'B updated' },
+      { id: 'item-b', name: 'B' },
       { id: 'item-c', name: 'C' }
     ])
   })
@@ -119,71 +116,37 @@ describe('useCursorGroupWindows', () => {
     expect(result.current.windows).toEqual({})
   })
 
-  it('retains resolved group rows while an ordering-only query starts again from page one', async () => {
-    const nextPage = deferred<{ items: Item[] }>()
+  it('refills a loaded window from the collection head', async () => {
     const fetchPage = vi
       .fn()
-      .mockResolvedValueOnce({ items: [{ id: 'old-a', name: 'Old A' }], nextCursor: 'old-cursor' })
-      .mockImplementationOnce(() => nextPage.promise)
-    const { result, rerender } = renderHook(
-      ({ queryKey }) =>
-        useCursorGroupWindows<Item>({
-          continuityKey: 'same-collection',
-          enabled: true,
-          fetchPage,
-          getItemId: (item) => item.id,
-          groupIds: ['group-a'],
-          initialGroupIds: [],
-          queryKey
-        }),
-      { initialProps: { queryKey: 'created-at' } }
+      .mockResolvedValueOnce({
+        items: [
+          { id: 'item-a', name: 'A' },
+          { id: 'item-b', name: 'B' }
+        ],
+        nextCursor: 'cursor-b'
+      })
+      .mockResolvedValueOnce({ items: [{ id: 'item-c', name: 'C' }] })
+    const { result } = renderHook(() =>
+      useCursorGroupWindows<Item>({
+        enabled: true,
+        fetchPage,
+        getItemId: (item) => item.id,
+        initialGroupIds: [],
+        queryKey: 'query-a'
+      })
     )
 
     await act(async () => {
-      await result.current.loadGroup('group-a')
+      await result.current.refillGroup('group-a', 3)
     })
-    expect(result.current.windows['group-a']?.nextCursor).toBe('old-cursor')
 
-    rerender({ queryKey: 'updated-at' })
-    expect(result.current.items).toEqual([{ id: 'old-a', name: 'Old A' }])
-    expect(result.current.windows['group-a']?.nextCursor).toBeUndefined()
-
-    let request!: Promise<string | null>
-    act(() => {
-      request = result.current.loadGroup('group-a')
-    })
-    expect(fetchPage).toHaveBeenLastCalledWith('group-a', undefined)
-
-    await act(async () => {
-      nextPage.resolve({ items: [{ id: 'new-a', name: 'New A' }] })
-      await request
-    })
-    expect(result.current.items).toEqual([{ id: 'new-a', name: 'New A' }])
-  })
-
-  it('prunes a removed group without clearing retained sibling windows', async () => {
-    const fetchPage = vi.fn(async (groupId: string) => ({ items: [{ id: `item-${groupId}`, name: groupId }] }))
-    const { result, rerender } = renderHook(
-      ({ groupIds, queryKey }) =>
-        useCursorGroupWindows<Item>({
-          continuityKey: 'same-collection',
-          enabled: true,
-          fetchPage,
-          getItemId: (item) => item.id,
-          groupIds,
-          initialGroupIds: [],
-          queryKey
-        }),
-      { initialProps: { groupIds: ['group-a', 'group-b'], queryKey: 'groups-a-b' } }
-    )
-
-    await act(async () => {
-      await result.current.loadGroup('group-a')
-      await result.current.loadGroup('group-b')
-    })
-    rerender({ groupIds: ['group-b'], queryKey: 'groups-b' })
-
-    expect(result.current.windows['group-a']).toBeUndefined()
-    expect(result.current.windows['group-b']?.items).toEqual([{ id: 'item-group-b', name: 'group-b' }])
+    expect(fetchPage).toHaveBeenNthCalledWith(1, 'group-a', undefined)
+    expect(fetchPage).toHaveBeenNthCalledWith(2, 'group-a', 'cursor-b')
+    expect(result.current.windows['group-a']?.items).toEqual([
+      { id: 'item-a', name: 'A' },
+      { id: 'item-b', name: 'B' },
+      { id: 'item-c', name: 'C' }
+    ])
   })
 })

@@ -26,8 +26,6 @@ import type {
   TopicSortBy,
   TopicStats,
   TopicStatsQuery,
-  TopicWindowQuery,
-  TopicWindowResponse,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
@@ -39,14 +37,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
-import {
-  asNumericKey,
-  asStringKey,
-  buildCursorFamily,
-  decodeFamilyCursor,
-  encodeFamilyCursor,
-  keysetOrdering
-} from './utils/keysetCursor'
+import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -158,22 +149,6 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
  * covers both NULL owners and topics whose assistant is soft-deleted. `pinned`
  * is NOT built here — it needs the pin subquery and only applies to lists.
  */
-/**
- * Bind a topic keyset cursor to its query family: resource, pinned/ordinary
- * stream, sort profile (ordinary only), and the normalized membership filters.
- * A cursor issued for one family never applies to another sort/filter/scope.
- */
-function topicCursorFamily(query: ListTopicsQuery, stream: 'pinned' | 'ordinary', sortBy?: TopicSortBy): string {
-  return buildCursorFamily({
-    resource: 'topics',
-    stream,
-    sortBy: stream === 'ordinary' ? sortBy : undefined,
-    q: query.q?.trim() || undefined,
-    searchScope: query.searchScope ?? 'name',
-    assistantId: query.assistantId
-  })
-}
-
 function buildRecordFilters(query: { q?: string; searchScope?: TopicSearchScope; assistantId?: string }): SQL[] {
   const filters: SQL[] = [isNull(topicTable.deletedAt)]
   const search = buildScopedSearchPredicate(query.q, query.searchScope ?? 'name')
@@ -614,100 +589,6 @@ export class TopicService {
     return this.listOrdinaryByCursor(query, query.sortBy ?? 'createdAt')
   }
 
-  /** Return a real ordered window around one anchor without injecting an out-of-band row. */
-  getWindow(query: TopicWindowQuery): TopicWindowResponse {
-    const db = application.get('DbService').getDb()
-    const [anchor] = db
-      .select({ topic: topicTable, pinId: pinTable.id, pinOrderKey: pinTable.orderKey })
-      .from(topicTable)
-      .leftJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
-      .where(and(eq(topicTable.id, query.anchorId), isNull(topicTable.deletedAt)))
-      .limit(1)
-      .all()
-    if (!anchor) return { status: 'RECORD_UNAVAILABLE' }
-
-    const [included] = db
-      .select({ id: topicTable.id })
-      .from(topicTable)
-      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
-      .where(and(...buildRecordFilters(query), eq(topicTable.id, query.anchorId)))
-      .limit(1)
-      .all()
-    if (!included) return { status: 'ANCHOR_OUTSIDE_QUERY' }
-
-    const { anchorId: _anchorId, ...membership } = query
-    void _anchorId
-    const band = anchor.pinId ? 'pinned' : 'ordinary'
-    const sortBy = query.sortBy ?? 'createdAt'
-    const pageLimit = Math.max(1, (query.limit ?? DEFAULT_LIMIT) - 1)
-    const listQuery: ListTopicsQuery = { ...membership, limit: pageLimit, pinned: band === 'pinned' }
-    const family = topicCursorFamily(listQuery, band, band === 'ordinary' ? sortBy : undefined)
-    const anchorKey =
-      band === 'pinned'
-        ? anchor.pinOrderKey!
-        : sortBy === 'createdAt'
-          ? anchor.topic.createdAt
-          : sortBy === 'lastActivityAt'
-            ? anchor.topic.lastActivityAt
-            : anchor.topic.orderKey
-    const fetch = (direction: 'next' | 'previous') =>
-      band === 'pinned'
-        ? this.listPinnedByCursor({
-            ...listQuery,
-            cursor: encodeFamilyCursor(family, anchorKey, anchor.topic.id, direction)
-          })
-        : this.listOrdinaryByCursor(
-            {
-              ...listQuery,
-              cursor: encodeFamilyCursor(family, anchorKey, anchor.topic.id, direction)
-            },
-            sortBy
-          )
-    const beforePage = fetch('previous')
-    const afterPage = fetch('next')
-
-    const surroundingLimit = Math.max(0, (query.limit ?? DEFAULT_LIMIT) - 1)
-    let beforeCount = Math.min(beforePage.items.length, Math.floor(surroundingLimit / 2))
-    const afterCount = Math.min(afterPage.items.length, surroundingLimit - beforeCount)
-    beforeCount = Math.min(beforePage.items.length, surroundingLimit - afterCount)
-    const beforeItems = beforeCount > 0 ? beforePage.items.slice(-beforeCount) : []
-    const afterItems = afterPage.items.slice(0, afterCount)
-    const anchorItem = toTopicListItem(rowToTopic(anchor.topic), anchor.pinId)
-    const items = [...beforeItems, anchorItem, ...afterItems]
-
-    const hasPrevious = beforePage.items.length > beforeCount || beforePage.previousCursor !== undefined
-    const hasNext = afterPage.items.length > afterCount || afterPage.nextCursor !== undefined
-    const boundaryKey = (item: TopicListItem): string | number => {
-      if (band === 'ordinary') {
-        return sortBy === 'createdAt'
-          ? Date.parse(item.createdAt)
-          : sortBy === 'lastActivityAt'
-            ? Date.parse(item.lastActivityAt)
-            : item.orderKey
-      }
-      if (item.id === anchor.topic.id) return anchor.pinOrderKey!
-      const [pin] = db
-        .select({ orderKey: pinTable.orderKey })
-        .from(pinTable)
-        .where(and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, item.id)))
-        .limit(1)
-        .all()
-      if (!pin) throw DataApiErrorFactory.notFound('Pin', item.id)
-      return pin.orderKey
-    }
-    const first = items[0]
-    const last = items[items.length - 1]
-
-    return {
-      status: 'FOUND',
-      items,
-      anchorIndex: beforeItems.length,
-      band,
-      previousCursor: hasPrevious ? encodeFamilyCursor(family, boundaryKey(first), first.id, 'previous') : undefined,
-      nextCursor: hasNext ? encodeFamilyCursor(family, boundaryKey(last), last.id) : undefined
-    }
-  }
-
   /**
    * Pinned-only page in persisted manual order. New pins are inserted first by
    * PinService, and this read deliberately ignores `query.sortBy`.
@@ -716,11 +597,8 @@ export class TopicService {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const filters = buildRecordFilters(query)
-    const family = topicCursorFamily(query, 'pinned')
-    const forward = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
-    const backward = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'desc', tie: 'desc' })
-    const cursor = decodeFamilyCursor(query.cursor, family, asStringKey, 'topics-pinned')
-    const ordering = cursor?.direction === 'previous' ? backward : forward
+    const ordering = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = decodeListCursor(query.cursor, asStringKey, 'topics-pinned')
     if (cursor) filters.push(ordering.where(cursor))
 
     const rows = db
@@ -735,17 +613,11 @@ export class TopicService {
 
     const hasMore = rows.length > limit
     const pageRows = rows.slice(0, limit)
-    if (cursor?.direction === 'previous') pageRows.reverse()
-    const first = pageRows[0]
     const last = pageRows[pageRows.length - 1]
-    const hasPrevious = cursor?.direction === 'previous' ? hasMore : cursor !== null
-    const hasNext = cursor?.direction === 'previous' ? cursor !== null : hasMore
 
     return {
       items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), row.pinId)),
-      previousCursor:
-        hasPrevious && first ? encodeFamilyCursor(family, first.pinOrderKey, first.topic.id, 'previous') : undefined,
-      nextCursor: hasNext && last ? encodeFamilyCursor(family, last.pinOrderKey, last.topic.id) : undefined
+      nextCursor: hasMore && last ? encodeCursor(last.pinOrderKey, last.topic.id) : undefined
     }
   }
 
@@ -766,19 +638,14 @@ export class TopicService {
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
     filters.push(notInArray(topicTable.id, pinnedSubquery))
 
-    const family = topicCursorFamily(query, 'ordinary', sortBy)
     const isTimestampSort = sortBy === 'createdAt' || sortBy === 'lastActivityAt'
     const timestampColumn = sortBy === 'createdAt' ? topicTable.createdAt : topicTable.lastActivityAt
-    const forward = isTimestampSort
+    const ordering = isTimestampSort
       ? keysetOrdering(timestampColumn, topicTable.id, { major: 'desc', tie: 'asc' })
       : keysetOrdering(topicTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
-    const backward = isTimestampSort
-      ? keysetOrdering(timestampColumn, topicTable.id, { major: 'asc', tie: 'desc' })
-      : keysetOrdering(topicTable.orderKey, topicTable.id, { major: 'desc', tie: 'desc' })
     const cursor = isTimestampSort
-      ? decodeFamilyCursor(query.cursor, family, asNumericKey, 'topics-flat')
-      : decodeFamilyCursor(query.cursor, family, asStringKey, 'topics-flat')
-    const ordering = cursor?.direction === 'previous' ? backward : forward
+      ? decodeListCursor(query.cursor, asNumericKey, 'topics-flat')
+      : decodeListCursor(query.cursor, asStringKey, 'topics-flat')
     if (cursor) filters.push(ordering.where(cursor))
 
     const rows = db
@@ -793,24 +660,17 @@ export class TopicService {
 
     const hasMore = rows.length > limit
     const pageRows = rows.slice(0, limit)
-    if (cursor?.direction === 'previous') pageRows.reverse()
-    const first = pageRows[0]
     const last = pageRows[pageRows.length - 1]
-    const hasPrevious = cursor?.direction === 'previous' ? hasMore : cursor !== null
-    const hasNext = cursor?.direction === 'previous' ? cursor !== null : hasMore
     const getSortValue = (row: (typeof pageRows)[number]) =>
       sortBy === 'createdAt'
         ? row.topic.createdAt
         : sortBy === 'lastActivityAt'
           ? row.topic.lastActivityAt
           : row.topic.orderKey
-    const previousCursor =
-      hasPrevious && first ? encodeFamilyCursor(family, getSortValue(first), first.topic.id, 'previous') : undefined
-    const nextCursor = hasNext && last ? encodeFamilyCursor(family, getSortValue(last), last.topic.id) : undefined
+    const nextCursor = hasMore && last ? encodeCursor(getSortValue(last), last.topic.id) : undefined
 
     return {
       items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), row.pinId)),
-      previousCursor,
       nextCursor
     }
   }

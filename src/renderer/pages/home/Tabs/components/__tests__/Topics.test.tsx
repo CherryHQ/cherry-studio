@@ -99,7 +99,6 @@ const cursorGroupWindowMocks = vi.hoisted(() => ({
   options: undefined as
     | undefined
     | {
-        continuityKey: string
         fetchPage: (groupId: string, cursor?: string) => Promise<{ items: unknown[] }>
         groupIds: readonly string[]
         queryKey: string
@@ -113,7 +112,7 @@ vi.mock('@renderer/hooks/useCursorGroupWindows', () => ({
       items: [],
       loadGroup: vi.fn().mockResolvedValue(null),
       loadMoreGroup: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
+      refillGroup: vi.fn().mockResolvedValue([]),
       windows: {}
     }
   }
@@ -1040,10 +1039,6 @@ describe('Topics', () => {
       expect(JSON.parse(cursorGroupWindowMocks.options?.queryKey ?? '{}')).toEqual(
         expect.objectContaining({ sortBy: 'lastActivityAt' })
       )
-      expect(JSON.parse(cursorGroupWindowMocks.options?.continuityKey ?? '{}')).toEqual({
-        mode: 'assistant',
-        q: ''
-      })
       expect(cursorGroupWindowMocks.options?.groupIds).toContain('topic:assistant:assistant-1')
       await cursorGroupWindowMocks.options?.fetchPage('topic:assistant:assistant-1')
       expect(getSpy).toHaveBeenCalledWith(
@@ -1186,7 +1181,7 @@ describe('Topics', () => {
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it('requests bounded topic windows without auto-paginating to the end', () => {
+  it('requests bounded topic pages without auto-paginating to the end', () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockReturnValue({
       pages: [{ items: [] }],

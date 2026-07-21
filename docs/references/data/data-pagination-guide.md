@@ -194,11 +194,11 @@ cursor as "first page" (no warn) and a malformed cursor as a warn-and-fall-back
 to the first page. A server-issued opaque token going stale must never throw and
 lock the renderer. (Full-text search uses the opposite policy — see § 6.)
 
-**Keep independent bands in independent cursor families.** Topic and session
+**Keep independent bands in independent cursor chains.** Topic and session
 lists require callers to select either the pinned or ordinary stream. Each
-response therefore has one `(key, id)` tuple and uses `keysetOrdering`; the
-cursor family binds the token to its stream, sort profile, and filters so it
-cannot be reused against another band.
+response therefore has one `(key, id)` tuple and uses `keysetOrdering`. The
+tuple token does not encode its query identity, so callers must discard the
+cursor chain whenever the selected stream, sort profile, or filters change.
 
 **Determinism under ties.** `keysetOrdering` always appends the `id` tiebreaker
 (`[<major> keyCol, <tie> idCol]`), so page-walking stays deterministic even when
@@ -288,8 +288,8 @@ lives in `src/main/data/services/utils/ftsSearch.ts`; see
 - **List cursors warn-and-fall-back; search cursors throw 422** — don't copy one
   policy into the other.
 - **Keep band cursors isolated** — pinned and ordinary list streams both use
-  `keysetOrdering`, but their cursor families are bound to the selected band
-  and are not interchangeable.
+  `keysetOrdering`, but callers must maintain separate cursor chains and never
+  reuse a token after changing the selected band, sort profile, or filters.
 - **Page-load order ≠ display order** — choose `reversePages` / `reverseItems`
   in `useInfiniteFlatItems` deliberately.
 

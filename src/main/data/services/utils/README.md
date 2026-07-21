@@ -129,7 +129,7 @@ Backs every list endpoint that pages by a `(sortKey, id)` tuple. Owns the `<key>
 
 - **Two decode policies, deliberately split**: list browsing warns and falls back to the first page (`decodeListCursor` → `null`), while search throws 422 (`ftsSearch.decodeSearchCursor`). A stale server-issued list token must not lock the renderer; a malformed search cursor is a client contract violation.
 - **Warn message is locked**: `'decodeCursor: cursor unparseable, falling back to first page'` — kept uniform across call sites; the `context` field distinguishes the source.
-- **Single-tuple keyset only**: covers `(key, id)` pagination. Multiple display bands must be exposed as independent query/cursor families (as Topic and AgentSession do), never encoded into one sentinel cursor.
+- **Single-tuple keyset only**: covers `(key, id)` pagination. Multiple display bands must be exposed as independent queries and cursor chains (as Topic and AgentSession do), never encoded into one sentinel cursor.
 - **Direction is declared once**: `keysetOrdering` emits both the `where` predicate and the matching `orderBy` from a single `{ major, tie }`, so the WHERE clause and the `ORDER BY` cannot disagree — the classic keyset skip/repeat bug becomes unrepresentable.
 
 **Example:**
