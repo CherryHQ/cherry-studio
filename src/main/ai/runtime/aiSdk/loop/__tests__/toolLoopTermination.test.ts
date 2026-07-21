@@ -1,4 +1,6 @@
-import type { StepResult, ToolSet } from 'ai'
+import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
+import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
+import { jsonSchema, type StepResult, type Tool, type ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
@@ -80,13 +82,35 @@ describe('tool-loop termination', () => {
     expect(getLastTerminalToolFailure(makeSteps([output], 1, { providerExecuted: true }))).toBeUndefined()
   })
 
-  it('accepts a trusted result returned unchanged by a local wrapper without parsing its private input', () => {
+  it('accepts a trusted result returned unchanged by the real tool_invoke wrapper', async () => {
     const output = markTrustedLocalToolTerminalFailure(terminalFailure())
-    const wrapped = makeSteps([output], 1, {
-      toolName: 'tool_invoke',
+    const registry = new ToolRegistry()
+    registry.register({
+      name: 'local_lookup',
+      namespace: 'test',
+      description: 'Local lookup',
+      defer: 'always',
+      tool: {
+        type: 'function',
+        description: 'Local lookup',
+        inputSchema: jsonSchema({ type: 'object' }),
+        execute: async () => output
+      } as Tool
+    })
+    const invoke = createToolInvokeTool(registry, new Set(['local_lookup']), new Set(['local_lookup']))
+    if (typeof invoke.execute !== 'function') throw new Error('tool_invoke is not executable')
+
+    const wrappedOutput = await invoke.execute({ name: 'local_lookup', params: {} }, {
+      toolCallId: 'outer-1',
+      messages: [],
+      experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
+    } as Parameters<NonNullable<Tool['execute']>>[1])
+    const wrapped = makeSteps([wrappedOutput], 1, {
+      toolName: TOOL_INVOKE_TOOL_NAME,
       input: { opaque: 'wrapper-owned-payload' }
     })
 
+    expect(wrappedOutput).toBe(output)
     expect(getLastTerminalToolFailure(wrapped)).toMatchObject({ error: 'raw failure' })
   })
 
