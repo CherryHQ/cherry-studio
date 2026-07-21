@@ -486,7 +486,8 @@ The generated contract must validate that:
 - no source addition silently expands the canonical API;
 - generated CSS matches committed output;
 - migration records use a known strategy and do not contain duplicate sources;
-- the renderer theme entry cannot reintroduce legacy aliases, own host-local `--app-*` values, or add a second Tailwind adapter.
+- the renderer theme entry cannot reintroduce legacy aliases, own host-local `--app-*` values, or add a second Tailwind adapter;
+- renderer CSS and TypeScript/TSX-authored style strings cannot consume generated `--color-*` adapter variables.
 
 Run `pnpm --filter @cherrystudio/ui theme:check` to validate the canonical graph, committed generated CSS,
 migration registry, and renderer boundary together. `theme:build` is deliberately a pure generator that reads

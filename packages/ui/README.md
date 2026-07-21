@@ -133,7 +133,7 @@ To avoid mixing value sources, semantic variables, theme mappings, and runtime o
 2. Approved Cherry Studio product semantics are also unprefixed, such as `--success` and `--background-subtle`
 3. Historical migration names are tooling-only and must not be recreated as runtime product variables
 4. Shared `--cs-*` variables are internal value providers; `--cs-theme-*` is the reserved host-written input subset
-5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; only the adapter owner declares `--color-*` inside `@theme`, while component, page, and other runtime CSS must neither declare nor consume it
+5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; only the adapter owner declares `--color-*` inside `@theme`, while component CSS, page CSS, and renderer TypeScript/TSX-authored styles must neither declare nor consume it
 6. `--cs-theme-*` is a controlled host-written input, not a component-facing semantic role or Tailwind utility
 7. Component-, page-, and Electron-shell variables stay in their owning stylesheet and are not added to the shared contract merely because they are CSS custom properties
 
