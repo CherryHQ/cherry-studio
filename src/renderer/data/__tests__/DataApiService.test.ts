@@ -1,4 +1,5 @@
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { DataApiChangeBatch, DataApiChangeCallback, DataApiChangeEnvelope } from '@shared/data/api/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const configMock = vi.hoisted(() => ({
@@ -13,17 +14,28 @@ vi.mock('@renderer/utils/platform', () => ({
 vi.unmock('@data/DataApiService')
 
 const request = vi.fn()
+const onChanged = vi.fn()
+const stopChanges = vi.fn()
+let emitChanges: DataApiChangeCallback<DataApiChangeEnvelope> | undefined
 
 beforeEach(() => {
   vi.resetModules()
   request.mockReset()
+  onChanged.mockReset()
+  stopChanges.mockReset()
+  emitChanges = undefined
+  onChanged.mockImplementation((callback: DataApiChangeCallback<DataApiChangeEnvelope>) => {
+    emitChanges = callback
+    return stopChanges
+  })
   configMock.isDev = true
 
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: {
       dataApi: {
-        request
+        request,
+        onChanged
       }
     }
   })
@@ -242,5 +254,89 @@ describe('DataApiService devtools instrumentation', () => {
 
     await expect(service.get('/providers' as any)).resolves.toEqual({ ok: true })
     expect(window.__CHERRY_DATA_API_DEVTOOLS__).toBeUndefined()
+  })
+})
+
+describe('DataApiService change subscriptions', () => {
+  type ProjectionChange = DataApiChangeEnvelope<'test.projection', { id: string }>
+  type MembershipChange = DataApiChangeEnvelope<'test.membership', { ids: string[] }>
+  type TestChange = ProjectionChange | MembershipChange
+  type TestChangeCallback<TChange extends DataApiChangeEnvelope> = (batch: { changes: readonly TChange[] }) => void
+  type TestSubscribeChanges = <TChange extends DataApiChangeEnvelope>(
+    types: readonly TChange['type'][],
+    callback: TestChangeCallback<TChange>
+  ) => () => void
+
+  it('shares one preload listener and filters each committed batch by change type', async () => {
+    const service = await createService()
+    const subscribeChanges = service.subscribeChanges as unknown as TestSubscribeChanges
+    const onProjection = vi.fn<TestChangeCallback<ProjectionChange>>()
+    const onMembership = vi.fn<TestChangeCallback<MembershipChange>>()
+
+    const unsubscribeProjection = subscribeChanges<ProjectionChange>(['test.projection'], onProjection)
+    const unsubscribeMembership = subscribeChanges<MembershipChange>(['test.membership'], onMembership)
+
+    expect(onChanged).toHaveBeenCalledTimes(1)
+    expect(service.getRequestStats().activeSubscriptions).toBe(2)
+
+    const batch: DataApiChangeBatch<TestChange> = {
+      changes: [
+        { type: 'test.projection', payload: { id: 'item-1' } },
+        { type: 'test.membership', payload: { ids: ['item-1'] } },
+        { type: 'test.projection', payload: { id: 'item-2' } }
+      ]
+    }
+    emitChanges?.(batch)
+
+    expect(onProjection).toHaveBeenCalledTimes(1)
+    expect(onProjection).toHaveBeenCalledWith({ changes: [batch.changes[0], batch.changes[2]] })
+    expect(onMembership).toHaveBeenCalledTimes(1)
+    expect(onMembership).toHaveBeenCalledWith({ changes: [batch.changes[1]] })
+
+    unsubscribeProjection()
+    expect(stopChanges).not.toHaveBeenCalled()
+    expect(service.getRequestStats().activeSubscriptions).toBe(1)
+
+    unsubscribeMembership()
+    expect(stopChanges).toHaveBeenCalledTimes(1)
+    expect(service.getRequestStats().activeSubscriptions).toBe(0)
+  })
+
+  it('does not notify a subscription when the batch has no selected change type', async () => {
+    const service = await createService()
+    const subscribeChanges = service.subscribeChanges as unknown as TestSubscribeChanges
+    const onProjection = vi.fn<TestChangeCallback<ProjectionChange>>()
+
+    const unsubscribe = subscribeChanges<ProjectionChange>(['test.projection'], onProjection)
+
+    const batch: DataApiChangeBatch<MembershipChange> = {
+      changes: [{ type: 'test.membership', payload: { ids: ['item-1'] } }]
+    }
+    emitChanges?.(batch)
+
+    expect(onProjection).not.toHaveBeenCalled()
+    unsubscribe()
+  })
+
+  it('continues dispatching when one subscription callback throws', async () => {
+    const service = await createService()
+    const subscribeChanges = service.subscribeChanges as unknown as TestSubscribeChanges
+    const failingSubscriber = vi.fn<TestChangeCallback<ProjectionChange>>(() => {
+      throw new Error('subscriber failed')
+    })
+    const followingSubscriber = vi.fn<TestChangeCallback<ProjectionChange>>()
+
+    const unsubscribeFailing = subscribeChanges<ProjectionChange>(['test.projection'], failingSubscriber)
+    const unsubscribeFollowing = subscribeChanges<ProjectionChange>(['test.projection'], followingSubscriber)
+    const batch: DataApiChangeBatch<ProjectionChange> = {
+      changes: [{ type: 'test.projection', payload: { id: 'item-1' } }]
+    }
+
+    emitChanges?.(batch)
+
+    expect(failingSubscriber).toHaveBeenCalledWith(batch)
+    expect(followingSubscriber).toHaveBeenCalledWith(batch)
+    unsubscribeFailing()
+    unsubscribeFollowing()
   })
 })

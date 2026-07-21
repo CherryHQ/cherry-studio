@@ -1,12 +1,12 @@
 /**
  * IpcAdapter source-trust gate tests.
  *
- * The adapter bridges Electron IPC to ApiServer; every channel must reject
- * senders that are not the app's own top-level renderer frame BEFORE the
- * request reaches ApiServer (see core/security/validateSender). The pure URL logic is
- * covered in core/security/__tests__/validateSender.test.ts — here we verify the
- * wiring: rejection short-circuits, trusted requests pass through.
+ * The adapter bridges Electron IPC to ApiServer. Requests must reject senders
+ * that are not the app's own top-level renderer frame before they reach
+ * ApiServer, while committed change batches fan out through WindowManager.
  */
+import { application } from '@application'
+import type { DataApiChangeBatch, DataApiChangeEnvelope } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,26 +46,32 @@ const untrustedEvents = {
 } as Record<string, any>
 
 describe('IpcAdapter', () => {
+  let adapter: IpcAdapter
   let handleRequest: ReturnType<typeof vi.fn>
   let requestHandler: IpcHandler
-  let subscribeHandler: IpcHandler
-  let unsubscribeHandler: IpcHandler
+  let broadcast: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.mocked(ipcMain.handle).mockClear()
+    vi.mocked(ipcMain.removeHandler).mockClear()
+    broadcast = application.get('WindowManager').broadcast as ReturnType<typeof vi.fn>
+    broadcast.mockClear()
     handleRequest = vi.fn(async (request) => ({
       id: request.id,
       status: 200,
       data: { ok: true },
       metadata: { duration: 1, timestamp: 1 }
     }))
-    new IpcAdapter({ handleRequest } as unknown as ApiServer).setup()
+    adapter = new IpcAdapter({ handleRequest } as unknown as ApiServer)
+    adapter.setup()
 
     const calls = vi.mocked(ipcMain.handle).mock.calls
     const handlerFor = (channel: string) => calls.find((call) => call[0] === channel)![1] as IpcHandler
     requestHandler = handlerFor(IpcChannel.DataApi_Request)
-    subscribeHandler = handlerFor(IpcChannel.DataApi_Subscribe)
-    unsubscribeHandler = handlerFor(IpcChannel.DataApi_Unsubscribe)
+  })
+
+  it('registers only the DataApi request handler', () => {
+    expect(vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)).toEqual([IpcChannel.DataApi_Request])
   })
 
   it('passes a trusted request through to ApiServer', async () => {
@@ -87,15 +93,23 @@ describe('IpcAdapter', () => {
     expect(handleRequest).not.toHaveBeenCalled()
   })
 
-  it('allows a trusted sender to subscribe and unsubscribe', async () => {
-    await expect(subscribeHandler(trustedEvent, '/topics')).resolves.toMatchObject({ success: true })
-    await expect(unsubscribeHandler(trustedEvent, 'sub-1')).resolves.toMatchObject({ success: true })
+  it('broadcasts a committed change batch to every managed window', () => {
+    type TestChange = DataApiChangeEnvelope<'test.projection', { id: string }>
+    const wireBatch = {
+      changes: [{ type: 'test.projection', payload: { id: 'item-1' } }]
+    } satisfies { changes: TestChange[] }
+    const batch = wireBatch as unknown as DataApiChangeBatch
+
+    adapter.publishChanges(batch)
+
+    expect(broadcast).toHaveBeenCalledWith(IpcChannel.DataApi_Changed, batch)
   })
 
-  it('rejects untrusted subscribe/unsubscribe senders', async () => {
-    for (const event of Object.values(untrustedEvents)) {
-      await expect(subscribeHandler(event, '/topics')).rejects.toThrow('untrusted sender')
-      await expect(unsubscribeHandler(event, 'sub-1')).rejects.toThrow('untrusted sender')
-    }
+  it('removes only the DataApi request handler once on dispose', () => {
+    adapter.dispose()
+    adapter.dispose()
+
+    expect(ipcMain.removeHandler).toHaveBeenCalledTimes(1)
+    expect(ipcMain.removeHandler).toHaveBeenCalledWith(IpcChannel.DataApi_Request)
   })
 })

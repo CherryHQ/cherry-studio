@@ -141,9 +141,7 @@ export enum IpcChannel {
 
   // Data: API Channels
   DataApi_Request = 'data-api:request',
-  DataApi_Subscribe = 'data-api:subscribe',
-  DataApi_Unsubscribe = 'data-api:unsubscribe',
-  DataApi_Stream = 'data-api:stream',
+  DataApi_Changed = 'data-api:changed',
 
   // IpcApi: RPC-over-IPC command channel (renderer→main request, main→renderer event)
   IpcApi_Request = 'ipc-api:request',

@@ -1,3 +1,4 @@
+import type { DataApiChangeBatch } from '@shared/data/api/types'
 import { vi } from 'vitest'
 
 /**
@@ -77,6 +78,9 @@ export class MockMainDataApiService {
   public getApiServer = vi.fn((): MockApiServer => {
     return this.apiServer
   })
+
+  // Mock committed change publication
+  public publishChanges = vi.fn((_batch: DataApiChangeBatch): void => {})
 
   // Mock shutdown
   public shutdown = vi.fn(async (): Promise<void> => {
@@ -169,6 +173,7 @@ export const MockMainDataApiServiceUtils = {
     initialize: mockInstance.initialize.mock.calls.length,
     shutdown: mockInstance.shutdown.mock.calls.length,
     getSystemStatus: mockInstance.getSystemStatus.mock.calls.length,
-    getApiServer: mockInstance.getApiServer.mock.calls.length
+    getApiServer: mockInstance.getApiServer.mock.calls.length,
+    publishChanges: mockInstance.publishChanges.mock.calls.length
   })
 }

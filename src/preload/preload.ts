@@ -1,4 +1,5 @@
 import { electronAPI } from '@electron-toolkit/preload'
+import type { DataApiChangeBatch, DataApiChangeCallback } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
@@ -308,11 +309,10 @@ const api = {
   // Data API related APIs
   dataApi: {
     request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
-    subscribe: (path: string, callback: (data: any, event: string) => void) => {
-      const channel = `${IpcChannel.DataApi_Stream}:${path}`
-      const listener = (_: any, data: any, event: string) => callback(data, event)
-      ipcRenderer.on(channel, listener)
-      return () => ipcRenderer.off(channel, listener)
+    onChanged: (callback: DataApiChangeCallback) => {
+      const listener = (_: Electron.IpcRendererEvent, batch: DataApiChangeBatch) => callback(batch)
+      ipcRenderer.on(IpcChannel.DataApi_Changed, listener)
+      return () => ipcRenderer.off(IpcChannel.DataApi_Changed, listener)
     }
   },
   // IpcApi RPC channel — generic forwarder; the typed facade lives in src/renderer/ipc

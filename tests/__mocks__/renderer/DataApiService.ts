@@ -1,6 +1,11 @@
-import type { ConcreteApiPaths } from '@shared/data/api/types'
-import type { SubscriptionCallback, SubscriptionOptions } from '@shared/data/api/types'
-import { SubscriptionEvent } from '@shared/data/api/types'
+import type {
+  ConcreteApiPaths,
+  DataApiChange,
+  DataApiChangeBatch,
+  DataApiChangeCallback,
+  DataApiChangeEnvelope,
+  DataApiChangeType
+} from '@shared/data/api/types'
 import { vi } from 'vitest'
 
 /**
@@ -98,12 +103,12 @@ function getMockDataForPath(path: ConcreteApiPaths, method: string): any {
  * Create a mock DataApiService with realistic behavior
  */
 export const createMockDataApiService = (customBehavior: Partial<ReturnType<typeof createMockDataApiService>> = {}) => {
-  // Track subscriptions
+  // Track committed change subscriptions
   const subscriptions = new Map<
     string,
     {
-      callback: SubscriptionCallback
-      options: SubscriptionOptions
+      callback: DataApiChangeCallback<DataApiChangeEnvelope>
+      types: ReadonlySet<string>
     }
   >()
 
@@ -162,21 +167,26 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
       }
     ),
 
-    // ============ Subscription ============
+    // ============ Change Subscriptions ============
 
-    subscribe: vi.fn(<T>(options: SubscriptionOptions, callback: SubscriptionCallback<T>): (() => void) => {
-      const subscriptionId = `sub_${Date.now()}_${Math.random()}`
+    subscribeChanges: vi.fn(
+      <TType extends DataApiChangeType>(
+        types: readonly TType[],
+        callback: DataApiChangeCallback<DataApiChange<TType>>
+      ): (() => void) => {
+        const subscriptionId = `sub_${Date.now()}_${Math.random()}`
 
-      subscriptions.set(subscriptionId, {
-        callback: callback as SubscriptionCallback,
-        options
-      })
+        subscriptions.set(subscriptionId, {
+          callback: callback as DataApiChangeCallback<DataApiChangeEnvelope>,
+          types: new Set(types)
+        })
 
-      // Return unsubscribe function
-      return () => {
-        subscriptions.delete(subscriptionId)
+        // Return unsubscribe function
+        return () => {
+          subscriptions.delete(subscriptionId)
+        }
       }
-    }),
+    ),
 
     // ============ Retry Configuration ============
 
@@ -230,10 +240,15 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
       }
     },
 
-    _triggerSubscription: (path: string, data: any, event: SubscriptionEvent) => {
-      subscriptions.forEach(({ callback, options }) => {
-        if (options.path === path) {
-          callback(data, event)
+    _triggerChanges: (batch: DataApiChangeBatch<DataApiChangeEnvelope>) => {
+      subscriptions.forEach(({ callback, types }) => {
+        const changes = batch.changes.filter((change) => types.has(change.type))
+        if (changes.length > 0) {
+          try {
+            callback({ changes })
+          } catch {
+            // Match the real Renderer facade: one subscriber cannot block another.
+          }
         }
       })
     },
@@ -291,9 +306,12 @@ export const MockDataApiService = {
       return mockDataApiService.delete(path, options)
     }
 
-    // ============ Subscription ============
-    subscribe<T>(options: SubscriptionOptions, callback: SubscriptionCallback<T>): () => void {
-      return mockDataApiService.subscribe(options, callback)
+    // ============ Change Subscriptions ============
+    subscribeChanges<TType extends DataApiChangeType>(
+      types: readonly TType[],
+      callback: DataApiChangeCallback<DataApiChange<TType>>
+    ): () => void {
+      return mockDataApiService.subscribeChanges(types, callback)
     }
 
     // ============ Retry Configuration ============
@@ -385,10 +403,10 @@ export const MockDataApiUtils = {
   },
 
   /**
-   * Trigger a subscription callback for testing
+   * Trigger committed change callbacks for testing
    */
-  triggerSubscription: (path: string, data: any, event: SubscriptionEvent = SubscriptionEvent.UPDATED) => {
-    mockDataApiService._triggerSubscription(path, data, event)
+  triggerChanges: (batch: DataApiChangeBatch<DataApiChangeEnvelope>) => {
+    mockDataApiService._triggerChanges(batch)
   },
 
   /**

@@ -1,8 +1,9 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { Disposable } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
 import { DataApiError, ErrorCode, toDataApiError } from '@shared/data/api/errors'
-import type { DataRequest, DataResponse } from '@shared/data/api/types'
+import type { DataApiChangeBatch, DataRequest, DataResponse } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 
@@ -19,7 +20,8 @@ const logger = loggerService.withContext('DataApi:IpcAdapter')
  * knows DataRequest → DataResponse, with no dependency on Electron IPC.
  *
  * Adapters are the bridge between a specific transport and ApiServer:
- * - **IpcAdapter** (this file): bridges Electron IPC ↔ ApiServer
+ * - **IpcAdapter** (this file): bridges Electron IPC ↔ ApiServer and
+ *   publishes committed DataApi changes to Renderer windows
  * - **HttpAdapter** (planned): will bridge Express HTTP ↔ ApiServer
  *
  * If these handlers were registered directly via BaseService.ipcHandle() in
@@ -83,26 +85,12 @@ export class IpcAdapter implements Disposable {
       }
     })
 
-    // Subscription handlers (placeholder for future real-time features)
-    ipcMain.handle(IpcChannel.DataApi_Subscribe, async (event, path: string) => {
-      if (!this.isTrustedSender(event, 'subscribe')) {
-        throw new Error('Rejected DataApi subscription from untrusted sender')
-      }
-      logger.debug(`Data subscription request: ${path}`)
-      // TODO: Implement real-time subscriptions
-      return { success: true, subscriptionId: `sub_${Date.now()}` }
-    })
-
-    ipcMain.handle(IpcChannel.DataApi_Unsubscribe, async (event, subscriptionId: string) => {
-      if (!this.isTrustedSender(event, 'unsubscribe')) {
-        throw new Error('Rejected DataApi unsubscription from untrusted sender')
-      }
-      logger.debug(`Data unsubscription request: ${subscriptionId}`)
-      // TODO: Implement real-time subscriptions
-      return { success: true }
-    })
-
     this.initialized = true
+  }
+
+  /** Broadcast a committed change batch to every managed Renderer window. */
+  publishChanges(batch: DataApiChangeBatch): void {
+    application.get('WindowManager').broadcast(IpcChannel.DataApi_Changed, batch)
   }
 
   /**
@@ -130,8 +118,6 @@ export class IpcAdapter implements Disposable {
     logger.debug('Removing IPC handlers...')
 
     ipcMain.removeHandler(IpcChannel.DataApi_Request)
-    ipcMain.removeHandler(IpcChannel.DataApi_Subscribe)
-    ipcMain.removeHandler(IpcChannel.DataApi_Unsubscribe)
 
     this.initialized = false
     logger.debug('IPC handlers removed')

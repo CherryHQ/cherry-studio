@@ -15,7 +15,7 @@
  * - Type-safe requests with full TypeScript inference
  * - Automatic retry with exponential backoff (network, timeout, 500/503 errors)
  * - Request timeout management (3s default)
- * - Subscription management (real-time updates)
+ * - Committed change subscription management
  *
  * Architecture:
  * React Component → DataApiService (this file) → IPC → Main Process
@@ -33,14 +33,17 @@ import { loggerService } from '@logger'
 import type { RequestContext } from '@shared/data/api/errors'
 import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@shared/data/api/errors'
 import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/paths'
-import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/types'
 import type {
+  ApiClient,
+  ConcreteApiPaths,
+  DataApiChange,
+  DataApiChangeBatch,
+  DataApiChangeCallback,
+  DataApiChangeEnvelope,
+  DataApiChangeType,
   DataRequest,
   DataResponse,
-  HttpMethod,
-  SubscriptionCallback,
-  SubscriptionEvent,
-  SubscriptionOptions
+  HttpMethod
 } from '@shared/data/api/types'
 
 import { DataApiDevtools } from './utils/dataApiDevtools'
@@ -68,13 +71,11 @@ interface RetryOptions {
 export class DataApiService implements ApiClient {
   private requestId = 0
 
-  // Subscriptions
-  private subscriptions = new Map<
-    string,
-    {
-      callback: SubscriptionCallback
-      options: SubscriptionOptions
-    }
+  private nextChangeSubscriptionId = 0
+  private stopChangeListener: (() => void) | undefined
+  private changeSubscriptions = new Map<
+    number,
+    { callback: DataApiChangeCallback<DataApiChangeEnvelope>; types: ReadonlySet<string> }
   >()
 
   // Default retry options
@@ -341,34 +342,44 @@ export class DataApiService implements ApiClient {
     })
   }
 
-  /**
-   * Subscribe to real-time updates
-   */
-  subscribe<T>(options: SubscriptionOptions, callback: SubscriptionCallback<T>): () => void {
-    if (!window.api.dataApi?.subscribe) {
-      throw new Error('Real-time subscriptions not supported')
+  /** Subscribe to selected committed change types within this Renderer. */
+  subscribeChanges<TType extends DataApiChangeType>(
+    types: readonly TType[],
+    callback: DataApiChangeCallback<DataApiChange<TType>>
+  ): () => void {
+    if (!window.api.dataApi?.onChanged) {
+      throw new Error('DataApi change notifications not supported')
     }
 
-    const subscriptionId = `sub_${Date.now()}_${Math.random()}`
+    if (!this.stopChangeListener) {
+      this.stopChangeListener = window.api.dataApi.onChanged((batch) => this.dispatchChanges(batch))
+    }
 
-    this.subscriptions.set(subscriptionId, {
-      callback: callback as SubscriptionCallback,
-      options
+    const subscriptionId = ++this.nextChangeSubscriptionId
+    this.changeSubscriptions.set(subscriptionId, {
+      callback: callback as DataApiChangeCallback<DataApiChangeEnvelope>,
+      types: new Set(types)
     })
 
-    const unsubscribe = window.api.dataApi.subscribe(options.path, (data, event) => {
-      // Convert string event to SubscriptionEvent enum
-      const subscriptionEvent = event as SubscriptionEvent
-      callback(data, subscriptionEvent)
-    })
-
-    logger.debug(`Subscribed to ${options.path}`, { subscriptionId })
-
-    // Return unsubscribe function
     return () => {
-      this.subscriptions.delete(subscriptionId)
-      unsubscribe()
-      logger.debug(`Unsubscribed from ${options.path}`, { subscriptionId })
+      this.changeSubscriptions.delete(subscriptionId)
+      if (this.changeSubscriptions.size === 0) {
+        this.stopChangeListener?.()
+        this.stopChangeListener = undefined
+      }
+    }
+  }
+
+  private dispatchChanges(batch: DataApiChangeBatch<DataApiChangeEnvelope>): void {
+    for (const subscription of this.changeSubscriptions.values()) {
+      const changes = batch.changes.filter((change) => subscription.types.has(change.type))
+      if (changes.length === 0) continue
+
+      try {
+        subscription.callback({ changes })
+      } catch (error) {
+        logger.error('DataApi change subscription callback failed', error as Error)
+      }
     }
   }
 
@@ -396,7 +407,7 @@ export class DataApiService implements ApiClient {
   getRequestStats() {
     return {
       pendingRequests: 0, // No longer tracked with direct IPC
-      activeSubscriptions: this.subscriptions.size
+      activeSubscriptions: this.changeSubscriptions.size
     }
   }
 }

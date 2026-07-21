@@ -308,35 +308,44 @@ export function isCursorPaginationResponse<T>(
   return !('page' in response)
 }
 
-/**
- * Subscription options for real-time data updates
- */
-export interface SubscriptionOptions {
-  /** Path pattern to subscribe to */
-  path: string
-  /** Filters to apply to subscription */
-  filters?: Record<string, any>
-  /** Whether to receive initial data */
-  includeInitial?: boolean
-  /** Custom subscription metadata */
-  metadata?: Record<string, any>
+/** Internal wire shape for a committed business-data change. */
+export interface DataApiChangeEnvelope<TType extends string = string, TPayload = unknown> {
+  readonly type: TType
+  readonly payload: TPayload
 }
 
 /**
- * Subscription callback function
+ * Registered change payloads keyed by their discriminant.
+ *
+ * Deliberately empty until a concrete domain consumer defines its change
+ * taxonomy. A key describes an affected read model and change class, not a
+ * write command or CRUD event. Payloads contain only facts needed to match
+ * mounted queries; they do not replicate entity rows. Adding an entry requires
+ * its own contract review.
  */
-export type SubscriptionCallback<T = any> = (data: T, event: SubscriptionEvent) => void
+export type DataApiChangeSchemas = Record<never, never>
+
+/** Registered DataApi change discriminants. */
+export type DataApiChangeType = Extract<keyof DataApiChangeSchemas, string>
+
+/** A committed business-data change from the closed schema registry. */
+export type DataApiChange<TType extends DataApiChangeType = DataApiChangeType> = {
+  [TKey in TType]: DataApiChangeEnvelope<TKey, DataApiChangeSchemas[TKey]>
+}[TType]
 
 /**
- * Subscription event types
+ * One committed publication batch of registered DataApi changes.
+ *
+ * The batch does not carry a resource revision, timestamp, or origin window.
  */
-export enum SubscriptionEvent {
-  CREATED = 'created',
-  UPDATED = 'updated',
-  DELETED = 'deleted',
-  INITIAL = 'initial',
-  ERROR = 'error'
+export interface DataApiChangeBatch<TChange extends DataApiChangeEnvelope = DataApiChange> {
+  readonly changes: readonly TChange[]
 }
+
+/** Callback for a committed DataApi change batch. */
+export type DataApiChangeCallback<TChange extends DataApiChangeEnvelope = DataApiChange> = (
+  batch: DataApiChangeBatch<TChange>
+) => void
 
 /**
  * Middleware interface

@@ -26,6 +26,7 @@
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
+import type { DataApiChangeBatch } from '@shared/data/api/types'
 
 import { apiHandlers, ApiServer, IpcAdapter } from './api'
 
@@ -97,5 +98,10 @@ export class DataApiService extends BaseService {
    */
   public getApiServer(): ApiServer {
     return this.apiServer
+  }
+
+  /** Publish changes only after the owning business-data write has committed. */
+  public publishChanges(batch: DataApiChangeBatch): void {
+    this.ipcAdapter.publishChanges(batch)
   }
 }

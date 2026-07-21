@@ -122,7 +122,7 @@ describe('Cache', () => {
 
 ### DataApiService
 
-HTTP client with subscriptions and retry configuration.
+HTTP client with committed change subscriptions and retry configuration.
 
 #### Methods
 
@@ -133,7 +133,7 @@ HTTP client with subscriptions and retry configuration.
 | `put` | `(path, options) => Promise<any>` |
 | `patch` | `(path, options) => Promise<any>` |
 | `delete` | `(path, options?) => Promise<any>` |
-| `subscribe` | `(options, callback) => () => void` |
+| `subscribeChanges` | `(types, callback) => () => void` |
 | `configureRetry` | `(options) => void` |
 | `getRetryConfig` | `() => RetryOptions` |
 | `getRequestStats` | `() => { pendingRequests, activeSubscriptions }` |
@@ -401,6 +401,7 @@ API coordinator managing ApiServer and IpcAdapter.
 | `shutdown` | `() => Promise<void>` |
 | `getSystemStatus` | `() => object` |
 | `getApiServer` | `() => ApiServer` |
+| `publishChanges` | `(batch) => void` |
 
 ```typescript
 import { MockMainDataApiServiceUtils } from '@test-mocks/main/DataApiService'
