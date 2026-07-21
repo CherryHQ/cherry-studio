@@ -9,6 +9,10 @@ export default defineProvider({
       adapterFamily: 'cherryin',
       baseUrl: 'https://open.cherryin.net'
     },
+    'google-generate-content': {
+      adapterFamily: 'cherryin',
+      baseUrl: 'https://open.cherryin.net'
+    },
     'openai-chat-completions': {
       adapterFamily: 'cherryin',
       baseUrl: 'https://open.cherryin.net'
