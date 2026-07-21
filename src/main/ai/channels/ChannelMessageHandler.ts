@@ -82,6 +82,12 @@ export class ChannelMessageHandler {
    * the 8 s timer) so their agent-turn admissions land before the orchestrator pauses the AI
    * writers. No resume() — dispose your own hold. There is no release compensation: intake
    * dropped while quiesced is not replayable.
+   *
+   * ORCHESTRATION CONTRACT: flush only SCHEDULES each batch's admission (`processIncoming` runs on
+   * the per-chat queue microtask); `pause()` returning does NOT mean the batches admitted. The
+   * orchestrator MUST `await drainInFlight()` to completion BEFORE it pauses the AI writers —
+   * otherwise a still-in-flight batch can reach `startAgentSessionRun` after the AI gate closes
+   * and lose an already ACKed message.
    */
   pause(reason?: string): Disposable {
     const token = Symbol(reason ?? 'channel-intake-pause')

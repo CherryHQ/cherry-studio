@@ -260,6 +260,32 @@ describe('ChannelMessageHandler write quiesce', () => {
     hold.dispose()
   })
 
+  it('drains flushed admissions before the AI writer is paused', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)
+    let aiPaused = false
+    let admitted = false
+    mockStartAgentSessionRun.mockImplementation(async () => {
+      if (aiPaused) throw new Error('AI write-quiesced')
+      admitted = true
+    })
+
+    const turn = handler.handleIncoming(adapter, msg('Hi'))
+    void turn.finally(() => {})
+    const channelHold = handler.pause()
+
+    // The channel drain is the flush-to-admission barrier. The orchestrator closes the AI gate
+    // immediately after it resolves; if the batch had only been scheduled, the mock gate above
+    // would reject it instead of recording a successful admission.
+    const result = await handler.drainInFlight({ timeoutMs: 1000 })
+    aiPaused = true
+
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ stragglerIds: [] })
+    expect(admitted).toBe(true)
+    channelHold.dispose()
+  })
+
   it('drainInFlight times out and reports stragglers without aborting them', async () => {
     const adapter = createMockAdapter()
     vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)

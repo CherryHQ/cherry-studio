@@ -553,14 +553,25 @@ the contract — `AiStreamManager`, `AgentSessionRuntimeService`, and channel in
 `pause(reason?): Disposable` + `drainInFlight({ timeoutMs }) → { stragglerIds }`
 (empty = clean) + an advisory read-only `listActiveWork()`.
 
-Orchestration order (grandfather-free, per #16850): **stop channel intake** —
-`ChannelManager.pause()` gates new adapter messages/commands and immediately flushes the
-buffered debounce batches (never cancels: adapters ack at the transport layer on receipt,
-so the buffer is the only copy), then `ChannelManager.drainInFlight()` waits until those
-flushed batches passed agent-turn *admission* (not turn completion — the flushed turns
-land in the AI in-flight set) → **pause AI + JobManager** (any order) → **joint drain** →
-verdict → snapshot. On any drain timeout the orchestrator aborts the attempt (dispose all
-holds); the happy path never disposes — the holds stand until relaunch, and a lost hold
+Orchestration order (grandfather-free, per #16850) — the channel step MUST fully complete
+before the AI writers are paused:
+
+1. `ChannelManager.pause()` — gate new adapter messages/commands and immediately flush the
+   buffered debounce batches (never cancel: adapters ack at the transport layer on receipt,
+   so the in-memory buffer is the only copy).
+2. `await ChannelManager.drainInFlight()` — flush only *schedules* each batch's admission (its
+   `processIncoming` runs on the per-chat queue microtask), so `pause()` returning does NOT
+   mean the batches admitted. This await is the flush-to-admission barrier: it resolves once
+   every flushed batch passed agent-turn *admission* (not turn completion — the flushed turns
+   land in the AI in-flight set, covered from there by the AI drains).
+3. **only then** pause AI + JobManager (any order) → joint drain → verdict → snapshot.
+
+Why the barrier is load-bearing: if the AI writers are paused while a flushed batch is still
+between flush and `startAgentSessionRun`, the batch hits the closed AI gate and is rejected.
+Because the adapter already ACKed it, it cannot be recovered by aborting the restore. The
+channel-drain-before-AI-pause ordering is therefore a correctness precondition, not merely a
+performance optimization. On any drain timeout the orchestrator aborts the attempt (dispose
+all holds); the happy path never disposes — the holds stand until relaunch, and a lost hold
 fails closed.
 
 AiStreamManager specifics:
