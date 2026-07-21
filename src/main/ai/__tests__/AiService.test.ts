@@ -271,6 +271,7 @@ describe('AiService', () => {
       paramValues: {
         numImages: 2,
         size: '1024x1024',
+        aspectRatio: '9:19.5',
         negativePrompt: 'blurry',
         seed: 7,
         quality: 'high',
@@ -289,6 +290,7 @@ describe('AiService', () => {
         prompt: 'draw a cat',
         n: 2,
         size: '1024x1024',
+        aspectRatio: '9:19.5',
         seed: 7,
         providerOptions: {
           'test-provider': {

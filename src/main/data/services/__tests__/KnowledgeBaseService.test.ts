@@ -1,3 +1,4 @@
+import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -25,6 +26,8 @@ const NEWER_KNOWLEDGE_BASE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const NEWEST_KNOWLEDGE_BASE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
+const KNOWLEDGE_GROUP_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+const OTHER_ENTITY_GROUP_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 
 describe('KnowledgeBaseService', () => {
   const dbh = setupTestDatabase()
@@ -390,6 +393,51 @@ describe('KnowledgeBaseService', () => {
       expect(row.dimensions).toBeNull()
     })
 
+    it('persists a valid knowledge group', async () => {
+      await dbh.db
+        .insert(groupTable)
+        .values({ id: KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Knowledge', orderKey: 'a0' })
+
+      const result = service.create({ name: 'Grouped Base', groupId: KNOWLEDGE_GROUP_ID })
+
+      expect(result.groupId).toBe(KNOWLEDGE_GROUP_ID)
+    })
+
+    it('rejects a missing knowledge group with a field-scoped validation error', async () => {
+      let err: unknown
+
+      try {
+        service.create({ name: 'Grouped Base', groupId: KNOWLEDGE_GROUP_ID })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(knowledgeBaseTable)).toHaveLength(0)
+    })
+
+    it('rejects a group owned by another entity type', async () => {
+      await dbh.db
+        .insert(groupTable)
+        .values({ id: OTHER_ENTITY_GROUP_ID, entityType: 'topic', name: 'Topics', orderKey: 'a0' })
+      let err: unknown
+
+      try {
+        service.create({ name: 'Grouped Base', groupId: OTHER_ENTITY_GROUP_ID })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      expect(await dbh.db.select().from(knowledgeBaseTable)).toHaveLength(0)
+    })
+
     it('rejects an embedding model without positive dimensions instead of a raw constraint violation', () => {
       // A model without dimensions would insert a row satisfying neither DB CHECK
       // arm (vector needs both; bm25-only needs neither). The IPC boundary already
@@ -654,6 +702,31 @@ describe('KnowledgeBaseService', () => {
       expect(row.name).toBe('Updated Base')
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(128)
+    })
+
+    it('rejects a group owned by another entity type and rolls back the update', async () => {
+      await dbh.db.insert(groupTable).values([
+        { id: KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Knowledge', orderKey: 'a0' },
+        { id: OTHER_ENTITY_GROUP_ID, entityType: 'topic', name: 'Topics', orderKey: 'a0' }
+      ])
+      await seedKnowledgeBase({ groupId: KNOWLEDGE_GROUP_ID })
+      let err: unknown
+
+      try {
+        service.update(KNOWLEDGE_BASE_ID, {
+          name: 'Updated Base',
+          groupId: OTHER_ENTITY_GROUP_ID
+        })
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { fieldErrors: { groupId: expect.any(Array) } }
+      })
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row).toMatchObject({ name: 'Knowledge Base', groupId: KNOWLEDGE_GROUP_ID })
     })
 
     it('should clear nullable processor and rerank config fields', async () => {

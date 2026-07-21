@@ -2,10 +2,9 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
-import { useEnsureTags } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { getRandomTagColor } from '@renderer/utils/resourceCatalog'
+import type { Group } from '@shared/data/types/group'
 import { Copy, Download, MoreHorizontal, Tag, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +21,7 @@ interface ResourceCardMenuProps {
   onDuplicate: (r: ResourceItem) => void
   onDelete: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
-  allTagNames: string[]
+  allGroups: Group[]
   triggerClassName?: string
 }
 
@@ -32,47 +31,43 @@ function useResourceCardMenuItems({
   onDuplicate,
   onDelete,
   onExport,
-  allTagNames
+  allGroups
 }: Omit<ResourceCardMenuProps, 'triggerClassName'>): readonly CommandContextMenuExtraItem[] {
   const { t } = useTranslation()
-  const resourceTag = resource.type === 'assistant' ? (resource.tag ?? null) : null
-  const [localTag, setLocalTag] = useState<string | null>(() =>
-    resource.type === 'assistant' ? (resource.tag ?? null) : null
+  const resourceGroupId = resource.type === 'assistant' ? (resource.groupId ?? null) : null
+  const [localGroupId, setLocalGroupId] = useState<string | null>(() =>
+    resource.type === 'assistant' ? (resource.groupId ?? null) : null
   )
   const [bindingPending, setBindingPending] = useState(false)
   const bindingPendingRef = useRef(false)
 
-  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
   const { updateAssistant } = useAssistantMutationsById(resource.id)
-  const canBindTags = resource.type === 'assistant'
+  const canAssignGroup = resource.type === 'assistant'
   const canDuplicate = canDuplicateResource(resource)
   const canExport = resource.type === 'assistant'
-  const hasActionsBeforeDelete = canBindTags || canDuplicate || canExport
+  const hasActionsBeforeDelete = canAssignGroup || canDuplicate || canExport
 
   useEffect(() => {
     if (bindingPendingRef.current) return
-    setLocalTag(resourceTag)
-  }, [resource.id, resourceTag])
+    setLocalGroupId(resourceGroupId)
+  }, [resource.id, resourceGroupId])
 
-  const persistTag = useCallback(
-    async (nextName: string | null, previousName: string | null) => {
-      if (!canBindTags) return
+  const persistGroup = useCallback(
+    async (nextGroupId: string | null, previousGroupId: string | null) => {
+      if (!canAssignGroup) return
       if (bindingPendingRef.current) return
       bindingPendingRef.current = true
       setBindingPending(true)
       try {
-        const nextNames = nextName ? [nextName] : []
-        const tags = await ensureTags(nextNames)
-        const tagIds = tags.map((tag) => tag.id)
         if (resource.type === 'assistant') {
-          await updateAssistant({ tagIds })
+          await updateAssistant({ groupId: nextGroupId })
         }
       } catch (e) {
         // Roll back optimistic state on failure.
-        setLocalTag(previousName)
-        const message = e instanceof Error ? e.message : t('library.tag_sync_failed')
+        setLocalGroupId(previousGroupId)
+        const message = e instanceof Error ? e.message : t('library.group_sync_failed')
         toast.error(message)
-        logger.error('Failed to sync resource tags', e instanceof Error ? e : new Error(String(e)), {
+        logger.error('Failed to sync resource group', e instanceof Error ? e : new Error(String(e)), {
           resourceId: resource.id,
           type: resource.type
         })
@@ -81,46 +76,45 @@ function useResourceCardMenuItems({
         setBindingPending(false)
       }
     },
-    [canBindTags, ensureTags, updateAssistant, resource.id, resource.type, t]
+    [canAssignGroup, updateAssistant, resource.id, resource.type, t]
   )
 
-  const selectTag = useCallback(
-    (tag: string) => {
+  const selectGroup = useCallback(
+    (groupId: string) => {
       if (bindingPendingRef.current) return
-      const prev = localTag
-      if (prev === tag) return
-      const next = tag
-      setLocalTag(next)
-      void persistTag(next, prev)
+      const previousGroupId = localGroupId
+      if (previousGroupId === groupId) return
+      setLocalGroupId(groupId)
+      void persistGroup(groupId, previousGroupId)
       onClose?.()
     },
-    [localTag, onClose, persistTag]
+    [localGroupId, onClose, persistGroup]
   )
 
   return useMemo(() => {
     const items: CommandContextMenuExtraItem[] = []
 
-    if (canBindTags) {
+    if (canAssignGroup) {
       items.push({
         type: 'submenu',
-        id: 'manage-tags',
-        label: t('library.action.manage_tags'),
+        id: 'manage-groups',
+        label: t('library.action.manage_groups'),
         icon: <Tag size={14} />,
         enabled: !bindingPending,
         children:
-          allTagNames.length > 0
-            ? allTagNames.map((tag) => ({
+          allGroups.length > 0
+            ? allGroups.map((group) => ({
                 type: 'item' as const,
-                id: `tag:${tag}`,
-                label: tag,
-                enabled: !bindingPending && localTag !== tag,
-                onSelect: () => selectTag(tag)
+                id: `group:${group.id}`,
+                label: group.name,
+                enabled: !bindingPending && localGroupId !== group.id,
+                onSelect: () => selectGroup(group.id)
               }))
             : [
                 {
                   type: 'item',
-                  id: 'tags-empty',
-                  label: t('library.tag_picker.no_tags'),
+                  id: 'groups-empty',
+                  label: t('library.group_picker.no_groups'),
                   enabled: false,
                   onSelect: () => {}
                 }
@@ -172,20 +166,20 @@ function useResourceCardMenuItems({
 
     return items
   }, [
-    allTagNames,
+    allGroups,
     bindingPending,
-    canBindTags,
+    canAssignGroup,
     canDuplicate,
     canExport,
     hasActionsBeforeDelete,
-    localTag,
+    localGroupId,
     onClose,
     onDelete,
     onDuplicate,
     onExport,
     resource,
     t,
-    selectTag
+    selectGroup
   ])
 }
 
