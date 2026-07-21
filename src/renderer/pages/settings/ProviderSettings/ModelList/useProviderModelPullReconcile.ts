@@ -24,8 +24,17 @@ const logger = loggerService.withContext('ProviderModelManageDrawer')
 function uniqueById(models: Model[]): Model[] {
   const result = new Map<string, Model>()
   for (const model of models) {
-    if (!result.has(model.id)) {
+    const existing = result.get(model.id)
+    if (!existing) {
       result.set(model.id, model)
+      continue
+    }
+    // Fetched models arrive with `capabilities: []` and, when the registry
+    // can't resolve them, would mask a resolved duplicate (catalog / already
+    // added) whose capabilities drive the row tags. Keep the preferred
+    // first-seen entry but borrow its capabilities so the tags still render.
+    if ((existing.capabilities?.length ?? 0) === 0 && (model.capabilities?.length ?? 0) > 0) {
+      result.set(model.id, { ...existing, capabilities: model.capabilities })
     }
   }
   return Array.from(result.values())

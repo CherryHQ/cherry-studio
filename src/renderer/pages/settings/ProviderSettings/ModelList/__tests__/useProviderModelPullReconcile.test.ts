@@ -1,6 +1,6 @@
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -164,6 +164,35 @@ describe('useProviderModelPullReconcile', () => {
 
     expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedOverlap)
     expect(toCreateModelDtoMock).toHaveBeenCalledWith('openai', fetchedOverlap, [ENDPOINT_TYPE.OPENAI_RESPONSES])
+  })
+
+  it('borrows capabilities from a resolved duplicate so a bare fetched entry still renders tags', async () => {
+    // Fetched models come back with capabilities: []; the same model, already
+    // added locally, carries capabilities. The fetched entry is first (and
+    // preferred for other fields), but must not mask the resolved tags.
+    const fetchedBare = { ...fetchedModel, id: 'openai::shared', apiModelId: 'shared', capabilities: [] }
+    const localRich = {
+      ...localModel,
+      id: 'openai::shared',
+      apiModelId: 'shared',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    }
+    fetchProviderCatalogModelsMock.mockResolvedValueOnce([])
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce([fetchedBare])
+    useModelsMock.mockReturnValue({ models: [localRich] })
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    act(() => {
+      result.current.openPullReconcile()
+    })
+
+    // Wait until the fetched entry is merged in (its identity wins for fields)...
+    await waitFor(() => {
+      expect(result.current.allModels[0]?.name).toBe('Fetched Model')
+    })
+    // ...but it carries the capabilities borrowed from the resolved local duplicate.
+    expect(result.current.allModels).toHaveLength(1)
+    expect(result.current.allModels[0]?.capabilities).toEqual([MODEL_CAPABILITY.REASONING])
   })
 
   it('does not mark custom local models as stale when they are missing remotely', async () => {
