@@ -70,7 +70,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
-  const SelectValueChangeContext = React.createContext(undefined)
+  const SelectValueChangeContext = React.createContext({ disabled: false, onValueChange: undefined })
   const passthrough =
     (tag: string, testId: string) =>
     ({ children, ...props }: MockPassthroughProps) =>
@@ -108,18 +108,30 @@ vi.mock('@cherrystudio/ui', () => {
     Popover: ({ children }: MockChildrenProps) => React.createElement('div', { 'data-testid': 'popover' }, children),
     PopoverContent: passthrough('div', 'popover-content'),
     PopoverTrigger: ({ children }: MockChildrenProps) => children,
-    Select: ({ children, onValueChange }: MockChildrenProps & { onValueChange?: (value: string) => void }) =>
+    Select: ({
+      children,
+      disabled,
+      onValueChange
+    }: MockChildrenProps & { disabled?: boolean; onValueChange?: (value: string) => void }) =>
       React.createElement(
         SelectValueChangeContext.Provider,
-        { value: onValueChange },
+        { value: { disabled: disabled === true, onValueChange } },
         React.createElement('div', { 'data-testid': 'select' }, children)
       ),
     SelectContent: passthrough('div', 'select-content'),
     SelectItem: ({ children, value }: MockChildrenProps & { value: string }) => {
-      const onValueChange = React.use(SelectValueChangeContext) as ((value: string) => void) | undefined
+      const select = React.use(SelectValueChangeContext) as {
+        disabled: boolean
+        onValueChange?: (value: string) => void
+      }
       return React.createElement(
         'button',
-        { type: 'button', 'data-testid': 'select-item', onClick: () => onValueChange?.(value) },
+        {
+          type: 'button',
+          disabled: select.disabled,
+          'data-testid': 'select-item',
+          onClick: () => select.onValueChange?.(value)
+        },
         children
       )
     },
@@ -324,21 +336,27 @@ describe('MigrationApp', () => {
     expect(i18nMock.changeLanguage.mock.invocationCallOrder[0]).toBeLessThan(
       migrationHookMock.actions.setDiagnosticLocale.mock.invocationCallOrder[1]
     )
+    expect(i18nMock.language).toBe('en-US')
+    expect(screen.getByRole('button', { name: '中文' })).toBeEnabled()
   })
 
-  it('logs a failed Main rollback without swallowing the Renderer language error', async () => {
-    const rendererError = new Error('renderer change failed')
+  it('reconciles the Renderer to the confirmed Main target when rollback is rejected', async () => {
     render(<MigrationApp />)
     await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
     migrationHookMock.actions.setDiagnosticLocale.mockReset().mockResolvedValueOnce(true).mockResolvedValueOnce(false)
-    i18nMock.changeLanguage.mockRejectedValue(rendererError)
+    i18nMock.changeLanguage
+      .mockRejectedValueOnce(new Error('first renderer change failed'))
+      .mockImplementationOnce(async (language: string) => {
+        i18nMock.language = language
+      })
 
     fireEvent.click(screen.getByRole('button', { name: '中文' }))
 
-    await waitFor(() =>
-      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to rollback migration diagnostic locale', expect.any(Error))
-    )
-    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to change migration language', rendererError)
+    await waitFor(() => expect(i18nMock.changeLanguage).toHaveBeenCalledTimes(2))
+    expect(migrationHookMock.actions.setDiagnosticLocale.mock.calls).toEqual([['zh-CN'], ['en-US']])
+    expect(i18nMock.changeLanguage.mock.calls).toEqual([['zh-CN'], ['zh-CN']])
+    expect(i18nMock.language).toBe('zh-CN')
+    expect(screen.getByRole('button', { name: '中文' })).toBeEnabled()
   })
 
   it('ignores a concurrent language selection until the first change settles', async () => {
@@ -838,6 +856,69 @@ describe('MigrationApp', () => {
     })
 
     it.each([
+      ['returns false', () => migrationHookMock.actions.setDiagnosticLocale.mockResolvedValueOnce(false)],
+      [
+        'rejects',
+        () => migrationHookMock.actions.setDiagnosticLocale.mockRejectedValueOnce(new Error('rollback failed'))
+      ]
+    ])(
+      'fails closed when both Renderer target attempts reject and Main rollback %s',
+      async (_case, configureRollback) => {
+        render(<MigrationApp />)
+        await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+        migrationHookMock.actions.setDiagnosticLocale.mockReset().mockResolvedValueOnce(true)
+        configureRollback()
+        i18nMock.changeLanguage.mockRejectedValue(new Error('renderer change failed'))
+        migrationHookMock.actions.save.mockClear()
+
+        fireEvent.click(screen.getByRole('button', { name: '中文' }))
+
+        await waitFor(() =>
+          expect(loggerErrorMock).toHaveBeenCalledWith(
+            'Failed to reconcile migration diagnostic locale',
+            expect.any(Error)
+          )
+        )
+        const languageOption = screen.getByRole('button', { name: '中文' })
+        const save = screen.getByRole('button', { name: 'migration.diagnostics.save' })
+        expect(languageOption).toBeDisabled()
+        expect(save).toBeDisabled()
+        expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledTimes(2)
+
+        fireEvent.click(languageOption)
+        fireEvent.click(save)
+        expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledTimes(2)
+        expect(migrationHookMock.actions.save).not.toHaveBeenCalled()
+      }
+    )
+
+    it('cancels a queued save when locale reconciliation becomes unavailable first', async () => {
+      let acceptTarget!: (accepted: boolean) => void
+      render(<MigrationApp />)
+      await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+      migrationHookMock.actions.setDiagnosticLocale
+        .mockReset()
+        .mockImplementationOnce(
+          () =>
+            new Promise<boolean>((resolve) => {
+              acceptTarget = resolve
+            })
+        )
+        .mockResolvedValueOnce(false)
+      i18nMock.changeLanguage.mockRejectedValue(new Error('renderer change failed'))
+      migrationHookMock.actions.save.mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: '中文' }))
+      await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('zh-CN'))
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      await act(async () => acceptTarget(true))
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeDisabled())
+      expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledTimes(2)
+      expect(migrationHookMock.actions.save).not.toHaveBeenCalled()
+    })
+
+    it.each([
       ['rejects', () => migrationHookMock.actions.setDiagnosticLocale.mockRejectedValue(new Error('sync failed'))],
       ['returns false', () => migrationHookMock.actions.setDiagnosticLocale.mockResolvedValue(false)]
     ])('maps a locale sync that %s to the existing save failure without running save', async (_case, configureSync) => {
@@ -903,6 +984,38 @@ describe('MigrationApp', () => {
       expect(migrationHookMock.actions.openEmail).toHaveBeenCalledTimes(1)
       expect(migrationHookMock.actions.showInFolder).toHaveBeenCalledTimes(1)
       expect(migrationHookMock.actions.copyEmail).toHaveBeenCalledTimes(1)
+    })
+
+    it('disables only the locale-sensitive saved action after unreconciled locale divergence', async () => {
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      const panel = await screen.findByTestId('migration-diagnostics-saved-actions')
+      migrationHookMock.actions.setDiagnosticLocale.mockReset().mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+      i18nMock.changeLanguage.mockRejectedValue(new Error('renderer change failed'))
+      migrationHookMock.actions.openEmail.mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: '中文' }))
+
+      await waitFor(() =>
+        expect(loggerErrorMock).toHaveBeenCalledWith(
+          'Failed to reconcile migration diagnostic locale',
+          expect.any(Error)
+        )
+      )
+      const openEmail = within(panel).getByRole('button', { name: 'migration.diagnostics.actions.open_email' })
+      const showInFolder = within(panel).getByRole('button', {
+        name: 'migration.diagnostics.actions.show_in_folder'
+      })
+      const copyEmail = within(panel).getByRole('button', { name: 'migration.diagnostics.actions.copy_email' })
+      expect(openEmail).toBeDisabled()
+      expect(showInFolder).toBeEnabled()
+      expect(copyEmail).toBeEnabled()
+      expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledTimes(2)
+
+      fireEvent.click(openEmail)
+      expect(migrationHookMock.actions.openEmail).not.toHaveBeenCalled()
+      expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledTimes(2)
     })
 
     it('syncs the current locale before opening the support email', async () => {
