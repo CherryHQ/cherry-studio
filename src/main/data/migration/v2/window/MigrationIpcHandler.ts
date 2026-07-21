@@ -4,6 +4,9 @@
 
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
+import { validateSender } from '@main/core/security/validateSender'
+import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
+import type { MigrationDiagnosticSaveResult } from '@shared/data/migration/v2/diagnostics'
 import {
   MigrationIpcChannels,
   type MigrationProgress,
@@ -11,17 +14,24 @@ import {
   type MigrationSummary,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { app, ipcMain } from 'electron'
+import { app, clipboard, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
 import { migrationEngine } from '../core/MigrationEngine'
+import type { MigrationDiagnosticContext } from '../diagnostics'
+import { saveMigrationDiagnosticBundleWithDialog } from './migrationDiagnosticDialogs'
+import { createMigrationDiagnosticEmailUrl, MIGRATION_DIAGNOSTIC_SUPPORT_EMAIL } from './migrationDiagnosticEmail'
+import { createMigrationDiagnosticNativeI18n } from './migrationDiagnosticNativeI18n'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 
 let inFlightMigration: Promise<MigrationResult> | null = null
+let diagnosticSaveInFlight: Promise<MigrationDiagnosticSaveResult> | null = null
+let lastSavedDiagnosticBundlePath: string | null = null
+let diagnosticStateEpoch = 0
 // Set once a deferred quit has been registered, so repeated confirmations while a migration
 // write is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
@@ -48,6 +58,56 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   // Wire the window manager's force-quit escape hatch (crash / hang / repeated close) to the same
   // write-deferral the ConfirmQuit handler uses, so those paths never terminate mid-write.
   migrationWindowManager.setQuitRequester(requestQuit)
+
+  ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
+    assertDiagnosticSender(event)
+    if (diagnosticSaveInFlight) return { status: 'failed', code: 'save_in_progress' } as const
+
+    const saveEpoch = diagnosticStateEpoch
+    const operation = saveMigrationDiagnosticBundleWithDialog(createRendererDiagnosticContext()).then((outcome) => {
+      if (
+        outcome.result.status === 'saved' &&
+        outcome.destination !== undefined &&
+        diagnosticStateEpoch === saveEpoch
+      ) {
+        lastSavedDiagnosticBundlePath = outcome.destination
+      }
+      return outcome.result
+    })
+    diagnosticSaveInFlight = operation
+
+    try {
+      return await operation
+    } finally {
+      if (diagnosticSaveInFlight === operation) diagnosticSaveInFlight = null
+    }
+  })
+
+  ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event) => {
+    assertDiagnosticSender(event)
+    const i18n = await createMigrationDiagnosticNativeI18n(app.getLocale())
+    const mailto = createMigrationDiagnosticEmailUrl(
+      createRendererDiagnosticContext(),
+      { version: app.getVersion(), platform: process.platform, arch: process.arch },
+      i18n
+    )
+    if (!isSafeExternalUrl(mailto)) throw new Error('Could not create a safe support email URL.')
+    await shell.openExternal(mailto)
+    return true
+  })
+
+  ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, (event) => {
+    assertDiagnosticSender(event)
+    if (lastSavedDiagnosticBundlePath === null) return false
+    shell.showItemInFolder(lastSavedDiagnosticBundlePath)
+    return true
+  })
+
+  ipcMain.handle(MigrationIpcChannels.CopySupportEmail, (event) => {
+    assertDiagnosticSender(event)
+    clipboard.writeText(MIGRATION_DIAGNOSTIC_SUPPORT_EMAIL)
+    return true
+  })
 
   // Get user data path
   ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
@@ -305,6 +365,20 @@ function updateProgress(progress: MigrationProgress): void {
   migrationWindowManager.send(MigrationIpcChannels.Progress, progress)
 }
 
+function assertDiagnosticSender(event: IpcMainInvokeEvent): void {
+  if (!validateSender(event)) throw new Error('Untrusted migration diagnostic IPC sender.')
+}
+
+function createRendererDiagnosticContext(): MigrationDiagnosticContext {
+  return {
+    source: 'renderer',
+    stage: currentProgress.stage,
+    errorSummary: currentProgress.error ?? currentProgress.currentMessage,
+    overallProgress: currentProgress.overallProgress,
+    migrators: currentProgress.migrators.map(({ id, status }) => ({ id, status }))
+  }
+}
+
 /**
  * Request an app quit. If a migration write is still in flight, defer the quit until it settles so
  * we never terminate mid-write (which would leave a half-applied migration). Returns true when
@@ -317,6 +391,7 @@ function updateProgress(progress: MigrationProgress): void {
 function requestQuit(): boolean {
   const pending: Promise<unknown>[] = []
   if (inFlightMigration) pending.push(inFlightMigration)
+  if (diagnosticSaveInFlight) pending.push(diagnosticSaveInFlight)
 
   if (pending.length === 0) {
     migrationWindowManager.confirmQuit()
@@ -352,6 +427,9 @@ function createMigrationSummary(result: MigrationResult, progress: MigrationProg
  */
 export function resetMigrationData(): void {
   inFlightMigration = null
+  diagnosticSaveInFlight = null
+  lastSavedDiagnosticBundlePath = null
+  diagnosticStateEpoch += 1
   quitScheduled = false
   dataLocationNotice = null
   currentProgress = {

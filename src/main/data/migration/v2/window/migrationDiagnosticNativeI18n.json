@@ -1,0 +1,66 @@
+{
+  "en-US": {
+    "translation": {
+      "action": {
+        "save": "Save diagnostic bundle"
+      },
+      "email": {
+        "appVersion": "App version: {{version}}",
+        "attach": "Save the diagnostic ZIP and attach it manually to this email.",
+        "errorSummary": "Error summary: {{summary}}",
+        "failureCode": "Failure code: {{code}}",
+        "platformArch": "Platform / architecture: {{platform}} / {{arch}}",
+        "privacy": "Cherry Studio does not automatically attach, upload, or send the ZIP or this email.",
+        "prompt": "Please add what happened immediately before the failure and whether retry reproduces it.",
+        "stage": "Migration stage: {{stage}}",
+        "subject": "Cherry Studio migration diagnostics — {{failure}} — {{version}} — {{platformArch}}",
+        "summary": "Automatic diagnostic summary"
+      },
+      "notice": {
+        "large": "The file is large. Consider using your email provider's large-attachment feature or a cloud drive.",
+        "logsIncluded": "The diagnostic bundle contains today's raw application logs, which may include file paths, error stacks, user content, or credentials. Review it yourself before sending.",
+        "logsNotIncluded": "The diagnostic bundle was saved, but today's application logs could not be included. You can save it again before sending.",
+        "notUploaded": "The diagnostic bundle is not uploaded automatically."
+      },
+      "save": {
+        "failedMessage": "The diagnostic bundle could not be saved. No data was uploaded or sent.",
+        "failedTitle": "Could not save diagnostic bundle",
+        "savedMessage": "Diagnostic bundle saved",
+        "savedTitle": "Diagnostic bundle saved",
+        "title": "Save migration diagnostic bundle"
+      }
+    }
+  },
+  "zh-CN": {
+    "translation": {
+      "action": {
+        "save": "保存诊断包"
+      },
+      "email": {
+        "appVersion": "应用版本：{{version}}",
+        "attach": "请保存诊断 ZIP，并手动附加到此邮件。",
+        "errorSummary": "错误摘要：{{summary}}",
+        "failureCode": "错误码：{{code}}",
+        "platformArch": "平台 / 架构：{{platform}} / {{arch}}",
+        "privacy": "Cherry Studio 不会自动附加、上传或发送诊断 ZIP 或此邮件。",
+        "prompt": "请补充失败前执行的操作，以及重试后是否仍会复现。",
+        "stage": "迁移阶段：{{stage}}",
+        "subject": "Cherry Studio 迁移诊断 — {{failure}} — {{version}} — {{platformArch}}",
+        "summary": "自动诊断摘要"
+      },
+      "notice": {
+        "large": "文件较大，建议使用邮箱的大附件或网盘功能发送。",
+        "logsIncluded": "诊断包包含当天的原始应用日志，可能含有文件路径、错误堆栈、用户内容或凭据。发送前请自行检查。",
+        "logsNotIncluded": "诊断包已保存，但当天应用日志未能加入。您可以重新保存后再发送。",
+        "notUploaded": "诊断包不会自动上传。"
+      },
+      "save": {
+        "failedMessage": "诊断包保存失败。未上传或发送任何数据。",
+        "failedTitle": "无法保存诊断包",
+        "savedMessage": "诊断包已保存",
+        "savedTitle": "诊断包已保存",
+        "title": "保存迁移诊断包"
+      }
+    }
+  }
+}

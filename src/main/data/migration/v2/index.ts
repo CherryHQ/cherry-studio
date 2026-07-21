@@ -42,6 +42,22 @@ export { getAllMigrators } from './migrators/migratorRegistry'
 
 // Window management
 export {
+  createMigrationDiagnosticSavedDetail,
+  type MigrationDiagnosticFailureDialog,
+  type MigrationDiagnosticFailurePresentation,
+  presentMigrationDiagnosticFailure,
+  saveMigrationDiagnosticBundleWithDialog
+} from './window/migrationDiagnosticDialogs'
+export {
+  createMigrationDiagnosticEmailUrl,
+  MIGRATION_DIAGNOSTIC_SUPPORT_EMAIL
+} from './window/migrationDiagnosticEmail'
+export {
+  createMigrationDiagnosticNativeI18n,
+  type MigrationDiagnosticNativeI18n,
+  type MigrationDiagnosticNativeLocale
+} from './window/migrationDiagnosticNativeI18n'
+export {
   registerMigrationIpcHandlers,
   resetMigrationData,
   setDataLocationNotice,

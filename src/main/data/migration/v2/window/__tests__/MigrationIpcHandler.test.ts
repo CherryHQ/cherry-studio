@@ -1,8 +1,18 @@
 import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
-import { ipcMain } from 'electron'
+import { clipboard, ipcMain, shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Shared mock fns so each test can configure return values.
+const electronMock = vi.hoisted(() => ({
+  ipcHandle: vi.fn(),
+  ipcRemoveHandler: vi.fn(),
+  appQuit: vi.fn(),
+  appGetVersion: vi.fn(() => '2.0.0-test'),
+  appGetLocale: vi.fn(() => 'en-US'),
+  openExternal: vi.fn(),
+  showItemInFolder: vi.fn(),
+  clipboardWriteText: vi.fn()
+}))
 const engineMock = vi.hoisted(() => ({
   onProgress: vi.fn(),
   run: vi.fn(),
@@ -16,8 +26,42 @@ const windowSetStageMock = vi.hoisted(() => vi.fn())
 const windowConfirmQuitMock = vi.hoisted(() => vi.fn())
 const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
 const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
+const diagnosticSaveDialogMock = vi.hoisted(() => vi.fn())
+const diagnosticEmailUrlMock = vi.hoisted(() => vi.fn(() => 'mailto:support@cherry-ai.com?subject=diagnostics'))
+const diagnosticI18nMock = vi.hoisted(() => vi.fn(async () => ({ locale: 'en-US', t: vi.fn() })))
+const validateSenderMock = vi.hoisted(() => vi.fn(() => true))
+const isSafeExternalUrlMock = vi.hoisted(() => vi.fn(() => true))
+
+vi.mock('electron', () => ({
+  app: {
+    quit: electronMock.appQuit,
+    getVersion: electronMock.appGetVersion,
+    getLocale: electronMock.appGetLocale
+  },
+  ipcMain: {
+    handle: electronMock.ipcHandle,
+    removeHandler: electronMock.ipcRemoveHandler
+  },
+  shell: {
+    openExternal: electronMock.openExternal,
+    showItemInFolder: electronMock.showItemInFolder
+  },
+  clipboard: { writeText: electronMock.clipboardWriteText }
+}))
 
 vi.mock('../../core/MigrationEngine', () => ({ migrationEngine: engineMock }))
+vi.mock('@main/core/security/validateSender', () => ({ validateSender: validateSenderMock }))
+vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: isSafeExternalUrlMock }))
+vi.mock('../migrationDiagnosticDialogs', () => ({
+  saveMigrationDiagnosticBundleWithDialog: diagnosticSaveDialogMock
+}))
+vi.mock('../migrationDiagnosticEmail', () => ({
+  createMigrationDiagnosticEmailUrl: diagnosticEmailUrlMock,
+  MIGRATION_DIAGNOSTIC_SUPPORT_EMAIL: 'support@cherry-ai.com'
+}))
+vi.mock('../migrationDiagnosticNativeI18n', () => ({
+  createMigrationDiagnosticNativeI18n: diagnosticI18nMock
+}))
 vi.mock('../MigrationWindowManager', () => ({
   migrationWindowManager: {
     send: windowSendMock,
@@ -64,6 +108,12 @@ describe('MigrationIpcHandler', () => {
 
   beforeEach(() => {
     vi.resetAllMocks()
+    validateSenderMock.mockReturnValue(true)
+    isSafeExternalUrlMock.mockReturnValue(true)
+    electronMock.appGetVersion.mockReturnValue('2.0.0-test')
+    electronMock.appGetLocale.mockReturnValue('en-US')
+    diagnosticEmailUrlMock.mockReturnValue('mailto:support@cherry-ai.com?subject=diagnostics')
+    diagnosticI18nMock.mockResolvedValue({ locale: 'en-US', t: vi.fn() })
     resetMigrationData()
     registerMigrationIpcHandlers('/mock/userData')
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -264,6 +314,177 @@ describe('MigrationIpcHandler', () => {
     })
   })
 
+  describe('diagnostic support actions', () => {
+    it('builds a renderer context in Main and ignores a caller-supplied destination', async () => {
+      let engineTick: ((progress: MigrationProgress) => void) | undefined
+      engineMock.onProgress.mockImplementation((callback: (progress: MigrationProgress) => void) => {
+        engineTick = callback
+      })
+      engineMock.run.mockImplementation(async () => {
+        engineTick?.({
+          stage: 'migration',
+          overallProgress: 65,
+          currentMessage: 'Migrating…',
+          migrators: [
+            { id: 'settings', name: 'Settings', status: 'completed' },
+            { id: 'messages', name: 'Messages', status: 'failed', error: 'boom' }
+          ]
+        })
+        return { success: false, error: 'Validation failed', totalDuration: 1, migratorResults: [] }
+      })
+      diagnosticSaveDialogMock.mockResolvedValue({
+        result: { status: 'saved', logs: 'included', size: 'standard' },
+        destination: '/main/chosen.zip'
+      })
+
+      await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const result = await invoke(MigrationIpcChannels.SaveDiagnosticBundle, '/renderer/evil.zip')
+
+      expect(result).toEqual({ status: 'saved', logs: 'included', size: 'standard' })
+      expect(diagnosticSaveDialogMock).toHaveBeenCalledTimes(1)
+      expect(diagnosticSaveDialogMock).toHaveBeenCalledWith({
+        source: 'renderer',
+        stage: 'error',
+        errorSummary: 'Validation failed',
+        overallProgress: 65,
+        migrators: [
+          { id: 'settings', status: 'completed' },
+          { id: 'messages', status: 'failed' }
+        ]
+      })
+    })
+
+    it('rejects a concurrent save immediately with save_in_progress', async () => {
+      let finishSave!: (value: unknown) => void
+      diagnosticSaveDialogMock.mockImplementationOnce(() => new Promise((resolve) => (finishSave = resolve)))
+
+      const first = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await Promise.resolve()
+
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+        status: 'failed',
+        code: 'save_in_progress'
+      })
+      expect(diagnosticSaveDialogMock).toHaveBeenCalledTimes(1)
+
+      finishSave({ result: { status: 'canceled' } })
+      await first
+    })
+
+    it('reveals only the latest successful Main-selected path and preserves it across canceled or failed saves', async () => {
+      expect(await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).toBe(false)
+      expect(shell.showItemInFolder).not.toHaveBeenCalled()
+
+      diagnosticSaveDialogMock
+        .mockResolvedValueOnce({
+          result: { status: 'saved', logs: 'not_included', size: 'standard' },
+          destination: '/main/success.zip'
+        })
+        .mockResolvedValueOnce({ result: { status: 'canceled' } })
+        .mockResolvedValueOnce({ result: { status: 'failed', code: 'bundle_save_failed' } })
+
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+
+      expect(await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder, '/renderer/evil.zip')).toBe(true)
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/main/success.zip')
+    })
+
+    it('creates the support email and copies the fixed address without accepting Renderer content', async () => {
+      await invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
+
+      expect(
+        await invoke(MigrationIpcChannels.OpenDiagnosticEmail, {
+          recipient: 'attacker@example.com',
+          body: 'renderer-controlled'
+        })
+      ).toBe(true)
+      expect(diagnosticEmailUrlMock).toHaveBeenCalledWith(
+        {
+          source: 'renderer',
+          stage: 'error',
+          errorSummary: 'Dexie export failed',
+          overallProgress: 0,
+          migrators: []
+        },
+        { version: '2.0.0-test', platform: process.platform, arch: process.arch },
+        expect.objectContaining({ locale: 'en-US' })
+      )
+      expect(isSafeExternalUrlMock).toHaveBeenCalledWith('mailto:support@cherry-ai.com?subject=diagnostics')
+      expect(shell.openExternal).toHaveBeenCalledWith('mailto:support@cherry-ai.com?subject=diagnostics')
+
+      expect(await invoke(MigrationIpcChannels.CopySupportEmail, 'attacker@example.com')).toBe(true)
+      expect(clipboard.writeText).toHaveBeenCalledWith('support@cherry-ai.com')
+    })
+
+    it('does not open an email URL rejected by the external URL safety gate', async () => {
+      isSafeExternalUrlMock.mockReturnValue(false)
+
+      await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail)).rejects.toThrow(
+        'Could not create a safe support email URL'
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      MigrationIpcChannels.SaveDiagnosticBundle,
+      MigrationIpcChannels.OpenDiagnosticEmail,
+      MigrationIpcChannels.ShowDiagnosticBundleInFolder,
+      MigrationIpcChannels.CopySupportEmail
+    ])('rejects an untrusted sender before side effects on %s', async (channel) => {
+      validateSenderMock.mockReturnValue(false)
+
+      await expect(Promise.resolve().then(() => invoke(channel))).rejects.toThrow(
+        'Untrusted migration diagnostic IPC sender'
+      )
+      expect(diagnosticSaveDialogMock).not.toHaveBeenCalled()
+      expect(diagnosticEmailUrlMock).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      expect(shell.showItemInFolder).not.toHaveBeenCalled()
+      expect(clipboard.writeText).not.toHaveBeenCalled()
+    })
+
+    it('validates exactly the four diagnostic handlers', async () => {
+      diagnosticSaveDialogMock.mockResolvedValue({ result: { status: 'canceled' } })
+
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.OpenDiagnosticEmail)
+      await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+      await invoke(MigrationIpcChannels.CopySupportEmail)
+      await invoke(MigrationIpcChannels.GetProgress)
+
+      expect(validateSenderMock).toHaveBeenCalledTimes(4)
+    })
+
+    it('clears the latest path and in-flight guard when migration data is reset', async () => {
+      diagnosticSaveDialogMock.mockResolvedValueOnce({
+        result: { status: 'saved', logs: 'included', size: 'standard' },
+        destination: '/main/old.zip'
+      })
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+
+      let finishOldSave!: (value: unknown) => void
+      diagnosticSaveDialogMock
+        .mockImplementationOnce(() => new Promise((resolve) => (finishOldSave = resolve)))
+        .mockResolvedValueOnce({ result: { status: 'canceled' } })
+      const oldSave = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await Promise.resolve()
+
+      resetMigrationData()
+
+      expect(await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).toBe(false)
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({ status: 'canceled' })
+
+      finishOldSave({
+        result: { status: 'saved', logs: 'included', size: 'standard' },
+        destination: '/main/stale.zip'
+      })
+      await oldSave
+      expect(await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).toBe(false)
+    })
+  })
+
   describe('window controls', () => {
     it('forwards a minimize request to the window manager', async () => {
       await invoke(MigrationIpcChannels.Minimize)
@@ -366,6 +587,23 @@ describe('MigrationIpcHandler', () => {
 
       resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
       await migrationFlow
+      await tick()
+
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers quit while a diagnostic save is in flight, then quits once it settles', async () => {
+      let finishSave!: (value: unknown) => void
+      diagnosticSaveDialogMock.mockImplementation(() => new Promise((resolve) => (finishSave = resolve)))
+
+      const saveFlow = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await Promise.resolve()
+
+      expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
+      expect(windowConfirmQuitMock).not.toHaveBeenCalled()
+
+      finishSave({ result: { status: 'canceled' } })
+      await saveFlow
       await tick()
 
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
