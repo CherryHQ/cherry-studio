@@ -1305,14 +1305,36 @@ const App = defineComponent({
     const localizedErrorMessage = (error: unknown) =>
       isAbortError(error) ? text('requestAborted') : toErrorMessage(error)
     const showCopiedHint = (label: string) => {
-      copiedHint.value = label
+      // Toast payload is the visible microcopy (usually text('copied')).
+      // Keep a unique stamp so rapid successive copies still reset the timer.
+      const stamp = `${label}::${Date.now()}`
+      copiedHint.value = stamp
       window.setTimeout(() => {
-        if (copiedHint.value === label) copiedHint.value = undefined
-      }, 1400)
+        if (copiedHint.value === stamp) copiedHint.value = undefined
+      }, 1600)
+    }
+    const renderCopiedToast = () => {
+      const raw = copiedHint.value
+      if (!raw) return undefined
+      const base = raw.includes('::') ? raw.slice(0, raw.lastIndexOf('::')) : raw
+      const label = base === text('downloadSource') ? text('downloadSource') : text('copied')
+      return h(
+        'div',
+        {
+          class: 'webui-copy-toast',
+          role: 'status',
+          'aria-live': 'polite'
+        },
+        label
+      )
     }
     const markdownToPlainText = (value: string) => {
       const container = document.createElement('div')
-      container.innerHTML = renderMarkdown(value, { copyCodeLabel: text('copyCode') })
+      container.innerHTML = renderMarkdown(value, {
+        copyCodeLabel: text('copyCode'),
+        downloadCodeLabel: text('downloadSource'),
+        wrapLinesLabel: text('wrapLines')
+      })
       return (container.textContent ?? value).trim()
     }
     const isReadingMessage = (messageId: string) =>
@@ -1504,7 +1526,11 @@ const App = defineComponent({
                     h('div', {
                       class: 'markdown-content',
                       onClick: handleMarkdownContentClick,
-                      innerHTML: renderMarkdown(message.reasoning, { copyCodeLabel: text('copyCode') })
+                      innerHTML: renderMarkdown(message.reasoning, {
+                        copyCodeLabel: text('copyCode'),
+                        downloadCodeLabel: text('downloadSource'),
+                        wrapLinesLabel: text('wrapLines')
+                      })
                     })
                   ])
                 ])
@@ -1785,17 +1811,111 @@ const App = defineComponent({
       showCopiedHint(text('downloadSource'))
     }
 
+    const codeLanguageExtension = (language: string | undefined) => {
+      const key = (language ?? '').trim().toLowerCase()
+      const map: Record<string, string> = {
+        js: 'js',
+        javascript: 'js',
+        jsx: 'jsx',
+        ts: 'ts',
+        typescript: 'ts',
+        tsx: 'tsx',
+        py: 'py',
+        python: 'py',
+        rb: 'rb',
+        ruby: 'rb',
+        go: 'go',
+        rs: 'rs',
+        rust: 'rs',
+        java: 'java',
+        kt: 'kt',
+        kotlin: 'kt',
+        c: 'c',
+        cpp: 'cpp',
+        'c++': 'cpp',
+        cs: 'cs',
+        csharp: 'cs',
+        php: 'php',
+        sh: 'sh',
+        bash: 'sh',
+        zsh: 'sh',
+        shell: 'sh',
+        powershell: 'ps1',
+        ps1: 'ps1',
+        sql: 'sql',
+        json: 'json',
+        yaml: 'yml',
+        yml: 'yml',
+        toml: 'toml',
+        xml: 'xml',
+        html: 'html',
+        css: 'css',
+        scss: 'scss',
+        less: 'less',
+        md: 'md',
+        markdown: 'md',
+        vue: 'vue',
+        svelte: 'svelte',
+        dockerfile: 'Dockerfile',
+        docker: 'Dockerfile',
+        text: 'txt',
+        plaintext: 'txt',
+        txt: 'txt'
+      }
+      return map[key] ?? (key && /^[a-z0-9.+-]+$/i.test(key) ? key : 'txt')
+    }
+
+    const downloadTextAsFile = (value: string, filename: string) => {
+      const blob = new Blob([value], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    }
+
     const handleMarkdownContentClick = (event: MouseEvent) => {
       const target =
         event.target instanceof Element
-          ? event.target.closest<HTMLElement>('[data-webui-copy-code], [data-webui-file-path]')
+          ? event.target.closest<HTMLElement>(
+              '[data-webui-copy-code], [data-webui-download-code], [data-webui-wrap-code], [data-webui-file-path]'
+            )
           : null
       if (!target) return
+
       if (target.dataset.webuiCopyCode !== undefined) {
         const code = target.closest('.markdown-code-block')?.querySelector('pre code')?.textContent ?? ''
-        if (code) void copyText(code).then(() => showCopiedHint(text('copyCode')))
+        if (code) void copyText(code).then(() => showCopiedHint(text('copied')))
         return
       }
+
+      if (target.dataset.webuiDownloadCode !== undefined) {
+        const block = target.closest('.markdown-code-block')
+        const code = block?.querySelector('pre code')?.textContent ?? ''
+        if (!code) return
+        const language = target.dataset.webuiCodeLang ?? ''
+        const ext = codeLanguageExtension(language)
+        const filename = ext === 'Dockerfile' ? 'Dockerfile' : `code.${ext}`
+        downloadTextAsFile(code, filename)
+        showCopiedHint(text('downloadSource'))
+        return
+      }
+
+      if (target.dataset.webuiWrapCode !== undefined) {
+        const block = target.closest('.markdown-code-block')
+        if (!block) return
+        const next = !block.classList.contains('markdown-code-block-wrap')
+        block.classList.toggle('markdown-code-block-wrap', next)
+        target.setAttribute('aria-pressed', next ? 'true' : 'false')
+        target.classList.toggle('markdown-code-tool-active', next)
+        target.setAttribute('title', next ? text('unwrapLines') : text('wrapLines'))
+        target.setAttribute('aria-label', next ? text('unwrapLines') : text('wrapLines'))
+        return
+      }
+
       const filePath = target.dataset.webuiFilePath
       if (filePath) {
         event.preventDefault()
@@ -2104,10 +2224,7 @@ const App = defineComponent({
         ),
         renderWorkspacePreviewToolButton(text('downloadSource'), () => downloadWorkspacePreviewSource(preview), {
           icon: 'download'
-        }),
-        copiedHint.value
-          ? h('span', { class: 'workspace-preview-copy-hint', role: 'status' }, text('copied'))
-          : undefined
+        })
       ])
     }
 
@@ -2194,7 +2311,11 @@ const App = defineComponent({
                               innerHTML:
                                 workspacePreviewMode.value === 'source'
                                   ? `<pre class="workspace-code-preview hljs"><code>${renderCode(preview.content, 'markdown')}</code></pre>`
-                                  : renderMarkdown(preview.content, { copyCodeLabel: text('copyCode') })
+                                  : renderMarkdown(preview.content, {
+                                      copyCodeLabel: text('copyCode'),
+                                      downloadCodeLabel: text('downloadSource'),
+                                      wrapLinesLabel: text('wrapLines')
+                                    })
                             })
                           : h(
                               'pre',
@@ -3110,8 +3231,7 @@ const App = defineComponent({
             h('path', { d: 'M10 11v5' }),
             h('path', { d: 'M14 11v5' })
           ])
-        ),
-        copiedHint.value ? h('span', { class: 'message-copy-hint', role: 'status' }, text('copied')) : undefined
+        )
       ])
 
     const copyText = async (value: string) => {
@@ -3618,6 +3738,7 @@ const App = defineComponent({
                 ]
               ),
               h('section', { class: 'chat-stage', 'aria-label': text('desktopSession') }, [
+                renderCopiedToast(),
                 h('header', { class: 'chat-header' }, [
                   h(
                     'button',
@@ -3764,7 +3885,11 @@ const App = defineComponent({
                             ? h('div', {
                                 class: 'markdown-content',
                                 onClick: handleMarkdownContentClick,
-                                innerHTML: renderMarkdown(message.content, { copyCodeLabel: text('copyCode') })
+                                innerHTML: renderMarkdown(message.content, {
+                                  copyCodeLabel: text('copyCode'),
+                                  downloadCodeLabel: text('downloadSource'),
+                                  wrapLinesLabel: text('wrapLines')
+                                })
                               })
                             : message.toolCalls?.length
                               ? undefined
@@ -4550,18 +4675,18 @@ style.textContent = `
 
   .webui-shell {
     display: grid;
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
   }
 
   .webui-shell-status-open {
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, var(--webui-right-panel-width, 380px));
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(300px, var(--webui-right-panel-width, 380px));
   }
 
   .webui-shell-files-open {
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(320px, var(--webui-right-panel-width, 420px));
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(320px, var(--webui-right-panel-width, 420px));
   }
 
   .webui-shell-resizing {
@@ -4612,7 +4737,7 @@ style.textContent = `
   .conversation-list,
   .status-panel {
     min-height: 0;
-    padding: 20px;
+    padding: 14px 12px;
     background: #ffffff;
     border-color: #e5e7eb;
   }
@@ -4632,9 +4757,9 @@ style.textContent = `
 
   .panel-header {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     align-items: center;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
 
   .panel-header > div:not(.panel-actions) {
@@ -4819,10 +4944,10 @@ style.textContent = `
 
   .conversation-nav {
     display: grid;
-    gap: 8px;
+    gap: 6px;
     min-height: 0;
-    margin-top: 8px;
-    padding-right: 6px;
+    margin-top: 6px;
+    padding-right: 4px;
     overflow-y: auto;
     scrollbar-gutter: stable;
   }
@@ -4835,8 +4960,8 @@ style.textContent = `
   .conversation-item {
     display: grid;
     width: 100%;
-    min-height: 58px;
-    padding: 10px 12px;
+    min-height: 52px;
+    padding: 8px 10px;
     text-align: left;
     background: #f9fafb;
     border: 1px solid #e5e7eb;
@@ -5005,16 +5130,16 @@ style.textContent = `
     height: 100dvh;
     min-width: 0;
     overflow: hidden;
-    padding: 20px 20px 10px;
+    padding: 12px 14px 8px;
   }
 
   .message-stack {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
     min-height: 0;
     overflow-y: auto;
-    padding: 12px 4px 8px;
+    padding: 8px 2px 6px;
   }
 
   .load-older-button {
@@ -5050,10 +5175,10 @@ style.textContent = `
 
   .chat-header {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     align-items: center;
     justify-content: space-between;
-    padding-bottom: 16px;
+    padding-bottom: 10px;
     border-bottom: 1px solid var(--webui-divider);
   }
 
@@ -5607,11 +5732,6 @@ style.textContent = `
     outline: 0;
   }
 
-  .workspace-preview-copy-hint {
-    color: #94a3b8;
-    font-size: 10px;
-    white-space: nowrap;
-  }
 
   .workspace-file-preview-content {
     min-width: 0;
@@ -6212,10 +6332,36 @@ style.textContent = `
     color: #bfdbfe;
   }
 
-  .message-copy-hint {
-    color: #64748b;
-    font-size: 11px;
+  /* Floating copy/download toast (viewport-centered bottom), not inline next to action buttons. */
+  .webui-copy-toast {
+    position: fixed;
+    z-index: 80;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    color: #f8fafc;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
     white-space: nowrap;
+    pointer-events: none;
+    background: rgb(15 23 42 / 92%);
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 999px;
+    box-shadow: 0 12px 32px rgb(15 23 42 / 28%);
+    animation: webui-copy-toast-in 160ms ease-out;
+  }
+
+  @keyframes webui-copy-toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   }
 
 
@@ -6346,6 +6492,12 @@ style.textContent = `
     padding-top: 34px;
   }
 
+  .markdown-code-block-wrap pre,
+  .markdown-code-block-wrap code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   .markdown-code-language {
     position: absolute;
     top: 8px;
@@ -6358,33 +6510,59 @@ style.textContent = `
     letter-spacing: 0.04em;
   }
 
-  .markdown-code-copy {
+  .markdown-code-toolbar {
     position: absolute;
     top: 6px;
     right: 6px;
     z-index: 1;
-    height: 24px;
-    padding: 0 8px;
-    color: #64748b;
-    font-size: 11px;
-    background: rgb(255 255 255 / 86%);
-    border: 1px solid var(--webui-code-border);
-    border-radius: 6px;
-    cursor: pointer;
+    display: flex;
+    gap: 4px;
+    align-items: center;
     opacity: 0;
-    transition: opacity 140ms ease, background 140ms ease, color 140ms ease;
+    transition: opacity 140ms ease;
   }
 
-  .markdown-code-block:hover .markdown-code-copy,
-  .markdown-code-copy:focus-visible {
+  .markdown-code-block:hover .markdown-code-toolbar,
+  .markdown-code-toolbar:focus-within {
     opacity: 1;
   }
 
-  .markdown-code-copy:hover,
-  .markdown-code-copy:focus-visible {
+  .markdown-code-tool {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    place-items: center;
+    color: #64748b;
+    background: rgb(255 255 255 / 92%);
+    border: 1px solid var(--webui-code-border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+
+  .markdown-code-tool svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+  }
+
+  .markdown-code-tool:hover,
+  .markdown-code-tool:focus-visible,
+  .markdown-code-tool-active {
     color: #111827;
     background: #ffffff;
     outline: 0;
+  }
+
+  .markdown-code-tool-active {
+    color: #2563eb;
+    border-color: #93c5fd;
   }
 
   .webui-file-link {
@@ -7751,6 +7929,30 @@ style.textContent = `
     color: #e5e7eb;
     background: #273449;
     border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .webui-copy-toast {
+    color: #f8fafc;
+    background: rgb(15 23 42 / 94%);
+    border-color: rgb(148 163 184 / 28%);
+  }
+
+  :root[data-webui-theme='dark'] .markdown-code-tool {
+    color: #cbd5e1;
+    background: rgb(15 23 42 / 88%);
+    border-color: rgb(148 163 184 / 28%);
+  }
+
+  :root[data-webui-theme='dark'] .markdown-code-tool:hover,
+  :root[data-webui-theme='dark'] .markdown-code-tool:focus-visible,
+  :root[data-webui-theme='dark'] .markdown-code-tool-active {
+    color: #f8fafc;
+    background: #1e293b;
+  }
+
+  :root[data-webui-theme='dark'] .markdown-code-tool-active {
+    color: #93c5fd;
+    border-color: #3b82f6;
   }
 
   :root[data-webui-theme='dark'] .speech-notice {
