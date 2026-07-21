@@ -1,4 +1,14 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import {
+  ColorPicker,
+  ColorPickerEyeDropper,
+  ColorPickerHue,
+  ColorPickerSelection,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowFlex
+} from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { useEffect, useState } from 'react'
 
@@ -56,6 +66,11 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
     }
   }
 
+  const handlePickerChange = ([r, g, b]: [number, number, number, number]) => {
+    const hex = `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+    commitColor(hex)
+  }
+
   const handleInputBlur = () => {
     const nextColor = normalizeHexColor(draftValue)
 
@@ -95,16 +110,25 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
           )
         })}
       </RowFlex>
-      <label className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-within:ring-3 focus-within:ring-ring/50">
-        <input
-          type="color"
-          value={normalizedValue}
-          aria-label={ariaLabel}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          onChange={(event) => commitColor(event.target.value)}
-        />
-        <span className="h-5 w-5 rounded-sm border border-border" style={{ backgroundColor: normalizedValue }} />
-      </label>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={ariaLabel}
+            className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+            <span className="h-5 w-5 rounded-sm border border-border" style={{ backgroundColor: normalizedValue }} />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-64 p-3">
+          <ColorPicker value={normalizedValue} onChange={handlePickerChange} className="gap-3">
+            <ColorPickerSelection className="h-40 w-full rounded-lg" />
+            <RowFlex className="items-center gap-2">
+              <ColorPickerEyeDropper size="icon-sm" />
+              <ColorPickerHue className="flex-1" />
+            </RowFlex>
+          </ColorPicker>
+        </PopoverContent>
+      </Popover>
       <Input
         value={draftValue}
         onChange={(event) => setDraftValue(event.target.value)}

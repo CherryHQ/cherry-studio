@@ -401,6 +401,25 @@ describe('SelectorShell', () => {
     expect(screen.getByRole('textbox')).toHaveFocus()
   })
 
+  it('renders the v2 pill search field', () => {
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}>
+        <div />
+      </SelectorShell>
+    )
+
+    expect(screen.getByRole('textbox').parentElement).toHaveClass(
+      'rounded-full',
+      'border',
+      'border-border-subtle',
+      'bg-background'
+    )
+  })
+
   it('uses maxContentHeight as the popover cap before measuring list height', async () => {
     const originalGetComputedStyle = window.getComputedStyle.bind(window)
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {

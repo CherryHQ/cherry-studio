@@ -8,6 +8,11 @@ import {
   Flex,
   InfoTooltip,
   SegmentedControl,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
@@ -15,7 +20,6 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
-import Selector from '@renderer/components/Selector'
 import {
   SettingDescription,
   SettingDivider,
@@ -159,6 +163,7 @@ const AppearanceSettings: FC = () => {
     () => [
       {
         value: ThemeMode.light,
+        ariaLabel: t('settings.theme.light'),
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <Sun size={16} />
@@ -168,6 +173,7 @@ const AppearanceSettings: FC = () => {
       },
       {
         value: ThemeMode.dark,
+        ariaLabel: t('settings.theme.dark'),
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <Moon size={16} />
@@ -177,6 +183,7 @@ const AppearanceSettings: FC = () => {
       },
       {
         value: ThemeMode.system,
+        ariaLabel: t('settings.theme.system'),
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <Monitor size={16} />
@@ -364,36 +371,47 @@ const AppearanceSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <SelectorRow>
-            <Selector
-              size={14}
-              style={{ width: '100%' }}
-              value={displayLanguage}
-              onChange={onSelectLanguage}
-              options={languagesOptions.map((lang) => ({
-                label: (
-                  <Flex className="items-center gap-2">
-                    <span role="img" aria-label={lang.flag}>
-                      {lang.flag}
-                    </span>
-                    {lang.label}
-                  </Flex>
-                ),
-                value: lang.value
-              }))}
-            />
+            <Select value={displayLanguage} onValueChange={(value) => onSelectLanguage(value as LanguageVarious)}>
+              <SelectTrigger
+                size="sm"
+                className="w-full text-sm"
+                aria-label={languagesOptions.find((option) => option.value === displayLanguage)?.label}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {languagesOptions.map((lang) => (
+                  <SelectItem key={lang.value} value={lang.value}>
+                    <Flex className="items-center gap-2">
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SelectorRow>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
           <SelectorRow>
-            <Selector<ThemeMode>
-              size={14}
-              style={{ width: '100%' }}
-              value={settedTheme}
-              onChange={setTheme}
-              options={themeOptions}
-            />
+            <Select value={settedTheme} onValueChange={(value) => setTheme(value as ThemeMode)}>
+              <SelectTrigger
+                size="sm"
+                className="w-full text-sm"
+                aria-label={themeOptions.find((option) => option.value === settedTheme)?.ariaLabel}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {themeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SelectorRow>
         </SettingRow>
         <SettingDivider />
@@ -470,7 +488,7 @@ const AppearanceSettings: FC = () => {
                 <ResetIcon size="14" />
               </Button>
             )}
-            <div className="min-w-0 flex-1">
+            <div className="w-full min-w-0 max-w-55">
               <Combobox
                 placeholder={t('settings.display.font.select')}
                 emptyText={t('common.no_results')}
@@ -494,7 +512,7 @@ const AppearanceSettings: FC = () => {
                 <ResetIcon size="14" />
               </Button>
             )}
-            <div className="min-w-0 flex-1">
+            <div className="w-full min-w-0 max-w-55">
               <Combobox
                 placeholder={t('settings.display.font.select')}
                 emptyText={t('common.no_results')}
