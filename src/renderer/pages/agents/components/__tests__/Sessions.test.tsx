@@ -3,7 +3,7 @@ import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTa
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -484,6 +484,8 @@ vi.mock('@renderer/hooks/usePins', () => ({
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
+  buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`,
   getChannelTypeIcon: vi.fn(() => undefined)
 }))

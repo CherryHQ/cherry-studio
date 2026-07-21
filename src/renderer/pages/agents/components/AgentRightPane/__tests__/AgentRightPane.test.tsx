@@ -1,3 +1,4 @@
+import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -165,7 +166,7 @@ vi.mock('@renderer/utils/filePath', () => ({
   resolveInlineFilePath: (path: string) => path
 }))
 
-vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
+vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   ArtifactFilePreview: () => <div data-testid="artifact-preview" />,
   ArtifactPaneView: ({
     editMode,
@@ -205,6 +206,9 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
       )}
     </div>
   ),
+  getArtifactPaneSelectionPath: (
+    await vi.importActual<typeof ArtifactPanePath>('@renderer/components/chat/panes/artifactPanePath')
+  ).getArtifactPaneSelectionPath,
   isOfficeDocumentFile: () => false,
   isImageFile: () => false,
   resolveArtifactPaneFileSelection: () => null
