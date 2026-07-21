@@ -120,9 +120,11 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
     const entries = await readArchive(destination())
     expect([...entries.keys()]).toEqual([...MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES])
 
-    const document = migrationDiagnosticBundleDocumentSchema.parse(
-      JSON.parse(entries.get('migration-diagnostics.json')?.toString('utf8') ?? '')
-    )
+    const json = entries.get('migration-diagnostics.json')?.toString('utf8') ?? ''
+    expect(json).toContain('\n  "formatVersion"')
+    expect(json.endsWith('\n')).toBe(true)
+
+    const document = migrationDiagnosticBundleDocumentSchema.parse(JSON.parse(json))
     expect(document).toMatchObject({
       formatVersion: 1,
       generatedAt: '2026-07-21T08:02:00.000Z',

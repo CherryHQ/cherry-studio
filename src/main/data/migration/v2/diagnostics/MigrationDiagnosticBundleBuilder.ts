@@ -109,7 +109,7 @@ function serializeEntries(document: MigrationDiagnosticBundleDocument): {
   const entries = [
     {
       name: 'migration-diagnostics.json' as const,
-      buffer: Buffer.from(JSON.stringify(document), 'utf8')
+      buffer: Buffer.from(`${JSON.stringify(document, null, 2)}\n`, 'utf8')
     },
     { name: 'README.txt' as const, buffer: Buffer.from(BUNDLE_README, 'utf8') }
   ]
