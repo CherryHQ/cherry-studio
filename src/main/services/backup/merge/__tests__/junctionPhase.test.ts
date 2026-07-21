@@ -113,10 +113,11 @@ const seedAgentChannelTask = (db: Database.Database, channelId: string, taskId: 
 const runMerge = (ctx: MergeContext): Promise<unknown> =>
   new MergeEngine(registry).mergeBackupIntoWork(dbh.sqlite, dbh.db, ctx)
 
-// SKILLS (agent_global_skill) and AGENTS (agent_workspace) hold natural-key aggregates → the
-// SKIP override is mandatory (FIELD_MERGE is unimplemented). Under SKIP: uuid roots the work
-// already lacks are still INSERTed (sourceMap populated); natural-key roots are force-skipped
-// (targetMap = local canonical when work has the row, absent otherwise).
+// SKILLS (agent_global_skill) and AGENTS (agent_workspace / job_schedule) hold natural-key
+// aggregates. Roots absent from work are BACKFILLED (INSERT keeping the backup PK, sourceMap +
+// targetMap populated); roots whose identityKey exists locally SKIP with targetMap carrying the
+// LOCAL canonical PK. The explicit SKIP override only pins conflict resolution — backfill
+// still applies.
 const agentsSkillsCtx = (): MergeContext => ({
   backupDbPath: backupPath,
   domains: ['AGENTS', 'SKILLS'],
@@ -132,7 +133,8 @@ const agentSkillRows = (): { agent_id: string; skill_id: string }[] =>
 
 describe('importAllJunctionRows (global junction phase)', () => {
   it('imports agent_skill when source is imported + target is local-canonical (SKIP)', async () => {
-    // Work already has skill-1 (natural-key SKIP → targetMap carries local canonical 'skill-1').
+    // Work already has skill-1 (natural-key conflict → SKIP, targetMap carries local
+    // canonical 'skill-1'; the local-wins conflict is disclosed — FIELD_MERGE pending).
     seedSkill(dbh.sqlite, 'skill-1')
     seedBackup((db) => {
       seedAgent(db, 'agent-1')
@@ -140,11 +142,36 @@ describe('importAllJunctionRows (global junction phase)', () => {
       seedAgentSkill(db, 'agent-1', 'skill-1')
     })
 
-    const result = await runMerge(agentsSkillsCtx())
+    const result = (await runMerge(agentsSkillsCtx())) as { degradedToSkips: { table: string; count: number }[] }
 
-    expect(result).toMatchObject({ degradedToSkips: [] })
     // agent-1 INSERTed (sourceMap) + skill-1 local-canonical (targetMap) → junction imported.
     expect(agentSkillRows()).toEqual([{ agent_id: 'agent-1', skill_id: 'skill-1' }])
+    // The skill conflict kept local values — recorded for disclosure (FIELD_MERGE milestone).
+    expect(result.degradedToSkips).toEqual([{ table: 'agent_global_skill', count: 1, reason: expect.any(String) }])
+  })
+
+  it('rewrites the junction FK to the LOCAL canonical PK when the natural-key target conflicts under a different uuid', async () => {
+    // Work holds the same skill identity (folder_name 'f-skill-1') under a DIFFERENT uuid.
+    // The junction row references the BACKUP uuid — it must land on the LOCAL uuid.
+    seedRow(dbh.sqlite, 'agent_global_skill', {
+      id: 'skill-local',
+      name: 's-local',
+      folder_name: 'f-skill-1',
+      source: 'builtin',
+      content_hash: 'h-local'
+    })
+    seedBackup((db) => {
+      seedAgent(db, 'agent-1')
+      seedSkill(db, 'skill-1') // folder_name 'f-skill-1' — same identityKey, different uuid
+      seedAgentSkill(db, 'agent-1', 'skill-1')
+    })
+
+    await runMerge(agentsSkillsCtx())
+
+    expect(agentSkillRows()).toEqual([{ agent_id: 'agent-1', skill_id: 'skill-local' }])
+    // No duplicate skill row was backfilled — the local canonical survived alone.
+    const skills = dbh.sqlite.prepare(`SELECT id FROM agent_global_skill ORDER BY id`).all() as { id: string }[]
+    expect(skills).toEqual([{ id: 'skill-local' }])
   })
 
   it('cascade-prunes agent_skill when the source agent is not imported (work already has it)', async () => {
@@ -163,18 +190,23 @@ describe('importAllJunctionRows (global junction phase)', () => {
     expect(agentSkillRows()).toEqual([])
   })
 
-  it('cascade-prunes agent_skill when the target skill is unavailable (work lacks it)', async () => {
-    // Work has neither skill nor agent. Under SKIP: agent-1 INSERTed, skill-1 force-skipped but
-    // work has no skill-1 → targetMap empty for skill-1 → junction cannot resolve target.
+  it('backfills the natural-key target when work lacks it and imports the junction', async () => {
+    // Work has neither skill nor agent. skill-1's identityKey is absent locally →
+    // BACKFILL (INSERT keeping the backup uuid) → both junction endpoints resolve.
+    // (Target-unavailable cascade-prune is still covered by the source-skip test above
+    // and by unselected-domain junction derivation.)
     seedBackup((db) => {
       seedAgent(db, 'agent-1')
       seedSkill(db, 'skill-1')
       seedAgentSkill(db, 'agent-1', 'skill-1')
     })
 
-    await runMerge(agentsSkillsCtx())
+    const result = await runMerge(agentsSkillsCtx())
 
-    expect(agentSkillRows()).toEqual([])
+    expect(result).toMatchObject({ degradedToSkips: [] }) // backfill is not a degradation
+    expect(agentSkillRows()).toEqual([{ agent_id: 'agent-1', skill_id: 'skill-1' }])
+    const skill = dbh.sqlite.prepare(`SELECT id FROM agent_global_skill WHERE id = 'skill-1'`).get()
+    expect(skill).toBeDefined()
   })
 
   it('is idempotent — re-merging the same backup adds 0 new junction rows', async () => {
@@ -217,10 +249,11 @@ describe('importAllJunctionRows (global junction phase)', () => {
   })
 
   it('imports agent_channel_task (same-domain AGENTS junction) with local-canonical job_schedule', async () => {
-    // job_schedule is natural-key (FIELD_MERGE) → under SKIP it force-skips. Pre-seed work with
-    // the local canonical task-1 so the junction target resolves (targetMap local-canonical);
-    // agent_channel (uuid) INSERTs as the source. Both legs are AGENTS — deriveJunctionDescriptors
-    // picks agent_channel as source (first same-domain endpoint), job_schedule as target.
+    // job_schedule is natural-key (FIELD_MERGE default). Pre-seed work with the same
+    // (type,name) identity so the backup row conflicts → SKIP with targetMap local-canonical
+    // (disclosed as a FIELD_MERGE-pending conflict); agent_channel (uuid) INSERTs as the
+    // source. Both legs are AGENTS — deriveJunctionDescriptors picks agent_channel as source
+    // (first same-domain endpoint), job_schedule as target.
     seedJobSchedule(dbh.sqlite, 'task-1')
     seedBackup((db) => {
       seedAgentChannel(db, 'chan-1')
@@ -228,14 +261,14 @@ describe('importAllJunctionRows (global junction phase)', () => {
       seedAgentChannelTask(db, 'chan-1', 'task-1')
     })
 
-    const result = await runMerge({
+    const result = (await runMerge({
       backupDbPath: backupPath,
       domains: ['AGENTS'],
       userStrategy: 'SKIP',
       skippedFileEntryIds: new Set<string>()
-    })
+    })) as { degradedToSkips: { table: string; count: number }[] }
 
-    expect(result).toMatchObject({ degradedToSkips: [] })
+    expect(result.degradedToSkips).toEqual([{ table: 'job_schedule', count: 1, reason: expect.any(String) }])
     const rows = dbh.sqlite.prepare(`SELECT channel_id, task_id FROM agent_channel_task`).all() as {
       channel_id: string
       task_id: string

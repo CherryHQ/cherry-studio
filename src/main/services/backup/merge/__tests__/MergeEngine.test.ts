@@ -182,25 +182,77 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(countRows('message')).toBe(messagesAfterFirst)
   })
 
-  it('degrades a natural-key credential domain to SKIP when FIELD_MERGE is not implemented', async () => {
-    // PROVIDERS finalize to identityClass 'natural-key' + conflictDefault FIELD_MERGE. With no
-    // userStrategy (production default — ImportOrchestrator omits it), the engine degrades to
-    // SKIP so restore completes (local rows survive) and records the credential domain in
-    // degradedToSkips for UI disclosure. Empty backup is enough — the degrade fires at scan.
+  /** Insert a minimal user_provider row (natural-key providerId PK). */
+  const insertProvider = (db: Database.Database, providerId: string, name = `p-${providerId}`): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO user_provider (provider_id, name, api_keys, is_enabled, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, 1, ?, ?, ?)`
+    ).run(providerId, name, JSON.stringify([{ id: 'k1', key: `key-${providerId}` }]), `order-${providerId}`, now, now)
+  }
+
+  /** Insert a minimal user_model row (deterministic PK providerId::modelId). */
+  const insertModel = (db: Database.Database, providerId: string, modelId: string): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO user_model (id, provider_id, model_id, name, capabilities, supports_streaming, is_enabled, is_hidden, is_deprecated, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, '[]', 1, 1, 0, 0, ?, ?, ?)`
+    ).run(`${providerId}::${modelId}`, providerId, modelId, modelId, `order-${modelId}`, now, now)
+  }
+
+  it('backfills a natural-key aggregate absent from work (fresh-install restore keeps providers + models)', async () => {
+    // Work has no PROVIDERS rows (fresh install). The backup provider + model must be
+    // INSERTed keeping their backup PKs — NOT skipped — so a migration restore does not
+    // silently drop credentials, and incoming cross-domain FKs (message.modelId etc.)
+    // resolve naturally against the deterministic user_model id.
+    seedBackup((db) => {
+      insertProvider(db, 'openai')
+      insertModel(db, 'openai', 'gpt-4o')
+    })
+
+    const result = await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>()
+    })
+
+    expect(result).toMatchObject({ degradedToSkips: [] }) // backfill is not a degradation
+    const provider = dbh.sqlite.prepare(`SELECT api_keys FROM user_provider WHERE provider_id = 'openai'`).get() as {
+      api_keys: string
+    }
+    expect(provider.api_keys).toContain('key-openai') // credentials restored
+    const model = dbh.sqlite.prepare(`SELECT id FROM user_model WHERE id = 'openai::gpt-4o'`).get()
+    expect(model).toBeDefined() // include member cascaded with the backfilled root
+  })
+
+  it('SKIPs a conflicting natural-key aggregate (local wins) and discloses the pending FIELD_MERGE', async () => {
+    // Work already has provider 'openai' with a LOCAL key; the backup holds different
+    // values. Until FIELD_MERGE lands the local row wins wholesale, and the conflict is
+    // recorded in degradedToSkips for UI disclosure (backup field values not merged).
+    insertProvider(dbh.sqlite, 'openai', 'local-name')
+    seedBackup((db) => insertProvider(db, 'openai', 'backup-name'))
+
     const result = (await runMerge({
       backupDbPath: backupPath,
       domains: ['PROVIDERS'],
       skippedFileEntryIds: new Set<string>()
-    })) as { degradedToSkips: { reason: string }[] }
-    expect(result.degradedToSkips.some((s) => s.reason.includes('FIELD_MERGE not implemented'))).toBe(true)
+    })) as { degradedToSkips: { table: string; count: number; reason: string }[] }
+
+    const row = dbh.sqlite.prepare(`SELECT name FROM user_provider WHERE provider_id = 'openai'`).get() as {
+      name: string
+    }
+    expect(row.name).toBe('local-name') // local wins
+    expect(result.degradedToSkips).toEqual([
+      { table: 'user_provider', count: 1, reason: expect.stringContaining('FIELD_MERGE not implemented') }
+    ])
   })
 
-  it('throws MergeConsistencyCheckError when an inserted row dangles a cross-domain FK', async () => {
+  it('repairs a dangling nullable FK by SET NULL (disclosed) instead of aborting the restore', async () => {
     // Backup topic + a root message whose model_id points at a user_model that is
-    // NOT in the backup and NOT in work (PROVIDERS is outside this merge). The
-    // engine inserts the message; defer_foreign_keys pushes enforcement to
-    // COMMIT-time foreign_key_check, which the consistency gate must catch. FK is
-    // disabled while seeding so the orphan can be planted in the backup itself.
+    // NOT in the backup and NOT in work (PROVIDERS is outside this merge). message.model_id
+    // is nullable (onDelete set null posture) — the repair pass clears it so the restore
+    // completes, and the degradation is disclosed. FK is disabled while seeding so the
+    // orphan can be planted in the backup itself.
     seedBackup(
       (db) => {
         insertTopic(db, 'tpc-dangle')
@@ -209,7 +261,56 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       { foreignKeys: false }
     )
 
+    const result = (await runMerge(topCtx())) as { degradedToSkips: { table: string; reason: string }[] }
+
+    const row = dbh.sqlite.prepare(`SELECT model_id FROM message WHERE id = 'msg-dangle'`).get() as {
+      model_id: string | null
+    }
+    expect(row.model_id).toBeNull() // link dropped, row survives
+    expect(result.degradedToSkips).toEqual([
+      { table: 'message', count: 1, reason: expect.stringContaining('SET NULL') }
+    ])
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([]) // repair left the graph clean
+  })
+
+  it('repairs a dangling NOT NULL FK by pruning the row (disclosed) instead of aborting the restore', async () => {
+    // chat_message_file_ref.file_entry_id is NOT NULL — a ref whose file_entry exists in
+    // neither backup nor work cannot be nulled; the repair pass prunes the row so the
+    // restore completes, and the prune is disclosed.
+    seedBackup(
+      (db) => {
+        insertTopic(db, 'tpc-prune')
+        insertMessage(db, 'msg-prune', 'tpc-prune', 'root', null)
+        insertChatMessageFileRef(db, 'fr-dangle', 'msg-prune', 'fe-nonexistent')
+      },
+      { foreignKeys: false }
+    )
+
+    const result = (await runMerge(topCtx())) as { degradedToSkips: { table: string; reason: string }[] }
+
+    expect(dbh.sqlite.prepare(`SELECT id FROM chat_message_file_ref WHERE id = 'fr-dangle'`).get()).toBeUndefined()
+    // The message itself survives — only the required-target row was pruned.
+    expect(dbh.sqlite.prepare(`SELECT id FROM message WHERE id = 'msg-prune'`).get()).toBeDefined()
+    expect(result.degradedToSkips).toEqual([
+      { table: 'chat_message_file_ref', count: 1, reason: expect.stringContaining('pruned') }
+    ])
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('refuses to merge into a base snapshot that is already FK-dirty (repair-pass safety contract)', async () => {
+    // Plant a pre-existing violation in WORK (not the backup): the repair pass must never
+    // run against a dirty base — it could no longer distinguish local rows from imported ones.
+    dbh.sqlite.pragma('foreign_keys = OFF')
+    insertTopic(dbh.sqlite, 'tpc-dirty')
+    insertMessage(dbh.sqlite, 'msg-dirty', 'tpc-dirty', 'root', null, 'um-preexisting-orphan')
+    dbh.sqlite.pragma('foreign_keys = ON')
+    seedBackup((db) => insertTopic(db, 'tpc-any'))
+
     await expect(runMerge(topCtx())).rejects.toThrow(MergeConsistencyCheckError)
+    // And nothing was repaired/deleted in the base.
+    expect(dbh.sqlite.prepare(`SELECT model_id FROM message WHERE id = 'msg-dirty'`).get()).toMatchObject({
+      model_id: 'um-preexisting-orphan'
+    })
   })
 
   it('throws MergeStrategyNotImplementedError for an explicit non-SKIP userStrategy (fail-loud)', async () => {

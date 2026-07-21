@@ -1,13 +1,20 @@
 // MergeEngine — detached restore import pipeline (plan (b)).
 //
 // Merges backup rows into a detached work.sqlite (VACUUM INTO copy of live) inside one
-// synchronous better-sqlite3 transaction. Stage 4 scope: SKIP (uuid-entity conflict) +
-// INSERT (new aggregate), member cascade, the global junction phase (pure junction tables
-// resolved via the role-aware identityMap), FTS5 rebuild backstop, and offline
-// FK/integrity/FTS/app_state consistency checks. FIELD_MERGE / OVERWRITE / RENAME and
-// identity propagation remain stubbed — FIELD_MERGE/OVERWRITE/RENAME throw NotImplemented.
-// Production restore runs via partial quiesce + SKIP merge; natural-key credential domains
-// degrade to SKIP (recorded in degradedToSkips for UI disclosure) until FIELD_MERGE lands.
+// synchronous better-sqlite3 transaction. Scope: backfill-when-absent + SKIP-on-conflict,
+// member cascade, the global junction phase (pure junction tables resolved via the
+// role-aware identityMap), a dangling-ref repair pass (nullable FK → SET NULL, NOT NULL
+// FK → prune, both disclosed via degradedToSkips), FTS5 rebuild backstop, and offline
+// FK/integrity/FTS/app_state consistency checks.
+//
+// Conflict semantics: uuid-entity conflicts SKIP (local wins). Natural-key aggregates are
+// matched by identityKey — absent locally → INSERT keeping the backup PK (backfill: fresh
+// installs get preferences/providers/workspaces back and incoming FKs resolve naturally);
+// present locally → SKIP with the LOCAL canonical PK recorded in the identityMap so junction
+// rows resolve to it. Field-level merging of conflicting rows (fieldMergePolicies, e.g.
+// apiKeys remote-fills-local-empty) is the FIELD_MERGE milestone; until it lands, conflicts
+// on FIELD_MERGE-default aggregates are recorded in degradedToSkips (local values win).
+// OVERWRITE / RENAME / explicit FIELD_MERGE throw NotImplemented (fail-loud).
 //
 // See spec `backup-restore-safety/import-orchestrator.md` + plan `cryptic-inventing-toucan.md`.
 
@@ -34,6 +41,13 @@ import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeR
  * reading the physical name from the registry instead of recomputing it here.
  */
 const physicalColumn = (logical: string): string => logical.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)
+
+/**
+ * Quote a physical column identifier for raw SQL. Some physical columns are SQL keywords
+ * (user_model.`group`) — unquoted they are a syntax error. Standard SQL double-quotes;
+ * embedded quotes doubled (defensive — codegen names never contain them).
+ */
+const quoteIdent = (name: string): string => `"${name.replace(/"/g, '""')}"`
 
 /**
  * Source tables of FTS5 external-content virtual tables (message, agent_session_message).
@@ -97,6 +111,10 @@ export class MergeEngine {
   async mergeBackupIntoWork(workSqlite: Database.Database, _workDb: DbType, ctx: MergeContext): Promise<MergeResult> {
     const backupDb = new Database(ctx.backupDbPath, { readonly: true })
     try {
+      // The repair pass below (repairDanglingRefs) assumes every FK violation it sees was
+      // introduced by rows THIS merge inserted, so it can never destroy pre-existing local
+      // data. Guarantee that by refusing to merge into a base that is already FK-dirty.
+      this.assertBaseFkClean(workSqlite)
       const ordered = this.registry.topoSort(ctx.domains)
       const degradedToSkips: DegradedSkip[] = []
       const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx, degradedToSkips)
@@ -117,6 +135,12 @@ export class MergeEngine {
         // resolving each endpoint via the role-aware identityMap (R8) and cascade-pruning rows
         // whose source was not imported or whose target is unavailable (§5.2).
         this.importAllJunctionRows(workSqlite, ctx.domains, backupDb, identityMap)
+        // Dangling-ref repair — imported rows may reference targets that exist in neither
+        // work nor this import (e.g. a conflicted natural-key row surviving locally under a
+        // DIFFERENT PK — the identity-propagation milestone rewrites those FKs; until then:
+        // nullable FK → SET NULL, NOT NULL FK → prune the row, both disclosed). The base was
+        // asserted FK-clean pre-merge, so every repair touches merge-inserted rows only.
+        this.repairDanglingRefs(workSqlite, degradedToSkips)
         // FTS rebuild backstop — whole-index resync after the bulk import (single-row triggers
         // can't backstop it; skipped rows / fts_rowid collisions leave stale indexes otherwise).
         FtsCentralHelper.rebuild(workSqlite)
@@ -134,9 +158,12 @@ export class MergeEngine {
    * Scan work.sqlite (merge base) + backup.sqlite for each aggregate root and produce
    * a decision per backup root. Runs BEFORE the write tx (read-only on both DBs).
    *
-   * MVP: uuid-entity aggregates → identityKey = PK; conflict (work has same PK) → SKIP;
-   * else INSERT. natural-key/slot aggregates would FIELD_MERGE but the MVP scaffold throws
-   * NotImplemented (lite milestone).
+   * uuid-entity aggregates: conflict (work has same PK) → SKIP, else INSERT.
+   * natural-key/slot aggregates: matched by identityKey — present locally → SKIP with the
+   * local canonical PK recorded (junction resolution + B1 identity propagation); absent →
+   * INSERT keeping the backup PK (backfill — incoming FKs resolve naturally). Field-level
+   * merging of conflicting rows is the FIELD_MERGE milestone; conflicts on
+   * FIELD_MERGE-default aggregates are counted into degradedToSkips (local values win).
    */
   private scanAggregates(
     workSqlite: Database.Database,
@@ -145,10 +172,11 @@ export class MergeEngine {
     ctx: MergeContext,
     degradedToSkips: DegradedSkip[]
   ): AggregateDecision[] {
-    // Honor an explicit user strategy override. The MVP supports only SKIP conflict
-    // resolution for uuid-entity aggregates; FIELD_MERGE/OVERWRITE/RENAME are unsupported
-    // — fail loud here rather than silently degrading to skip (which would ignore the
-    // user's choice and quietly no-op a RENAME/OVERWRITE request).
+    // Honor an explicit user strategy override. Only SKIP conflict resolution is
+    // implemented; FIELD_MERGE/OVERWRITE/RENAME are unsupported — fail loud here rather
+    // than silently degrading to skip (which would ignore the user's choice and quietly
+    // no-op a RENAME/OVERWRITE request). An explicit SKIP means "keep local on conflict";
+    // backfill-when-absent still applies (restoring missing rows is not a conflict).
     if (ctx.userStrategy !== undefined && ctx.userStrategy !== 'SKIP') {
       throw new MergeStrategyNotImplementedError(`userStrategy ${ctx.userStrategy}`)
     }
@@ -157,33 +185,42 @@ export class MergeEngine {
       for (const agg of this.registry.getAggregatesForDomain(domain)) {
         const pkColumns = this.registry.getPrimaryKey(agg.root).columns
         const naturalKey = (agg.identityClass ?? 'uuid-entity') !== 'uuid-entity'
-        // natural-key aggregates need FIELD_MERGE (not implemented in MVP). Production omits
-        // userStrategy (ImportOrchestrator avoids UI SKIP masking PROVIDERS FIELD_MERGE), so a
-        // natural-key aggregate degrades to SKIP — restore completes with the local row
-        // surviving. PREFERENCES is conflictDefault 'SKIP' (settings-class, spec-allowed), so
-        // its skip is NOT a degradation; other natural-key credential domains (PROVIDERS /
-        // SKILLS / AGENTS / ...) ARE degraded and recorded for UI disclosure. An explicit
-        // userStrategy!=='SKIP' was already rejected at the top of this method.
-        const forceSkip = naturalKey
-        const degradedNaturalKey =
-          naturalKey && ctx.userStrategy === undefined && (agg.conflictDefault ?? 'FIELD_MERGE') !== 'SKIP'
+        // A conflict on a FIELD_MERGE-default aggregate keeps the local row wholesale —
+        // that loses backup field values (e.g. credentials only present remotely), so it
+        // is a degradation to disclose. conflictDefault 'SKIP' (PREFERENCES/note) makes
+        // local-wins the spec'd behavior — not a degradation.
+        const fieldMergePending = naturalKey && (agg.conflictDefault ?? 'FIELD_MERGE') !== 'SKIP'
         // TODO(Stage3): stream via prepare().iterate() instead of .all() to avoid OOM on
         // unbounded roots (TOPICS chat history / translate_history) — spec MAJOR 2. Production
-        // restore now reaches this engine (partial quiesce + SKIP merge), so large archives
-        // exercise the .all() load until Stage 3 streams.
-        const backupRoots = backupDb.prepare(`SELECT * FROM ${agg.root}`).all() as Record<string, unknown>[]
-        if (degradedNaturalKey) {
-          degradedToSkips.push({
-            table: agg.root,
-            count: backupRoots.length,
-            reason:
-              'FIELD_MERGE not implemented in MVP; credential domain skipped (local rows survive, backup values not merged). Re-configure credentials after restore.'
-          })
-        }
+        // restore reaches this engine, so large archives exercise the .all() load until
+        // Stage 3 streams.
+        const backupRoots = backupDb.prepare(`SELECT * FROM ${quoteIdent(agg.root)}`).all() as Record<string, unknown>[]
+        let conflictCount = 0
         for (const backupRow of backupRoots) {
           // backupRow keys are physical (SELECT *); pkColumns are logical → convert.
           const backupPrimaryKey = pkColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
-          const exists = forceSkip || this.workHasIdentity(workSqlite, agg, pkColumns, backupPrimaryKey)
+          // Resolve the local counterpart: natural-key → identityKey match (returns the
+          // LOCAL canonical PK, which may differ from the backup PK); uuid-entity → PK
+          // match (canonical = backup PK). A natural-key row whose identityKey has no
+          // local match but whose PK collides (deterministic PKs like user_model
+          // providerId::modelId) is treated as a conflict defensively — plain INSERT
+          // would abort the whole merge on the PK.
+          let localCanonicalPrimaryKey: readonly (string | number)[] | undefined
+          if (naturalKey) {
+            localCanonicalPrimaryKey = this.findLocalByIdentityKey(workSqlite, agg, pkColumns, backupRow)
+            if (
+              localCanonicalPrimaryKey === undefined &&
+              this.workHasIdentity(workSqlite, agg, pkColumns, backupPrimaryKey)
+            ) {
+              localCanonicalPrimaryKey = backupPrimaryKey
+            }
+          } else if (this.workHasIdentity(workSqlite, agg, pkColumns, backupPrimaryKey)) {
+            localCanonicalPrimaryKey = backupPrimaryKey
+          }
+          const exists = localCanonicalPrimaryKey !== undefined
+          if (exists && fieldMergePending) {
+            conflictCount++
+          }
           // Honor skippedFileEntryIds — a file_entry root whose blob was not staged MUST be
           // skipped, else the merged DB holds a row + refs pointing at a missing blob.
           const skipped = agg.root === 'file_entry' && ctx.skippedFileEntryIds.has(String(backupPrimaryKey[0]))
@@ -192,12 +229,48 @@ export class MergeEngine {
             aggregate: agg,
             identity: backupPrimaryKey,
             backupPrimaryKey,
+            localCanonicalPrimaryKey,
             action
+          })
+        }
+        if (conflictCount > 0) {
+          degradedToSkips.push({
+            table: agg.root,
+            count: conflictCount,
+            reason: 'FIELD_MERGE not implemented — conflicting rows kept local values (backup field values not merged)'
           })
         }
       }
     }
     return decisions
+  }
+
+  /**
+   * Find the LOCAL canonical PK of a natural-key aggregate row by its identityKey.
+   * Returns undefined when work has no row under that identityKey. A key tuple
+   * containing NULL never matches (`= ?` semantics) — such rows take the insert path
+   * and the whole-graph checks remain the arbiter.
+   */
+  private findLocalByIdentityKey(
+    workSqlite: Database.Database,
+    agg: AggregateBoundary,
+    pkColumns: readonly string[],
+    backupRow: Record<string, unknown>
+  ): readonly (string | number)[] | undefined {
+    const keyColumns = agg.identityKey ?? this.registry.getPrimaryKey(agg.root).columns
+    const values: (string | number)[] = []
+    for (const c of keyColumns) {
+      const v = backupRow[physicalColumn(c)]
+      if (v === null || v === undefined) return undefined
+      values.push(v as string | number)
+    }
+    const where = keyColumns.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
+    const select = pkColumns.map((c) => quoteIdent(physicalColumn(c))).join(', ')
+    const row = workSqlite
+      .prepare(`SELECT ${select} FROM ${quoteIdent(agg.root)} WHERE ${where} LIMIT 1`)
+      .get(...values) as Record<string, unknown> | undefined
+    if (!row) return undefined
+    return pkColumns.map((c) => row[physicalColumn(c)] as string | number)
   }
 
   /** True when work.sqlite already has a row with the same PK (uuid-entity identity). */
@@ -208,8 +281,8 @@ export class MergeEngine {
     values: readonly (string | number)[]
   ): boolean {
     // pkColumns are logical (camelCase); convert to physical (snake_case) for SQL.
-    const where = pkColumns.map((c) => `${physicalColumn(c)} = ?`).join(' AND ')
-    const row = workSqlite.prepare(`SELECT 1 FROM ${agg.root} WHERE ${where} LIMIT 1`).get(...values)
+    const where = pkColumns.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
+    const row = workSqlite.prepare(`SELECT 1 FROM ${quoteIdent(agg.root)} WHERE ${where} LIMIT 1`).get(...values)
     return row !== undefined
   }
 
@@ -231,29 +304,21 @@ export class MergeEngine {
       switch (decision.action) {
         case 'skip': {
           // R8 role-aware identityMap: skip = the local row survives = available. Record
-          // target availability (local canonical = the existing work PK, which for a
-          // uuid-entity equals the backup PK) so the deferred junction phase can resolve
-          // cross-domain refs to it. sourceMap stays empty — the backup row was not
-          // imported, so it is ineligible as a merge source.
+          // target availability at the LOCAL canonical PK — for a uuid-entity conflict it
+          // equals the backup PK; for a natural-key conflict scanAggregates resolved it via
+          // identityKey, so junction rows referencing the backup PK land on the LOCAL row.
+          // sourceMap stays empty — the backup row was not imported, so it is ineligible
+          // as a merge source.
           //
-          // Guard: only record availability when work ACTUALLY has the row. A force-skipped
-          // natural-key row (userStrategy:'SKIP' on a natural-key aggregate) may have no local
-          // counterpart — marking it available would let the junction phase import a row
-          // pointing at a missing target (dangling FK). uuid-entity SKIP is unaffected: there
-          // scanAggregates only SKIPs when workHasIdentity, so the check is a no-op there.
-          //
-          // MVP limitation (TODO(FIELD_MERGE)): this lookup is PK-only (uuid-entity identity).
-          // A natural-key target the work holds under the SAME identityKey but a DIFFERENT UUID
-          // (the FIELD_MERGE local-wins case) is NOT found here → targetMap stays empty → the
-          // junction row cascade-prunes, silently losing that relationship. Correct identityKey-
-          // based canonicalization (backup PK → local canonical PK) is the FIELD_MERGE milestone's
-          // job (identityKey scan + identity propagation); production restore runs via SKIP
-          // merge (natural-key degrades to SKIP), so this PK-only limitation cascade-prunes a
-          // FIELD_MERGE local-wins junction row — accept until the FIELD_MERGE milestone.
-          const pkStr = String(decision.backupPrimaryKey[0])
-          const pkCols = this.registry.getPrimaryKey(decision.aggregate.root).columns
-          if (this.workHasIdentity(workSqlite, decision.aggregate, pkCols, decision.backupPrimaryKey)) {
-            setIdentityEntry(identityMap.targetMap, decision.aggregate.root, pkStr, pkStr)
+          // No local canonical (a skipped file_entry whose blob was not staged and which
+          // work does not hold) → no entry → junction rows referencing it cascade-prune.
+          if (decision.localCanonicalPrimaryKey !== undefined) {
+            setIdentityEntry(
+              identityMap.targetMap,
+              decision.aggregate.root,
+              String(decision.backupPrimaryKey[0]),
+              String(decision.localCanonicalPrimaryKey[0])
+            )
           }
           continue
         }
@@ -291,9 +356,9 @@ export class MergeEngine {
     // Root row — read from backup, insert into work. PK columns are logical → physical.
     const where = this.registry
       .getPrimaryKey(agg.root)
-      .columns.map((c) => `${physicalColumn(c)} = ?`)
+      .columns.map((c) => `${quoteIdent(physicalColumn(c))} = ?`)
       .join(' AND ')
-    const rootRow = backupDb.prepare(`SELECT * FROM ${agg.root} WHERE ${where}`).get(...backupPrimaryKey) as
+    const rootRow = backupDb.prepare(`SELECT * FROM ${quoteIdent(agg.root)} WHERE ${where}`).get(...backupPrimaryKey) as
       | Record<string, unknown>
       | undefined
     if (!rootRow) return // root vanished from backup mid-merge — skip defensively
@@ -317,7 +382,9 @@ export class MergeEngine {
       if (anchorIds.size === 0) continue // parent imported nothing → no nested rows to cascade
       const placeholders = [...anchorIds].map(() => '?').join(',')
       const memberRows = backupDb
-        .prepare(`SELECT * FROM ${member.table} WHERE ${physicalColumn(member.viaColumn)} IN (${placeholders})`)
+        .prepare(
+          `SELECT * FROM ${quoteIdent(member.table)} WHERE ${quoteIdent(physicalColumn(member.viaColumn))} IN (${placeholders})`
+        )
         .all(...anchorIds) as Record<string, unknown>[]
       const memberPkCol = physicalColumn(this.registry.getPrimaryKey(member.table).columns[0])
       for (const memberRow of memberRows) {
@@ -339,7 +406,7 @@ export class MergeEngine {
    */
   private insertRow(workSqlite: Database.Database, table: DbTableName, row: Record<string, unknown>): void {
     const workColumns = new Set(
-      (workSqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name)
+      (workSqlite.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[]).map((c) => c.name)
     )
     const isFtsSource = FTS_SOURCE_TABLES.has(table)
     const cols = Object.keys(row).filter(
@@ -347,6 +414,7 @@ export class MergeEngine {
     )
     if (cols.length === 0) return
     const placeholders = cols.map(() => '?').join(', ')
+    const quotedCols = cols.map(quoteIdent)
     // INSERT does not return rows — use run(), not all(). Plain INSERT (NOT INSERT OR
     // IGNORE) so any non-PK UNIQUE / CHECK / NOT NULL failure throws + rolls the tx back
     // — fail-closed: the engine never silently drops a row and reports a clean merge.
@@ -355,7 +423,7 @@ export class MergeEngine {
     // flow. Stage 3 will swap this for ON CONFLICT DO NOTHING with explicit diagnostics
     // once ConflictResolver/upsert lands (plan (b)).
     workSqlite
-      .prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`)
+      .prepare(`INSERT INTO ${quoteIdent(table)} (${quotedCols.join(', ')}) VALUES (${placeholders})`)
       .run(...cols.map((c) => row[c]))
   }
 
@@ -391,7 +459,7 @@ export class MergeEngine {
       // TODO(Stage3): stream via prepare().iterate() instead of .all() to avoid OOM on unbounded
       // junction tables (spec L466) — mirrors the scanAggregates deferral. Acceptable for the
       // non-production scaffold (no large archive reaches this engine until Stage 3 wires the spine).
-      const rows = backupDb.prepare(`SELECT * FROM ${desc.table}`).all() as Record<string, unknown>[]
+      const rows = backupDb.prepare(`SELECT * FROM ${quoteIdent(desc.table)}`).all() as Record<string, unknown>[]
       for (const row of rows) {
         const sourceBackupId = String(row[sourcePhys])
         const targetBackupId = String(row[targetPhys])
@@ -421,15 +489,91 @@ export class MergeEngine {
     targetCanonical: string
   ): void {
     const workColumns = new Set(
-      (workSqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name)
+      (workSqlite.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[]).map((c) => c.name)
     )
     const cols = Object.keys(row).filter((c) => workColumns.has(c))
     if (cols.length === 0) return
     const values = cols.map((c) => (c === sourcePhys ? sourceCanonical : c === targetPhys ? targetCanonical : row[c]))
     const placeholders = cols.map(() => '?').join(', ')
     workSqlite
-      .prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`)
+      .prepare(
+        `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`
+      )
       .run(...values)
+  }
+
+  /**
+   * Refuse to merge into a base snapshot that already has FK violations. The live DB is
+   * FK-consistent by contract; a dirty snapshot means the repair pass could no longer
+   * distinguish merge-inserted rows from local rows — fail closed instead.
+   */
+  private assertBaseFkClean(workSqlite: Database.Database): void {
+    const violations = workSqlite.pragma('foreign_key_check') as unknown[]
+    if (violations.length > 0) {
+      throw new MergeConsistencyCheckError(
+        `pre-merge foreign_key_check found ${violations.length} pre-existing violations in the base snapshot — refusing to merge`
+      )
+    }
+  }
+
+  /**
+   * Repair dangling FKs left by the import (runs in-tx, after the junction phase, before
+   * the FTS rebuild + final consistency check). All FK columns of the violating FK
+   * nullable → SET NULL (the row survives, the link is dropped — matches the schema's
+   * onDelete 'set null' posture); any NOT NULL column → DELETE the row (matches cascade —
+   * orphans it leaves surface on the next pass and prune transitively). Every repair is
+   * counted into degradedToSkips for disclosure.
+   *
+   * The base was asserted FK-clean before the merge (assertBaseFkClean), so violations can
+   * only involve rows this merge inserted: a DELETEd parent was itself just inserted, and
+   * pre-existing local rows cannot reference it. Post-backfill these repairs are RARE —
+   * they are the safety net for identityKey-conflict references until identity propagation
+   * (B1) rewrites them to the local canonical PK.
+   */
+  private repairDanglingRefs(workSqlite: Database.Database, degradedToSkips: DegradedSkip[]): void {
+    const MAX_PASSES = 10
+    const counts = new Map<string, number>()
+    for (let pass = 0; pass < MAX_PASSES; pass++) {
+      const violations = workSqlite.pragma('foreign_key_check') as {
+        table: string
+        rowid: number | bigint | null
+        parent: string
+        fkid: number
+      }[]
+      if (violations.length === 0) break
+      let repaired = false
+      for (const v of violations) {
+        // WITHOUT ROWID tables report rowid NULL — not addressable here; the final
+        // consistency check throws and rolls the tx back (fail-closed).
+        if (v.rowid === null) continue
+        const fkColumns = (workSqlite.pragma(`foreign_key_list("${v.table}")`) as { id: number; from: string }[])
+          .filter((f) => f.id === v.fkid)
+          .map((f) => f.from)
+        if (fkColumns.length === 0) continue
+        const tableInfo = workSqlite.pragma(`table_info("${v.table}")`) as { name: string; notnull: number }[]
+        const nullable = fkColumns.every((c) => tableInfo.find((t) => t.name === c)?.notnull === 0)
+        if (nullable) {
+          workSqlite
+            .prepare(
+              `UPDATE ${quoteIdent(v.table)} SET ${fkColumns.map((c) => `${quoteIdent(c)} = NULL`).join(', ')} WHERE rowid = ?`
+            )
+            .run(v.rowid)
+          const key = `${v.table}\u0000ref to missing ${v.parent} cleared (SET NULL)`
+          counts.set(key, (counts.get(key) ?? 0) + 1)
+        } else {
+          workSqlite.prepare(`DELETE FROM ${quoteIdent(v.table)} WHERE rowid = ?`).run(v.rowid)
+          const key = `${v.table}\u0000row pruned (required ${v.parent} target missing)`
+          counts.set(key, (counts.get(key) ?? 0) + 1)
+        }
+        repaired = true
+      }
+      // Nothing addressable this pass — stop; the final consistency check is the arbiter.
+      if (!repaired) break
+    }
+    for (const [key, count] of counts) {
+      const [table, reason] = key.split('\u0000')
+      degradedToSkips.push({ table: table as DbTableName, count, reason })
+    }
   }
 
   /** Read the app_state key-set (undefined when app_state is absent from work). */
