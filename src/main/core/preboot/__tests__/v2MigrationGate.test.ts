@@ -1,4 +1,5 @@
 import type { MigrationDiagnosticsCoordinator } from '@data/migration/v2/diagnostics/MigrationDiagnosticsCoordinator'
+import type * as MigrationDiagnosticsModule from '@data/migration/v2/migrationDiagnostics'
 import type {
   MigrationWindowFailureClaim,
   MigrationWindowManager
@@ -118,7 +119,7 @@ interface MigrationV2StubOptions {
 
 function stubMigrationV2(options: MigrationV2StubOptions = {}) {
   vi.doMock('@data/migration/v2', async () => {
-    const migrationDiagnostics = await vi.importActual<typeof import('@data/migration/v2/migrationDiagnostics')>(
+    const migrationDiagnostics = await vi.importActual<typeof MigrationDiagnosticsModule>(
       '@data/migration/v2/migrationDiagnostics'
     )
     const { isSchemaOutOfSyncError } = await vi.importActual<{
