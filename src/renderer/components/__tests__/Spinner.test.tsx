@@ -3,11 +3,16 @@ import { describe, expect, it, vi } from 'vitest'
 
 import Spinner from '../Spinner'
 
+const { motionProps } = vi.hoisted(() => ({ motionProps: [] as Array<Record<string, unknown>> }))
+
 // Mock motion/react to prevent animation issues in tests
 vi.mock('motion/react', () => ({
   motion: {
     create: (Component: any) => {
-      const MockedComponent = (props: any) => <Component {...props} />
+      const MockedComponent = (props: any) => {
+        motionProps.push(props)
+        return <Component {...props} />
+      }
       return MockedComponent
     }
   }
@@ -23,6 +28,15 @@ describe('Spinner', () => {
     const { container } = render(<Spinner text="Loading..." />)
     const icon = container.querySelector('svg')
     expect(icon).toBeInTheDocument()
+  })
+
+  it('animates between semantic foreground colors', () => {
+    render(<Spinner text="Loading..." />)
+
+    expect(motionProps.at(-1)?.variants).toEqual({
+      defaultColor: { color: 'var(--color-foreground)' },
+      dimmed: { color: 'var(--color-foreground-secondary)' }
+    })
   })
 
   it('should render with empty text', () => {
