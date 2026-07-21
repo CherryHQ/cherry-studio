@@ -4,12 +4,10 @@ const LENGTH_SATURATION = 262_145
 const MAX_MEASUREMENTS = 3
 
 type FailedWriteEvidence = Extract<MigrationDiagnosticFailureEvidence, { kind: 'failed_write' }>
-export type FailedWriteOperationRole = FailedWriteEvidence['operationRole']
 
 export type FailedWriteValue =
   | { readonly role: 'text_value'; readonly kind: 'string'; readonly value: string }
   | { readonly role: 'json_value'; readonly kind: 'json'; readonly value: unknown }
-  | { readonly role: 'blob_value'; readonly kind: 'blob'; readonly byteLength: number }
 
 function boundedLength(value: number): number {
   return Number.isSafeInteger(value) && value >= 0 && value < LENGTH_SATURATION ? value : LENGTH_SATURATION
@@ -25,25 +23,17 @@ function byteLengthBucket(byteLength: number): FailedWriteEvidence['values'][num
 }
 
 function measure(value: FailedWriteValue): FailedWriteEvidence['values'][number] {
-  let byteLength: number
-  if (value.kind === 'string') {
-    byteLength = boundedLength(Buffer.byteLength(value.value, 'utf8'))
-  } else if (value.kind === 'json') {
-    const serialized = JSON.stringify(value.value)
-    if (serialized === undefined) throw new Error('json_value_not_serializable')
-    byteLength = boundedLength(Buffer.byteLength(serialized, 'utf8'))
-  } else {
-    byteLength = boundedLength(value.byteLength)
-  }
-
-  const bucket = byteLengthBucket(byteLength)
   switch (value.kind) {
-    case 'string':
-      return { role: 'text_value', kind: 'string', byteLength, byteLengthBucket: bucket }
-    case 'json':
-      return { role: 'json_value', kind: 'json', byteLength, byteLengthBucket: bucket }
-    case 'blob':
-      return { role: 'blob_value', kind: 'blob', byteLength, byteLengthBucket: bucket }
+    case 'string': {
+      const byteLength = boundedLength(Buffer.byteLength(value.value, 'utf8'))
+      return { role: 'text_value', kind: 'string', byteLength, byteLengthBucket: byteLengthBucket(byteLength) }
+    }
+    case 'json': {
+      const serialized = JSON.stringify(value.value)
+      if (serialized === undefined) throw new Error('json_value_not_serializable')
+      const byteLength = boundedLength(Buffer.byteLength(serialized, 'utf8'))
+      return { role: 'json_value', kind: 'json', byteLength, byteLengthBucket: byteLengthBucket(byteLength) }
+    }
   }
 }
 
@@ -53,8 +43,7 @@ function measure(value: FailedWriteValue): FailedWriteEvidence['values'][number]
  * callers must always rethrow the original write error unchanged.
  */
 export function measureFailedWriteValuesBestEffort(
-  values: () => readonly FailedWriteValue[],
-  operationRole: FailedWriteOperationRole = 'insert'
+  values: () => readonly FailedWriteValue[]
 ): FailedWriteEvidence | undefined {
   try {
     const selected = values()
@@ -65,7 +54,7 @@ export function measureFailedWriteValuesBestEffort(
     }
     return measurements.length === 0
       ? undefined
-      : { kind: 'failed_write', operationRole, truncated: selected.length > MAX_MEASUREMENTS, values: measurements }
+      : { kind: 'failed_write', truncated: selected.length > MAX_MEASUREMENTS, values: measurements }
   } catch {
     return undefined
   }

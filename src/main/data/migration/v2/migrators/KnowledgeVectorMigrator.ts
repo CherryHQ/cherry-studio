@@ -27,7 +27,6 @@ import {
 import { eq, inArray } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { FailedWriteValue } from '../diagnostics'
 import type { LegacyKnowledgeVectorLoadResult, LegacyKnowledgeVectorRow } from '../utils/KnowledgeVectorSourceReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
@@ -37,30 +36,6 @@ import {
 } from './KnowledgeMigrator'
 
 const logger = loggerService.withContext('KnowledgeVectorMigrator')
-
-function checkedFloat32ByteLength(vector: readonly number[]): number {
-  const elementCount = vector.length
-  const bytesPerElement = Float32Array.BYTES_PER_ELEMENT
-  if (
-    !Number.isSafeInteger(elementCount) ||
-    elementCount < 0 ||
-    elementCount > Number.MAX_SAFE_INTEGER / bytesPerElement
-  ) {
-    return Number.POSITIVE_INFINITY
-  }
-  return elementCount * bytesPerElement
-}
-
-/** Read only vector lengths after a failed rebuild; never clone or iterate vector contents. */
-export function createKnowledgeVectorFailedWriteValues(
-  input: Pick<RebuildMaterialInput, 'embeddings'>
-): readonly FailedWriteValue[] {
-  return input.embeddings.slice(0, 3).map((embedding) => ({
-    role: 'blob_value',
-    kind: 'blob',
-    byteLength: checkedFloat32ByteLength(embedding.vector)
-  }))
-}
 
 // Runtime vector store + material layout — source of truth:
 // src/main/features/knowledge/utils/storage/pathStorage.ts
@@ -951,16 +926,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     for (let offset = 0; offset < ids.length; offset += DEGRADE_UPDATE_CHUNK) {
       const batch = ids.slice(offset, offset + DEGRADE_UPDATE_CHUNK)
       try {
-        const update = { status: 'failed' as const, error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED }
-        this.runDiagnosedWrite(
-          () => [],
-          () => ctx.db.update(knowledgeItemTable).set(update).where(inArray(knowledgeItemTable.id, batch)).run(),
-          'status_write'
-        )
+        await ctx.db
+          .update(knowledgeItemTable)
+          .set({ status: 'failed', error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED })
+          .where(inArray(knowledgeItemTable.id, batch))
         degradedCount += batch.length
       } catch (error) {
         // Best-effort per batch: one failed batch must not abort the rest of the degrade pass.
-        this.clearNonterminalDiagnosedFailure()
         this.recordWarning(
           `Failed to degrade ${batch.length} orphaned directory-expanded knowledge items: ${error instanceof Error ? error.message : String(error)}`
         )
@@ -991,16 +963,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     for (let offset = 0; offset < ids.length; offset += DEGRADE_UPDATE_CHUNK) {
       const batch = ids.slice(offset, offset + DEGRADE_UPDATE_CHUNK)
       try {
-        const update = { status: 'failed' as const, error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE }
-        this.runDiagnosedWrite(
-          () => [],
-          () => ctx.db.update(knowledgeBaseTable).set(update).where(inArray(knowledgeBaseTable.id, batch)).run(),
-          'status_write'
-        )
+        await ctx.db
+          .update(knowledgeBaseTable)
+          .set({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })
+          .where(inArray(knowledgeBaseTable.id, batch))
         failedCount += batch.length
       } catch (error) {
         // Best-effort per batch: one failed batch must not abort the rest of the pass.
-        this.clearNonterminalDiagnosedFailure()
         this.recordWarning(
           `Failed to mark ${batch.length} knowledge base(s) failed after vector store promotion failed: ${error instanceof Error ? error.message : String(error)}`
         )
@@ -1133,11 +1102,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const store = createKnowledgeIndexStoreAtPath(plan.targetDbPath, { baseId: plan.baseId })
         try {
           for (const material of materials) {
-            await this.runDiagnosedAsyncWrite(
-              () => createKnowledgeVectorFailedWriteValues(material.input),
-              () => store.rebuildMaterial(material.itemId, material.input),
-              'temporary_index_write'
-            )
+            await store.rebuildMaterial(material.itemId, material.input)
             processedWork += 1
             this.reportRebuildProgress(processedWork, totalWork)
             await yieldToEventLoop()
@@ -1179,12 +1144,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           await retryOnTransientFsLock(() =>
             fs.promises.writeFile(path.join(plan.materialDirPath, snapshot.relativePath), snapshot.fileText, 'utf-8')
           )
-          const update = { data: snapshot.data }
-          this.runDiagnosedWrite(
-            () => [{ role: 'json_value', kind: 'json', value: update.data }],
-            () => ctx.db.update(knowledgeItemTable).set(update).where(eq(knowledgeItemTable.id, snapshot.itemId)).run(),
-            'status_write'
-          )
+          await ctx.db
+            .update(knowledgeItemTable)
+            .set({ data: snapshot.data })
+            .where(eq(knowledgeItemTable.id, snapshot.itemId))
         }
 
         this.successfulBaseIds.add(plan.baseId)
@@ -1197,7 +1160,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           embeddings: plan.expectedEmbeddingCount
         })
       } catch (error) {
-        this.clearNonterminalDiagnosedFailure()
         const errorMessage = `Knowledge vector base ${plan.baseId} execution failed: ${error instanceof Error ? error.message : String(error)}`
         logger.error(errorMessage, error instanceof Error ? error : new Error(String(error)))
         this.executionErrors.push(errorMessage)

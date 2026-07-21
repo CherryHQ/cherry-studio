@@ -32,9 +32,6 @@ class ProbeMigrator extends BaseMigrator {
   diagnosedWrite<T>(values: () => readonly FailedWriteValue[], write: () => T): T {
     return this.runDiagnosedWrite(values, write)
   }
-  diagnosedAsyncWrite<T>(values: () => readonly FailedWriteValue[], write: () => Promise<T>): Promise<T> {
-    return this.runDiagnosedAsyncWrite(values, write)
-  }
 }
 
 class ExecuteFailureProbe extends ProbeMigrator {
@@ -110,6 +107,15 @@ describe('BaseMigrator.assertOwnedForeignKeys', () => {
 
     expect(probe.checkOwnedForeignKeys(dbh.db, [agentTable])).toBeUndefined()
   })
+
+  it('aggregates violations across multiple owned tables', async () => {
+    dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
+    await insertSession(dbh.db, 's_dangling', 'ghost-agent')
+
+    expect(() => probe.checkOwnedForeignKeys(dbh.db, [agentTable, agentSessionTable])).toThrow(
+      /ProbeMigrator left \d+ foreign-key violation/
+    )
+  })
 })
 
 describe('BaseMigrator failure-only write diagnosis', () => {
@@ -150,7 +156,6 @@ describe('BaseMigrator failure-only write diagnosis', () => {
         classification: { errorCode: 'sqlite_too_big' },
         evidence: {
           kind: 'failed_write',
-          operationRole: 'insert',
           truncated: false,
           values: [
             {
@@ -164,32 +169,6 @@ describe('BaseMigrator failure-only write diagnosis', () => {
       }
     })
     expect(JSON.stringify(diagnosed)).not.toContain('PRIVATE_')
-  })
-
-  it('does not call the lazy async producer on success', async () => {
-    const values = vi.fn(() => [{ role: 'blob_value' as const, kind: 'blob' as const, byteLength: 10 }])
-    const result = { inserted: 1 }
-
-    await expect(probe.diagnosedAsyncWrite(values, async () => result)).resolves.toBe(result)
-    expect(values).not.toHaveBeenCalled()
-  })
-
-  it('rethrows the original async rejection even when JSON measurement also fails', async () => {
-    const original = Object.assign(new Error('PRIVATE_ASYNC'), { code: 'SQLITE_TOOBIG' })
-    const value = {
-      toJSON() {
-        throw new Error('PRIVATE_MEASUREMENT')
-      }
-    }
-
-    await expect(
-      probe.diagnosedAsyncWrite(
-        () => [{ role: 'json_value', kind: 'json', value }],
-        async () => {
-          throw original
-        }
-      )
-    ).rejects.toBe(original)
   })
 
   it('returns a captured classification/evidence only for a failed phase result', async () => {

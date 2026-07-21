@@ -1,4 +1,4 @@
-import { UniqueModelIdViolationError } from '@shared/data/types/model'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { classifyMigrationError } from '../migrationErrorClassifier'
@@ -46,11 +46,12 @@ describe('classifyMigrationError', () => {
   })
 
   it('copies only the fixed role and rule from a typed unique-model-id violation', () => {
-    const error = new UniqueModelIdViolationError(
-      'modelId cannot contain reserved route character "?": PRIVATE_MODEL_ID',
-      'model_id',
-      'contains_reserved_route_character'
-    )
+    let error: unknown
+    try {
+      createUniqueModelId('provider', 'PRIVATE_MODEL_ID?')
+    } catch (caught) {
+      error = caught
+    }
 
     const result = classifyMigrationError(new Error('PRIVATE_WRAPPER', { cause: error }))
 

@@ -213,26 +213,6 @@ describe('AgentsMigrator', () => {
     expect(executed.some((stmt) => stmt?.startsWith('DELETE FROM agent'))).toBe(false)
   })
 
-  it('rethrows the original INSERT SELECT failure for the engine owner to classify', async () => {
-    const sqliteError = Object.assign(new Error('PRIVATE_AGENT_CONTENT_/Users/alice'), { code: 'SQLITE_TOOBIG' })
-    const run = vi.fn((statement) => {
-      const rawSql = statement.queryChunks[0]?.value?.[0]
-      if (typeof rawSql === 'string' && rawSql.startsWith('INSERT INTO agent ')) {
-        throw sqliteError
-      }
-    })
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockReturnValue(createSchemaInfo() as never)
-    vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
-    await migrator.prepare(createMigrationContext())
-
-    const migrationContext = createMigrationContext({
-      db: { run },
-      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
-    })
-    await expect(migrator.executeWithDiagnostics(migrationContext)).rejects.toBe(sqliteError)
-  })
-
   it('preserves fixed foreign-key evidence when the actual owned-table self-check throws', async () => {
     const run = vi.fn().mockReturnValue(undefined)
     const select = vi.fn().mockReturnValue({
@@ -457,7 +437,7 @@ describe('AgentsMigrator', () => {
         { agentId: 'agent-1', oldMcpId: 'mcp-b' },
         { agentId: 'agent-2', oldMcpId: 'mcp-a' }
       ])
-      const onConflictDoNothing = vi.fn().mockReturnValue({ run: vi.fn() })
+      const onConflictDoNothing = vi.fn().mockResolvedValue(undefined)
       const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
       const insert = vi.fn().mockReturnValue({ values: valuesFn })
       const mapping = new Map([
@@ -488,7 +468,7 @@ describe('AgentsMigrator', () => {
         { agentId: 'agent-1', oldMcpId: 'mcp-a' },
         { agentId: 'agent-1', oldMcpId: 'mcp-gone' }
       ])
-      const onConflictDoNothing = vi.fn().mockReturnValue({ run: vi.fn() })
+      const onConflictDoNothing = vi.fn().mockResolvedValue(undefined)
       const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
       const insert = vi.fn().mockReturnValue({ values: valuesFn })
       const mapping = new Map([['mcp-a', 'new-a']])

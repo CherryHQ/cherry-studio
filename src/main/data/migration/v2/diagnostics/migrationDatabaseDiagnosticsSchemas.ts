@@ -21,7 +21,6 @@ export const migrationDatabaseObjectCheckSchema = z
   .object({
     role: migrationDatabaseObjectRoleSchema,
     tableName: z.string().min(1).max(128),
-    standardColumns: z.array(migrationDatabaseColumnRoleSchema).min(1).max(maxExpectedColumnCount).readonly(),
     status: z.enum(['present', 'missing_table', 'missing_columns']),
     missingColumnRoles: z.array(migrationDatabaseColumnRoleSchema).min(1).max(maxExpectedColumnCount).optional()
   })
@@ -34,16 +33,6 @@ export const migrationDatabaseObjectCheckSchema = z
         code: 'custom',
         message: 'Database object checks must use the fixed physical table name',
         path: ['tableName']
-      })
-    }
-    if (
-      object.standardColumns.length !== definition.columns.length ||
-      object.standardColumns.some((column, index) => column !== definition.columns[index])
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Database object checks must use the complete fixed standard-column order',
-        path: ['standardColumns']
       })
     }
     const missing = object.missingColumnRoles

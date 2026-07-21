@@ -186,7 +186,6 @@ describe('PromptMigrator', () => {
         classification: { errorCode: 'sqlite_too_big' },
         evidence: {
           kind: 'failed_write',
-          operationRole: 'insert',
           values: expect.arrayContaining([
             expect.objectContaining({ role: 'text_value', kind: 'string', byteLengthBucket: '65537-262144' })
           ])

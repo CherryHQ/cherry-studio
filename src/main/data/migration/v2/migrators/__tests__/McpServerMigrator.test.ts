@@ -202,7 +202,6 @@ describe('McpServerMigrator', () => {
         classification: { errorCode: 'sqlite_too_big' },
         evidence: {
           kind: 'failed_write',
-          operationRole: 'insert',
           values: expect.arrayContaining([
             expect.objectContaining({ role: 'json_value', kind: 'json', byteLengthBucket: '262145+' })
           ])

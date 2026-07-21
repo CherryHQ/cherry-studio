@@ -11,7 +11,6 @@ import {
 const objects = MIGRATION_DATABASE_OBJECT_DEFINITIONS.map((definition) => ({
   role: definition.role,
   tableName: definition.table,
-  standardColumns: definition.columns,
   status: 'present' as const
 }))
 
@@ -153,21 +152,13 @@ describe('migrationDatabaseSqliteResultSchema', () => {
     ).toBe(false)
   })
 
-  it('requires the exact table name and complete standard-column order for each role', () => {
+  it('requires the exact table name for each role', () => {
     const promptIndex = objects.findIndex(({ role }) => role === 'prompt')
     const prompt = objects[promptIndex]
     if (prompt === undefined) throw new Error('Expected the prompt diagnostics target')
 
     const wrongTable = objects.with(promptIndex, { ...prompt, tableName: 'private_table_name' })
     expect(migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: wrongTable }).success).toBe(
-      false
-    )
-
-    const wrongColumns = objects.with(promptIndex, {
-      ...prompt,
-      standardColumns: [...prompt.standardColumns].reverse()
-    })
-    expect(migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: wrongColumns }).success).toBe(
       false
     )
   })

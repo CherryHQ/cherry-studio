@@ -506,7 +506,6 @@ function classifyMainExportWriteFailure(error: unknown): RendererExportFailureEr
     case 'file_permission':
     case 'file_readonly':
     case 'file_io':
-    case 'file_unknown':
       return errorCode
     default:
       return 'unknown_error'

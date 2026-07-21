@@ -119,14 +119,6 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
   recovered in-UI rather than by re-running the whole migration. The migration only fails as a whole
   on a structural/integrity error (a migrator throwing, or `validate()`'s reconciliation failing),
   never on per-base data that could not be migrated.
-- A `rebuildMaterial()` rejection is recorded at the named
-  `knowledge_vector_rebuild` boundary before that non-fatal catch converts it to a warning. Its
-  `vectorBlob` producer creates an O(1) lazy row source. The profiler retains the real embedding
-  count but reads `vector.length` and creates frozen content-free measurement tokens only for its
-  deadline- and row-budget-bounded sample. It never reads vector elements or creates a second
-  BLOB-sized byte buffer; partial total/max buckets are marked by `traversal: truncated`. The
-  completed migration window exposes the existing diagnostics ZIP action when these warnings
-  exist; no-warning completion has no diagnostics action.
 - After a successful migration the v1 legacy vector DBs (and the copied legacy
   upload files) remain on disk as orphans; disk space is not reclaimed. Reclaiming
   it is intentionally left to a separate future cleanup step gated on the user

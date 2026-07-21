@@ -220,10 +220,7 @@ export class MiniAppMigrator extends BaseMigrator {
         // them), then the owner rows, then the ref rows (whose `source_id` FK
         // needs the owner) — see logoRef ordering.
         for (const logoFile of logoFiles) {
-          this.runDiagnosedWrite(
-            () => [],
-            () => insertPreparedImageEntryTx(tx, logoFile)
-          )
+          insertPreparedImageEntryTx(tx, logoFile)
         }
 
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {

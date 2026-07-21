@@ -38,10 +38,9 @@ describe('migration database SQLite child queries', () => {
       status: 'available',
       quickCheck: 'ok',
       foreignKeyViolationCountBucket: '0',
-      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table, columns }) => ({
+      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) => ({
         role,
         tableName: table,
-        standardColumns: columns,
         status: 'present'
       }))
     })
@@ -87,7 +86,6 @@ describe('migration database SQLite child queries', () => {
     expect(result.objects.find(({ role }) => role === 'mcp_server')).toEqual({
       role: 'mcp_server',
       tableName: 'mcp_server',
-      standardColumns: MIGRATION_DATABASE_OBJECT_DEFINITIONS.find(({ role }) => role === 'mcp_server')?.columns,
       status: 'missing_table'
     })
   })
@@ -105,7 +103,6 @@ describe('migration database SQLite child queries', () => {
     expect(result.objects.find(({ role }) => role === 'prompt')).toEqual({
       role: 'prompt',
       tableName: 'prompt',
-      standardColumns: MIGRATION_DATABASE_OBJECT_DEFINITIONS.find(({ role }) => role === 'prompt')?.columns,
       status: 'missing_columns',
       missingColumnRoles: ['content']
     })

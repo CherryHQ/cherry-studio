@@ -101,21 +101,16 @@ export class NoteMigrator extends BaseMigrator {
     try {
       ctx.db.transaction((tx) => {
         for (const row of this.preparedRows) {
-          this.runDiagnosedWrite(
-            () => [],
-            () =>
-              tx
-                .insert(noteTable)
-                .values(row)
-                .onConflictDoUpdate({
-                  target: [noteTable.rootPath, noteTable.path],
-                  set: {
-                    isStarred: row.isStarred,
-                    isExpanded: row.isExpanded
-                  }
-                })
-                .run()
-          )
+          tx.insert(noteTable)
+            .values(row)
+            .onConflictDoUpdate({
+              target: [noteTable.rootPath, noteTable.path],
+              set: {
+                isStarred: row.isStarred,
+                isExpanded: row.isExpanded
+              }
+            })
+            .run()
         }
       })
 

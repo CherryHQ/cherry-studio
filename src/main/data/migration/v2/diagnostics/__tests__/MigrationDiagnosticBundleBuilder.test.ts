@@ -48,7 +48,6 @@ function failedSnapshot(): MigrationDiagnosticsSnapshot {
         errorCode: 'sqlite_too_big',
         evidence: {
           kind: 'failed_write',
-          operationRole: 'insert',
           truncated: false,
           values: [
             {
@@ -77,10 +76,9 @@ function databaseDiagnostics() {
       status: 'available' as const,
       quickCheck: 'ok' as const,
       foreignKeyViolationCountBucket: '0' as const,
-      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table, columns }) => ({
+      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) => ({
         role,
         tableName: table,
-        standardColumns: columns,
         status: 'present' as const
       }))
     }

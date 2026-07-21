@@ -318,10 +318,7 @@ export class FileMigrator extends BaseMigrator {
         const batch = this.preparedEntries.slice(i, i + BATCH_SIZE)
 
         ctx.db.transaction((tx) => {
-          this.runDiagnosedWrite(
-            () => [],
-            () => tx.insert(fileEntryTable).values(batch).run()
-          )
+          tx.insert(fileEntryTable).values(batch).run()
         })
 
         processed += batch.length

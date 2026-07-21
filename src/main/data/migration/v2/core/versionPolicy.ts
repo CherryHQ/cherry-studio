@@ -255,33 +255,3 @@ function parseVersionFromLine(line: string): string | null {
 
   return version
 }
-
-// ── Block message helper ────────────────────────────────────────────
-
-/**
- * Build a user-facing error message for the given block reason.
- * Hardcoded English — matches existing `dialog.showErrorBox` patterns
- * in the migration gate.
- */
-export function getBlockMessage(reason: VersionBlockReason, details: Record<string, string>): string {
-  switch (reason) {
-    case 'no_version_log':
-      return (
-        `Cannot determine your previous Cherry Studio version.\n\n` +
-        `Please install version ${details.requiredVersion} first and run it at least once, ` +
-        `then install this version to complete the data migration.`
-      )
-    case 'v1_too_old':
-      return (
-        `Your previous version (${details.previousVersion}) is too old to migrate directly.\n\n` +
-        `Please install version ${details.requiredVersion} first and run it at least once, ` +
-        `then install this version.`
-      )
-    case 'v2_gateway_skipped':
-      return (
-        `Cannot upgrade directly from ${details.previousVersion} to ${details.currentVersion}.\n\n` +
-        `Please install version ${details.gatewayVersion} first to complete the data migration, ` +
-        `then upgrade to this version.`
-      )
-  }
-}

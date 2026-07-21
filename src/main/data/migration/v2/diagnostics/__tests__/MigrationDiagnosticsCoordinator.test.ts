@@ -134,19 +134,19 @@ describe('minimal previous/current state', () => {
     expect(JSON.stringify(snapshot)).not.toContain('sqlite_constraint')
   })
 
-  it.each([
-    [0, '0'],
-    [1, '1'],
-    [2, '2-10'],
-    [10, '2-10'],
-    [11, '11+']
-  ] as const)('buckets %i completed warnings as %s', async (warningCount, warningCountBucket) => {
+  it('records completion without persisting non-blocking warning metadata', async () => {
     const subject = coordinator()
     subject.beginAttempt('initial')
 
-    subject.finishAttempt({ status: 'completed', warningCount })
+    subject.finishAttempt({ status: 'completed' })
 
-    expect((await subject.snapshot()).current).toMatchObject({ status: 'completed', warningCountBucket })
+    expect((await subject.snapshot()).current).toEqual({
+      trigger: 'initial',
+      status: 'completed',
+      startedAt: '2026-07-21T08:00:00.000Z',
+      endedAt: '2026-07-21T08:00:00.000Z',
+      lastLocation: { scope: 'gate', phase: 'resolve_paths' }
+    })
   })
 
   it('deep-freezes snapshots and serializes concurrent saves', async () => {
@@ -178,12 +178,13 @@ describe('minimal previous/current state', () => {
     const subject = coordinator()
     subject.attachPaths(paths())
     subject.beginAttempt('initial')
-    subject.finishAttempt({ status: 'completed', warningCount: 2 })
+    subject.finishAttempt({ status: 'completed' })
 
     subject.complete()
 
     expect(existsSync(paths().diagnosticsJournalFile)).toBe(false)
-    expect((await subject.snapshot()).current).toMatchObject({ status: 'completed', warningCountBucket: '2-10' })
+    expect((await subject.snapshot()).current).toMatchObject({ status: 'completed' })
+    expect((await subject.snapshot()).current).not.toHaveProperty('warningCountBucket')
   })
 })
 
@@ -220,7 +221,7 @@ describe('attachment and interruption recovery', () => {
     ['damaged JSON', '{"formatVersion":', true],
     ['oversized', 'x'.repeat(1_048_577), true],
     ['non-regular', null, false]
-  ] as const)('quarantines or ignores %s without touching business data', async (_name, content, quarantined) => {
+  ] as const)('replaces or ignores %s without touching business data', async (_name, content, replaced) => {
     writeFileSync(path.join(testDir, 'cherrystudio.sqlite'), 'business-canary')
     if (content === null) fs.mkdirSync(paths().diagnosticsJournalFile)
     else writeFileSync(paths().diagnosticsJournalFile, content)
@@ -231,9 +232,10 @@ describe('attachment and interruption recovery', () => {
     expect(subject.recovered).toBe(false)
     expect(await subject.snapshot()).toMatchObject({ state: 'active' })
     expect(readFileSync(path.join(testDir, 'cherrystudio.sqlite'), 'utf8')).toBe('business-canary')
-    expect(fs.readdirSync(testDir).some((name) => name.startsWith('migration-diagnostics-v2.corrupt.'))).toBe(
-      quarantined
-    )
+    expect(fs.readdirSync(testDir).some((name) => name.startsWith('migration-diagnostics-v2.corrupt.'))).toBe(false)
+    if (replaced) {
+      expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile).kind).toBe('ok')
+    }
   })
 })
 

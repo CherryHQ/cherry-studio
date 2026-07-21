@@ -12,7 +12,7 @@ import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { FailedWriteOperationRole, FailedWriteValue } from '../diagnostics'
+import type { FailedWriteValue } from '../diagnostics'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
@@ -50,11 +50,7 @@ const HEARTBEAT_INTERVAL_FALLBACK_MS = 60 * 60_000
 
 const logger = loggerService.withContext('AgentsMigrator')
 
-type DiagnosedWrite = <T>(
-  values: () => readonly FailedWriteValue[],
-  write: () => T,
-  operationRole?: FailedWriteOperationRole
-) => T
+type DiagnosedWrite = <T>(values: () => readonly FailedWriteValue[], write: () => T) => T
 
 const runWithoutDiagnostics: DiagnosedWrite = (_values, write) => write()
 
@@ -141,8 +137,7 @@ export class AgentsMigrator extends BaseMigrator {
     // BEGIN/COMMIT/ROLLBACK via db.run() so ATTACH, all INSERTs, and DETACH run
     // in order on the single connection, with the inserts kept atomic.
     const importStatements = statements.slice(1, -1)
-    const diagnoseWrite: DiagnosedWrite = (values, write, operationRole) =>
-      this.runDiagnosedWrite(values, write, operationRole)
+    const diagnoseWrite: DiagnosedWrite = (values, write) => this.runDiagnosedWrite(values, write)
     let isAttached = false
     let committed = false
     let pendingError: unknown = null
@@ -154,11 +149,11 @@ export class AgentsMigrator extends BaseMigrator {
       // PRAGMA once on its single connection), so no per-call toggle here.
       ctx.db.run(sql.raw('BEGIN'))
 
-      stageSessionWorkspaces(ctx, this.sourceSchemaInfo, diagnoseWrite)
+      stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
 
       for (const statement of importStatements) {
         logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
-        this.runDiagnosedImportStatement(() => ctx.db.run(sql.raw(statement)))
+        ctx.db.run(sql.raw(statement))
       }
 
       // Atomic post-INSERT reconciliation — runs INSIDE the BEGIN/COMMIT
@@ -180,11 +175,7 @@ export class AgentsMigrator extends BaseMigrator {
         },
         diagnoseWrite
       )
-      await migrateAgentMcps(
-        ctx.db,
-        ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined,
-        diagnoseWrite
-      )
+      await migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
       ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -411,11 +402,6 @@ export class AgentsMigrator extends BaseMigrator {
     }
   }
 
-  /** Raw INSERT...SELECT rows never enter memory, so preserve classification without value evidence. */
-  private runDiagnosedImportStatement<T>(write: () => T): T {
-    return this.runDiagnosedWrite(() => [], write, 'import')
-  }
-
   private createReader(ctx: MigrationContext): LegacyAgentsDbReader {
     return (this.reader ??= new LegacyAgentsDbReader(ctx.paths))
   }
@@ -559,11 +545,10 @@ export class AgentsMigrator extends BaseMigrator {
         skippedCrossAgentSubCount++
         continue
       }
-      const relationRow = { channelId: sub.channel_id, taskId: newScheduleId }
-      diagnoseWrite(
-        () => [],
-        () => db.insert(agentChannelTaskTable).values(relationRow).onConflictDoNothing().run()
-      )
+      await db
+        .insert(agentChannelTaskTable)
+        .values({ channelId: sub.channel_id, taskId: newScheduleId })
+        .onConflictDoNothing()
       subCount++
     }
 
@@ -801,11 +786,7 @@ function deriveSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchema
   return { workspaces, mappings }
 }
 
-function stageSessionWorkspaces(
-  ctx: MigrationContext,
-  schemaInfo: AgentsSchemaInfo,
-  diagnoseWrite: DiagnosedWrite = runWithoutDiagnostics
-): number {
+function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaInfo): number {
   const db = ctx.db
   db.run(
     sql.raw('CREATE TEMP TABLE IF NOT EXISTS session_workspace_map (session_id TEXT PRIMARY KEY, workspace_id TEXT)')
@@ -814,22 +795,14 @@ function stageSessionWorkspaces(
 
   const derived = deriveSessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
-    diagnoseWrite(
-      () => [],
-      () =>
-        db.run(
-          sql`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
-            VALUES (${workspace.id}, ${workspace.name}, ${workspace.path}, ${workspace.type}, ${workspace.orderKey}, ${workspace.createdAt}, ${workspace.updatedAt})`
-        )
+    db.run(
+      sql`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+          VALUES (${workspace.id}, ${workspace.name}, ${workspace.path}, ${workspace.type}, ${workspace.orderKey}, ${workspace.createdAt}, ${workspace.updatedAt})`
     )
   }
   for (const mapping of derived.mappings) {
-    diagnoseWrite(
-      () => [],
-      () =>
-        db.run(
-          sql`INSERT INTO session_workspace_map (session_id, workspace_id) VALUES (${mapping.sessionId}, ${mapping.workspaceId})`
-        )
+    db.run(
+      sql`INSERT INTO session_workspace_map (session_id, workspace_id) VALUES (${mapping.sessionId}, ${mapping.workspaceId})`
     )
   }
 
@@ -990,11 +963,7 @@ export async function importLegacySessionMessages(
  * attached and BEFORE remapAgentPrefixIds — the inserted `agentId` is the
  * legacy agent id, which that step rewrites alongside `agent.id`.
  */
-export async function migrateAgentMcps(
-  db: DbType,
-  mcpServerIdMapping: Map<string, string> | undefined,
-  diagnoseWrite: DiagnosedWrite = runWithoutDiagnostics
-): Promise<void> {
+export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): Promise<void> {
   const rows = db.all<{ agentId: string; oldMcpId: string }>(
     sql.raw(
       `SELECT DISTINCT a.id AS agentId, je.value AS oldMcpId
@@ -1027,10 +996,7 @@ export async function migrateAgentMcps(
   )
 
   if (values.length === 0) return
-  diagnoseWrite(
-    () => [],
-    () => db.insert(agentMcpServerTable).values(values).onConflictDoNothing().run()
-  )
+  await db.insert(agentMcpServerTable).values(values).onConflictDoNothing()
   const dropped = rows.length - values.length
   const summary = { rows: values.length, dropped }
   // A non-zero `dropped` count is FK-mandated data loss (legacy refs to MCP

@@ -20,7 +20,6 @@ export const BLOCKING_FIXTURES = [
   'database-constraint',
   'oversized-string',
   'oversized-json',
-  'oversized-blob',
   'source-parse',
   'path-permission',
   'renderer-crash',
@@ -77,14 +76,12 @@ function objects(
       ? {
           role: definition.role,
           tableName: definition.table,
-          standardColumns: definition.columns,
           status,
           ...(status === 'missing_columns' ? { missingColumnRoles: [definition.columns[0]] } : {})
         }
       : {
           role: definition.role,
           tableName: definition.table,
-          standardColumns: definition.columns,
           status: 'present' as const
         }
   )
@@ -163,7 +160,7 @@ async function completedSnapshot(): Promise<MigrationDiagnosticsSnapshot> {
   const subject = coordinator()
   subject.beginAttempt('initial')
   subject.updateLocation({ scope: 'engine', phase: 'finalize' })
-  subject.finishAttempt({ status: 'completed', warningCount: 0 })
+  subject.finishAttempt({ status: 'completed' })
   return subject.snapshot()
 }
 
@@ -182,7 +179,7 @@ async function retryRecoverySnapshot(testDir: string): Promise<MigrationDiagnost
   recoveredProcess.beginAttempt('recovered_retry')
   recoveredProcess.updateLocation({ scope: 'engine', phase: 'finalize' })
   now = new Date('2026-07-21T08:02:00.000Z')
-  recoveredProcess.finishAttempt({ status: 'completed', warningCount: 0 })
+  recoveredProcess.finishAttempt({ status: 'completed' })
   return recoveredProcess.snapshot()
 }
 
@@ -230,8 +227,7 @@ function blocking(
 function oversized(
   name: Extract<BlockingFixtureName, `oversized-${string}`>,
   migratorId: NonNullable<WriteFailure['migratorId']>,
-  value: FailedWriteValue,
-  operationRole: NonNullable<WriteFailure['evidence']>['operationRole'] = 'insert'
+  value: FailedWriteValue
 ): BlockingMigrationDiagnosticAcceptanceFixture {
   return blocking(
     name,
@@ -241,7 +237,7 @@ function oversized(
       phase: 'execute',
       migratorId,
       errorCode: 'sqlite_too_big',
-      evidence: { kind: 'failed_write', operationRole, truncated: false, values: [value] }
+      evidence: { kind: 'failed_write', truncated: false, values: [value] }
     },
     async () => availableDatabase(),
     { status: 'available', quickCheck: 'ok' }
@@ -285,12 +281,6 @@ const blockingFixtures: readonly BlockingMigrationDiagnosticAcceptanceFixture[] 
     byteLength: 262_145,
     byteLengthBucket: '262145+'
   }),
-  oversized(
-    'oversized-blob',
-    'knowledge_vector',
-    { role: 'blob_value', kind: 'blob', byteLength: 262_145, byteLengthBucket: '262145+' },
-    'temporary_index_write'
-  ),
   blocking(
     'source-parse',
     {

@@ -1,5 +1,4 @@
 import type { MigrationDiagnosticsCoordinator } from '@data/migration/v2/diagnostics/MigrationDiagnosticsCoordinator'
-import type { ClassifiedMigrationError } from '@data/migration/v2/diagnostics/migrationErrorClassifier'
 import type {
   MigrationWindowFailureClaim,
   MigrationWindowManager
@@ -30,7 +29,6 @@ const initializeMock = vi.fn()
 const registerMigratorsMock = vi.fn()
 const needsMigrationMock = vi.fn()
 const closeMock = vi.fn()
-const collectDatabaseDiagnosticsMock = vi.fn()
 const getAllMigratorsMock = vi.fn((): unknown[] => [])
 const migrationWindowCreateMock = vi.fn()
 const migrationWindowWaitForReadyMock = vi.fn()
@@ -122,25 +120,22 @@ interface MigrationV2StubOptions {
 
 function stubMigrationV2(options: MigrationV2StubOptions = {}) {
   vi.doMock('@data/migration/v2', async () => {
-    const { classifyMigrationError } = await vi.importActual<{
-      classifyMigrationError(error: unknown): ClassifiedMigrationError
-    }>('@data/migration/v2/diagnostics/migrationErrorClassifier')
+    const migrationDiagnostics = await vi.importActual<typeof import('@data/migration/v2/migrationDiagnostics')>(
+      '@data/migration/v2/migrationDiagnostics'
+    )
     const { isSchemaOutOfSyncError } = await vi.importActual<{
       isSchemaOutOfSyncError(error: unknown): boolean
     }>('@data/migration/v2/core/migrationErrors')
-    const { getBlockMessage } = await vi.importActual<{
-      getBlockMessage(reason: string, details: Record<string, string>): string
-    }>('@data/migration/v2/core/versionPolicy')
     const { createMigrationWindowFailureClaim } = await vi.importActual<{
       createMigrationWindowFailureClaim(): MigrationWindowFailureClaim
     }>('@data/migration/v2/window/MigrationWindowManager')
     return {
+      ...migrationDiagnostics,
       migrationEngine: {
         initialize: initializeMock,
         registerMigrators: registerMigratorsMock,
         needsMigration: needsMigrationMock,
         close: closeMock,
-        collectDatabaseDiagnostics: collectDatabaseDiagnosticsMock,
         paths: { versionLogFile: '/fake/version.log', userData: '/fake/userData' }
       },
       getAllMigrators: getAllMigratorsMock,
@@ -156,8 +151,6 @@ function stubMigrationV2(options: MigrationV2StubOptions = {}) {
       setVersionIncompatible: setVersionIncompatibleMock,
       setDataLocationNotice: setDataLocationNoticeMock,
       evaluateCandidateVersion: evaluateCandidateVersionMock,
-      classifyMigrationError,
-      getBlockMessage,
       isSchemaOutOfSyncError,
       createMigrationWindowFailureClaim,
       createMigrationDiagnosticsCoordinator: () =>
@@ -284,7 +277,6 @@ beforeEach(() => {
   registerMigratorsMock.mockReset()
   needsMigrationMock.mockReset()
   closeMock.mockReset()
-  collectDatabaseDiagnosticsMock.mockReset()
   getAllMigratorsMock.mockClear()
   migrationWindowCreateMock.mockReset()
   migrationWindowWaitForReadyMock.mockReset().mockResolvedValue(undefined)
@@ -1207,7 +1199,7 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('skipped')
-      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledWith({ status: 'completed', warningCount: 0 })
+      expect(diagnosticsFinishAttemptMock).toHaveBeenCalledWith({ status: 'completed' })
       expect(needsMigrationMock.mock.invocationCallOrder[0]).toBeLessThan(
         diagnosticsFinishAttemptMock.mock.invocationCallOrder[0]
       )

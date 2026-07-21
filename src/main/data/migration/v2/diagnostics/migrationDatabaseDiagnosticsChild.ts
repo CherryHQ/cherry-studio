@@ -35,8 +35,7 @@ function inspectObject(
 ): MigrationDatabaseObjectCheck {
   const base = {
     role: definition.role,
-    tableName: definition.table,
-    standardColumns: [...definition.columns]
+    tableName: definition.table
   }
   const table = database
     .prepare("SELECT 1 AS present FROM sqlite_schema WHERE type = 'table' AND name = ? LIMIT 1")

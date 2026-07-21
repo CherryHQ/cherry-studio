@@ -113,27 +113,6 @@ describe('MigrationEngine', () => {
     vi.spyOn(engine as any, 'cleanupTempFiles').mockResolvedValue(undefined)
   })
 
-  it('runs one-shot database diagnostics against the resolved database path', async () => {
-    const expected = { completion: { status: 'completed' } }
-    const databaseDiagnostics = {
-      inspect: vi.fn(async () => expected)
-    }
-
-    await expect(engine.collectDatabaseDiagnostics(databaseDiagnostics as any)).resolves.toBe(expected)
-    expect(databaseDiagnostics.inspect).toHaveBeenCalledExactlyOnceWith(mockPaths.databaseFile)
-  })
-
-  it('can collect one-shot diagnostics after the migration connection is closed', async () => {
-    const result = { sqlite: { status: 'unavailable', reason: 'open_failed' } }
-    const databaseDiagnostics = {
-      inspect: vi.fn(async () => result)
-    }
-
-    engine.close()
-    await expect(engine.collectDatabaseDiagnostics(databaseDiagnostics as any)).resolves.toBe(result)
-    expect(databaseDiagnostics.inspect).toHaveBeenCalledExactlyOnceWith(mockPaths.databaseFile)
-  })
-
   it('resets every migrator before each run starts', async () => {
     const events: string[] = []
     const boot = createTestMigrator('boot', 1, events)
@@ -179,7 +158,7 @@ describe('MigrationEngine', () => {
     expect(result.success).toBe(true)
     expect(result.migratorResults).toHaveLength(1)
     expect(result.migratorResults[0].warnings).toEqual(['prepare warn', 'execute warn'])
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({ status: 'completed', warningCount: 2 })
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({ status: 'completed' })
   })
 
   it('omits the warnings field when a migrator reports none', async () => {
@@ -709,7 +688,7 @@ describe('MigrationEngine', () => {
 
     await engine.skipMigration()
 
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({ status: 'completed', warningCount: 0 })
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({ status: 'completed' })
     expect(order).toEqual(['status:completed', 'attempt:completed', 'journal:cleanup'])
   })
 

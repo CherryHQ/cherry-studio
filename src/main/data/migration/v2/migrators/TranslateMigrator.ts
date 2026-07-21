@@ -194,10 +194,7 @@ export class TranslateMigrator extends BaseMigrator {
 
         if (newLanguageRecords.length > 0) {
           db.transaction((tx) => {
-            this.runDiagnosedWrite(
-              () => [],
-              () => tx.insert(translateLanguageTable).values(newLanguageRecords).run()
-            )
+            tx.insert(translateLanguageTable).values(newLanguageRecords).run()
           })
           processedCount += newLanguageRecords.length
         }

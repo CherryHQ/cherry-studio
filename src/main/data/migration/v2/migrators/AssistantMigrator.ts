@@ -282,11 +282,9 @@ export class AssistantMigrator extends BaseMigrator {
           })
           .filter((row): row is NonNullable<typeof row> => row !== null)
         for (let i = 0; i < mcpServerRows.length; i += BATCH_SIZE) {
-          const batch = mcpServerRows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(
-            () => [],
-            () => tx.insert(assistantMcpServerTable).values(batch).run()
-          )
+          tx.insert(assistantMcpServerTable)
+            .values(mcpServerRows.slice(i, i + BATCH_SIZE))
+            .run()
         }
         if (allMcpServerRows.length !== mcpServerRows.length) {
           logger.info(`Filtered ${allMcpServerRows.length - mcpServerRows.length} dangling mcp_server references`)
@@ -329,11 +327,9 @@ export class AssistantMigrator extends BaseMigrator {
             return false
           })
         for (let i = 0; i < knowledgeBaseRows.length; i += BATCH_SIZE) {
-          const batch = knowledgeBaseRows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(
-            () => [],
-            () => tx.insert(assistantKnowledgeBaseTable).values(batch).run()
-          )
+          tx.insert(assistantKnowledgeBaseTable)
+            .values(knowledgeBaseRows.slice(i, i + BATCH_SIZE))
+            .run()
         }
         if (allKnowledgeBaseRows.length !== knowledgeBaseRows.length) {
           logger.info(
@@ -356,11 +352,12 @@ export class AssistantMigrator extends BaseMigrator {
           const tagRows = [...uniqueTagNames].map((name) => ({ name }))
           let insertedTagRowCount = 0
           for (let i = 0; i < tagRows.length; i += BATCH_SIZE) {
-            const batch = tagRows.slice(i, i + BATCH_SIZE)
-            const insertedRows = this.runDiagnosedWrite(
-              () => [],
-              () => tx.insert(tagTable).values(batch).onConflictDoNothing().returning({ id: tagTable.id }).all()
-            )
+            const insertedRows = tx
+              .insert(tagTable)
+              .values(tagRows.slice(i, i + BATCH_SIZE))
+              .onConflictDoNothing()
+              .returning({ id: tagTable.id })
+              .all()
             insertedTagRowCount += insertedRows.length
           }
 
@@ -384,17 +381,12 @@ export class AssistantMigrator extends BaseMigrator {
 
           let insertedAssociationCount = 0
           for (let i = 0; i < entityTagRows.length; i += BATCH_SIZE) {
-            const batch = entityTagRows.slice(i, i + BATCH_SIZE)
-            const insertedRows = this.runDiagnosedWrite(
-              () => [],
-              () =>
-                tx
-                  .insert(entityTagTable)
-                  .values(batch)
-                  .onConflictDoNothing()
-                  .returning({ tagId: entityTagTable.tagId })
-                  .all()
-            )
+            const insertedRows = tx
+              .insert(entityTagTable)
+              .values(entityTagRows.slice(i, i + BATCH_SIZE))
+              .onConflictDoNothing()
+              .returning({ tagId: entityTagTable.tagId })
+              .all()
             insertedAssociationCount += insertedRows.length
           }
 

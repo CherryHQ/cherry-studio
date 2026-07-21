@@ -58,8 +58,6 @@ import {
   type ClassifiedMigrationError,
   classifyMigrationError,
   type MigrationAttemptFinish,
-  type MigrationDatabaseDiagnosticResult,
-  type MigrationDatabaseDiagnostics,
   type MigrationDiagnosticFailure,
   type MigrationDiagnosticFailureEvidence,
   type MigrationDiagnosticLocation,
@@ -108,8 +106,7 @@ const DATABASE_OR_FILE_ERROR_CODES: ReadonlySet<DatabaseOrFileErrorCode> = new S
   'file_missing',
   'file_permission',
   'file_readonly',
-  'file_io',
-  'file_unknown'
+  'file_io'
 ])
 
 function databaseOrFileErrorCode(errorCode: ClassifiedMigrationError['errorCode']): DatabaseOrFileErrorCode {
@@ -124,8 +121,6 @@ function invariantErrorCode(evidence: InvariantEvidence): FailureOfKind<'migrati
       return 'source_invalid_identifier'
     case 'foreign_key':
       return 'validation_foreign_key'
-    case 'dependency':
-      return 'validation_relation'
   }
 }
 
@@ -147,10 +142,6 @@ function validationErrorCode(
 ): FailureOfKind<'migration_validation_failed'>['errorCode'] {
   switch (errorCode) {
     case 'validation_count_mismatch':
-    case 'validation_required_target_field':
-    case 'validation_relation':
-    case 'validation_material':
-    case 'validation_vector':
     case 'validation_foreign_key':
     case 'validation_status':
       return errorCode
@@ -235,12 +226,6 @@ export class MigrationEngine {
   close(): void {
     this.migrationDb?.close()
     this.migrationDb = null
-  }
-
-  async collectDatabaseDiagnostics(
-    diagnostics: MigrationDatabaseDiagnostics
-  ): Promise<MigrationDatabaseDiagnosticResult> {
-    return diagnostics.inspect(this.paths.databaseFile)
   }
 
   private getDb(): DbType {
@@ -344,7 +329,6 @@ export class MigrationEngine {
   ): Promise<MigrationResult> {
     const startTime = Date.now()
     const results: MigratorResult[] = []
-    let warningCount = 0
     this.diagnosticAttemptTerminated = false
 
     try {
@@ -436,7 +420,6 @@ export class MigrationEngine {
         // execute-phase warnings (e.g. knowledge files kept but not reindexable).
         const warnings = [...(prepareResult.warnings ?? []), ...(executeResult.warnings ?? [])]
         if (warnings.length > 0) {
-          warningCount += warnings.length
           logger.warn(`${migrator.name} completed with ${warnings.length} warning(s)`, { warnings })
         }
 
@@ -460,7 +443,7 @@ export class MigrationEngine {
       // Mark migration completed
       await this.runDiagnosticBoundary('database', 'finalize', () => this.markCompleted())
 
-      const attemptFinished = this.finishDiagnosticAttempt({ status: 'completed', warningCount })
+      const attemptFinished = this.finishDiagnosticAttempt({ status: 'completed' })
       if (attemptFinished) {
         this.completeDiagnostics()
       }
@@ -910,7 +893,7 @@ export class MigrationEngine {
   async skipMigration(): Promise<void> {
     logger.info('Migration skipped by user (version incompatible, using defaults)')
     await this.markCompleted()
-    const attemptFinished = this.finishDiagnosticAttempt({ status: 'completed', warningCount: 0 })
+    const attemptFinished = this.finishDiagnosticAttempt({ status: 'completed' })
     if (attemptFinished) {
       this.completeDiagnostics()
     }

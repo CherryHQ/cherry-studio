@@ -35,4 +35,3 @@ export const migrationRendererExportFailurePayloadSchema = z
   .strict()
 
 export type MigrationRendererExportFailureReport = z.infer<typeof migrationRendererExportFailureReportSchema>
-export type MigrationRendererExportFailurePayload = z.infer<typeof migrationRendererExportFailurePayloadSchema>

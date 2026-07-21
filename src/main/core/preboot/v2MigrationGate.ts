@@ -1,9 +1,11 @@
 import { application } from '@application'
 import {
-  classifyMigrationError,
+  classifyMigrationPrebootFailure,
+  classifyMigrationRendererExportFailure,
   createMigrationDatabaseDiagnostics,
   createMigrationDiagnosticBundleBuilder,
   createMigrationDiagnosticsCoordinator,
+  createMigrationVersionGateContext,
   createMigrationWindowFailureClaim,
   evaluateCandidateVersion,
   getAllMigrators,
@@ -13,7 +15,6 @@ import {
   type MigrationDiagnosticNativeDecision,
   type MigrationDiagnosticNativeFailureCode,
   type MigrationDiagnosticNativeSaveResult,
-  type MigrationDirectorySelectionRole,
   migrationEngine,
   type MigrationRendererFailureReason,
   type MigrationVersionGateContext,
@@ -26,14 +27,12 @@ import {
   runMigrationDiagnosticSaveTransaction,
   setDataLocationNotice,
   setVersionIncompatible,
-  unregisterMigrationIpcHandlers,
-  type VersionBlockReason
+  unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import type { MigrationRendererExportFailureReport } from '@shared/data/migration/v2/diagnostics'
 import { app } from 'electron'
-import semver from 'semver'
 
 const logger = loggerService.withContext('V2MigrationGate')
 
@@ -49,107 +48,6 @@ type RendererExportFailureErrorCode = Extract<
   MigrationDiagnosticFailure,
   { kind: 'renderer_export_failed' }
 >['errorCode']
-type PrebootFailureErrorCode = Extract<MigrationDiagnosticFailure, { kind: 'preboot_failed' }>['errorCode']
-
-function classifyRendererExportFailure(report: MigrationRendererExportFailureReport): RendererExportFailureErrorCode {
-  switch (report.operationRole) {
-    case 'open':
-    case 'read':
-      return 'source_read_failed'
-    case 'parse':
-      return 'source_parse_failed'
-    case 'serialize':
-      return 'source_serialization_failed'
-    case 'write':
-    case 'unknown':
-      return 'unknown_error'
-  }
-}
-
-function classifyPrebootFailure(error: unknown, fallback: PrebootFailureErrorCode): PrebootFailureErrorCode {
-  const { errorCode } = classifyMigrationError(error)
-  switch (errorCode) {
-    case 'unknown_error':
-      return fallback
-    case 'sqlite_open_failed':
-    case 'sqlite_corrupt':
-    case 'sqlite_not_database':
-    case 'sqlite_schema':
-    case 'sqlite_constraint':
-    case 'sqlite_readonly':
-    case 'sqlite_permission':
-    case 'sqlite_too_big':
-    case 'sqlite_busy':
-    case 'sqlite_locked':
-    case 'sqlite_io':
-    case 'sqlite_unknown':
-    case 'file_missing':
-    case 'file_permission':
-    case 'file_readonly':
-    case 'file_io':
-    case 'file_unknown':
-      return errorCode
-    default:
-      return fallback
-  }
-}
-
-function normalizeDiagnosticVersion(value: string | null | undefined): string | null {
-  if (!value) return null
-  const normalized = semver.coerce(value)?.version ?? null
-  return normalized !== null && /^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(normalized) ? normalized : null
-}
-
-function createVersionGateDiagnosticContext(
-  reason: VersionBlockReason,
-  details: Record<string, string>,
-  previousVersion: string | null,
-  directorySelectionRole: MigrationDirectorySelectionRole,
-  versionLog: MigrationVersionGateContext['versionLog']
-): MigrationVersionGateContext | null {
-  const currentVersion = normalizeDiagnosticVersion(app.getVersion()) ?? 'unknown'
-  const normalizedPreviousVersion = normalizeDiagnosticVersion(previousVersion)
-
-  if (reason === 'no_version_log') {
-    const requiredVersion = normalizeDiagnosticVersion(details.requiredVersion)
-    if (requiredVersion === null || versionLog.state !== 'missing') return null
-    return {
-      reason,
-      currentVersion,
-      directorySelectionRole,
-      previousVersion: null,
-      requiredVersion,
-      gatewayVersion: null,
-      versionLog
-    }
-  }
-
-  if (reason === 'v1_too_old') {
-    const requiredVersion = normalizeDiagnosticVersion(details.requiredVersion)
-    if (normalizedPreviousVersion === null || requiredVersion === null || versionLog.state !== 'parsed') return null
-    return {
-      reason,
-      currentVersion,
-      directorySelectionRole,
-      previousVersion: normalizedPreviousVersion,
-      requiredVersion,
-      gatewayVersion: null,
-      versionLog
-    }
-  }
-
-  const gatewayVersion = normalizeDiagnosticVersion(details.gatewayVersion)
-  if (normalizedPreviousVersion === null || gatewayVersion === null || versionLog.state !== 'parsed') return null
-  return {
-    reason,
-    currentVersion,
-    directorySelectionRole,
-    previousVersion: normalizedPreviousVersion,
-    requiredVersion: null,
-    gatewayVersion,
-    versionLog
-  }
-}
 
 /**
  * Outcome of the v1→v2 migration gate.
@@ -276,7 +174,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     })
   }
 
-  const finishCompletedAttempt = (): void => finishAttempt({ status: 'completed', warningCount: 0 })
+  const finishCompletedAttempt = (): void => finishAttempt({ status: 'completed' })
 
   const completeDiagnostics = (): void => {
     try {
@@ -338,7 +236,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           kind: 'renderer_export_failed',
           scope: 'renderer_export',
           phase: 'finalize',
-          errorCode: mainWriteFailure ?? classifyRendererExportFailure(report),
+          errorCode: mainWriteFailure ?? classifyMigrationRendererExportFailure(report),
           evidence: { kind: 'renderer_export', ...report }
         }
       })
@@ -469,7 +367,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     migrationEngine.registerMigrators(getAllMigrators())
   } catch (error) {
     logger.error('Migration database initialization failed', error as Error)
-    finishPrebootFailure(classifyPrebootFailure(error, 'database_initialize_failed'), 'initialize')
+    finishPrebootFailure(classifyMigrationPrebootFailure(error, 'database_initialize_failed'), 'initialize')
 
     if (isDev) {
       const detail = isSchemaOutOfSyncError(error)
@@ -507,7 +405,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     needsMigration = await migrationEngine.needsMigration()
   } catch (error) {
     logger.error('Migration status probe failed', error as Error)
-    finishPrebootFailure(classifyPrebootFailure(error, 'migration_status_probe_failed'), 'validate')
+    finishPrebootFailure(classifyMigrationPrebootFailure(error, 'migration_status_probe_failed'), 'validate')
     const decision = await presentFailure('migration_status_probe_failed')
     migrationEngine.close()
     engineInitialized = false
@@ -561,7 +459,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       : { state: 'missing' as const })
   logger.info('Version compatibility check', { previousVersion, versionLogExists })
   if (versionCheck.outcome === 'block') {
-    const versionGate = createVersionGateDiagnosticContext(
+    const versionGate = createMigrationVersionGateContext(
+      app.getVersion(),
       versionCheck.reason,
       versionCheck.details,
       previousVersion,

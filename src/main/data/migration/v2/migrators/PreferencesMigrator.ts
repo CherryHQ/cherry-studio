@@ -251,10 +251,7 @@ export class PreferencesMigrator extends BaseMigrator {
 
       db.transaction((tx) => {
         for (const avatarFile of avatarFiles) {
-          this.runDiagnosedWrite(
-            () => [],
-            () => insertPreparedImageEntryTx(tx, avatarFile)
-          )
+          insertPreparedImageEntryTx(tx, avatarFile)
         }
 
         // Batch insert all preferences

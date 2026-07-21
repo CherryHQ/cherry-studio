@@ -1,10 +1,5 @@
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import {
-  createUniqueModelId,
-  type Model,
-  MODEL_CAPABILITY,
-  UniqueModelIdViolationError
-} from '@shared/data/types/model'
+import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
   inferEmbeddingFromModelId,
   inferFunctionCallingFromModelId,
@@ -75,8 +70,9 @@ describe('createUniqueModelId', () => {
         thrown = error
       }
 
-      expect(thrown).toBeInstanceOf(UniqueModelIdViolationError)
+      expect(thrown).toBeInstanceOf(Error)
       expect(thrown).toMatchObject({
+        name: 'UniqueModelIdViolationError',
         code: 'INVALID_UNIQUE_MODEL_ID',
         identifierRole,
         rule,

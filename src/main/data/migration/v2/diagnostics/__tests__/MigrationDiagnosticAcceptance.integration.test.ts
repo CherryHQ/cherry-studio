@@ -115,10 +115,10 @@ describe('migration diagnostic acceptance matrix', () => {
     (fixture): fixture is SupportChainMigrationDiagnosticAcceptanceFixture => fixture.role === 'support_chain'
   )
 
-  it('defines exactly twelve blocking/process fixtures and two non-root support fixtures', () => {
+  it('defines exactly eleven blocking/process fixtures and two non-root support fixtures', () => {
     expect(blockingFixtures.map(({ name }) => name)).toEqual([...BLOCKING_FIXTURES])
     expect(supportFixtures.map(({ name }) => name)).toEqual([...SUPPORT_CHAIN_FIXTURES])
-    expect(new Set(fixtures.map(({ name }) => name)).size).toBe(14)
+    expect(new Set(fixtures.map(({ name }) => name)).size).toBe(13)
   })
 
   it.each(blockingFixtures)('$name preserves one bounded blocking root in a real two-entry ZIP', async (fixture) => {
@@ -142,8 +142,8 @@ describe('migration diagnostic acceptance matrix', () => {
     if (document.database.sqlite.status === 'available') {
       expect(document.database.sqlite.objects).toEqual(
         expect.arrayContaining(
-          MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table, columns }) =>
-            expect.objectContaining({ role, tableName: table, standardColumns: columns })
+          MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) =>
+            expect.objectContaining({ role, tableName: table })
           )
         )
       )

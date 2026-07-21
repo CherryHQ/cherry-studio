@@ -11,7 +11,6 @@ import type { MigrationContext } from '../core/MigrationContext'
 import {
   type ClassifiedMigrationError,
   classifyMigrationError,
-  type FailedWriteOperationRole,
   type FailedWriteValue,
   measureFailedWriteValuesBestEffort,
   type MigrationDiagnosticFailureEvidence,
@@ -101,38 +100,13 @@ export abstract class BaseMigrator {
    * metadata if it throws. The helper deliberately does not own a transaction,
    * await the callback, clone rows, or inspect error text.
    */
-  protected runDiagnosedWrite<T>(
-    values: () => readonly FailedWriteValue[],
-    write: () => T,
-    operationRole: FailedWriteOperationRole = 'insert'
-  ): T {
+  protected runDiagnosedWrite<T>(values: () => readonly FailedWriteValue[], write: () => T): T {
     try {
       return write()
     } catch (error) {
       this.diagnosedPhaseFailure = {
         classification: classifyMigrationError(error),
-        evidence: measureFailedWriteValuesBestEffort(values, operationRole)
-      }
-      throw error
-    }
-  }
-
-  /**
-   * Async counterpart for an existing Promise-returning write boundary. The
-   * payload producer is deliberately lazy: it runs only after rejection, so a
-   * successful write pays no profiling or allocation cost.
-   */
-  protected async runDiagnosedAsyncWrite<T>(
-    values: () => readonly FailedWriteValue[],
-    write: () => Promise<T>,
-    operationRole: FailedWriteOperationRole = 'insert'
-  ): Promise<T> {
-    try {
-      return await write()
-    } catch (error) {
-      this.diagnosedPhaseFailure = {
-        classification: classifyMigrationError(error),
-        evidence: measureFailedWriteValuesBestEffort(values, operationRole)
+        evidence: measureFailedWriteValuesBestEffort(values)
       }
       throw error
     }
@@ -201,11 +175,6 @@ export abstract class BaseMigrator {
   /** Validate with fixed failure metadata available to the main-process engine. */
   validateWithDiagnostics(ctx: MigrationContext): Promise<DiagnosedPhaseResult<ValidateResult>> {
     return this.runPhaseWithDiagnostics(() => this.validate(ctx))
-  }
-
-  /** Clear a diagnosed failure after an explicitly non-fatal, best-effort write. */
-  protected clearNonterminalDiagnosedFailure(): void {
-    this.diagnosedPhaseFailure = undefined
   }
 
   /**

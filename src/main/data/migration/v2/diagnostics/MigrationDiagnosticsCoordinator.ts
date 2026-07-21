@@ -4,8 +4,6 @@ import { app } from 'electron'
 
 import {
   cleanupMigrationDiagnosticsJournal,
-  garbageCollectMigrationDiagnosticsQuarantines,
-  quarantineCorruptMigrationDiagnosticsJournal,
   readMigrationDiagnosticsJournal,
   writeMigrationDiagnosticsJournal
 } from './migrationDiagnosticsJournal'
@@ -55,16 +53,6 @@ function normalizeArch(arch: string): MigrationDiagnosticsArch {
   return arch === 'x64' || arch === 'arm64' || arch === 'ia32' ? arch : 'other'
 }
 
-function warningCountBucket(warningCount: number): '0' | '1' | '2-10' | '11+' {
-  if (!Number.isSafeInteger(warningCount) || warningCount < 0) {
-    throw new Error('Migration warning count must be a non-negative safe integer')
-  }
-  if (warningCount === 0) return '0'
-  if (warningCount === 1) return '1'
-  if (warningCount <= 10) return '2-10'
-  return '11+'
-}
-
 function deepFreeze<TValue>(value: TValue): TValue {
   if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value
   for (const nested of Object.values(value)) deepFreeze(nested)
@@ -102,13 +90,6 @@ export class MigrationDiagnosticsCoordinator {
     this.hasAttached = true
     this.attachedPaths = paths
 
-    const now = this.clock()
-    try {
-      garbageCollectMigrationDiagnosticsQuarantines(paths.diagnosticsJournalFile, { now })
-    } catch {
-      logger.warn('Failed to clean migration diagnostics quarantines')
-    }
-
     const existing = readMigrationDiagnosticsJournal(paths.diagnosticsJournalFile)
     if (existing.kind === 'none') {
       this.persistBestEffort()
@@ -116,9 +97,9 @@ export class MigrationDiagnosticsCoordinator {
     }
     if (existing.kind === 'corrupt') {
       try {
-        quarantineCorruptMigrationDiagnosticsJournal(paths.diagnosticsJournalFile, { now })
+        cleanupMigrationDiagnosticsJournal(paths.diagnosticsJournalFile)
       } catch {
-        logger.warn('Failed to quarantine invalid migration diagnostics checkpoint')
+        logger.warn('Failed to remove invalid migration diagnostics checkpoint')
       }
       this.persistBestEffort()
       return
@@ -177,8 +158,7 @@ export class MigrationDiagnosticsCoordinator {
         current: {
           ...current,
           status: 'completed',
-          endedAt,
-          warningCountBucket: warningCountBucket(result.warningCount)
+          endedAt
         }
       })
       return

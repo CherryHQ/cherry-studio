@@ -25,8 +25,7 @@ const snapshot: MigrationDiagnosticsSnapshot = {
     status: 'completed',
     startedAt: '2026-07-21T08:00:00.000Z',
     endedAt: '2026-07-21T08:01:00.000Z',
-    lastLocation: { scope: 'engine', phase: 'finalize' },
-    warningCountBucket: '2-10'
+    lastLocation: { scope: 'engine', phase: 'finalize' }
   }
 }
 
@@ -42,10 +41,9 @@ const database = {
     status: 'available' as const,
     quickCheck: 'ok' as const,
     foreignKeyViolationCountBucket: '1' as const,
-    objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table, columns }) => ({
+    objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) => ({
       role,
       tableName: table,
-      standardColumns: columns,
       status: 'present' as const
     }))
   }

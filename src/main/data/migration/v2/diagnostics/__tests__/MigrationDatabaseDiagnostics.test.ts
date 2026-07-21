@@ -20,10 +20,9 @@ const available = {
   status: 'available',
   quickCheck: 'ok',
   foreignKeyViolationCountBucket: '0',
-  objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table, columns }) => ({
+  objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) => ({
     role,
     tableName: table,
-    standardColumns: columns,
     status: 'present' as const
   }))
 } as const

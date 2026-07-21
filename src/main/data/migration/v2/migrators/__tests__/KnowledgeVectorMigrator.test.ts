@@ -3,7 +3,6 @@ import * as os from 'node:os'
 import path from 'node:path'
 
 import { stripOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
-import { BetterSqlite3Driver } from '@main/features/knowledge/vectorstore/indexStore/BetterSqlite3Driver'
 import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
 import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
 import { encodeVectorBlob } from '@main/features/knowledge/vectorstore/indexStore/vectorBlob'
@@ -53,7 +52,7 @@ vi.mock('@main/utils/legacyFile', () => ({
   }
 }))
 
-const { KnowledgeVectorMigrator, createKnowledgeVectorFailedWriteValues } = await import('../KnowledgeVectorMigrator')
+const { KnowledgeVectorMigrator } = await import('../KnowledgeVectorMigrator')
 
 const LEGACY_KNOWLEDGE_BASE_ID = 'kb-1'
 const MIGRATED_KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
@@ -182,11 +181,9 @@ function createDbMock({
   const updateCalls: Array<{ values: Record<string, unknown> }> = []
   const update = vi.fn(() => ({
     set: vi.fn((values: Record<string, unknown>) => ({
-      where: vi.fn(() => ({
-        run: vi.fn(() => {
-          updateCalls.push({ values })
-        })
-      }))
+      where: vi.fn(async () => {
+        updateCalls.push({ values })
+      })
     }))
   }))
 
@@ -1041,127 +1038,6 @@ describe('KnowledgeVectorMigrator', () => {
   })
 
   describe('execute + validate', () => {
-    it('describes rebuilt vector BLOB bytes from vector length without reading vector values', () => {
-      const vector = new Proxy([] as number[], {
-        get(_target, property) {
-          if (property === 'length') return 75_000
-          throw new Error(`Unexpected vector value access: ${String(property)}`)
-        }
-      })
-
-      const values = createKnowledgeVectorFailedWriteValues({
-        embeddings: [{ embeddingTextHash: 'hash', vector }]
-      })
-
-      expect(values).toEqual([{ role: 'blob_value', kind: 'blob', byteLength: 300_000 }])
-    })
-
-    it('reads at most three vector lengths for many embeddings', () => {
-      const embeddingCount = 10_000
-      let vectorLengthReads = 0
-      const vector = new Proxy([] as number[], {
-        get(_target, property) {
-          if (property === 'length') {
-            vectorLengthReads += 1
-            return 1
-          }
-          throw new Error(`Unexpected vector value access: ${String(property)}`)
-        }
-      })
-      const embeddings = Array.from({ length: embeddingCount }, (_, index) => ({
-        embeddingTextHash: `hash-${index}`,
-        vector
-      }))
-
-      const values = createKnowledgeVectorFailedWriteValues({ embeddings })
-
-      expect(vectorLengthReads).toBe(3)
-      expect(values).toHaveLength(3)
-      expect(values).toEqual([
-        { role: 'blob_value', kind: 'blob', byteLength: 4 },
-        { role: 'blob_value', kind: 'blob', byteLength: 4 },
-        { role: 'blob_value', kind: 'blob', byteLength: 4 }
-      ])
-    })
-
-    it('records bounded fixed status metadata when a degradation update is too large', async () => {
-      const sqliteError = Object.assign(new Error('PRIVATE_VECTOR_PATH_/Users/alice'), { code: 'SQLITE_TOOBIG' })
-      const migrator = new KnowledgeVectorMigrator() as any
-      migrator.directoryItemsToDegrade.add('item-oversized')
-      const migrationCtx = {
-        db: {
-          update: vi.fn(() => ({
-            set: vi.fn(() => ({
-              where: vi.fn(() => {
-                throw sqliteError
-              })
-            }))
-          }))
-        },
-        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
-      }
-
-      const diagnosed = await migrator.executeWithDiagnostics(migrationCtx)
-
-      expect(diagnosed.result.success).toBe(true)
-      expect(diagnosed.failure).toBeUndefined()
-    })
-
-    it('records the real embedding BLOB insert rejection with a no-copy vector byte profile', async () => {
-      const vector = Array.from({ length: 75_000 }, (_, index) => (index % 97) / 97)
-      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
-        {
-          id: 'legacy-large-vector-0',
-          pageContent: 'large vector chunk',
-          uniqueLoaderId: 'loader-large-vector',
-          source: '/tmp/large-vector.md',
-          vector
-        }
-      ])
-      const migrationCtx = createMigrationCtx({
-        migratedBases: [createMigratedBase({ dimensions: vector.length })],
-        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        reduxData: {
-          knowledge: {
-            bases: [
-              {
-                id: LEGACY_KNOWLEDGE_BASE_ID,
-                name: 'Base 1',
-                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-large-vector' }]
-              }
-            ]
-          }
-        }
-      })
-      ;(migrationCtx as any).logger = { error: vi.fn() }
-      const original = Object.assign(new Error('PRIVATE_VECTOR_INSERT_/Users/alice'), { code: 'SQLITE_TOOBIG' })
-      const realExecute = BetterSqlite3Driver.prototype.execute
-      let embeddingInsertCount = 0
-      vi.spyOn(BetterSqlite3Driver.prototype, 'execute').mockImplementation(function (
-        this: BetterSqlite3Driver,
-        sql,
-        args = []
-      ) {
-        if (sql.includes('INSERT OR IGNORE INTO embedding')) {
-          embeddingInsertCount += 1
-          const vectorBlob = args[1]
-          expect(vectorBlob).toBeInstanceOf(Uint8Array)
-          expect((vectorBlob as Uint8Array).byteLength).toBe(300_000)
-          throw original
-        }
-        return realExecute.call(this, sql, args)
-      })
-
-      const migrator = new KnowledgeVectorMigrator() as any
-      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
-      const diagnosed = await migrator.executeWithDiagnostics(migrationCtx as any)
-
-      expect(diagnosed.result.success).toBe(true)
-      expect(diagnosed.result.warnings).toHaveLength(1)
-      expect(diagnosed.failure).toBeUndefined()
-      expect(embeddingInsertCount).toBe(1)
-    })
-
     it('rebuilds a file material into the 9-table store with byte-identical reused vectors', async () => {
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
@@ -1487,11 +1363,9 @@ describe('KnowledgeVectorMigrator', () => {
       // Make the degrade UPDATE fail at execute time so flushDirectoryDegradations records a warning.
       migrationCtx.db.update = vi.fn(() => ({
         set: vi.fn(() => ({
-          where: vi.fn(() => ({
-            run: vi.fn(() => {
-              throw new Error('disk I/O error')
-            })
-          }))
+          where: vi.fn(async () => {
+            throw new Error('disk I/O error')
+          })
         }))
       })) as any
 
@@ -2500,11 +2374,7 @@ describe('KnowledgeVectorMigrator', () => {
       // Fail the snapshot-pin UPDATE — the only db.update a url base issues — after the store is built.
       migrationCtx.db.update = vi.fn(() => ({
         set: vi.fn(() => ({
-          where: vi.fn(() => ({
-            run: vi.fn(() => {
-              throw new Error('pin update failed')
-            })
-          }))
+          where: vi.fn().mockRejectedValue(new Error('pin update failed'))
         }))
       })) as any
 

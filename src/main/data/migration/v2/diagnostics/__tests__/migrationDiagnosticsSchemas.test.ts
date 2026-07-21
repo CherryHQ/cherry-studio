@@ -68,7 +68,6 @@ const failures = [
     errorCode: 'sqlite_too_big',
     evidence: {
       kind: 'failed_write',
-      operationRole: 'insert',
       truncated: false,
       values: [{ role: 'text_value', kind: 'string', byteLength: 262_145, byteLengthBucket: '262145+' }]
     }
@@ -126,6 +125,8 @@ describe('migrationDiagnosticFailureSchema', () => {
     expect(MIGRATION_FAILURE_ERROR_CODES).toContain('version_window_failed')
     expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('database_diagnostics_timeout')
     expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('bundle_save_failed')
+    expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('validation_relation')
+    expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('file_unknown')
   })
 
   it.each(failures)('accepts the fixed $kind failure', (failure) => {
@@ -182,7 +183,7 @@ describe('migrationDiagnosticFailureSchema', () => {
       'renderer_export_failed',
       { kind: 'all_required_rows_rejected', sourceRole: 'mcp_server', fieldRole: 'source_id', rejectedCountBucket: '1' }
     ],
-    ['source_prepare_failed', { kind: 'failed_write', operationRole: 'insert', truncated: false, values: [] }],
+    ['source_prepare_failed', { kind: 'failed_write', truncated: false, values: [] }],
     ['migration_write_failed', { kind: 'invariant', invariantRole: 'foreign_key' }],
     ['migration_invariant_failed', { kind: 'validation', checkRole: 'status' }],
     ['migration_validation_failed', { kind: 'interruption', lastLocation: location, recoverySource: 'checkpoint' }],
@@ -252,9 +253,8 @@ describe('migrationDiagnosticFailureSchema', () => {
         ...failures[4],
         evidence: {
           kind: 'failed_write',
-          operationRole: 'insert',
           truncated: false,
-          values: [{ role: 'blob_value', kind: 'blob', byteLength: 10, byteLengthBucket: '262145+' }]
+          values: [{ role: 'text_value', kind: 'string', byteLength: 10, byteLengthBucket: '262145+' }]
         }
       }).success
     ).toBe(false)
@@ -269,8 +269,7 @@ describe('migrationDiagnosticAttemptSchema', () => {
       status: 'completed',
       startedAt,
       endedAt,
-      lastLocation: location,
-      warningCountBucket: '2-10'
+      lastLocation: location
     },
     {
       trigger: 'initial',

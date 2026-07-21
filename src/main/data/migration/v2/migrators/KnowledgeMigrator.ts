@@ -850,14 +850,10 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     ctx.db.transaction((tx) => {
       for (const [providerId, rows] of rowsByProvider) {
-        this.runDiagnosedWrite(
-          () => [],
-          () =>
-            insertManyWithOrderKey(tx, userModelTable, rows, {
-              pkColumn: userModelTable.id,
-              scope: eq(userModelTable.providerId, providerId)
-            })
-        )
+        insertManyWithOrderKey(tx, userModelTable, rows, {
+          pkColumn: userModelTable.id,
+          scope: eq(userModelTable.providerId, providerId)
+        })
       }
     })
 

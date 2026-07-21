@@ -1,8 +1,4 @@
-import type {
-  MigrationErrorCategory,
-  MigrationErrorCode,
-  MigrationFailureErrorCode
-} from './migrationDiagnosticsSchemas'
+import type { MigrationFailureErrorCode } from './migrationDiagnosticsSchemas'
 
 const MAX_CAUSE_DEPTH = 4
 
@@ -11,57 +7,13 @@ export interface ClassifiedMigrationError {
   readonly identifierViolation?:
     | { readonly identifierRole: 'provider_id'; readonly rule: 'empty' | 'contains_separator' }
     | { readonly identifierRole: 'model_id'; readonly rule: 'empty' | 'contains_reserved_route_character' }
-  /** @deprecated Removed with the event-timeline diagnostics consumer. */
-  readonly category: MigrationErrorCategory
-  /** @deprecated Removed with the event-timeline diagnostics consumer. */
-  readonly code: MigrationErrorCode
-  /** @deprecated Cause depth is intentionally excluded from persisted diagnostics. */
-  readonly causeDepth: number
-}
-
-interface LegacyClassification {
-  readonly category: MigrationErrorCategory
-  readonly code: MigrationErrorCode
-}
-
-function legacyClassification(errorCode: MigrationFailureErrorCode): LegacyClassification {
-  switch (errorCode) {
-    case 'sqlite_corrupt':
-    case 'sqlite_not_database':
-    case 'sqlite_schema':
-      return { category: 'database_read', code: errorCode }
-    case 'sqlite_constraint':
-    case 'sqlite_too_big':
-      return { category: 'database_write', code: errorCode }
-    case 'sqlite_open_failed':
-    case 'file_missing':
-      return { category: 'filesystem', code: 'path_unavailable' }
-    case 'sqlite_readonly':
-    case 'sqlite_permission':
-    case 'file_permission':
-    case 'file_readonly':
-      return { category: 'filesystem', code: 'permission_denied' }
-    case 'sqlite_io':
-    case 'file_io':
-      return { category: 'filesystem', code: 'disk_full' }
-    default:
-      return { category: 'unknown', code: 'unknown' }
-  }
 }
 
 function classified(
   errorCode: MigrationFailureErrorCode,
-  causeDepth = 0,
   identifierViolation?: ClassifiedMigrationError['identifierViolation']
 ): ClassifiedMigrationError {
-  const result = { errorCode, ...(identifierViolation === undefined ? {} : { identifierViolation }) }
-  const legacy = legacyClassification(errorCode)
-  Object.defineProperties(result, {
-    category: { value: legacy.category },
-    code: { value: legacy.code },
-    causeDepth: { value: causeDepth }
-  })
-  return result as ClassifiedMigrationError
+  return { errorCode, ...(identifierViolation === undefined ? {} : { identifierViolation }) }
 }
 
 const UNKNOWN_CLASSIFICATION = classified('unknown_error')
@@ -166,11 +118,11 @@ export function classifyMigrationError(error: unknown): ClassifiedMigrationError
       if (code === 'INVALID_UNIQUE_MODEL_ID') {
         const identifierViolation = classifyIdentifierViolation(current)
         if (identifierViolation !== undefined) {
-          return classified('source_invalid_identifier', causeDepth, identifierViolation)
+          return classified('source_invalid_identifier', identifierViolation)
         }
       }
       const errorCode = classifyCode(code)
-      if (errorCode) return classified(errorCode, causeDepth)
+      if (errorCode) return classified(errorCode)
     }
 
     current = ownDataProperty(current, 'cause')

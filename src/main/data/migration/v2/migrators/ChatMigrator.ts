@@ -1165,11 +1165,9 @@ export class ChatMigrator extends BaseMigrator {
       // its single connection), so this batch can insert self-referencing message.parentId
       // rows that resolve within the batch. assertOwnedForeignKeys() below verifies the result.
       db.transaction((tx) => {
-        const topicRows = batch.map((data) => data.topic)
-        this.runDiagnosedWrite(
-          () => [],
-          () => tx.insert(topicTable).values(topicRows).run()
-        )
+        tx.insert(topicTable)
+          .values(batch.map((data) => data.topic))
+          .run()
         for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
           const messageBatch = batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
           this.runDiagnosedWrite(
@@ -1188,11 +1186,9 @@ export class ChatMigrator extends BaseMigrator {
         }
         if (batchFileRefRows.length > 0) {
           for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {
-            const fileRefBatch = batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE)
-            this.runDiagnosedWrite(
-              () => [],
-              () => tx.insert(chatMessageFileRefTable).values(fileRefBatch).run()
-            )
+            tx.insert(chatMessageFileRefTable)
+              .values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
+              .run()
           }
         }
       })
@@ -1234,10 +1230,7 @@ export class ChatMigrator extends BaseMigrator {
           let count = 0
           for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
             const batch = pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
-            const result = this.runDiagnosedWrite(
-              () => [],
-              () => tx.insert(pinTable).values(batch).onConflictDoNothing().returning({ id: pinTable.id }).all()
-            )
+            const result = tx.insert(pinTable).values(batch).onConflictDoNothing().returning({ id: pinTable.id }).all()
             count += result.length
           }
           return count

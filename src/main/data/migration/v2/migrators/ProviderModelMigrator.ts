@@ -452,10 +452,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         // needs them); the ref rows themselves go in after the owner rows exist
         // (their `source_id` FK needs the provider), below.
         for (const logoFile of providerLogoFiles) {
-          this.runDiagnosedWrite(
-            () => [],
-            () => insertPreparedImageEntryTx(tx, logoFile)
-          )
+          insertPreparedImageEntryTx(tx, logoFile)
         }
 
         const [lastProvider] = tx
@@ -477,10 +474,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
           const provider = this.providers[providerIndex]
           const providerRow = providerRows[providerIndex]
-          this.runDiagnosedWrite(
-            () => [],
-            () => tx.insert(userProviderTable).values(providerRow).run()
-          )
+          tx.insert(userProviderTable).values(providerRow).run()
           processedProviders++
 
           // Model dedup + invalid-id filtering happens in prepare(); use the

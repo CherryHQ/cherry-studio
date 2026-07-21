@@ -112,11 +112,11 @@ export const ParameterSupportDbSchema = z.object({
 export const UNIQUE_MODEL_ID_SEPARATOR = '::'
 const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 
-export type UniqueModelIdIdentifierRole = 'provider_id' | 'model_id'
-export type UniqueModelIdViolationRule = 'empty' | 'contains_separator' | 'contains_reserved_route_character'
+type UniqueModelIdIdentifierRole = 'provider_id' | 'model_id'
+type UniqueModelIdViolationRule = 'empty' | 'contains_separator' | 'contains_reserved_route_character'
 
 /** Fixed metadata for callers that must classify an invalid composite ID without parsing its message. */
-export class UniqueModelIdViolationError extends Error {
+class UniqueModelIdViolationError extends Error {
   readonly code = 'INVALID_UNIQUE_MODEL_ID'
 
   constructor(

@@ -225,10 +225,7 @@ export class PaintingMigrator extends BaseMigrator {
 
           for (let i = 0; i < refRows.length; i += INSERT_BATCH_SIZE) {
             const batch = refRows.slice(i, i + INSERT_BATCH_SIZE)
-            this.runDiagnosedWrite(
-              () => [],
-              () => tx.insert(paintingFileRefTable).values(batch).onConflictDoNothing().run()
-            )
+            tx.insert(paintingFileRefTable).values(batch).onConflictDoNothing().run()
           }
 
           logger.info('[execute] painting_file_ref summary', {

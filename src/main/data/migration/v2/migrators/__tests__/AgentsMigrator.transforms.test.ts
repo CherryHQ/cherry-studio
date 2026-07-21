@@ -7,7 +7,7 @@ import { eq, sql } from 'drizzle-orm'
 import { validate as isUuid } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { FailedWriteOperationRole, FailedWriteValue, MigrationDiagnosticFailureEvidence } from '../../diagnostics'
+import type { FailedWriteValue, MigrationDiagnosticFailureEvidence } from '../../diagnostics'
 import { measureFailedWriteValuesBestEffort } from '../../diagnostics'
 import { importLegacySessionMessages } from '../AgentsMigrator'
 import { createEmptyAgentsSchemaInfo } from '../mappings/AgentsDbMappings'
@@ -67,11 +67,7 @@ describe('importLegacySessionMessages', () => {
 
   async function importLegacyRows(
     rows: LegacyMessageRow[],
-    diagnoseWrite?: <T>(
-      values: () => readonly FailedWriteValue[],
-      write: () => T,
-      operationRole?: FailedWriteOperationRole
-    ) => T
+    diagnoseWrite?: <T>(values: () => readonly FailedWriteValue[], write: () => T) => T
   ): Promise<number> {
     dbh.db.run(sql.raw("ATTACH DATABASE ':memory:' AS agents_legacy"))
     try {
@@ -154,13 +150,9 @@ describe('importLegacySessionMessages', () => {
     const canary = `PRIVATE_AGENT_MESSAGE_${'x'.repeat(10_000)}`
     const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
     let evidence: MigrationDiagnosticFailureEvidence | undefined
-    const diagnoseWrite = <T>(
-      values: () => readonly FailedWriteValue[],
-      write: () => T,
-      operationRole: FailedWriteOperationRole = 'insert'
-    ): T => {
+    const diagnoseWrite = <T>(values: () => readonly FailedWriteValue[], write: () => T): T => {
       void write
-      evidence = measureFailedWriteValuesBestEffort(values, operationRole)
+      evidence = measureFailedWriteValuesBestEffort(values)
       throw sqliteError
     }
 
@@ -180,7 +172,6 @@ describe('importLegacySessionMessages', () => {
 
     expect(evidence).toMatchObject({
       kind: 'failed_write',
-      operationRole: 'insert',
       values: [expect.objectContaining({ role: 'json_value', kind: 'json', byteLengthBucket: '4097-65536' })]
     })
     expect(JSON.stringify(evidence)).not.toContain('PRIVATE_AGENT_MESSAGE')
