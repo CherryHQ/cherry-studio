@@ -61,7 +61,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
 
   ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
     assertDiagnosticSender(event)
-    if (diagnosticSaveInFlight) return { status: 'failed', code: 'save_in_progress' } as const
+    if (diagnosticSaveInFlight || quitScheduled) return { status: 'failed', code: 'save_in_progress' } as const
 
     const saveEpoch = diagnosticStateEpoch
     const operation = saveMigrationDiagnosticBundleWithDialog(createRendererDiagnosticContext()).then((outcome) => {
@@ -281,9 +281,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   ipcMain.handle(MigrationIpcChannels.Cancel, async () => {
     try {
       logger.info('Migration cancelled by user')
-      migrationWindowManager.close()
-      app.quit()
-      return true
+      return requestQuit()
     } catch (error) {
       logger.error('Error cancelling migration', error as Error)
       throw error

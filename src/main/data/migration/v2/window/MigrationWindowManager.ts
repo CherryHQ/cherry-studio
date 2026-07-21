@@ -91,11 +91,12 @@ export class MigrationWindowManager {
       }
     })
 
-    // User-initiated window close uses cancel semantics: quit the app. During an in-flow
-    // stage we intercept and let the renderer show its in-app
-    // confirmation dialog instead (it reports back via ConfirmQuit). Programmatic close()
-    // calls set the guard to opt out. This seam covers the native macOS traffic light,
-    // Cmd+Q, and the custom Windows/Linux close button (which routes through requestClose()).
+    // User-initiated window close uses cancel semantics. During an in-flow stage we intercept and
+    // let the renderer show its in-app confirmation dialog instead (it reports back via
+    // ConfirmQuit). At every other stage we route through the write-aware quit requester so an
+    // active diagnostic save can settle before the window disappears. Programmatic close() calls
+    // set the guard to opt out. This seam covers the native macOS traffic light, Cmd+Q, and the
+    // custom Windows/Linux close button (which routes through requestClose()).
     this.window.on('close', (event) => {
       if (this.programmaticClose) return
       if (isCloseConfirmStage(this.currentStage)) {
@@ -111,8 +112,8 @@ export class MigrationWindowManager {
         this.send(MigrationIpcChannels.ConfirmClose)
         return
       }
-      logger.info('Migration window closed by user; quitting app')
-      app.quit()
+      event.preventDefault()
+      this.forceQuit('window-close')
     })
 
     // Escape hatch for an unrecoverably wedged renderer: a crashed or hung renderer can never
@@ -200,8 +201,8 @@ export class MigrationWindowManager {
    */
   setStage(stage: MigrationStage): void {
     this.currentStage = stage
-    // Leaving the in-flow set (e.g. to completed/error) means a close now quits immediately, so a
-    // stale pending flag must not carry over and force-quit a re-entered in-flow stage later.
+    // Leaving the in-flow set (e.g. to completed/error) means a close no longer needs renderer
+    // confirmation, so a stale pending flag must not carry over into a later in-flow stage.
     if (!isCloseConfirmStage(stage)) {
       this.closeConfirmPending = false
     }
@@ -224,10 +225,10 @@ export class MigrationWindowManager {
   }
 
   /**
-   * Force a quit when the renderer can't drive the normal ConfirmQuit path (crash, hang, or a
-   * repeated close while a confirmation is pending). Routes through the IPC handler's deferral so
-   * an in-flight migration write still settles first; falls back to confirmQuit() only when
-   * no requester is wired (isolated tests), where nothing can be in flight.
+   * Route a close that does not need renderer confirmation through the IPC handler's deferral.
+   * Covers terminal/entry-stage closes plus crash, hang, and repeated-close escape paths, so any
+   * in-flight write settles first. Falls back to confirmQuit() only when no requester is wired
+   * (isolated tests), where nothing can be in flight.
    */
   private forceQuit(reason: string): void {
     logger.warn('Forcing migration window quit', { reason })

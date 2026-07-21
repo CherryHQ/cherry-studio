@@ -535,6 +535,13 @@ describe('MigrationIpcHandler', () => {
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
     })
 
+    it('routes Cancel through the same immediate quit path when no write is in flight', async () => {
+      const quitting = await invoke(MigrationIpcChannels.Cancel)
+
+      expect(quitting).toBe(true)
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
     it('defers quit while a migration is in flight, then quits once it settles', async () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
@@ -607,6 +614,41 @@ describe('MigrationIpcHandler', () => {
       await tick()
 
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers Cancel while a diagnostic save is in flight, then quits once it settles', async () => {
+      let finishSave!: (value: unknown) => void
+      diagnosticSaveDialogMock.mockImplementation(() => new Promise((resolve) => (finishSave = resolve)))
+
+      const saveFlow = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await Promise.resolve()
+
+      expect(await invoke(MigrationIpcChannels.Cancel)).toBe(false)
+      expect(windowConfirmQuitMock).not.toHaveBeenCalled()
+
+      finishSave({ result: { status: 'canceled' } })
+      await saveFlow
+      await tick()
+
+      expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('rejects a new diagnostic save after quit has been scheduled', async () => {
+      let resolveRun!: (result: MigrationResult) => void
+      engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
+      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await Promise.resolve()
+
+      expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+        status: 'failed',
+        code: 'save_in_progress'
+      })
+      expect(diagnosticSaveDialogMock).not.toHaveBeenCalled()
+
+      resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+      await migrationFlow
+      await tick()
     })
   })
 })

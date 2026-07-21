@@ -61,19 +61,49 @@ describe('MigrationWindowManager', () => {
     expect(fakeWindow.minimize).toHaveBeenCalledTimes(1)
   })
 
-  // Entry page (introduction is the default stage) + terminal pages: close quits immediately.
+  // Entry page (introduction is the default stage) + terminal pages route through the shared
+  // requester so an active diagnostic save can settle before the window disappears.
   it.each<MigrationStage>(['introduction', 'completed', 'error', 'version_incompatible'])(
-    'quits immediately when the window is closed at the %s stage',
+    'routes a close through the quit requester at the %s stage',
+    (stage) => {
+      const requester = vi.fn(() => false)
+      manager.setQuitRequester(requester)
+      manager.setStage(stage)
+      const event = { preventDefault: vi.fn() }
+      fakeWindow.emit('close', event)
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(fakeWindow.webContents.send).not.toHaveBeenCalled()
+      expect(requester).toHaveBeenCalledTimes(1)
+      expect(quitMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each<MigrationStage>(['introduction', 'completed', 'error', 'version_incompatible'])(
+    'falls back to an immediate quit without a requester at the %s stage',
     (stage) => {
       manager.setStage(stage)
       const event = { preventDefault: vi.fn() }
       fakeWindow.emit('close', event)
 
-      expect(event.preventDefault).not.toHaveBeenCalled()
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
       expect(fakeWindow.webContents.send).not.toHaveBeenCalled()
+      expect(fakeWindow.close).toHaveBeenCalledTimes(1)
       expect(quitMock).toHaveBeenCalledTimes(1)
     }
   )
+
+  it('routes the custom terminal-stage close through the quit requester', () => {
+    const requester = vi.fn(() => false)
+    manager.setQuitRequester(requester)
+    manager.setStage('error')
+
+    manager.requestClose()
+
+    expect(fakeWindow.close).toHaveBeenCalledTimes(1)
+    expect(requester).toHaveBeenCalledTimes(1)
+    expect(quitMock).not.toHaveBeenCalled()
+  })
 
   // In-flow stage: close is intercepted so the renderer can confirm before quitting.
   it.each<MigrationStage>(['migration'])(
