@@ -159,7 +159,7 @@ const ModelCard: FC<ModelCardProps> = ({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="relative ml-auto size-7 shrink-0 rounded-full"
+                  className="group relative ml-auto size-7 shrink-0 rounded-full"
                   onClick={onCancel}
                   aria-label={t('settings.dependencies.localModels.cancel')}>
                   <span
@@ -171,7 +171,7 @@ const ModelCard: FC<ModelCardProps> = ({
                     className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <CircularProgress value={percent} size={24} strokeWidth={2} />
                   </span>
-                  <X className="relative size-2.5" />
+                  <X className="relative size-2.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
                 </Button>
               ) : (
                 <Button

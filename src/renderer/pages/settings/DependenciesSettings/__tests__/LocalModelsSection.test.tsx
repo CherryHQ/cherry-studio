@@ -87,7 +87,12 @@ describe('LocalModelsSection', () => {
     })
     expect(cancelButton).toHaveAttribute('data-variant', 'ghost')
     expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(cancelButton).toHaveClass('size-7', 'shrink-0', 'rounded-full')
+    expect(cancelButton).toHaveClass('group', 'size-7', 'shrink-0', 'rounded-full')
+    expect(cancelButton.querySelector('svg')).toHaveClass(
+      'opacity-0',
+      'group-hover:opacity-100',
+      'group-focus-visible:opacity-100'
+    )
 
     act(() => progressHandlers.forEach((h) => h({ model: 'embedding', status: 'downloading', percent: 45 })))
     expect(within(embeddingCard()).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '45')
