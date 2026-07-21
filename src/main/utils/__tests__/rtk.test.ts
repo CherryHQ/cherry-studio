@@ -92,6 +92,26 @@ describe('rtk utils', () => {
       expect(executeCommandMock).not.toHaveBeenCalled()
     })
 
+    it('returns null without throwing when the snapshot probe rejects', async () => {
+      binaryManagerMock.getToolSnapshots.mockRejectedValueOnce(new Error('mise exploded'))
+
+      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
+      expect(executeCommandMock).not.toHaveBeenCalled()
+    })
+
+    it('returns null when the snapshot probe exceeds its timeout budget', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      // A snapshot query that never settles must not block the awaiting hook.
+      binaryManagerMock.getToolSnapshots.mockReturnValue(new Promise(() => {}))
+
+      const pending = rtkRewrite('ls -la')
+      await vi.advanceTimersByTimeAsync(3000)
+
+      await expect(pending).resolves.toBeNull()
+      expect(executeCommandMock).not.toHaveBeenCalled()
+      vi.useRealTimers()
+    })
+
     it('uses a system RTK path and preserves the raw user environment', async () => {
       snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
       executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockResolvedValueOnce('rg --files')
