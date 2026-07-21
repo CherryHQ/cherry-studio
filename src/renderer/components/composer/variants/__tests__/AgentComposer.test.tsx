@@ -461,7 +461,10 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
         close edit dialog
       </button>
     </div>
-  ),
+  )
+}))
+
+vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost', () => ({
   ResourceEditDialogEventHost: () => null,
   openResourceEditDialog: (target: any) => mocks.openResourceEditDialog(target)
 }))

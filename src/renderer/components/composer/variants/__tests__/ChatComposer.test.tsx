@@ -366,14 +366,7 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
-  ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
-    <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
-      <button type="button" onClick={() => onOpenChange(false)}>
-        close edit dialog
-      </button>
-    </div>
-  ),
+vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost', () => ({
   ResourceEditDialogEventHost: () => null,
   openResourceEditDialog: vi.fn()
 }))
