@@ -157,6 +157,12 @@ export const MigrationIpcChannels = {
   // Skip migration (version incompatible — user chose to use defaults)
   SkipMigration: 'migration:skip-migration',
 
+  // Diagnostic bundle support actions
+  SaveDiagnosticBundle: 'migration:save-diagnostic-bundle',
+  OpenDiagnosticEmail: 'migration:open-diagnostic-email',
+  ShowDiagnosticBundleInFolder: 'migration:show-diagnostic-bundle-in-folder',
+  CopySupportEmail: 'migration:copy-support-email',
+
   // Window controls (Renderer -> Main)
   Minimize: 'migration:minimize',
   CloseWindow: 'migration:close-window',
