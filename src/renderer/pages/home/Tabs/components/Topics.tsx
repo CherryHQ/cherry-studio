@@ -39,7 +39,6 @@ import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { useCursorGroupWindows } from '@renderer/hooks/useCursorGroupWindows'
 import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
 import { useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
@@ -317,7 +316,7 @@ export function Topics({
   const { loadNext: loadNextPinnedTopics, refetch: refetchPinnedTopics, topics: pinnedTopicRows } = pinnedTopicsSource
   const ordinaryTopicsSource = useTopics({
     assistantId: rightPanelOwnerScope,
-    enabled: isTopicListEnabled && !isAssistantDisplayMode,
+    enabled: isTopicListEnabled,
     pageSize: TOPIC_PAGE_SIZE,
     pinned: false,
     q: debouncedRemoteQuery,
@@ -556,56 +555,6 @@ export function Topics({
     activeTopic && activeTopic.pinned !== true && !pinnedTopicRows.some((topic) => topic.id === activeTopic.id)
       ? getTopicAssistantDisplayGroupId(activeTopic)
       : undefined
-  const collapsedAssistantTopicGroupIds =
-    topicExpansionAssistant ??
-    orderedAssistantTopicGroupIds.filter((groupId) => groupId !== activeOrdinaryAssistantGroupId)
-  const initialAssistantTopicGroupIds = useMemo(
-    () =>
-      isAssistantDisplayMode
-        ? orderedAssistantTopicGroupIds.filter((groupId) => !collapsedAssistantTopicGroupIds.includes(groupId))
-        : [],
-    [collapsedAssistantTopicGroupIds, isAssistantDisplayMode, orderedAssistantTopicGroupIds]
-  )
-  const fetchAssistantTopicPage = useCallback(
-    async (groupId: string, cursor?: string) => {
-      const assistantId = getAssistantIdFromTopicGroupId(groupId)
-      const ownerScope = groupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? 'unlinked' : assistantId
-      if (!ownerScope) return { items: [] }
-
-      const page = await dataApiService.get('/topics', {
-        query: {
-          assistantId: ownerScope,
-          cursor,
-          limit: TOPIC_PAGE_SIZE,
-          pinned: false,
-          ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery } : {}),
-          sortBy: topicSortBy
-        }
-      })
-      return { ...page, items: page.items.map(mapApiTopicListItem) }
-    },
-    [debouncedRemoteQuery, topicSortBy]
-  )
-  const getTopicResourceItemId = useCallback((topic: TopicResourceItem) => topic.id, [])
-  const {
-    items: assistantWindowTopics,
-    loadGroup: loadAssistantTopicGroup,
-    loadMoreGroup: loadMoreAssistantTopicGroup,
-    refillGroup: refillAssistantTopicGroup,
-    windows: assistantTopicWindows
-  } = useCursorGroupWindows<TopicResourceItem>({
-    enabled: isTopicListEnabled && isAssistantDisplayMode,
-    fetchPage: fetchAssistantTopicPage,
-    getItemId: getTopicResourceItemId,
-    groupIds: orderedAssistantTopicGroupIds,
-    initialGroupIds: initialAssistantTopicGroupIds,
-    queryKey: JSON.stringify({
-      groups: orderedAssistantTopicGroupIds,
-      ownerScope: rightPanelOwnerScope,
-      q: debouncedRemoteQuery,
-      sortBy: topicSortBy
-    })
-  })
   const pinnedTopics = useMemo(() => pinnedTopicRows.map(mapApiTopicListItem), [pinnedTopicRows])
   const ordinaryTopics = useMemo(() => ordinaryTopicRows.map(mapApiTopicListItem), [ordinaryTopicRows])
   const commitTopicPin = useCallback(
@@ -620,11 +569,10 @@ export function Topics({
   )
   const sourceTopics = useMemo(() => {
     const byId = new Map<string, TopicResourceItem>()
-    const ordinarySource = isAssistantDisplayMode ? assistantWindowTopics : ordinaryTopics
-    for (const topic of ordinarySource) byId.set(topic.id, topic)
+    for (const topic of ordinaryTopics) byId.set(topic.id, topic)
     for (const topic of pinnedTopics) byId.set(topic.id, topic)
     return [...byId.values()]
-  }, [assistantWindowTopics, ordinaryTopics, isAssistantDisplayMode, pinnedTopics])
+  }, [ordinaryTopics, pinnedTopics])
   const { items: projectedTopics, togglePinned: togglePinnedTopicItem } = useResourceListPinnedItems({
     disabled: isPinsMutating,
     items: sourceTopics,
@@ -1021,16 +969,6 @@ export function Topics({
         continue
       }
 
-      if (isAssistantDisplayMode) {
-        const window = assistantTopicWindows[seed.id]
-        result[seed.id] = {
-          totalCount,
-          hasMore: window ? !!window.nextCursor : totalCount > 0,
-          status: window?.status ?? (initialAssistantTopicGroupIds.includes(seed.id) ? 'loading' : 'idle')
-        }
-        continue
-      }
-
       result[seed.id] = {
         totalCount,
         hasMore: hasMoreOrdinaryTopics || !!ordinaryTopicsSource.error,
@@ -1045,13 +983,10 @@ export function Topics({
     }
     return result
   }, [
-    assistantTopicWindows,
     ordinaryTopicsSource.error,
     hasMoreOrdinaryTopics,
-    initialAssistantTopicGroupIds,
     isOrdinaryTopicsLoading,
     isOrdinaryTopicsRefreshing,
-    isAssistantDisplayMode,
     loadedTopicCountByGroupId,
     pinnedTopicsSource.error,
     pinnedTopicsSource.isLoading,
@@ -1094,53 +1029,15 @@ export function Topics({
   }, [onClearActiveTopic])
   const refillTopicRemovalGroup = useCallback(
     async (snapshot: ResourceRemovalSnapshot<Topic>) => {
-      if (snapshot.band === 'ordinary' && isAssistantDisplayMode) {
-        const items = await refillAssistantTopicGroup(snapshot.groupId, snapshot.loadedWindowSize)
-        return { items }
-      }
-
-      const groupedOwnerScope =
-        snapshot.band === 'ordinary' && isAssistantDisplayMode
-          ? snapshot.groupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID
-            ? 'unlinked'
-            : getAssistantIdFromTopicGroupId(snapshot.groupId)
-          : undefined
-      const byId = new Map<string, TopicResourceItem>()
-      let cursor: string | undefined
-      do {
-        const page = await dataApiService.get('/topics', {
-          query: {
-            cursor,
-            limit: TOPIC_PAGE_SIZE,
-            pinned: snapshot.band === 'pinned',
-            ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery } : {}),
-            ...(rightPanelOwnerScope || groupedOwnerScope
-              ? { assistantId: rightPanelOwnerScope ?? groupedOwnerScope }
-              : {}),
-            ...(snapshot.band === 'ordinary' ? { sortBy: topicSortBy } : {})
-          }
-        })
-        for (const topic of page.items) {
-          const mapped = mapApiTopicListItem(topic)
-          byId.set(mapped.id, mapped)
-        }
-        cursor = page.nextCursor
-      } while (byId.size < snapshot.loadedWindowSize && cursor)
-
-      const items = [...byId.values()]
       if (snapshot.band === 'pinned') await refetchPinnedTopics()
       else await refetchOrdinaryTopics()
-      return { items }
+      return {
+        items: snapshot.displayedItems.filter(
+          (topic) => topic.id !== snapshot.itemId && getTopicDisplayGroupId(topic) === snapshot.groupId
+        )
+      }
     },
-    [
-      debouncedRemoteQuery,
-      isAssistantDisplayMode,
-      refillAssistantTopicGroup,
-      refetchOrdinaryTopics,
-      refetchPinnedTopics,
-      rightPanelOwnerScope,
-      topicSortBy
-    ]
+    [getTopicDisplayGroupId, refetchOrdinaryTopics, refetchPinnedTopics]
   )
   const resolveTopicOwnerFallback = useCallback(
     async (snapshot: ResourceRemovalSnapshot<Topic>) => {
@@ -1224,15 +1121,6 @@ export function Topics({
     },
     [assistantById]
   )
-  const loadTopicGroup = useCallback(
-    async (groupId: string) => {
-      if (groupId === TOPIC_PINNED_GROUP_ID) return pinnedTopics[0]?.id ?? null
-      if (isAssistantDisplayMode) return loadAssistantTopicGroup(groupId)
-
-      return ordinaryTopics[0]?.id ?? null
-    },
-    [ordinaryTopics, isAssistantDisplayMode, loadAssistantTopicGroup, pinnedTopics]
-  )
   const loadMoreTopicGroup = useCallback(
     async (groupId: string) => {
       if (groupId === TOPIC_PINNED_GROUP_ID) {
@@ -1243,10 +1131,6 @@ export function Topics({
         loadNextPinnedTopics()
         return
       }
-      if (isAssistantDisplayMode) {
-        await loadMoreAssistantTopicGroup(groupId)
-        return
-      }
       if (ordinaryTopicsSource.error) {
         await refetchOrdinaryTopics()
         return
@@ -1255,8 +1139,6 @@ export function Topics({
     },
     [
       ordinaryTopicsSource.error,
-      isAssistantDisplayMode,
-      loadMoreAssistantTopicGroup,
       loadNextOrdinaryTopics,
       loadNextPinnedTopics,
       pinnedTopicsSource.error,
@@ -1267,12 +1149,11 @@ export function Topics({
   const topicListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
       groupStates: topicGroupStates,
-      loadGroup: loadTopicGroup,
       loadMoreGroup: loadMoreTopicGroup,
       onQueryChange: setRemoteQuery,
       query: remoteQuery
     }),
-    [loadMoreTopicGroup, loadTopicGroup, remoteQuery, topicGroupStates]
+    [loadMoreTopicGroup, remoteQuery, topicGroupStates]
   )
   // Stream failures are recoverable at their remote group footer. Keeping them out of the
   // top-level status is what leaves that error group mounted even before any rows have loaded.
@@ -1283,9 +1164,8 @@ export function Topics({
     topics.length === 0 &&
     (isTopicStatsLoading ||
       pinnedTopicsSource.isLoading ||
-      (!isAssistantDisplayMode
-        ? isOrdinaryTopicsLoading
-        : isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading)))
+      isOrdinaryTopicsLoading ||
+      (isAssistantDisplayMode && (isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading))))
   const visibleFilteredTopics = filteredTopics
   const listStatus =
     listError && topics.length === 0
@@ -1296,21 +1176,10 @@ export function Topics({
           ? 'empty'
           : 'idle'
   const handleTopicEndReached = useCallback(() => {
-    if (
-      !isAssistantDisplayMode &&
-      !ordinaryTopicsSource.error &&
-      hasMoreOrdinaryTopics &&
-      !isOrdinaryTopicsRefreshing
-    ) {
+    if (!ordinaryTopicsSource.error && hasMoreOrdinaryTopics && !isOrdinaryTopicsRefreshing) {
       loadNextOrdinaryTopics()
     }
-  }, [
-    ordinaryTopicsSource.error,
-    hasMoreOrdinaryTopics,
-    isAssistantDisplayMode,
-    isOrdinaryTopicsRefreshing,
-    loadNextOrdinaryTopics
-  ])
+  }, [ordinaryTopicsSource.error, hasMoreOrdinaryTopics, isOrdinaryTopicsRefreshing, loadNextOrdinaryTopics])
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const getTopicGroupHeaderClickBehavior = useCallback(
@@ -1973,7 +1842,7 @@ export function Topics({
           onConfirmDelete={handleConfirmDeleteTopic}
           onDeleteClick={handleDeleteTopicClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
-          onEndReached={isAssistantDisplayMode ? undefined : handleTopicEndReached}
+          onEndReached={handleTopicEndReached}
           onMoveToAssistant={handleMoveTopicToAssistant}
           onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}

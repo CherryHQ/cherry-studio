@@ -189,15 +189,6 @@ function Inspector() {
   )
 }
 
-function ExpandGroupsButton({ groupIds }: { groupIds: readonly string[] }) {
-  const actions = useResourceListActions()
-  return (
-    <button type="button" onClick={() => actions.expandGroups(groupIds)}>
-      Expand remote groups
-    </button>
-  )
-}
-
 function sortableData(id: string) {
   const data = dndMocks.sortableData.get(id)
   if (!data) {
@@ -408,8 +399,6 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
 
-    // The group header click handler is async (it awaits actions.selectGroupHeader before
-    // falling through to toggleGroup), so the collapsed-state callback fires on a microtask.
     await waitFor(() => {
       expect(onCollapsedStateChange).toHaveBeenCalledWith(['empty-topic'])
     })
@@ -478,8 +467,6 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
 
-    // The group header click handler awaits actions.selectGroupHeader before invoking the
-    // caller's empty-group handler, so the callback fires on a microtask.
     await waitFor(() => {
       expect(onEmptyGroupHeaderClick).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'empty-topic', label: 'Empty Topic' })
@@ -2091,36 +2078,6 @@ describe('ResourceList', () => {
     ).toBe(4 * 38)
   })
 
-  it('loads an empty remote group before selecting its first item', async () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const onGroupHeaderSelectItem = vi.fn()
-    const loadGroup = vi.fn().mockResolvedValue('remote-first')
-
-    render(
-      <Provider
-        items={[]}
-        groupBy={() => ({ id: 'remote', label: 'Remote' })}
-        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
-        groupHeaderClickBehavior="select-first-then-toggle"
-        onGroupHeaderSelectItem={onGroupHeaderSelectItem}
-        remoteData={{
-          query: '',
-          groupStates: { remote: { totalCount: 1, hasMore: true, status: 'idle' } },
-          onQueryChange: vi.fn(),
-          loadGroup
-        }}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem> renderItem={() => null} />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remote' }))
-
-    await waitFor(() => expect(loadGroup).toHaveBeenCalledWith('remote'))
-    expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('remote-first')
-  })
-
   it('preserves a remote query when the requested item already belongs to its result', () => {
     const Provider = ResourceList.Provider<TestItem>
     const onQueryChange = vi.fn()
@@ -2142,55 +2099,6 @@ describe('ResourceList', () => {
 
     expect(onQueryChange).not.toHaveBeenCalled()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'match' })
-  })
-
-  it('bounds remote expand-all group loading concurrency', async () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const groupIds = ['one', 'two', 'three', 'four']
-    const pendingResolvers: Array<() => void> = []
-    let activeLoads = 0
-    let maxActiveLoads = 0
-    const loadGroup = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          activeLoads += 1
-          maxActiveLoads = Math.max(maxActiveLoads, activeLoads)
-          pendingResolvers.push(() => {
-            activeLoads -= 1
-            resolve()
-          })
-        })
-    )
-
-    render(
-      <Provider
-        items={[]}
-        groupBy={() => ({ id: 'unused', label: 'Unused' })}
-        groupSeeds={groupIds.map((id) => ({ id, label: id, count: 1 }))}
-        remoteData={{
-          query: '',
-          groupStates: Object.fromEntries(
-            groupIds.map((id) => [id, { totalCount: 1, hasMore: true, status: 'idle' as const }])
-          ),
-          onQueryChange: vi.fn(),
-          loadGroup
-        }}>
-        <ExpandGroupsButton groupIds={groupIds} />
-      </Provider>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Expand remote groups' }))
-    await waitFor(() => expect(loadGroup).toHaveBeenCalledTimes(3))
-
-    await act(async () => {
-      pendingResolvers.splice(0).forEach((resolve) => resolve())
-    })
-    await waitFor(() => expect(loadGroup).toHaveBeenCalledTimes(4))
-
-    await act(async () => {
-      pendingResolvers.splice(0).forEach((resolve) => resolve())
-    })
-    expect(maxActiveLoads).toBe(3)
   })
 
   it('toggles every group in a section from a menu item without collapsing the section', () => {

@@ -30,22 +30,20 @@ export type ResourceListRevealRequest = {
 export type ResourceListRemoteGroupState = {
   /** Factual total for the current server-side filters. */
   totalCount: number
-  /** Whether another cursor page exists after the loaded group window. */
+  /** Whether the caller can provide more server-backed rows for this group. */
   hasMore: boolean
   status: ResourceListStatus
 }
 
 /**
  * Optional server-backed mode for ResourceList. The caller owns query state,
- * loaded windows, cursors and errors; ResourceList owns only presentation and
- * interaction policy.
+ * loaded items and errors; ResourceList owns only presentation and interaction
+ * policy.
  */
 export type ResourceListRemoteData = {
   query: string
   groupStates?: Readonly<Record<string, ResourceListRemoteGroupState | undefined>>
   onQueryChange: (query: string) => void
-  /** Load an unopened group and return its first item id when header selection should navigate. */
-  loadGroup?: (groupId: string) => Promise<string | null | void>
   loadMoreGroup?: (groupId: string) => Promise<void>
 }
 
@@ -122,7 +120,6 @@ export type ResourceListActionMap = {
   cancelRename: () => void
   openContextMenu: (id: string) => void
   selectGroupHeaderItem: (id: string) => void
-  selectGroupHeader: (groupId: string) => Promise<boolean>
   showMoreInGroup: (groupId: string) => Promise<void>
   collapseGroupItems: (groupId: string) => void
   expandGroups: (groupIds: readonly string[]) => void

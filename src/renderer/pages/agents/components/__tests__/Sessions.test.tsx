@@ -1,5 +1,4 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { dataApiService } from '@renderer/data/DataApiService'
 import type * as UseAgentModule from '@renderer/hooks/agent/useAgent'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
@@ -389,29 +388,6 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
   }),
   useSessions: sessionDataMocks.useSessions,
   useUpdateSession: sessionDataMocks.useUpdateSession
-}))
-
-const cursorGroupWindowMocks = vi.hoisted(() => ({
-  options: undefined as
-    | undefined
-    | {
-        fetchPage: (groupId: string, cursor?: string) => Promise<{ items: unknown[] }>
-        groupIds: readonly string[]
-        queryKey: string
-      }
-}))
-
-vi.mock('@renderer/hooks/useCursorGroupWindows', () => ({
-  useCursorGroupWindows: (options: NonNullable<typeof cursorGroupWindowMocks.options>) => {
-    cursorGroupWindowMocks.options = options
-    return {
-      items: (sessionDataMocks.source as { sessions?: AgentSessionEntity[] } | null)?.sessions ?? [],
-      loadGroup: vi.fn().mockResolvedValue(null),
-      loadMoreGroup: vi.fn().mockResolvedValue(undefined),
-      refillGroup: vi.fn().mockResolvedValue([]),
-      windows: {}
-    }
-  }
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', async (importOriginal) => ({
@@ -877,7 +853,6 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.position', 'left')
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     preferenceMocks.values.set('topic.tab.show', true)
-    cursorGroupWindowMocks.options = undefined
     dataApiMocks.workspaces = [
       makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' }),
       makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace', orderKey: 'b' })
@@ -1162,48 +1137,28 @@ describe('Sessions', () => {
     })
   })
 
-  it('passes session sorting to agent-group requests and cursor cache identity', async () => {
+  it('uses the shared ordinary session stream for agent grouping', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     preferenceMocks.values.set('agent.session.sort_type', 'lastActivityAt')
-    const getSpy = vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [] } as never)
 
-    try {
-      render(<SessionsForTest />)
+    render(<SessionsForTest />)
 
-      expect(JSON.parse(cursorGroupWindowMocks.options?.queryKey ?? '{}')).toEqual(
-        expect.objectContaining({ mode: 'agent', sortBy: 'lastActivityAt' })
-      )
-      expect(cursorGroupWindowMocks.options?.groupIds).toContain('session:agent:agent-a')
-      await cursorGroupWindowMocks.options?.fetchPage('session:agent:agent-a')
-      expect(getSpy).toHaveBeenCalledWith(
-        '/agent-sessions',
-        expect.objectContaining({
-          query: expect.objectContaining({ agentId: 'agent-a', pinned: false, sortBy: 'lastActivityAt' })
-        })
-      )
-    } finally {
-      getSpy.mockRestore()
-    }
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ pinned: false, sortBy: 'lastActivityAt', pageSize: 50, enabled: true })
+    )
   })
 
-  it('passes session sorting to work-directory group requests', async () => {
+  it('uses the shared ordinary session stream for work-directory grouping', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('agent.session.sort_type', 'createdAt')
-    const getSpy = vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [] } as never)
 
-    try {
-      render(<SessionsForTest />)
+    render(<SessionsForTest />)
 
-      await cursorGroupWindowMocks.options?.fetchPage('session:workspace:ws-a')
-      expect(getSpy).toHaveBeenCalledWith(
-        '/agent-sessions',
-        expect.objectContaining({
-          query: expect.objectContaining({ workspaceId: 'ws-a', pinned: false, sortBy: 'createdAt' })
-        })
-      )
-    } finally {
-      getSpy.mockRestore()
-    }
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ pinned: false, sortBy: 'createdAt', pageSize: 50, enabled: true })
+    )
   })
 
   it('keeps a creation-stream retry available before any rows have loaded', async () => {
@@ -1903,7 +1858,7 @@ describe('Sessions', () => {
     expect(sessionDataMocks.reload).toHaveBeenCalled()
   })
 
-  it('renders the loaded group window without waiting for later pages', () => {
+  it('renders the loaded ordinary stream without waiting for later pages', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     setupSessions({
       sessions: [createSession({ id: 'session-first-page', name: 'First page session', agentId: 'agent-a' })],

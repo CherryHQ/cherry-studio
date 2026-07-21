@@ -81,10 +81,10 @@ function pickSiblingGroupNeighbour<T>(
  * Shared Topic/Session removal state machine.
  *
  * The coordinator snapshots the active row's presentation before deletion,
- * rebuilds only that group to its previous loaded extent, then selects the row
- * that shifted into the removed position (or the previous row at the tail).
+ * delegates collection refresh to the caller, then selects from the returned
+ * current-group candidates (or falls back to a sibling group).
  * A monotonically increasing operation id plus the live active id prevent a
- * stale refill or owner lookup from re-activating a removed record.
+ * stale refresh or owner lookup from re-activating a removed record.
  */
 export function useResourceRemovalCoordinator<T, TContext = undefined>({
   getActiveId,

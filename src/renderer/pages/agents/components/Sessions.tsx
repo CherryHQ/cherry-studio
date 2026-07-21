@@ -39,7 +39,6 @@ import { useAgentSessionStats, useSessions, useUpdateSession } from '@renderer/h
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { useCursorGroupWindows } from '@renderer/hooks/useCursorGroupWindows'
 import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -474,7 +473,7 @@ const Sessions = ({
     sessions: pinnedSessions
   } = pinnedSessionsSource
   const ordinarySessionsSource = useSessions(rightPanelAgentScope, {
-    enabled: isSessionListEnabled && displayMode === 'time',
+    enabled: isSessionListEnabled,
     pageSize: SESSION_PAGE_SIZE,
     pinned: false,
     q: debouncedRemoteQuery,
@@ -670,94 +669,6 @@ const Sessions = ({
     if (isSystemWorkspaceSession(activeSession)) return SESSION_SYSTEM_WORKSPACE_GROUP_ID
     return getSessionWorkdirGroupId(activeSession, workdirDisplay)
   }, [activeSession, agentById, displayMode, pinnedSessions, workdirDisplay])
-  const collapsedSessionGroupIds = useMemo(() => {
-    if (displayMode === 'agent') {
-      return (
-        sessionExpansionAgent ??
-        orderedAgentSessionGroupIds.filter((groupId) => groupId !== activeOrdinarySessionGroupId)
-      )
-    }
-    if (displayMode !== 'workdir') return []
-    if (!sessionExpansionWorkdir) {
-      return orderedWorkdirSessionGroupIds.filter((groupId) => groupId !== activeOrdinarySessionGroupId)
-    }
-    return remapResourceListCollapsedGroupIds(sessionExpansionWorkdir, (groupId) => {
-      const path = getWorkdirPathFromSessionGroupId(groupId)
-      return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
-    })
-  }, [
-    displayMode,
-    activeOrdinarySessionGroupId,
-    orderedAgentSessionGroupIds,
-    orderedWorkdirSessionGroupIds,
-    sessionExpansionAgent,
-    sessionExpansionWorkdir,
-    workdirDisplay.groupIdByPath
-  ])
-  const initialSessionGroupIds = useMemo(() => {
-    const groupIds =
-      displayMode === 'agent'
-        ? orderedAgentSessionGroupIds
-        : displayMode === 'workdir'
-          ? orderedWorkdirSessionGroupIds
-          : []
-    return groupIds.filter((groupId) => !collapsedSessionGroupIds.includes(groupId))
-  }, [collapsedSessionGroupIds, displayMode, orderedAgentSessionGroupIds, orderedWorkdirSessionGroupIds])
-  const fetchSessionGroupPage = useCallback(
-    async (groupId: string, cursor?: string) => {
-      const commonQuery = {
-        cursor,
-        limit: SESSION_PAGE_SIZE,
-        pinned: false,
-        ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery, searchScope: 'name' as const } : {}),
-        sortBy: sessionSortBy
-      }
-
-      if (displayMode === 'agent') {
-        const agentId = getAgentIdFromSessionGroupId(groupId)
-        const ownerScope = groupId === SESSION_UNLINKED_AGENT_GROUP_ID ? 'unlinked' : agentId
-        if (!ownerScope) return { items: [] }
-        return dataApiService.get('/agent-sessions', { query: { ...commonQuery, agentId: ownerScope } })
-      }
-
-      if (displayMode === 'workdir') {
-        const workspaceId =
-          groupId === SESSION_SYSTEM_WORKSPACE_GROUP_ID || groupId === SESSION_NO_WORKDIR_GROUP_ID
-            ? 'system'
-            : (workdirDisplay.workspaceIdByGroupId.get(groupId) ?? getWorkspaceIdFromSessionGroupId(groupId))
-        if (!workspaceId) return { items: [] }
-        return dataApiService.get('/agent-sessions', { query: { ...commonQuery, workspaceId } })
-      }
-
-      return { items: [] }
-    },
-    [debouncedRemoteQuery, displayMode, sessionSortBy, workdirDisplay.workspaceIdByGroupId]
-  )
-  const getSessionResourceItemId = useCallback((session: AgentSessionListItem) => session.id, [])
-  const {
-    items: sessionGroupWindowItems,
-    loadGroup: loadSessionGroupWindow,
-    loadMoreGroup: loadMoreSessionGroupWindow,
-    refillGroup: refillSessionGroupWindow,
-    windows: sessionGroupWindows
-  } = useCursorGroupWindows<AgentSessionListItem>({
-    enabled: isSessionListEnabled && displayMode !== 'time',
-    fetchPage: fetchSessionGroupPage,
-    getItemId: getSessionResourceItemId,
-    groupIds: displayMode === 'agent' ? orderedAgentSessionGroupIds : orderedWorkdirSessionGroupIds,
-    initialGroupIds: initialSessionGroupIds,
-    queryKey: JSON.stringify({
-      groups:
-        displayMode === 'agent'
-          ? orderedAgentSessionGroupIds
-          : displayMode === 'workdir'
-            ? orderedWorkdirSessionGroupIds
-            : [],
-      mode: displayMode,
-      q: debouncedRemoteQuery,
-      sortBy: sessionSortBy
-    })
-  })
   const getSessionDisplayGroupId = useCallback(
     (session: AgentSessionListItem) => {
       if (session.pinned) return SESSION_PINNED_GROUP_ID
@@ -784,12 +695,10 @@ const Sessions = ({
   )
   const sourceSessionItems = useMemo<AgentSessionListItem[]>(() => {
     const byId = new Map<string, AgentSessionListItem>()
-    for (const session of displayMode === 'time' ? ordinarySessions : sessionGroupWindowItems) {
-      byId.set(session.id, session)
-    }
+    for (const session of ordinarySessions) byId.set(session.id, session)
     for (const session of pinnedSessions) byId.set(session.id, session)
     return [...byId.values()]
-  }, [displayMode, ordinarySessions, pinnedSessions, sessionGroupWindowItems])
+  }, [ordinarySessions, pinnedSessions])
   const { items: projectedSessionItems, togglePinned: togglePinnedSessionItem } = useResourceListPinnedItems({
     disabled: isSessionPinMutating,
     items: sourceSessionItems,
@@ -1154,16 +1063,6 @@ const Sessions = ({
         continue
       }
 
-      if (displayMode !== 'time') {
-        const window = sessionGroupWindows[seed.id]
-        result[seed.id] = {
-          totalCount,
-          hasMore: window ? !!window.nextCursor : totalCount > 0,
-          status: window?.status ?? (initialSessionGroupIds.includes(seed.id) ? 'loading' : 'idle')
-        }
-        continue
-      }
-
       result[seed.id] = {
         totalCount,
         hasMore: hasMoreOrdinarySessions || !!ordinarySessionsSource.error,
@@ -1179,16 +1078,13 @@ const Sessions = ({
     return result
   }, [
     ordinarySessionsSource.error,
-    displayMode,
     hasMoreOrdinarySessions,
-    initialSessionGroupIds,
     isOrdinarySessionsLoading,
     isOrdinarySessionsValidating,
     loadedSessionCountByGroupId,
     pinnedSessionsSource.error,
     pinnedSessionsSource.isLoading,
     pinnedSessionsSource.isValidating,
-    sessionGroupWindows,
     sessionGroupSeeds
   ])
 
@@ -1247,61 +1143,15 @@ const Sessions = ({
   const clearSessionSelection = useCallback(() => setActiveSessionId(null), [setActiveSessionId])
   const refillSessionRemovalGroup = useCallback(
     async (snapshot: ResourceRemovalSnapshot<AgentSessionListItem>) => {
-      const getGroupScope = () => {
-        if (snapshot.band !== 'ordinary') return {}
-        if (displayMode === 'agent') {
-          const agentId = getAgentIdFromSessionGroupId(snapshot.groupId)
-          const ownerScope = snapshot.groupId === SESSION_UNLINKED_AGENT_GROUP_ID ? 'unlinked' : agentId
-          return ownerScope ? { agentId: ownerScope } : {}
-        }
-        if (displayMode === 'workdir') {
-          const workspaceId =
-            snapshot.groupId === SESSION_SYSTEM_WORKSPACE_GROUP_ID || snapshot.groupId === SESSION_NO_WORKDIR_GROUP_ID
-              ? 'system'
-              : (workdirDisplay.workspaceIdByGroupId.get(snapshot.groupId) ??
-                getWorkspaceIdFromSessionGroupId(snapshot.groupId))
-          return workspaceId ? { workspaceId } : {}
-        }
-        return {}
-      }
-
-      if (snapshot.band === 'ordinary' && displayMode !== 'time') {
-        const items = await refillSessionGroupWindow(snapshot.groupId, snapshot.loadedWindowSize)
-        return { items }
-      }
-
-      const byId = new Map<string, AgentSessionListItem>()
-      let cursor: string | undefined
-      do {
-        const page = await dataApiService.get('/agent-sessions', {
-          query: {
-            cursor,
-            limit: SESSION_PAGE_SIZE,
-            pinned: snapshot.band === 'pinned',
-            ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery, searchScope: 'name' as const } : {}),
-            ...(rightPanelAgentScope ? { agentId: rightPanelAgentScope } : getGroupScope()),
-            ...(snapshot.band === 'ordinary' ? { sortBy: sessionSortBy } : {})
-          }
-        })
-        for (const session of page.items) byId.set(session.id, session)
-        cursor = page.nextCursor
-      } while (byId.size < snapshot.loadedWindowSize && cursor)
-
-      const items = [...byId.values()]
       if (snapshot.band === 'pinned') await reloadPinnedSessions()
       else await reloadOrdinarySessions()
-      return { items }
+      return {
+        items: snapshot.displayedItems.filter(
+          (session) => session.id !== snapshot.itemId && getSessionDisplayGroupId(session) === snapshot.groupId
+        )
+      }
     },
-    [
-      debouncedRemoteQuery,
-      displayMode,
-      refillSessionGroupWindow,
-      reloadOrdinarySessions,
-      reloadPinnedSessions,
-      rightPanelAgentScope,
-      sessionSortBy,
-      workdirDisplay.workspaceIdByGroupId
-    ]
+    [getSessionDisplayGroupId, reloadOrdinarySessions, reloadPinnedSessions]
   )
   const resolveSessionOwnerFallback = useCallback(
     async (snapshot: ResourceRemovalSnapshot<AgentSessionListItem>) => {
@@ -1854,15 +1704,6 @@ const Sessions = ({
     },
     [setActiveSessionId]
   )
-  const loadSessionGroup = useCallback(
-    async (groupId: string) => {
-      if (groupId === SESSION_PINNED_GROUP_ID) return pinnedSessions[0]?.id ?? null
-      if (displayMode !== 'time') return loadSessionGroupWindow(groupId)
-
-      return ordinarySessions[0]?.id ?? null
-    },
-    [ordinarySessions, displayMode, loadSessionGroupWindow, pinnedSessions]
-  )
   const loadMoreSessionGroup = useCallback(
     async (groupId: string) => {
       if (groupId === SESSION_PINNED_GROUP_ID) {
@@ -1873,10 +1714,6 @@ const Sessions = ({
         loadMorePinnedSessions()
         return
       }
-      if (displayMode !== 'time') {
-        await loadMoreSessionGroupWindow(groupId)
-        return
-      }
       if (ordinarySessionsSource.error) {
         await reloadOrdinarySessions()
         return
@@ -1885,10 +1722,8 @@ const Sessions = ({
     },
     [
       ordinarySessionsSource.error,
-      displayMode,
       loadMoreOrdinarySessions,
       loadMorePinnedSessions,
-      loadMoreSessionGroupWindow,
       pinnedSessionsSource.error,
       reloadPinnedSessions,
       reloadOrdinarySessions
@@ -1897,12 +1732,11 @@ const Sessions = ({
   const sessionListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
       groupStates: sessionGroupStates,
-      loadGroup: loadSessionGroup,
       loadMoreGroup: loadMoreSessionGroup,
       onQueryChange: setRemoteQuery,
       query: remoteQuery
     }),
-    [loadMoreSessionGroup, loadSessionGroup, remoteQuery, sessionGroupStates]
+    [loadMoreSessionGroup, remoteQuery, sessionGroupStates]
   )
   const isSessionItemGroupStable = useCallback(
     (groupId: string) => sessionGroupStates[groupId]?.status === 'idle',
@@ -2435,7 +2269,7 @@ const Sessions = ({
     ]
   )
 
-  // Pinned/created/group-window failures remain recoverable inside their remote group. Only
+  // Pinned/created stream failures remain recoverable inside their remote group. Only
   // metadata failures that prevent group construction should replace the whole list.
   const listError =
     sessionStatsError ??
@@ -2444,14 +2278,12 @@ const Sessions = ({
     sessionItems.length === 0 &&
     (isSessionStatsLoading ||
       pinnedSessionsSource.isLoading ||
-      (displayMode === 'time'
-        ? isOrdinarySessionsLoading
-        : displayMode === 'agent'
-          ? isAgentsLoading
-          : isWorkdirMetadataLoading))
+      isOrdinarySessionsLoading ||
+      (displayMode === 'agent' ? isAgentsLoading : displayMode === 'workdir' ? isWorkdirMetadataLoading : false))
   const listValidating =
     pinnedSessionsSource.isValidating ||
-    (displayMode === 'time' ? isOrdinarySessionsValidating : isWorkdirMetadataRefreshing)
+    isOrdinarySessionsValidating ||
+    (displayMode === 'workdir' && isWorkdirMetadataRefreshing)
   const visibleGroupedSessions = filteredGroupedSessions
   const listStatus =
     listError && sessionItems.length === 0
@@ -2462,21 +2294,10 @@ const Sessions = ({
           ? 'empty'
           : 'idle'
   const handleSessionEndReached = useCallback(() => {
-    if (
-      displayMode === 'time' &&
-      !ordinarySessionsSource.error &&
-      hasMoreOrdinarySessions &&
-      !isOrdinarySessionsValidating
-    ) {
+    if (!ordinarySessionsSource.error && hasMoreOrdinarySessions && !isOrdinarySessionsValidating) {
       loadMoreOrdinarySessions()
     }
-  }, [
-    ordinarySessionsSource.error,
-    displayMode,
-    hasMoreOrdinarySessions,
-    isOrdinarySessionsValidating,
-    loadMoreOrdinarySessions
-  ])
+  }, [ordinarySessionsSource.error, hasMoreOrdinarySessions, isOrdinarySessionsValidating, loadMoreOrdinarySessions])
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const activeSessionAgentId =
@@ -2615,7 +2436,7 @@ const Sessions = ({
         isValidating={listValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
-        onEndReached={displayMode === 'time' ? handleSessionEndReached : undefined}
+        onEndReached={handleSessionEndReached}
         onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
         onOpenInNewWindow={openSessionInNewWindow}
         onRetry={handleRetry}

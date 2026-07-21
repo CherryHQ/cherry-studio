@@ -151,8 +151,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         return
       }
 
-      if (await actions.selectGroupHeader(group.id)) return
-
       if (meta.onEmptyGroupHeaderClick) {
         const handled = await meta.onEmptyGroupHeaderClick(group)
         if (handled !== false) return

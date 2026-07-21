@@ -1,4 +1,3 @@
-import { runResourceListLoadsWithConcurrency } from '@renderer/utils/chat/resourceListBase'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react'
 
@@ -865,27 +864,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     }
   }, [])
 
-  const loadRemoteGroups = useCallback(
-    (groupIds: readonly string[]) => {
-      if (!remoteData?.loadGroup) return
-      const unloadedGroupIds = groupIds.filter((groupId) => {
-        const group = viewGroupsRef.current.find((candidate) => candidate.group.id === groupId)
-        return (
-          group &&
-          group.totalCount > 0 &&
-          group.allItems.length === 0 &&
-          group.status !== 'loading' &&
-          !pendingGroupLoadsRef.current.has(groupId)
-        )
-      })
-      if (unloadedGroupIds.length === 0) return
-      void runResourceListLoadsWithConcurrency(unloadedGroupIds, 3, (groupId) =>
-        runRemoteGroupLoad(groupId, () => remoteData.loadGroup?.(groupId) ?? Promise.resolve())
-      ).catch(() => undefined)
-    },
-    [remoteData, runRemoteGroupLoad]
-  )
-
   const actions = useMemo(
     () => ({
       setQuery: (query: string) => {
@@ -924,20 +902,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       },
       openContextMenu: (id: string) => onOpenContextMenu?.(id),
       selectGroupHeaderItem,
-      selectGroupHeader: async (groupId: string) => {
-        if (!remoteData?.loadGroup || pendingGroupLoadsRef.current.has(groupId)) return false
-        try {
-          const firstItemId = await runRemoteGroupLoad(
-            groupId,
-            () => remoteData.loadGroup?.(groupId) ?? Promise.resolve()
-          )
-          if (typeof firstItemId !== 'string' || !firstItemId) return false
-          selectGroupHeaderItem(firstItemId)
-          return true
-        } catch {
-          return false
-        }
-      },
       showMoreInGroup: async (groupId: string) => {
         if (!remoteData) {
           dispatch({ type: 'showMoreInGroup', groupId })
@@ -959,7 +923,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
       expandGroups: (groupIds: readonly string[]) => {
-        loadRemoteGroups(groupIds)
         if (isControlled) {
           const removeSet = new Set(groupIds)
           notifyControlledCollapsedStateChange(collapsedStateRef.current.filter((id) => !removeSet.has(id)))
@@ -978,7 +941,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         dispatch({ type: 'collapseGroups', groupIds, defaultCount: defaultGroupVisibleCount })
       },
       toggleGroup: (groupId: string) => {
-        if (collapsedStateRef.current.includes(groupId)) loadRemoteGroups([groupId])
         if (isControlled) {
           const nextCollapsedIds = collapsedStateRef.current.includes(groupId)
             ? collapsedStateRef.current.filter((id) => id !== groupId)
@@ -996,7 +958,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupLoadStep,
       isControlled,
       isSelectedControlled,
-      loadRemoteGroups,
       notifyControlledCollapsedStateChange,
       onOpenContextMenu,
       onRenameItem,

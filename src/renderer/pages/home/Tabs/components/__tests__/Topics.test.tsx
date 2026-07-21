@@ -95,29 +95,6 @@ vi.mock('@dnd-kit/utilities', () => ({
   }
 }))
 
-const cursorGroupWindowMocks = vi.hoisted(() => ({
-  options: undefined as
-    | undefined
-    | {
-        fetchPage: (groupId: string, cursor?: string) => Promise<{ items: unknown[] }>
-        groupIds: readonly string[]
-        queryKey: string
-      }
-}))
-
-vi.mock('@renderer/hooks/useCursorGroupWindows', () => ({
-  useCursorGroupWindows: (options: NonNullable<typeof cursorGroupWindowMocks.options>) => {
-    cursorGroupWindowMocks.options = options
-    return {
-      items: [],
-      loadGroup: vi.fn().mockResolvedValue(null),
-      loadMoreGroup: vi.fn().mockResolvedValue(undefined),
-      refillGroup: vi.fn().mockResolvedValue([]),
-      windows: {}
-    }
-  }
-}))
-
 const notesSettingsMocks = vi.hoisted(() => ({
   useNotesSettings: vi.fn(() => ({ notesPath: '/notes' }))
 }))
@@ -985,7 +962,6 @@ describe('Topics', () => {
     dndMocks.onDragOver = undefined
     dndMocks.droppableData.clear()
     dndMocks.sortableData.clear()
-    cursorGroupWindowMocks.options = undefined
   })
 
   afterEach(() => {
@@ -1055,28 +1031,17 @@ describe('Topics', () => {
     })
   })
 
-  it('includes topic sorting in grouped cursor requests and cache identity', async () => {
+  it('uses the shared ordinary topic stream for grouped sorting', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'lastActivityAt')
     applyTopicStats(createDefaultTopicFixture())
-    const getSpy = vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [] } as never)
 
-    try {
-      renderTopicList()
+    renderTopicList()
 
-      expect(JSON.parse(cursorGroupWindowMocks.options?.queryKey ?? '{}')).toEqual(
-        expect.objectContaining({ sortBy: 'lastActivityAt' })
-      )
-      expect(cursorGroupWindowMocks.options?.groupIds).toContain('topic:assistant:assistant-1')
-      await cursorGroupWindowMocks.options?.fetchPage('topic:assistant:assistant-1')
-      expect(getSpy).toHaveBeenCalledWith(
-        '/topics',
-        expect.objectContaining({
-          query: expect.objectContaining({ assistantId: 'assistant-1', pinned: false, sortBy: 'lastActivityAt' })
-        })
-      )
-    } finally {
-      getSpy.mockRestore()
-    }
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/topics',
+      expect.objectContaining({ query: { pinned: false, sortBy: 'lastActivityAt' }, limit: 50, enabled: true })
+    )
   })
 
   it('keeps a creation-stream retry available before any rows have loaded', async () => {
