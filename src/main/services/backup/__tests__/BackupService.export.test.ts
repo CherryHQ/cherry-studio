@@ -108,4 +108,22 @@ describe('BackupService packaged export path', () => {
       })
     )
   })
+
+  it('startRestore throws BACKUP_RESTORE_PENDING when a prior restore journal is present', async () => {
+    // A pending/terminal journal must be reported/cleared before another restore — this
+    // guard is the backstop behind the preboot promotion gate (#16884, one fixed journal file).
+    readRestoreJournalMock.mockReturnValue({ kind: 'ok', journal: { state: 'staged' } } as never)
+    const service = await initPackagedService()
+    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy(
+      (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_PENDING'
+    )
+  })
+
+  it('startRestore throws BACKUP_RESTORE_JOURNAL_CORRUPT when the prior journal is corrupt', async () => {
+    readRestoreJournalMock.mockReturnValue({ kind: 'corrupt' } as never)
+    const service = await initPackagedService()
+    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy(
+      (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_JOURNAL_CORRUPT'
+    )
+  })
 })
