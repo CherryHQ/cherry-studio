@@ -60,6 +60,15 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const canRemove = !!onRemove && (status.applicationStatus === 'applied' || status.applicationStatus === 'broken')
   const installing = isInstalling || isUpgrading
   const busy = installing || removing
+  // "Up to date" must describe a genuinely current tool. A runnable-but-not-applied
+  // mise state (broken/conflict/unknown) still reports installed with no upgrade, so
+  // gate the badge on a clean application fact to avoid pairing it with Retry. A
+  // bundled/system source carries no application fact and stays eligible.
+  const cleanlyInstalled =
+    isInstalled &&
+    status.applicationStatus !== 'broken' &&
+    status.applicationStatus !== 'conflict' &&
+    status.applicationStatus !== 'unknown'
 
   return (
     <div className="rounded-lg border border-border/40 bg-background px-4 py-5">
@@ -76,7 +85,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
                 {t('settings.dependencies.source.system')}
               </span>
             ) : (
-              isInstalled &&
+              cleanlyInstalled &&
               !canUpgrade && (
                 <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
                   {t('code.up_to_date')}

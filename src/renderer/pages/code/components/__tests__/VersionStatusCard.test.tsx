@@ -333,4 +333,35 @@ describe('VersionStatusCard', () => {
 
     expect(screen.queryByRole('button', { name: 'openclaw.gateway.open_dashboard' })).not.toBeInTheDocument()
   })
+
+  it('suppresses the up-to-date badge for a broken mise tool that still resolves', () => {
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{ installed: true, source: 'mise', applicationStatus: 'broken', current: '1.0.0', canUpgrade: false }}
+        onInstall={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+
+    // A broken recipe must never read as current, and it still offers repair.
+    expect(screen.queryByText('code.up_to_date')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.retry' })).toBeInTheDocument()
+  })
+
+  it('shows the up-to-date badge for a cleanly applied mise tool', () => {
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{ installed: true, source: 'mise', applicationStatus: 'applied', current: '1.0.0', canUpgrade: false }}
+        onRemove={vi.fn()}
+        onLaunch={vi.fn()}
+        canLaunch
+      />
+    )
+
+    expect(screen.getByText('code.up_to_date')).toBeInTheDocument()
+  })
 })
