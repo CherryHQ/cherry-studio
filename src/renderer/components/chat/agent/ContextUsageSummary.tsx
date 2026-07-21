@@ -79,7 +79,7 @@ export function getAgentContextUsageColor(percentage: number): string {
   const normalizedPercentage = Math.min(100, Math.max(0, percentage))
   if (normalizedPercentage <= 50) {
     const warningWeight = normalizedPercentage * 2
-    return `color-mix(in oklch, var(--color-success-base) ${100 - warningWeight}%, var(--color-warning-base) ${warningWeight}%)`
+    return `color-mix(in oklch, var(--color-success) ${100 - warningWeight}%, var(--color-warning-base) ${warningWeight}%)`
   }
 
   const destructiveWeight = (normalizedPercentage - 50) * 2

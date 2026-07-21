@@ -76,6 +76,23 @@ export const AIHUBMIX_WIRE_PROFILE: WireProfile = {
   forward: [...(OPENAI_WIRE_PROFILE.forward ?? []), 'seed']
 }
 
+/** OpenRouter's native `/images` JSON body. `n`/`size`/`seed`/`aspectRatio` are
+ * supplied by the AI SDK's typed image options; these are the remaining model-
+ * advertised fields that must ride under `providerOptions.openrouter`. */
+export const OPENROUTER_WIRE_PROFILE: WireProfile = {
+  forward: ['resolution', 'quality', 'outputFormat', 'background'],
+  fields: {
+    outputCompression: {
+      contribute: (value, all): Record<string, JSONValue> => {
+        if (all.outputFormat === 'jpeg' || all.outputFormat === 'webp') {
+          return { output_compression: value as JSONValue }
+        }
+        return {}
+      }
+    }
+  }
+}
+
 /**
  * DashScope native image API (qwen-image / wanx / wan2.5 / qwen-mt-image …).
  * Reproduces the `dashscope` emitter: the mapped sampling fields under the
@@ -189,6 +206,7 @@ export interface WireRegistration {
  * migrated provider with bespoke delivery; the plain diffusion family needs no row.
  */
 export const WIRE_REGISTRY: Record<string, WireRegistration> = {
+  openrouter: { profile: OPENROUTER_WIRE_PROFILE },
   openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'openai-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   azure: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },

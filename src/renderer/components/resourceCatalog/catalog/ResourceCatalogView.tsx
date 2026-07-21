@@ -1,24 +1,16 @@
 import { Alert, Button } from '@cherrystudio/ui'
-import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
-import { SkillDetailDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
-import { AgentEditDialog, AssistantEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { ImportAssistantDialog } from '@renderer/components/resourceCatalog/dialogs/import'
-import {
-  ImportSkillDialog,
-  SkillMarketplaceDialog,
-  SystemSkillDialog
-} from '@renderer/components/resourceCatalog/dialogs/skill'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceType } from '@renderer/types/resourceCatalog'
-import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AssistantLibraryDialog } from './AssistantLibraryDialog'
 import { ResourceGrid } from './ResourceGrid'
+
+const ResourceCatalogDialogs = lazy(() =>
+  import('./ResourceCatalogDialogs').then((module) => ({ default: module.ResourceCatalogDialogs }))
+)
 
 type ResourceCatalogViewType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
@@ -38,8 +30,24 @@ export function ResourceCatalogView({
   toolbarLeading
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
-  const agentModelFilter = useAgentModelFilter('claude-code')
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
+  const hasActiveDialog = Boolean(
+    dialogs.selectedSkill ||
+      dialogs.assistantImportOpen ||
+      (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
+      dialogs.skillImportOpen ||
+      dialogs.skillMarketplaceOpen ||
+      (skillAgentId && dialogs.systemSkillOpen) ||
+      dialogs.createDialogOpen ||
+      dialogs.createDialogKind ||
+      dialogs.editDialogOpen ||
+      dialogs.editDialog
+  )
+  const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
+
+  useEffect(() => {
+    if (hasActiveDialog) setDialogsActivated(true)
+  }, [hasActiveDialog])
 
   return (
     <div className={cn('flex min-h-0 flex-1 bg-background', className)}>
@@ -76,56 +84,16 @@ export function ResourceCatalogView({
       </div>
 
       <ResourceDeleteConfirmDialog resource={dialogs.deleteConfirm} onClose={() => dialogs.setDeleteConfirm(null)} />
-      <SkillDetailDialog
-        skill={dialogs.selectedSkill}
-        open={Boolean(dialogs.selectedSkill)}
-        onOpenChange={(open) => {
-          if (!open) dialogs.setSelectedSkill(null)
-        }}
-      />
-      <ImportAssistantDialog
-        open={dialogs.assistantImportOpen}
-        onOpenChange={dialogs.setAssistantImportOpen}
-        onImported={refetch}
-      />
-      {resourceType === 'assistant' ? (
-        <AssistantLibraryDialog
-          open={dialogs.assistantLibraryOpen}
-          onOpenChange={dialogs.setAssistantLibraryOpen}
-          onAssistantAdded={refetch}
-          onOpenAssistantChat={onOpenAssistantChat}
-        />
-      ) : null}
-      <ImportSkillDialog open={dialogs.skillImportOpen} onOpenChange={dialogs.setSkillImportOpen} />
-      <SkillMarketplaceDialog open={dialogs.skillMarketplaceOpen} onOpenChange={dialogs.setSkillMarketplaceOpen} />
-      {skillAgentId ? (
-        <SystemSkillDialog mode="manage" open={dialogs.systemSkillOpen} onOpenChange={dialogs.setSystemSkillOpen} />
-      ) : null}
-      <ResourceCreateWizard
-        kind={dialogs.createDialogKind ?? 'assistant'}
-        open={dialogs.createDialogOpen}
-        isSubmitting={dialogs.creatingResource}
-        modelFilter={dialogs.createDialogKind === 'agent' ? agentModelFilter : isSelectableAssistantModel}
-        onOpenChange={dialogs.handleCreateDialogOpenChange}
-        onSubmit={dialogs.handleSubmitCreateResource}
-      />
-      {dialogs.editDialog?.kind === 'assistant' ? (
-        <AssistantEditDialog
-          open={dialogs.editDialogOpen}
-          resource={dialogs.editDialog.resource}
-          modelFilter={isSelectableAssistantModel}
-          onOpenChange={dialogs.handleEditDialogOpenChange}
-          onSaved={dialogs.handleEditSaved}
-        />
-      ) : null}
-      {dialogs.editDialog?.kind === 'agent' ? (
-        <AgentEditDialog
-          open={dialogs.editDialogOpen}
-          resource={dialogs.editDialog.resource}
-          modelFilter={agentModelFilter}
-          onOpenChange={dialogs.handleEditDialogOpenChange}
-          onSaved={dialogs.handleEditSaved}
-        />
+      {dialogsActivated ? (
+        <Suspense fallback={null}>
+          <ResourceCatalogDialogs
+            dialogs={dialogs}
+            onOpenAssistantChat={onOpenAssistantChat}
+            onRefetch={refetch}
+            resourceType={resourceType}
+            skillAgentId={skillAgentId}
+          />
+        </Suspense>
       ) : null}
     </div>
   )

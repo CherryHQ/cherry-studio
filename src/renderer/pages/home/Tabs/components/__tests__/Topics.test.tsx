@@ -349,9 +349,9 @@ vi.mock('react-i18next', () => ({
         if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
         if (key === 'assistants.icon.type') return 'Assistant icon'
         if (key === 'chat.add.assistant.title') return 'Add Assistant'
-        if (key === 'assistants.tags.group_by') return 'Group by tag'
-        if (key === 'assistants.tags.ungroup') return 'Ungroup tags'
-        if (key === 'assistants.tags.untagged') return 'Untagged'
+        if (key === 'assistants.groups.group_by') return 'Show in groups'
+        if (key === 'assistants.groups.ungroup') return 'Stop grouping'
+        if (key === 'assistants.groups.ungrouped') return 'Ungrouped'
         if (key === 'settings.assistant.icon.type.emoji') return 'Emoji'
         if (key === 'settings.assistant.icon.type.model') return 'Model'
         if (key === 'settings.assistant.icon.type.none') return 'None'
@@ -528,7 +528,7 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
     name: 'Alpha Assistant',
     emoji: '🧪',
     orderKey: 'a',
-    tags: [{ id: 'tag-work', name: 'Work' }],
+    groupId: 'group-work',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides
@@ -753,11 +753,38 @@ describe('Topics', () => {
                 name: 'Beta Assistant',
                 emoji: '✍️',
                 orderKey: 'b',
-                tags: [{ id: 'tag-home', name: 'Home' }]
+                groupId: 'group-home'
               })
             ],
             total: 2
           },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      if (path === '/groups') {
+        return {
+          data: [
+            {
+              id: 'group-work',
+              entityType: 'assistant',
+              name: 'Work',
+              orderKey: 'a',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            },
+            {
+              id: 'group-home',
+              entityType: 'assistant',
+              name: 'Home',
+              orderKey: 'b',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            }
+          ],
           isLoading: false,
           isRefreshing: false,
           error: undefined,
@@ -2677,11 +2704,32 @@ describe('Topics', () => {
     }
   })
 
-  it('keeps assistant tag sections when assistant topics move back to the left panel', () => {
+  it('keeps pinned assistants ahead of group order when assistant topics move back to the left panel', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.tab.sort_type': 'tags',
       'topic.tab.display_mode': 'assistant',
       'topic.tab.position': 'left'
+    })
+    const defaultUseQuery = mockUseQuery.getMockImplementation()
+    mockUseQuery.mockImplementation((path, options) => {
+      const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
+      if (path === '/pins' && entityType === 'assistant') {
+        return {
+          data: [
+            createTopicPin({
+              id: 'pin-assistant-2',
+              entityId: 'assistant-2',
+              entityType: 'assistant'
+            })
+          ],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return defaultUseQuery!(path, options)
     })
 
     renderTopicList()
@@ -2695,8 +2743,50 @@ describe('Topics', () => {
     expect(homeSection).toBeInTheDocument()
     expect(alphaAssistant).toBeInTheDocument()
     expect(betaAssistant).toBeInTheDocument()
+    expect(homeSection!.compareDocumentPosition(workSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(workSection!.compareDocumentPosition(alphaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(homeSection!.compareDocumentPosition(betaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('renders ungrouped assistants before named groups in group mode', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+    const defaultUseQuery = mockUseQuery.getMockImplementation()
+    mockUseQuery.mockImplementation((path, options) => {
+      if (path === '/assistants') {
+        return {
+          data: {
+            items: [
+              createAssistant({ groupId: null }),
+              createAssistant({
+                id: 'assistant-2',
+                name: 'Beta Assistant',
+                emoji: '✍️',
+                orderKey: 'b',
+                groupId: 'group-home'
+              })
+            ],
+            total: 2
+          },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return defaultUseQuery!(path, options)
+    })
+
+    renderTopicList()
+
+    const ungroupedSection = screen.getByRole('button', { name: 'Ungrouped' }).closest('div')
+    const homeSection = screen.getByRole('button', { name: 'Home' }).closest('div')
+    expect(ungroupedSection).toBeInTheDocument()
+    expect(homeSection).toBeInTheDocument()
+    expect(ungroupedSection!.compareDocumentPosition(homeSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('uses the configured model icon for assistant topic groups', () => {
@@ -2827,7 +2917,7 @@ describe('Topics', () => {
     )
 
     fireEvent.click(moreButton)
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Group by tag' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Show in groups' }))
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type' as never)).toBe('tags')
     )
@@ -3103,6 +3193,29 @@ describe('Topics', () => {
       expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
     )
     expect(patchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects assistant section drops across different group ids in group mode', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('group:topic:assistant:assistant-1'),
+        id: 'group:topic:assistant:assistant-1'
+      },
+      over: {
+        data: sortableData('group:topic:assistant:assistant-2'),
+        id: 'group:topic:assistant:assistant-2'
+      }
+    })
+
+    expect(patchSpy).not.toHaveBeenCalled()
   })
 
   it('shows a toast when assistant group reorder persistence fails', async () => {
