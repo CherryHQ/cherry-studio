@@ -14,7 +14,7 @@ export const migrationDiagnosticBundleEntryNameSchema = z.enum(MIGRATION_DIAGNOS
 
 export const migrationDiagnosticBundleDocumentSchema = z
   .object({
-    formatVersion: z.literal(1),
+    formatVersion: z.literal(2),
     generatedAt: z.string().datetime(),
     app: migrationDiagnosticAppMetadataSchema,
     state: z.enum(['active', 'failed', 'completed']),

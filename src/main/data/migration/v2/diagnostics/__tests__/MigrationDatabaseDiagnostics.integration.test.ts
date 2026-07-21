@@ -38,7 +38,12 @@ describe('migration database SQLite child queries', () => {
       status: 'available',
       quickCheck: 'ok',
       foreignKeyViolationCountBucket: '0',
-      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role }) => ({ role, status: 'present' }))
+      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table, columns }) => ({
+        role,
+        tableName: table,
+        standardColumns: columns,
+        status: 'present'
+      }))
     })
     expect(readFileSync(databaseFile)).toEqual(before)
   })
@@ -81,7 +86,28 @@ describe('migration database SQLite child queries', () => {
     if (result.status !== 'available') throw new Error('Expected the damaged production schema to remain readable')
     expect(result.objects.find(({ role }) => role === 'mcp_server')).toEqual({
       role: 'mcp_server',
+      tableName: 'mcp_server',
+      standardColumns: MIGRATION_DATABASE_OBJECT_DEFINITIONS.find(({ role }) => role === 'mcp_server')?.columns,
       status: 'missing_table'
+    })
+  })
+
+  it('reports a missing standard field from a readable production table', () => {
+    const databaseFile = copyProductionDatabase('missing-schema-column.sqlite')
+    const database = new Database(databaseFile)
+    database.exec('ALTER TABLE prompt DROP COLUMN content')
+    database.close()
+
+    const result = inspectMigrationDatabaseSqlite(databaseFile)
+
+    expect(result).toMatchObject({ status: 'available', quickCheck: 'ok' })
+    if (result.status !== 'available') throw new Error('Expected the damaged production schema to remain readable')
+    expect(result.objects.find(({ role }) => role === 'prompt')).toEqual({
+      role: 'prompt',
+      tableName: 'prompt',
+      standardColumns: MIGRATION_DATABASE_OBJECT_DEFINITIONS.find(({ role }) => role === 'prompt')?.columns,
+      status: 'missing_columns',
+      missingColumnRoles: ['content']
     })
   })
 })

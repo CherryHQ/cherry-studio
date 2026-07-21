@@ -10,8 +10,49 @@ import {
 
 const objects = MIGRATION_DATABASE_OBJECT_DEFINITIONS.map((definition) => ({
   role: definition.role,
+  tableName: definition.table,
+  standardColumns: definition.columns,
   status: 'present' as const
 }))
+
+const expectedTargets = [
+  ['app_state', 'app_state'],
+  ['preference', 'preference'],
+  ['note', 'note'],
+  ['mini_app', 'mini_app'],
+  ['mcp_server', 'mcp_server'],
+  ['user_provider', 'user_provider'],
+  ['user_model', 'user_model'],
+  ['assistant', 'assistant'],
+  ['assistant_mcp_server', 'assistant_mcp_server'],
+  ['assistant_knowledge_base', 'assistant_knowledge_base'],
+  ['tag', 'tag'],
+  ['entity_tag', 'entity_tag'],
+  ['file', 'file_entry'],
+  ['provider_logo_file_ref', 'provider_logo_file_ref'],
+  ['mini_app_logo_file_ref', 'mini_app_logo_file_ref'],
+  ['agent', 'agent'],
+  ['agent_session', 'agent_session'],
+  ['agent_workspace', 'agent_workspace'],
+  ['agent_global_skill', 'agent_global_skill'],
+  ['agent_skill', 'agent_skill'],
+  ['agent_channel', 'agent_channel'],
+  ['agent_session_message', 'agent_session_message'],
+  ['job_schedule', 'job_schedule'],
+  ['agent_channel_task', 'agent_channel_task'],
+  ['agent_mcp_server', 'agent_mcp_server'],
+  ['knowledge_base', 'knowledge_base'],
+  ['knowledge_item', 'knowledge_item'],
+  ['topic', 'topic'],
+  ['message', 'message'],
+  ['chat_message_file_ref', 'chat_message_file_ref'],
+  ['pin', 'pin'],
+  ['painting', 'painting'],
+  ['painting_file_ref', 'painting_file_ref'],
+  ['translate_language', 'translate_language'],
+  ['translate_history', 'translate_history'],
+  ['prompt', 'prompt']
+] as const
 
 const availableSqlite = {
   status: 'available',
@@ -79,6 +120,11 @@ describe('migrationDatabaseDiagnosticResultSchema', () => {
 })
 
 describe('migrationDatabaseSqliteResultSchema', () => {
+  it('covers every persistent migration target with its stable role and physical table name', () => {
+    expect(MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) => [role, table])).toEqual(expectedTargets)
+    expect(MIGRATION_DATABASE_OBJECT_DEFINITIONS.every(({ columns }) => columns.length > 0)).toBe(true)
+  })
+
   it('requires exactly one result for every fixed object role', () => {
     expect(migrationDatabaseSqliteResultSchema.parse(availableSqlite)).toEqual(availableSqlite)
     expect(
@@ -93,7 +139,7 @@ describe('migrationDatabaseSqliteResultSchema', () => {
   it('allows only fixed missing-column roles and only on missing_columns', () => {
     const missing = objects.map((object) =>
       object.role === 'user_model'
-        ? { role: object.role, status: 'missing_columns' as const, missingColumnRoles: ['model_id'] }
+        ? { ...object, status: 'missing_columns' as const, missingColumnRoles: ['model_id'] }
         : object
     )
     expect(migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: missing }).success).toBe(true)
@@ -104,6 +150,36 @@ describe('migrationDatabaseSqliteResultSchema', () => {
           object.role === 'user_model' ? { ...object, missingColumnRoles: ['private_column_name'] } : object
         )
       }).success
+    ).toBe(false)
+  })
+
+  it('requires the exact table name and complete standard-column order for each role', () => {
+    const promptIndex = objects.findIndex(({ role }) => role === 'prompt')
+    const prompt = objects[promptIndex]
+    if (prompt === undefined) throw new Error('Expected the prompt diagnostics target')
+
+    const wrongTable = objects.with(promptIndex, { ...prompt, tableName: 'private_table_name' })
+    expect(migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: wrongTable }).success).toBe(
+      false
+    )
+
+    const wrongColumns = objects.with(promptIndex, {
+      ...prompt,
+      standardColumns: [...prompt.standardColumns].reverse()
+    })
+    expect(migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: wrongColumns }).success).toBe(
+      false
+    )
+  })
+
+  it('rejects globally valid columns that do not belong to the selected table', () => {
+    const wrongMissingColumns = objects.map((object) =>
+      object.role === 'prompt'
+        ? { ...object, status: 'missing_columns' as const, missingColumnRoles: ['app_id'] }
+        : object
+    )
+    expect(
+      migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: wrongMissingColumns }).success
     ).toBe(false)
   })
 

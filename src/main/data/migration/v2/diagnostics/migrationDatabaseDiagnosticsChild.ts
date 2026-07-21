@@ -33,10 +33,15 @@ function inspectObject(
   database: Database.Database,
   definition: (typeof MIGRATION_DATABASE_OBJECT_DEFINITIONS)[number]
 ): MigrationDatabaseObjectCheck {
+  const base = {
+    role: definition.role,
+    tableName: definition.table,
+    standardColumns: [...definition.columns]
+  }
   const table = database
     .prepare("SELECT 1 AS present FROM sqlite_schema WHERE type = 'table' AND name = ? LIMIT 1")
     .get(definition.table)
-  if (table === undefined) return { role: definition.role, status: 'missing_table' }
+  if (table === undefined) return { ...base, status: 'missing_table' }
 
   const columns = new Set(
     (database.pragma(`table_info(${definition.table})`) as ColumnRow[])
@@ -45,8 +50,8 @@ function inspectObject(
   )
   const missingColumnRoles = definition.columns.filter((column) => !columns.has(column))
   return missingColumnRoles.length === 0
-    ? { role: definition.role, status: 'present' }
-    : { role: definition.role, status: 'missing_columns', missingColumnRoles }
+    ? { ...base, status: 'present' }
+    : { ...base, status: 'missing_columns', missingColumnRoles }
 }
 
 export function inspectMigrationDatabaseSqlite(databaseFile: string): MigrationDatabaseSqliteResult {

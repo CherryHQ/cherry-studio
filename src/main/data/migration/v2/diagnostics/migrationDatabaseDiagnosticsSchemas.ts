@@ -1,18 +1,8 @@
 import * as z from 'zod'
 
-export const MIGRATION_DATABASE_OBJECT_DEFINITIONS = Object.freeze([
-  { role: 'app_state', table: 'app_state', columns: ['key', 'value'] },
-  { role: 'preference', table: 'preference', columns: ['scope', 'key', 'value'] },
-  { role: 'user_provider', table: 'user_provider', columns: ['provider_id', 'name'] },
-  { role: 'user_model', table: 'user_model', columns: ['id', 'provider_id', 'model_id'] },
-  { role: 'assistant', table: 'assistant', columns: ['id', 'name', 'settings'] },
-  { role: 'mcp_server', table: 'mcp_server', columns: ['id', 'name', 'type'] },
-  { role: 'topic', table: 'topic', columns: ['id', 'assistant_id'] },
-  { role: 'message', table: 'message', columns: ['id', 'topic_id', 'role', 'status'] },
-  { role: 'file', table: 'file_entry', columns: ['id', 'origin', 'name'] },
-  { role: 'knowledge_base', table: 'knowledge_base', columns: ['id', 'name', 'status'] },
-  { role: 'knowledge_item', table: 'knowledge_item', columns: ['id', 'base_id', 'type', 'status'] }
-] as const)
+import { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from './migrationDatabaseTargets'
+
+export { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from './migrationDatabaseTargets'
 
 const objectRoles = MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role }) => role) as [
   (typeof MIGRATION_DATABASE_OBJECT_DEFINITIONS)[number]['role'],
@@ -22,6 +12,7 @@ const columnRoles = [...new Set(MIGRATION_DATABASE_OBJECT_DEFINITIONS.flatMap(({
   (typeof MIGRATION_DATABASE_OBJECT_DEFINITIONS)[number]['columns'][number],
   ...(typeof MIGRATION_DATABASE_OBJECT_DEFINITIONS)[number]['columns'][number][]
 ]
+const maxExpectedColumnCount = Math.max(...MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ columns }) => columns.length))
 
 export const migrationDatabaseObjectRoleSchema = z.enum(objectRoles)
 export const migrationDatabaseColumnRoleSchema = z.enum(columnRoles)
@@ -29,12 +20,32 @@ export const migrationDatabaseColumnRoleSchema = z.enum(columnRoles)
 export const migrationDatabaseObjectCheckSchema = z
   .object({
     role: migrationDatabaseObjectRoleSchema,
+    tableName: z.string().min(1).max(128),
+    standardColumns: z.array(migrationDatabaseColumnRoleSchema).min(1).max(maxExpectedColumnCount).readonly(),
     status: z.enum(['present', 'missing_table', 'missing_columns']),
-    missingColumnRoles: z.array(migrationDatabaseColumnRoleSchema).min(1).max(4).optional()
+    missingColumnRoles: z.array(migrationDatabaseColumnRoleSchema).min(1).max(maxExpectedColumnCount).optional()
   })
   .strict()
   .superRefine((object, ctx) => {
     const definition = MIGRATION_DATABASE_OBJECT_DEFINITIONS.find(({ role }) => role === object.role)
+    if (definition === undefined) return
+    if (object.tableName !== definition.table) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Database object checks must use the fixed physical table name',
+        path: ['tableName']
+      })
+    }
+    if (
+      object.standardColumns.length !== definition.columns.length ||
+      object.standardColumns.some((column, index) => column !== definition.columns[index])
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Database object checks must use the complete fixed standard-column order',
+        path: ['standardColumns']
+      })
+    }
     const missing = object.missingColumnRoles
     if ((object.status === 'missing_columns') !== (missing !== undefined)) {
       ctx.addIssue({
@@ -44,11 +55,8 @@ export const migrationDatabaseObjectCheckSchema = z
       })
       return
     }
-    if (missing === undefined || definition === undefined) return
-    if (
-      new Set(missing).size !== missing.length ||
-      missing.some((column) => !(definition.columns as readonly string[]).includes(column))
-    ) {
+    if (missing === undefined) return
+    if (new Set(missing).size !== missing.length || missing.some((column) => !definition.columns.includes(column))) {
       ctx.addIssue({
         code: 'custom',
         message: 'Missing columns must be unique fixed roles for the selected object',

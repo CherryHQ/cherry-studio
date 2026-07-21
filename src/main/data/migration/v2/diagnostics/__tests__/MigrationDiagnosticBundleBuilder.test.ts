@@ -77,7 +77,12 @@ function databaseDiagnostics() {
       status: 'available' as const,
       quickCheck: 'ok' as const,
       foreignKeyViolationCountBucket: '0' as const,
-      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role }) => ({ role, status: 'present' as const }))
+      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table, columns }) => ({
+        role,
+        tableName: table,
+        standardColumns: columns,
+        status: 'present' as const
+      }))
     }
   }
 }
@@ -121,7 +126,7 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
       JSON.parse(entries.get('migration-diagnostics.json')?.toString('utf8') ?? '')
     )
     expect(document).toMatchObject({
-      formatVersion: 1,
+      formatVersion: 2,
       generatedAt: '2026-07-21T08:02:00.000Z',
       state: 'failed',
       current: { status: 'failed', failure: { errorCode: 'sqlite_too_big' } },

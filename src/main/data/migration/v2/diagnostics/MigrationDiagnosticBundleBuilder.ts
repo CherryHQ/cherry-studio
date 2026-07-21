@@ -83,7 +83,7 @@ function createDocument(
 ): MigrationDiagnosticBundleDocument {
   const checkpoint = migrationDiagnosticsCheckpointSchema.parse(snapshot)
   return migrationDiagnosticBundleDocumentSchema.parse({
-    formatVersion: 1,
+    formatVersion: 2,
     generatedAt,
     app: checkpoint.app,
     state: checkpoint.state,

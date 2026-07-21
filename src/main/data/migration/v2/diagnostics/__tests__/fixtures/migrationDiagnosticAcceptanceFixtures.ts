@@ -76,10 +76,17 @@ function objects(
     definition.role === role
       ? {
           role: definition.role,
+          tableName: definition.table,
+          standardColumns: definition.columns,
           status,
           ...(status === 'missing_columns' ? { missingColumnRoles: [definition.columns[0]] } : {})
         }
-      : { role: definition.role, status: 'present' as const }
+      : {
+          role: definition.role,
+          tableName: definition.table,
+          standardColumns: definition.columns,
+          status: 'present' as const
+        }
   )
 }
 

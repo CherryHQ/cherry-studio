@@ -8,7 +8,10 @@ import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { evaluateCandidateVersion } from '../../core/versionPolicy'
-import type { MigrationDatabaseDiagnosticResult } from '../migrationDatabaseDiagnosticsSchemas'
+import {
+  MIGRATION_DATABASE_OBJECT_DEFINITIONS,
+  type MigrationDatabaseDiagnosticResult
+} from '../migrationDatabaseDiagnosticsSchemas'
 import {
   MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES,
   MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES,
@@ -133,8 +136,19 @@ describe('migration diagnostic acceptance matrix', () => {
     const entries = await readZip(destination)
     expect([...entries.keys()]).toEqual([...MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES])
     const document = parseDocument(entries)
+    expect(document.formatVersion).toBe(2)
     expect(failureOf(document, fixture.expectedRoot.attempt)?.errorCode).toBe(fixture.expectedRoot.errorCode)
     expect(document.database.sqlite).toMatchObject(fixture.expectedSqlite)
+    if (document.database.sqlite.status === 'available') {
+      expect(document.database.sqlite.objects).toEqual(
+        expect.arrayContaining(
+          MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table, columns }) =>
+            expect.objectContaining({ role, tableName: table, standardColumns: columns })
+          )
+        )
+      )
+      expect(document.database.sqlite.objects).toHaveLength(36)
+    }
     const uncompressedBytes = [...entries.values()].reduce((total, entry) => total + entry.byteLength, 0)
     expect(uncompressedBytes).toBe(result.uncompressedBytes)
     expect(uncompressedBytes).toBeLessThanOrEqual(MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES)

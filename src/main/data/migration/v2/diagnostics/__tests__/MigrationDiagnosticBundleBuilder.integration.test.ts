@@ -42,7 +42,12 @@ const database = {
     status: 'available' as const,
     quickCheck: 'ok' as const,
     foreignKeyViolationCountBucket: '1' as const,
-    objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role }) => ({ role, status: 'present' as const }))
+    objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table, columns }) => ({
+      role,
+      tableName: table,
+      standardColumns: columns,
+      status: 'present' as const
+    }))
   }
 }
 
