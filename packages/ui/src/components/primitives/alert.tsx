@@ -11,7 +11,7 @@ const alertVariants = cva(
   {
     variants: {
       type: {
-        info: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300',
+        info: 'border-[var(--color-info)] bg-[var(--color-info-bg)] text-[var(--color-info)]',
         success: 'border-[var(--color-success)] bg-[var(--color-success-bg)] text-[var(--color-success)]',
         warning: 'border-[var(--color-warning-base)] bg-[var(--color-warning-bg)] text-[var(--color-warning-base)]',
         error: 'border-[var(--color-error-border)] bg-[var(--color-error-bg)] text-[var(--color-error-base)]'
@@ -26,7 +26,7 @@ const alertVariants = cva(
 const alertIconVariants = cva('', {
   variants: {
     type: {
-      info: 'text-blue-600 dark:text-blue-300',
+      info: 'text-[var(--color-info)]',
       success: 'text-[var(--color-success)]',
       warning: 'text-[var(--color-warning-base)]',
       error: 'text-[var(--color-error-base)]'
@@ -40,7 +40,7 @@ const alertIconVariants = cva('', {
 const alertIconContainerVariants = cva('mt-0.5 flex shrink-0 items-center', {
   variants: {
     type: {
-      info: 'text-blue-600 dark:text-blue-300 [&_.lucide:not(.lucide-custom)]:!text-blue-600 dark:[&_.lucide:not(.lucide-custom)]:!text-blue-300',
+      info: 'text-[var(--color-info)] [&_.lucide:not(.lucide-custom)]:!text-[var(--color-info)]',
       success: 'text-[var(--color-success)] [&_.lucide:not(.lucide-custom)]:!text-[var(--color-success)]',
       warning: 'text-[var(--color-warning-base)] [&_.lucide:not(.lucide-custom)]:!text-[var(--color-warning-base)]',
       error: 'text-[var(--color-error-base)] [&_.lucide:not(.lucide-custom)]:!text-[var(--color-error-base)]'

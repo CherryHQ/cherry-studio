@@ -34,17 +34,13 @@ describe('Switch', () => {
     expect(root).toHaveAttribute('aria-checked', 'false')
   })
 
-  it('renders the thumb svg without the invalid "inherit" dimension attributes', () => {
-    const { container } = render(<Switch />)
+  it('dims only the track when loading, keeping the thumb color intact', () => {
+    const { container } = render(<Switch loading />)
 
-    const svg = container.querySelector('[data-slot="switch-thumb"] svg')
-
-    expect(svg).not.toBeNull()
-    // "inherit" is a CSS keyword and is invalid as an SVG width/height attribute,
-    // which makes React throw "<svg> attribute width: Expected length, "inherit"".
-    expect(svg).not.toHaveAttribute('width', 'inherit')
-    expect(svg).not.toHaveAttribute('height', 'inherit')
-    // Sizing is handled by the cva class so the svg fills the fixed-size thumb.
-    expect(svg).toHaveClass('size-full')
+    expect(container.querySelector('[data-slot="switch-thumb"] svg')).toBeNull()
+    expect(screen.getByRole('switch')).toHaveClass('bg-primary/60!')
+    const thumb = container.querySelector('[data-slot="switch-thumb"]')
+    expect(thumb).not.toHaveClass('bg-primary/60!')
+    expect(thumb).toHaveClass('bg-background')
   })
 })

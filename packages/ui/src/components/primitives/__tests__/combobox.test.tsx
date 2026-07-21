@@ -27,6 +27,37 @@ afterEach(() => {
 })
 
 describe('Combobox', () => {
+  it('uses the outlined input treatment for trigger search', () => {
+    render(<Combobox options={options} searchPlacement="trigger" placeholder="Pick one" emptyText="No results" />)
+
+    const trigger = screen.getByRole('combobox')
+
+    expect(trigger).toHaveClass(
+      'border-border',
+      'bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:ring-ring/35',
+      'focus-visible:ring-[1px]'
+    )
+    expect(trigger).not.toHaveClass('border-0', 'bg-muted/50', 'focus-visible:ring-0')
+  })
+
+  it('uses the outlined input treatment for the standard trigger', () => {
+    render(<Combobox options={options} searchable={false} placeholder="Pick one" emptyText="No results" />)
+
+    const trigger = screen.getByRole('button')
+
+    expect(trigger).toHaveClass(
+      'border',
+      'border-border',
+      'bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:ring-ring/35',
+      'focus-visible:ring-[1px]'
+    )
+    expect(trigger).not.toHaveClass('bg-muted/50', 'focus-visible:ring-3')
+  })
+
   it('maps the selected value to the trigger placeholder when opened', async () => {
     render(
       <Combobox

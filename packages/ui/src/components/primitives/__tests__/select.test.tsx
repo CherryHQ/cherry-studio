@@ -30,6 +30,28 @@ afterEach(() => {
 })
 
 describe('SelectContent', () => {
+  it('renders the trigger with a transparent background and border', () => {
+    render(
+      <Select defaultValue="alpha">
+        <SelectTrigger aria-label="Mode">
+          <SelectValue />
+        </SelectTrigger>
+      </Select>
+    )
+
+    const trigger = screen.getByRole('combobox', { name: 'Mode' })
+
+    expect(trigger).toHaveClass(
+      'border',
+      'border-border',
+      'bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:ring-ring/35',
+      'focus-visible:ring-[1px]'
+    )
+    expect(trigger).not.toHaveClass('bg-muted/50', 'focus-visible:ring-3')
+  })
+
   it('opens and closes without controlled open props', async () => {
     render(
       <Select defaultValue="alpha">
