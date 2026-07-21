@@ -261,7 +261,9 @@ export interface OffsetPaginationResponse<T> {
 export interface CursorPaginationResponse<T> {
   /** Items for current page */
   items: T[]
-  /** Next cursor (undefined means no more data) */
+  /** Cursor toward the canonical query head; omitted when the endpoint exposes none */
+  previousCursor?: string
+  /** Cursor toward the canonical query tail; omitted when the endpoint exposes none */
   nextCursor?: string
 }
 

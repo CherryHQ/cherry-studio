@@ -88,7 +88,7 @@ derivations, see the [Pagination Guide](./data-pagination-guide.md).
 | Type | Fields | Use Case |
 |------|--------|----------|
 | `OffsetPaginationParams` | `page?`, `limit?` | Traditional page-based navigation |
-| `CursorPaginationParams` | `cursor?`, `limit?` | Infinite scroll, real-time feeds. `cursor` is an exclusive boundary — the cursor item is not returned (see [Pagination Guide](./data-pagination-guide.md#3-wire-contract)) |
+| `CursorPaginationParams` | `cursor?`, `limit?` | Infinite scroll, real-time feeds. `cursor` is an opaque, exclusive boundary; directional tokens carry previous/next traversal without adding a request field (see [Pagination Guide](./data-pagination-guide.md#3-wire-contract)) |
 | `SortParams` | `sortBy?`, `sortOrder?` | Sorting (combine as needed) |
 | `SearchParams` | `search?` | Text search (combine as needed) |
 
@@ -97,7 +97,7 @@ derivations, see the [Pagination Guide](./data-pagination-guide.md).
 | Type | Fields | Description |
 |------|--------|-------------|
 | `OffsetPaginationResponse<T>` | `items`, `total`, `page` | Page-based results |
-| `CursorPaginationResponse<T>` | `items`, `nextCursor?` | Cursor-based results |
+| `CursorPaginationResponse<T>` | `items`, `previousCursor?`, `nextCursor?` | Cursor-based results. Either direction is optional, so existing next-only endpoints remain valid |
 | `PaginationResponse<T>` | Union of both | When either mode is acceptable; narrow with `isOffsetPaginationResponse` / `isCursorPaginationResponse` |
 
 ## Adding a New Domain Schema

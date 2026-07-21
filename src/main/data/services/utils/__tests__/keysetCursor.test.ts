@@ -3,7 +3,18 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering, parseCursor } from '../keysetCursor'
+import {
+  asNumericKey,
+  asStringKey,
+  createKeysetCursorCodec,
+  decodeListCursor,
+  encodeCursor,
+  keysetOrdering,
+  parseCursor
+} from '../keysetCursor'
+
+const encodeOpaquePayload = (payload: unknown): string =>
+  Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
 
 describe('keysetCursor codec', () => {
   describe('parseCursor', () => {
@@ -106,6 +117,109 @@ describe('keysetCursor codec', () => {
       )
     })
   })
+
+  describe('createKeysetCursorCodec', () => {
+    beforeEach(() => {
+      mockMainLoggerService.warn.mockClear()
+    })
+
+    it('round-trips explicit directions with numeric and string tuple boundaries', () => {
+      const numericCodec = createKeysetCursorCodec({
+        family: 'messages:created-at-desc',
+        parseKey: asNumericKey,
+        context: 'messages'
+      })
+      const stringCodec = createKeysetCursorCodec({
+        family: 'paintings:manual-asc',
+        parseKey: asStringKey,
+        context: 'paintings'
+      })
+
+      const previous = numericCodec.encode({ direction: 'previous', key: 100, id: 'message:一' })
+      const next = stringCodec.encode({ direction: 'next', key: 'meeting:notes', id: 'painting-1' })
+
+      expect(previous).toMatch(/^[A-Za-z0-9_-]+$/)
+      expect(next).toMatch(/^[A-Za-z0-9_-]+$/)
+      expect(numericCodec.decode(previous)).toEqual({ direction: 'previous', key: 100, id: 'message:一' })
+      expect(stringCodec.decode(next)).toEqual({ direction: 'next', key: 'meeting:notes', id: 'painting-1' })
+      expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    })
+
+    it('returns null without warning for an absent cursor', () => {
+      const codec = createKeysetCursorCodec({
+        family: 'messages:created-at-desc',
+        parseKey: asNumericKey,
+        context: 'messages'
+      })
+
+      expect(codec.decode(undefined)).toBeNull()
+      expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { name: 'non-base64url token', raw: 'not+base64url', reason: 'malformed token' },
+      { name: 'invalid JSON', raw: Buffer.from('{', 'utf8').toString('base64url'), reason: 'malformed token' },
+      {
+        name: 'wrong tuple shape',
+        raw: encodeOpaquePayload([1, 'messages:created-at-desc', 'next', '100']),
+        reason: 'malformed payload'
+      },
+      {
+        name: 'unsupported version',
+        raw: encodeOpaquePayload([2, 'messages:created-at-desc', 'next', '100', 'message-1']),
+        reason: 'unsupported version'
+      },
+      {
+        name: 'wrong query family',
+        raw: encodeOpaquePayload([1, 'messages:created-at-asc', 'next', '100', 'message-1']),
+        reason: 'cursor family mismatch'
+      },
+      {
+        name: 'missing query family',
+        raw: encodeOpaquePayload([1, null, 'next', '100', 'message-1']),
+        reason: 'cursor family mismatch'
+      },
+      {
+        name: 'invalid direction',
+        raw: encodeOpaquePayload([1, 'messages:created-at-desc', 'forward', '100', 'message-1']),
+        reason: 'invalid direction'
+      },
+      {
+        name: 'empty key',
+        raw: encodeOpaquePayload([1, 'messages:created-at-desc', 'next', '', 'message-1']),
+        reason: 'invalid boundary'
+      },
+      {
+        name: 'empty id',
+        raw: encodeOpaquePayload([1, 'messages:created-at-desc', 'next', '100', '']),
+        reason: 'invalid boundary'
+      },
+      {
+        name: 'rejected numeric key',
+        raw: encodeOpaquePayload([1, 'messages:created-at-desc', 'next', 'not-a-number', 'message-1']),
+        reason: 'invalid boundary'
+      }
+    ])('warns once and falls back to the query head for $name', ({ raw, reason }) => {
+      const codec = createKeysetCursorCodec({
+        family: 'messages:created-at-desc',
+        parseKey: asNumericKey,
+        context: 'messages'
+      })
+
+      expect(codec.decode(raw)).toBeNull()
+      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'decodeKeysetCursor: cursor invalid or incompatible, falling back to first page',
+        { context: 'messages', reason }
+      )
+    })
+
+    it('rejects an empty family when the codec is created', () => {
+      expect(() => createKeysetCursorCodec({ family: '', parseKey: asNumericKey, context: 'messages' })).toThrow(
+        'Keyset cursor family must not be empty'
+      )
+    })
+  })
 })
 
 // Test-only fixture table. Not part of production schema. `b` and `c` collide
@@ -123,6 +237,13 @@ const FIXTURE_ROWS = [
   { id: 'c', numKey: 100, strKey: 'A1' },
   { id: 'd', numKey: 50, strKey: 'A2' }
 ]
+
+const NUMERIC_DIRECTION_CASES = [
+  { name: 'ASC / ASC', major: 'asc', tie: 'asc', canonicalIds: ['d', 'b', 'c', 'a'] },
+  { name: 'ASC / DESC', major: 'asc', tie: 'desc', canonicalIds: ['d', 'c', 'b', 'a'] },
+  { name: 'DESC / ASC', major: 'desc', tie: 'asc', canonicalIds: ['a', 'b', 'c', 'd'] },
+  { name: 'DESC / DESC', major: 'desc', tie: 'desc', canonicalIds: ['a', 'c', 'b', 'd'] }
+] as const
 
 describe('keysetOrdering — direction coverage against real SQLite', () => {
   const dbh = setupTestDatabase()
@@ -169,5 +290,67 @@ describe('keysetOrdering — direction coverage against real SQLite', () => {
       .where(ordering.where({ key: 'A1', id: 'b' }))
       .orderBy(...ordering.orderBy)
     expect(rows.map((r) => r.id)).toEqual(['c', 'd'])
+  })
+
+  it.each(NUMERIC_DIRECTION_CASES)(
+    'returns next and previous scans in canonical order for $name',
+    async ({ major, tie, canonicalIds }) => {
+      const ordering = keysetOrdering(fxTable.numKey, fxTable.id, { major, tie })
+      const first = FIXTURE_ROWS.find((row) => row.id === canonicalIds[0])!
+      const tiedBoundary = FIXTURE_ROWS.find((row) => row.id === canonicalIds[2])!
+
+      const nextScan = ordering.seek('next')
+      const nextRows = await dbh.db
+        .select({ id: fxTable.id })
+        .from(fxTable)
+        .where(nextScan.where({ key: first.numKey, id: first.id }))
+        .orderBy(...nextScan.orderBy)
+        .limit(3)
+      const nextPage = nextScan.finish(nextRows, 2)
+
+      const previousScan = ordering.seek('previous')
+      const previousRows = await dbh.db
+        .select({ id: fxTable.id })
+        .from(fxTable)
+        .where(previousScan.where({ key: tiedBoundary.numKey, id: tiedBoundary.id }))
+        .orderBy(...previousScan.orderBy)
+        .limit(3)
+      const previousPage = previousScan.finish(previousRows, 2)
+
+      expect(nextPage).toEqual({
+        rows: [{ id: canonicalIds[1] }, { id: canonicalIds[2] }],
+        hasMoreInDirection: true
+      })
+      expect(previousPage).toEqual({
+        rows: [{ id: canonicalIds[0] }, { id: canonicalIds[1] }],
+        hasMoreInDirection: false
+      })
+    }
+  )
+
+  it('supports bidirectional manual string ordering and restores previous rows after slicing', async () => {
+    const ordering = keysetOrdering(fxTable.strKey, fxTable.id, { major: 'asc', tie: 'asc' })
+
+    const nextScan = ordering.seek('next')
+    const nextRows = await dbh.db
+      .select({ id: fxTable.id })
+      .from(fxTable)
+      .where(nextScan.where({ key: 'A0', id: 'a' }))
+      .orderBy(...nextScan.orderBy)
+      .limit(3)
+
+    const previousScan = ordering.seek('previous')
+    const previousRows = await dbh.db
+      .select({ id: fxTable.id })
+      .from(fxTable)
+      .where(previousScan.where({ key: 'A2', id: 'd' }))
+      .orderBy(...previousScan.orderBy)
+      .limit(3)
+
+    expect(nextScan.finish(nextRows, 2)).toEqual({ rows: [{ id: 'b' }, { id: 'c' }], hasMoreInDirection: true })
+    expect(previousScan.finish(previousRows, 2)).toEqual({
+      rows: [{ id: 'b' }, { id: 'c' }],
+      hasMoreInDirection: true
+    })
   })
 })

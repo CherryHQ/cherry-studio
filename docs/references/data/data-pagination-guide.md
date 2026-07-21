@@ -16,7 +16,7 @@ often uses both at once.
 | Mode | Request params | Response | Renderer hook | Use it for |
 |---|---|---|---|---|
 | **Offset** | `page` + `limit` | `{ items, total, page }` | `usePaginatedQuery` | Page navigation, tables, "page 3 of 12", anything that needs a `total` count |
-| **Cursor** (keyset) | `cursor` + `limit` | `{ items, nextCursor? }` | `useInfiniteQuery` | Infinite scroll, chat history, feeds, large/append-only data where offset would drift under concurrent writes |
+| **Cursor** (keyset) | `cursor` + `limit` | `{ items, previousCursor?, nextCursor? }` | `useInfiniteQuery` (next-only today) | Infinite scroll, chat history, feeds, large/append-only data where offset would drift under concurrent writes |
 
 The mode is a property of the endpoint, declared once in its API schema, and is
 **not caller-configurable**. Mixing them is a compile-time error, not a runtime
@@ -40,7 +40,7 @@ Each layer has an authoritative doc — this guide is the map.
 |---|---|---|
 | **1. API schema** | `query` = `OffsetPaginationParams` / `CursorPaginationParams` (compose with `SortParams` / `SearchParams`); `response` = `OffsetPaginationResponse<T>` / `CursorPaginationResponse<T>` | [api-types.md § Pagination Types](./api-types.md#pagination-types) |
 | **2. Server service** | Offset: `(page-1)*limit` + `count(*)`. Cursor: the shared `keysetCursor` codec + `keysetOrdering` (never hand-roll the cursor or the `ORDER BY`) | [data-api-in-main.md](./data-api-in-main.md), [services/utils README — `keysetCursor.ts`](../../../src/main/data/services/utils/README.md) |
-| **3. Renderer hook** | Offset: `usePaginatedQuery`. Cursor: `useInfiniteQuery` + `useInfiniteFlatItems` | [data-api-in-renderer.md](./data-api-in-renderer.md#useinfinitequery-cursor-based-infinite-scroll) |
+| **3. Renderer hook** | Offset: `usePaginatedQuery`. Cursor: `useInfiniteQuery` + `useInfiniteFlatItems`, currently for next-only walking; previous loading requires a separate Renderer extension | [data-api-in-renderer.md](./data-api-in-renderer.md#useinfinitequery-cursor-based-infinite-scroll) |
 | **4. Query-param wire format** | `page`+`limit`, `cursor`+`limit`, `sortBy`+`sortOrder`, `search` | [api-design-guidelines.md § Query Parameters](./api-design-guidelines.md#query-parameters) |
 
 ## 3. Wire Contract
@@ -54,7 +54,7 @@ full table):
 | Type | Fields | Notes |
 |---|---|---|
 | `OffsetPaginationParams` | `page?`, `limit?` | `page` is 1-based |
-| `CursorPaginationParams` | `cursor?`, `limit?` | `cursor` is an **opaque, exclusive** boundary token |
+| `CursorPaginationParams` | `cursor?`, `limit?` | `cursor` is an **opaque, exclusive** boundary token; bidirectional tokens encode direction, so no request direction field is added |
 | `SortParams` | `sortBy?`, `sortOrder?` | `sortOrder` is `'asc'` / `'desc'` |
 | `SearchParams` | `search?` | Compose as needed |
 
@@ -75,7 +75,7 @@ response: CursorPaginationResponse<Message>
 | Type | Fields | Description |
 |---|---|---|
 | `OffsetPaginationResponse<T>` | `items`, `total`, `page` | Page-based results |
-| `CursorPaginationResponse<T>` | `items`, `nextCursor?` | `nextCursor` absent ⇒ no more data |
+| `CursorPaginationResponse<T>` | `items`, `previousCursor?`, `nextCursor?` | Cursors point toward the canonical query head/tail; either may be absent. Existing next-only endpoints remain valid |
 | `PaginationResponse<T>` | union of both | Use only when either mode is acceptable; narrow with `isOffsetPaginationResponse` / `isCursorPaginationResponse` |
 
 Endpoints frequently **extend** these base responses with extra top-level
@@ -88,7 +88,12 @@ consumers read the extras off `pages[0]` (see § 5).
 ### Cursor semantics — exclusive boundary
 
 The `cursor` marks an **exclusive** boundary: the cursor item itself is never
-included in the response. Direction is per-endpoint:
+included in the response. Canonical order is the endpoint's complete stable
+order, including its `id` tiebreaker, whether the major sort is ASC, DESC, or a
+manual `orderKey`.
+
+Existing one-direction endpoints document one fixed interpretation and may
+return only `nextCursor`:
 
 | Pattern | Use case | Behaviour |
 |---|---|---|
@@ -98,6 +103,17 @@ included in the response. Direction is per-endpoint:
 For example, `GET /topics/:id/messages` uses "before cursor" to walk backward
 through history; other endpoints may page forward. The concrete direction is the
 endpoint's documented contract.
+
+Bidirectional endpoints use two response fields with order-relative semantics:
+
+| Field | Traversal |
+|---|---|
+| `previousCursor` | Toward the canonical query **head** |
+| `nextCursor` | Toward the canonical query **tail** |
+
+The client sends either token back in the same `cursor` request field. The token
+itself carries direction and the exclusive `(sortKey, id)` boundary; clients do
+not add a direction parameter or inspect the opaque payload.
 
 ```typescript
 // Illustrative — load most-recent messages, then older ones
@@ -120,6 +136,7 @@ const hasNext = page * limit < total
 const hasPrev = page > 1
 
 // CursorPaginationResponse
+const hasPrevious = previousCursor !== undefined
 const hasNext = nextCursor !== undefined
 ```
 
@@ -160,6 +177,11 @@ hand-write the cursor encode/decode, the keyset `WHERE` tuple, or the `ORDER BY`
 Doing it by hand is how the WHERE predicate and the ORDER BY drift apart and
 silently skip or repeat rows at the page boundary.
 
+#### Existing one-direction endpoints
+
+Existing endpoints keep their current `<key>:<id>` tokens and next-only wire
+behaviour:
+
 ```typescript
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -189,10 +211,65 @@ export surface, the `<key>:<id>` wire format, the empty-key guard, and the
 list-vs-search decode policy split are documented in
 [services/utils README — `keysetCursor.ts`](../../../src/main/data/services/utils/README.md).
 
-**Decode policy — fall back, don't throw.** `decodeListCursor` treats an absent
-cursor as "first page" (no warn) and a malformed cursor as a warn-and-fall-back
-to the first page. A server-issued opaque token going stale must never throw and
-lock the renderer. (Full-text search uses the opposite policy — see § 6.)
+#### Bidirectional endpoints
+
+Bidirectional endpoints use the additive directional codec and scan surface.
+The codec binds a token to one exact query family; `seek` flips both major and
+tie SQL directions for a previous scan, and `finish` slices before restoring
+the returned rows to canonical order:
+
+```typescript
+import { asNumericKey, createKeysetCursorCodec, keysetOrdering } from './utils/keysetCursor'
+
+const codec = createKeysetCursorCodec({
+  family: normalizedQueryFamily,
+  parseKey: asNumericKey,
+  context: 'messages'
+})
+const cursor = codec.decode(query.cursor)
+const scan = keysetOrdering(table.createdAt, table.id, { major: 'desc', tie: 'asc' })
+  .seek(cursor?.direction ?? 'next')
+
+const conditions: SQL[] = [...filterConditions]
+if (cursor) conditions.push(scan.where(cursor))
+
+const rawRows = await db.select().from(table)
+  .where(and(...conditions))
+  .orderBy(...scan.orderBy)
+  .limit(limit + 1)
+const { rows, hasMoreInDirection } = scan.finish(rawRows, limit)
+
+const head = rows.at(0)
+const tail = rows.at(-1)
+const previousTokenForHead = head
+  ? codec.encode({ direction: 'previous', key: head.createdAt, id: head.id })
+  : undefined
+const nextTokenForTail = tail
+  ? codec.encode({ direction: 'next', key: tail.createdAt, id: tail.id })
+  : undefined
+```
+
+The endpoint emits `previousTokenForHead` / `nextTokenForTail` only when its
+read model knows rows exist in that direction. `hasMoreInDirection` answers the
+requested scan side; the opposite edge can require domain knowledge or a probe,
+so the generic utility does not guess it.
+
+The caller must normalize the query family before creating the codec. Include
+the endpoint/read-model namespace, stream, semantic sort, and every normalized
+search/filter/owner/workspace dimension that changes membership. Exclude
+`limit`, anchor id, resource revision, and viewport/UI state. The utility
+performs exact identity comparison; it deliberately does not provide a generic
+domain canonicalizer.
+
+The base64url token is opaque transport, not a signature or authorization
+mechanism. Always apply the endpoint's normal scope and membership filters.
+
+**Decode policy — fall back, don't throw.** Both list codecs treat an absent
+cursor as "query head" (no warn). `decodeListCursor` warns on malformed legacy
+tokens; the directional codec also warns on malformed, stale-version, or
+wrong-family tokens. Both fall back to the query head so a server-issued opaque
+token going stale cannot lock the renderer. (Full-text search uses the opposite
+policy — see § 6.)
 
 **Multi-band cursors are not routable through `keysetOrdering`.** A cursor that
 encodes more than a single `(key, id)` tuple — e.g. `TopicService.listByCursor`,
@@ -205,6 +282,8 @@ endpoints through the shared helper.
 two rows share the same sort key (e.g. an `order_key` collision). This is by
 construction, not a fix for an observed skip/dup — see
 [Ordering Guide § 8 FAQ — fractional-indexing collisions](./data-ordering-guide.md#8-faq).
+For previous traversal it reverses both directions for the SQL scan, takes at
+most `limit` rows, then reverses that slice back to canonical order.
 
 ## 5. Renderer Consumption
 
@@ -228,6 +307,10 @@ at compile time.
 item list with `useInfiniteFlatItems`, explicitly picking the order that matches
 the endpoint and the container layout — never assume page-load order equals
 display order.
+
+The current hook follows `nextCursor` only. This shared/Main contract makes
+`previousCursor` representable, but does not yet make the Renderer hook load
+toward the query head.
 
 ```typescript
 import { useInfiniteQuery, useInfiniteFlatItems } from '@data/hooks/useDataApi'
@@ -258,7 +341,7 @@ for the hook signatures and the hook-choosing table.
 
 `useReorder` works on paginated lists transparently. Both
 `OffsetPaginationResponse` (`{ items, total, page }`) and
-`CursorPaginationResponse` (`{ items, nextCursor }`) fall under the same
+`CursorPaginationResponse` (`{ items, previousCursor?, nextCursor? }`) fall under the same
 `{ items }` cache branch — metadata fields pass through unchanged on optimistic
 writes, and any visible row's id is a valid drag anchor even when the list never
 fits on screen. See
@@ -280,9 +363,13 @@ lives in `src/main/data/services/utils/ftsSearch.ts`; see
 - **Cursor is exclusive** — the cursor row is never re-returned. Off-by-one bugs
   come from assuming inclusivity.
 - **Never hand-roll keyset SQL** — use `keysetOrdering` so the `WHERE` tuple and
-  `ORDER BY` derive from one direction spec and cannot disagree.
+  `ORDER BY` derive from one direction spec and cannot disagree. For previous
+  scans, use `seek('previous')` and `finish`; do not reverse rows by hand.
 - **Always append the `id` tiebreaker** — a sort on the major key alone is
   non-deterministic under ties and breaks keyset page-walking.
+- **Bind directional cursors to the whole query family** — a token must not be
+  reused across streams, semantic sorts, normalized filters/search, or scope.
+  The token is opaque but not authenticated.
 - **Keep `whereClause` identical** on the offset page query and its `count(*)`,
   or `total` won't match the page.
 - **List cursors warn-and-fall-back; search cursors throw 422** — don't copy one

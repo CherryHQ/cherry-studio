@@ -101,9 +101,9 @@ Backs every Service's reorder write path and POST-create. Encapsulates the `frac
 - **External imports of `fractional-indexing` are forbidden**: always go through the three generator wrappers above.
 - **Character set is locked to base62** (library default); no `digits` parameter is exposed. Changing the alphabet requires a whole-database migration, and the source-of-truth constant lives at the top of `orderKey.ts`.
 
-### `keysetCursor.ts` — keyset (cursor) pagination codec + predicate
+### `keysetCursor.ts` — keyset (cursor) pagination codecs + predicate
 
-Backs every list endpoint that pages by a `(sortKey, id)` tuple. Owns the `<key>:<id>` wire-format codec and the strict-tuple keyset WHERE predicate, so the tie-break direction and the warn message live in one tested place instead of being hand-rolled (and drifting) per service.
+Backs every list endpoint that pages by a `(sortKey, id)` tuple. It preserves the legacy `<key>:<id>` one-direction codec and adds a separate opaque, directional codec for bidirectional endpoints. Both use the same strict-tuple keyset WHERE builder, so the tie-break direction and SQL ordering live in one tested place instead of drifting per service.
 
 **Exports:**
 
@@ -111,14 +111,18 @@ Backs every list endpoint that pages by a `(sortKey, id)` tuple. Owns the `<key>
 - `encodeCursor(key, id)` — encode a `(key, id)` boundary into `<key>:<id>`; `key` may be a number or a string.
 - `asNumericKey(s)` / `asStringKey(s)` — `parseKey` helpers for numeric (`createdAt`) and string (`orderKey`) sort columns. Both reject the empty string — `asNumericKey` must, because `Number('') === 0` is finite.
 - `decodeListCursor<K>(raw, parseKey, context)` — list-browsing decode: an absent cursor returns `null` (first page, no warn); a malformed cursor warns once with the locked message and falls back to the first page (`null`). `context` is a short caller tag carried in the warn payload.
-- `keysetOrdering(keyCol, idCol, { major, tie })` — returns `{ where(cursor), orderBy }` from one direction spec: `where` builds `after(keyCol) OR (keyCol = cursor.key AND after(idCol))` (`after` is `gt` for `'asc'`, `lt` for `'desc'`); `orderBy` is `[<major> keyCol, <tie> idCol]` ready to spread into `.orderBy(...)`. Both derive from the same `dir`, so the predicate and the ORDER BY cannot drift apart.
+- `createKeysetCursorCodec({ family, parseKey, context })` — creates the strict versioned codec for `{ direction, key, id }`. The token binds the boundary to one caller-supplied query family; an absent token returns `null`, while malformed, stale-version, or wrong-family tokens warn and fall back to the query head.
+- `keysetOrdering(keyCol, idCol, { major, tie })` — keeps the legacy `{ where(cursor), orderBy }` next-page surface and adds `seek('previous' | 'next')`. A scan owns its exclusive `where`, matching `orderBy`, and `finish(rows, limit)` restoration. Previous scans flip both major and tie directions, slice the SQL rows to `limit`, then restore canonical query order.
 
 **Design boundaries:**
 
-- **Two decode policies, deliberately split**: list browsing warns and falls back to the first page (`decodeListCursor` → `null`), while search throws 422 (`ftsSearch.decodeSearchCursor`). A stale server-issued list token must not lock the renderer; a malformed search cursor is a client contract violation.
-- **Warn message is locked**: `'decodeCursor: cursor unparseable, falling back to first page'` — kept uniform across call sites; the `context` field distinguishes the source.
+- **Two decode policies, deliberately split**: list browsing through either codec warns and falls back to the query head (`null`), while search throws 422 (`ftsSearch.decodeSearchCursor`). A stale server-issued list token must not lock the renderer; a malformed search cursor is a client contract violation.
+- **Legacy warn message is locked**: `'decodeCursor: cursor unparseable, falling back to first page'` — kept uniform across existing call sites; the `context` field distinguishes the source.
 - **Single-tuple keyset only**: covers `(key, id)` pagination. Multi-band / sentinel cursors (e.g. `TopicService`'s pin/topic union with a first-page sentinel) cannot be expressed as one `(key, id)` tuple, and their malformed-fallback returns a sentinel rather than `null` — they keep their own codec and must NOT be routed here.
-- **Direction is declared once**: `keysetOrdering` emits both the `where` predicate and the matching `orderBy` from a single `{ major, tie }`, so the WHERE clause and the `ORDER BY` cannot disagree — the classic keyset skip/repeat bug becomes unrepresentable.
+- **Legacy endpoints stay one-directional**: existing `decodeListCursor` / `encodeCursor` tokens and `keysetOrdering.where` / `orderBy` semantics do not change. Adopt the directional codec only when an endpoint explicitly returns both cursor directions.
+- **Query family is caller-owned**: normalize a stable identity containing the endpoint/read-model namespace, stream, semantic sort, and every search/filter/owner/workspace dimension that changes membership. Exclude page size, anchor id, resource revision, and viewport/UI state. The utility compares the exact string; it does not invent domain normalization.
+- **Opaque is not authenticated**: the versioned base64url JSON encapsulates the wire shape and clients must not depend on its internals, but it is not a signature or authorization boundary. Services must still enforce all normal scope and membership filters.
+- **Direction is declared once per scan**: `seek` emits the predicate, SQL order, and canonical-order restoration together, so previous/next traversal works for ASC, DESC, and manual `orderKey` sorts without the classic skip/repeat mismatch.
 
 **Example:**
 
@@ -137,6 +141,36 @@ const rows = await db
   .limit(limit + 1)
 const nextCursor = hasNext ? encodeCursor(tail.createdAt, tail.id) : undefined
 ```
+
+For a bidirectional endpoint, the request remains `{ cursor?, limit? }`; direction is carried by the server-issued token:
+
+```ts
+import { asNumericKey, createKeysetCursorCodec, keysetOrdering } from './utils/keysetCursor'
+
+const codec = createKeysetCursorCodec({ family: normalizedFamily, parseKey: asNumericKey, context: 'messages' })
+const cursor = codec.decode(query.cursor)
+const scan = keysetOrdering(table.createdAt, table.id, { major: 'desc', tie: 'asc' })
+  .seek(cursor?.direction ?? 'next')
+
+const conditions: SQL[] = [...filterConditions]
+if (cursor) conditions.push(scan.where(cursor))
+const rawRows = await db.select().from(table)
+  .where(and(...conditions))
+  .orderBy(...scan.orderBy)
+  .limit(limit + 1)
+const page = scan.finish(rawRows, limit)
+
+const head = page.rows.at(0)
+const tail = page.rows.at(-1)
+const previousTokenForHead = head
+  ? codec.encode({ direction: 'previous', key: head.createdAt, id: head.id })
+  : undefined
+const nextTokenForTail = tail
+  ? codec.encode({ direction: 'next', key: tail.createdAt, id: tail.id })
+  : undefined
+```
+
+Emit those candidate tokens only when the endpoint knows data exists in that direction. `page.hasMoreInDirection` describes only the requested scan direction; whether the opposite cursor exists is an endpoint/read-model decision, so the generic helper does not probe domain membership.
 
 ### `ftsSearch.ts` — FTS cursor, filtering, and pagination core
 

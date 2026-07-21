@@ -1,5 +1,5 @@
 /**
- * Shared keyset (cursor) pagination codec + ordering builder.
+ * Shared keyset (cursor) pagination codecs + ordering builder.
  *
  * List endpoints that page by a `(sortKey, id)` tuple all need the same two
  * things: a `<url-encoded-key>:<id>` wire-format codec, and a keyset WHERE clause paired
@@ -9,15 +9,22 @@
  * sync, silently skipping or repeating rows. This module is the single tested
  * home for them.
  *
+ * The legacy `<key>:<id>` codec and direct `where` / `orderBy` fields remain
+ * the one-directional contract used by existing endpoints. Bidirectional
+ * endpoints use `createKeysetCursorCodec` and `keysetOrdering(...).seek(...)`;
+ * their versioned token carries the query family, traversal direction, and
+ * exclusive tuple boundary without changing any legacy token.
+ *
  * Scope boundary: this covers single-tuple keyset pagination only. Multi-band
  * / sentinel cursors (e.g. `TopicService`'s pin/topic union with a
  * first-page sentinel) cannot be expressed as one `(key, id)` tuple and must
  * keep their own codec — do NOT route them through here.
  *
  * Two decode policies, deliberately separated:
- * - List browsing (`decodeListCursor`): a malformed cursor warns and falls
- *   back to the first page (returns `null`). A server-issued opaque token
- *   going stale must not throw and lock the renderer.
+ * - List browsing (`decodeListCursor` and `createKeysetCursorCodec`): a
+ *   malformed or incompatible cursor warns and falls back to the first page
+ *   (returns `null`). A server-issued opaque token going stale must not throw
+ *   and lock the renderer.
  * - Search (`ftsSearch.decodeSearchCursor`): a malformed cursor is a client
  *   contract violation and throws 422. That path delegates the parsing here
  *   via `parseCursor` but keeps its own throw policy.
@@ -27,6 +34,36 @@ import { loggerService } from '@logger'
 import { and, asc, desc, eq, gt, lt, or, type SQL, type SQLWrapper } from 'drizzle-orm'
 
 const logger = loggerService.withContext('keysetCursor')
+const KEYSET_CURSOR_VERSION = 1
+const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/
+
+export type KeysetPageDirection = 'previous' | 'next'
+
+export interface KeysetBoundary<K extends string | number = string | number> {
+  key: K
+  id: string
+}
+
+export interface DirectionalKeysetCursor<K extends string | number = string | number> extends KeysetBoundary<K> {
+  direction: KeysetPageDirection
+}
+
+type EncodedDirectionalCursor = readonly [
+  version: typeof KEYSET_CURSOR_VERSION,
+  family: string,
+  direction: KeysetPageDirection,
+  key: string,
+  id: string
+]
+
+type SortDirection = 'asc' | 'desc'
+type KeysetDirection = { major: SortDirection; tie: SortDirection }
+
+interface KeysetScan {
+  where: (cursor: KeysetBoundary) => SQL
+  orderBy: SQL[]
+  finish: <T>(rows: readonly T[], limit: number) => { rows: T[]; hasMoreInDirection: boolean }
+}
 
 /**
  * Parse a `<url-encoded-key>:<id>` cursor, splitting on the FIRST `:` so ids may contain
@@ -95,33 +132,134 @@ export function decodeListCursor<K extends string | number>(
 }
 
 /**
+ * Create the opaque, directional codec used by bidirectional list endpoints.
+ *
+ * The caller owns normalization of `family`: it must identify the endpoint or
+ * read model, stream, semantic sort, and every filter/scope dimension that
+ * changes membership. It must not include page size, anchor id, UI state, or a
+ * resource revision. The codec only stores and compares the supplied identity.
+ *
+ * Tokens use one strict versioned shape. They are opaque transport tokens, not
+ * signatures or authorization; services must still apply their normal filters.
+ * Invalid, stale, or wrong-family tokens follow the existing list policy:
+ * warn and fall back to the query head (`null`).
+ */
+export function createKeysetCursorCodec<K extends string | number>({
+  family,
+  parseKey,
+  context
+}: {
+  family: string
+  parseKey: (raw: string) => K | null
+  context: string
+}): {
+  encode: (cursor: DirectionalKeysetCursor<K>) => string
+  decode: (raw: string | undefined) => DirectionalKeysetCursor<K> | null
+} {
+  if (!family) {
+    throw new Error('Keyset cursor family must not be empty')
+  }
+
+  const warnAndFallback = (reason: string): null => {
+    logger.warn('decodeKeysetCursor: cursor invalid or incompatible, falling back to first page', {
+      context,
+      reason
+    })
+    return null
+  }
+
+  return {
+    encode: ({ direction, key, id }) => {
+      const payload: EncodedDirectionalCursor = [KEYSET_CURSOR_VERSION, family, direction, String(key), id]
+      return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+    },
+    decode: (raw) => {
+      if (!raw) return null
+      if (!BASE64URL_PATTERN.test(raw)) return warnAndFallback('malformed token')
+
+      let payload: unknown
+      try {
+        payload = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'))
+      } catch {
+        return warnAndFallback('malformed token')
+      }
+
+      if (!Array.isArray(payload) || payload.length !== 5) {
+        return warnAndFallback('malformed payload')
+      }
+
+      const [version, tokenFamily, direction, rawKey, id] = payload
+      if (version !== KEYSET_CURSOR_VERSION) return warnAndFallback('unsupported version')
+      if (typeof tokenFamily !== 'string' || tokenFamily !== family) return warnAndFallback('cursor family mismatch')
+      if (direction !== 'previous' && direction !== 'next') return warnAndFallback('invalid direction')
+      if (typeof rawKey !== 'string' || typeof id !== 'string' || !rawKey || !id) {
+        return warnAndFallback('invalid boundary')
+      }
+
+      const key = parseKey(rawKey)
+      if (key === null) return warnAndFallback('invalid boundary')
+
+      return { direction, key, id }
+    }
+  }
+}
+
+/**
  * Build the keyset WHERE predicate AND its matching ORDER BY from a single
  * direction spec, so the two can never drift apart — the classic keyset bug is
  * an ORDER BY that disagrees with the cursor predicate, which silently skips or
  * repeats rows at the page boundary.
  *
- * - `where(cursor)` → `after(keyCol) OR (keyCol = cursor.key AND after(idCol))`,
- *   where `after` is `gt` for `'asc'` and `lt` for `'desc'`.
- * - `orderBy` → `[<major> keyCol, <tie> idCol]`, ready to spread into
- *   `.orderBy(...)`, derived from the SAME `dir`.
+ * Existing one-direction callers use `where` / `orderBy`, which are aliases
+ * for `seek('next')`. Bidirectional callers select a scan with `seek(...)`:
  *
- * Returning both from one call is the point: a caller cannot apply the
- * predicate with one direction and the ORDER BY with another.
+ * - `scan.where(cursor)` is exclusive on the `(key, id)` boundary.
+ * - `scan.orderBy` derives both major and tie-break ordering from the same
+ *   direction. A previous scan flips both directions.
+ * - `scan.finish(rows, limit)` detects the extra row, slices to `limit`, then
+ *   restores previous-page rows to canonical query order.
+ *
+ * Keeping the predicate, SQL ordering, and result restoration in one scan is
+ * the point: callers cannot make those three parts disagree.
  */
 export function keysetOrdering(
   keyCol: SQLWrapper,
   idCol: SQLWrapper,
-  dir: { major: 'asc' | 'desc'; tie: 'asc' | 'desc' }
+  dir: KeysetDirection
 ): {
-  where: (cursor: { key: string | number; id: string }) => SQL
+  where: (cursor: KeysetBoundary) => SQL
   orderBy: SQL[]
+  seek: (direction: KeysetPageDirection) => KeysetScan
 } {
-  const after = (col: SQLWrapper, d: 'asc' | 'desc', value: string | number) =>
+  const after = (col: SQLWrapper, d: SortDirection, value: string | number) =>
     d === 'asc' ? gt(col, value) : lt(col, value)
-  const direction = (d: 'asc' | 'desc') => (d === 'asc' ? asc : desc)
+  const order = (d: SortDirection) => (d === 'asc' ? asc : desc)
+  const reverse = (d: SortDirection): SortDirection => (d === 'asc' ? 'desc' : 'asc')
+
+  const seek = (pageDirection: KeysetPageDirection): KeysetScan => {
+    const scanDirection: KeysetDirection =
+      pageDirection === 'next' ? dir : { major: reverse(dir.major), tie: reverse(dir.tie) }
+
+    return {
+      where: (cursor) =>
+        or(
+          after(keyCol, scanDirection.major, cursor.key),
+          and(eq(keyCol, cursor.key), after(idCol, scanDirection.tie, cursor.id))
+        )!,
+      orderBy: [order(scanDirection.major)(keyCol), order(scanDirection.tie)(idCol)],
+      finish: (rows, limit) => {
+        const hasMoreInDirection = rows.length > limit
+        const pageRows = rows.slice(0, limit)
+        if (pageDirection === 'previous') pageRows.reverse()
+        return { rows: pageRows, hasMoreInDirection }
+      }
+    }
+  }
+
+  const next = seek('next')
   return {
-    where: (cursor) =>
-      or(after(keyCol, dir.major, cursor.key), and(eq(keyCol, cursor.key), after(idCol, dir.tie, cursor.id)))!,
-    orderBy: [direction(dir.major)(keyCol), direction(dir.tie)(idCol)]
+    where: next.where,
+    orderBy: next.orderBy,
+    seek
   }
 }
