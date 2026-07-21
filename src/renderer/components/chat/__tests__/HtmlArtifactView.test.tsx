@@ -171,6 +171,19 @@ describe('HtmlArtifactView', () => {
     )
   })
 
+  it('contains vertical overscroll inside the iframe preview', () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    fireEvent.load(iframe)
+
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+    const scrollRoot = (frameDocument.scrollingElement ?? frameDocument.documentElement) as HTMLElement
+    expect(scrollRoot).toHaveStyle({ overscrollBehaviorY: 'contain' })
+    expect(scrollRoot.style.getPropertyPriority('overscroll-behavior-y')).toBe('important')
+  })
+
   it('opens the HTML source externally from the inline controls', async () => {
     render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
 

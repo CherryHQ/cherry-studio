@@ -73,6 +73,13 @@ function getMaxPreviewHeight(viewport: HTMLElement): number {
   return Math.max(1, Math.floor(availableHeight * MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO))
 }
 
+function containIframeVerticalOverscroll(frameDocument: Document): void {
+  // The iframe is a separate scroll context, so the message list cannot inspect
+  // its wheel target. Keep boundary gestures from chaining into the chat scroller.
+  const scrollRoot = (frameDocument.scrollingElement ?? frameDocument.documentElement) as HTMLElement
+  scrollRoot.style.setProperty('overscroll-behavior-y', 'contain', 'important')
+}
+
 const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   html,
   title,
@@ -116,6 +123,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       if (!frameDocument || !body) return
       observedDocument = frameDocument
 
+      containIframeVerticalOverscroll(frameDocument)
       syncHeight()
 
       if (typeof ResizeObserver !== 'undefined') {
