@@ -512,17 +512,55 @@ describe('MigrationApp', () => {
       expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
     })
 
-    it('shows diagnostics for a renderer-local failure only after main accepts ReportError', async () => {
+    it('shows a renderer-local failure immediately and diagnostics only after main accepts ReportError', async () => {
       rejectRendererExport()
-      invoke.mockImplementation((channel: string) =>
-        Promise.resolve(channel === MigrationIpcChannels.ReportError ? true : '/tmp/userData')
-      )
+      let resolveReport: (accepted: boolean) => void = () => undefined
+      invoke.mockImplementation((channel: string) => {
+        if (channel === MigrationIpcChannels.ReportError) {
+          return new Promise<boolean>((resolve) => {
+            resolveReport = resolve
+          })
+        }
+        return Promise.resolve('/tmp/userData')
+      })
 
       render(<MigrationApp />)
       fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
 
-      expect(await screen.findByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+      expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
       expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'Dexie export failed')
+
+      await act(async () => resolveReport(true))
+
+      expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+    })
+
+    it('ignores a late ReportError acceptance after Retry clears the local failure', async () => {
+      rejectRendererExport()
+      let resolveReport: (accepted: boolean) => void = () => undefined
+      invoke.mockImplementation((channel: string) => {
+        if (channel === MigrationIpcChannels.ReportError) {
+          return new Promise<boolean>((resolve) => {
+            resolveReport = resolve
+          })
+        }
+        return Promise.resolve('/tmp/userData')
+      })
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+      expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.retry' }))
+
+      expect(migrationHookMock.actions.retry).toHaveBeenCalledOnce()
+      expect(screen.getByRole('button', { name: 'migration.buttons.start_migration' })).toBeEnabled()
+
+      await act(async () => resolveReport(true))
+
+      expect(screen.getByRole('button', { name: 'migration.buttons.start_migration' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
     })
 
     it.each([

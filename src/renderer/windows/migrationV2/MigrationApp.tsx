@@ -276,6 +276,7 @@ const MigrationApp: React.FC = () => {
   // is still in flight; drives the non-blocking "closing after the current step" notice.
   const [quitDeferred, setQuitDeferred] = useState(false)
   const startGuardRef = useRef(false)
+  const localFailureReportEpochRef = useRef(0)
   const diagnosticSaveGuardRef = useRef(false)
   const diagnosticSupportActionGuardRef = useRef(false)
   const previousProgressStageRef = useRef(progress.stage)
@@ -326,6 +327,7 @@ const MigrationApp: React.FC = () => {
   // A new Main-driven stage must not inherit diagnostics from an earlier failure.
   useEffect(() => {
     if (previousProgressStageRef.current !== progress.stage) {
+      localFailureReportEpochRef.current += 1
       setDiagnosticSaveResult(null)
       setDiagnosticSupportActionFailed(false)
       previousProgressStageRef.current = progress.stage
@@ -344,6 +346,7 @@ const MigrationApp: React.FC = () => {
     }
 
     startGuardRef.current = true
+    localFailureReportEpochRef.current += 1
     setIsLoading(true)
     setLocalMigrationError(null)
     setLocalMigrationDiagnosticsAvailable(false)
@@ -390,15 +393,19 @@ const MigrationApp: React.FC = () => {
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
       const message = errorMessage(error)
-      let diagnosticsAvailable = false
-      try {
-        diagnosticsAvailable =
-          (await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)) === true
-      } catch (reportError) {
-        logger.error('Failed to report renderer migration error', reportError as Error)
-      }
-      setLocalMigrationDiagnosticsAvailable(diagnosticsAvailable)
+      const failureReportEpoch = ++localFailureReportEpochRef.current
       setLocalMigrationError(message)
+      void (async () => {
+        try {
+          const diagnosticsAvailable =
+            (await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)) === true
+          if (diagnosticsAvailable && localFailureReportEpochRef.current === failureReportEpoch) {
+            setLocalMigrationDiagnosticsAvailable(true)
+          }
+        } catch (reportError) {
+          logger.error('Failed to report renderer migration error', reportError as Error)
+        }
+      })()
     } finally {
       startGuardRef.current = false
       setIsLoading(false)
@@ -707,6 +714,7 @@ const MigrationApp: React.FC = () => {
                 className="flex-1 gap-2"
                 disabled={isSavingDiagnostics}
                 onClick={() => {
+                  localFailureReportEpochRef.current += 1
                   setDiagnosticSaveResult(null)
                   setDiagnosticSupportActionFailed(false)
                   setLocalMigrationError(null)
