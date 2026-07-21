@@ -40,7 +40,7 @@ vi.mock('@application', async () => {
   const innerGet = mocked.application.get as ReturnType<typeof vi.fn>
   mocked.application.get = vi.fn((name: string) => {
     if (name === 'JobManager') {
-      return { pause: jobManagerPause }
+      return { pause: jobManagerPause, drainInFlight: vi.fn(async () => ({ stragglerIds: [] })) }
     }
     return innerGet(name)
   })
@@ -54,6 +54,7 @@ import { app } from 'electron'
 import { BackupService } from '../BackupService'
 import { ExportOrchestrator } from '../ExportOrchestrator'
 import { ImportOrchestrator } from '../ImportOrchestrator'
+import { isBackupInProgress } from '../quiesceGate'
 
 describe('BackupService packaged export path', () => {
   beforeEach(() => {
@@ -106,6 +107,36 @@ describe('BackupService packaged export path', () => {
       expect.objectContaining({
         archivePath: '/tmp/in.cbu'
       })
+    )
+  })
+
+  it('clears BACKUP_IN_PROGRESS and releases the JobManager hold when a restore fails', async () => {
+    // The quiesce gate must never stick after a failed restore — a leaked flag would
+    // reject every IPC mutation until app restart. The finally in startRestore releases
+    // both the module flag and the refcounted JobManager pause hold.
+    const holdDispose = vi.fn()
+    jobManagerPause.mockReturnValue({ dispose: holdDispose })
+    // Fail AFTER quiesce ran: importBackup invokes the injected quiesceWriters first, then throws.
+    importBackup.mockImplementation(async (_options: unknown) => {
+      const deps = (ImportOrchestrator as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+        quiesceWriters: () => Promise<void>
+      }
+      await deps.quiesceWriters()
+      expect(isBackupInProgress()).toBe(true) // quiesce actually engaged before the failure
+      throw new IpcError('BACKUP_ARCHIVE_CORRUPT', 'boom after quiesce')
+    })
+
+    const service = await initPackagedService()
+    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy(
+      (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_ARCHIVE_CORRUPT'
+    )
+
+    expect(isBackupInProgress()).toBe(false) // flag cleared — writes resume
+    expect(holdDispose).toHaveBeenCalledTimes(1) // JobManager pause hold released
+    // And a subsequent restore attempt is not blocked by a stale activeOperation.
+    importBackup.mockRejectedValue(new IpcError('BACKUP_ARCHIVE_CORRUPT', 'second attempt'))
+    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy(
+      (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_ARCHIVE_CORRUPT'
     )
   })
 
