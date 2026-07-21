@@ -246,6 +246,51 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     )
   })
 
+  it('should skip a nested file that disappears mid-staging without failing backup copy (issue #17179)', async () => {
+    // Simulate the reported macOS race: a nested Skills schema file is enumerated
+    // during readdir/lstat but vanishes before fs.copy runs its internal chmod
+    // pass, so fs.copy rejects with ENOENT. The backup must skip it and continue.
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('vanishing-skill.json'), createDirent('survivor.json')] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 10) as never)
+    vi.mocked(fs.copy).mockImplementation(async (src) => {
+      if (String(src) === '/src/vanishing-skill.json') {
+        throw Object.assign(new Error("ENOENT: no such file or directory, chmod '/src/vanishing-skill.json'"), {
+          code: 'ENOENT'
+        })
+      }
+      return undefined as never
+    })
+
+    const onProgress = vi.fn()
+
+    await expect(
+      (backupManager as any).copyDirWithProgress('/src', '/dest', onProgress, { dereferenceSymlinks: true })
+    ).resolves.toBeUndefined()
+
+    // The surviving file is still copied, and its byte size is still reported.
+    expect(fs.copy).toHaveBeenCalledWith('/src/survivor.json', '/dest/survivor.json')
+    expect(onProgress).toHaveBeenCalledWith(10)
+    // The vanished file is not counted toward progress.
+    expect(onProgress).toHaveBeenCalledTimes(1)
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('File disappeared during backup copy'),
+      expect.objectContaining({ path: '/src/vanishing-skill.json' })
+    )
+  })
+
+  it('should still abort backup copy when fs.copy fails with a non-ENOENT error', async () => {
+    // Non-ENOENT errors (e.g. EACCES) must not be swallowed by the ENOENT guard.
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('locked.json')] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 10) as never)
+    vi.mocked(fs.copy).mockRejectedValue(
+      Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }) as never
+    )
+
+    await expect(
+      (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), { dereferenceSymlinks: true })
+    ).rejects.toThrow('EACCES')
+  })
+
   it('should preserve normal file and directory copy behavior', async () => {
     vi.mocked(fs.readdir).mockImplementation(async (dir) => {
       const dirPath = String(dir)
