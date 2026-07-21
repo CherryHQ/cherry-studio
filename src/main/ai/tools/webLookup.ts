@@ -15,7 +15,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isPermanentWebSearchConfigError } from '@main/services/webSearch'
+import { isPermanentWebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import { isAbortError } from '@main/utils/error'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
@@ -73,13 +73,14 @@ export type WebLookupResult = WebSearchOutput | WebLookupError
 export const WEB_LOOKUP_ERROR_NOTE = 'Web lookup failed (network/provider error); retry or inform the user.'
 
 /**
- * Permanent failure: no usable web-search provider for the requested capability — either none is
- * configured, or the configured one doesn't support it (`getProviderForCapability` throws for both;
- * see {@link isPermanentWebSearchConfigError}). Retrying can never succeed — the user has to fix the
- * config — so the note must steer away from a retry loop.
+ * Permanent failure: no usable web-search provider for the requested capability. Retrying can never
+ * succeed, so the note must steer away from a retry loop.
  */
 export const WEB_PROVIDER_NOT_CONFIGURED_NOTE =
   'No usable web search provider for this capability (none configured, or the configured one does not support it). Tell the user to configure one in Settings (Web Search); do not retry — it cannot succeed until then.'
+
+export const WEB_PROVIDER_CONFIGURATION_ERROR_NOTE =
+  'The configured web search provider has a missing API key or a missing/invalid API host. Tell the user to fix it in Settings (Web Search); do not retry — it cannot succeed until then.'
 
 /** Keep the model-facing guidance generic while the internal classifier handles Fake-IP details. */
 export const WEB_NETWORK_ERROR_NOTE =
@@ -88,6 +89,39 @@ export const WEB_NETWORK_ERROR_NOTE =
 const WEB_NETWORK_ERROR_MESSAGE = 'Web access failed. Check your network connection and try again.'
 const WEB_PROVIDER_NOT_CONFIGURED_MESSAGE =
   'Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again.'
+const WEB_API_KEY_MISSING_MESSAGE =
+  'Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.'
+const WEB_API_HOST_MISSING_MESSAGE =
+  'Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.'
+const WEB_API_HOST_INVALID_MESSAGE =
+  "Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again."
+
+const WEB_CONFIG_ERROR_PRESENTATION: Record<WebSearchConfigErrorCode, { userMessage: string; i18nKey: string }> = {
+  provider_not_configured: {
+    userMessage: WEB_PROVIDER_NOT_CONFIGURED_MESSAGE,
+    i18nKey: 'web_search_provider_unavailable'
+  },
+  provider_unknown: {
+    userMessage: WEB_PROVIDER_NOT_CONFIGURED_MESSAGE,
+    i18nKey: 'web_search_provider_unavailable'
+  },
+  capability_unsupported: {
+    userMessage: WEB_PROVIDER_NOT_CONFIGURED_MESSAGE,
+    i18nKey: 'web_search_provider_unavailable'
+  },
+  api_key_missing: {
+    userMessage: WEB_API_KEY_MISSING_MESSAGE,
+    i18nKey: 'web_search_api_key_missing'
+  },
+  api_host_missing: {
+    userMessage: WEB_API_HOST_MISSING_MESSAGE,
+    i18nKey: 'web_search_api_host_missing'
+  },
+  api_host_invalid: {
+    userMessage: WEB_API_HOST_INVALID_MESSAGE,
+    i18nKey: 'web_search_api_host_invalid'
+  }
+}
 
 /** Clash Fake-IP addresses use the RFC 2544 benchmarking range (198.18.0.0/15). */
 function isProxyFakeIpError(message: string): boolean {
@@ -100,13 +134,13 @@ function isProxyFakeIpError(message: string): boolean {
 function classifyWebLookupError(error: unknown): WebLookupError {
   const message = error instanceof Error ? error.message : String(error)
 
-  if (isPermanentWebSearchConfigError(message)) {
+  if (isPermanentWebSearchConfigError(error)) {
+    const presentation = WEB_CONFIG_ERROR_PRESENTATION[error.code]
     return {
       error: message,
       retryable: false,
       terminal: true,
-      userMessage: WEB_PROVIDER_NOT_CONFIGURED_MESSAGE,
-      i18nKey: 'web_search_provider_unavailable'
+      ...presentation
     }
   }
 
@@ -128,8 +162,15 @@ function webLookupNote(error: WebLookupError): string {
   if (error.i18nKey === 'web_lookup_network_error' || isProxyFakeIpError(error.error)) {
     return WEB_NETWORK_ERROR_NOTE
   }
-  if (error.i18nKey === 'web_search_provider_unavailable' || isPermanentWebSearchConfigError(error.error)) {
+  if (error.i18nKey === 'web_search_provider_unavailable') {
     return WEB_PROVIDER_NOT_CONFIGURED_NOTE
+  }
+  if (
+    error.i18nKey === 'web_search_api_key_missing' ||
+    error.i18nKey === 'web_search_api_host_missing' ||
+    error.i18nKey === 'web_search_api_host_invalid'
+  ) {
+    return WEB_PROVIDER_CONFIGURATION_ERROR_NOTE
   }
   return WEB_LOOKUP_ERROR_NOTE
 }

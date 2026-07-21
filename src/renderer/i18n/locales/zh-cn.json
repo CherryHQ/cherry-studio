@@ -2443,6 +2443,9 @@
     "value": "值",
     "values": "值",
     "web_lookup_network_error": "联网访问失败，请检查网络连接后重试。",
+    "web_search_api_host_invalid": "联网搜索不可用，因为已配置服务提供商的 API 地址无效。请在“设置 → 联网搜索”中填写有效的 HTTP(S) 地址后重试。",
+    "web_search_api_host_missing": "联网搜索不可用，因为已配置的服务提供商缺少 API 地址。请前往“设置 → 联网搜索”补充后重试。",
+    "web_search_api_key_missing": "联网搜索不可用，因为已配置的服务提供商缺少 API 密钥。请前往“设置 → 联网搜索”补充后重试。",
     "web_search_provider_unavailable": "联网搜索不可用，因为尚未配置兼容的服务提供商。请前往“设置 → 联网搜索”完成配置后重试。"
   },
   "export": {

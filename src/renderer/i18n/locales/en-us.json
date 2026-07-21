@@ -2443,6 +2443,9 @@
     "value": "Value",
     "values": "Values",
     "web_lookup_network_error": "Web access failed. Check your network connection and try again.",
+    "web_search_api_host_invalid": "Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
+    "web_search_api_host_missing": "Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
+    "web_search_api_key_missing": "Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
     "web_search_provider_unavailable": "Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
   },
   "export": {
