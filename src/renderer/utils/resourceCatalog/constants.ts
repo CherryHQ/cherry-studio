@@ -1,6 +1,6 @@
 import type { ResourceType, ResourceTypeUIConfig } from '@renderer/types/resourceCatalog'
 import type { AssistantSettings } from '@shared/data/types/assistant'
-import { Bot, FileText, MessageCircle, Zap } from 'lucide-react'
+import { Bot, FileText, MessageCircle, ToolCase } from 'lucide-react'
 
 export { DEFAULT_TAG_COLOR, getRandomTagColor, TAG_COLOR_PALETTE } from '@renderer/utils/resourceTags'
 
@@ -20,7 +20,7 @@ export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
     labelKey: 'library.type.assistant'
   },
   skill: {
-    icon: Zap,
+    icon: ToolCase,
     color: 'bg-warning-bg text-warning-text',
     labelKey: 'library.type.skill'
   },
@@ -32,6 +32,15 @@ export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
 }
 
 export const RESOURCE_TYPE_ORDER: ResourceType[] = ['agent', 'assistant', 'skill', 'prompt']
+
+export const RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT = [
+  'Improve the supplied system prompt without changing its intent or authority.',
+  'Preserve roles, goals, constraints, tool instructions, workflows, and output requirements.',
+  'Do not replace its structure or force it into a predefined template.',
+  'Keep the output in the same language as the input.',
+  'Preserve Markdown, code, URLs, and every placeholder token verbatim, including tokens shaped like {{name}} and ${name}; keep duplicate occurrences.',
+  'Return only the polished system prompt with no explanation, wrapper, or code fence.'
+].join('\n')
 
 export const MCP_MODE_OPTIONS: {
   id: AssistantConfigMcpMode

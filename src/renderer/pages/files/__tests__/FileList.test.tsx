@@ -10,6 +10,29 @@ import type { FileItem } from '../fileDisplay'
 import { formatFileSize, getFormatLabel } from '../fileDisplay'
 import { FileList } from '../FileList'
 
+type VirtualizerOptionsMock = {
+  count: number
+  estimateSize: () => number
+  getItemKey?: (index: number) => string | number
+}
+
+const virtualizerMocks = vi.hoisted(() => ({
+  scrollToIndex: vi.fn(),
+  useVirtualizer: vi.fn((options: VirtualizerOptionsMock) => ({
+    getTotalSize: () => options.count * options.estimateSize(),
+    getVirtualItems: () =>
+      options.count > 0
+        ? [{ index: 0, key: options.getItemKey?.(0) ?? 0, size: options.estimateSize(), start: 0 }]
+        : [],
+    measureElement: vi.fn(),
+    scrollToIndex: virtualizerMocks.scrollToIndex
+  }))
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: virtualizerMocks.useVirtualizer
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
@@ -51,6 +74,7 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
     sortKey: 'name',
     sortDir: 'asc',
     onSort: vi.fn(),
+    scrollRef: { current: document.createElement('div') },
     renamingId,
     onRenameConfirm: vi.fn(),
     onRenameCancel: vi.fn()
@@ -86,6 +110,24 @@ describe('fileDisplay helpers', () => {
 })
 
 describe('FileList', () => {
+  it('virtualizes accumulated files with stable file identity keys', () => {
+    const files = Array.from({ length: 100 }, (_, index) => ({
+      ...file,
+      id: `file-${index}`,
+      name: `report-${index}.md`
+    }))
+
+    render(<FileList {...fileListProps(null)} files={files} />)
+
+    expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ count: files.length, overscan: 8 })
+    )
+    const options = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
+    expect(options?.getItemKey?.(37)).toBe('file-37')
+    expect(screen.getByText('report-0.md')).toBeInTheDocument()
+    expect(screen.queryByText('report-1.md')).not.toBeInTheDocument()
+  })
+
   it('focuses the inline rename input when rename is triggered', () => {
     vi.useFakeTimers()
 
@@ -104,6 +146,18 @@ describe('FileList', () => {
     expect(input.selectionEnd).toBe('report'.length)
   })
 
+  it('scrolls an off-screen rename target into the virtual window', () => {
+    const files = Array.from({ length: 100 }, (_, index) => ({
+      ...file,
+      id: `file-${index}`,
+      name: `report-${index}.md`
+    }))
+
+    render(<FileList {...fileListProps('file-37')} files={files} />)
+
+    expect(virtualizerMocks.scrollToIndex).toHaveBeenCalledWith(37, { align: 'auto' })
+  })
+
   it('selects files only through checkboxes', () => {
     const onSelect = vi.fn()
 
@@ -114,6 +168,48 @@ describe('FileList', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_file' }))
     expect(onSelect).toHaveBeenCalledWith(file.id)
+  })
+
+  it('opens files through the existing action', () => {
+    const onOpen = vi.fn()
+
+    render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
+
+    expect(onOpen).toHaveBeenCalledWith(file)
+  })
+
+  it('opens a file on a single row click', () => {
+    const onOpen = vi.fn()
+
+    render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
+
+    fireEvent.click(screen.getByText(file.name))
+
+    expect(onOpen).toHaveBeenCalledWith(file)
+  })
+
+  it('does not open when clicking the checkbox column', () => {
+    const onOpen = vi.fn()
+
+    render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
+
+    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
+    fireEvent.click(checkbox.parentElement as HTMLElement)
+
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('does not open a missing file on a row click', () => {
+    const onOpen = vi.fn()
+    const missingFile: FileItem = { ...file, id: 'missing-file', isMissing: true }
+
+    render(<FileList {...fileListProps(null)} files={[missingFile]} onOpen={onOpen} />)
+
+    fireEvent.click(screen.getByText(missingFile.name))
+
+    expect(onOpen).not.toHaveBeenCalled()
   })
 
   it('shows the row show-in-folder action for active files', () => {

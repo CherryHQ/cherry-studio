@@ -1,9 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { Editor } from '@tiptap/core'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { createComposerEditorPreset } from '../composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 
 describe('createComposerEditorPreset', () => {
+  let editor: Editor | undefined
+
+  afterEach(() => {
+    editor?.destroy()
+    editor = undefined
+  })
+
   it('uses the minimal composer schema instead of document markdown extensions', () => {
     const extensionNames = createComposerEditorPreset({ placeholder: 'Message' }).map((extension) => extension.name)
 
@@ -47,5 +55,26 @@ describe('createComposerEditorPreset', () => {
     }).map((extension) => extension.name)
 
     expect(extensionNames).toContain('composerSuggestion')
+  })
+
+  it.each(['Enter', 'NumpadEnter'])('inserts a hard break for plain %s instead of splitting the paragraph', (key) => {
+    editor = new Editor({
+      element: document.createElement('div'),
+      extensions: createComposerEditorPreset({ enableUndoRedo: false }),
+      content: '<p>first line</p>'
+    })
+    editor.commands.focus('end')
+
+    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+
+    expect(editor.getJSON()).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'first line' }, { type: 'hardBreak' }]
+        }
+      ]
+    })
   })
 })

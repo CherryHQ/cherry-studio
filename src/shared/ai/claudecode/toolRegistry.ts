@@ -336,6 +336,15 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Inspects and manages this agent configuration and channels',
     mcpServer: 'cherry-tools'
   },
+  // media (image generation). Hosted by cherry-tools; requires per-call approval and returns a
+  // "configure a painting model" note at runtime when none is set (see cherryBuiltinApproval.ts).
+  CherryGenerateImage: {
+    name: 'mcp__cherry-tools__generate_image',
+    category: 'media',
+    exposure: 'user',
+    description: 'Generates an image from a text prompt using your configured painting model',
+    mcpServer: 'cherry-tools'
+  },
   // agent-memory (cross-session memory)
   AgentMemory: {
     name: 'mcp__agent-memory__memory',
@@ -403,7 +412,8 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__agent-memory__memory': 'Memory',
   'mcp__cherry-tools__cron': 'Scheduler',
   'mcp__cherry-tools__notify': 'Notify',
-  'mcp__cherry-tools__config': 'Configuration'
+  'mcp__cherry-tools__config': 'Configuration',
+  'mcp__cherry-tools__generate_image': 'Generate Image'
 }
 
 /**

@@ -5,7 +5,7 @@
  *   <Anthropic />         — auto light/dark (default, follows the `dark:` Tailwind variant)
  *   <Anthropic variant="light" /> — force light variant
  *   <Anthropic variant="dark" />  — force dark variant
- *   <Anthropic.Avatar />  — circular avatar wrapper (padded or full-bleed)
+ *   <Anthropic.Avatar />  — circular avatar wrapper
  *   Anthropic.colorPrimary — Brand color string
  *
  * Key-based lookup is two-phase: resolve*Ref() is synchronous (meta catalogs

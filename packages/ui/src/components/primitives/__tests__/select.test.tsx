@@ -76,4 +76,19 @@ describe('SelectContent', () => {
       portalContainer.remove()
     }
   })
+
+  it('marks content as no-drag so it stays clickable over titlebar drag regions', () => {
+    render(
+      <Select open value="alpha">
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent data-testid="content">
+          <SelectItem value="alpha">Alpha</SelectItem>
+        </SelectContent>
+      </Select>
+    )
+
+    expect(screen.getByTestId('content')).toHaveClass('[-webkit-app-region:no-drag]')
+  })
 })

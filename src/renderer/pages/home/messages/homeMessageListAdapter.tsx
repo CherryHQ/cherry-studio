@@ -25,7 +25,8 @@ import type {
   MessageListProviderValue,
   MessageListRuntime,
   MessageListState,
-  MessageRuntime
+  MessageRuntime,
+  MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import {
   bindCaptureMessageImageRuntime,
@@ -56,7 +57,7 @@ import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } fr
 import { isNonChatModel } from '@shared/utils/model'
 import { useNavigate } from '@tanstack/react-router'
 import { last } from 'es-toolkit/compat'
-import { use, useCallback, useEffect, useMemo, useRef } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -73,6 +74,7 @@ interface HomeMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers?: MessageStreamingLayers
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder?: () => void
@@ -88,6 +90,7 @@ export function useHomeMessageListProviderValue({
   topic,
   messages,
   partsByMessageId,
+  streamingLayers,
   isInitialLoading = false,
   isMessagesStale = false,
   loadOlder,
@@ -112,26 +115,66 @@ export function useHomeMessageListProviderValue({
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
+  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const { editingMessageId, startEditing } = useMessageEditing()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
-
-  const messageItems = useMemo(
-    () =>
-      messages.map((message) =>
-        toMessageListItem(message, {
-          assistantId: assistant?.id ?? assistantId,
-          topicId
-        })
-      ),
-    [assistant?.id, assistantId, messages, topicId]
+  const resolvedAssistantId = assistant?.id ?? assistantId
+  const messageItemCacheRef = useRef(
+    new WeakMap<
+      CherryUIMessage,
+      {
+        assistantId?: string
+        item: MessageListItem
+        topicId: string
+      }
+    >()
   )
+
+  const messageItems = useMemo(() => {
+    return messages.map((message) => {
+      const cached = messageItemCacheRef.current.get(message)
+      if (cached && cached.assistantId === resolvedAssistantId && cached.topicId === topicId) {
+        return cached.item
+      }
+
+      const item = toMessageListItem(message, {
+        assistantId: resolvedAssistantId,
+        topicId
+      })
+      messageItemCacheRef.current.set(message, {
+        assistantId: resolvedAssistantId,
+        item,
+        topicId
+      })
+      return item
+    })
+  }, [messages, resolvedAssistantId, topicId])
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
   const translationAbortControllersRef = useRef(new Map<string, AbortController>())
+  const [translatingMessageIds, setTranslatingMessageIds] = useState<ReadonlySet<string>>(() => new Set())
+
+  const setMessageTranslating = useCallback((messageId: string, isTranslating: boolean) => {
+    setTranslatingMessageIds((current) => {
+      if (current.has(messageId) === isTranslating) return current
+
+      const next = new Set(current)
+      if (isTranslating) {
+        next.add(messageId)
+      } else {
+        next.delete(messageId)
+      }
+      return next
+    })
+  }, [])
+
+  const isMessageTranslating = useCallback(
+    (messageId: string) => translatingMessageIds.has(messageId),
+    [translatingMessageIds]
+  )
 
   useEffect(() => {
     messagesRef.current = messageItems
@@ -408,10 +451,15 @@ export function useHomeMessageListProviderValue({
     async (
       messageId: string,
       targetLanguage: TranslateLangCode,
+      controller: AbortController,
       sourceLanguage?: TranslateLangCode
-    ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
+    ): Promise<{
+      onResponse: (accumulatedText: string) => void
+      waitForPendingUpdates: () => Promise<void>
+    } | null> => {
       if (!topic.id) return null
       const write = requireChatWrite('translateMessage')
+      const isCurrentTranslation = () => translationAbortControllersRef.current.get(messageId) === controller
 
       const currentParts = partsByMessageIdRef.current[messageId]
       if (!currentParts) {
@@ -429,8 +477,13 @@ export function useHomeMessageListProviderValue({
         }
       }
       await write.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
+      if (!isCurrentTranslation()) return null
 
-      return (accumulatedText: string) => {
+      let pendingUpdate = Promise.resolve()
+
+      const onResponse = (accumulatedText: string) => {
+        if (!isCurrentTranslation()) return
+
         const translationPart = {
           type: 'data-translation' as const,
           data: {
@@ -440,9 +493,19 @@ export function useHomeMessageListProviderValue({
           }
         }
 
-        void write.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart]).catch((error) => {
-          logger.error('Failed to update message translation:', error as Error, { messageId })
-        })
+        pendingUpdate = pendingUpdate
+          .then(() => {
+            if (!isCurrentTranslation()) return
+            return write.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
+          })
+          .catch((error) => {
+            logger.error('Failed to update message translation:', error as Error, { messageId })
+          })
+      }
+
+      return {
+        onResponse,
+        waitForPendingUpdates: () => pendingUpdate
       }
     },
     [requireChatWrite, topic.id]
@@ -453,18 +516,25 @@ export function useHomeMessageListProviderValue({
       if (!sourceText.trim()) return
 
       const controller = new AbortController()
+      let translationUpdater: Awaited<ReturnType<typeof createTranslationUpdater>> = null
       try {
         translationAbortControllersRef.current.get(messageId)?.abort()
         translationAbortControllersRef.current.set(messageId, controller)
+        setMessageTranslating(messageId, true)
 
-        const translationUpdater = await createTranslationUpdater(messageId, language.langCode)
+        translationUpdater = await createTranslationUpdater(messageId, language.langCode, controller)
         if (!translationUpdater) {
-          toast.error(t('message.error.unknown'))
+          if (translationAbortControllersRef.current.get(messageId) === controller) {
+            toast.error(t('message.error.unknown'))
+          }
           return
         }
 
-        await translateText(sourceText, language, translationUpdater, controller.signal)
+        await translateText(sourceText, language, translationUpdater.onResponse, controller.signal)
+        await translationUpdater.waitForPendingUpdates()
       } catch (error) {
+        await translationUpdater?.waitForPendingUpdates()
+
         if (!isAbortError(error)) {
           logger.error('Message translation failed', error as Error)
           toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
@@ -479,21 +549,22 @@ export function useHomeMessageListProviderValue({
           if (currentParts) {
             const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
             if (baseParts.length !== currentParts.length) {
-              void requireChatWrite('removeMessageTranslation')
-                .editMessage(messageId, baseParts)
-                .catch((cleanupError) => {
-                  logger.error('Failed to clean up translation loading part:', cleanupError as Error, { messageId })
-                })
+              try {
+                await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
+              } catch (cleanupError) {
+                logger.error('Failed to clean up translation loading part:', cleanupError as Error, { messageId })
+              }
             }
           }
         }
       } finally {
         if (translationAbortControllersRef.current.get(messageId) === controller) {
           translationAbortControllersRef.current.delete(messageId)
+          setMessageTranslating(messageId, false)
         }
       }
     },
-    [createTranslationUpdater, requireChatWrite, t]
+    [createTranslationUpdater, requireChatWrite, setMessageTranslating, t]
   )
 
   const abortMessageTranslation = useCallback<NonNullable<MessageListActions['abortMessageTranslation']>>(
@@ -646,6 +717,7 @@ export function useHomeMessageListProviderValue({
       topic,
       messages: messageItems,
       partsByMessageId,
+      streamingLayers,
       isInitialLoading,
       isMessagesStale,
       hasOlder,
@@ -664,6 +736,7 @@ export function useHomeMessageListProviderValue({
       getMessageUiState: messageUiStateCache.getMessageUiState,
       getMessageSiblings,
       getMessageActivityState,
+      isMessageTranslating,
       ...pickMessageLeafState(leafCapabilities),
       getTranslationLanguageLabel
     }),
@@ -672,6 +745,7 @@ export function useHomeMessageListProviderValue({
       editingMessageId,
       getMessageActivityState,
       getMessageSiblings,
+      isMessageTranslating,
       getTranslationLanguageLabel,
       hasOlder,
       isInitialLoading,
@@ -684,6 +758,7 @@ export function useHomeMessageListProviderValue({
       partsByMessageId,
       renderConfig,
       selectionController.selection,
+      streamingLayers,
       topic,
       translationLanguages
     ]

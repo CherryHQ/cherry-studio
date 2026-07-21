@@ -9,7 +9,7 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
-import { canManageProvider, isAgentSupportedProvider } from '@shared/utils/provider'
+import { canManageProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -111,9 +111,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         return false
       }
       if (filterMode === 'disabled' && provider.isEnabled) {
-        return false
-      }
-      if (filterMode === 'agent' && !isAgentSupportedProvider(provider)) {
         return false
       }
       const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
@@ -285,7 +282,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
             filterMode={filterMode}
             disabled={dragging}
             triggerClassName={providerListClasses.searchInlineAddButton}
-            triggerIconSize={13}
+            triggerIconSize={12}
             onFilterChange={setFilterMode}
           />
         }

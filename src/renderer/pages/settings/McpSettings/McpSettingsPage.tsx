@@ -10,7 +10,7 @@ import {
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { FolderCog, Package, ShoppingBag } from 'lucide-react'
+import { FolderCog, Server, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -63,7 +63,7 @@ const McpSettings: FC = () => {
                 label={t('settings.mcp.builtinServers', 'Built-in Servers')}
                 active={activeView === 'builtin'}
                 onClick={() => navigate({ to: '/settings/mcp/builtin' })}
-                icon={<Package size={18} />}
+                icon={<Server size={18} />}
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
               />

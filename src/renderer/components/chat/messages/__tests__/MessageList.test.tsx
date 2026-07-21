@@ -5,7 +5,6 @@ import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatBottomOverlayInsetProvider } from '../../layout/ChatViewportInsetContext'
-import { ImmersiveNarrowReportProvider, ImmersiveNavbarStateProvider } from '../../layout/ImmersiveNavbarContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
 import MessageList from '../MessageList'
 import { MessageListProvider } from '../MessageListProvider'
@@ -27,6 +26,7 @@ const messageVirtualListMocks = vi.hoisted(() => ({
   readyCallbacks: [] as ((element: HTMLDivElement) => void)[],
   scrollElement: null as HTMLDivElement | null
 }))
+const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
   useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
@@ -112,23 +112,20 @@ vi.mock('../list/MessageAnchorLine', () => ({
   default: () => null
 }))
 
-vi.mock('../list/MessageGroup', async () => {
-  const { useMessageEnterMotionActive } = await import('../../motion/messageEnterMotion')
+vi.mock('../list/MessageGroup', () => {
+  const MockMessageGroup = ({
+    messages,
+    enteringMessageIds,
+    registerMessageElement
+  }: {
+    messages: MessageListItem[]
+    enteringMessageIds?: ReadonlySet<string>
+    registerMessageElement?: (id: string, element: HTMLElement | null) => void
+  }) => {
+    const groupId = messages.map((message) => message.id).join(',')
+    messageGroupRenderCounts.set(groupId, (messageGroupRenderCounts.get(groupId) ?? 0) + 1)
 
-  const MessageEnterProbe = ({ messageId }: { messageId: string }) => {
-    const active = useMessageEnterMotionActive(messageId)
-    return <span data-testid={`message-enter-${messageId}`}>{String(active)}</span>
-  }
-
-  return {
-    __esModule: true,
-    default: ({
-      messages,
-      registerMessageElement
-    }: {
-      messages: MessageListItem[]
-      registerMessageElement?: (id: string, element: HTMLElement | null) => void
-    }) => (
+    return (
       <div data-testid="message-group">
         {messages.map((message) => {
           const setRef = (element: HTMLDivElement | null) => {
@@ -141,13 +138,20 @@ vi.mock('../list/MessageGroup', async () => {
               ref={setRef}
               className="fold"
               data-testid={`message-node-${message.id}`}>
-              <MessageEnterProbe messageId={message.id} />
+              <span data-testid={`message-enter-${message.id}`}>
+                {String(enteringMessageIds?.has(message.id) ?? false)}
+              </span>
             </div>
           )
         })}
-        {messages.map((message) => message.id).join(',')}
+        {groupId}
       </div>
     )
+  }
+
+  return {
+    __esModule: true,
+    default: MockMessageGroup
   }
 })
 
@@ -274,6 +278,54 @@ describe('MessageList', () => {
     messageVirtualListMocks.renderItemLimit = undefined
     messageVirtualListMocks.readyCallbacks = []
     messageVirtualListMocks.scrollElement = document.createElement('div')
+    messageGroupRenderCounts.clear()
+  })
+
+  it('keeps historical groups sealed while only the live tail changes', () => {
+    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
+    const historyUser = createMessage('user-history', 'user')
+    const historyAssistant = createMessage('assistant-history', 'assistant')
+    const liveAssistant = createMessage('assistant-live', 'assistant', 'pending')
+    const historyParts = {
+      'user-history': [{ type: 'text', text: 'question' }],
+      'assistant-history': [{ type: 'text', text: 'sealed answer' }]
+    } as MessageListProviderValue['state']['partsByMessageId']
+    const streamingLayers = {
+      historyPartsByMessageId: historyParts,
+      liveMessageIds: ['assistant-live']
+    } as NonNullable<MessageListProviderValue['state']['streamingLayers']>
+    const actions: Partial<MessageListActions> = {}
+    const buildValue = (text: string) =>
+      createValue(
+        [historyUser, historyAssistant, { ...liveAssistant }],
+        {
+          topic,
+          streamingLayers,
+          partsByMessageId: {
+            ...historyParts,
+            'assistant-live': [{ type: 'text', text }]
+          } as MessageListProviderValue['state']['partsByMessageId']
+        },
+        actions
+      )
+
+    const view = render(
+      <MessageListProvider value={buildValue('a')}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    for (const text of ['ab', 'abc', 'abcd', 'abcde']) {
+      view.rerender(
+        <MessageListProvider value={buildValue(text)}>
+          <MessageList />
+        </MessageListProvider>
+      )
+    }
+
+    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-live')).toBe(5)
   })
 
   it('signals the virtual list to scroll after a user message is appended before an assistant placeholder', () => {
@@ -376,37 +428,6 @@ describe('MessageList', () => {
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-bottom-offset', '128')
   })
 
-  it('uses the immersive navbar inset as the virtual-list top padding', () => {
-    render(
-      <ImmersiveNavbarStateProvider value={{ floating: true, insetHeight: 44 }}>
-        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
-          <MessageList />
-        </MessageListProvider>
-      </ImmersiveNavbarStateProvider>
-    )
-
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-top-padding', '44')
-  })
-
-  it('reports the narrow flag — including while initial loading (no probe-timing dependency)', () => {
-    const reportNarrow = vi.fn()
-    render(
-      <ImmersiveNarrowReportProvider value={reportNarrow}>
-        <MessageListProvider
-          value={createValue([], {
-            isInitialLoading: true,
-            renderConfig: { ...defaultMessageRenderConfig, narrowMode: true }
-          })}>
-          <MessageList />
-        </MessageListProvider>
-      </ImmersiveNarrowReportProvider>
-    )
-
-    // Narrow is config-derived, so it is published even during loading — the subwindow regression
-    // was that the old probe-based report stayed silent until the probe mounted.
-    expect(reportNarrow).toHaveBeenLastCalledWith(true)
-  })
-
   it('keeps existing messages visible while history refresh is loading', () => {
     render(
       <MessageListProvider
@@ -435,19 +456,6 @@ describe('MessageList', () => {
 
     expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
     expect(screen.queryByTestId('virtual-list')).toBeNull()
-  })
-
-  it('reports narrow=false when narrow mode is off', () => {
-    const reportNarrow = vi.fn()
-    render(
-      <ImmersiveNarrowReportProvider value={reportNarrow}>
-        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
-          <MessageList />
-        </MessageListProvider>
-      </ImmersiveNarrowReportProvider>
-    )
-
-    expect(reportNarrow).toHaveBeenLastCalledWith(false)
   })
 
   it('marks newly appended user and assistant messages for enter motion', () => {

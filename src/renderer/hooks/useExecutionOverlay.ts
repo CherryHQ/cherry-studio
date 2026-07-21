@@ -24,7 +24,7 @@ import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isToolUIPart, readUIMessageStream } from 'ai'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useTopicStreamSubscription } from './useTopicStreamSubscription'
 
@@ -58,6 +58,12 @@ interface ReaderHandle {
   anchorMessageId?: string
   cancel: () => void
   unregister: () => void
+}
+
+interface PendingSnapshot {
+  epoch: number
+  readerVersion: number
+  snapshot: CherryUIMessage
 }
 
 function executionKey(executionId: UniqueModelId, anchorMessageId?: string): string {
@@ -152,26 +158,87 @@ export function useExecutionOverlay(
   // down (so consumers can read the final frame / Phase 2 last-good) until
   // the same execution restarts, an explicit dispose, or a topic switch.
   const [snapshots, setSnapshots] = useState<Record<string, CherryUIMessage>>({})
+  const snapshotsRef = useRef(snapshots)
+  snapshotsRef.current = snapshots
 
   const uiMessagesRef = useRef(uiMessages)
   uiMessagesRef.current = uiMessages
   const onFinishRef = useRef(options.onFinish)
   onFinishRef.current = options.onFinish
   const readersRef = useRef<Map<string, ReaderHandle>>(new Map())
+  const pendingSnapshotsRef = useRef<Map<string, PendingSnapshot>>(new Map())
+  const snapshotFrameRef = useRef<number | null>(null)
+  const epochRef = useRef(0)
+  const readerVersionsRef = useRef<Map<string, number>>(new Map())
+
+  const cancelSnapshotFrame = useCallback(() => {
+    if (snapshotFrameRef.current === null) return
+    window.cancelAnimationFrame(snapshotFrameRef.current)
+    snapshotFrameRef.current = null
+  }, [])
+
+  const invalidatePendingSnapshots = useCallback(() => {
+    epochRef.current += 1
+    pendingSnapshotsRef.current.clear()
+    cancelSnapshotFrame()
+  }, [cancelSnapshotFrame])
+
+  const flushPendingSnapshots = useCallback(
+    (expectedEpoch: number) => {
+      if (expectedEpoch !== epochRef.current) return
+
+      cancelSnapshotFrame()
+      const pending = pendingSnapshotsRef.current
+      if (pending.size === 0) return
+      pendingSnapshotsRef.current = new Map()
+
+      setSnapshots((previous) => {
+        let next = previous
+        for (const [executionId, entry] of pending) {
+          if (entry.epoch !== epochRef.current) continue
+          if (readerVersionsRef.current.get(executionId) !== entry.readerVersion) continue
+          if (previous[executionId] === entry.snapshot) continue
+          if (next === previous) next = { ...previous }
+          next[executionId] = entry.snapshot
+        }
+        return next
+      })
+    },
+    [cancelSnapshotFrame]
+  )
+
+  const queueSnapshot = useCallback(
+    (executionId: string, snapshot: CherryUIMessage, epoch: number, readerVersion: number) => {
+      if (epoch !== epochRef.current || readerVersionsRef.current.get(executionId) !== readerVersion) return
+
+      pendingSnapshotsRef.current.set(executionId, { epoch, readerVersion, snapshot })
+      if (snapshotFrameRef.current !== null) return
+
+      snapshotFrameRef.current = window.requestAnimationFrame(() => {
+        snapshotFrameRef.current = null
+        flushPendingSnapshots(epoch)
+      })
+    },
+    [flushPendingSnapshots]
+  )
 
   // Topic switch → tear down the previous topic's readers and drop all stale
   // overlay state. Runs as an effect (not in the render body) so the teardown
   // happens after commit, never during a concurrent/abandoned render.
   useEffect(() => {
+    const readers = readersRef.current
+    invalidatePendingSnapshots()
+    readerVersionsRef.current.clear()
     setSnapshots({})
     return () => {
-      for (const r of readersRef.current.values()) {
+      invalidatePendingSnapshots()
+      for (const r of readers.values()) {
         r.cancel()
         r.unregister()
       }
-      readersRef.current.clear()
+      readers.clear()
     }
-  }, [topicId])
+  }, [invalidatePendingSnapshots, topicId])
 
   useEffect(() => {
     const readers = readersRef.current
@@ -189,6 +256,10 @@ export function useExecutionOverlay(
       if (readers.has(key)) continue
 
       const branch = sub.register(executionId, anchorMessageId)
+      const readerEpoch = epochRef.current
+      const readerVersion = (readerVersionsRef.current.get(executionId) ?? 0) + 1
+      readerVersionsRef.current.set(executionId, readerVersion)
+      pendingSnapshotsRef.current.delete(executionId)
       // Readers use execution+anchor keys; snapshots stay executionId-keyed because only one anchor is live per execution.
       // New turn for this execution: clear any retained prior snapshot.
       setSnapshots((prev) => {
@@ -235,13 +306,16 @@ export function useExecutionOverlay(
             )
             const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
             last = nextSnapshot
-            setSnapshots((prev) => ({ ...prev, [executionId]: nextSnapshot }))
+            queueSnapshot(executionId, nextSnapshot, readerEpoch, readerVersion)
           }
         } catch (err) {
           logger.warn('execution reader threw', { topicId, executionId, err })
         } finally {
           offTerminal()
           if (!cancelled) {
+            // Terminal frames must be visible before the overlay handoff. This
+            // is the sole intentional commit outside the animation-frame cadence.
+            flushPendingSnapshots(readerEpoch)
             const t = terminal ?? { isAbort: false, isError: false }
             const message = last ?? seed
             if (message || t.isError) {
@@ -255,18 +329,7 @@ export function useExecutionOverlay(
         }
       })()
     }
-  }, [topicId, activeExecutions, sub])
-
-  useEffect(() => {
-    const readers = readersRef.current
-    return () => {
-      for (const r of readers.values()) {
-        r.cancel()
-        r.unregister()
-      }
-      readers.clear()
-    }
-  }, [])
+  }, [topicId, activeExecutions, flushPendingSnapshots, queueSnapshot, sub])
 
   const overlay = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const out: Record<string, CherryMessagePart[]> = {}
@@ -286,15 +349,28 @@ export function useExecutionOverlay(
     api.current = {
       overlay,
       liveAssistants,
-      disposeOverlay: (messageId: string) =>
+      disposeOverlay: (messageId: string) => {
+        const snapshotEntry = Object.entries(snapshotsRef.current).find(([, snapshot]) => snapshot.id === messageId)
+        const pendingEntry = [...pendingSnapshotsRef.current].find(([, entry]) => entry.snapshot.id === messageId)
+        const executionId = snapshotEntry?.[0] ?? pendingEntry?.[0]
+        if (executionId) {
+          pendingSnapshotsRef.current.delete(executionId)
+          readerVersionsRef.current.set(executionId, (readerVersionsRef.current.get(executionId) ?? 0) + 1)
+          if (pendingSnapshotsRef.current.size === 0) cancelSnapshotFrame()
+        }
         setSnapshots((prev) => {
           const entry = Object.entries(prev).find(([, s]) => s.id === messageId)
           if (!entry) return prev
           const next = { ...prev }
           delete next[entry[0]]
           return next
-        }),
-      reset: () => setSnapshots({})
+        })
+      },
+      reset: () => {
+        invalidatePendingSnapshots()
+        readerVersionsRef.current.clear()
+        setSnapshots({})
+      }
     }
   }
   api.current.overlay = overlay

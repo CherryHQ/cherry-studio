@@ -28,7 +28,6 @@ import { loggerService } from '@logger'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
-import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
@@ -58,6 +57,8 @@ export type EditDialogBaseProps<TResource> = {
   onOpenChange: (open: boolean) => void
   onSaved: (resource: TResource) => Promise<void> | void
   modelFilter?: (model: Model) => boolean
+  /** Leaf tab id to open on first render (e.g. `tools.mcp`, `tools.skills`); falls back to `basic`. */
+  initialTab?: string
 }
 
 export type EditDialogTab = {
@@ -678,7 +679,6 @@ export function CompactModelField({
   const parsedModelId = selectorValue ? parseUniqueModelId(selectorValue) : undefined
   const { model: resolvedModel } = useModelById(selectorValue)
   const selectedModel = resolvedModel?.id === selectorValue ? resolvedModel : undefined
-  const providerLabel = useProviderDisplayName(selectedModel?.providerId ?? parsedModelId?.providerId)
   const labelFromState = modelLabels[name]
   const displayLabel =
     selectedModel?.name ??
@@ -721,7 +721,6 @@ export function CompactModelField({
                     ariaLabel={label}
                     model={triggerModel}
                     displayLabel={displayLabel}
-                    providerLabel={selectorValue ? providerLabel || parsedModelId?.providerId : undefined}
                     className={cn('w-full', triggerModel ? 'hover:text-foreground' : 'hover:text-muted-foreground')}
                     chevronClassName={
                       allowClear && value

@@ -85,6 +85,10 @@ vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
   useDefaultModel: () => ({ defaultModel: undefined })
 }))
 
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
+}))
+
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: () => (providerId: string) => providerId,
   useProviders: useProvidersMock
