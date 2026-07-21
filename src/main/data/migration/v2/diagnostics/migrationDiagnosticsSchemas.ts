@@ -1,5 +1,3 @@
-import { migrationRendererExportFailureReportSchema } from '@shared/data/migration/v2/diagnostics'
-import semver from 'semver'
 import * as z from 'zod'
 
 /** Fixed production migrator identifiers safe to expose in strict diagnostics. */
@@ -21,83 +19,11 @@ const MIGRATION_DIAGNOSTIC_MIGRATOR_IDS = Object.freeze([
   'prompt'
 ] as const)
 
-const MIGRATION_DIAGNOSTIC_DIRECTORY_SELECTION_ROLES = Object.freeze([
-  'current',
-  'boot_config',
-  'legacy_exact',
-  'legacy_fuzzy_eligible',
-  'legacy_fuzzy_blocked',
-  'default',
-  'unknown'
-] as const)
-
-const MIGRATION_DIAGNOSTIC_VERSION_LOG_COUNT_BUCKETS = Object.freeze(['0', '1', '2+'] as const)
-
-const migrationDiagnosticNormalizedVersionSchema = z
-  .string()
-  .max(128)
-  .refine((value) => semver.valid(value) === value, 'Expected a normalized semantic version')
-const migrationDiagnosticCurrentVersionSchema = z.union([
-  z.literal('unknown'),
-  migrationDiagnosticNormalizedVersionSchema
-])
-
-const migrationDiagnosticDirectorySelectionRoleSchema = z.enum(MIGRATION_DIAGNOSTIC_DIRECTORY_SELECTION_ROLES)
-const migrationDiagnosticVersionLogCountBucketSchema = z.enum(MIGRATION_DIAGNOSTIC_VERSION_LOG_COUNT_BUCKETS)
-const migrationDiagnosticVersionLogContextSchema = z.discriminatedUnion('state', [
-  z.object({ state: z.literal('missing') }).strict(),
-  z.object({ state: z.literal('read_failed') }).strict(),
-  z
-    .object({
-      state: z.literal('parsed'),
-      validRecordCountBucket: migrationDiagnosticVersionLogCountBucketSchema,
-      invalidRecordCountBucket: migrationDiagnosticVersionLogCountBucketSchema
-    })
-    .strict()
-])
-
-const migrationVersionGateCommonFields = {
-  currentVersion: migrationDiagnosticCurrentVersionSchema,
-  directorySelectionRole: migrationDiagnosticDirectorySelectionRoleSchema,
-  versionLog: migrationDiagnosticVersionLogContextSchema
-}
-
-const migrationVersionGateContextSchema = z.discriminatedUnion('reason', [
-  z
-    .object({
-      reason: z.literal('no_version_log'),
-      ...migrationVersionGateCommonFields,
-      previousVersion: z.null(),
-      requiredVersion: migrationDiagnosticNormalizedVersionSchema,
-      gatewayVersion: z.null()
-    })
-    .strict(),
-  z
-    .object({
-      reason: z.literal('v1_too_old'),
-      ...migrationVersionGateCommonFields,
-      previousVersion: migrationDiagnosticNormalizedVersionSchema,
-      requiredVersion: migrationDiagnosticNormalizedVersionSchema,
-      gatewayVersion: z.null()
-    })
-    .strict(),
-  z
-    .object({
-      reason: z.literal('v2_gateway_skipped'),
-      ...migrationVersionGateCommonFields,
-      previousVersion: migrationDiagnosticNormalizedVersionSchema,
-      requiredVersion: z.null(),
-      gatewayVersion: migrationDiagnosticNormalizedVersionSchema
-    })
-    .strict()
-])
-
-const rendererExportReportSchemas = migrationRendererExportFailureReportSchema.options
 const migrationDiagnosticMigratorIdSchema = z.enum(MIGRATION_DIAGNOSTIC_MIGRATOR_IDS)
-
 const migrationAttemptTriggerSchema = z.enum(['initial', 'manual_retry', 'recovered_retry'])
 const migrationDiagnosticsPlatformSchema = z.enum(['darwin', 'win32', 'linux', 'other'])
 const migrationDiagnosticsArchSchema = z.enum(['x64', 'arm64', 'ia32', 'other'])
+const migrationDiagnosticCurrentVersionSchema = z.union([z.literal('unknown'), z.string().min(1).max(128)])
 
 const MIGRATION_FAILURE_ERROR_CODES = [
   'unknown_error',
@@ -142,10 +68,7 @@ const MIGRATION_FAILURE_ERROR_CODES = [
   'migration_window_failed'
 ] as const
 
-const MIGRATION_DIAGNOSTIC_COUNT_BUCKETS = ['0', '1', '2-10', '11+'] as const
-
 const migrationFailureErrorCodeSchema = z.enum(MIGRATION_FAILURE_ERROR_CODES)
-const migrationDiagnosticCountBucketSchema = z.enum(MIGRATION_DIAGNOSTIC_COUNT_BUCKETS)
 
 export const migrationDiagnosticLocationSchema = z
   .object({
@@ -163,148 +86,6 @@ export const migrationDiagnosticAppMetadataSchema = z
   })
   .strict()
 
-const migrationVersionGateFailureEvidenceSchema = z
-  .object({
-    kind: z.literal('version_gate'),
-    context: migrationVersionGateContextSchema
-  })
-  .strict()
-
-const migrationRendererFilesystemEvidenceSchema = z
-  .object({
-    causeCode: z.enum(['ENOTDIR', 'EEXIST', 'EISDIR']),
-    filesystemOperation: z.enum(['mkdir', 'write']),
-    targetRole: z.enum(['dexie_export_directory', 'local_storage_export_file']),
-    blockingNodeRole: z.enum([
-      'migration_temp_root',
-      'dexie_export_directory',
-      'local_storage_export_directory',
-      'local_storage_export_file',
-      'unknown'
-    ]),
-    expectedNodeType: z.enum(['directory', 'file']),
-    observedNodeType: z.enum(['file', 'directory', 'other', 'unavailable'])
-  })
-  .strict()
-
-const migrationRendererExportEvidenceFields = {
-  kind: z.literal('renderer_export'),
-  filesystemEvidence: migrationRendererFilesystemEvidenceSchema.optional()
-}
-
-const migrationRendererExportEvidenceSchema = z.discriminatedUnion('sourceRole', [
-  rendererExportReportSchemas[0].extend(migrationRendererExportEvidenceFields),
-  rendererExportReportSchemas[1].extend(migrationRendererExportEvidenceFields),
-  rendererExportReportSchemas[2].extend(migrationRendererExportEvidenceFields),
-  rendererExportReportSchemas[3].extend(migrationRendererExportEvidenceFields)
-])
-
-const migrationAllRequiredRowsRejectedEvidenceSchema = z
-  .object({
-    kind: z.literal('all_required_rows_rejected'),
-    sourceRole: z.literal('mcp_server'),
-    fieldRole: z.literal('source_id'),
-    rejectedCountBucket: migrationDiagnosticCountBucketSchema.exclude(['0'])
-  })
-  .strict()
-
-const MIGRATION_FAILED_WRITE_BYTE_LENGTH_BUCKETS = [
-  '0',
-  '1-256',
-  '257-4096',
-  '4097-65536',
-  '65537-262144',
-  '262145+'
-] as const
-
-const migrationFailedWriteByteLengthBucketSchema = z.enum(MIGRATION_FAILED_WRITE_BYTE_LENGTH_BUCKETS)
-
-function byteLengthBucket(byteLength: number): (typeof MIGRATION_FAILED_WRITE_BYTE_LENGTH_BUCKETS)[number] {
-  if (byteLength === 0) return '0'
-  if (byteLength <= 256) return '1-256'
-  if (byteLength <= 4_096) return '257-4096'
-  if (byteLength <= 65_536) return '4097-65536'
-  if (byteLength <= 262_144) return '65537-262144'
-  return '262145+'
-}
-
-const migrationFailedWriteValueMeasurementSchema = z
-  .discriminatedUnion('role', [
-    z
-      .object({
-        role: z.literal('text_value'),
-        kind: z.literal('string'),
-        byteLength: z.number().int().nonnegative().max(262_145),
-        byteLengthBucket: migrationFailedWriteByteLengthBucketSchema
-      })
-      .strict(),
-    z
-      .object({
-        role: z.literal('json_value'),
-        kind: z.literal('json'),
-        byteLength: z.number().int().nonnegative().max(262_145),
-        byteLengthBucket: migrationFailedWriteByteLengthBucketSchema
-      })
-      .strict()
-  ])
-  .superRefine((measurement, ctx) => {
-    if (measurement.byteLengthBucket !== byteLengthBucket(measurement.byteLength)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Failed-write byte length and bucket must agree',
-        path: ['byteLengthBucket']
-      })
-    }
-  })
-
-const migrationFailedWriteEvidenceSchema = z
-  .object({
-    kind: z.literal('failed_write'),
-    truncated: z.boolean(),
-    values: z.array(migrationFailedWriteValueMeasurementSchema).max(3)
-  })
-  .strict()
-
-const migrationInvariantEvidenceSchema = z.union([
-  z.object({ kind: z.literal('invariant'), invariantRole: z.literal('foreign_key') }).strict(),
-  z
-    .object({
-      kind: z.literal('invariant'),
-      invariantRole: z.literal('identifier'),
-      identifierRole: z.literal('provider_id'),
-      rule: z.enum(['empty', 'contains_separator'])
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('invariant'),
-      invariantRole: z.literal('identifier'),
-      identifierRole: z.literal('model_id'),
-      rule: z.enum(['empty', 'contains_reserved_route_character'])
-    })
-    .strict()
-])
-
-const migrationValidationEvidenceSchema = z.union([
-  z
-    .object({
-      kind: z.literal('validation'),
-      checkRole: z.literal('count'),
-      expectedCountBucket: migrationDiagnosticCountBucketSchema,
-      actualCountBucket: migrationDiagnosticCountBucketSchema
-    })
-    .strict(),
-  z.object({ kind: z.literal('validation'), checkRole: z.literal('foreign_key') }).strict(),
-  z.object({ kind: z.literal('validation'), checkRole: z.literal('status') }).strict()
-])
-
-const migrationInterruptionEvidenceSchema = z
-  .object({
-    kind: z.literal('interruption'),
-    recoverySource: z.enum(['live_renderer_event', 'checkpoint'])
-  })
-  .strict()
-
 const databaseOrFileFailureCodeSchema = z.enum([
   'unknown_error',
   'sqlite_open_failed',
@@ -319,6 +100,7 @@ const databaseOrFileFailureCodeSchema = z.enum([
   'sqlite_locked',
   'sqlite_io',
   'sqlite_unknown',
+  'file_invalid_type',
   'file_missing',
   'file_permission',
   'file_readonly',
@@ -331,8 +113,7 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       kind: z.literal('upgrade_path_blocked'),
       scope: z.literal('gate'),
       phase: z.literal('validate'),
-      errorCode: z.enum(['no_version_log', 'v1_too_old', 'v2_gateway_skipped']),
-      evidence: migrationVersionGateFailureEvidenceSchema
+      errorCode: z.enum(['no_version_log', 'v1_too_old', 'v2_gateway_skipped'])
     })
     .strict(),
   z
@@ -352,8 +133,7 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
           'version_window_failed',
           'migration_window_failed'
         ])
-      ]),
-      evidence: migrationVersionGateFailureEvidenceSchema.optional()
+      ])
     })
     .strict(),
   z
@@ -371,8 +151,7 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
         'file_permission',
         'file_readonly',
         'file_io'
-      ]),
-      evidence: migrationRendererExportEvidenceSchema
+      ])
     })
     .strict(),
   z
@@ -384,8 +163,7 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       errorCode: z.union([
         databaseOrFileFailureCodeSchema,
         z.enum(['source_parse_failed', 'source_required_records_rejected'])
-      ]),
-      evidence: migrationAllRequiredRowsRejectedEvidenceSchema.optional()
+      ])
     })
     .strict(),
   z
@@ -394,8 +172,7 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       scope: z.enum(['migrator', 'database']),
       phase: z.enum(['execute', 'finalize']),
       migratorId: migrationDiagnosticMigratorIdSchema.optional(),
-      errorCode: databaseOrFileFailureCodeSchema,
-      evidence: migrationFailedWriteEvidenceSchema.optional()
+      errorCode: databaseOrFileFailureCodeSchema
     })
     .strict(),
   z
@@ -404,8 +181,7 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       scope: z.enum(['engine', 'migrator', 'database']),
       phase: z.enum(['execute', 'validate', 'finalize']),
       migratorId: migrationDiagnosticMigratorIdSchema.optional(),
-      errorCode: z.enum(['unknown_error', 'sqlite_constraint', 'source_invalid_identifier', 'validation_foreign_key']),
-      evidence: migrationInvariantEvidenceSchema
+      errorCode: z.enum(['unknown_error', 'sqlite_constraint', 'source_invalid_identifier', 'validation_foreign_key'])
     })
     .strict(),
   z
@@ -417,8 +193,7 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       errorCode: z.union([
         databaseOrFileFailureCodeSchema,
         z.enum(['validation_count_mismatch', 'validation_foreign_key', 'validation_status'])
-      ]),
-      evidence: migrationValidationEvidenceSchema.optional()
+      ])
     })
     .strict(),
   z
@@ -426,8 +201,7 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       kind: z.literal('migration_finalize_failed'),
       scope: z.enum(['engine', 'database']),
       phase: z.literal('finalize'),
-      errorCode: z.union([databaseOrFileFailureCodeSchema, z.enum(['validation_foreign_key', 'validation_status'])]),
-      evidence: migrationValidationEvidenceSchema.optional()
+      errorCode: z.union([databaseOrFileFailureCodeSchema, z.enum(['validation_foreign_key', 'validation_status'])])
     })
     .strict(),
   z
@@ -435,135 +209,12 @@ const migrationDiagnosticFailureUnionSchema = z.discriminatedUnion('kind', [
       kind: z.literal('process_interrupted'),
       scope: z.literal('engine'),
       phase: z.literal('interrupted'),
-      errorCode: z.enum(['renderer_process_gone', 'renderer_unresponsive', 'process_interrupted']),
-      evidence: migrationInterruptionEvidenceSchema
+      errorCode: z.enum(['renderer_process_gone', 'renderer_unresponsive', 'process_interrupted'])
     })
     .strict()
 ])
 
-export const migrationDiagnosticFailureSchema = migrationDiagnosticFailureUnionSchema.superRefine((failure, ctx) => {
-  if (failure.kind === 'upgrade_path_blocked' && failure.errorCode !== failure.evidence.context.reason) {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'Upgrade-path code must match its version-gate reason',
-      path: ['errorCode']
-    })
-  }
-  if (failure.kind === 'preboot_failed') {
-    const shouldHaveVersionEvidence = failure.errorCode === 'version_window_failed'
-    if (shouldHaveVersionEvidence !== (failure.evidence !== undefined)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Only a version-window preboot failure carries version-gate evidence',
-        path: ['evidence']
-      })
-    }
-  }
-  if (failure.kind === 'renderer_export_failed') {
-    const filesystemEvidence = failure.evidence.filesystemEvidence
-    const hasFilesystemEvidence = filesystemEvidence !== undefined
-    if ((failure.errorCode === 'file_invalid_type') !== hasFilesystemEvidence) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Only a renderer file type conflict carries filesystem evidence',
-        path: ['evidence', 'filesystemEvidence']
-      })
-    }
-    if (failure.errorCode === 'file_invalid_type' && filesystemEvidence !== undefined) {
-      const targetIsCoherent =
-        filesystemEvidence.targetRole === 'dexie_export_directory'
-          ? failure.evidence.sourceRole === 'dexie' &&
-            failure.evidence.operationRole === 'write' &&
-            filesystemEvidence.expectedNodeType === 'directory'
-          : failure.evidence.sourceRole === 'local_storage' &&
-            failure.evidence.operationRole === 'write' &&
-            filesystemEvidence.expectedNodeType === 'file'
-      if (!targetIsCoherent) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'Renderer export source, operation, target, and expected node type must agree',
-          path: ['evidence', 'filesystemEvidence', 'targetRole']
-        })
-      }
-
-      const observedNodeIsConflict =
-        filesystemEvidence.observedNodeType === 'file' || filesystemEvidence.observedNodeType === 'other'
-      let blockerIsCoherent: boolean
-      switch (filesystemEvidence.blockingNodeRole) {
-        case 'migration_temp_root':
-          blockerIsCoherent =
-            filesystemEvidence.causeCode === 'ENOTDIR' &&
-            filesystemEvidence.filesystemOperation === 'mkdir' &&
-            observedNodeIsConflict
-          break
-        case 'dexie_export_directory':
-          blockerIsCoherent =
-            filesystemEvidence.causeCode === 'EEXIST' &&
-            filesystemEvidence.filesystemOperation === 'mkdir' &&
-            filesystemEvidence.targetRole === 'dexie_export_directory' &&
-            observedNodeIsConflict
-          break
-        case 'local_storage_export_directory':
-          blockerIsCoherent =
-            filesystemEvidence.causeCode === 'EEXIST' &&
-            filesystemEvidence.filesystemOperation === 'mkdir' &&
-            filesystemEvidence.targetRole === 'local_storage_export_file' &&
-            observedNodeIsConflict
-          break
-        case 'local_storage_export_file':
-          blockerIsCoherent =
-            filesystemEvidence.causeCode === 'EISDIR' &&
-            filesystemEvidence.filesystemOperation === 'write' &&
-            filesystemEvidence.targetRole === 'local_storage_export_file' &&
-            (filesystemEvidence.observedNodeType === 'directory' || filesystemEvidence.observedNodeType === 'other')
-          break
-        case 'unknown':
-          blockerIsCoherent = filesystemEvidence.observedNodeType === 'unavailable'
-          break
-      }
-      if (!blockerIsCoherent) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'Renderer export cause, operation, blocking node, and observed node type must agree',
-          path: ['evidence', 'filesystemEvidence', 'blockingNodeRole']
-        })
-      }
-    }
-  }
-  if (failure.kind === 'source_prepare_failed') {
-    const aggregate = failure.errorCode === 'source_required_records_rejected'
-    if (aggregate !== (failure.evidence !== undefined)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Only rejected required source rows carry aggregate prepare evidence',
-        path: ['evidence']
-      })
-    }
-    if ((failure.scope === 'migrator') !== (failure.migratorId !== undefined)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Only migrator-scoped prepare failures carry a migrator id',
-        path: ['migratorId']
-      })
-    }
-    if (aggregate && failure.scope !== 'migrator') {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Required-row rejection is owned by a migrator',
-        path: ['scope']
-      })
-    }
-  }
-  if (failure.kind === 'migration_validation_failed' && failure.errorCode.startsWith('validation_')) {
-    if (failure.evidence === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'A validation result failure must carry its fixed check evidence',
-        path: ['evidence']
-      })
-    }
-  }
-})
+export const migrationDiagnosticFailureSchema = migrationDiagnosticFailureUnionSchema
 
 const migrationDiagnosticAttemptCommonFields = {
   trigger: migrationAttemptTriggerSchema,
@@ -628,14 +279,12 @@ export const migrationDiagnosticsCheckpointSchema = z
   .strict()
 
 export type MigrationDiagnosticMigratorId = z.infer<typeof migrationDiagnosticMigratorIdSchema>
-export type MigrationVersionGateContext = z.infer<typeof migrationVersionGateContextSchema>
 export type MigrationAttemptTrigger = z.infer<typeof migrationAttemptTriggerSchema>
 export type MigrationDiagnosticsPlatform = z.infer<typeof migrationDiagnosticsPlatformSchema>
 export type MigrationDiagnosticsArch = z.infer<typeof migrationDiagnosticsArchSchema>
 export type MigrationFailureErrorCode = z.infer<typeof migrationFailureErrorCodeSchema>
 export type MigrationDiagnosticLocation = z.infer<typeof migrationDiagnosticLocationSchema>
 export type MigrationDiagnosticFailure = z.infer<typeof migrationDiagnosticFailureSchema>
-export type MigrationDiagnosticFailureEvidence = NonNullable<MigrationDiagnosticFailure['evidence']>
 export type MigrationDiagnosticAttempt = z.infer<typeof migrationDiagnosticAttemptSchema>
 export type MigrationDiagnosticFinishedAttempt = z.infer<typeof migrationDiagnosticFinishedAttemptSchema>
 export type MigrationAttemptFinish =

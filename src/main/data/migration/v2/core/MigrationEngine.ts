@@ -61,7 +61,6 @@ import {
   classifyMigrationError,
   type MigrationAttemptFinish,
   type MigrationDiagnosticFailure,
-  type MigrationDiagnosticFailureEvidence,
   type MigrationDiagnosticLocation,
   type MigrationDiagnosticMigratorId
 } from '../diagnostics'
@@ -88,8 +87,6 @@ type FailureOfKind<TKind extends MigrationDiagnosticFailure['kind']> = Extract<
   { kind: TKind }
 >
 type DatabaseOrFileErrorCode = FailureOfKind<'migration_write_failed'>['errorCode']
-type InvariantEvidence = Extract<MigrationDiagnosticFailureEvidence, { kind: 'invariant' }>
-type ValidationEvidence = Extract<MigrationDiagnosticFailureEvidence, { kind: 'validation' }>
 
 const DATABASE_OR_FILE_ERROR_CODES: ReadonlySet<DatabaseOrFileErrorCode> = new Set([
   'unknown_error',
@@ -115,15 +112,6 @@ function databaseOrFileErrorCode(errorCode: ClassifiedMigrationError['errorCode'
   return DATABASE_OR_FILE_ERROR_CODES.has(errorCode as DatabaseOrFileErrorCode)
     ? (errorCode as DatabaseOrFileErrorCode)
     : 'unknown_error'
-}
-
-function invariantErrorCode(evidence: InvariantEvidence): FailureOfKind<'migration_invariant_failed'>['errorCode'] {
-  switch (evidence.invariantRole) {
-    case 'identifier':
-      return 'source_invalid_identifier'
-    case 'foreign_key':
-      return 'validation_foreign_key'
-  }
 }
 
 function prepareErrorCode(
@@ -152,13 +140,6 @@ function finalizeErrorCode(
   return errorCode === 'validation_foreign_key' || errorCode === 'validation_status'
     ? errorCode
     : databaseOrFileErrorCode(errorCode)
-}
-
-function diagnosticCountBucket(count: number): '0' | '1' | '2-10' | '11+' {
-  if (!Number.isFinite(count) || count <= 0) return '0'
-  if (count === 1) return '1'
-  if (count <= 10) return '2-10'
-  return '11+'
 }
 
 const NOOP_MIGRATION_DIAGNOSTICS: MigrationAttemptDiagnostics = {
@@ -538,19 +519,7 @@ export class MigrationEngine {
     }
     const thrownFailure = takeThrownDiagnosedPhaseFailure(error)
     if (thrownFailure !== undefined) return thrownFailure
-    const classification = classifyMigrationError(error)
-    return {
-      classification,
-      ...(classification.identifierViolation === undefined
-        ? {}
-        : {
-            evidence: {
-              kind: 'invariant' as const,
-              invariantRole: 'identifier' as const,
-              ...classification.identifierViolation
-            }
-          })
-    }
+    return { classification: classifyMigrationError(error) }
   }
 
   private createDiagnosticFailure(
@@ -559,44 +528,26 @@ export class MigrationEngine {
     error: unknown,
     migratorId?: MigrationDiagnosticMigratorId
   ): MigrationDiagnosticFailure {
-    const { classification, evidence } = this.diagnosedFailure(error)
-    if (evidence?.kind === 'all_required_rows_rejected') {
+    const { classification, errorCodeOverride } = this.diagnosedFailure(error)
+    const errorCode = errorCodeOverride ?? classification.errorCode
+    if (errorCode === 'source_required_records_rejected') {
       return {
         kind: 'source_prepare_failed',
         scope: 'migrator',
         phase: 'prepare',
         migratorId: migratorId as MigrationDiagnosticMigratorId,
-        errorCode: 'source_required_records_rejected',
-        evidence
+        errorCode
       }
     }
-    if (evidence?.kind === 'invariant') {
+    if (errorCode === 'source_invalid_identifier' || errorCodeOverride === 'validation_foreign_key') {
+      const invariantErrorCode =
+        errorCode === 'source_invalid_identifier' ? 'source_invalid_identifier' : 'validation_foreign_key'
       return {
         kind: 'migration_invariant_failed',
         scope,
         phase: phase === 'initialize' || phase === 'prepare' ? 'execute' : phase,
         ...(migratorId === undefined ? {} : { migratorId }),
-        errorCode: invariantErrorCode(evidence),
-        evidence
-      }
-    }
-    if (evidence?.kind === 'validation') {
-      if (phase === 'finalize') {
-        return {
-          kind: 'migration_finalize_failed',
-          scope: scope === 'migrator' ? 'engine' : scope,
-          phase: 'finalize',
-          errorCode: finalizeErrorCode(classification.errorCode),
-          evidence
-        }
-      }
-      return {
-        kind: 'migration_validation_failed',
-        scope,
-        phase: 'validate',
-        ...(migratorId === undefined ? {} : { migratorId }),
-        errorCode: validationErrorCode(classification.errorCode),
-        evidence
+        errorCode: invariantErrorCode
       }
     }
     if (phase === 'initialize') {
@@ -604,7 +555,7 @@ export class MigrationEngine {
         kind: 'preboot_failed',
         scope: scope === 'migrator' ? 'engine' : scope,
         phase,
-        errorCode: databaseOrFileErrorCode(classification.errorCode)
+        errorCode: databaseOrFileErrorCode(errorCode)
       }
     }
     if (phase === 'prepare') {
@@ -613,21 +564,16 @@ export class MigrationEngine {
         scope: scope === 'migrator' ? 'migrator' : 'engine',
         phase,
         ...(migratorId === undefined ? {} : { migratorId }),
-        errorCode: prepareErrorCode(error, classification.errorCode)
+        errorCode: prepareErrorCode(error, errorCode)
       }
     }
     if (phase === 'validate') {
-      const validationEvidence: ValidationEvidence | undefined =
-        classification.errorCode === 'validation_foreign_key'
-          ? { kind: 'validation', checkRole: 'foreign_key' }
-          : undefined
       return {
         kind: 'migration_validation_failed',
         scope,
         phase,
         ...(migratorId === undefined ? {} : { migratorId }),
-        errorCode: validationErrorCode(classification.errorCode),
-        ...(validationEvidence === undefined ? {} : { evidence: validationEvidence })
+        errorCode: validationErrorCode(errorCode)
       }
     }
     if (phase === 'finalize') {
@@ -635,7 +581,7 @@ export class MigrationEngine {
         kind: 'migration_finalize_failed',
         scope: scope === 'migrator' ? 'engine' : scope,
         phase,
-        errorCode: finalizeErrorCode(classification.errorCode)
+        errorCode: finalizeErrorCode(errorCode)
       }
     }
     return {
@@ -643,8 +589,7 @@ export class MigrationEngine {
       scope: scope === 'migrator' ? 'migrator' : 'database',
       phase: 'execute',
       ...(migratorId === undefined ? {} : { migratorId }),
-      errorCode: databaseOrFileErrorCode(classification.errorCode),
-      ...(evidence?.kind === 'failed_write' ? { evidence } : {})
+      errorCode: databaseOrFileErrorCode(errorCode)
     }
   }
 
@@ -793,12 +738,7 @@ export class MigrationEngine {
       )
       throw new MigratorResultError(error.message, {
         classification: classifyMigrationError(error),
-        evidence: {
-          kind: 'validation',
-          checkRole: 'count',
-          expectedCountBucket: diagnosticCountBucket(expectedCount),
-          actualCountBucket: diagnosticCountBucket(stats.targetCount)
-        }
+        errorCodeOverride: 'validation_count_mismatch'
       })
     }
 
@@ -817,7 +757,7 @@ export class MigrationEngine {
       )
       throw new MigratorResultError(error.message, {
         classification: classifyMigrationError(error),
-        evidence: { kind: 'validation', checkRole: 'status' }
+        errorCodeOverride: 'validation_status'
       })
     }
   }

@@ -5,7 +5,6 @@ import path from 'node:path'
 import { ZipArchive } from 'archiver'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from '../migrationDatabaseDiagnosticsSchemas'
 import { MigrationDiagnosticBundleBuilder } from '../MigrationDiagnosticBundleBuilder'
 import type { MigrationDiagnosticsSnapshot } from '../migrationDiagnosticsSchemas'
 
@@ -35,12 +34,8 @@ const database = {
   sqlite: {
     status: 'available' as const,
     quickCheck: 'ok' as const,
-    foreignKeyViolationCountBucket: '1' as const,
-    objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) => ({
-      role,
-      tableName: table,
-      status: 'present' as const
-    }))
+    foreignKeyViolationCount: 1,
+    schema: { status: 'ok' as const }
   }
 }
 
@@ -67,7 +62,7 @@ describe('MigrationDiagnosticBundleBuilder real ZIP publication', () => {
     vi.spyOn(ZipArchive.prototype, 'finalize').mockRejectedValueOnce(new Error('archive canary'))
 
     await expect(
-      new MigrationDiagnosticBundleBuilder().save({
+      new MigrationDiagnosticBundleBuilder({ collectApplicationLog: async () => null }).save({
         destination: destination(),
         snapshot,
         collectDatabaseDiagnostics: async () => database
@@ -82,7 +77,7 @@ describe('MigrationDiagnosticBundleBuilder real ZIP publication', () => {
     const missingParentDestination = path.join(testDir, 'missing', 'diagnostics.zip')
 
     await expect(
-      new MigrationDiagnosticBundleBuilder().save({
+      new MigrationDiagnosticBundleBuilder({ collectApplicationLog: async () => null }).save({
         destination: missingParentDestination,
         snapshot,
         collectDatabaseDiagnostics: async () => database

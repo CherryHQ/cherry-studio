@@ -114,7 +114,7 @@ src/main/data/migration/v2/
 
 - `window/MigrationIpcHandler.ts` exposes IPC channels for the migration UI:
   - Receives Redux data and Dexie export path, starts the engine, and streams progress back to renderer.
-  - Classifies real export-path type conflicts (`ENOTDIR`, `EEXIST`, and `EISDIR`) and probes only the ordered, pre-computed `MigrationPaths` nodes for privacy-bounded filesystem evidence.
+  - Classifies real export-path type conflicts (`ENOTDIR`, `EEXIST`, and `EISDIR`) as the stable `file_invalid_type` diagnostic code without additional filesystem probing.
   - Manages retry/cancel/restart/skip actions.
 - `window/MigrationWindowManager.ts` creates the frameless migration window, handles lifecycle, and relaunch instructions after completion in production.
 

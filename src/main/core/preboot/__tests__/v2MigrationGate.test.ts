@@ -172,7 +172,8 @@ function stubElectron(browserWindowFactory?: () => object) {
     app: {
       whenReady: whenReadyMock,
       getVersion: appGetVersionMock,
-      getLocale: vi.fn().mockReturnValue('en-US')
+      getLocale: vi.fn().mockReturnValue('en-US'),
+      getPath: vi.fn().mockReturnValue('/mock/logs')
     },
     BrowserWindow: vi.fn(browserWindowFactory),
     dialog: {
@@ -260,17 +261,7 @@ interface RegisteredMigrationDiagnosticsCapabilities {
   start(): Promise<void>
   reportRendererExportFailure(
     report: { sourceRole: 'redux'; operationRole: 'parse' } | { sourceRole: 'local_storage'; operationRole: 'write' },
-    mainWriteFailure?: {
-      errorCode: 'file_invalid_type'
-      filesystemEvidence: {
-        causeCode: 'ENOTDIR'
-        filesystemOperation: 'mkdir'
-        targetRole: 'local_storage_export_file'
-        blockingNodeRole: 'migration_temp_root'
-        expectedNodeType: 'file'
-        observedNodeType: 'file'
-      }
-    }
+    mainWriteFailure?: { errorCode: 'file_invalid_type' }
   ): Promise<void>
   saveDiagnosticBundle(destination: string): Promise<unknown>
   snapshot(): Promise<unknown>
@@ -448,8 +439,7 @@ describe('runV2MigrationGate', () => {
         lastLocation: { scope: 'renderer_export', phase: 'prepare' },
         failure: {
           kind: 'renderer_export_failed',
-          errorCode: 'source_parse_failed',
-          evidence: { kind: 'renderer_export', sourceRole: 'redux', operationRole: 'parse' }
+          errorCode: 'source_parse_failed'
         }
       })
       expect(JSON.stringify(snapshot)).not.toContain('canary-secret')
@@ -483,15 +473,14 @@ describe('runV2MigrationGate', () => {
           kind: 'renderer_export_failed',
           scope: 'renderer_export',
           phase: 'finalize',
-          errorCode: 'source_parse_failed',
-          evidence: { kind: 'renderer_export', sourceRole: 'redux', operationRole: 'parse' }
+          errorCode: 'source_parse_failed'
         }
       })
       expect(JSON.stringify(snapshot)).not.toContain('canary-secret')
       expect(JSON.stringify(snapshot)).not.toContain('/Users/private')
     })
 
-    it('uses Main-owned target metadata instead of an untrusted renderer report for filesystem evidence', async () => {
+    it('uses the Main-owned error code instead of untrusted renderer failure details', async () => {
       const coordinator = await createMemoryDiagnosticsCoordinator()
       needsMigrationMock.mockResolvedValue(true)
       evaluateCandidateVersionMock.mockReturnValue({
@@ -510,17 +499,7 @@ describe('runV2MigrationGate', () => {
       await capabilities.start()
       await capabilities.reportRendererExportFailure(
         { sourceRole: 'redux', operationRole: 'parse' },
-        {
-          errorCode: 'file_invalid_type',
-          filesystemEvidence: {
-            causeCode: 'ENOTDIR',
-            filesystemOperation: 'mkdir',
-            targetRole: 'local_storage_export_file',
-            blockingNodeRole: 'migration_temp_root',
-            expectedNodeType: 'file',
-            observedNodeType: 'file'
-          }
-        }
+        { errorCode: 'file_invalid_type' }
       )
 
       const snapshot = await coordinator.snapshot()
@@ -528,20 +507,7 @@ describe('runV2MigrationGate', () => {
         status: 'failed',
         failure: {
           kind: 'renderer_export_failed',
-          errorCode: 'file_invalid_type',
-          evidence: {
-            kind: 'renderer_export',
-            sourceRole: 'local_storage',
-            operationRole: 'write',
-            filesystemEvidence: {
-              causeCode: 'ENOTDIR',
-              filesystemOperation: 'mkdir',
-              targetRole: 'local_storage_export_file',
-              blockingNodeRole: 'migration_temp_root',
-              expectedNodeType: 'file',
-              observedNodeType: 'file'
-            }
-          }
+          errorCode: 'file_invalid_type'
         }
       })
       expect(JSON.stringify(snapshot)).not.toContain('/mock/userData')
@@ -779,8 +745,7 @@ describe('runV2MigrationGate', () => {
           kind: 'upgrade_path_blocked',
           scope: 'gate',
           phase: 'validate',
-          errorCode: testCase.expected.reason,
-          evidence: { kind: 'version_gate', context: testCase.expected }
+          errorCode: testCase.expected.reason
         }
       })
       expect(migrationWindowWaitForReadyMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -1290,11 +1255,7 @@ describe('runV2MigrationGate', () => {
         status: 'failed',
         failure: {
           kind: 'preboot_failed',
-          errorCode: 'version_window_failed',
-          evidence: {
-            kind: 'version_gate',
-            context: { reason: 'no_version_log', versionLog: { state: 'missing' } }
-          }
+          errorCode: 'version_window_failed'
         }
       })
       expect(appQuitMock).toHaveBeenCalledTimes(1)
@@ -1388,8 +1349,7 @@ describe('runV2MigrationGate', () => {
                   status: 'interrupted',
                   failure: {
                     kind: 'process_interrupted',
-                    errorCode: 'renderer_process_gone',
-                    evidence: { kind: 'interruption', recoverySource: 'live_renderer_event' }
+                    errorCode: 'renderer_process_gone'
                   }
                 }
               : {
@@ -1494,8 +1454,7 @@ describe('runV2MigrationGate', () => {
           kind: 'process_interrupted',
           scope: 'engine',
           phase: 'interrupted',
-          errorCode: 'renderer_process_gone',
-          evidence: { kind: 'interruption', recoverySource: 'live_renderer_event' }
+          errorCode: 'renderer_process_gone'
         }
       })
       expect(presentDiagnosticFailureMock).toHaveBeenCalledTimes(1)

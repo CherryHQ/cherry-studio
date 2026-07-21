@@ -267,15 +267,7 @@ export class PreferencesMigrator extends BaseMigrator {
         const BATCH_SIZE = 100
         for (let i = 0; i < insertValues.length; i += BATCH_SIZE) {
           const batch = insertValues.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(
-            () =>
-              batch.map((row) => ({
-                role: 'json_value' as const,
-                kind: 'json' as const,
-                value: row.value
-              })),
-            () => tx.insert(preferenceTable).values(batch).run()
-          )
+          this.runDiagnosedWrite(() => tx.insert(preferenceTable).values(batch).run())
 
           // Report progress
           const progress = Math.round(((i + batch.length) / insertValues.length) * 100)

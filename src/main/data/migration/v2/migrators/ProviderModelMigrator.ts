@@ -490,15 +490,7 @@ export class ProviderModelMigrator extends BaseMigrator {
             const batch = modelRows.slice(modelIndex, modelIndex + BATCH_SIZE)
 
             if (batch.length > 0) {
-              this.runDiagnosedWrite(
-                () =>
-                  batch.flatMap((row) => [
-                    { role: 'json_value' as const, kind: 'json' as const, value: row.capabilities },
-                    { role: 'json_value' as const, kind: 'json' as const, value: row.inputModalities ?? null },
-                    { role: 'json_value' as const, kind: 'json' as const, value: row.outputModalities ?? null }
-                  ]),
-                () => tx.insert(userModelTable).values(batch).run()
-              )
+              this.runDiagnosedWrite(() => tx.insert(userModelTable).values(batch).run())
               processedModels += batch.length
             }
           }

@@ -11,10 +11,8 @@ import type { MigrationContext } from '../core/MigrationContext'
 import {
   type ClassifiedMigrationError,
   classifyMigrationError,
-  type FailedWriteValue,
-  measureFailedWriteValuesBestEffort,
-  type MigrationDiagnosticFailureEvidence,
-  type MigrationDiagnosticMigratorId
+  type MigrationDiagnosticMigratorId,
+  type MigrationFailureErrorCode
 } from '../diagnostics'
 
 export interface ProgressMessage {
@@ -32,7 +30,7 @@ interface ForeignKeyViolation {
 
 export interface DiagnosedPhaseFailure {
   readonly classification: ClassifiedMigrationError
-  readonly evidence?: MigrationDiagnosticFailureEvidence
+  readonly errorCodeOverride?: MigrationFailureErrorCode
 }
 
 export interface DiagnosedPhaseResult<TResult> {
@@ -96,17 +94,16 @@ export abstract class BaseMigrator {
   }
 
   /**
-   * Run one existing synchronous write boundary and capture only bounded shape
-   * metadata if it throws. The helper deliberately does not own a transaction,
-   * await the callback, clone rows, or inspect error text.
+   * Run one existing synchronous write boundary and preserve its stable error
+   * classification if it throws. The helper deliberately does not own a
+   * transaction or await the callback.
    */
-  protected runDiagnosedWrite<T>(values: () => readonly FailedWriteValue[], write: () => T): T {
+  protected runDiagnosedWrite<T>(write: () => T): T {
     try {
       return write()
     } catch (error) {
       this.diagnosedPhaseFailure = {
-        classification: classifyMigrationError(error),
-        evidence: measureFailedWriteValuesBestEffort(values)
+        classification: classifyMigrationError(error)
       }
       throw error
     }
@@ -124,18 +121,7 @@ export abstract class BaseMigrator {
   protected capturePhaseFailure(error: unknown): void {
     if (this.diagnosedPhaseFailure !== undefined) return
     const classification = classifyMigrationError(error)
-    this.diagnosedPhaseFailure = {
-      classification,
-      ...(classification.identifierViolation === undefined
-        ? {}
-        : {
-            evidence: {
-              kind: 'invariant' as const,
-              invariantRole: 'identifier' as const,
-              ...classification.identifierViolation
-            }
-          })
-    }
+    this.diagnosedPhaseFailure = { classification }
   }
 
   private async runPhaseWithDiagnostics<TResult extends { success: boolean }>(
@@ -217,7 +203,7 @@ export abstract class BaseMigrator {
       )
       this.captureDiagnosedFailure({
         classification: classifyMigrationError(error),
-        evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+        errorCodeOverride: 'validation_foreign_key'
       })
       throw error
     }

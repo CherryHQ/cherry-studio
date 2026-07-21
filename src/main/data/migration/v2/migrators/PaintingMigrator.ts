@@ -148,15 +148,7 @@ export class PaintingMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         for (let index = 0; index < paintings.length; index += INSERT_BATCH_SIZE) {
           const batch = paintings.slice(index, index + INSERT_BATCH_SIZE)
-          this.runDiagnosedWrite(
-            () =>
-              batch.map((row) => ({
-                role: 'text_value' as const,
-                kind: 'string' as const,
-                value: row.prompt
-              })),
-            () => tx.insert(paintingTable).values(batch).run()
-          )
+          this.runDiagnosedWrite(() => tx.insert(paintingTable).values(batch).run())
 
           this.reportProgress(
             Math.round((Math.min(index + INSERT_BATCH_SIZE, paintings.length) / paintings.length) * 100),

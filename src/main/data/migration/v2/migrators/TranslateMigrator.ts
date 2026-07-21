@@ -235,14 +235,7 @@ export class TranslateMigrator extends BaseMigrator {
         db.transaction((tx) => {
           for (let i = 0; i < newHistoryRecords.length; i += HISTORY_BATCH_SIZE) {
             const batch = newHistoryRecords.slice(i, i + HISTORY_BATCH_SIZE)
-            this.runDiagnosedWrite(
-              () =>
-                batch.flatMap((row) => [
-                  { role: 'text_value' as const, kind: 'string' as const, value: row.sourceText },
-                  { role: 'text_value' as const, kind: 'string' as const, value: row.targetText }
-                ]),
-              () => tx.insert(translateHistoryTable).values(batch).run()
-            )
+            this.runDiagnosedWrite(() => tx.insert(translateHistoryTable).values(batch).run())
 
             const historyProcessed = Math.min(i + HISTORY_BATCH_SIZE, newHistoryRecords.length)
             const progress = Math.round(((processedCount + historyProcessed) / totalCount) * 100)

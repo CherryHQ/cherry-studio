@@ -301,15 +301,7 @@ export class AssistantMigrator extends BaseMigrator {
 
         for (let i = 0; i < orderedAssistantRows.length; i += BATCH_SIZE) {
           const batch = orderedAssistantRows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(
-            () =>
-              batch.flatMap((row) => [
-                { role: 'text_value' as const, kind: 'string' as const, value: row.prompt ?? '' },
-                { role: 'text_value' as const, kind: 'string' as const, value: row.description ?? '' },
-                { role: 'json_value' as const, kind: 'json' as const, value: row.settings }
-              ]),
-            () => tx.insert(assistantTable).values(batch).run()
-          )
+          this.runDiagnosedWrite(() => tx.insert(assistantTable).values(batch).run())
           processed += batch.length
         }
 

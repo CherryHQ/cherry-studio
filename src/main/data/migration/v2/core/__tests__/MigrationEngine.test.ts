@@ -361,7 +361,7 @@ describe('MigrationEngine', () => {
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
   })
 
-  it('preserves the real MCP all-required-source-id failure evidence', async () => {
+  it('preserves the real MCP all-required-source-id failure code', async () => {
     vi.mocked(createMigrationContext).mockResolvedValueOnce({
       sources: {
         reduxState: {
@@ -384,13 +384,7 @@ describe('MigrationEngine', () => {
         scope: 'migrator',
         phase: 'prepare',
         migratorId: 'mcp_server',
-        errorCode: 'source_required_records_rejected',
-        evidence: {
-          kind: 'all_required_rows_rejected',
-          sourceRole: 'mcp_server',
-          fieldRole: 'source_id',
-          rejectedCountBucket: '2-10'
-        }
+        errorCode: 'source_required_records_rejected'
       }
     })
   })
@@ -549,8 +543,7 @@ describe('MigrationEngine', () => {
         kind: 'migration_validation_failed',
         scope: 'database',
         phase: 'validate',
-        errorCode: 'validation_foreign_key',
-        evidence: { kind: 'validation', checkRole: 'foreign_key' }
+        errorCode: 'validation_foreign_key'
       }
     })
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_FK_SAMPLE')
@@ -601,7 +594,7 @@ describe('MigrationEngine', () => {
       result: { success: false, processedCount: 0, error: 'PRIVATE_FK_DISPLAY' },
       failure: {
         classification: { errorCode: 'validation_foreign_key' },
-        evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+        errorCodeOverride: 'validation_foreign_key'
       }
     } as never)
     engine.registerMigrators([failing as any])
@@ -617,8 +610,7 @@ describe('MigrationEngine', () => {
         scope: 'migrator',
         phase: 'execute',
         migratorId: 'agents',
-        errorCode: 'validation_foreign_key',
-        evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+        errorCode: 'validation_foreign_key'
       }
     })
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_FK_DISPLAY')
@@ -665,8 +657,7 @@ describe('MigrationEngine', () => {
         scope: 'migrator',
         phase: 'execute',
         migratorId: 'agents',
-        errorCode: 'validation_foreign_key',
-        evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+        errorCode: 'validation_foreign_key'
       }
     })
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_PARENT_TABLE')
@@ -766,13 +757,7 @@ describe('MigrationEngine', () => {
         scope: 'migrator',
         phase: 'validate',
         migratorId: 'knowledge_vector',
-        errorCode: 'validation_count_mismatch',
-        evidence: {
-          kind: 'validation',
-          checkRole: 'count',
-          expectedCountBucket: '2-10',
-          actualCountBucket: '1'
-        }
+        errorCode: 'validation_count_mismatch'
       }
     })
 

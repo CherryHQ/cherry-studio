@@ -27,11 +27,9 @@ export {
   createMigrationDiagnosticBundleBuilder,
   createMigrationDiagnosticsCoordinator,
   createMigrationRendererExportDiagnosticFailure,
-  createMigrationVersionGateContext,
   type MigrationDiagnosticBundleSaveResult,
   type MigrationDiagnosticFailure,
-  type MigrationRendererExportMainWriteFailure,
-  type MigrationVersionGateContext
+  type MigrationRendererExportMainWriteFailure
 } from './migrationDiagnostics'
 export type {
   MigrationDiagnosticNativeDecision,

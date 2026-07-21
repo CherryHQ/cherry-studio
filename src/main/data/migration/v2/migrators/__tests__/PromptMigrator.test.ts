@@ -182,15 +182,7 @@ describe('PromptMigrator', () => {
       const diagnosed = await migrator.executeWithDiagnostics(ctx)
 
       expect(diagnosed.result.success).toBe(false)
-      expect(diagnosed.failure).toMatchObject({
-        classification: { errorCode: 'sqlite_too_big' },
-        evidence: {
-          kind: 'failed_write',
-          values: expect.arrayContaining([
-            expect.objectContaining({ role: 'text_value', kind: 'string', byteLengthBucket: '65537-262144' })
-          ])
-        }
-      })
+      expect(diagnosed.failure).toEqual({ classification: { errorCode: 'sqlite_too_big' } })
       expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_PROMPT_CANARY')
     })
 

@@ -4,16 +4,10 @@ const MAX_CAUSE_DEPTH = 4
 
 export interface ClassifiedMigrationError {
   readonly errorCode: MigrationFailureErrorCode
-  readonly identifierViolation?:
-    | { readonly identifierRole: 'provider_id'; readonly rule: 'empty' | 'contains_separator' }
-    | { readonly identifierRole: 'model_id'; readonly rule: 'empty' | 'contains_reserved_route_character' }
 }
 
-function classified(
-  errorCode: MigrationFailureErrorCode,
-  identifierViolation?: ClassifiedMigrationError['identifierViolation']
-): ClassifiedMigrationError {
-  return { errorCode, ...(identifierViolation === undefined ? {} : { identifierViolation }) }
+function classified(errorCode: MigrationFailureErrorCode): ClassifiedMigrationError {
+  return { errorCode }
 }
 
 const UNKNOWN_CLASSIFICATION = classified('unknown_error')
@@ -83,18 +77,6 @@ function classifyCode(code: string): MigrationFailureErrorCode | undefined {
   }
 }
 
-function classifyIdentifierViolation(value: object): ClassifiedMigrationError['identifierViolation'] {
-  const identifierRole = ownDataProperty(value, 'identifierRole')
-  const rule = ownDataProperty(value, 'rule')
-  if (identifierRole === 'provider_id' && (rule === 'empty' || rule === 'contains_separator')) {
-    return { identifierRole, rule }
-  }
-  if (identifierRole === 'model_id' && (rule === 'empty' || rule === 'contains_reserved_route_character')) {
-    return { identifierRole, rule }
-  }
-  return undefined
-}
-
 function isObjectLike(value: unknown): value is object {
   return (typeof value === 'object' && value !== null) || typeof value === 'function'
 }
@@ -119,10 +101,7 @@ export function classifyMigrationError(error: unknown): ClassifiedMigrationError
     const code = ownDataProperty(current, 'code')
     if (typeof code === 'string') {
       if (code === 'INVALID_UNIQUE_MODEL_ID') {
-        const identifierViolation = classifyIdentifierViolation(current)
-        if (identifierViolation !== undefined) {
-          return classified('source_invalid_identifier', identifierViolation)
-        }
+        return classified('source_invalid_identifier')
       }
       const errorCode = classifyCode(code)
       if (errorCode) return classified(errorCode)

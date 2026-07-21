@@ -1984,15 +1984,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     } as any)
 
     expect(diagnosed.result.success).toBe(false)
-    expect(diagnosed.failure).toMatchObject({
-      classification: { errorCode: 'sqlite_too_big' },
-      evidence: {
-        kind: 'failed_write',
-        values: expect.arrayContaining([
-          expect.objectContaining({ role: 'json_value', kind: 'json', byteLengthBucket: '65537-262144' })
-        ])
-      }
-    })
+    expect(diagnosed.failure).toEqual({ classification: { errorCode: 'sqlite_too_big' } })
     expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_KNOWLEDGE_CONTENT')
     expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
   })

@@ -5,7 +5,6 @@ import path from 'node:path'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from '../migrationDatabaseDiagnosticsSchemas'
 import {
   MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES,
   MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES,
@@ -45,19 +44,7 @@ function failedSnapshot(): MigrationDiagnosticsSnapshot {
         scope: 'migrator',
         phase: 'execute',
         migratorId: 'chat',
-        errorCode: 'sqlite_too_big',
-        evidence: {
-          kind: 'failed_write',
-          truncated: false,
-          values: [
-            {
-              role: 'json_value',
-              kind: 'json',
-              byteLength: 262_145,
-              byteLengthBucket: '262145+'
-            }
-          ]
-        }
+        errorCode: 'sqlite_too_big'
       }
     }
   }
@@ -75,12 +62,8 @@ function databaseDiagnostics() {
     sqlite: {
       status: 'available' as const,
       quickCheck: 'ok' as const,
-      foreignKeyViolationCountBucket: '0' as const,
-      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) => ({
-        role,
-        tableName: table,
-        status: 'present' as const
-      }))
+      foreignKeyViolationCount: 0,
+      schema: { status: 'ok' as const }
     }
   }
 }
@@ -106,10 +89,12 @@ afterEach(() => {
   rmSync(testDir, { recursive: true, force: true })
 })
 
-describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
-  it('writes exactly one strict JSON document followed by the support README', async () => {
+describe('MigrationDiagnosticBundleBuilder archive contract', () => {
+  it('writes strict JSON, the complete application log, and the support README', async () => {
+    const applicationLog = Buffer.from('TOKEN_CANARY=PRIVATE_FULL_LOG\nsecond line')
     const result = await new MigrationDiagnosticBundleBuilder({
-      clock: () => new Date('2026-07-21T08:02:00.000Z')
+      clock: () => new Date('2026-07-21T08:02:00.000Z'),
+      collectApplicationLog: async () => applicationLog
     }).save({
       destination: destination(),
       snapshot: failedSnapshot(),
@@ -119,6 +104,7 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
     expect(result).toMatchObject({ status: 'saved' })
     const entries = await readArchive(destination())
     expect([...entries.keys()]).toEqual([...MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES])
+    expect(entries.get('application.log')).toEqual(applicationLog)
 
     const json = entries.get('migration-diagnostics.json')?.toString('utf8') ?? ''
     expect(json).toContain('\n  "formatVersion"')
@@ -126,7 +112,7 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
 
     const document = migrationDiagnosticBundleDocumentSchema.parse(JSON.parse(json))
     expect(document).toMatchObject({
-      formatVersion: 1,
+      formatVersion: 2,
       generatedAt: '2026-07-21T08:02:00.000Z',
       state: 'failed',
       current: { status: 'failed', failure: { errorCode: 'sqlite_too_big' } },
@@ -136,15 +122,13 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
     expect(document).not.toHaveProperty('events')
 
     const readme = entries.get('README.txt')?.toString('utf8') ?? ''
-    expect(readme).toMatch(/raw errors.*stacks.*SQL.*credentials.*paths.*user content/is)
+    expect(readme).toMatch(/application\.log.*complete.*not redacted.*sensitive/is)
     expect(readme).toMatch(/manually attach/is)
     expect(readme).toMatch(/not automatically upload/is)
     expect(readme).toMatch(/database diagnostics.*unavailable.*child/is)
     expect(readme).toContain('Cherry Studio 迁移诊断')
-    expect(readme).toMatch(/此 ZIP 包含.*migration-diagnostics\.json.*README\.txt/is)
-    expect(readme).toMatch(
-      /不包含数据库文件.*应用日志.*业务数据.*原始错误.*堆栈.*SQL.*凭据.*路径.*记录标识符.*令牌.*用户内容/is
-    )
+    expect(readme).toMatch(/此 ZIP 包含.*migration-diagnostics\.json.*application\.log.*README\.txt/is)
+    expect(readme).toMatch(/application\.log.*完整.*未脱敏.*敏感信息/is)
     expect(readme).toMatch(/数据库诊断.*不可用.*子进程/is)
     expect(readme).toMatch(/手动附加.*不会自动上传/is)
 
@@ -158,7 +142,7 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
     const snapshot = { ...failedSnapshot(), rawError: 'RAW_ERROR_CANARY' } as never
 
     await expect(
-      new MigrationDiagnosticBundleBuilder().save({
+      new MigrationDiagnosticBundleBuilder({ collectApplicationLog: async () => null }).save({
         destination: destination(),
         snapshot,
         collectDatabaseDiagnostics
@@ -169,7 +153,7 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
     expect(existsSync(destination())).toBe(false)
   })
 
-  it('never serializes rejected fields, collector errors, or test-only causes', async () => {
+  it('omits the optional application log when collection fails', async () => {
     const snapshot = failedSnapshot()
     const failure = snapshot.current?.status === 'failed' ? snapshot.current.failure : {}
     Object.defineProperty(failure, 'testOnlyCause', {
@@ -177,7 +161,11 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
       enumerable: false
     })
 
-    const result = await new MigrationDiagnosticBundleBuilder().save({
+    const result = await new MigrationDiagnosticBundleBuilder({
+      collectApplicationLog: async () => {
+        throw new Error(PRIVACY_CANARIES.join(' '))
+      }
+    }).save({
       destination: destination(),
       snapshot,
       collectDatabaseDiagnostics: async () => {
@@ -187,11 +175,25 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
 
     expect(result.status).toBe('saved')
     const entries = await readArchive(destination())
+    expect(entries.has('application.log')).toBe(false)
     const serialized = Buffer.concat([...entries.values()]).toString('utf8')
     for (const canary of PRIVACY_CANARIES) expect(serialized).not.toContain(canary)
     const document = migrationDiagnosticBundleDocumentSchema.parse(
       JSON.parse(entries.get('migration-diagnostics.json')?.toString('utf8') ?? '')
     )
     expect(document.database.sqlite).toEqual({ status: 'unavailable', reason: 'not_attempted' })
+  })
+
+  it('fails before publication when the uncompressed bundle exceeds the fixed limit', async () => {
+    const result = await new MigrationDiagnosticBundleBuilder({
+      collectApplicationLog: async () => Buffer.alloc(MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES)
+    }).save({
+      destination: destination(),
+      snapshot: failedSnapshot(),
+      collectDatabaseDiagnostics: async () => databaseDiagnostics()
+    })
+
+    expect(result).toEqual({ status: 'failed', code: 'bundle_save_failed' })
+    expect(existsSync(destination())).toBe(false)
   })
 })

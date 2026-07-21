@@ -4,6 +4,7 @@ import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/fil
 import type { FilePath } from '@shared/types/file'
 import { ZipArchive } from 'archiver'
 
+import { MigrationApplicationLogCollector } from './MigrationApplicationLogCollector'
 import {
   type MigrationDatabaseDiagnosticResult,
   migrationDatabaseDiagnosticResultSchema
@@ -43,6 +44,7 @@ export type MigrationDiagnosticBundleSaveResult =
 
 interface MigrationDiagnosticBundleBuilderOptions {
   readonly clock?: () => Date
+  readonly collectApplicationLog?: () => Promise<Buffer | null>
 }
 
 function failed(): MigrationDiagnosticBundleSaveResult {
@@ -66,13 +68,22 @@ async function collectSafeDatabaseDiagnostics(
   }
 }
 
+async function collectSafeApplicationLog(collector: () => Promise<Buffer | null>): Promise<Buffer | null> {
+  try {
+    const applicationLog = await collector()
+    return Buffer.isBuffer(applicationLog) ? applicationLog : null
+  } catch {
+    return null
+  }
+}
+
 function createDocument(
   snapshot: MigrationDiagnosticsSnapshot,
   database: MigrationDatabaseDiagnosticResult,
   generatedAt: string
 ): MigrationDiagnosticBundleDocument {
   return migrationDiagnosticBundleDocumentSchema.parse({
-    formatVersion: 1,
+    formatVersion: 2,
     generatedAt,
     app: snapshot.app,
     state: snapshot.state,
@@ -84,16 +95,18 @@ function createDocument(
 
 function serializeEntries(
   document: MigrationDiagnosticBundleDocument,
-  readme: string
+  readme: string,
+  applicationLog: Buffer | null
 ): {
   readonly entries: readonly MigrationDiagnosticArchiveEntry[]
   readonly uncompressedBytes: number
 } {
-  const entries = [
+  const entries: MigrationDiagnosticArchiveEntry[] = [
     {
       name: 'migration-diagnostics.json' as const,
       buffer: Buffer.from(`${JSON.stringify(document, null, 2)}\n`, 'utf8')
     },
+    ...(applicationLog === null ? [] : [{ name: 'application.log' as const, buffer: applicationLog }]),
     { name: 'README.txt' as const, buffer: Buffer.from(readme, 'utf8') }
   ]
   const uncompressedBytes = entries.reduce((total, entry) => total + entry.buffer.byteLength, 0)
@@ -155,9 +168,12 @@ async function writeArchive(destination: FilePath, entries: readonly MigrationDi
 
 export class MigrationDiagnosticBundleBuilder {
   private readonly clock: () => Date
+  private readonly collectApplicationLog: () => Promise<Buffer | null>
 
   constructor(options: MigrationDiagnosticBundleBuilderOptions = {}) {
     this.clock = options.clock ?? (() => new Date())
+    this.collectApplicationLog =
+      options.collectApplicationLog ?? (() => new MigrationApplicationLogCollector().collect())
   }
 
   async save(input: MigrationDiagnosticBundleSaveInput): Promise<MigrationDiagnosticBundleSaveResult> {
@@ -170,11 +186,14 @@ export class MigrationDiagnosticBundleBuilder {
       return failed()
     }
 
-    const database = await collectSafeDatabaseDiagnostics(input.collectDatabaseDiagnostics)
+    const [database, applicationLog] = await Promise.all([
+      collectSafeDatabaseDiagnostics(input.collectDatabaseDiagnostics),
+      collectSafeApplicationLog(this.collectApplicationLog)
+    ])
     let serialized: ReturnType<typeof serializeEntries>
     try {
       const document = createDocument(snapshot, database, this.clock().toISOString())
-      serialized = serializeEntries(document, await createMigrationDiagnosticBundleReadme())
+      serialized = serializeEntries(document, await createMigrationDiagnosticBundleReadme(), applicationLog)
     } catch {
       return failed()
     }

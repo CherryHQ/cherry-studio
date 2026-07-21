@@ -243,30 +243,21 @@ describe('ProviderModelMigrator', () => {
     })
 
     it.each([
-      ['provider::private', 'model', 'provider_id', 'contains_separator'],
-      ['provider', 'model?private', 'model_id', 'contains_reserved_route_character']
-    ] as const)(
-      'returns fixed invalid-identifier evidence for provider=%s model=%s',
-      async (providerId, modelId, identifierRole, rule) => {
-        const migrationContext = createContext(dbh.db, {
-          llm: { providers: [makeProvider(providerId, [{ id: modelId }])] }
-        })
-        await migrator.prepare(migrationContext)
+      ['provider::private', 'model'],
+      ['provider', 'model?private']
+    ] as const)('returns a stable invalid-identifier code for provider=%s model=%s', async (providerId, modelId) => {
+      const migrationContext = createContext(dbh.db, {
+        llm: { providers: [makeProvider(providerId, [{ id: modelId }])] }
+      })
+      await migrator.prepare(migrationContext)
 
-        const diagnosed = await migrator.executeWithDiagnostics(migrationContext)
+      const diagnosed = await migrator.executeWithDiagnostics(migrationContext)
 
-        expect(diagnosed.result.success).toBe(false)
-        expect(diagnosed.failure).toEqual({
-          classification: {
-            errorCode: 'source_invalid_identifier',
-            identifierViolation: { identifierRole, rule }
-          },
-          evidence: { kind: 'invariant', invariantRole: 'identifier', identifierRole, rule }
-        })
-        expect(JSON.stringify(diagnosed.failure)).not.toContain('provider::private')
-        expect(JSON.stringify(diagnosed.failure)).not.toContain('model?private')
-      }
-    )
+      expect(diagnosed.result.success).toBe(false)
+      expect(diagnosed.failure).toEqual({ classification: { errorCode: 'source_invalid_identifier' } })
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('provider::private')
+      expect(JSON.stringify(diagnosed.failure)).not.toContain('model?private')
+    })
 
     it('returns success with zero count when no providers', async () => {
       const migrationContext = createContext(dbh.db, { llm: {} })

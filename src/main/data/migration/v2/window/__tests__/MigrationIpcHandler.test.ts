@@ -72,13 +72,12 @@ const diagnosticSnapshot = {
       kind: 'renderer_export_failed',
       scope: 'renderer_export',
       phase: 'finalize',
-      errorCode: 'source_parse_failed',
-      evidence: { kind: 'renderer_export', sourceRole: 'redux', operationRole: 'parse' }
+      errorCode: 'source_parse_failed'
     }
   }
 } as const
 const electronMocks = vi.hoisted(() => ({
-  app: { getLocale: vi.fn(), quit: vi.fn() },
+  app: { getLocale: vi.fn(), getPath: vi.fn(() => '/mock/logs'), quit: vi.fn() },
   clipboard: { writeText: vi.fn() },
   dialog: { showMessageBox: vi.fn(), showSaveDialog: vi.fn() },
   ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
@@ -778,7 +777,7 @@ describe('MigrationIpcHandler', () => {
       expect(JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)).not.toContain('PRIVATE_MAIN_WRITE')
     })
 
-    it('captures a real ENOTDIR migration-temp blocker without exposing the path or payload', async () => {
+    it('classifies a real ENOTDIR migration-temp blocker without probing or exposing the path or payload', async () => {
       const userData = mkdtempSync(path.join(tmpdir(), 'cs-migration-handler-enotdir-'))
       const paths = createMigrationIpcPaths(userData)
       writeFileSync(paths.migrationTempDir, 'blocker')
@@ -803,20 +802,10 @@ describe('MigrationIpcHandler', () => {
           report: { sourceRole: 'local_storage', operationRole: 'write' }
         })
 
-        expect(fsMocks.lstat.mock.calls).toEqual([[paths.migrationTempDir]])
+        expect(fsMocks.lstat).not.toHaveBeenCalled()
         expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
           { sourceRole: 'local_storage', operationRole: 'write' },
-          {
-            errorCode: 'file_invalid_type',
-            filesystemEvidence: {
-              causeCode: 'ENOTDIR',
-              filesystemOperation: 'mkdir',
-              targetRole: 'local_storage_export_file',
-              blockingNodeRole: 'migration_temp_root',
-              expectedNodeType: 'file',
-              observedNodeType: 'file'
-            }
-          }
+          { errorCode: 'file_invalid_type' }
         )
         const capabilityPayload = JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)
         expect(capabilityPayload).not.toContain(userData)
@@ -826,7 +815,7 @@ describe('MigrationIpcHandler', () => {
       }
     })
 
-    it('publishes handler-produced filesystem evidence through the real coordinator and ZIP builder', async () => {
+    it('publishes the compact handler error code through the real coordinator and ZIP builder', async () => {
       const testDir = mkdtempSync(path.join(tmpdir(), 'cs-migration-handler-evidence-'))
       const destination = path.join(testDir, 'diagnostics.zip')
       const paths = createMigrationIpcPaths(path.join(testDir, 'user-data'))
@@ -837,7 +826,8 @@ describe('MigrationIpcHandler', () => {
         clock: () => new Date('2026-07-21T08:00:00.000Z')
       })
       const bundleBuilder = new MigrationDiagnosticBundleBuilder({
-        clock: () => new Date('2026-07-21T08:01:00.000Z')
+        clock: () => new Date('2026-07-21T08:01:00.000Z'),
+        collectApplicationLog: async () => null
       })
       mkdirSync(paths.localStorageExportFile, { recursive: true })
       useRealExportFilesystem()
@@ -893,27 +883,10 @@ describe('MigrationIpcHandler', () => {
             status: 'failed',
             failure: {
               kind: 'renderer_export_failed',
-              errorCode: 'file_invalid_type',
-              evidence: {
-                kind: 'renderer_export',
-                sourceRole: 'local_storage',
-                operationRole: 'write',
-                filesystemEvidence: {
-                  causeCode: 'EISDIR',
-                  filesystemOperation: 'write',
-                  targetRole: 'local_storage_export_file',
-                  blockingNodeRole: 'local_storage_export_file',
-                  expectedNodeType: 'file',
-                  observedNodeType: 'directory'
-                }
-              }
+              errorCode: 'file_invalid_type'
             }
           })
-          expect(fsMocks.lstat.mock.calls).toEqual([
-            [paths.migrationTempDir],
-            [paths.localStorageExportDir],
-            [paths.localStorageExportFile]
-          ])
+          expect(fsMocks.lstat).not.toHaveBeenCalled()
           const serialized = Buffer.concat([
             await zip.entryData('migration-diagnostics.json'),
             await zip.entryData('README.txt')
@@ -929,7 +902,7 @@ describe('MigrationIpcHandler', () => {
       }
     })
 
-    it('captures a real EEXIST Dexie export-directory blocker', async () => {
+    it('classifies a real EEXIST Dexie export-directory blocker without probing it', async () => {
       const userData = mkdtempSync(path.join(tmpdir(), 'cs-migration-handler-dexie-eexist-'))
       const paths = createMigrationIpcPaths(userData)
       mkdirSync(paths.migrationTempDir, { recursive: true })
@@ -955,27 +928,17 @@ describe('MigrationIpcHandler', () => {
           report: { sourceRole: 'dexie', operationRole: 'write' }
         })
 
-        expect(fsMocks.lstat.mock.calls).toEqual([[paths.migrationTempDir], [paths.dexieExportDir]])
+        expect(fsMocks.lstat).not.toHaveBeenCalled()
         expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
           { sourceRole: 'dexie', operationRole: 'write' },
-          {
-            errorCode: 'file_invalid_type',
-            filesystemEvidence: {
-              causeCode: 'EEXIST',
-              filesystemOperation: 'mkdir',
-              targetRole: 'dexie_export_directory',
-              blockingNodeRole: 'dexie_export_directory',
-              expectedNodeType: 'directory',
-              observedNodeType: 'file'
-            }
-          }
+          { errorCode: 'file_invalid_type' }
         )
       } finally {
         rmSync(userData, { recursive: true, force: true })
       }
     })
 
-    it('captures a real EEXIST local-storage export-directory blocker', async () => {
+    it('classifies a real EEXIST local-storage export-directory blocker without probing it', async () => {
       const userData = mkdtempSync(path.join(tmpdir(), 'cs-migration-handler-local-eexist-'))
       const paths = createMigrationIpcPaths(userData)
       mkdirSync(paths.migrationTempDir, { recursive: true })
@@ -1001,27 +964,17 @@ describe('MigrationIpcHandler', () => {
           report: { sourceRole: 'local_storage', operationRole: 'write' }
         })
 
-        expect(fsMocks.lstat.mock.calls).toEqual([[paths.migrationTempDir], [paths.localStorageExportDir]])
+        expect(fsMocks.lstat).not.toHaveBeenCalled()
         expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
           { sourceRole: 'local_storage', operationRole: 'write' },
-          {
-            errorCode: 'file_invalid_type',
-            filesystemEvidence: {
-              causeCode: 'EEXIST',
-              filesystemOperation: 'mkdir',
-              targetRole: 'local_storage_export_file',
-              blockingNodeRole: 'local_storage_export_directory',
-              expectedNodeType: 'file',
-              observedNodeType: 'file'
-            }
-          }
+          { errorCode: 'file_invalid_type' }
         )
       } finally {
         rmSync(userData, { recursive: true, force: true })
       }
     })
 
-    it('keeps the original type conflict when the controlled lstat probe fails', async () => {
+    it('keeps the original type conflict without a filesystem probe', async () => {
       const original = Object.assign(new Error('PRIVATE_ORIGINAL_FAILURE'), { code: 'ENOTDIR' })
       fsMocks.mkdir.mockRejectedValueOnce(original)
       fsMocks.lstat.mockRejectedValueOnce(new Error('PRIVATE_PROBE_FAILURE'))
@@ -1042,14 +995,7 @@ describe('MigrationIpcHandler', () => {
 
       expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
         { sourceRole: 'dexie', operationRole: 'write' },
-        {
-          errorCode: 'file_invalid_type',
-          filesystemEvidence: expect.objectContaining({
-            causeCode: 'ENOTDIR',
-            blockingNodeRole: 'unknown',
-            observedNodeType: 'unavailable'
-          })
-        }
+        { errorCode: 'file_invalid_type' }
       )
     })
 
@@ -1069,13 +1015,7 @@ describe('MigrationIpcHandler', () => {
       expect(fsMocks.lstat).not.toHaveBeenCalled()
       expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
         { sourceRole: 'dexie', operationRole: 'write' },
-        {
-          errorCode: 'file_invalid_type',
-          filesystemEvidence: expect.objectContaining({
-            blockingNodeRole: 'unknown',
-            observedNodeType: 'unavailable'
-          })
-        }
+        { errorCode: 'file_invalid_type' }
       )
       expect(JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)).not.toContain(
         '/private/renderer-controlled'

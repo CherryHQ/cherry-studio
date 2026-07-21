@@ -23,12 +23,6 @@ import { type McpServerTransformResult, transformMcpServer } from './mappings/Mc
 
 const logger = loggerService.withContext('McpServerMigrator')
 
-function rejectedCountBucket(count: number): '1' | '2-10' | '11+' {
-  if (count === 1) return '1'
-  if (count <= 10) return '2-10'
-  return '11+'
-}
-
 export class McpServerMigrator extends BaseMigrator {
   readonly id = 'mcp_server'
   readonly name = 'MCP Server'
@@ -88,12 +82,7 @@ export class McpServerMigrator extends BaseMigrator {
             })
             this.captureDiagnosedFailure({
               classification: classifyMigrationError(error),
-              evidence: {
-                kind: 'all_required_rows_rejected',
-                sourceRole: 'mcp_server',
-                fieldRole: 'source_id',
-                rejectedCountBucket: rejectedCountBucket(requiredFieldRejections)
-              }
+              errorCodeOverride: 'source_required_records_rejected'
             })
           }
           return {
@@ -143,15 +132,7 @@ export class McpServerMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         for (let i = 0; i < rows.length; i += BATCH_SIZE) {
           const batch = rows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(
-            () =>
-              batch.flatMap((row) => [
-                { role: 'json_value' as const, kind: 'json' as const, value: row.args },
-                { role: 'json_value' as const, kind: 'json' as const, value: row.env },
-                { role: 'json_value' as const, kind: 'json' as const, value: row.headers }
-              ]),
-            () => tx.insert(mcpServerTable).values(batch).run()
-          )
+          this.runDiagnosedWrite(() => tx.insert(mcpServerTable).values(batch).run())
           processed += batch.length
         }
       })

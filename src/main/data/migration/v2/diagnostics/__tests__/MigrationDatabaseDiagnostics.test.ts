@@ -14,17 +14,11 @@ import {
   type MigrationDatabaseDiagnosticsChildFactory,
   type MigrationDatabaseDiagnosticsChildLike
 } from '../MigrationDatabaseDiagnostics'
-import { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from '../migrationDatabaseDiagnosticsSchemas'
-
 const available = {
   status: 'available',
   quickCheck: 'ok',
-  foreignKeyViolationCountBucket: '0',
-  objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) => ({
-    role,
-    tableName: table,
-    status: 'present' as const
-  }))
+  foreignKeyViolationCount: 0,
+  schema: { status: 'ok' }
 } as const
 
 class FakeChild extends EventEmitter implements MigrationDatabaseDiagnosticsChildLike {

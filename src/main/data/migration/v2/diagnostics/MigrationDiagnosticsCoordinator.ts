@@ -211,11 +211,7 @@ export class MigrationDiagnosticsCoordinator {
       kind: 'process_interrupted',
       scope: 'engine',
       phase: 'interrupted',
-      errorCode: 'process_interrupted',
-      evidence: {
-        kind: 'interruption',
-        recoverySource: 'checkpoint'
-      }
+      errorCode: 'process_interrupted'
     } as const
     this.commit({
       ...this.currentCheckpoint,

@@ -213,7 +213,7 @@ describe('AgentsMigrator', () => {
     expect(executed.some((stmt) => stmt?.startsWith('DELETE FROM agent'))).toBe(false)
   })
 
-  it('preserves fixed foreign-key evidence when the actual owned-table self-check throws', async () => {
+  it('preserves a fixed foreign-key code when the actual owned-table self-check throws', async () => {
     const run = vi.fn().mockReturnValue(undefined)
     const select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue([]), where: vi.fn().mockResolvedValue([]) })
@@ -254,7 +254,7 @@ describe('AgentsMigrator', () => {
     const diagnosedFailure = takeThrownDiagnosedPhaseFailure(thrown)
     expect(diagnosedFailure).toEqual({
       classification: { errorCode: 'validation_foreign_key' },
-      evidence: { kind: 'invariant', invariantRole: 'foreign_key' }
+      errorCodeOverride: 'validation_foreign_key'
     })
     expect(JSON.stringify(diagnosedFailure)).not.toContain('PRIVATE_PARENT_TABLE')
     expect(takeThrownDiagnosedPhaseFailure(thrown)).toBeUndefined()

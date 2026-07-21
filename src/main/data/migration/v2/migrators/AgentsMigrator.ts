@@ -12,7 +12,6 @@ import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { FailedWriteValue } from '../diagnostics'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
@@ -50,9 +49,9 @@ const HEARTBEAT_INTERVAL_FALLBACK_MS = 60 * 60_000
 
 const logger = loggerService.withContext('AgentsMigrator')
 
-type DiagnosedWrite = <T>(values: () => readonly FailedWriteValue[], write: () => T) => T
+type DiagnosedWrite = <T>(write: () => T) => T
 
-const runWithoutDiagnostics: DiagnosedWrite = (_values, write) => write()
+const runWithoutDiagnostics: DiagnosedWrite = (write) => write()
 
 export class AgentsMigrator extends BaseMigrator {
   readonly id = 'agents'
@@ -137,7 +136,7 @@ export class AgentsMigrator extends BaseMigrator {
     // BEGIN/COMMIT/ROLLBACK via db.run() so ATTACH, all INSERTs, and DETACH run
     // in order on the single connection, with the inserts kept atomic.
     const importStatements = statements.slice(1, -1)
-    const diagnoseWrite: DiagnosedWrite = (values, write) => this.runDiagnosedWrite(values, write)
+    const diagnoseWrite: DiagnosedWrite = (write) => this.runDiagnosedWrite(write)
     let isAttached = false
     let committed = false
     let pendingError: unknown = null
@@ -508,13 +507,8 @@ export class AgentsMigrator extends BaseMigrator {
         enabled: v1.status === 'active',
         metadata: { migratedFrom: 'v1.agentTask', v1Id: v1.id }
       }
-      const inserted = diagnoseWrite(
-        () => [
-          { role: 'json_value', kind: 'json', value: scheduleRow.trigger },
-          { role: 'json_value', kind: 'json', value: scheduleRow.jobInputTemplate },
-          { role: 'json_value', kind: 'json', value: scheduleRow.catchUpPolicy }
-        ],
-        () => db.insert(jobScheduleTable).values(scheduleRow).returning({ id: jobScheduleTable.id }).all()
+      const inserted = diagnoseWrite(() =>
+        db.insert(jobScheduleTable).values(scheduleRow).returning({ id: jobScheduleTable.id }).all()
       )
 
       const newId = inserted[0]?.id
@@ -943,10 +937,7 @@ export async function importLegacySessionMessages(
       createdAt,
       updatedAt
     }
-    diagnoseWrite(
-      () => [{ role: 'json_value', kind: 'json', value: messageRow.data }],
-      () => db.insert(agentSessionMessageTable).values(messageRow).run()
-    )
+    diagnoseWrite(() => db.insert(agentSessionMessageTable).values(messageRow).run())
     imported++
   }
 

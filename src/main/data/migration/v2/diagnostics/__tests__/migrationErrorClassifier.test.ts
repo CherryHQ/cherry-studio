@@ -58,13 +58,7 @@ describe('classifyMigrationError', () => {
 
     const result = classifyMigrationError(new Error('PRIVATE_WRAPPER', { cause: error }))
 
-    expect(result).toEqual({
-      errorCode: 'source_invalid_identifier',
-      identifierViolation: {
-        identifierRole: 'model_id',
-        rule: 'contains_reserved_route_character'
-      }
-    })
+    expect(result).toEqual({ errorCode: 'source_invalid_identifier' })
     expect(JSON.stringify(result)).not.toContain('PRIVATE_')
   })
 

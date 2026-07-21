@@ -8,12 +8,6 @@ import {
   migrationDatabaseSqliteResultSchema
 } from '../migrationDatabaseDiagnosticsSchemas'
 
-const objects = MIGRATION_DATABASE_OBJECT_DEFINITIONS.map((definition) => ({
-  role: definition.role,
-  tableName: definition.table,
-  status: 'present' as const
-}))
-
 const expectedTargets = [
   ['app_state', 'app_state'],
   ['preference', 'preference'],
@@ -56,8 +50,8 @@ const expectedTargets = [
 const availableSqlite = {
   status: 'available',
   quickCheck: 'ok',
-  foreignKeyViolationCountBucket: '0',
-  objects
+  foreignKeyViolationCount: 0,
+  schema: { status: 'ok' }
 } as const
 
 const result = {
@@ -124,53 +118,36 @@ describe('migrationDatabaseSqliteResultSchema', () => {
     expect(MIGRATION_DATABASE_OBJECT_DEFINITIONS.every(({ columns }) => columns.length > 0)).toBe(true)
   })
 
-  it('requires exactly one result for every fixed object role', () => {
+  it('accepts a compact healthy schema result without per-table success entries', () => {
     expect(migrationDatabaseSqliteResultSchema.parse(availableSqlite)).toEqual(availableSqlite)
-    expect(
-      migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: objects.slice(1) }).success
-    ).toBe(false)
-    expect(
-      migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: [...objects.slice(1), objects[1]] })
-        .success
-    ).toBe(false)
+    expect(availableSqlite).not.toHaveProperty('objects')
   })
 
-  it('allows only fixed missing-column roles and only on missing_columns', () => {
-    const missing = objects.map((object) =>
-      object.role === 'user_model'
-        ? { ...object, status: 'missing_columns' as const, missingColumnRoles: ['model_id'] }
-        : object
-    )
-    expect(migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: missing }).success).toBe(true)
+  it('accepts missing tables and columns only for a schema mismatch', () => {
     expect(
       migrationDatabaseSqliteResultSchema.safeParse({
         ...availableSqlite,
-        objects: objects.map((object) =>
-          object.role === 'user_model' ? { ...object, missingColumnRoles: ['private_column_name'] } : object
-        )
+        schema: {
+          status: 'mismatch',
+          missingTables: ['mcp_server'],
+          missingColumns: { prompt: ['content'] }
+        }
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects mismatch-only fields on an ok schema and empty missing-column lists', () => {
+    expect(
+      migrationDatabaseSqliteResultSchema.safeParse({
+        ...availableSqlite,
+        schema: { status: 'ok', missingTables: ['mcp_server'] }
       }).success
     ).toBe(false)
-  })
-
-  it('requires the exact table name for each role', () => {
-    const promptIndex = objects.findIndex(({ role }) => role === 'prompt')
-    const prompt = objects[promptIndex]
-    if (prompt === undefined) throw new Error('Expected the prompt diagnostics target')
-
-    const wrongTable = objects.with(promptIndex, { ...prompt, tableName: 'private_table_name' })
-    expect(migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: wrongTable }).success).toBe(
-      false
-    )
-  })
-
-  it('rejects globally valid columns that do not belong to the selected table', () => {
-    const wrongMissingColumns = objects.map((object) =>
-      object.role === 'prompt'
-        ? { ...object, status: 'missing_columns' as const, missingColumnRoles: ['app_id'] }
-        : object
-    )
     expect(
-      migrationDatabaseSqliteResultSchema.safeParse({ ...availableSqlite, objects: wrongMissingColumns }).success
+      migrationDatabaseSqliteResultSchema.safeParse({
+        ...availableSqlite,
+        schema: { status: 'mismatch', missingTables: [], missingColumns: { prompt: [] } }
+      }).success
     ).toBe(false)
   })
 

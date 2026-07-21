@@ -7,7 +7,6 @@ import { sql } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
-import type { FailedWriteValue } from '../../diagnostics/payloadLengthProfiler'
 import { BaseMigrator } from '../BaseMigrator'
 
 class ProbeMigrator extends BaseMigrator {
@@ -29,8 +28,8 @@ class ProbeMigrator extends BaseMigrator {
   checkOwnedForeignKeys(db: MigrationContext['db'], tables: Parameters<BaseMigrator['assertOwnedForeignKeys']>[1]) {
     return this.assertOwnedForeignKeys(db, tables)
   }
-  diagnosedWrite<T>(values: () => readonly FailedWriteValue[], write: () => T): T {
-    return this.runDiagnosedWrite(values, write)
+  diagnosedWrite<T>(write: () => T): T {
+    return this.runDiagnosedWrite(write)
   }
 }
 
@@ -44,12 +43,9 @@ class ExecuteFailureProbe extends ProbeMigrator {
       cause: Object.assign(new Error('PRIVATE_NATIVE_ERROR'), { code: 'SQLITE_TOOBIG' })
     })
     try {
-      this.runDiagnosedWrite(
-        () => [{ role: 'json_value', kind: 'json', value: { content: 'PRIVATE_VALUE' } }],
-        () => {
-          throw native
-        }
-      )
+      this.runDiagnosedWrite(() => {
+        throw native
+      })
     } catch {
       return this.outcome === 'failed'
         ? { success: false, processedCount: 0, error: 'diagnosed failure' }
@@ -119,12 +115,10 @@ describe('BaseMigrator.assertOwnedForeignKeys', () => {
 })
 
 describe('BaseMigrator failure-only write diagnosis', () => {
-  it('returns the exact synchronous result without running the lazy measurement', () => {
-    const values = vi.fn(() => [{ role: 'text_value' as const, kind: 'string' as const, value: 'private' }])
+  it('returns the exact synchronous result', () => {
     const result = { inserted: 1 }
 
-    expect(probe.diagnosedWrite(values, () => result)).toBe(result)
-    expect(values).not.toHaveBeenCalled()
+    expect(probe.diagnosedWrite(() => result)).toBe(result)
   })
 
   it('rethrows the original synchronous error and exposes one fixed failure to the phase owner', async () => {
@@ -134,12 +128,9 @@ describe('BaseMigrator failure-only write diagnosis', () => {
     const migrator = new (class extends ProbeMigrator {
       override async execute(): Promise<ExecuteResult> {
         try {
-          this.runDiagnosedWrite(
-            () => [{ role: 'text_value', kind: 'string', value: '中'.repeat(100) }],
-            () => {
-              throw original
-            }
-          )
+          this.runDiagnosedWrite(() => {
+            throw original
+          })
         } catch (error) {
           expect(error).toBe(original)
           return { success: false, processedCount: 0, error: 'failed' }
@@ -153,33 +144,20 @@ describe('BaseMigrator failure-only write diagnosis', () => {
     expect(diagnosed).toEqual({
       result: { success: false, processedCount: 0, error: 'failed' },
       failure: {
-        classification: { errorCode: 'sqlite_too_big' },
-        evidence: {
-          kind: 'failed_write',
-          truncated: false,
-          values: [
-            {
-              role: 'text_value',
-              kind: 'string',
-              byteLength: 300,
-              byteLengthBucket: '257-4096'
-            }
-          ]
-        }
+        classification: { errorCode: 'sqlite_too_big' }
       }
     })
     expect(JSON.stringify(diagnosed)).not.toContain('PRIVATE_')
   })
 
-  it('returns a captured classification/evidence only for a failed phase result', async () => {
+  it('returns a captured classification only for a failed phase result', async () => {
     const failed = await new ExecuteFailureProbe('failed').executeWithDiagnostics({} as MigrationContext)
     const swallowed = await new ExecuteFailureProbe('swallowed').executeWithDiagnostics({} as MigrationContext)
 
     expect(failed).toMatchObject({
       result: { success: false },
       failure: {
-        classification: { errorCode: 'sqlite_too_big' },
-        evidence: { kind: 'failed_write' }
+        classification: { errorCode: 'sqlite_too_big' }
       }
     })
     expect(swallowed).toEqual({ result: { success: true, processedCount: 1 } })

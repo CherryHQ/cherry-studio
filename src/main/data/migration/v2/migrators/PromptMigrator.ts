@@ -133,15 +133,7 @@ export class PromptMigrator extends BaseMigrator {
       }
 
       db.transaction((tx) => {
-        this.runDiagnosedWrite(
-          () =>
-            rows.map((row) => ({
-              role: 'text_value' as const,
-              kind: 'string' as const,
-              value: row.content
-            })),
-          () => tx.insert(promptTable).values(rows).run()
-        )
+        this.runDiagnosedWrite(() => tx.insert(promptTable).values(rows).run())
       })
 
       logger.info('Prompt migration completed', { processedCount: rows.length })

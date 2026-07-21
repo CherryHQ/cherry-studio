@@ -133,12 +133,7 @@ describe('McpServerMigrator', () => {
       expect(diagnosed.result.itemCount).toBe(0)
       expect(diagnosed.failure).toEqual({
         classification: { errorCode: 'source_required_records_rejected' },
-        evidence: {
-          kind: 'all_required_rows_rejected',
-          sourceRole: 'mcp_server',
-          fieldRole: 'source_id',
-          rejectedCountBucket: '2-10'
-        }
+        errorCodeOverride: 'source_required_records_rejected'
       })
     })
 
@@ -198,15 +193,7 @@ describe('McpServerMigrator', () => {
       const diagnosed = await migrator.executeWithDiagnostics(ctx as any)
 
       expect(diagnosed.result.success).toBe(false)
-      expect(diagnosed.failure).toMatchObject({
-        classification: { errorCode: 'sqlite_too_big' },
-        evidence: {
-          kind: 'failed_write',
-          values: expect.arrayContaining([
-            expect.objectContaining({ role: 'json_value', kind: 'json', byteLengthBucket: '262145+' })
-          ])
-        }
-      })
+      expect(diagnosed.failure).toEqual({ classification: { errorCode: 'sqlite_too_big' } })
       expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_MCP_KEY')
       expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
     })

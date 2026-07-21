@@ -22,8 +22,7 @@ function rendererFailureSnapshot(): MigrationDiagnosticsSnapshot {
         kind: 'renderer_export_failed',
         scope: 'renderer_export',
         phase: 'finalize',
-        errorCode: 'source_parse_failed',
-        evidence: { kind: 'renderer_export', sourceRole: 'redux', operationRole: 'parse' }
+        errorCode: 'source_parse_failed'
       }
     }
   }
@@ -44,19 +43,7 @@ function versionFailureSnapshot(): MigrationDiagnosticsSnapshot {
         kind: 'upgrade_path_blocked',
         scope: 'gate',
         phase: 'validate',
-        errorCode: 'v1_too_old',
-        evidence: {
-          kind: 'version_gate',
-          context: {
-            reason: 'v1_too_old',
-            currentVersion: '2.1.0',
-            directorySelectionRole: 'default',
-            previousVersion: '1.8.0',
-            requiredVersion: '1.9.12',
-            gatewayVersion: null,
-            versionLog: { state: 'parsed', validRecordCountBucket: '1', invalidRecordCountBucket: '0' }
-          }
-        }
+        errorCode: 'v1_too_old'
       }
     }
   }
@@ -86,7 +73,7 @@ describe('migrationDiagnosticEmail', () => {
     expect(body).toContain('Platform / architecture: darwin / arm64')
     expect(body).toContain('Scope / phase: renderer_export / finalize')
     expect(body).toContain('Failure kind / error code: renderer_export_failed / source_parse_failed')
-    expect(body).toContain('Source / operation role: redux / parse')
+    expect(body).toContain('Source / operation role: unknown / unknown')
     expect(body).toContain('Previous app version: unknown')
     expect(body).toContain('Did you use a custom data directory?')
     expect(body).toContain('Does retrying reproduce the same failure consistently?')
@@ -96,7 +83,7 @@ describe('migrationDiagnosticEmail', () => {
     expect(body).toContain('Cherry Studio does not automatically attach, upload, or send the ZIP or this email.')
   })
 
-  it('maps safe version-gate evidence to the fixed Chinese template', async () => {
+  it('keeps previous-version questions user-supplied in the fixed Chinese template', async () => {
     const i18n = await createMigrationDiagnosticNativeI18n('zh-CN')
 
     const { subject, body } = decodeMailto(createMigrationDiagnosticEmailUrl(versionFailureSnapshot(), i18n))
@@ -107,7 +94,7 @@ describe('migrationDiagnosticEmail', () => {
     expect(body).toContain('范围 / 阶段：gate / validate')
     expect(body).toContain('失败类型 / 错误码：upgrade_path_blocked / v1_too_old')
     expect(body).toContain('来源 / 操作角色：unknown / unknown')
-    expect(body).toContain('升级前版本：1.8.0')
+    expect(body).toContain('升级前版本：unknown')
     expect(body).toContain('是否使用了自定义数据目录？')
     expect(body).toContain('重试后是否每次都稳定复现？')
     expect(body).toContain('失败前执行了什么操作？')

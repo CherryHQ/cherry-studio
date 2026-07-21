@@ -28,9 +28,6 @@ function selectFailure(snapshot: MigrationDiagnosticsSnapshot): MigrationDiagnos
 
 function fieldsFromSnapshot(snapshot: MigrationDiagnosticsSnapshot, unknown: string): EmailDiagnosticFields {
   const failure = selectFailure(snapshot)
-  const rendererEvidence = failure?.kind === 'renderer_export_failed' ? failure.evidence : null
-  const previousVersion =
-    failure?.evidence?.kind === 'version_gate' ? (failure.evidence.context.previousVersion ?? unknown) : unknown
 
   return {
     appVersion: snapshot.app.version,
@@ -40,9 +37,9 @@ function fieldsFromSnapshot(snapshot: MigrationDiagnosticsSnapshot, unknown: str
     phase: failure?.phase ?? unknown,
     failureKind: failure?.kind ?? unknown,
     errorCode: failure?.errorCode ?? unknown,
-    sourceRole: rendererEvidence?.sourceRole ?? unknown,
-    operationRole: rendererEvidence?.operationRole ?? unknown,
-    previousVersion
+    sourceRole: unknown,
+    operationRole: unknown,
+    previousVersion: unknown
   }
 }
 

@@ -4,75 +4,27 @@ import { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from './migrationDatabaseTarget
 
 export { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from './migrationDatabaseTargets'
 
-const objectRoles = MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role }) => role) as [
-  (typeof MIGRATION_DATABASE_OBJECT_DEFINITIONS)[number]['role'],
-  ...(typeof MIGRATION_DATABASE_OBJECT_DEFINITIONS)[number]['role'][]
-]
-const columnRoles = [...new Set(MIGRATION_DATABASE_OBJECT_DEFINITIONS.flatMap(({ columns }) => columns))] as [
-  (typeof MIGRATION_DATABASE_OBJECT_DEFINITIONS)[number]['columns'][number],
-  ...(typeof MIGRATION_DATABASE_OBJECT_DEFINITIONS)[number]['columns'][number][]
-]
-const maxExpectedColumnCount = Math.max(...MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ columns }) => columns.length))
+const databaseIdentifierSchema = z.string().min(1).max(128)
 
-const migrationDatabaseObjectRoleSchema = z.enum(objectRoles)
-const migrationDatabaseColumnRoleSchema = z.enum(columnRoles)
-
-const migrationDatabaseObjectCheckSchema = z
-  .object({
-    role: migrationDatabaseObjectRoleSchema,
-    tableName: z.string().min(1).max(128),
-    status: z.enum(['present', 'missing_table', 'missing_columns']),
-    missingColumnRoles: z.array(migrationDatabaseColumnRoleSchema).min(1).max(maxExpectedColumnCount).optional()
-  })
-  .strict()
-  .superRefine((object, ctx) => {
-    const definition = MIGRATION_DATABASE_OBJECT_DEFINITIONS.find(({ role }) => role === object.role)
-    if (definition === undefined) return
-    if (object.tableName !== definition.table) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Database object checks must use the fixed physical table name',
-        path: ['tableName']
-      })
-    }
-    const missing = object.missingColumnRoles
-    if ((object.status === 'missing_columns') !== (missing !== undefined)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Missing-column roles appear only with missing_columns',
-        path: ['missingColumnRoles']
-      })
-      return
-    }
-    if (missing === undefined) return
-    if (new Set(missing).size !== missing.length || missing.some((column) => !definition.columns.includes(column))) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Missing columns must be unique fixed roles for the selected object',
-        path: ['missingColumnRoles']
-      })
-    }
-  })
+const migrationDatabaseSchemaResultSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('ok') }).strict(),
+  z
+    .object({
+      status: z.literal('mismatch'),
+      missingTables: z.array(databaseIdentifierSchema).max(MIGRATION_DATABASE_OBJECT_DEFINITIONS.length),
+      missingColumns: z.record(databaseIdentifierSchema, z.array(databaseIdentifierSchema).min(1))
+    })
+    .strict()
+])
 
 const migrationDatabaseAvailableSqliteResultSchema = z
   .object({
     status: z.literal('available'),
     quickCheck: z.enum(['ok', 'failed']),
-    foreignKeyViolationCountBucket: z.enum(['0', '1', '2-10', '11+']),
-    objects: z.array(migrationDatabaseObjectCheckSchema).length(MIGRATION_DATABASE_OBJECT_DEFINITIONS.length)
+    foreignKeyViolationCount: z.number().int().nonnegative(),
+    schema: migrationDatabaseSchemaResultSchema
   })
   .strict()
-  .superRefine((result, ctx) => {
-    for (const [index, definition] of MIGRATION_DATABASE_OBJECT_DEFINITIONS.entries()) {
-      if (result.objects[index]?.role !== definition.role) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'Database object checks must use the fixed role order',
-          path: ['objects', index, 'role']
-        })
-      }
-    }
-  })
 
 const migrationDatabaseSqliteUnavailableReasonSchema = z.enum([
   'not_attempted',
@@ -145,7 +97,6 @@ export const migrationDatabaseDiagnosticsChildMessageSchema = z
   })
   .strict()
 
-export type MigrationDatabaseObjectCheck = z.infer<typeof migrationDatabaseObjectCheckSchema>
 export type MigrationDatabaseSqliteResult = z.infer<typeof migrationDatabaseSqliteResultSchema>
 export type MigrationDatabaseFileResult = z.infer<typeof migrationDatabaseFileResultSchema>
 export type MigrationDatabaseDiagnosticResult = z.infer<typeof migrationDatabaseDiagnosticResultSchema>

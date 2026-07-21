@@ -192,8 +192,7 @@ describe('attachment and interruption recovery', () => {
         kind: 'process_interrupted',
         scope: 'engine',
         phase: 'interrupted',
-        errorCode: 'process_interrupted',
-        evidence: { kind: 'interruption', recoverySource: 'checkpoint' }
+        errorCode: 'process_interrupted'
       }
     })
     expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)).toEqual({ kind: 'ok', journal: snapshot })

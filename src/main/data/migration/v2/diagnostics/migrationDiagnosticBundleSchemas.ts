@@ -7,14 +7,18 @@ import {
   migrationDiagnosticFinishedAttemptSchema
 } from './migrationDiagnosticsSchemas'
 
-export const MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES = 1_048_576
-export const MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES = Object.freeze(['migration-diagnostics.json', 'README.txt'] as const)
+export const MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES = 16 * 1024 * 1024
+export const MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES = Object.freeze([
+  'migration-diagnostics.json',
+  'application.log',
+  'README.txt'
+] as const)
 
 const migrationDiagnosticBundleEntryNameSchema = z.enum(MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES)
 
 export const migrationDiagnosticBundleDocumentSchema = z
   .object({
-    formatVersion: z.literal(1),
+    formatVersion: z.literal(2),
     generatedAt: z.string().datetime(),
     app: migrationDiagnosticAppMetadataSchema,
     state: z.enum(['active', 'failed', 'completed']),

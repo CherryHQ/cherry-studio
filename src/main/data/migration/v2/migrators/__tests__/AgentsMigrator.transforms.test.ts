@@ -7,8 +7,6 @@ import { eq, sql } from 'drizzle-orm'
 import { validate as isUuid } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { FailedWriteValue, MigrationDiagnosticFailureEvidence } from '../../diagnostics'
-import { measureFailedWriteValuesBestEffort } from '../../diagnostics'
 import { importLegacySessionMessages } from '../AgentsMigrator'
 import { createEmptyAgentsSchemaInfo } from '../mappings/AgentsDbMappings'
 
@@ -65,10 +63,7 @@ describe('importLegacySessionMessages', () => {
     insertedSessions.push(id)
   }
 
-  async function importLegacyRows(
-    rows: LegacyMessageRow[],
-    diagnoseWrite?: <T>(values: () => readonly FailedWriteValue[], write: () => T) => T
-  ): Promise<number> {
+  async function importLegacyRows(rows: LegacyMessageRow[], diagnoseWrite?: <T>(write: () => T) => T): Promise<number> {
     dbh.db.run(sql.raw("ATTACH DATABASE ':memory:' AS agents_legacy"))
     try {
       dbh.db.run(
@@ -145,14 +140,12 @@ describe('importLegacySessionMessages', () => {
     expect(row.runtimeResumeToken).toBe('sdk-1')
   })
 
-  it('measures the actual failed agent message data without retaining its value', async () => {
+  it('does not pass migrated values to the write diagnostic boundary', async () => {
     await seedSession('s-diagnostics')
     const canary = `PRIVATE_AGENT_MESSAGE_${'x'.repeat(10_000)}`
     const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
-    let evidence: MigrationDiagnosticFailureEvidence | undefined
-    const diagnoseWrite = <T>(values: () => readonly FailedWriteValue[], write: () => T): T => {
-      void write
-      evidence = measureFailedWriteValuesBestEffort(values)
+    const diagnoseWrite = <T>(write: () => T): T => {
+      expect(write).toBeTypeOf('function')
       throw sqliteError
     }
 
@@ -169,13 +162,6 @@ describe('importLegacySessionMessages', () => {
         diagnoseWrite
       )
     ).rejects.toBe(sqliteError)
-
-    expect(evidence).toMatchObject({
-      kind: 'failed_write',
-      values: [expect.objectContaining({ role: 'json_value', kind: 'json', byteLengthBucket: '4097-65536' })]
-    })
-    expect(JSON.stringify(evidence)).not.toContain('PRIVATE_AGENT_MESSAGE')
-    expect(JSON.stringify(evidence)).not.toContain('/Users/alice')
   })
 
   it('converts legacy block envelopes during import without a second pass', async () => {

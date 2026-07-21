@@ -932,26 +932,12 @@ export class KnowledgeMigrator extends BaseMigrator {
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
         ctx.db.transaction((tx) => {
-          this.runDiagnosedWrite(
-            () =>
-              typeof base.chunkSeparator === 'string'
-                ? [{ role: 'text_value', kind: 'string', value: base.chunkSeparator }]
-                : [],
-            () => tx.insert(knowledgeBaseTable).values(base).run()
-          )
+          this.runDiagnosedWrite(() => tx.insert(knowledgeBaseTable).values(base).run())
           transactionProcessed += 1
 
           for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
             const batch = baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
-            this.runDiagnosedWrite(
-              () =>
-                batch.map((row) => ({
-                  role: 'json_value' as const,
-                  kind: 'json' as const,
-                  value: row.data
-                })),
-              () => tx.insert(knowledgeItemTable).values(batch).run()
-            )
+            this.runDiagnosedWrite(() => tx.insert(knowledgeItemTable).values(batch).run())
             transactionProcessed += batch.length
           }
 

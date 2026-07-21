@@ -325,13 +325,7 @@ describe('MiniAppMigrator', () => {
       const diagnosed = await migrator.executeWithDiagnostics(ctx)
 
       expect(diagnosed.result.success).toBe(false)
-      expect(diagnosed.failure).toMatchObject({
-        classification: { errorCode: 'sqlite_too_big' },
-        evidence: {
-          kind: 'failed_write',
-          values: [expect.objectContaining({ role: 'json_value', kind: 'json' })]
-        }
-      })
+      expect(diagnosed.failure).toEqual({ classification: { errorCode: 'sqlite_too_big' } })
       expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_MINI_APP_LOGO')
       expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
     })

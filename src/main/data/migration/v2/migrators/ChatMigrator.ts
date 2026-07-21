@@ -753,12 +753,10 @@ export class ChatMigrator extends BaseMigrator {
         for (const block of blocks) {
           if (!block?.id) continue
           const indexedBlock = { payload: JSON.stringify(block) }
-          this.runDiagnosedWrite(
-            () => [{ role: 'text_value', kind: 'string', value: indexedBlock.payload }],
-            () =>
-              tx.run(
-                sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${block.id}, ${indexedBlock.payload})`
-              )
+          this.runDiagnosedWrite(() =>
+            tx.run(
+              sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${block.id}, ${indexedBlock.payload})`
+            )
           )
           indexed += 1
         }
@@ -1170,19 +1168,7 @@ export class ChatMigrator extends BaseMigrator {
           .run()
         for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
           const messageBatch = batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
-          this.runDiagnosedWrite(
-            () =>
-              messageBatch.flatMap((row) => [
-                { role: 'json_value' as const, kind: 'json' as const, value: row.data },
-                ...(row.messageSnapshot === undefined
-                  ? []
-                  : [{ role: 'json_value' as const, kind: 'json' as const, value: row.messageSnapshot }]),
-                ...(row.stats === undefined
-                  ? []
-                  : [{ role: 'json_value' as const, kind: 'json' as const, value: row.stats }])
-              ]),
-            () => tx.insert(messageTable).values(messageBatch).run()
-          )
+          this.runDiagnosedWrite(() => tx.insert(messageTable).values(messageBatch).run())
         }
         if (batchFileRefRows.length > 0) {
           for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {

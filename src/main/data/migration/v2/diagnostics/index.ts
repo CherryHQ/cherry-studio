@@ -1,3 +1,4 @@
+export { MigrationApplicationLogCollector } from './MigrationApplicationLogCollector'
 export { MigrationDatabaseDiagnostics } from './MigrationDatabaseDiagnostics'
 export {
   migrationDatabaseDiagnosticResultSchema,
@@ -11,13 +12,10 @@ export { MigrationDiagnosticsCoordinator } from './MigrationDiagnosticsCoordinat
 export type {
   MigrationAttemptFinish,
   MigrationDiagnosticFailure,
-  MigrationDiagnosticFailureEvidence,
   MigrationDiagnosticLocation,
   MigrationDiagnosticMigratorId,
   MigrationDiagnosticsSnapshot,
-  MigrationVersionGateContext
+  MigrationFailureErrorCode
 } from './migrationDiagnosticsSchemas'
 export type { ClassifiedMigrationError } from './migrationErrorClassifier'
 export { classifyMigrationError } from './migrationErrorClassifier'
-export type { FailedWriteValue } from './payloadLengthProfiler'
-export { measureFailedWriteValuesBestEffort } from './payloadLengthProfiler'

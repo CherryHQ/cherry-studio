@@ -7,7 +7,6 @@ import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { inspectMigrationDatabaseSqlite } from '../migrationDatabaseDiagnosticsChild'
-import { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from '../migrationDatabaseDiagnosticsSchemas'
 
 describe('migration database SQLite child queries', () => {
   const dbh = setupTestDatabase()
@@ -28,7 +27,7 @@ describe('migration database SQLite child queries', () => {
     return destination
   }
 
-  it('reports quick_check and every fixed production table/column role without changing the database', () => {
+  it('reports quick_check and a compact healthy schema without changing the database', () => {
     const databaseFile = copyProductionDatabase('healthy.sqlite')
     const before = readFileSync(databaseFile)
 
@@ -37,17 +36,13 @@ describe('migration database SQLite child queries', () => {
     expect(result).toEqual({
       status: 'available',
       quickCheck: 'ok',
-      foreignKeyViolationCountBucket: '0',
-      objects: MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ role, table }) => ({
-        role,
-        tableName: table,
-        status: 'present'
-      }))
+      foreignKeyViolationCount: 0,
+      schema: { status: 'ok' }
     })
     expect(readFileSync(databaseFile)).toEqual(before)
   })
 
-  it('buckets a real foreign-key violation without exposing row, table, or identifier values', () => {
+  it('counts a real foreign-key violation without exposing row, table, or identifier values', () => {
     const databaseFile = copyProductionDatabase('foreign-key.sqlite')
     const database = new Database(databaseFile)
     database.pragma('foreign_keys = OFF')
@@ -60,7 +55,7 @@ describe('migration database SQLite child queries', () => {
 
     const result = inspectMigrationDatabaseSqlite(databaseFile)
 
-    expect(result).toMatchObject({ status: 'available', foreignKeyViolationCountBucket: '1' })
+    expect(result).toMatchObject({ status: 'available', foreignKeyViolationCount: 1 })
     expect(JSON.stringify(result)).not.toMatch(/PRIVATE_RECORD_ID|PRIVATE_PARENT_ID/)
   })
 
@@ -83,10 +78,10 @@ describe('migration database SQLite child queries', () => {
 
     expect(result).toMatchObject({ status: 'available', quickCheck: 'ok' })
     if (result.status !== 'available') throw new Error('Expected the damaged production schema to remain readable')
-    expect(result.objects.find(({ role }) => role === 'mcp_server')).toEqual({
-      role: 'mcp_server',
-      tableName: 'mcp_server',
-      status: 'missing_table'
+    expect(result.schema).toEqual({
+      status: 'mismatch',
+      missingTables: ['mcp_server'],
+      missingColumns: {}
     })
   })
 
@@ -100,11 +95,10 @@ describe('migration database SQLite child queries', () => {
 
     expect(result).toMatchObject({ status: 'available', quickCheck: 'ok' })
     if (result.status !== 'available') throw new Error('Expected the damaged production schema to remain readable')
-    expect(result.objects.find(({ role }) => role === 'prompt')).toEqual({
-      role: 'prompt',
-      tableName: 'prompt',
-      status: 'missing_columns',
-      missingColumnRoles: ['content']
+    expect(result.schema).toEqual({
+      status: 'mismatch',
+      missingTables: [],
+      missingColumns: { prompt: ['content'] }
     })
   })
 })

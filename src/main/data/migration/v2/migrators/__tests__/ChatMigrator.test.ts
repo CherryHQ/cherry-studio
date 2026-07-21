@@ -611,13 +611,7 @@ describe('ChatMigrator message block index', () => {
     const diagnosed = await migrator.executeWithDiagnostics(ctx)
 
     expect(diagnosed.result.success).toBe(false)
-    expect(diagnosed.failure).toMatchObject({
-      classification: { errorCode: 'sqlite_too_big' },
-      evidence: {
-        kind: 'failed_write',
-        values: expect.arrayContaining([expect.objectContaining({ role: 'text_value', kind: 'string' })])
-      }
-    })
+    expect(diagnosed.failure).toEqual({ classification: { errorCode: 'sqlite_too_big' } })
     expect(JSON.stringify(diagnosed.failure)).not.toContain('PRIVATE_USER_MESSAGE')
     expect(JSON.stringify(diagnosed.failure)).not.toContain('/Users/alice')
   })

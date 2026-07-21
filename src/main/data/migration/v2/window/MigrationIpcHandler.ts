@@ -49,10 +49,6 @@ const UNKNOWN_RENDERER_EXPORT_REPORT: MigrationRendererExportFailureReport = Obj
   sourceRole: 'unknown',
   operationRole: 'unknown'
 })
-type RendererExportFilesystemEvidence = Extract<
-  MigrationRendererExportMainWriteFailure,
-  { errorCode: 'file_invalid_type' }
->['filesystemEvidence']
 export type MigrationIpcPaths = Pick<
   MigrationPaths,
   'userData' | 'migrationTempDir' | 'dexieExportDir' | 'localStorageExportDir' | 'localStorageExportFile'
@@ -252,7 +248,7 @@ export function registerMigrationIpcHandlers(
     async (event, exportPath: string, tableName: string, jsonData: string) => {
       assertMigrationSender(event)
       assertRendererExportActive(diagnosticRegistration)
-      const rememberFailure = async (error: unknown, filesystemOperation: 'mkdir' | 'write'): Promise<void> => {
+      const rememberFailure = async (error: unknown): Promise<void> => {
         const phase = diagnosticRegistration.rendererExportPhase
         if (
           activeDiagnosticRegistration !== diagnosticRegistration ||
@@ -262,13 +258,7 @@ export function registerMigrationIpcHandlers(
         ) {
           return
         }
-        const mainWriteFailure = await classifyMainExportWriteFailure(
-          error,
-          filesystemOperation,
-          exportPath,
-          tableName,
-          paths
-        )
+        const mainWriteFailure = classifyMainExportWriteFailure(error)
         if (
           activeDiagnosticRegistration === diagnosticRegistration &&
           diagnosticRegistration.rendererExportPhase === phase &&
@@ -282,7 +272,7 @@ export function registerMigrationIpcHandlers(
         // Ensure export directory exists
         await fs.mkdir(exportPath, { recursive: true })
       } catch (error) {
-        await rememberFailure(error, 'mkdir')
+        await rememberFailure(error)
         logger.error('Error creating export directory', error as Error)
         throw error
       }
@@ -295,7 +285,7 @@ export function registerMigrationIpcHandlers(
         logger.info('Export file written', { tableName, filePath })
         return true
       } catch (error) {
-        await rememberFailure(error, 'write')
+        await rememberFailure(error)
         logger.error('Error writing export file', error as Error)
         throw error
       }
@@ -558,37 +548,10 @@ export async function runMigrationDiagnosticSaveTransaction<T>(
   }
 }
 
-async function classifyMainExportWriteFailure(
-  error: unknown,
-  filesystemOperation: 'mkdir' | 'write',
-  exportPath: string,
-  tableName: string,
-  paths: MigrationIpcPaths
-): Promise<MigrationRendererExportMainWriteFailure> {
+function classifyMainExportWriteFailure(error: unknown): MigrationRendererExportMainWriteFailure {
   const { errorCode } = classifyMigrationError(error)
   switch (errorCode) {
-    case 'file_invalid_type': {
-      const causeCode = findFilesystemTypeCauseCode(error)
-      if (causeCode === null) return { errorCode: 'unknown_error' }
-
-      const targetRole = tableName === 'localStorage' ? 'local_storage_export_file' : 'dexie_export_directory'
-      const isControlledExportPath =
-        path.normalize(exportPath) ===
-        path.normalize(targetRole === 'local_storage_export_file' ? paths.localStorageExportDir : paths.dexieExportDir)
-      const blocker = isControlledExportPath
-        ? await probeControlledFilesystemBlocker(paths, targetRole, filesystemOperation)
-        : { blockingNodeRole: 'unknown' as const, observedNodeType: 'unavailable' as const }
-      return {
-        errorCode,
-        filesystemEvidence: {
-          causeCode,
-          filesystemOperation,
-          targetRole,
-          ...blocker,
-          expectedNodeType: targetRole === 'dexie_export_directory' ? 'directory' : 'file'
-        }
-      }
-    }
+    case 'file_invalid_type':
     case 'file_missing':
     case 'file_permission':
     case 'file_readonly':
@@ -597,70 +560,6 @@ async function classifyMainExportWriteFailure(
     default:
       return { errorCode: 'unknown_error' }
   }
-}
-
-async function probeControlledFilesystemBlocker(
-  paths: MigrationIpcPaths,
-  targetRole: RendererExportFilesystemEvidence['targetRole'],
-  filesystemOperation: RendererExportFilesystemEvidence['filesystemOperation']
-): Promise<Pick<RendererExportFilesystemEvidence, 'blockingNodeRole' | 'observedNodeType'>> {
-  try {
-    const migrationTempType = nodeType(await fs.lstat(paths.migrationTempDir))
-    if (migrationTempType !== 'directory') {
-      return { blockingNodeRole: 'migration_temp_root', observedNodeType: migrationTempType }
-    }
-    if (targetRole === 'dexie_export_directory') {
-      const dexieExportType = nodeType(await fs.lstat(paths.dexieExportDir))
-      return dexieExportType === 'directory'
-        ? { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
-        : { blockingNodeRole: 'dexie_export_directory', observedNodeType: dexieExportType }
-    }
-
-    const localStorageExportType = nodeType(await fs.lstat(paths.localStorageExportDir))
-    if (localStorageExportType !== 'directory') {
-      return {
-        blockingNodeRole: 'local_storage_export_directory',
-        observedNodeType: localStorageExportType
-      }
-    }
-    if (filesystemOperation !== 'write') {
-      return { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
-    }
-
-    const localStorageExportFileType = nodeType(await fs.lstat(paths.localStorageExportFile))
-    return localStorageExportFileType === 'file'
-      ? { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
-      : { blockingNodeRole: 'local_storage_export_file', observedNodeType: localStorageExportFileType }
-  } catch {
-    return { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
-  }
-}
-
-function nodeType(stats: Awaited<ReturnType<typeof fs.lstat>>): RendererExportFilesystemEvidence['observedNodeType'] {
-  if (stats.isFile()) return 'file'
-  if (stats.isDirectory()) return 'directory'
-  return 'other'
-}
-
-function findFilesystemTypeCauseCode(error: unknown): 'ENOTDIR' | 'EEXIST' | 'EISDIR' | null {
-  let current = error
-  const visited = new WeakSet<object>()
-  for (let causeDepth = 0; causeDepth <= 4; causeDepth++) {
-    if (((typeof current !== 'object' || current === null) && typeof current !== 'function') || visited.has(current)) {
-      return null
-    }
-    visited.add(current)
-    try {
-      const codeDescriptor = Object.getOwnPropertyDescriptor(current, 'code')
-      const code = codeDescriptor && 'value' in codeDescriptor ? codeDescriptor.value : undefined
-      if (code === 'ENOTDIR' || code === 'EEXIST' || code === 'EISDIR') return code
-      const causeDescriptor = Object.getOwnPropertyDescriptor(current, 'cause')
-      current = causeDescriptor && 'value' in causeDescriptor ? causeDescriptor.value : undefined
-    } catch {
-      return null
-    }
-  }
-  return null
 }
 
 function rendererExportUiMessage(payload: unknown): string {

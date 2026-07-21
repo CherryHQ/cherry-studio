@@ -225,21 +225,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
-          this.runDiagnosedWrite(
-            () =>
-              batch.flatMap((row) => [
-                ...(typeof row.background === 'string'
-                  ? [{ role: 'text_value' as const, kind: 'string' as const, value: row.background }]
-                  : []),
-                ...(row.supportedRegions === undefined
-                  ? []
-                  : [{ role: 'json_value' as const, kind: 'json' as const, value: row.supportedRegions }]),
-                ...(row.configuration === undefined
-                  ? []
-                  : [{ role: 'json_value' as const, kind: 'json' as const, value: row.configuration }])
-              ]),
-            () => tx.insert(miniAppTable).values(batch).run()
-          )
+          this.runDiagnosedWrite(() => tx.insert(miniAppTable).values(batch).run())
           processed += batch.length
         }
 

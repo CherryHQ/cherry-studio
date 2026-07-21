@@ -16,7 +16,6 @@ import {
   createMigrationDiagnosticBundleBuilder,
   createMigrationDiagnosticsCoordinator,
   createMigrationRendererExportDiagnosticFailure,
-  createMigrationVersionGateContext,
   createMigrationWindowFailureClaim,
   evaluateCandidateVersion,
   getAllMigrators,
@@ -29,7 +28,6 @@ import {
   migrationEngine,
   type MigrationRendererExportMainWriteFailure,
   type MigrationRendererFailureReason,
-  type MigrationVersionGateContext,
   migrationWindowManager,
   pinUserDataPath,
   presentMigrationDiagnosticFailure,
@@ -162,8 +160,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
 
   const finishPrebootFailure = (
     errorCode: Extract<MigrationDiagnosticFailure, { kind: 'preboot_failed' }>['errorCode'],
-    phase: Extract<DiagnosticLocation['phase'], 'resolve_paths' | 'initialize' | 'validate' | 'finalize'>,
-    versionGate?: MigrationVersionGateContext
+    phase: Extract<DiagnosticLocation['phase'], 'resolve_paths' | 'initialize' | 'validate' | 'finalize'>
   ): void => {
     finishAttempt({
       status: 'failed',
@@ -171,8 +168,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         kind: 'preboot_failed',
         scope: 'gate',
         phase,
-        errorCode,
-        ...(versionGate === undefined ? {} : { evidence: { kind: 'version_gate', context: versionGate } })
+        errorCode
       }
     })
   }
@@ -274,11 +270,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           kind: 'process_interrupted',
           scope: 'engine',
           phase: 'interrupted',
-          errorCode: reason,
-          evidence: {
-            kind: 'interruption',
-            recoverySource: 'live_renderer_event'
-          }
+          errorCode: reason
         }
       })
     } catch {
@@ -311,8 +303,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     return applyNativeDecision(await presentFailure('path_resolution_failed'))
   }
 
-  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, directorySelectionRole, dataLocation } =
-    resolved
+  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolved
   try {
     diagnosticsCoordinator.attachPaths(paths)
   } catch {
@@ -438,20 +429,9 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     await finishWindowFailure(reason)
   }
 
-  const { check: versionCheck, previousVersion, versionLogExists, versionLog } = versionEvaluation
+  const { check: versionCheck, previousVersion, versionLogExists } = versionEvaluation
   logger.info('Version compatibility check', { previousVersion, versionLogExists })
   if (versionCheck.outcome === 'block') {
-    const versionGate = createMigrationVersionGateContext(
-      app.getVersion(),
-      versionCheck.reason,
-      versionCheck.details,
-      previousVersion,
-      directorySelectionRole,
-      versionLog
-    )
-    if (versionGate === null) {
-      logger.error('Failed to normalize version-gate diagnostics')
-    }
     setVersionIncompatible(versionCheck.reason, versionCheck.details)
     registerMigrationIpcHandlers(paths, migrationIpcDiagnosticCapabilities)
     try {
@@ -459,31 +439,22 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       migrationWindowManager.create({ failureClaim: windowFailureClaim, onRendererFailure })
       await migrationWindowManager.waitForReady()
       if (!rendererFailureObserved) {
-        if (versionGate === null) {
-          finishPrebootFailure('version_check_failed', 'validate')
-        } else {
-          finishAttempt({
-            status: 'failed',
-            failure: {
-              kind: 'upgrade_path_blocked',
-              scope: 'gate',
-              phase: 'validate',
-              errorCode: versionGate.reason,
-              evidence: { kind: 'version_gate', context: versionGate }
-            }
-          })
-          versionGateRecorded = true
-        }
+        finishAttempt({
+          status: 'failed',
+          failure: {
+            kind: 'upgrade_path_blocked',
+            scope: 'gate',
+            phase: 'validate',
+            errorCode: versionCheck.reason
+          }
+        })
+        versionGateRecorded = true
       }
       return 'handled'
     } catch (error) {
       const failure = windowFailureClaim.claim(async () => {
         logger.error('Version guidance window failed', error as Error)
-        if (versionGate === null) {
-          finishPrebootFailure('version_check_failed', 'validate')
-        } else {
-          finishPrebootFailure('version_window_failed', 'finalize', versionGate)
-        }
+        finishPrebootFailure('version_window_failed', 'finalize')
         await finishWindowFailure('version_window_failed')
       })
       await failure.completion
