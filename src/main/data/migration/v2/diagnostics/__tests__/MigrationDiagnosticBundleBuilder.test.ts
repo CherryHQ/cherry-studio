@@ -138,6 +138,13 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
     expect(readme).toMatch(/manually attach/is)
     expect(readme).toMatch(/not automatically upload/is)
     expect(readme).toMatch(/database diagnostics.*unavailable.*child/is)
+    expect(readme).toContain('Cherry Studio 迁移诊断')
+    expect(readme).toMatch(/此 ZIP 包含.*migration-diagnostics\.json.*README\.txt/is)
+    expect(readme).toMatch(
+      /不包含数据库文件.*应用日志.*业务数据.*原始错误.*堆栈.*SQL.*凭据.*路径.*记录标识符.*令牌.*用户内容/is
+    )
+    expect(readme).toMatch(/数据库诊断.*不可用.*子进程/is)
+    expect(readme).toMatch(/手动附加.*不会自动上传/is)
 
     const uncompressedBytes = [...entries.values()].reduce((sum, entry) => sum + entry.byteLength, 0)
     expect(uncompressedBytes).toBeLessThanOrEqual(MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES)

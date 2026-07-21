@@ -29,6 +29,16 @@ It excludes database files and sidecars, application logs, exported business dat
 Database diagnostics may be marked unavailable when the isolated child process cannot complete. This does not replace or change the original migration failure.
 
 When requesting support, manually attach this ZIP. Cherry Studio does not automatically upload it.
+
+Cherry Studio 迁移诊断
+
+此 ZIP 包含 migration-diagnostics.json 和本 README.txt。JSON 仅包含经过范围限制的迁移失败事实和只读数据库诊断结果。
+
+它不包含数据库文件及其附属文件、应用日志、导出的业务数据、原始错误、堆栈、SQL、凭据、路径、记录标识符、令牌或用户内容。
+
+数据库诊断可能被标记为“不可用”，表示隔离子进程无法完成诊断。这不会替换或改变原始迁移失败。
+
+请求支持时，请手动附加此 ZIP。Cherry Studio 不会自动上传此文件。
 `
 
 const DATABASE_DIAGNOSTICS_UNAVAILABLE = Object.freeze({
