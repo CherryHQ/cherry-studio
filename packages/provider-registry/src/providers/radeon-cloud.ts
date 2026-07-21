@@ -5,7 +5,7 @@ export default openaiCompatible({
   name: 'AMD GPU Cloud',
   baseUrl: 'https://developer.amd.com.cn/radeon/api/v1',
   website: {
-    apiKey: 'https://developer.amd.com.cn/radeon/modelapis',
+    apiKey: 'https://developer.amd.com.cn/radeon/modelapis?source=cherry-studio',
     docs: 'https://developer.amd.com.cn/radeon/',
     models: 'https://developer.amd.com.cn/radeon/',
     official: 'https://developer.amd.com.cn/radeon/'
