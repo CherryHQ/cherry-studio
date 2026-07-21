@@ -9,7 +9,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import WebSearchButton from '../WebSearchButton'
+import WebSearchButton, { AgentWebSearchToolRuntime } from '../WebSearchButton'
 
 const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
@@ -250,5 +250,23 @@ describe('WebSearchButton', () => {
     confirmOptions.focusOnClose?.()
 
     expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('AgentWebSearchToolRuntime', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('registers the persisted Agent state and toggles through its controlled callback', async () => {
+    const onEnabledChange = vi.fn()
+    render(<AgentWebSearchToolRuntime enabled launcher={launcherApi} onEnabledChange={onEnabledChange} />)
+
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
+
+    expect(webSearchLauncher).toMatchObject({ id: 'web-search', active: true, sources: ['popover'] })
+    webSearchLauncher.action?.({ source: 'popover' } as never)
+    expect(onEnabledChange).toHaveBeenCalledWith(false)
   })
 })

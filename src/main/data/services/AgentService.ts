@@ -363,30 +363,10 @@ export class AgentService {
     const existing = this.getAgent(id)
     if (!existing) return null
 
-    // A configuration write may only preserve the existing builtin_role — see getBuiltinRole.
-    // Forging or changing it is rejected; omitting it re-injects the stored value so a whole-blob
-    // configuration update cannot strip the identity either.
-    if (updates.configuration !== undefined) {
-      const existingRole = getBuiltinRole(existing.configuration)
-      const incomingRole = getBuiltinRole(updates.configuration)
-      if (incomingRole !== undefined && incomingRole !== existingRole) {
-        throw DataApiErrorFactory.invalidOperation(
-          'update agent',
-          'configuration.builtin_role is reserved for system agents'
-        )
-      }
-      if (existingRole !== undefined && incomingRole === undefined) {
-        updates = { ...updates, configuration: { ...updates.configuration, builtin_role: existingRole } }
-      }
-    }
-
-    const updateData: Partial<AgentRow> = {
-      updatedAt: Date.now()
-    }
-
     // Handle mcps separately — it lives in the junction table, not the agent row.
     const newMcps = updates.mcps
     const newSkillUpdates = updates.skillUpdates
+    let appliedUpdates = updates
 
     // Same two-step validation as createAgent: pre-check each id outside the write
     // tx so a missing skill surfaces as `Skill` not-found (not the Agent FK
@@ -401,21 +381,69 @@ export class AgentService {
       }
     }
 
-    // Several mutable fields map to NOT NULL columns with DB defaults
-    // (description, instructions, disabledTools, configuration). Writing
-    // literal NULL when the DTO omits a field would violate the constraint.
-    // Skip undefined values so Drizzle preserves the column's current value.
-    for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
-      if (field === 'mcps') continue // handled via junction table
-      if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
-      const value = updates[field as keyof typeof updates]
-      if (value === undefined) continue
-      ;(updateData as Record<string, unknown>)[field] = value
-    }
-
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          const [current] = tx
+            .select({ configuration: agentsTable.configuration, disabledTools: agentsTable.disabledTools })
+            .from(agentsTable)
+            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .limit(1)
+            .all()
+          if (!current) throw DataApiErrorFactory.notFound('Agent', id)
+
+          // Apply delta-style fields inside the same transaction as the write. When a full
+          // replacement is also supplied, the delta is applied on top of it.
+          if (appliedUpdates.configurationPatch !== undefined || appliedUpdates.configurationUnsetKeys !== undefined) {
+            const configuration = {
+              ...(appliedUpdates.configuration ?? current.configuration),
+              ...appliedUpdates.configurationPatch
+            }
+            for (const key of appliedUpdates.configurationUnsetKeys ?? []) delete configuration[key]
+            appliedUpdates = { ...appliedUpdates, configuration }
+          }
+          if (appliedUpdates.toolUpdates !== undefined) {
+            const disabledTools = new Set(appliedUpdates.disabledTools ?? current.disabledTools ?? [])
+            for (const update of appliedUpdates.toolUpdates) {
+              if (update.isEnabled) {
+                disabledTools.delete(update.toolName)
+              } else {
+                disabledTools.add(update.toolName)
+              }
+            }
+            appliedUpdates = { ...appliedUpdates, disabledTools: Array.from(disabledTools) }
+          }
+
+          // A configuration write may only preserve the existing builtin_role — see getBuiltinRole.
+          // Forging or changing it is rejected; omitting/unsetting it re-injects the stored value.
+          if (appliedUpdates.configuration !== undefined) {
+            const existingRole = getBuiltinRole(current.configuration)
+            const incomingRole = getBuiltinRole(appliedUpdates.configuration)
+            if (incomingRole !== undefined && incomingRole !== existingRole) {
+              throw DataApiErrorFactory.invalidOperation(
+                'update agent',
+                'configuration.builtin_role is reserved for system agents'
+              )
+            }
+            if (existingRole !== undefined && incomingRole === undefined) {
+              appliedUpdates = {
+                ...appliedUpdates,
+                configuration: { ...appliedUpdates.configuration, builtin_role: existingRole }
+              }
+            }
+          }
+
+          const updateData: Partial<AgentRow> = { updatedAt: Date.now() }
+          // Several mutable fields map to NOT NULL columns with DB defaults. Skip undefined values
+          // so Drizzle preserves the column's current value.
+          for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
+            if (field === 'mcps') continue // handled via junction table
+            if (!Object.prototype.hasOwnProperty.call(appliedUpdates, field)) continue
+            const value = appliedUpdates[field as keyof typeof appliedUpdates]
+            if (value === undefined) continue
+            ;(updateData as Record<string, unknown>)[field] = value
+          }
+
           this.updateAgentTx(tx, id, updateData)
           // Replace MCP associations if provided
           if (newMcps !== undefined) {
@@ -435,7 +463,7 @@ export class AgentService {
 
     const updated = this.getAgent(id)
     if (updated) {
-      this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
+      this._onAgentUpdated.fire({ agentId: id, updates: appliedUpdates, agent: updated })
     }
     return updated
   }

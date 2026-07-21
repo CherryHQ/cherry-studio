@@ -19,6 +19,7 @@ import type {
   HookCallback,
   HookJSONOutput,
   McpServerConfig,
+  Options,
   PermissionResult,
   SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
@@ -223,10 +224,7 @@ export interface ClaudeCodeSessionOptions {
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
   linkedChannelSnapshot?: LinkedChannelSnapshot
-  thinkingOptions?: {
-    effort?: 'low' | 'medium' | 'high' | 'max'
-    thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
-  }
+  thinkingOptions?: Pick<Options, 'effort' | 'thinking'>
 }
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServer | undefined>

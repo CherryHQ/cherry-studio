@@ -367,6 +367,9 @@ export type ClaudeToolKey = keyof typeof CLAUDE_TOOL_REGISTRY
 
 export const CLAUDE_TOOL_DEFS: readonly ClaudeToolDescriptorDef[] = Object.values(CLAUDE_TOOL_REGISTRY)
 
+/** Runtime tool id persisted in Agent.disabledTools for the Cherry web-search capability. */
+export const CLAUDE_WEB_SEARCH_TOOL_NAME = CLAUDE_TOOL_REGISTRY.CherryWebSearch.name
+
 /** A tool is an in-process MCP tool iff it declares a hosting server. */
 export const isMcpTool = (def: ClaudeToolDescriptorDef): boolean => def.mcpServer !== undefined
 

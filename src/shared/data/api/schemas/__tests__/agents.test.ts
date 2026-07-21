@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentEntitySchema, CreateAgentSchema, ListAgentsQuerySchema, UpdateAgentSchema } from '../agents'
+import {
+  AgentConfigurationSchema,
+  AgentEntitySchema,
+  CreateAgentSchema,
+  ListAgentsQuerySchema,
+  UpdateAgentSchema
+} from '../agents'
 
 describe('AgentEntitySchema', () => {
   const baseAgent = {
@@ -69,5 +75,25 @@ describe('AgentEntitySchema', () => {
       { skillId: 'skill-a', isEnabled: false },
       { skillId: 'skill-b', isEnabled: true }
     ])
+  })
+
+  it('accepts only supported persisted reasoning effort values', () => {
+    expect(AgentConfigurationSchema.parse({ reasoning_effort: 'high' }).reasoning_effort).toBe('high')
+    expect(AgentConfigurationSchema.safeParse({ reasoning_effort: 'extreme' }).success).toBe(false)
+  })
+
+  it('parses atomic configuration and tool deltas for Agent updates', () => {
+    const parsed = UpdateAgentSchema.parse({
+      configurationPatch: { reasoning_effort: 'medium' },
+      configurationUnsetKeys: ['max_turns', 'max_turns'],
+      toolUpdates: [
+        { toolName: 'Bash', isEnabled: false },
+        { toolName: 'Bash', isEnabled: true }
+      ]
+    })
+
+    expect(parsed.configurationPatch).toEqual({ reasoning_effort: 'medium' })
+    expect(parsed.configurationUnsetKeys).toEqual(['max_turns'])
+    expect(parsed.toolUpdates).toEqual([{ toolName: 'Bash', isEnabled: true }])
   })
 })

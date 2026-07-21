@@ -8,6 +8,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { getAnthropicReasoningParamsForEffort } from '@main/ai/utils/reasoning'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -95,8 +96,8 @@ export function toolPolicyFactsEqual(a: ToolPolicyFacts, b: ToolPolicyFacts): bo
 /**
  * Staleness identity of an agent-session runtime connection, derived read-only at connect time and
  * re-derived at reconcile time. `rebuildSignature` covers everything baked into the spawned
- * subprocess (route/env, cwd, prompt inputs, skills whitelist, maxTurns, MCP definitions, credential
- * fingerprint); `live` carries the hot-appliable facts, diffed per key by the connection's reconcile.
+ * subprocess (route/env, cwd, prompt inputs, skills whitelist, reasoning, maxTurns, MCP definitions,
+ * credential fingerprint); `live` carries the hot-appliable facts, diffed per key by the connection's reconcile.
  *
  * NOTE: `agent.mcps` and `agent.disabledTools` feed BOTH groups on purpose — their policy-gating
  * side is live (snapshot update), but the spawned MCP/disallowed-tool sets are rebuild-only. An edit
@@ -194,6 +195,7 @@ async function deriveConnectionConfigFromSnapshot(
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
     maxTurns: agent.configuration?.max_turns ?? null,
+    reasoningEffort: agent.configuration?.reasoning_effort ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
@@ -273,6 +275,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const route = await resolveClaudeCodeRuntimeRoute(provider, model, modelId, baseUrl, planModel, smallModel)
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  const { thinking, effort } = getAnthropicReasoningParamsForEffort(agent.configuration?.reasoning_effort, model)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -280,7 +283,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       {
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
-        linkedChannelSnapshot
+        linkedChannelSnapshot,
+        thinkingOptions: { thinking, effort }
       },
       agent
     ),

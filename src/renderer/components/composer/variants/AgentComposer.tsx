@@ -50,6 +50,7 @@ import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { agentPreferenceSaveQueueService } from '@renderer/services/AgentPreferenceSaveQueueService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
@@ -59,6 +60,7 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { cn } from '@renderer/utils/style'
+import { CLAUDE_WEB_SEARCH_TOOL_NAME } from '@shared/ai/claudecode/toolRegistry'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -900,7 +902,7 @@ const AgentComposerInner = ({
   forceNarrowLayout = false
 }: InnerProps) => {
   const { agent: agentBase } = useAgent(agentId)
-  const { updateModel } = useUpdateAgent()
+  const { updateAgent, updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -931,7 +933,14 @@ const AgentComposerInner = ({
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
   }
 
-  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
+  const persistedReasoningEffort: ThinkingOption = agentBase?.configuration?.reasoning_effort ?? 'default'
+  const persistedWebSearchEnabled = agentBase
+    ? !(agentBase.disabledTools ?? []).includes(CLAUDE_WEB_SEARCH_TOOL_NAME)
+    : false
+  const [pendingReasoningEffort, setPendingReasoningEffort] = useState<ThinkingOption>()
+  const [pendingWebSearchEnabled, setPendingWebSearchEnabled] = useState<boolean>()
+  const reasoningEffort = pendingReasoningEffort ?? persistedReasoningEffort
+  const webSearchEnabled = pendingWebSearchEnabled ?? persistedWebSearchEnabled
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     initialDraftRef.current ? initialDraftRef.current.tokens.map(getSkillFromCachedToken) : []
   )
@@ -947,6 +956,56 @@ const AgentComposerInner = ({
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
+
+  useEffect(() => {
+    setPendingReasoningEffort((current) => (current === persistedReasoningEffort ? undefined : current))
+  }, [persistedReasoningEffort])
+
+  useEffect(() => {
+    setPendingWebSearchEnabled((current) => (current === persistedWebSearchEnabled ? undefined : current))
+  }, [persistedWebSearchEnabled])
+
+  const handleReasoningEffortChange = useCallback(
+    (option: ThinkingOption) => {
+      if (!agentBase) return
+      setPendingReasoningEffort(option)
+      void agentPreferenceSaveQueueService
+        .enqueue(agentId, () =>
+          updateAgent(
+            {
+              id: agentId,
+              configurationPatch: { reasoning_effort: option }
+            },
+            { showSuccessToast: false }
+          )
+        )
+        .then((saved) => {
+          if (!saved) setPendingReasoningEffort((current) => (current === option ? undefined : current))
+        })
+    },
+    [agentBase, agentId, updateAgent]
+  )
+
+  const handleWebSearchEnabledChange = useCallback(
+    (enabled: boolean) => {
+      if (!agentBase) return
+      setPendingWebSearchEnabled(enabled)
+      void agentPreferenceSaveQueueService
+        .enqueue(agentId, () =>
+          updateAgent(
+            {
+              id: agentId,
+              toolUpdates: [{ toolName: CLAUDE_WEB_SEARCH_TOOL_NAME, isEnabled: enabled }]
+            },
+            { showSuccessToast: false }
+          )
+        )
+        .then((saved) => {
+          if (!saved) setPendingWebSearchEnabled((current) => (current === enabled ? undefined : current))
+        })
+    },
+    [agentBase, agentId, updateAgent]
+  )
 
   useEffect(() => {
     const workspacePath = userWorkspacePath
@@ -1208,8 +1267,14 @@ const AgentComposerInner = ({
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
-    return { ...sessionData, reasoningEffort, onReasoningEffortChange: setReasoningEffort }
-  }, [sessionData, reasoningEffort])
+    return {
+      ...sessionData,
+      reasoningEffort,
+      onReasoningEffortChange: handleReasoningEffortChange,
+      webSearchEnabled,
+      onWebSearchEnabledChange: handleWebSearchEnabledChange
+    }
+  }, [handleReasoningEffortChange, handleWebSearchEnabledChange, reasoningEffort, sessionData, webSearchEnabled])
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
@@ -1264,6 +1329,7 @@ const AgentComposerInner = ({
   const sendQueuedPayload = useCallback(
     async (payload: ComposerQueuedMessagePayload) => {
       try {
+        if (!(await agentPreferenceSaveQueueService.wait(agentId))) return false
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
         await chatSendMessage(

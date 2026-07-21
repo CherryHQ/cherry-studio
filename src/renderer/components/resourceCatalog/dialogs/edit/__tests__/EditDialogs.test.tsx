@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { CLAUDE_WEB_SEARCH_TOOL_NAME } from '@shared/ai/claudecode/toolRegistry'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -932,17 +933,73 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
     expect(body).not.toHaveProperty('allowedTools')
-    expect(body).toEqual(
-      expect.objectContaining({
-        configuration: expect.not.objectContaining({ max_turns: expect.anything() })
-      })
-    )
-    expect(body.configuration).toEqual(
+    expect(body.configuration).toBeUndefined()
+    expect(body.configurationPatch).not.toHaveProperty('max_turns')
+    expect(body.configurationPatch).toEqual(
       expect.objectContaining({
         env_vars: { FOO: 'bar' },
         permission_mode: 'plan'
       })
     )
+  })
+
+  it('does not reverse an external search toggle when saving an unrelated agent field', async () => {
+    const view = render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    view.rerender(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, disabledTools: [CLAUDE_WEB_SEARCH_TOOL_NAME] }}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Agent' } })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ name: 'Updated Agent' })
+      })
+    )
+    for (const [{ body }] of vi.mocked(updateAgentMock).mock.calls) {
+      expect(body).not.toHaveProperty('toolUpdates')
+    }
+  })
+
+  it('does not reverse an external search toggle after saving another tool change', async () => {
+    const onSaved = vi.fn()
+    updateAgentMock.mockResolvedValueOnce({ ...AGENT, disabledTools: ['Bash'] })
+    const view = render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={onSaved} />)
+
+    selectTab('Built-in tools')
+    fireEvent.click(screen.getByRole('switch', { name: 'Bash' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ toolUpdates: [{ toolName: 'Bash', isEnabled: false }] })
+      })
+    )
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    updateAgentMock.mockClear()
+
+    view.rerender(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, disabledTools: ['Bash', CLAUDE_WEB_SEARCH_TOOL_NAME] }}
+        onOpenChange={vi.fn()}
+        onSaved={onSaved}
+      />
+    )
+    selectTab('Basic')
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Agent' } })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ name: 'Updated Agent' })
+      })
+    )
+    for (const [{ body }] of vi.mocked(updateAgentMock).mock.calls) {
+      expect(body).not.toHaveProperty('toolUpdates')
+    }
   })
 
   it('shows agent tool categories directly in the left tab list', async () => {

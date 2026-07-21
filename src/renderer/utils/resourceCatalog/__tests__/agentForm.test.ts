@@ -159,6 +159,21 @@ describe('diffAgentUpdate', () => {
     expect(diffAgentUpdate(baseline, next, agent)).toBeNull()
   })
 
+  it('emits per-tool deltas instead of replacing disabledTools', () => {
+    const agent = createAgent({ disabledTools: ['Bash'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, disabledTools: ['Read'] }
+
+    const result = diffAgentUpdate(baseline, next, agent)
+
+    expect(result?.dto).toEqual({
+      toolUpdates: [
+        { toolName: 'Bash', isEnabled: true },
+        { toolName: 'Read', isEnabled: false }
+      ]
+    })
+  })
+
   it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {
     const agent = createAgent({
       model: 'anthropic::claude-sonnet-4-5',
@@ -182,7 +197,7 @@ describe('diffAgentUpdate', () => {
     })
   })
 
-  it('merges configuration-subkey patches on top of the existing configuration without sending max_turns', () => {
+  it('emits only changed configuration subkeys while preserving the max-turns cleanup', () => {
     const agent = createAgent({
       configuration: { avatar: '🤖', plugin_state: 'keep-me', max_turns: 10 }
     })
@@ -190,12 +205,9 @@ describe('diffAgentUpdate', () => {
     const next = { ...baseline, avatar: '🚀' }
 
     const result = diffAgentUpdate(baseline, next, agent)
-    // plugin_state must be preserved — the library form does not edit it, so
-    // it MUST NOT be stripped from the PATCH payload.
-    expect(result?.dto.configuration).toEqual({
-      avatar: '🚀',
-      plugin_state: 'keep-me'
-    })
+    expect(result?.dto.configurationPatch).toEqual({ avatar: '🚀' })
+    expect(result?.dto.configurationUnsetKeys).toEqual(['max_turns'])
+    expect(result?.dto.configuration).toBeUndefined()
   })
 
   it('round-trips env_vars through the textarea format', () => {
@@ -205,7 +217,7 @@ describe('diffAgentUpdate', () => {
     const next = { ...baseline, envVarsText: 'A=1\nB=2' }
 
     const result = diffAgentUpdate(baseline, next, agent)
-    expect(result?.dto.configuration).toMatchObject({
+    expect(result?.dto.configurationPatch).toMatchObject({
       env_vars: {
         A: '1',
         B: '2'
@@ -219,7 +231,7 @@ describe('diffAgentUpdate', () => {
     const next = { ...baseline, envVarsText: 'TOKEN= abc \nEMPTY=  \nSPACED_KEY =value=with=equals' }
 
     const result = diffAgentUpdate(baseline, next, agent)
-    expect(result?.dto.configuration).toMatchObject({
+    expect(result?.dto.configurationPatch).toMatchObject({
       env_vars: {
         TOKEN: ' abc ',
         EMPTY: '  ',
@@ -234,7 +246,7 @@ describe('diffAgentUpdate', () => {
     const next = { ...baseline, permissionMode: 'default' }
 
     const result = diffAgentUpdate(baseline, next, agent)
-    expect(result?.dto.configuration).toMatchObject({
+    expect(result?.dto.configurationPatch).toMatchObject({
       permission_mode: 'default'
     })
   })

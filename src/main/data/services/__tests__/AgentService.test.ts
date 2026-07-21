@@ -268,6 +268,50 @@ describe('AgentService', () => {
       expect(updated?.configuration?.builtin_role).toBe('assistant')
       expect(updated?.configuration?.avatar).toBe('🍒')
     })
+
+    it('rejects changing builtin_role through configurationPatch', async () => {
+      const agentId = 'agent_builtin_patch_change'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
+
+      const error = captureError(() =>
+        agentService.updateAgent(agentId, { configurationPatch: { builtin_role: 'other' } })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(agentId)?.configuration?.builtin_role).toBe('assistant')
+    })
+
+    it('preserves builtin_role when configurationUnsetKeys requests its removal', async () => {
+      const agentId = 'agent_builtin_patch_unset'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant', avatar: '🍒' } })
+
+      const updated = agentService.updateAgent(agentId, { configurationUnsetKeys: ['builtin_role'] })
+
+      expect(updated?.configuration?.builtin_role).toBe('assistant')
+      expect(updated?.configuration?.avatar).toBe('🍒')
+    })
+  })
+
+  describe('configurationPatch', () => {
+    it('merges independent subkey updates into the latest stored configuration', async () => {
+      const agentId = 'agent_configuration_patch'
+      await insertAgent({
+        id: agentId,
+        configuration: { permission_mode: 'default', plugin_state: 'keep-me', max_turns: 10 }
+      })
+
+      agentService.updateAgent(agentId, { configurationPatch: { permission_mode: 'plan' } })
+      const updated = agentService.updateAgent(agentId, {
+        configurationPatch: { reasoning_effort: 'high' },
+        configurationUnsetKeys: ['max_turns']
+      })
+
+      expect(updated?.configuration).toMatchObject({
+        permission_mode: 'plan',
+        reasoning_effort: 'high',
+        plugin_state: 'keep-me'
+      })
+      expect(updated?.configuration?.max_turns).toBeUndefined()
+    })
   })
 
   describe('disabledTools round-trip', () => {
@@ -285,6 +329,24 @@ describe('AgentService', () => {
 
       const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.disabledTools).toEqual(['Bash', 'Workflow'])
+    })
+
+    it('applies toolUpdates against the latest stored disabledTools list', async () => {
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Tool Deltas',
+        model: TEST_MODEL_ID,
+        disabledTools: ['Bash']
+      })
+
+      agentService.updateAgent(created.id, {
+        toolUpdates: [{ toolName: 'mcp__cherry-tools__web_search', isEnabled: false }]
+      })
+      const updated = agentService.updateAgent(created.id, {
+        toolUpdates: [{ toolName: 'Bash', isEnabled: true }]
+      })
+
+      expect(updated?.disabledTools).toEqual(['mcp__cherry-tools__web_search'])
     })
   })
 

@@ -4,8 +4,13 @@ import {
   DEFAULT_HEARTBEAT_INTERVAL,
   normalizePermissionMode
 } from '@renderer/utils/agent/permissionMode'
-import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
-import type { AgentConfiguration } from '@shared/data/types/agent'
+import type {
+  AgentConfiguration,
+  AgentConfigurationPatch,
+  AgentSkillUpdateDto,
+  AgentToolUpdateDto,
+  UpdateAgentDto
+} from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 // ---------------------------------------------------------------------------
@@ -129,10 +134,8 @@ export interface AgentDiffResult {
  * Compute a minimal `UpdateAgentDto` by comparing `next` to `baseline`. Returns
  * `null` when no editable agent field changed.
  *
- * `configuration` is merged onto the existing `agent.configuration` so unrelated
- * keys that we don't surface in the form (plugin-specific settings, etc.) are
- * preserved. Only the configuration keys we actually edit participate in the
- * diff.
+ * Configuration and tool changes are emitted as deltas so unrelated values
+ * changed by another input surface cannot be replaced by this form's snapshot.
  */
 export function diffAgentUpdate(
   baseline: AgentFormState,
@@ -175,12 +178,13 @@ export function diffAgentUpdate(
     dto.skillUpdates = skillUpdates
     dirty = true
   }
-  if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
-    dto.disabledTools = next.disabledTools
+  const toolUpdates = diffToolUpdates(baseline.disabledTools, next.disabledTools)
+  if (toolUpdates.length > 0) {
+    dto.toolUpdates = toolUpdates
     dirty = true
   }
 
-  const cfgPatch: Record<string, unknown> = {}
+  const cfgPatch: AgentConfigurationPatch = {}
   let cfgDirty = false
 
   if (baseline.avatar !== next.avatar) {
@@ -188,7 +192,7 @@ export function diffAgentUpdate(
     cfgDirty = true
   }
   if (baseline.permissionMode !== next.permissionMode) {
-    cfgPatch.permission_mode = next.permissionMode || 'default'
+    cfgPatch.permission_mode = normalizePermissionMode(next.permissionMode)
     cfgDirty = true
   }
   if (baseline.envVarsText !== next.envVarsText) {
@@ -208,19 +212,16 @@ export function diffAgentUpdate(
   }
 
   if (cfgDirty) {
-    dto.configuration = { ...configurationWithoutMaxTurns(agent.configuration), ...cfgPatch }
+    dto.configurationPatch = cfgPatch
+    if (Object.prototype.hasOwnProperty.call(agent.configuration ?? {}, 'max_turns')) {
+      dto.configurationUnsetKeys = ['max_turns']
+    }
     dirty = true
   }
 
   if (!dirty) return null
 
   return { dto }
-}
-
-function configurationWithoutMaxTurns(configuration: AgentDetail['configuration']): Record<string, unknown> {
-  const rest: Record<string, unknown> = { ...configuration }
-  delete rest.max_turns
-  return rest
 }
 
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
@@ -239,6 +240,24 @@ function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: rea
   }
   for (const skillId of nextSkillIds) {
     if (!baselineSet.has(skillId)) updates.push({ skillId, isEnabled: true })
+  }
+
+  return updates
+}
+
+function diffToolUpdates(
+  baselineDisabledTools: readonly string[],
+  nextDisabledTools: readonly string[]
+): AgentToolUpdateDto[] {
+  const baselineSet = new Set(baselineDisabledTools)
+  const nextSet = new Set(nextDisabledTools)
+  const updates: AgentToolUpdateDto[] = []
+
+  for (const toolName of baselineDisabledTools) {
+    if (!nextSet.has(toolName)) updates.push({ toolName, isEnabled: true })
+  }
+  for (const toolName of nextDisabledTools) {
+    if (!baselineSet.has(toolName)) updates.push({ toolName, isEnabled: false })
   }
 
   return updates

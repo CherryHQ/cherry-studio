@@ -1,6 +1,8 @@
 import { cacheService } from '@data/CacheService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import type { ThinkingOption } from '@renderer/types/reasoning'
+import { CLAUDE_WEB_SEARCH_TOOL_NAME } from '@shared/ai/claudecode/toolRegistry'
 import type { FileUIPart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -35,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
   clearTimeoutTimer: vi.fn(),
+  updateAgent: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
@@ -61,8 +64,20 @@ const mocks = vi.hoisted(() => ({
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   sessionLayout: undefined as string | undefined,
+  agentConfiguration: {} as Record<string, unknown>,
+  agentDisabledTools: [] as string[],
   runtimeHostProps: undefined as
-    | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
+    | {
+        assistant?: { modelId?: string | null }
+        model?: Model
+        session?: {
+          agentId?: string
+          reasoningEffort?: string
+          onReasoningEffortChange?: (option: ThinkingOption) => void
+          webSearchEnabled?: boolean
+          onWebSearchEnabledChange?: (enabled: boolean) => void
+        }
+      }
     | undefined,
   sessionWorkspaceId: 'workspace-1',
   sessionWorkspaceName: 'Workspace 1',
@@ -323,10 +338,11 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
       model: 'anthropic::claude-sonnet-4-5',
       modelName: 'Claude Sonnet 4.5',
       instructions: 'Follow instructions',
-      configuration: {}
+      configuration: mocks.agentConfiguration,
+      disabledTools: mocks.agentDisabledTools
     }
   }),
-  useUpdateAgent: () => ({ updateModel: mocks.updateModel })
+  useUpdateAgent: () => ({ updateAgent: mocks.updateAgent, updateModel: mocks.updateModel })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
@@ -619,6 +635,8 @@ describe('AgentComposer', () => {
         getMetadata: mocks.getMetadata
       }
     }
+    mocks.updateAgent.mockReset()
+    mocks.updateAgent.mockResolvedValue({ id: 'agent-1' })
     mocks.updateModel.mockReset()
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
@@ -646,6 +664,8 @@ describe('AgentComposer', () => {
     mocks.runtimeProviderMounts = 0
     mocks.runtimeProviderUnmounts = 0
     mocks.sessionLayout = undefined
+    mocks.agentConfiguration = {}
+    mocks.agentDisabledTools = []
     mocks.getDraft.mockReset()
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
@@ -688,6 +708,146 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('restores and persists reasoning effort on the parent Agent', async () => {
+    mocks.agentConfiguration = { permission_mode: 'plan', reasoning_effort: 'high' }
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.runtimeHostProps?.session?.reasoningEffort).toBe('high')
+
+    act(() => mocks.runtimeHostProps?.session?.onReasoningEffortChange?.('low'))
+
+    await waitFor(() =>
+      expect(mocks.updateAgent).toHaveBeenCalledWith(
+        {
+          id: 'agent-1',
+          configurationPatch: { reasoning_effort: 'low' }
+        },
+        { showSuccessToast: false }
+      )
+    )
+  })
+
+  it('persists Agent web search through a per-tool delta', async () => {
+    mocks.agentDisabledTools = ['Bash']
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.runtimeHostProps?.session?.webSearchEnabled).toBe(true)
+
+    act(() => mocks.runtimeHostProps?.session?.onWebSearchEnabledChange?.(false))
+
+    await waitFor(() =>
+      expect(mocks.updateAgent).toHaveBeenCalledWith(
+        {
+          id: 'agent-1',
+          toolUpdates: [{ toolName: CLAUDE_WEB_SEARCH_TOOL_NAME, isEnabled: false }]
+        },
+        { showSuccessToast: false }
+      )
+    )
+  })
+
+  it('waits across a Session remount for an in-flight Agent preference save before sending', async () => {
+    let resolveUpdate: ((value: { id: string }) => void) | undefined
+    mocks.updateAgent.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = resolve
+        })
+    )
+
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.session?.onReasoningEffortChange?.('high'))
+    await waitFor(() => expect(mocks.updateAgent).toHaveBeenCalled())
+
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-2"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    let sendPromise: ReturnType<NonNullable<ComposerSurfaceProps['onSendDraft']>> | undefined
+    act(() => {
+      sendPromise = mocks.surfaceProps?.onSendDraft({ text: 'use high reasoning', tokens: [] })
+    })
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveUpdate?.({ id: 'agent-1' })
+      await sendPromise
+    })
+    expect(mocks.sendMessage).toHaveBeenCalled()
+  })
+
+  it('blocks only the send racing a failed Agent preference save', async () => {
+    let resolveUpdate: ((value: undefined) => void) | undefined
+    mocks.updateAgent.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = resolve
+        })
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.session?.onReasoningEffortChange?.('high'))
+    await waitFor(() => expect(mocks.updateAgent).toHaveBeenCalled())
+
+    let failedSend: ReturnType<NonNullable<ComposerSurfaceProps['onSendDraft']>> | undefined
+    act(() => {
+      failedSend = mocks.surfaceProps?.onSendDraft({ text: 'do not send with stale reasoning', tokens: [] })
+    })
+
+    await act(async () => {
+      resolveUpdate?.(undefined)
+      await failedSend
+    })
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'send after rollback', tokens: [] })
+    })
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
   })
 
   it('uses the same 20px size for the model and workspace icons', () => {

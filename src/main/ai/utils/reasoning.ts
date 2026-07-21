@@ -694,19 +694,20 @@ function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
  *   `sendReasoning: true` ensures reasoning output is streamed back to the UI.
  *   `effort` is only added for DeepSeek V4+ (`high` | `xhigh` → `high` | `max`).
  */
-export function getAnthropicReasoningParams(
-  assistant: Assistant,
-  model: Model
-): {
+type AnthropicReasoningParams = {
   thinking?: AnthropicProviderOptions['thinking']
   effort?: AnthropicProviderOptions['effort']
   sendReasoning?: AnthropicProviderOptions['sendReasoning']
-} {
+}
+
+export function getAnthropicReasoningParamsForEffort(
+  reasoningEffort: ReasoningEffortOption | undefined,
+  model: Model,
+  maxTokens?: number
+): AnthropicReasoningParams {
   if (!isReasoningModel(model)) {
     return {}
   }
-
-  const reasoningEffort = assistant?.settings?.reasoning_effort
 
   if (!reasoningEffort || reasoningEffort === 'default') {
     return {}
@@ -763,7 +764,6 @@ export function getAnthropicReasoningParams(
     }
 
     // Other Claude models continue using enabled + budgetTokens
-    const maxTokens = assistant.settings?.maxTokens
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
 
     return {
@@ -774,9 +774,8 @@ export function getAnthropicReasoningParams(
     }
   } else {
     // 其他使用claude端點的模型，比如Kimi,Minimax等等
-    const maxTokens = assistant.settings?.maxTokens
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
-    const params: Partial<ReturnType<typeof getAnthropicReasoningParams>> = {
+    const params: Partial<AnthropicReasoningParams> = {
       thinking: {
         type: 'enabled',
         budgetTokens: budgetTokens ?? getFallbackBudgetTokens(reasoningEffort)
@@ -804,6 +803,14 @@ export function getAnthropicReasoningParams(
     // upstream providers do not support (they only accept 'enabled'/'disabled').
     return params
   }
+}
+
+export function getAnthropicReasoningParams(assistant: Assistant, model: Model): AnthropicReasoningParams {
+  return getAnthropicReasoningParamsForEffort(
+    assistant.settings?.reasoning_effort as ReasoningEffortOption | undefined,
+    model,
+    assistant.settings?.maxTokens
+  )
 }
 
 type GoogleThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']

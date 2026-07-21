@@ -81,6 +81,7 @@ type AgentEditFormValues = {
 }
 
 type ToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.skills'
+type ToolIntents = Record<string, boolean>
 
 const logger = loggerService.withContext('AgentEditDialog')
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
@@ -158,6 +159,33 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
   }
 }
 
+function applyToolIntents(disabledTools: readonly string[], intents: ToolIntents): string[] {
+  const next = new Set(disabledTools)
+  for (const [toolName, isEnabled] of Object.entries(intents)) {
+    if (isEnabled) {
+      next.delete(toolName)
+    } else {
+      next.add(toolName)
+    }
+  }
+  return Array.from(next)
+}
+
+function reconcileToolIntents(
+  intents: ToolIntents,
+  disabledTools: ReadonlySet<string>,
+  protectedToolNames: ReadonlySet<string>
+): ToolIntents {
+  let next = intents
+  for (const [toolName, isEnabled] of Object.entries(intents)) {
+    const persistedEnabled = !disabledTools.has(toolName)
+    if (isEnabled !== persistedEnabled || protectedToolNames.has(toolName)) continue
+    if (next === intents) next = { ...intents }
+    delete next[toolName]
+  }
+  return next
+}
+
 function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: AgentFormState) {
   form.setValue('modelId', next.model || null, { shouldDirty: true })
   form.setValue('planModelId', next.planModel, { shouldDirty: true })
@@ -215,6 +243,8 @@ function AgentEditDialogContent({
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
+  const [toolIntents, setToolIntents] = useState<ToolIntents>({})
+  const inFlightToolNamesRef = useRef(new Set<string>())
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -235,10 +265,25 @@ function AgentEditDialogContent({
     () => (skillIdsFromQueryKey ? skillIdsFromQueryKey.split('\0') : []),
     [skillIdsFromQueryKey]
   )
+  const persistedDisabledTools = useMemo(() => new Set(resource.disabledTools ?? []), [resource.disabledTools])
+  const persistedDisabledToolsRef = useRef(persistedDisabledTools)
+  persistedDisabledToolsRef.current = persistedDisabledTools
+
+  useEffect(() => {
+    setToolIntents((current) => reconcileToolIntents(current, persistedDisabledTools, inFlightToolNamesRef.current))
+  }, [persistedDisabledTools])
+
   const saveIntent = useMemo(() => {
     const baseline = buildInitialAgentFormState(resource, baselineSkillIds)
-    return diffAgentSaveIntent(buildAgentFormState(baseline, values), baseline, resource)
-  }, [baselineSkillIds, resource, values])
+    const current = buildAgentFormState(baseline, values)
+
+    // The dialog keeps drafts across resource refetches. Overlay only explicit,
+    // unacknowledged tool actions so stale form values cannot reverse changes
+    // made by the Session composer or another window.
+    current.disabledTools = applyToolIntents(baseline.disabledTools, toolIntents)
+
+    return diffAgentSaveIntent(current, baseline, resource)
+  }, [baselineSkillIds, resource, toolIntents, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -271,6 +316,8 @@ function AgentEditDialogContent({
     setModelLabels(modelLabelsForAgent(resource))
     setBaselineSkillIds([])
     setBaselineSkillAgentId(null)
+    setToolIntents({})
+    inFlightToolNamesRef.current.clear()
   }, [defaultValues, form, initialTab, open, resource])
 
   useEffect(() => {
@@ -295,6 +342,9 @@ function AgentEditDialogContent({
     const pending = saveIntent
     if (!pending) return
 
+    const pendingToolNames = pending.payload.toolUpdates?.map((update) => update.toolName) ?? []
+    for (const toolName of pendingToolNames) inFlightToolNamesRef.current.add(toolName)
+
     form.clearErrors('root')
     saveFailedRef.current = false
 
@@ -302,11 +352,19 @@ function AgentEditDialogContent({
     try {
       updated = await updateAgent(pending.payload)
     } catch (error) {
+      for (const toolName of pendingToolNames) inFlightToolNamesRef.current.delete(toolName)
+      setToolIntents((current) =>
+        reconcileToolIntents(current, persistedDisabledToolsRef.current, inFlightToolNamesRef.current)
+      )
       logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
       saveFailedRef.current = true
       return
     }
+
+    for (const toolName of pendingToolNames) inFlightToolNamesRef.current.delete(toolName)
+    const updatedDisabledTools = new Set(updated.disabledTools ?? [])
+    setToolIntents((current) => reconcileToolIntents(current, updatedDisabledTools, inFlightToolNamesRef.current))
 
     try {
       await onSaved(updated)
@@ -341,6 +399,12 @@ function AgentEditDialogContent({
   }
   // Route the settings-navigate close through handleOpenChange so it flushes too.
   const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
+  const handleToolEnabledChange = (toolName: string, isEnabled: boolean) => {
+    setToolIntents((current) => {
+      const next = { ...current, [toolName]: isEnabled }
+      return reconcileToolIntents(next, persistedDisabledToolsRef.current, inFlightToolNamesRef.current)
+    })
+  }
 
   return (
     <EditDialogShell
@@ -384,6 +448,7 @@ function AgentEditDialogContent({
               portalContainer={dialogContentElement}
               skills={skills}
               skillsLoading={skillsLoading}
+              onToolEnabledChange={handleToolEnabledChange}
             />
           </TabsContent>
         ) : null}
@@ -658,7 +723,8 @@ function AgentToolsFields({
   activeToolTab,
   portalContainer,
   skills,
-  skillsLoading
+  skillsLoading,
+  onToolEnabledChange
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
@@ -666,6 +732,7 @@ function AgentToolsFields({
   portalContainer: HTMLElement | null
   skills: InstalledSkill[]
   skillsLoading: boolean
+  onToolEnabledChange: (toolName: string, isEnabled: boolean) => void
 }) {
   const { t } = useTranslation()
   const disabledTools = form.watch('disabledTools')
@@ -696,10 +763,12 @@ function AgentToolsFields({
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]
   )
-  const setToolEnabled = (name: string, enabled: boolean) =>
+  const setToolEnabled = (name: string, enabled: boolean) => {
+    onToolEnabledChange(name, enabled)
     form.setValue('disabledTools', enabled ? disabledTools.filter((n) => n !== name) : [...disabledTools, name], {
       shouldDirty: true
     })
+  }
 
   const mcpIds = useMemo(() => new Set(mcps), [mcps])
   const enableMCP = (id: string) => form.setValue('mcps', [...mcps, id], { shouldDirty: true })

@@ -34,15 +34,38 @@ export const AgentSkillUpdateListSchema = z.array(AgentSkillUpdateSchema).transf
 })
 export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
+export const AgentToolUpdateSchema = z.strictObject({
+  toolName: z.string().min(1),
+  isEnabled: z.boolean()
+})
+export const AgentToolUpdateListSchema = z.array(AgentToolUpdateSchema).transform((items) => {
+  const byToolName = new Map<string, z.infer<typeof AgentToolUpdateSchema>>()
+  for (const item of items) byToolName.set(item.toolName, item)
+  return Array.from(byToolName.values())
+})
+export type AgentToolUpdateDto = z.infer<typeof AgentToolUpdateSchema>
+
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
+export const AgentReasoningEffortSchema = z.enum([
+  'default',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'auto'
+])
+export type AgentReasoningEffort = z.infer<typeof AgentReasoningEffortSchema>
 
 export const AgentConfigurationSchema = z
   .object({
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
+    reasoning_effort: AgentReasoningEffortSchema.optional(),
     max_turns: z.number().optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),
@@ -60,6 +83,8 @@ export const AgentConfigurationSchema = z
   // survive a round-trip through parse() so they are not silently dropped on the next save.
   .loose()
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
+export const AgentConfigurationPatchSchema = AgentConfigurationSchema.partial()
+export type AgentConfigurationPatch = z.infer<typeof AgentConfigurationPatchSchema>
 
 /**
  * Read-side sanitizer for stored configuration JSON.
@@ -197,14 +222,25 @@ export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_M
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
-export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
-  /**
-   * Per-skill enablement changes for this agent. Omitted means "leave skills
-   * unchanged"; an empty array is a no-op. The server applies each update
-   * without replacing unrelated skill rows.
-   */
-  skillUpdates: AgentSkillUpdateListSchema.optional()
-})
+export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
+  .partial()
+  .extend({
+    /**
+     * Per-skill enablement changes for this agent. Omitted means "leave skills
+     * unchanged"; an empty array is a no-op. The server applies each update
+     * without replacing unrelated skill rows.
+     */
+    skillUpdates: AgentSkillUpdateListSchema.optional(),
+    /** Merge these keys into the latest stored configuration instead of replacing the JSON blob. */
+    configurationPatch: AgentConfigurationPatchSchema.optional(),
+    /** Remove these keys from the latest stored configuration in the same update. */
+    configurationUnsetKeys: z
+      .array(z.string().min(1))
+      .transform((keys) => Array.from(new Set(keys)))
+      .optional(),
+    /** Apply per-tool enablement deltas against the latest stored disabledTools list. */
+    toolUpdates: AgentToolUpdateListSchema.optional()
+  })
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
 // ============================================================================

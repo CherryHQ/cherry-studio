@@ -72,6 +72,8 @@ export interface ToolContext {
     slashCommands?: SlashCommand[]
     reasoningEffort?: ThinkingOption
     onReasoningEffortChange?: (option: ThinkingOption) => void
+    webSearchEnabled?: boolean
+    onWebSearchEnabledChange?: (enabled: boolean) => void
   }
 }
 

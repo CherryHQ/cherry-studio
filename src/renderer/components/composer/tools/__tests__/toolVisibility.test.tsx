@@ -30,6 +30,7 @@ vi.mock('@renderer/components/composer/tools/components/QuickPhrasesButton', () 
 }))
 
 vi.mock('@renderer/components/composer/tools/components/WebSearchButton', () => ({
+  AgentWebSearchToolRuntime: () => null,
   WebSearchToolRuntime: () => null
 }))
 
@@ -80,5 +81,16 @@ describe('composer tool visibility', () => {
     expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
+  })
+
+  it('shows web search in chat and agent session scopes', () => {
+    const model = {
+      id: 'text-only',
+      providerId: 'provider-1',
+      name: 'Text only'
+    } as any
+
+    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('web_search')
+    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('web_search')
   })
 })

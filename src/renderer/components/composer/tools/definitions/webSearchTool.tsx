@@ -1,23 +1,37 @@
-import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 
-import { WebSearchToolRuntime } from '../components/WebSearchButton'
+import { AgentWebSearchToolRuntime, WebSearchToolRuntime } from '../components/WebSearchButton'
+
+type WebSearchToolContext = ToolRenderContext<readonly [], readonly []>
+
+const WebSearchRuntime = ({ context }: { context: WebSearchToolContext }) => {
+  if (context.scope === TopicType.Session) {
+    const enabled = context.session?.webSearchEnabled
+    const onEnabledChange = context.session?.onWebSearchEnabledChange
+    if (enabled === undefined || !onEnabledChange) return null
+    return <AgentWebSearchToolRuntime enabled={enabled} launcher={context.launcher} onEnabledChange={onEnabledChange} />
+  }
+
+  if (!context.assistant) return null
+  return <WebSearchToolRuntime assistantId={context.assistant.id} launcher={context.launcher} />
+}
 
 /**
  * Web Search Tool
  *
- * Toggle that flips `assistant.settings.enableWebSearch`. Provider selection
- * happens server-side at tool execute time — see `WebSearchTool.ts`'s
- * `pickFirstUsableProvider`. The previous quick-panel picker has been
- * retired now that there's no per-assistant provider id to set.
+ * Chat persists the toggle on `assistant.settings.enableWebSearch`; Agent Session
+ * persists it through the parent Agent's `disabledTools`. Provider selection for
+ * Chat happens server-side at tool execute time — see `WebSearchTool.ts`'s
+ * `pickFirstUsableProvider`.
  */
 const webSearchTool = defineTool({
   key: 'web_search',
   label: (t) => t('chat.input.web_search.label'),
 
-  visibleInScopes: [TopicType.Chat],
+  visibleInScopes: [TopicType.Chat, TopicType.Session],
 
   composer: {
-    runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
+    runtime: ({ context }) => <WebSearchRuntime context={context} />
   }
 })
 

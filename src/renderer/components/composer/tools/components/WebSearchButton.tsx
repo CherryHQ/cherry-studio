@@ -24,7 +24,14 @@ interface Props {
   launcher: ToolLauncherApi
 }
 
+interface AgentWebSearchProps {
+  enabled: boolean
+  launcher: ToolLauncherApi
+  onEnabledChange: (enabled: boolean) => void
+}
+
 const KEYLESS_PROVIDERS: ReadonlySet<WebSearchProviderId> = new Set(['fetch', 'searxng', 'exa-mcp', 'firecrawl'])
+const AGENT_WEB_SEARCH_ICON = <Globe />
 const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean => !KEYLESS_PROVIDERS.has(id)
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
@@ -166,6 +173,30 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
 export const WebSearchToolRuntime: FC<Props> = (props) => {
   useWebSearchToolController(props)
+  return null
+}
+
+export const AgentWebSearchToolRuntime: FC<AgentWebSearchProps> = ({ enabled, launcher, onEnabledChange }) => {
+  const { t } = useTranslation()
+  const toggle = useCallback(() => onEnabledChange(!enabled), [enabled, onEnabledChange])
+
+  useEffect(() => {
+    return launcher.registerLaunchers([
+      {
+        id: 'web-search',
+        kind: 'command',
+        sources: ['popover'],
+        order: 30,
+        label: t('chat.input.web_search.label'),
+        description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.web_search.label', ['search']),
+        icon: AGENT_WEB_SEARCH_ICON,
+        active: enabled,
+        action: toggle
+      }
+    ])
+  }, [enabled, launcher, t, toggle])
+
   return null
 }
 

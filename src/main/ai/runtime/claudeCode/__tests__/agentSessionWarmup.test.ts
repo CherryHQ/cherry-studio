@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   buildSkillWhitelist: vi.fn(),
   findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
+  getAnthropicReasoningParamsForEffort: vi.fn(),
   preferenceGet: vi.fn(),
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
@@ -75,6 +76,10 @@ vi.mock('../../provider/endpoint', () => ({
   resolveEffectiveEndpoint: mocks.resolveEffectiveEndpoint
 }))
 
+vi.mock('@main/ai/utils/reasoning', () => ({
+  getAnthropicReasoningParamsForEffort: mocks.getAnthropicReasoningParamsForEffort
+}))
+
 vi.mock('../settingsBuilder', () => ({
   buildClaudeCodeSessionSettings: mocks.buildSessionSettings,
   buildSkillWhitelist: mocks.buildSkillWhitelist
@@ -102,6 +107,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.buildSkillWhitelist.mockResolvedValue([])
     mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
+    mocks.getAnthropicReasoningParamsForEffort.mockReturnValue({})
     mocks.preferenceGet.mockReturnValue(undefined)
     mocks.apiGatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.apiGatewayIsRunning.mockReturnValue(true)
@@ -140,6 +146,33 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     expect(request?.options.resume).toBeUndefined()
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
+  })
+
+  it('maps persisted Agent reasoning into the spawned session settings', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      configuration: { reasoning_effort: 'high' }
+    })
+    mocks.getAnthropicReasoningParamsForEffort.mockReturnValue({
+      thinking: { type: 'adaptive' },
+      effort: 'high'
+    })
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.getAnthropicReasoningParamsForEffort).toHaveBeenCalledWith(
+      'high',
+      expect.objectContaining({ id: 'model-1' })
+    )
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        thinkingOptions: { thinking: { type: 'adaptive' }, effort: 'high' }
+      }),
+      expect.objectContaining({ id: 'agent-1' })
+    )
   })
 
   it('routes with the connection-scoped model override instead of the agent latest model', async () => {
@@ -663,6 +696,16 @@ describe('deriveConnectionConfig', () => {
     })
     const maxTurnsChanged = await deriveSignature()
     expect(maxTurnsChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { reasoning_effort: 'high' }
+    })
+    const reasoningChanged = await deriveSignature()
+    expect(reasoningChanged.rebuildSignature).not.toBe(base.rebuildSignature)
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
