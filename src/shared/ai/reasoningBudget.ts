@@ -7,10 +7,15 @@
  * `undefined`.
  */
 
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { EFFORT_RATIO } from '@shared/utils/reasoning'
+
 /** Used when a descriptor has no token limits and the caller still needs a
  *  non-undefined budget for its wire envelope.
  *  `Math.max(1024, …)` in `computeBudgetTokens` enforces the floor. */
 export const FALLBACK_TOKEN_LIMIT = { min: 1024, max: 16384 }
+
+const BUDGET_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
 
 export function computeBudgetTokens(
   tokenLimit: { min: number; max: number },
@@ -20,6 +25,33 @@ export function computeBudgetTokens(
   const budget = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
   const capped = maxTokens !== undefined ? Math.min(budget, maxTokens) : budget
   return Math.max(1024, capped)
+}
+
+/**
+ * Reverse a fixed thinking budget to the closest shared effort tier.
+ * Semantic sentinels (`none`, `auto`) are intentionally excluded; `minimal`
+ * shares `low`'s ratio, so the more widely supported `low` is canonical.
+ * Ties resolve upward, matching the effort-vocabulary reconciliation policy.
+ */
+export function nearestEffortForBudget(
+  budget: number,
+  tokenLimit: { min?: number; max?: number } | undefined
+): ReasoningEffortOption | undefined {
+  if (!Number.isFinite(budget) || tokenLimit?.min == null || tokenLimit.max == null) return undefined
+
+  const limits = { min: tokenLimit.min, max: tokenLimit.max }
+  let nearest: (typeof BUDGET_EFFORTS)[number] = BUDGET_EFFORTS[0]
+  let nearestDistance = Number.POSITIVE_INFINITY
+
+  for (const effort of BUDGET_EFFORTS) {
+    const distance = Math.abs(budget - computeBudgetTokens(limits, EFFORT_RATIO[effort]))
+    if (distance <= nearestDistance) {
+      nearest = effort
+      nearestDistance = distance
+    }
+  }
+
+  return nearest
 }
 
 export interface ThinkingBudgetOptions {

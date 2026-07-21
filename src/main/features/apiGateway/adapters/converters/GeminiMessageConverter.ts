@@ -13,6 +13,7 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
@@ -328,10 +329,14 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
    * semantics (`-1` dynamic / `0` disabled / `> 0` fixed) and `thinkingLevel` intact
    * instead of being inverted by a round trip through the Anthropic thinking shape.
    */
-  extractProviderOptions(provider: Provider, params: GeminiGenerateContentRequest): ProviderOptions | undefined {
+  extractProviderOptions(
+    provider: Provider,
+    model: Model,
+    params: GeminiGenerateContentRequest
+  ): ProviderOptions | undefined {
     const thinkingConfig = params.generationConfig?.thinkingConfig
     if (!thinkingConfig) return undefined
-    return mapGeminiThinkingToProviderOptions(provider, thinkingConfig)
+    return mapGeminiThinkingToProviderOptions(provider, model, thinkingConfig)
   }
 }
 

@@ -1,16 +1,6 @@
+import { ENDPOINT_TYPE, type EndpointType, type Model, type RuntimeReasoning } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-// Control which provider-family branch is taken per test.
-vi.mock('@shared/utils/provider', () => ({
-  isAnthropicProvider: vi.fn(() => false),
-  isGeminiProvider: vi.fn(() => false),
-  isOpenAIProvider: vi.fn(() => false),
-  isAwsBedrockProvider: vi.fn(() => false)
-}))
-
-import { isAnthropicProvider, isAwsBedrockProvider, isGeminiProvider, isOpenAIProvider } from '@shared/utils/provider'
+import { describe, expect, it } from 'vitest'
 
 import {
   mapAnthropicThinkingToProviderOptions,
@@ -18,174 +8,174 @@ import {
   mapReasoningEffortToProviderOptions
 } from '../converters/providerOptionsMapper'
 
-const provider = (id = 'p'): Provider => ({ id }) as Provider
-const asMock = (fn: unknown) => fn as ReturnType<typeof vi.fn>
+function provider(adapterFamily: string, endpointType: EndpointType): Provider {
+  return {
+    id: `target-${adapterFamily}`,
+    endpointConfigs: { [endpointType]: { adapterFamily } }
+  } as Provider
+}
 
-beforeEach(() => {
-  // mockReturnValue persists across tests; reset every guard to false each time.
-  asMock(isAnthropicProvider).mockReturnValue(false)
-  asMock(isGeminiProvider).mockReturnValue(false)
-  asMock(isOpenAIProvider).mockReturnValue(false)
-  asMock(isAwsBedrockProvider).mockReturnValue(false)
+function model(providerId: string, modelId: string, endpointType: EndpointType, reasoning: RuntimeReasoning): Model {
+  return {
+    id: `${providerId}::${modelId}`,
+    providerId,
+    apiModelId: modelId,
+    name: modelId,
+    endpointTypes: [endpointType],
+    capabilities: ['reasoning'],
+    reasoning,
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } as Model
+}
+
+const anthropicBudgetModel = model('anthropic', 'claude-3-7-sonnet', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, {
+  type: 'anthropic',
+  supportedEfforts: ['none', 'low', 'medium', 'high'],
+  controls: [{ kind: 'budget', min: 1000, max: 11_000 }, { kind: 'toggle' }],
+  thinkingTokenLimits: { min: 1000, max: 11_000 }
 })
 
-describe('mapAnthropicThinkingToProviderOptions', () => {
-  it('returns undefined when there is no thinking config', () => {
-    expect(mapAnthropicThinkingToProviderOptions(provider(), undefined)).toBeUndefined()
-  })
+const openAIModel = model('openai', 'gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, {
+  type: 'openai-responses',
+  supportedEfforts: ['none', 'low', 'medium', 'high'],
+  controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }],
+  thinkingTokenLimits: { min: 1000, max: 11_000 }
+})
 
-  it('maps to Anthropic thinking (budget only when enabled)', () => {
-    asMock(isAnthropicProvider).mockReturnValue(true)
-    expect(mapAnthropicThinkingToProviderOptions(provider(), { type: 'enabled', budget_tokens: 1024 })).toEqual({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 1024 } }
-    })
-    expect(mapAnthropicThinkingToProviderOptions(provider(), { type: 'disabled' })).toEqual({
-      anthropic: { thinking: { type: 'disabled', budgetTokens: undefined } }
-    })
-  })
+const geminiModel = model('google', 'gemini-2.5-flash', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, {
+  type: 'gemini',
+  supportedEfforts: ['none', 'low', 'medium', 'high', 'auto'],
+  controls: [{ kind: 'budget', min: 0, max: 24_576 }, { kind: 'toggle' }],
+  thinkingTokenLimits: { min: 0, max: 24_576 }
+})
 
-  it('maps to Gemini thinkingConfig', () => {
-    asMock(isGeminiProvider).mockReturnValue(true)
-    expect(mapAnthropicThinkingToProviderOptions(provider(), { type: 'enabled', budget_tokens: 512 })).toEqual({
-      google: { thinkingConfig: { thinkingBudget: 512, includeThoughts: true } }
-    })
-  })
+describe('same-dialect lossless pass-through', () => {
+  it('keeps Anthropic thinking envelopes unchanged', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 
-  it('maps to OpenAI reasoningEffort', () => {
-    asMock(isOpenAIProvider).mockReturnValue(true)
-    expect(mapAnthropicThinkingToProviderOptions(provider(), { type: 'enabled', budget_tokens: 1 })).toEqual({
-      openai: { reasoningEffort: 'high' }
-    })
-  })
-
-  it('maps to OpenRouter / xAI by provider id', () => {
     expect(
-      mapAnthropicThinkingToProviderOptions(provider(SystemProviderIds.openrouter), {
+      mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, {
         type: 'enabled',
-        budget_tokens: 1
+        budget_tokens: 4096
       })
-    ).toEqual({ openrouter: { reasoning: { enabled: true, effort: 'high' } } })
-    expect(
-      mapAnthropicThinkingToProviderOptions(provider(SystemProviderIds.grok), { type: 'enabled', budget_tokens: 1 })
-    ).toEqual({ xai: { reasoningEffort: 'high' } })
-  })
-
-  it('maps to Bedrock reasoningConfig', () => {
-    asMock(isAwsBedrockProvider).mockReturnValue(true)
-    expect(mapAnthropicThinkingToProviderOptions(provider(), { type: 'enabled', budget_tokens: 800 })).toEqual({
-      bedrock: { reasoningConfig: { type: 'enabled', budgetTokens: 800 } }
+    ).toEqual({ anthropic: { thinking: { type: 'enabled', budgetTokens: 4096 } } })
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' })).toEqual({
+      anthropic: { thinking: { type: 'disabled' } }
     })
   })
 
-  it('returns undefined for an unsupported provider', () => {
+  it.each([
+    [{ thinkingBudget: -1 }, { thinkingBudget: -1 }],
+    [{ thinkingBudget: 0 }, { thinkingBudget: 0 }],
+    [{ includeThoughts: true }, { includeThoughts: true }],
+    [{ thinkingLevel: 'high' }, { thinkingLevel: 'high' }],
+    [
+      { thinkingBudget: 512, includeThoughts: true },
+      { thinkingBudget: 512, includeThoughts: true }
+    ]
+  ])('keeps Gemini thinkingConfig %# unchanged', (input, expected) => {
+    const target = provider('google', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    expect(mapGeminiThinkingToProviderOptions(target, geminiModel, input)).toEqual({
+      google: { thinkingConfig: expected }
+    })
+  })
+
+  it('returns undefined for an empty Gemini thinkingConfig', () => {
+    const target = provider('google', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    expect(mapGeminiThinkingToProviderOptions(target, geminiModel, {})).toBeUndefined()
+  })
+
+  it('recognizes a multiplexed gateway model whose active endpoint is Anthropic-native', () => {
+    const target = provider('newapi', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
     expect(
-      mapAnthropicThinkingToProviderOptions(provider('mystery'), { type: 'enabled', budget_tokens: 1 })
-    ).toBeUndefined()
+      mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, {
+        type: 'enabled',
+        budget_tokens: 4096
+      })
+    ).toEqual({ anthropic: { thinking: { type: 'enabled', budgetTokens: 4096 } } })
   })
 })
 
-describe('mapReasoningEffortToProviderOptions', () => {
-  it('returns undefined when there is no reasoning effort', () => {
-    expect(mapReasoningEffortToProviderOptions(provider(), undefined)).toBeUndefined()
-  })
+describe('cross-dialect descriptor translation', () => {
+  it('computes Anthropic budgets from descriptor limits instead of a fixed budget table', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 
-  it('maps effort to Anthropic thinking budget (low/medium/high)', () => {
-    asMock(isAnthropicProvider).mockReturnValue(true)
-    expect(mapReasoningEffortToProviderOptions(provider(), 'low')).toEqual({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 5000 } }
+    expect(mapReasoningEffortToProviderOptions(target, anthropicBudgetModel, 'low')).toEqual({
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 } }
     })
-    expect(mapReasoningEffortToProviderOptions(provider(), 'high')).toEqual({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 20000 } }
+    expect(mapReasoningEffortToProviderOptions(target, anthropicBudgetModel, 'high')).toEqual({
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 9000 } }
     })
   })
 
-  it('maps OpenAI effort, downgrading low → none', () => {
-    asMock(isOpenAIProvider).mockReturnValue(true)
-    expect(mapReasoningEffortToProviderOptions(provider(), 'low')).toEqual({ openai: { reasoningEffort: 'none' } })
-    expect(mapReasoningEffortToProviderOptions(provider(), 'medium')).toEqual({ openai: { reasoningEffort: 'medium' } })
-  })
+  it('maps an Anthropic budget to the nearest target effort and disabled to off', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
-  it('maps OpenRouter / xAI by provider id (xAI drops low)', () => {
-    expect(mapReasoningEffortToProviderOptions(provider(SystemProviderIds.openrouter), 'medium')).toEqual({
-      openrouter: { reasoning: { enabled: true, effort: 'medium' } }
-    })
-    expect(mapReasoningEffortToProviderOptions(provider(SystemProviderIds.grok), 'low')).toEqual({
-      xai: { reasoningEffort: undefined }
+    expect(
+      mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'enabled', budget_tokens: 6000 })
+    ).toEqual({ openai: { reasoningEffort: 'medium', reasoningSummary: undefined } })
+    expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'disabled' })).toEqual({
+      openai: { reasoningEffort: 'none', reasoningSummary: undefined }
     })
   })
 
-  it('returns undefined for an unsupported provider', () => {
-    expect(mapReasoningEffortToProviderOptions(provider('mystery'), 'high')).toBeUndefined()
+  it('falls back to high when Anthropic budget translation has no descriptor limits', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    const modelWithoutLimits = {
+      ...openAIModel,
+      reasoning: { ...openAIModel.reasoning, thinkingTokenLimits: undefined }
+    } as Model
+
+    expect(
+      mapAnthropicThinkingToProviderOptions(target, modelWithoutLimits, {
+        type: 'enabled',
+        budget_tokens: 1500
+      })
+    ).toEqual({ openai: { reasoningEffort: 'high', reasoningSummary: undefined } })
   })
-})
 
-describe('mapGeminiThinkingToProviderOptions', () => {
-  // A Gemini/Google target must keep the native sentinel semantics verbatim — the old
-  // round trip through the Anthropic shape inverted them (-1 → 0, 0 → -1) and dropped
-  // thinkingLevel. Each case pins the exact byte the Gemini upstream should receive.
-  describe('Gemini/Google target (native, lossless)', () => {
-    beforeEach(() => asMock(isGeminiProvider).mockReturnValue(true))
+  it('normalizes Gemini sentinels, levels, and positive budgets before target dispatch', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
-    it('passes a dynamic budget (-1) through unchanged (was inverted to 0)', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: -1 })).toEqual({
-        google: { thinkingConfig: { thinkingBudget: -1 } }
-      })
+    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: -1 })).toEqual({
+      openai: { reasoningEffort: 'medium', reasoningSummary: undefined }
     })
-
-    it('passes a disabled budget (0) through unchanged (was inverted to -1)', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: 0 })).toEqual({
-        google: { thinkingConfig: { thinkingBudget: 0 } }
-      })
+    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 0 })).toEqual({
+      openai: { reasoningEffort: 'none', reasoningSummary: undefined }
     })
-
-    it('keeps includeThoughts without a budget (no bogus budget 0 injected)', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), { includeThoughts: true })).toEqual({
-        google: { thinkingConfig: { includeThoughts: true } }
-      })
+    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingLevel: 'high' })).toEqual({
+      openai: { reasoningEffort: 'high', reasoningSummary: undefined }
     })
-
-    it('preserves the Gemini 3 thinkingLevel (previously dropped)', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingLevel: 'high' })).toEqual({
-        google: { thinkingConfig: { thinkingLevel: 'high' } }
-      })
-    })
-
-    it('forwards a positive fixed budget with includeThoughts', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: 512, includeThoughts: true })).toEqual({
-        google: { thinkingConfig: { thinkingBudget: 512, includeThoughts: true } }
-      })
-    })
-
-    it('returns undefined for an empty thinkingConfig', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), {})).toBeUndefined()
+    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 6000 })).toEqual({
+      openai: { reasoningEffort: 'medium', reasoningSummary: undefined }
     })
   })
 
-  describe('non-Gemini target (translate without inverting)', () => {
-    beforeEach(() => asMock(isOpenAIProvider).mockReturnValue(true))
-
-    it('treats a dynamic budget (-1) as enabled', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: -1 })).toEqual({
-        openai: { reasoningEffort: 'high' }
-      })
+  it('uses the descriptor serializer for an OpenAI-compatible target', () => {
+    const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const genericModel = model('relay', 'reasoner-v1', endpoint, {
+      type: 'openrouter',
+      supportedEfforts: ['none', 'low', 'medium', 'high'],
+      controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]
     })
+    const target = provider('openai-compatible', endpoint)
 
-    it('treats a zero budget as disabled', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingBudget: 0 })).toEqual({
-        openai: { reasoningEffort: 'none' }
-      })
+    expect(mapReasoningEffortToProviderOptions(target, genericModel, 'medium')).toEqual({
+      'openai-compatible': { reasoning: { effort: 'medium' } }
     })
+    expect(mapReasoningEffortToProviderOptions(target, genericModel, 'none')).toEqual({
+      'openai-compatible': { reasoning: { enabled: false, exclude: true } }
+    })
+  })
 
-    it('treats includeThoughts-only as enabled', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), { includeThoughts: true })).toEqual({
-        openai: { reasoningEffort: 'high' }
-      })
-    })
+  it('returns undefined when the inbound format has no reasoning control', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
-    it('treats a thinkingLevel-only config (no budget) as enabled', () => {
-      expect(mapGeminiThinkingToProviderOptions(provider(), { thinkingLevel: 'high' })).toEqual({
-        openai: { reasoningEffort: 'high' }
-      })
-    })
+    expect(mapReasoningEffortToProviderOptions(target, openAIModel, undefined)).toBeUndefined()
+    expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, undefined)).toBeUndefined()
+    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, {})).toBeUndefined()
   })
 })

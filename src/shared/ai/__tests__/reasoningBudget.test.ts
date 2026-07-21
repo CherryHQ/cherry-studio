@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { computeBudgetTokens, FALLBACK_TOKEN_LIMIT, getThinkingBudget } from '../reasoningBudget'
+import {
+  computeBudgetTokens,
+  FALLBACK_TOKEN_LIMIT,
+  getThinkingBudget,
+  nearestEffortForBudget
+} from '../reasoningBudget'
 
 const KNOWN_LIMIT = { min: 128, max: 32768 }
 const EFFORT_RATIO = { low: 0.2, medium: 0.5, high: 0.8 }
@@ -35,5 +40,26 @@ describe('getThinkingBudget', () => {
 
   it('caps the budget at maxTokens', () => {
     expect(getThinkingBudget(2048, 'high', KNOWN_LIMIT, EFFORT_RATIO)).toBe(2048)
+  })
+})
+
+describe('nearestEffortForBudget', () => {
+  it('selects the effort whose descriptor-derived budget is closest', () => {
+    const limits = { min: 1000, max: 11_000 }
+
+    expect(nearestEffortForBudget(1500, limits)).toBe('low')
+    expect(nearestEffortForBudget(6000, limits)).toBe('medium')
+    expect(nearestEffortForBudget(9000, limits)).toBe('high')
+    expect(nearestEffortForBudget(11_000, limits)).toBe('max')
+  })
+
+  it('resolves an exact midpoint upward', () => {
+    expect(nearestEffortForBudget(7500, { min: 1000, max: 11_000 })).toBe('high')
+  })
+
+  it('returns undefined without complete descriptor limits or for a non-finite budget', () => {
+    expect(nearestEffortForBudget(6000, undefined)).toBeUndefined()
+    expect(nearestEffortForBudget(6000, { max: 11_000 })).toBeUndefined()
+    expect(nearestEffortForBudget(Number.NaN, { min: 1000, max: 11_000 })).toBeUndefined()
   })
 })
