@@ -2,55 +2,11 @@ import dayjs from 'dayjs'
 import { t } from 'i18next'
 
 /**
- * 解析 Markdown 表格为二维数组
- * @param markdown Markdown 格式的表格字符串
- * @returns 二维数组，每行为一个数组
- */
-export function parseMarkdownTable(markdown: string): string[][] {
-  const lines = markdown.trim().split('\n')
-  const data: string[][] = []
-
-  for (const line of lines) {
-    const trimmedLine = line.trim()
-
-    // 跳过空行
-    if (!trimmedLine) {
-      continue
-    }
-
-    // 跳过分隔行 (|---|---| 或 |:---:|:---:| 等)
-    // 分隔行只包含 |, -, :, 空格
-    if (/^\|[\s\-:| ]+\|$/.test(trimmedLine) && !trimmedLine.match(/[^|\-:\s]/)) {
-      continue
-    }
-
-    // 确保是表格行（以 | 开头和结尾）
-    if (!trimmedLine.startsWith('|') || !trimmedLine.endsWith('|')) {
-      continue
-    }
-
-    // 解析单元格
-    const cells = trimmedLine
-      .split('|')
-      .slice(1, -1) // 去掉首尾空元素
-      .map((cell) => cell.trim())
-
-    if (cells.length > 0) {
-      data.push(cells)
-    }
-  }
-
-  return data
-}
-
-/**
- * 导出 Markdown 表格为 Excel 文件
- * @param markdown Markdown 格式的表格字符串
+ * 导出表格数据为 Excel 文件
+ * @param data 表格的二维数组
  * @returns 是否导出成功
  */
-export async function exportTableToExcel(markdown: string): Promise<boolean> {
-  const data = parseMarkdownTable(markdown)
-
+export async function exportTableToExcel(data: string[][]): Promise<boolean> {
   if (data.length === 0) {
     return false
   }
