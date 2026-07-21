@@ -181,8 +181,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.RESOURCE_LOCKED]: 'Resource locked: Resource is currently locked by another operation',
   [ErrorCode.CONCURRENT_MODIFICATION]: 'Concurrent modification: Resource was modified by another user',
   [ErrorCode.DATA_INCONSISTENT]: 'Data inconsistent: Data integrity violation detected',
-  [ErrorCode.BACKUP_IN_PROGRESS]:
-    'Backup in progress: a restore is in progress — writes are paused until it completes'
+  [ErrorCode.BACKUP_IN_PROGRESS]: 'Backup in progress: a restore is in progress — writes are paused until it completes'
 }
 
 // ============================================================================

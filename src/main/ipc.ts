@@ -12,6 +12,8 @@ import { BrowserWindow, dialog, ipcMain, session } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
+// eslint-disable-next-line barrel/closed -- quiesceGate only; avoid pulling BackupService into legacy IPC load path
+import { assertNotBackupInProgress } from './services/backup/quiesceGate'
 import { copilotService } from './services/CopilotService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
@@ -22,8 +24,6 @@ import { decrypt } from './utils/aes'
 import { getDirectorySize } from './utils/fileOperations'
 import { getHostname } from './utils/system'
 import { decompress } from './utils/zip'
-// eslint-disable-next-line barrel/closed -- quiesceGate only; avoid pulling BackupService into legacy IPC load path
-import { assertNotBackupInProgress } from './services/backup/quiesceGate'
 
 const logger = loggerService.withContext('IPC')
 
