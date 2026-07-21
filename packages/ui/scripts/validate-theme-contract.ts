@@ -25,8 +25,8 @@ export interface ThemeContractSources {
   tokensEntry: string
   themeInput: string
   primitiveColors: string
-  semanticColors: string
-  statusColors: string
+  providerColors: string
+  statusLegacyColors: string
   spacing: string
   radius: string
   typography: string
@@ -203,8 +203,8 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
   const productVariables = new Set(CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`))
   const foundationEntries: SourceEntry[] = [
     ['tokens/colors/primitive.css', sources.primitiveColors],
-    ['tokens/colors/semantic.css', sources.semanticColors],
-    ['tokens/colors/status.css', sources.statusColors],
+    ['tokens/colors/providers.css', sources.providerColors],
+    ['tokens/colors/status-legacy.css', sources.statusLegacyColors],
     ['tokens/spacing.css', sources.spacing],
     ['tokens/radius.css', sources.radius],
     ['tokens/typography.css', sources.typography]
@@ -312,14 +312,14 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
   assertCompatibilityTokensDeclared(
     'compatibility semantic colors',
     COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
-    sources.semanticColors,
-    'tokens/colors/semantic.css'
+    sources.providerColors,
+    'tokens/colors/providers.css'
   )
   assertCompatibilityTokensDeclared(
     'compatibility status colors',
     COMPATIBILITY_STATUS_COLOR_TOKENS,
-    sources.statusColors,
-    'tokens/colors/status.css'
+    sources.statusLegacyColors,
+    'tokens/colors/status-legacy.css'
   )
 
   const shadcnRootDeclarations = buildDeclarationMap([['shadcn.css', sources.shadcn]], ':root')
@@ -353,8 +353,8 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
 
   const orderedSources: SourceEntry[] = [
     ['tokens/colors/primitive.css', sources.primitiveColors],
-    ['tokens/colors/semantic.css', sources.semanticColors],
-    ['tokens/colors/status.css', sources.statusColors],
+    ['tokens/colors/providers.css', sources.providerColors],
+    ['tokens/colors/status-legacy.css', sources.statusLegacyColors],
     ['tokens/spacing.css', sources.spacing],
     ['tokens/radius.css', sources.radius],
     ['tokens/typography.css', sources.typography],
@@ -394,8 +394,8 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     tokensEntry,
     themeInput,
     primitiveColors,
-    semanticColors,
-    statusColors,
+    providerColors,
+    statusLegacyColors,
     spacing,
     radius,
     typography,
@@ -407,8 +407,8 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     fs.readFile(path.join(stylesDir, 'tokens.css'), 'utf8'),
     fs.readFile(path.join(stylesDir, 'theme-input.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/primitive.css'), 'utf8'),
-    fs.readFile(path.join(tokensDir, 'colors/semantic.css'), 'utf8'),
-    fs.readFile(path.join(tokensDir, 'colors/status.css'), 'utf8'),
+    fs.readFile(path.join(tokensDir, 'colors/providers.css'), 'utf8'),
+    fs.readFile(path.join(tokensDir, 'colors/status-legacy.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'spacing.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'radius.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'typography.css'), 'utf8'),
@@ -422,8 +422,8 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     tokensEntry,
     themeInput,
     primitiveColors,
-    semanticColors,
-    statusColors,
+    providerColors,
+    statusLegacyColors,
     spacing,
     radius,
     typography,

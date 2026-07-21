@@ -30,7 +30,7 @@ describe('validateThemeContractSources', () => {
 
   it('rejects an upward dependency from the foundation layer', async () => {
     const sources = await loadSources()
-    sources.semanticColors = sources.semanticColors.replace(
+    sources.providerColors = sources.providerColors.replace(
       '--cs-primary: var(--cs-brand-500);',
       '--cs-primary: var(--background);'
     )
@@ -40,7 +40,7 @@ describe('validateThemeContractSources', () => {
 
   it('rejects a product dependency from the foundation layer', async () => {
     const sources = await loadSources()
-    sources.semanticColors = sources.semanticColors.replace(
+    sources.providerColors = sources.providerColors.replace(
       '--cs-primary: var(--cs-brand-500);',
       '--cs-primary: var(--success);'
     )
