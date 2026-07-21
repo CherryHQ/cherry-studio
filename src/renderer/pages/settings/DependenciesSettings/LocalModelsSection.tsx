@@ -1,4 +1,4 @@
-import { Badge, Button } from '@cherrystudio/ui'
+import { Badge, Button, CircularProgress } from '@cherrystudio/ui'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
@@ -157,9 +157,9 @@ const ModelCard: FC<ModelCardProps> = ({
             {!ready &&
               (downloading ? (
                 <Button
-                  variant="outline"
-                  size="sm"
-                  className="relative ml-auto h-7 w-28 shrink-0 gap-1 overflow-hidden font-medium text-xs"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="relative ml-auto size-7 shrink-0 rounded-full"
                   onClick={onCancel}
                   aria-label={t('settings.dependencies.localModels.cancel')}>
                   <span
@@ -168,11 +168,10 @@ const ModelCard: FC<ModelCardProps> = ({
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={percent}
-                    className="pointer-events-none absolute inset-y-0 left-0 bg-primary/10 transition-[width]"
-                    style={{ width: `${percent}%` }}
-                  />
-                  <X className="relative size-3.5 shrink-0" />
-                  <span className="relative truncate">{percent}%</span>
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <CircularProgress value={percent} size={24} strokeWidth={2} />
+                  </span>
+                  <X className="relative size-2.5" />
                 </Button>
               ) : (
                 <Button

@@ -26,6 +26,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+  CircularProgress: ({ value }: { value: number }) => <span data-testid="circular-progress" data-value={value} />,
   Button: ({
     children,
     className,
@@ -62,7 +63,7 @@ describe('LocalModelsSection', () => {
     progressHandlers.length = 0
   })
 
-  it('renders live percent, and cancelling neither fails nor shows a failure notice', async () => {
+  it('renders circular progress, and cancelling neither fails nor shows a failure notice', async () => {
     let rejectDownload: ((e: Error) => void) | undefined
     mockRequest.mockImplementation((route: string, input?: { model: string }) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
@@ -81,17 +82,18 @@ describe('LocalModelsSection', () => {
     expect(downloadButton).toHaveClass('h-7', 'w-28', 'shrink-0')
 
     fireEvent.click(downloadButton)
-    await waitFor(() =>
-      expect(
-        within(embeddingCard()).getByRole('button', { name: 'settings.dependencies.localModels.cancel' })
-      ).toHaveClass('h-7', 'w-28', 'shrink-0')
-    )
+    const cancelButton = await within(embeddingCard()).findByRole('button', {
+      name: 'settings.dependencies.localModels.cancel'
+    })
+    expect(cancelButton).toHaveAttribute('data-variant', 'ghost')
+    expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
+    expect(cancelButton).toHaveClass('size-7', 'shrink-0', 'rounded-full')
 
     act(() => progressHandlers.forEach((h) => h({ model: 'embedding', status: 'downloading', percent: 45 })))
-    expect(within(embeddingCard()).getByText('45%')).toBeInTheDocument()
     expect(within(embeddingCard()).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '45')
+    expect(within(embeddingCard()).getByTestId('circular-progress')).toHaveAttribute('data-value', '45')
 
-    fireEvent.click(within(embeddingCard()).getByRole('button', { name: 'settings.dependencies.localModels.cancel' }))
+    fireEvent.click(cancelButton)
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.cancel', { model: 'embedding' }))
 
     // Backend aborts → the in-flight download rejects. A user cancel must not
