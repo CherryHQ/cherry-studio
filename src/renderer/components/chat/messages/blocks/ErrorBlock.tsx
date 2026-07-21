@@ -17,6 +17,8 @@ import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
+const ERROR_DESCRIPTION_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const ERROR_DETAIL_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
 
 interface Props {
   partId: string
@@ -209,7 +211,7 @@ const MessageErrorInfo: React.FC<{
       {/* Description */}
       <div
         className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
-        style={{ color: 'var(--color-foreground-secondary)' }}>
+        style={{ color: ERROR_DESCRIPTION_COLOR }}>
         <ErrorMessage error={error} />
       </div>
 
@@ -228,7 +230,7 @@ const MessageErrorInfo: React.FC<{
         {canOpenDetail && (
           <div
             className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
-            style={{ color: 'var(--color-foreground-muted)' }}>
+            style={{ color: ERROR_DETAIL_COLOR }}>
             {t('common.detail')}
             <ChevronRight size={14} />
           </div>

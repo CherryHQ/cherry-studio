@@ -410,12 +410,9 @@ describe('ComposerToken', () => {
       />
     )
 
-    const token = expectFileTokenVariant(container, 'image', [
-      'bg-[var(--color-cyan-100)]',
-      'text-[var(--color-cyan-700)]'
-    ])
+    const token = expectFileTokenVariant(container, 'image', ['bg-cyan-100', 'text-cyan-700'])
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
-    expect(token).not.toHaveClass('border-success', 'bg-[var(--color-success-bg)]')
+    expect(token).not.toHaveClass('border-success', 'bg-success-subtle')
     expect(token?.querySelector('[data-file-token-icon="image"]')).not.toHaveClass('border-success', 'bg-background')
     expect(getFileTokenTrigger(container)).toHaveClass('inline', 'align-baseline')
     expect(getFileTokenTrigger(container)).not.toHaveClass('inline-flex')
@@ -558,10 +555,10 @@ describe('ComposerToken', () => {
       />
     )
 
-    const token = expectFileTokenVariant(container, 'pdf', ['bg-[var(--color-red-100)]', 'text-[var(--color-red-700)]'])
+    const token = expectFileTokenVariant(container, 'pdf', ['bg-red-100', 'text-red-700'])
     expect(token).toHaveClass('align-middle', 'border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('align-baseline')
-    expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
+    expect(token).not.toHaveClass('border-destructive', 'bg-error-subtle')
     expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
     expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass('text-current', 'dark:text-black')
     expect(token?.querySelector('[data-composer-token-remove] svg')).toHaveClass('size-3', 'text-current')
@@ -574,19 +571,19 @@ describe('ComposerToken', () => {
         label: 'report.docx',
         ext: '.docx',
         variant: 'word',
-        colorClasses: ['bg-[var(--color-blue-100)]', 'text-[var(--color-blue-700)]']
+        colorClasses: ['bg-blue-100', 'text-blue-700']
       },
       {
         label: 'budget.xlsx',
         ext: '.xlsx',
         variant: 'excel',
-        colorClasses: ['bg-[var(--color-green-100)]', 'text-[var(--color-green-700)]']
+        colorClasses: ['bg-green-100', 'text-green-700']
       },
       {
         label: 'deck.pptx',
         ext: '.pptx',
         variant: 'powerpoint',
-        colorClasses: ['bg-[var(--color-orange-100)]', 'text-[var(--color-orange-700)]']
+        colorClasses: ['bg-orange-100', 'text-orange-700']
       }
     ]
 
@@ -643,12 +640,9 @@ describe('ComposerToken', () => {
       />
     )
 
-    const token = expectFileTokenVariant(container, 'code', [
-      'bg-[var(--color-indigo-100)]',
-      'text-[var(--color-indigo-700)]'
-    ])
+    const token = expectFileTokenVariant(container, 'code', ['bg-indigo-100', 'text-indigo-700'])
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
-    expect(token).not.toHaveClass('border-info', 'bg-[var(--color-info-bg)]')
+    expect(token).not.toHaveClass('border-info', 'bg-info-subtle')
     expect(token?.querySelector('[data-file-token-icon="code"]')).not.toHaveClass('border-info', 'bg-background')
     expectTokenPathTooltip(container, '/tmp/config.schema.ts', '3 KB')
   })

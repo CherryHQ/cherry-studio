@@ -138,7 +138,7 @@ const SelectionAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingLabel>
               <SettingRowTitle>
-                <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--color-error-base)' }} />
+                <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--error)' }} />
                 {t('selection.settings.linux.wayland_title')}
               </SettingRowTitle>
               {linuxEnvInfo.isLinuxCompositorCompatible ? (
@@ -151,7 +151,7 @@ const SelectionAssistantSettings: FC = () => {
                     {linuxEnvInfo.isLinuxXWaylandMode ? (
                       <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
-                      <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
                     )}
                     <span>
                       {t('selection.settings.linux.xwayland_label')}
@@ -164,7 +164,7 @@ const SelectionAssistantSettings: FC = () => {
                     {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
                       <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
-                      <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
                     )}
                     <span>
                       {t('selection.settings.linux.input_group_label')}
@@ -307,7 +307,7 @@ const SelectionAssistantSettings: FC = () => {
                   {t('selection.settings.advanced.filter_mode.title')}
                   {isLinux && linuxEnvInfo?.isLinuxWaylandDisplay && (
                     <span style={{ marginLeft: 6, display: 'inline-flex', alignItems: 'center' }}>
-                      （<TriangleAlert size={13} style={{ margin: '0 3px', color: 'var(--color-error-base)' }} />
+                      （<TriangleAlert size={13} style={{ margin: '0 3px', color: 'var(--error)' }} />
                       {t('selection.settings.linux.filter_warning_text')}）
                     </span>
                   )}

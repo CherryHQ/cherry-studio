@@ -225,21 +225,21 @@ export const modelListClasses = {
   searchCompactWrap:
     'flex h-8 w-[min(38vw,220px)] min-w-36 items-center gap-1 rounded-[10px] border border-border-muted bg-background px-2.5 py-1',
   searchIconButton:
-    'inline-flex size-6 shrink-0 items-center justify-center rounded-[length:var(--cs-radius-md)] bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
   groupToggleIconButton:
-    'inline-flex size-6 shrink-0 items-center justify-center rounded-[length:var(--cs-radius-md)] bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:text-foreground disabled:opacity-40',
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:text-foreground disabled:opacity-40',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
   searchClear:
     'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
   fetchActionButton:
-    'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-border-muted border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-8 min-h-0 gap-1.5 rounded-md border-border-muted border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   fetchGuideWrap: 'relative flex shrink-0',
   fetchGuideArrow:
     'animation-provider-model-pull-guide pointer-events-none absolute top-1/2 right-full z-10 mr-2 flex h-4 w-7 items-center justify-end text-muted-foreground motion-reduce:animate-none',
   addModelIconButton:
-    'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'size-8 min-h-0 rounded-md border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
     'size-8 rounded-lg border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
   emptyState:
@@ -375,7 +375,7 @@ export const modelSyncClasses = {
     'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-destructive/10 hover:text-destructive',
   fetchList: 'space-y-1',
   fetchWarning:
-    'my-2 gap-2 rounded-lg border-[color:color-mix(in_srgb,var(--color-warning-base)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--color-warning-bg)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
+    'my-2 gap-2 rounded-lg [--model-sync-warning-accent:oklch(0.83_0.164_84)] border-[color:color-mix(in_srgb,var(--model-sync-warning-accent)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--warning-subtle)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
   fetchRowRemoved:

@@ -204,15 +204,17 @@ export function ToolStatusIndicator({
 
 export type StatusColor = 'primary' | 'success' | 'warning' | 'error'
 
+const TOOL_STATUS_ERROR_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+
 function getStatusColor(color: StatusColor): string {
   switch (color) {
     case 'primary':
     case 'success':
       return 'var(--primary)'
     case 'warning':
-      return 'var(--warning, #faad14)'
+      return 'var(--warning)'
     case 'error':
-      return 'var(--color-foreground-secondary)'
+      return TOOL_STATUS_ERROR_COLOR
     default:
       return 'var(--foreground)'
   }

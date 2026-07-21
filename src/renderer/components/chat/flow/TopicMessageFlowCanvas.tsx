@@ -14,7 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TOPIC_MESSAGE_FLOW_NODE_SIZE } from './topicMessageFlowLayout'
+import { TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR, TOPIC_MESSAGE_FLOW_NODE_SIZE } from './topicMessageFlowLayout'
 import TopicMessageFlowLegend from './TopicMessageFlowLegend'
 import TopicMessageFlowNode from './TopicMessageFlowNode'
 import type { TopicMessageFlowEdgeModel, TopicMessageFlowLayout, TopicMessageFlowNodeModel } from './types'
@@ -56,7 +56,11 @@ function getEdgeStyle(edge: TopicMessageFlowEdgeModel): TopicMessageFlowEdgeMode
   const data = edge.data
 
   return {
-    stroke: data?.isActivePath ? 'var(--success)' : data?.isInactiveBranch ? 'var(--color-gray-400)' : 'var(--border)',
+    stroke: data?.isActivePath
+      ? 'var(--success)'
+      : data?.isInactiveBranch
+        ? TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR
+        : 'var(--border)',
     strokeWidth: data?.isActivePath ? 2.25 : 1.5,
     strokeDasharray: data?.isActivePath || data?.isSiblingBranch || data?.isInactiveBranch ? '4 4' : undefined,
     ...edge.style

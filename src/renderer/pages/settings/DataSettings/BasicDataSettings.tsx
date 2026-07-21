@@ -24,6 +24,9 @@ import { useTranslation } from 'react-i18next'
 import BackupPopup from './BackupPopup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
 import RestorePopup from './RestorePopup'
+
+const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
@@ -125,7 +128,7 @@ const BasicDataSettings: React.FC = () => {
           <CopyDataContent />
           <MigrationNotice>
             <p style={{ color: 'var(--warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
-            <p style={{ color: 'var(--color-foreground-muted)', marginTop: '8px' }}>
+            <p style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR, marginTop: '8px' }}>
               {targetNotEmpty
                 ? t('settings.data.app_data.switch_existing_notice')
                 : t('settings.data.app_data.copy_time_notice')}
@@ -231,7 +234,7 @@ const BasicDataSettings: React.FC = () => {
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
           <PathRow>
             <PathText
-              style={{ color: 'var(--color-foreground-muted)' }}
+              style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR }}
               onClick={() => handleOpenPath(appInfo?.appDataPath)}>
               {appInfo?.appDataPath}
             </PathText>
@@ -250,7 +253,7 @@ const BasicDataSettings: React.FC = () => {
           <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
           <PathRow>
             <PathText
-              style={{ color: 'var(--color-foreground-muted)' }}
+              style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR }}
               onClick={() => handleOpenPath(appInfo?.logsPath)}>
               {appInfo?.logsPath}
             </PathText>

@@ -14,6 +14,9 @@ import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
+const PROMPT_EDITOR_SECONDARY_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+
 const promptEditorThemeSpec = {
   '&': {
     backgroundColor: 'var(--background)',
@@ -33,7 +36,7 @@ const promptEditorThemeSpec = {
     backgroundColor: 'transparent'
   },
   '.cm-placeholder': {
-    color: 'var(--color-foreground-muted)'
+    color: PROMPT_EDITOR_PLACEHOLDER_COLOR
   },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
     backgroundColor: 'var(--accent) !important'
@@ -56,10 +59,10 @@ const promptEditorHighlighting = syntaxHighlighting(
       textDecoration: 'underline'
     },
     { tag: [tags.monospace, tags.quote], color: 'var(--foreground)' },
-    { tag: tags.comment, color: 'var(--color-foreground-secondary)', fontStyle: 'italic' },
+    { tag: tags.comment, color: PROMPT_EDITOR_SECONDARY_COLOR, fontStyle: 'italic' },
     {
       tag: [tags.processingInstruction, tags.contentSeparator],
-      color: 'var(--color-foreground-secondary)'
+      color: PROMPT_EDITOR_SECONDARY_COLOR
     }
   ])
 )

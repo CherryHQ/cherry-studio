@@ -119,26 +119,24 @@ describe('FileGrid placeholder gradients', () => {
     })
   })
 
-  it('paints image placeholders with design-token gradients and no raw hex', () => {
+  it('paints image placeholders with primitive gradient utilities and no raw hex', () => {
     const { container } = render(<FileGrid {...fileGridProps([imageFile])} />)
 
-    const gradientTarget = container.querySelector<HTMLElement>('[style*="background-image"]')
+    const gradientTarget = container.querySelector<HTMLElement>('.bg-linear-to-br')
 
     expect(gradientTarget).not.toBeNull()
-    const backgroundImage = gradientTarget?.style.backgroundImage ?? ''
-    expect(backgroundImage).toContain('var(--color-')
-    expect(backgroundImage).not.toMatch(/#[0-9a-fA-F]{3,6}/)
+    expect(gradientTarget?.className).toMatch(/from-[a-z]+-\d+/)
+    expect(gradientTarget?.className).toMatch(/to-[a-z]+-\d+/)
+    expect(gradientTarget?.className).not.toMatch(/#[0-9a-fA-F]{3,6}/)
   })
 
   it('assigns a stable gradient per file name', () => {
     const first = render(<FileGrid {...fileGridProps([imageFile])} />)
-    const firstGradient =
-      first.container.querySelector<HTMLElement>('[style*="background-image"]')?.style.backgroundImage
+    const firstGradient = first.container.querySelector<HTMLElement>('.bg-linear-to-br')?.className
     cleanup()
 
     const second = render(<FileGrid {...fileGridProps([imageFile])} />)
-    const secondGradient =
-      second.container.querySelector<HTMLElement>('[style*="background-image"]')?.style.backgroundImage
+    const secondGradient = second.container.querySelector<HTMLElement>('.bg-linear-to-br')?.className
 
     expect(firstGradient).toBeTruthy()
     expect(secondGradient).toBe(firstGradient)

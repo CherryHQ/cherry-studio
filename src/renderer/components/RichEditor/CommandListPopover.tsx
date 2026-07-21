@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next'
 
 import type { Command } from './command'
 
+const COMMAND_DESCRIPTION_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+
 export interface CommandListPopoverProps extends SuggestionProps<Command> {
   ref?: React.RefObject<CommandListPopoverRef | null>
 }
@@ -180,7 +182,7 @@ const CommandListPopover = ({
               </span>
               <span
                 style={{
-                  color: 'var(--color-foreground-secondary)',
+                  color: COMMAND_DESCRIPTION_COLOR,
                   display: 'block',
                   fontSize: '12px',
                   lineHeight: '16px'

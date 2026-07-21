@@ -366,11 +366,7 @@ const HeaderNavbar = ({
             <div
               className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-muted-foreground"
               onClick={handleToggleStarred}>
-              {activeNode.isStarred ? (
-                <Star size={18} fill="var(--color-warning-base)" stroke="var(--color-warning-base)" />
-              ) : (
-                <Star size={18} />
-              )}
+              {activeNode.isStarred ? <Star size={18} className="fill-amber-400 text-amber-400" /> : <Star size={18} />}
             </div>
           </Tooltip>
         )}

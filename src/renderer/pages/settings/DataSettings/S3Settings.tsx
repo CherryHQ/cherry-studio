@@ -23,6 +23,8 @@ import { useTranslation } from 'react-i18next'
 
 import { BackupUnavailableGate } from './BackupUnavailableGate'
 
+const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+
 const S3Settings: FC = () => {
   const [, setS3AutoSync] = usePreference('data.backup.s3.auto_sync')
   const [s3Endpoint, setS3Endpoint] = usePreference('data.backup.s3.endpoint')
@@ -76,9 +78,7 @@ const S3Settings: FC = () => {
     if (!s3Endpoint) return null
 
     if (!s3Sync?.lastSyncTime && !s3Sync?.syncing && !s3Sync?.lastSyncError) {
-      return (
-        <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.s3.syncStatus.noSync')}</span>
-      )
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.s3.syncStatus.noSync')}</span>
     }
 
     return (
@@ -91,7 +91,7 @@ const S3Settings: FC = () => {
           />
         )}
         {s3Sync?.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.s3.syncStatus.lastSync', { time: dayjs(s3Sync.lastSyncTime).format('HH:mm:ss') })}
           </span>
         )}

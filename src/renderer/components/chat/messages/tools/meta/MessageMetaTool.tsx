@@ -328,7 +328,7 @@ const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof 
   <ToolDisclosure
     variant="light"
     className={[
-      'border-none [--status-color-error:var(--color-foreground-secondary)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary,green)] [--status-color-warning:var(--warning,#faad14)]',
+      'border-none [--status-color-error:color-mix(in_oklch,var(--foreground)_66.6667%,transparent)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
       className
     ]
       .filter(Boolean)
@@ -418,7 +418,7 @@ const ResponseSectionStyled = ({ className, ...props }: ComponentPropsWithoutRef
 const CodeBlock = ({ className, ...props }: ComponentPropsWithoutRef<'pre'>) => (
   <pre
     className={[
-      'wrap-break-word font-(family-name:--code-font-family) m-0 max-h-[300px] overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs data-[error=true]:text-(--status-color-error,var(--color-foreground-secondary))',
+      'wrap-break-word font-(family-name:--code-font-family) m-0 max-h-[300px] overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs data-[error=true]:text-(--status-color-error)',
       className
     ]
       .filter(Boolean)

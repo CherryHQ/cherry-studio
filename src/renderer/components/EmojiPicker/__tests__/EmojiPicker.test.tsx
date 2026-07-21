@@ -180,7 +180,7 @@ describe('EmojiPicker', () => {
       '--epr-search-input-bg-color-active': 'var(--background)',
       '--epr-search-input-height': '32px',
       '--epr-search-input-text-color': 'var(--foreground)',
-      '--epr-search-input-placeholder-color': 'var(--color-foreground-muted)',
+      '--epr-search-input-placeholder-color': 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)',
       '--epr-search-border-color': 'var(--input)',
       '--epr-search-border-color-active': 'var(--ring)',
       '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',

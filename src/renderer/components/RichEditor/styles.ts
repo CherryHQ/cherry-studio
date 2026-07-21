@@ -75,7 +75,7 @@ const STYLE_CONTENT = `
 }
 
 .ToolbarWrapper::-webkit-scrollbar-thumb:hover {
-  background: var(--color-foreground-muted);
+  background: color-mix(in oklch, var(--foreground) 44.4444%, transparent);
 }
 
 .ToolbarButton {
@@ -252,7 +252,7 @@ const STYLE_CONTENT = `
 .TableOfContentsWrapper .toc-item a {
   display: block;
   padding: 0.25rem 0.5rem;
-  color: var(--color-foreground-secondary);
+  color: color-mix(in oklch, var(--foreground) 66.6667%, transparent);
   text-decoration: none;
   border-radius: 4px;
   font-size: 0.9rem;
@@ -278,7 +278,7 @@ const STYLE_CONTENT = `
 .TableOfContentsWrapper .toc-empty-state {
   text-align: center;
   padding: 2rem 1rem;
-  color: var(--color-foreground-muted);
+  color: color-mix(in oklch, var(--foreground) 44.4444%, transparent);
 }
 
 .TableOfContentsWrapper .toc-empty-state p {

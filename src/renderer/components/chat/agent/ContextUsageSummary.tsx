@@ -17,6 +17,10 @@ const CATEGORY_NAME_KEYS: Record<string, string> = {
   'System tools': 'agent.right_pane.info.context_categories.system_tools'
 }
 
+// Context usage is a visualization, so its midpoint keeps the reviewed amber-400
+// value locally instead of changing the shared warning contract for one chart.
+const CONTEXT_USAGE_WARNING_COLOR = 'oklch(0.83 0.164 84)'
+
 interface ContextUsageSummaryProps {
   usage: AgentSessionContextUsage | null
   percentage: number | null
@@ -79,9 +83,9 @@ export function getAgentContextUsageColor(percentage: number): string {
   const normalizedPercentage = Math.min(100, Math.max(0, percentage))
   if (normalizedPercentage <= 50) {
     const warningWeight = normalizedPercentage * 2
-    return `color-mix(in oklch, var(--success) ${100 - warningWeight}%, var(--color-warning-base) ${warningWeight}%)`
+    return `color-mix(in oklch, var(--success) ${100 - warningWeight}%, ${CONTEXT_USAGE_WARNING_COLOR} ${warningWeight}%)`
   }
 
   const destructiveWeight = (normalizedPercentage - 50) * 2
-  return `color-mix(in oklch, var(--color-warning-base) ${100 - destructiveWeight}%, var(--destructive) ${destructiveWeight}%)`
+  return `color-mix(in oklch, ${CONTEXT_USAGE_WARNING_COLOR} ${100 - destructiveWeight}%, var(--destructive) ${destructiveWeight}%)`
 }

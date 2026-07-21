@@ -9,6 +9,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
+const AI_DIAGNOSIS_RESULT_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 async function persistDiagnosis(partId: string, diagnosis: DiagnosisResult) {
   const match = partId.match(/^(.+)-(?:part|block)-(\d+)$/)
@@ -143,7 +144,7 @@ const AiDiagnosisSectionWithStatus = memo(
               <CheckCircle size={14} />
               {t('error.diagnosis.ai_result')}
             </div>
-            <div className="text-[13px] leading-[1.7]" style={{ color: 'var(--color-foreground-secondary)' }}>
+            <div className="text-[13px] leading-[1.7]" style={{ color: AI_DIAGNOSIS_RESULT_COLOR }}>
               {result.explanation || result.summary}
             </div>
             {result.steps.length > 0 && (
