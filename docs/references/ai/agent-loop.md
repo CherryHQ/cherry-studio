@@ -61,10 +61,10 @@ Hook contributions come from three sources, all folded by `composeHooks`:
    (injects `message-metadata` chunks carrying token usage).
 2. **Feature contributions** (`hookParts` param) — each `RequestFeature`'s
    `contributeHooks(scope)` (see [Params Pipeline](./params-pipeline.md)).
-3. **Caller hooks** — `AiService` adds the analytics hook only (token-usage
-   accounting via `onStepFinish` / `onFinish`). It does *not* contribute a
-   root-span/trace lifecycle hook — the OTel root span is owned by
-   `AiStreamManager.runExecutionLoop`.
+3. **Caller hooks** — `AiService` adds the analytics hook only (usage is
+   accumulated via `onStepFinish`, then flushed idempotently from `onFinish`
+   or `onError`). It does *not* contribute a root-span/trace lifecycle hook —
+   the OTel root span is owned by `AiStreamManager.runExecutionLoop`.
 
 Composition rules per hook key:
 
@@ -100,16 +100,22 @@ see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
 
 ## Error and abort
 
-- `signal.aborted` is honoured throughout; aborted streams settle with
-  the accumulated chunks already broadcast.
+- `signal.aborted` is honoured throughout; aborted streams settle cleanly with
+  the accumulated chunks already broadcast, including when the SDK rejects
+  result metadata while unwinding the aborted stream.
 - Thrown errors are caught and routed through `onError`. Returning
   `'retry'` is reserved for a future implementation — today the loop
   logs and aborts.
-- A tool can return a structured terminal failure (`terminal: true`,
-  `retryable: false`). A feature stop condition ends the loop at that step
-  boundary, and `Agent` converts the otherwise clean finish into an error.
-- A `tool-calls` finish at the effective step cap is also converted into an
-  explicit error instead of persisting an empty successful response.
+- Cherry Studio's builtin `web_search` / `web_fetch` tools can return a
+  structured terminal failure (`terminal: true`, `retryable: false`). A
+  process-local provenance marker prevents matching JSON from MCP,
+  provider-executed, or unrelated tools from controlling the loop; deferred
+  `tool_invoke` results additionally verify the inner tool name. The feature
+  stops at that step boundary and `Agent` converts the finish into an error.
+- The effective step-cap condition records when it actually returns `true`;
+  `Agent` converts only that outcome into an explicit error. This avoids
+  treating an approval pause as cap exhaustion. If a queued steer and the cap
+  both trigger on one step, the clean steer yield takes precedence.
 - The writer is settled exactly once via the `then`/`catch` of the
   internal IIFE — listeners never see a half-closed stream.
 

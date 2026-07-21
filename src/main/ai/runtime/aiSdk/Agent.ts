@@ -4,6 +4,7 @@
 
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { isAbortError } from '@main/utils/error'
 import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 
 import { toModelMessages } from '../../messages/messageRules'
@@ -116,8 +117,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const result = await aiAgent.generate(generateInput)
       const terminalError = resolveToolLoopTerminalError({
         steps: result.steps,
-        finishReason: result.finishReason,
-        toolCallLimit: this.params.options?.toolCallLimit
+        stopWhen: this.params.options?.stopWhen
       })
       if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
@@ -241,38 +241,40 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         reader.releaseLock()
       }
       if (readFailure) throw readFailure.error
+      if (signal.aborted) return
 
-      const [steps, finishReason] = await Promise.all([
-        Promise.resolve(result.steps),
-        Promise.resolve(result.finishReason)
-      ])
+      const steps = await Promise.resolve(result.steps)
+      if (signal.aborted) return
       const terminalError = resolveToolLoopTerminalError({
         steps: steps ?? [],
-        finishReason: finishReason ?? pendingFinish?.finishReason,
-        toolCallLimit: params.options?.toolCallLimit
+        stopWhen: params.options?.stopWhen
       })
       if (terminalError) throw terminalError
       if (pendingFinish) await writer.write(pendingFinish)
 
       // onFinish is success-only by current design: it fires only when the
-      // stream drains cleanly, never on the error/abort path below (which
-      // routes through invokeOnError + settleWriter instead). Failed-turn
-      // analytics must therefore accumulate via onStepFinish rather than rely
-      // on onFinish. Whether onFinish should become terminal (also firing on
-      // error/abort) is a deferred design decision — see agent-loop.md.
+      // stream drains cleanly, never on the error/abort path below. Errors
+      // route through invokeOnError; aborts settle the writer cleanly.
+      // Failed-turn analytics accumulate via onStepFinish and flush from
+      // onError rather than rely on onFinish. Whether onFinish should become
+      // terminal is a deferred design decision — see agent-loop.md.
       await safeCall('onFinish', hooks.onFinish)
     })()
       .then(() => settleWriter())
       .catch(async (err) => {
-        if (!signal.aborted) {
-          const action = await invokeOnError(err)
-          if (action === 'retry') {
-            // TODO: retry logic
-            // retry is reserved for a future implementation — today the loop logs and aborts.
-            logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
-          } else {
-            logger.error('agentLoop error', err)
-          }
+        const isCancellation = signal.aborted && (err === signal.reason || isAbortError(err))
+        if (isCancellation) {
+          await settleWriter()
+          return
+        }
+
+        const action = await invokeOnError(err)
+        if (action === 'retry') {
+          // TODO: retry logic
+          // retry is reserved for a future implementation — today the loop logs and aborts.
+          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
+        } else {
+          logger.error('agentLoop error', err)
         }
         await settleWriter({ error: err })
       })

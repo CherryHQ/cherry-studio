@@ -71,8 +71,13 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
-  it('renders an i18nKey even when the error has no provider id', () => {
-    mocks.i18nKeys.add('error.tool_call_limit_reached')
+  it.each([
+    ['tool call limit', 'tool_call_limit_reached'],
+    ['unavailable web search provider', 'web_search_provider_unavailable']
+  ])('renders a known app-owned i18nKey for %s without AI diagnosis', (_scenario, i18nKey) => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.i18nKeys.add(`error.${i18nKey}`)
 
     render(
       <ErrorBlock
@@ -81,13 +86,14 @@ describe('ErrorBlock', () => {
           name: 'ToolLoopTerminalError',
           message: 'fallback message',
           stack: null,
-          i18nKey: 'tool_call_limit_reached'
+          i18nKey
         }}
         message={message}
       />
     )
 
-    expect(screen.getByText('error.tool_call_limit_reached')).toBeInTheDocument()
+    expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
@@ -147,7 +153,12 @@ describe('ErrorBlock', () => {
     render(
       <ErrorBlock
         partId="message-1-part-0"
-        error={{ name: 'UnknownError', message: 'unmapped provider failure', stack: null }}
+        error={{
+          name: 'UnknownError',
+          message: 'unmapped provider failure',
+          stack: null,
+          i18nKey: 'missing_app_error'
+        }}
         message={message}
       />
     )

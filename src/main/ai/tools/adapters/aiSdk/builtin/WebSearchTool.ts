@@ -19,6 +19,7 @@ import * as z from 'zod'
 import { searchWeb, WEB_SEARCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
+import { markTrustedWebLookupTerminalFailure } from './webLookupTerminalFailure'
 
 export { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME }
 
@@ -31,7 +32,8 @@ const webSearchTool = tool({
   // Provider-level constrained decoding where supported. Repair fallback
   // (in AiService) handles providers that don't honour `strict`.
   strict: true,
-  execute: async ({ query }, options) => searchWeb(query, getToolCallContext(options).request.abortSignal),
+  execute: async ({ query }, options) =>
+    markTrustedWebLookupTerminalFailure(await searchWeb(query, getToolCallContext(options).request.abortSignal)),
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 

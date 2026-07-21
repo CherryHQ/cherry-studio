@@ -109,6 +109,22 @@ describe('web_search', () => {
     })
   })
 
+  it.each([
+    ['missing API key', 'API key is required for provider tavily'],
+    ['missing API host', 'API host is required for provider tavily capability searchKeywords']
+  ])('marks a %s configuration error as terminal instead of retrying it', async (_scenario, message) => {
+    searchKeywords.mockRejectedValue(new Error(message))
+
+    expect(await callSearchExecute({ query: 'q' })).toEqual({
+      error: message,
+      retryable: false,
+      terminal: true,
+      userMessage:
+        'Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again.',
+      i18nKey: 'web_search_provider_unavailable'
+    })
+  })
+
   it('rethrows an abort instead of converting it to an error discriminant', async () => {
     const abortError = Object.assign(new Error('Aborted'), { name: 'AbortError' })
     searchKeywords.mockRejectedValue(abortError)

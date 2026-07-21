@@ -417,11 +417,22 @@ export class AiService extends BaseService {
 
   private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
     let total: LanguageModelUsage = ZERO_USAGE
+    let flushed = false
+    const flush = () => {
+      if (flushed) return
+      flushed = true
+      this.trackUsage(model, total)
+    }
+
     return {
       onStepFinish: (step) => {
         if (step.usage) total = mergeUsage(total, step.usage)
       },
-      onFinish: () => this.trackUsage(model, total)
+      onFinish: flush,
+      onError: () => {
+        flush()
+        return 'abort'
+      }
     }
   }
 

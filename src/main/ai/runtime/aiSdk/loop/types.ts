@@ -93,8 +93,6 @@ export interface AgentOptions {
   // Loop control
   /** Default: AI SDK default (`stepCountIs(20)`). */
   stopWhen?: StopCondition<ToolSet> | Array<StopCondition<ToolSet>>
-  /** Effective step cap, retained so the stream wrapper can identify cap-triggered termination. */
-  toolCallLimit?: number
   telemetry?: TelemetrySettings
 }
 

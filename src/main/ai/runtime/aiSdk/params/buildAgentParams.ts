@@ -30,6 +30,7 @@ import {
   mergeCustomProviderParameters
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
+import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
@@ -277,14 +278,13 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
 
   const { headers, maxRetries } = request.requestOptions ?? {}
   const toolCallLimit = resolveToolCallLimit(assistant)
-  const baseStopWhen = assistant ? stepCountIs(toolCallLimit) : undefined
+  const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
   const telemetry = buildTelemetry(scope)
 
   return {
     maxRetries: maxRetries ?? 0,
     ...(stopWhen && { stopWhen }),
-    toolCallLimit,
     ...(headers && { headers }),
     ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
     ...(Object.keys(providerOptions).length > 0 && { providerOptions }),

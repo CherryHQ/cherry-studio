@@ -3,6 +3,9 @@ import { APICallError, tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import { markTrustedWebLookupTerminalFailure } from '../../../../tools/adapters/aiSdk/builtin/webLookupTerminalFailure'
+import { createToolCallLimitStopCondition } from '../toolLoopTermination'
+
 const mockCreateAgent = vi.fn()
 
 vi.mock('@cherrystudio/ai-core', () => ({
@@ -65,13 +68,13 @@ describe('Agent', () => {
   })
 
   it('turns a terminal tool output into an error instead of forwarding a success finish', async () => {
-    const output = {
+    const output = markTrustedWebLookupTerminalFailure({
       error: 'Unsafe remote url',
       retryable: false,
       terminal: true,
       userMessage: 'Change the proxy setting.',
       i18nKey: 'web_search_proxy_fake_ip'
-    }
+    })
 
     mockCreateAgent.mockResolvedValue({
       stream: vi.fn().mockResolvedValue({
@@ -96,8 +99,7 @@ describe('Agent', () => {
     const agent = new Agent({
       providerId: 'openai' as never,
       providerSettings: {} as never,
-      modelId: 'test-model',
-      options: { toolCallLimit: 20 }
+      modelId: 'test-model'
     })
     const reader = agent.stream([], new AbortController().signal).getReader()
 
@@ -110,6 +112,13 @@ describe('Agent', () => {
   })
 
   it('turns cap-triggered tool-loop completion into an explicit error', async () => {
+    const steps = [
+      { toolResults: [] },
+      { toolResults: [{ type: 'tool-result', toolCallId: 'tool-2', toolName: 'web_fetch', output: [] }] }
+    ]
+    const stopWhen = createToolCallLimitStopCondition(2)
+    await stopWhen({ steps: steps as never })
+
     mockCreateAgent.mockResolvedValue({
       stream: vi.fn().mockResolvedValue({
         toUIMessageStream: () =>
@@ -119,10 +128,7 @@ describe('Agent', () => {
               controller.close()
             }
           }),
-        steps: Promise.resolve([
-          { toolResults: [] },
-          { toolResults: [{ type: 'tool-result', toolCallId: 'tool-2', toolName: 'web_fetch', output: [] }] }
-        ]),
+        steps: Promise.resolve(steps),
         finishReason: Promise.resolve('tool-calls')
       })
     })
@@ -132,13 +138,44 @@ describe('Agent', () => {
       providerId: 'openai' as never,
       providerSettings: {} as never,
       modelId: 'test-model',
-      options: { toolCallLimit: 2 }
+      options: { stopWhen }
     })
 
     await expect(agent.stream([], new AbortController().signal).getReader().read()).rejects.toMatchObject({
       name: 'ToolLoopTerminalError',
       i18nKey: 'tool_call_limit_reached'
     })
+  })
+
+  it('forwards an approval finish at maxToolCalls=1 when the cap condition was not evaluated', async () => {
+    const stopWhen = createToolCallLimitStopCondition(1)
+    const steps = [{ toolResults: [] }]
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve(steps),
+        finishReason: Promise.resolve('tool-calls')
+      })
+    })
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      options: { stopWhen }
+    })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'finish' }, done: false })
+    await expect(reader.read()).resolves.toEqual({ value: undefined, done: true })
   })
 
   it('swallows hooks.onError exceptions so they do not become unhandled rejections', async () => {
@@ -506,6 +543,97 @@ describe('Agent', () => {
     expect(next.done).toBe(true)
     // Abort is not an error: onError must not fire on the abort path.
     expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('closes cleanly when abort rejects SDK metadata after the UI stream drains', async () => {
+    const abortError = new Error('cancelled')
+    let rejectSteps!: (error: unknown) => void
+    let metadataAccessed!: () => void
+    const didAccessMetadata = new Promise<void>((resolve) => {
+      metadataAccessed = resolve
+    })
+    const steps = new Promise<never>((_resolve, reject) => {
+      rejectSteps = reject
+    })
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.close()
+            }
+          }),
+        get steps() {
+          metadataAccessed()
+          return steps
+        }
+      })
+    })
+
+    const onError = vi.fn()
+    const { Agent } = await import('../../Agent')
+    const controller = new AbortController()
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      hookParts: [{ onError }]
+    })
+    const reader = agent.stream([], controller.signal).getReader()
+    const read = reader.read()
+
+    await didAccessMetadata
+    controller.abort(abortError)
+    rejectSteps(abortError)
+
+    await expect(read).resolves.toEqual({ value: undefined, done: true })
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('preserves a real metadata error when cancellation races with that failure', async () => {
+    const providerError = new Error('provider failed')
+    let rejectSteps!: (error: unknown) => void
+    let metadataAccessed!: () => void
+    const didAccessMetadata = new Promise<void>((resolve) => {
+      metadataAccessed = resolve
+    })
+    const steps = new Promise<never>((_resolve, reject) => {
+      rejectSteps = reject
+    })
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.close()
+            }
+          }),
+        get steps() {
+          metadataAccessed()
+          return steps
+        }
+      })
+    })
+
+    const onError = vi.fn()
+    const { Agent } = await import('../../Agent')
+    const controller = new AbortController()
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      hookParts: [{ onError }]
+    })
+    const read = agent.stream([], controller.signal).getReader().read()
+
+    await didAccessMetadata
+    controller.abort(new Error('cancelled'))
+    rejectSteps(providerError)
+
+    await expect(read).rejects.toBe(providerError)
+    expect(onError).toHaveBeenCalledWith({ error: providerError })
   })
 
   // ── writerSettled guard: the terminal signal is emitted exactly once per outcome ──

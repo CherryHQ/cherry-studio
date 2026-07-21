@@ -26,6 +26,16 @@ describe('webSearch provider utils', () => {
     expect(resolveProviderApiHost(provider, 'searchKeywords')).toBe('https://api.example.com/v1')
   })
 
+  it('throws when the required API host is missing after trimming', () => {
+    const provider = createProvider({
+      capabilities: [{ feature: 'searchKeywords', apiHost: '  ' }]
+    })
+
+    expect(() => resolveProviderApiHost(provider, 'searchKeywords')).toThrow(
+      'API host is required for provider tavily capability searchKeywords'
+    )
+  })
+
   it('throws when required API keys are missing after trimming', () => {
     const provider = createProvider({
       id: 'bocha',
