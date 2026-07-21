@@ -38,12 +38,13 @@ Recoverable row normalization and partially rejected optional records remain mig
 creation and database inspection are support operations: their failures must not replace the migration failure or
 change whether migration may continue.
 
-After paths resolve, the coordinator persists a bounded, strict journal at
+After paths resolve, the coordinator persists a bounded checkpoint at
 `MigrationPaths.diagnosticsJournalFile` (`{userData}/migration-diagnostics-v2.json`).
-It stores only the current attempt and the immediately previous failed/interrupted attempt. An unfinished renderer
-crash, force quit, or power loss is closed as `process_interrupted` on the next launch. Incompatible development
-journals are quarantined without changing business data or migration eligibility. A successful migration
-reconciliation deletes the checkpoint while retaining the completed in-memory summary for the current UI session.
+It stores only the current attempt and the immediately previous failed/interrupted attempt. An attempt left unfinished
+by force quit or power loss is closed as `process_interrupted` on the next launch. A live renderer crash is recorded
+immediately before the native fallback is shown. Incompatible development checkpoints are discarded and replaced
+without changing business data or migration eligibility. A successful migration reconciliation deletes the checkpoint
+while retaining the completed in-memory summary for the current UI session.
 
 The user-saved diagnostic ZIP has an exact two-file allowlist:
 
@@ -60,21 +61,17 @@ process connection. The parent accepts only the strict final result; timeout, cr
 hangs after emitting partial output becomes a fixed `unavailable` result. The child is terminated, and the remaining
 two-file bundle can still be saved.
 
-If `KnowledgeIndexStore.rebuildMaterial()` rejects while writing an embedding BLOB, diagnostics profile the real
-`knowledge_vector_rebuild.vectorBlob` boundary. The failure-only producer first returns an O(1) lazy row source, then
-the profiler reads vector element counts only for its bounded sample and uses the fixed float32 width to create
-frozen, content-free byte-length measurements. The source preserves the real embedding count for `rowCountBucket`,
-does not read vector values, and never allocates a second BLOB-sized `Buffer`/`ArrayBuffer`. If the deadline or row
-budget truncates sampling, the numeric total/max buckets describe only that partial sample and `traversal` is
-`truncated`. An anomalous or overflowing length also saturates the bucket and marks traversal truncated without
-replacing the original write error.
+For an actual blocking string or JSON write failure, the failed boundary may record at most three content-free UTF-8
+byte lengths and whether the sample was truncated. Optional row failures and warning-only work do not produce this
+evidence, and diagnostics never serialize the failed values themselves.
 
-The same save operation is available from renderer migration errors, a completed migration that contains warnings,
-pre-window native failures, renderer crash/unresponsive dialogs, and unfinished-session recovery. A warning-free
-completed migration shows no diagnostics controls. While saving, duplicate save and restart/close actions are
-disabled. After a successful save, the app can open the user's external email client with instructions, reveal the
-ZIP, or copy the support address. It never uploads, sends, or attaches the bundle automatically; the user must review
-and attach the ZIP manually.
+The same save operation is available from renderer migration errors, version-incompatibility blocks, pre-window
+native failures, renderer crashes, renderer hangs that persist for 10 seconds, and unfinished-session recovery.
+Completed migrations do not show diagnostic controls, including completions that contain warnings. While saving,
+duplicate save and restart/close actions are disabled or deferred. After a successful save, the app can open the
+user's external email client with instructions, reveal the ZIP, or copy the support address when the migration window
+is available. It never uploads, sends, or attaches the bundle automatically; the user must review and attach the ZIP
+manually.
 
 The acceptance matrix is in
 [`diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts`](diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts),
