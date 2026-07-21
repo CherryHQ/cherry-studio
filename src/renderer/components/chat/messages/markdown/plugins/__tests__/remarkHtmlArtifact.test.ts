@@ -66,6 +66,12 @@ describe('remarkHtmlArtifact', () => {
   it('keeps SVG in the dedicated Markdown SVG renderer path', () => {
     const tree = parse('<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" /></svg>')
 
-    expect(tree.children[0]).toMatchObject({ type: 'html' })
+    expect(tree.children).not.toEqual(expect.arrayContaining([expect.objectContaining({ type: 'code' })]))
+    expect(tree.children[0]).toMatchObject({
+      type: 'paragraph',
+      children: expect.arrayContaining([
+        expect.objectContaining({ type: 'html', value: expect.stringContaining('<svg') })
+      ])
+    })
   })
 })
