@@ -275,12 +275,14 @@ const MigrationApp: React.FC = () => {
   const startGuardRef = useRef(false)
   const diagnosticSaveGuardRef = useRef(false)
   const diagnosticSupportActionGuardRef = useRef(false)
+  const languageChangeGuardRef = useRef(false)
+  const diagnosticLocaleOperationRef = useRef<Promise<void>>(Promise.resolve())
   const [isSavingDiagnostics, setIsSavingDiagnostics] = useState(false)
   const [isRunningDiagnosticSupportAction, setIsRunningDiagnosticSupportAction] = useState(false)
   const [diagnosticSupportActionFailed, setDiagnosticSupportActionFailed] = useState(false)
   const [diagnosticSaveResult, setDiagnosticSaveResult] = useState<MigrationDiagnosticSaveResult | null>(null)
 
-  const syncDiagnosticLocale = useCallback(
+  const setDiagnosticLocaleStrict = useCallback(
     async (language: string): Promise<void> => {
       if (!isMigrationDiagnosticLocale(language)) {
         throw new Error('Unsupported migration diagnostic locale')
@@ -292,6 +294,20 @@ const MigrationApp: React.FC = () => {
     [setDiagnosticLocale]
   )
 
+  const runDiagnosticLocaleOperation = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
+    const result = diagnosticLocaleOperationRef.current.then(operation)
+    diagnosticLocaleOperationRef.current = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }, [])
+
+  const syncDiagnosticLocale = useCallback(
+    (language: string): Promise<void> => runDiagnosticLocaleOperation(() => setDiagnosticLocaleStrict(language)),
+    [runDiagnosticLocaleOperation, setDiagnosticLocaleStrict]
+  )
+
   useEffect(() => {
     void syncDiagnosticLocale(i18n.language).catch((error) => {
       logger.error('Failed to sync diagnostic locale', error as Error)
@@ -299,11 +315,36 @@ const MigrationApp: React.FC = () => {
   }, [i18n.language, syncDiagnosticLocale])
 
   const changeLanguage = async (language: string): Promise<void> => {
+    if (languageChangeGuardRef.current) {
+      logger.warn('Ignored concurrent migration language change')
+      return
+    }
     if (!isMigrationDiagnosticLocale(language)) {
       throw new Error('Unsupported migration diagnostic locale')
     }
-    await i18n.changeLanguage(language)
-    await syncDiagnosticLocale(language)
+    const previousLanguage = i18n.language
+    if (!isMigrationDiagnosticLocale(previousLanguage)) {
+      throw new Error('Unsupported current migration diagnostic locale')
+    }
+
+    languageChangeGuardRef.current = true
+    try {
+      await runDiagnosticLocaleOperation(async () => {
+        await setDiagnosticLocaleStrict(language)
+        try {
+          await i18n.changeLanguage(language)
+        } catch (error) {
+          try {
+            await setDiagnosticLocaleStrict(previousLanguage)
+          } catch (rollbackError) {
+            logger.error('Failed to rollback migration diagnostic locale', rollbackError as Error)
+          }
+          throw error
+        }
+      })
+    } finally {
+      languageChangeGuardRef.current = false
+    }
   }
 
   const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
@@ -449,8 +490,12 @@ const MigrationApp: React.FC = () => {
     setDiagnosticSaveResult(null)
     setDiagnosticSupportActionFailed(false)
     try {
-      await syncDiagnosticLocale(i18n.language)
-      setDiagnosticSaveResult(await actions.save())
+      setDiagnosticSaveResult(
+        await runDiagnosticLocaleOperation(async () => {
+          await setDiagnosticLocaleStrict(i18n.language)
+          return actions.save()
+        })
+      )
     } catch {
       setDiagnosticSaveResult({ status: 'failed', code: 'snapshot_failed' })
     } finally {
@@ -504,10 +549,12 @@ const MigrationApp: React.FC = () => {
             className="gap-2"
             disabled={isRunningDiagnosticSupportAction}
             onClick={() =>
-              void runDiagnosticSupportAction(async () => {
-                await syncDiagnosticLocale(i18n.language)
-                await actions.openEmail()
-              })
+              void runDiagnosticSupportAction(() =>
+                runDiagnosticLocaleOperation(async () => {
+                  await setDiagnosticLocaleStrict(i18n.language)
+                  await actions.openEmail()
+                })
+              )
             }>
             <Mail size={14} />
             {t('migration.diagnostics.actions.open_email')}

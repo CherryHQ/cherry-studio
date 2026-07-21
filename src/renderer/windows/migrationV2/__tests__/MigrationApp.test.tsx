@@ -22,6 +22,7 @@ const removeAllListeners = vi.fn()
 const invoke = vi.fn()
 const loggerErrorMock = vi.hoisted(() => vi.fn())
 const loggerInfoMock = vi.hoisted(() => vi.fn())
+const loggerWarnMock = vi.hoisted(() => vi.fn())
 const migrationWindowControlsPropsMock = vi.hoisted(() => vi.fn())
 const platformState = vi.hoisted(() => ({
   isMac: false
@@ -138,7 +139,8 @@ vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
     withContext: () => ({
       error: loggerErrorMock,
-      info: loggerInfoMock
+      info: loggerInfoMock,
+      warn: loggerWarnMock
     })
   }
 }))
@@ -211,6 +213,7 @@ describe('MigrationApp', () => {
     invoke.mockClear()
     loggerErrorMock.mockClear()
     loggerInfoMock.mockClear()
+    loggerWarnMock.mockClear()
     migrationWindowControlsPropsMock.mockClear()
     on.mockClear()
     removeAllListeners.mockClear()
@@ -270,7 +273,7 @@ describe('MigrationApp', () => {
     await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenLastCalledWith('zh-CN'))
   })
 
-  it('changes the selected language before syncing it to Main', async () => {
+  it('commits the selected locale to Main before changing the Renderer language', async () => {
     render(<MigrationApp />)
     await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
     migrationHookMock.actions.setDiagnosticLocale.mockClear()
@@ -279,9 +282,112 @@ describe('MigrationApp', () => {
 
     await waitFor(() => expect(i18nMock.changeLanguage).toHaveBeenCalledWith('zh-CN'))
     await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('zh-CN'))
-    expect(i18nMock.changeLanguage.mock.invocationCallOrder[0]).toBeLessThan(
-      migrationHookMock.actions.setDiagnosticLocale.mock.invocationCallOrder[0]
+    expect(migrationHookMock.actions.setDiagnosticLocale.mock.invocationCallOrder[0]).toBeLessThan(
+      i18nMock.changeLanguage.mock.invocationCallOrder[0]
     )
+  })
+
+  it.each([
+    ['returns false', () => migrationHookMock.actions.setDiagnosticLocale.mockResolvedValue(false)],
+    ['rejects', () => migrationHookMock.actions.setDiagnosticLocale.mockRejectedValue(new Error('sync failed'))]
+  ])('keeps the previous Renderer language when the Main locale change %s', async (_case, configureSync) => {
+    render(<MigrationApp />)
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+    migrationHookMock.actions.setDiagnosticLocale.mockReset()
+    configureSync()
+    i18nMock.changeLanguage.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+
+    await waitFor(() =>
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to change migration language', expect.any(Error))
+    )
+    expect(i18nMock.changeLanguage).not.toHaveBeenCalled()
+    expect(i18nMock.language).toBe('en-US')
+  })
+
+  it('rolls Main back to the previous locale when the Renderer language change rejects', async () => {
+    render(<MigrationApp />)
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+    migrationHookMock.actions.setDiagnosticLocale.mockClear()
+    i18nMock.changeLanguage.mockRejectedValue(new Error('renderer change failed'))
+
+    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+
+    await waitFor(() =>
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to change migration language', expect.any(Error))
+    )
+    expect(migrationHookMock.actions.setDiagnosticLocale.mock.calls).toEqual([['zh-CN'], ['en-US']])
+    expect(migrationHookMock.actions.setDiagnosticLocale.mock.invocationCallOrder[0]).toBeLessThan(
+      i18nMock.changeLanguage.mock.invocationCallOrder[0]
+    )
+    expect(i18nMock.changeLanguage.mock.invocationCallOrder[0]).toBeLessThan(
+      migrationHookMock.actions.setDiagnosticLocale.mock.invocationCallOrder[1]
+    )
+  })
+
+  it('logs a failed Main rollback without swallowing the Renderer language error', async () => {
+    const rendererError = new Error('renderer change failed')
+    render(<MigrationApp />)
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+    migrationHookMock.actions.setDiagnosticLocale.mockReset().mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    i18nMock.changeLanguage.mockRejectedValue(rendererError)
+
+    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+
+    await waitFor(() =>
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to rollback migration diagnostic locale', expect.any(Error))
+    )
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to change migration language', rendererError)
+  })
+
+  it('ignores a concurrent language selection until the first change settles', async () => {
+    let acceptTarget!: (accepted: boolean) => void
+    render(<MigrationApp />)
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+    migrationHookMock.actions.setDiagnosticLocale.mockReset().mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          acceptTarget = resolve
+        })
+    )
+    i18nMock.changeLanguage.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+    fireEvent.click(screen.getByRole('button', { name: 'English' }))
+
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledTimes(1))
+    expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('zh-CN')
+    expect(i18nMock.changeLanguage).not.toHaveBeenCalled()
+    expect(loggerWarnMock).toHaveBeenCalledWith('Ignored concurrent migration language change')
+
+    await act(async () => acceptTarget(true))
+    expect(i18nMock.changeLanguage).toHaveBeenCalledOnce()
+    expect(i18nMock.changeLanguage).toHaveBeenCalledWith('zh-CN')
+  })
+
+  it('waits for the initial locale sync before committing a selected language', async () => {
+    let acceptInitial!: (accepted: boolean) => void
+    migrationHookMock.actions.setDiagnosticLocale
+      .mockReset()
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            acceptInitial = resolve
+          })
+      )
+      .mockResolvedValue(true)
+
+    render(<MigrationApp />)
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('en-US'))
+    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+
+    expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledTimes(1)
+    expect(i18nMock.changeLanguage).not.toHaveBeenCalled()
+
+    await act(async () => acceptInitial(true))
+    await waitFor(() => expect(i18nMock.changeLanguage).toHaveBeenCalledWith('zh-CN'))
+    expect(migrationHookMock.actions.setDiagnosticLocale.mock.calls).toEqual([['en-US'], ['zh-CN']])
   })
 
   it('fails closed and logs when the current i18n language is unsupported', async () => {
@@ -695,6 +801,39 @@ describe('MigrationApp', () => {
       expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('zh-CN')
       expect(migrationHookMock.actions.setDiagnosticLocale.mock.invocationCallOrder[0]).toBeLessThan(
         migrationHookMock.actions.save.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('waits for an active language change, then saves with the committed Renderer locale', async () => {
+      let acceptTarget!: (accepted: boolean) => void
+      render(<MigrationApp />)
+      await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+      migrationHookMock.actions.setDiagnosticLocale
+        .mockReset()
+        .mockImplementationOnce(
+          () =>
+            new Promise<boolean>((resolve) => {
+              acceptTarget = resolve
+            })
+        )
+        .mockResolvedValue(true)
+      i18nMock.changeLanguage.mockImplementation(async (language: string) => {
+        i18nMock.language = language
+      })
+      migrationHookMock.actions.save.mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: '中文' }))
+      await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('zh-CN'))
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledTimes(1)
+      expect(migrationHookMock.actions.save).not.toHaveBeenCalled()
+
+      await act(async () => acceptTarget(true))
+      await waitFor(() => expect(migrationHookMock.actions.save).toHaveBeenCalledOnce())
+      expect(migrationHookMock.actions.setDiagnosticLocale.mock.calls.length).toBeGreaterThanOrEqual(2)
+      expect(migrationHookMock.actions.setDiagnosticLocale.mock.calls.every(([locale]) => locale === 'zh-CN')).toBe(
+        true
       )
     })
 
