@@ -119,6 +119,19 @@ vi.mock('@cherrystudio/ui', () => {
         </button>
       )
     },
+    HorizontalScrollContainer: ({
+      children,
+      className,
+      gap
+    }: {
+      children: ReactNode
+      className?: string
+      gap?: string
+    }) => (
+      <div data-testid="horizontal-scroll-container" className={className} data-gap={gap}>
+        {children}
+      </div>
+    ),
     HoverCard: ({ children }: { children: ReactNode }) => <>{children}</>,
     HoverCardContent: ({
       portalContainer,
@@ -449,7 +462,7 @@ describe('ModelSelector', () => {
     expect(screen.getByLabelText('models.action.unpin')).not.toHaveClass('text-primary!')
   })
 
-  it('renders filter tags as labeled chips without a filter title', () => {
+  it('renders filter tags as a single-row horizontal carousel without a filter title', () => {
     mockUseModelSelectorData.mockReturnValue(
       makeData({
         availableTags: [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.REASONING, 'free'],
@@ -461,7 +474,9 @@ describe('ModelSelector', () => {
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
     expect(screen.queryByText('models.filter.by_tag')).not.toBeInTheDocument()
-    expect(screen.getByText('models.type.vision')).toBeInTheDocument()
+    expect(screen.getByTestId('horizontal-scroll-container')).toHaveClass('w-full')
+    expect(screen.getByTestId('horizontal-scroll-container')).toHaveAttribute('data-gap', '6px')
+    expect(screen.getByText('models.type.vision').closest('button')).toHaveClass('shrink-0')
     expect(screen.getByText('models.type.reasoning')).toBeInTheDocument()
     expect(screen.getByText('models.type.free')).toBeInTheDocument()
   })
