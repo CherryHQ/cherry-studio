@@ -1135,6 +1135,23 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('re-saves after reverting an agent skill to its original state', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Skills')
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock).toHaveBeenLastCalledWith({
+      body: expect.objectContaining({
+        skillUpdates: [{ skillId: 'skill-1', isEnabled: false }]
+      })
+    })
+  })
+
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {
     const onAssistantOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} onSaved={vi.fn()} />)
