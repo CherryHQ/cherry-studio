@@ -5676,7 +5676,7 @@
       },
       "factory_reset": {
         "button": "Reset",
-        "confirm_content": "This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_content": "This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
         "confirm_title": "Are you sure you want to clear all data?",
         "error": "Failed to start data reset",
         "title": "Data Reset"
