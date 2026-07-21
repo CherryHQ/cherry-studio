@@ -193,23 +193,16 @@ export function AgentSelector(props: AgentSelectorProps) {
     [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
 
-  // The edit dialog auto-saves, so `onSaved` fires after every debounced change — not just on
-  // close. Advance the editing snapshot to the saved entity so the dialog's diff baseline moves
-  // with each save; otherwise editing a field back to its original value would diff as "no change"
-  // and silently skip the revert. The dialog is closed through `handleEditDialogOpenChange` when
-  // the user actually dismisses it.
-  const handleEditSaved = useCallback(
-    async (saved: AgentDetail) => {
-      setEditingAgent((current) => (current && current.id === saved.id ? saved : current))
-      try {
-        await refetch()
-      } catch (error) {
-        logger.warn('Failed to refresh agents after selector edit', { error })
-        toast.error(t('selector.edit_dialog.refresh_failed'))
-      }
-    },
-    [refetch, t]
-  )
+  // The edit dialog owns its save baseline; the selector only refreshes its list
+  // after each successful auto-save.
+  const handleEditSaved = useCallback(async () => {
+    try {
+      await refetch()
+    } catch (error) {
+      logger.warn('Failed to refresh agents after selector edit', { error })
+      toast.error(t('selector.edit_dialog.refresh_failed'))
+    }
+  }, [refetch, t])
 
   const createDialog = (
     <ResourceCreateWizard

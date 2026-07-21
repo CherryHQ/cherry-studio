@@ -123,9 +123,9 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
  * save is in flight, a single follow-up pass is queued and runs (with the latest
  * `onSave`) once the current save settles — so the last edit is never dropped.
  *
- * Returns a `flush()` that runs/awaits the serialized save immediately; callers
- * (e.g. the close path) await it to persist pending edits before proceeding,
- * reusing the same queue instead of racing a second concurrent save.
+ * Returns a controller whose `flush()` runs/awaits the serialized save
+ * immediately and whose `hasInFlightSave()` synchronously reports whether the
+ * queue is active. Close paths use both to persist edits made during a save.
  */
 export function useDebouncedAutoSave({
   enabled,
@@ -137,7 +137,7 @@ export function useDebouncedAutoSave({
   changeKey: string | null
   onSave: () => void | Promise<void>
   delay?: number
-}): () => Promise<void> {
+}): { flush: () => Promise<void>; hasInFlightSave: () => boolean } {
   const onSaveRef = useRef(onSave)
   const changeKeyRef = useRef(changeKey)
   const savingRef = useRef(false)
@@ -174,13 +174,15 @@ export function useDebouncedAutoSave({
     return inFlightRef.current
   }, [])
 
+  const hasInFlightSave = useCallback(() => savingRef.current, [])
+
   useEffect(() => {
     if (!enabled || changeKey === null) return
     const handle = setTimeout(() => void flush(), delay)
     return () => clearTimeout(handle)
   }, [enabled, changeKey, delay, flush])
 
-  return flush
+  return { flush, hasInFlightSave }
 }
 
 const HelpIconButton = ({
