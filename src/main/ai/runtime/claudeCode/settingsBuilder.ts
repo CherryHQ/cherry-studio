@@ -351,13 +351,24 @@ export async function buildClaudeCodeSessionSettings(
   const skills = await buildSkillWhitelist(agent.id, cwd)
 
   // 10. Build settings
+  // Auto-compact (Claude Code SDK / headless agent sessions):
+  // - autoCompactEnabled alone is NOT enough. In non-interactive (SDK) mode the
+  //   binary gates autocompact on window source ∈ {env, settings, model-default}.
+  // - Without an explicit autoCompactWindow, source falls back to "auto" and
+  //   Bz3() returns false → silent skip (interactive CLI still works; Agent path
+  //   does not). This is why Cherry Studio sessions failed to auto-compact while
+  //   stock Claude Code CLI succeeded.
+  // - 180_000 ≈ SDK model-default for 200k-context models (leave headroom for the
+  //   assistant reply). Range enforced by the SDK settings schema: 1e5–1e6.
+  // - Manual /compact is independent of this gate and remains available.
+  // - Also ensure shell/agent env does not set DISABLE_AUTO_COMPACT / DISABLE_COMPACT.
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
     settingSources: getSettingSources(agent, provider),
-    settings: { autoCompactEnabled: true },
+    settings: { autoCompactEnabled: true, autoCompactWindow: 180_000 },
     includePartialMessages: true,
     permissionMode: agentConfig?.permission_mode,
     maxTurns: agentConfig?.max_turns,
