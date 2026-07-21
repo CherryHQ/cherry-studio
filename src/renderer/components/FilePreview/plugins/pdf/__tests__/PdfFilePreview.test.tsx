@@ -205,7 +205,7 @@ describe('PdfFilePreview', () => {
     mocks.pdfViewerScaleValues.length = 0
     mocks.viewerInstances.length = 0
     mocks.pdfDocument.numPages = 3
-    document.documentElement.style.setProperty('--color-background', 'rgb(10, 11, 12)')
+    document.documentElement.style.setProperty('--background', 'rgb(10, 11, 12)')
     mocks.fsRead.mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
     mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
     mocks.safeOpen.mockResolvedValue(undefined)
@@ -223,7 +223,7 @@ describe('PdfFilePreview', () => {
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
-    document.documentElement.style.removeProperty('--color-background')
+    document.documentElement.style.removeProperty('--background')
   })
 
   it('loads the PDF into a continuous pdf.js viewer below a fixed toolbar', async () => {
@@ -288,7 +288,7 @@ describe('PdfFilePreview', () => {
     renderPreview()
     await waitFor(() => expect(mocks.viewerInstances).toHaveLength(1))
 
-    document.documentElement.style.setProperty('--color-background', 'rgb(30, 31, 32)')
+    document.documentElement.style.setProperty('--background', 'rgb(30, 31, 32)')
 
     await waitFor(() =>
       expect(mocks.viewerInstances[0].pageColors).toEqual({

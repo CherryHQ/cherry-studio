@@ -414,7 +414,7 @@ export function PersistentRightPaneHost({
             'relative h-full min-h-0 overflow-hidden',
             !interactionHidden && 'pointer-events-auto',
             fullWidthLayout && 'bg-background',
-            resizable && !fullWidthLayout && '[border-left:0.5px_solid_var(--color-border)]'
+            resizable && !fullWidthLayout && '[border-left:0.5px_solid_var(--border)]'
           )}>
           <RightPaneContents
             paneWidth={paneWidth}

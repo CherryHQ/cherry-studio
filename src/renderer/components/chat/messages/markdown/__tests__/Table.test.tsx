@@ -180,7 +180,7 @@ describe('Table', () => {
       expect(table.className).toContain('[&&_tr:last-child_td]:border-b-0')
       expect(table.className).not.toContain('[&_td]:rounded-md')
       expect(table.className).not.toContain('[&&_td]:bg-muted')
-      expect(table.style.border).toBe('0.5px solid var(--color-border)')
+      expect(table.style.border).toBe('0.5px solid var(--border)')
       expect(table.style.borderRadius).toBe('var(--radius-md)')
       expect(table.style.borderSpacing).toBe('0px')
       expect(table.style.margin).toBe('0px')

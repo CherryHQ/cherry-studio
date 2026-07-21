@@ -112,7 +112,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
     top: position.y + 25, // Position slightly below the link
     zIndex: 1000,
     background: isDark ? 'color-mix(in srgb, var(--background) 96%, var(--foreground) 4%)' : 'white',
-    border: `1px solid ${isDark ? 'var(--color-border, #ffffff19)' : '#d9d9d9'}`,
+    border: `1px solid ${isDark ? 'var(--border, #ffffff19)' : '#d9d9d9'}`,
     borderRadius: 8,
     boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0,0,0,0.15)',
     padding: 12,

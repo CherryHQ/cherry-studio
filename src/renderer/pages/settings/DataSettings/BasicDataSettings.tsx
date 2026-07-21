@@ -124,7 +124,7 @@ const BasicDataSettings: React.FC = () => {
           <PathsContent />
           <CopyDataContent />
           <MigrationNotice>
-            <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
+            <p style={{ color: 'var(--warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
             <p style={{ color: 'var(--color-foreground-muted)', marginTop: '8px' }}>
               {targetNotEmpty
                 ? t('settings.data.app_data.switch_existing_notice')

@@ -208,13 +208,13 @@ function getStatusColor(color: StatusColor): string {
   switch (color) {
     case 'primary':
     case 'success':
-      return 'var(--color-primary)'
+      return 'var(--primary)'
     case 'warning':
-      return 'var(--color-warning, #faad14)'
+      return 'var(--warning, #faad14)'
     case 'error':
       return 'var(--color-foreground-secondary)'
     default:
-      return 'var(--color-foreground)'
+      return 'var(--foreground)'
   }
 }
 

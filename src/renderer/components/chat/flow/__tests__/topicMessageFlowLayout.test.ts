@@ -175,7 +175,7 @@ describe('topicMessageFlowLayout', () => {
     expect(siblingEdge.style?.strokeDasharray).toBe('4 4')
 
     expect(inactiveEdge.data?.state).toBe('inactive')
-    expect(activeEdge.style?.stroke).toBe('var(--color-success)')
+    expect(activeEdge.style?.stroke).toBe('var(--success)')
     expect(inactiveEdge.style?.stroke).toBe('var(--color-gray-400)')
     expect(inactiveEdge.style?.opacity).toBe(1)
   })

@@ -28,11 +28,11 @@ export const historyBodyCellClassName =
 // Opaque `bg-card` base keeps horizontally-scrolled cells from bleeding through the pinned column; the shared
 // body-cell class above supplies the matching `muted` hover/selection fill.
 export const historyFixedActionCellClassName =
-  'sticky right-0 z-2 justify-center bg-card px-2 [border-left:0.5px_solid_var(--color-border-subtle)]'
+  'sticky right-0 z-2 justify-center bg-card px-2 [border-left:0.5px_solid_var(--border-subtle)]'
 export const historyFixedActionShadowClassName = '[box-shadow:-8px_0_12px_-12px_var(--color-border-active)]'
 // DESIGN.md §82 sanctions this token-backed 0.5px hairline written as an arbitrary property (a real
 // `border-b` renders 1px). Shared by the header / filter bar / toolbar so the value stays in one place.
-export const HISTORY_HAIRLINE_BOTTOM = '[border-bottom:0.5px_solid_var(--color-border-subtle)]'
+export const HISTORY_HAIRLINE_BOTTOM = '[border-bottom:0.5px_solid_var(--border-subtle)]'
 
 interface HistoryVirtualTableProps<TItem> {
   emptyContent: ReactNode

@@ -361,7 +361,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             zIndex: isItemActiveSticky ? activeStickyZIndex : isItemSticky ? STICKY_ITEM_Z_INDEX : 0,
             pointerEvents: isCoveredBySticky ? 'none' : 'auto',
             ...(isItemActiveSticky && {
-              backgroundColor: 'var(--color-background)'
+              backgroundColor: 'var(--background)'
             }),
             ...(horizontal
               ? {

@@ -149,7 +149,7 @@ const SelectionAssistantSettings: FC = () => {
                   </SettingDescription>
                   <ChecklistItem style={{ marginTop: 6 }}>
                     {linuxEnvInfo.isLinuxXWaylandMode ? (
-                      <CircleCheck size={13} style={{ color: 'var(--color-success)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
                       <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
                     )}
@@ -162,7 +162,7 @@ const SelectionAssistantSettings: FC = () => {
                   </ChecklistItem>
                   <ChecklistItem>
                     {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
-                      <CircleCheck size={13} style={{ color: 'var(--color-success)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
                       <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
                     )}
@@ -221,7 +221,7 @@ const SelectionAssistantSettings: FC = () => {
                   content={
                     <div>
                       {t('selection.settings.toolbar.trigger_mode.shortcut_note')}
-                      <Link to="/settings/shortcut" style={{ color: 'var(--color-primary)' }}>
+                      <Link to="/settings/shortcut" style={{ color: 'var(--primary)' }}>
                         {t('selection.settings.toolbar.trigger_mode.shortcut_link')}
                       </Link>
                     </div>

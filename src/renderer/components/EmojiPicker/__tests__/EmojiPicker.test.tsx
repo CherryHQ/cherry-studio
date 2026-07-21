@@ -168,25 +168,25 @@ describe('EmojiPicker', () => {
     expect(emojiPickerPropsMock.value.height).toBe('100%')
     expect(emojiPickerPropsMock.value.className).toBe('cherry-emoji-picker-react')
     expect(emojiPickerPropsMock.value.style).toMatchObject({
-      '--epr-bg-color': 'var(--color-popover)',
+      '--epr-bg-color': 'var(--popover)',
       '--epr-picker-border-color': 'transparent',
-      '--epr-highlight-color': 'var(--color-primary)',
-      '--epr-hover-bg-color-reduced-opacity': 'var(--color-accent)',
-      '--epr-text-color': 'var(--color-popover-foreground)',
-      '--epr-category-label-bg-color': 'var(--color-popover)',
-      '--epr-category-label-text-color': 'var(--color-popover-foreground)',
+      '--epr-highlight-color': 'var(--primary)',
+      '--epr-hover-bg-color-reduced-opacity': 'var(--accent)',
+      '--epr-text-color': 'var(--popover-foreground)',
+      '--epr-category-label-bg-color': 'var(--popover)',
+      '--epr-category-label-text-color': 'var(--popover-foreground)',
       '--epr-category-label-height': '32px',
-      '--epr-search-input-bg-color': 'var(--color-background)',
-      '--epr-search-input-bg-color-active': 'var(--color-background)',
+      '--epr-search-input-bg-color': 'var(--background)',
+      '--epr-search-input-bg-color-active': 'var(--background)',
       '--epr-search-input-height': '32px',
-      '--epr-search-input-text-color': 'var(--color-foreground)',
+      '--epr-search-input-text-color': 'var(--foreground)',
       '--epr-search-input-placeholder-color': 'var(--color-foreground-muted)',
-      '--epr-search-border-color': 'var(--color-input)',
-      '--epr-search-border-color-active': 'var(--color-ring)',
+      '--epr-search-border-color': 'var(--input)',
+      '--epr-search-border-color-active': 'var(--ring)',
       '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',
-      '--epr-emoji-hover-color': 'var(--color-accent)',
-      '--epr-emoji-variation-indicator-color': 'var(--color-border)',
-      '--epr-emoji-variation-indicator-color-hover': 'var(--color-foreground)'
+      '--epr-emoji-hover-color': 'var(--accent)',
+      '--epr-emoji-variation-indicator-color': 'var(--border)',
+      '--epr-emoji-variation-indicator-color-hover': 'var(--foreground)'
     })
 
     for (const property of [

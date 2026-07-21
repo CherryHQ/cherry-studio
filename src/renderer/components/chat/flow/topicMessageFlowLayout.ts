@@ -25,10 +25,10 @@ const GRAPH_SPACING = {
 } as const
 
 const EDGE_COLORS: Record<TopicMessageFlowEdgeState, string> = {
-  active: 'var(--color-success)',
-  default: 'var(--color-border)',
+  active: 'var(--success)',
+  default: 'var(--border)',
   inactive: 'var(--color-gray-400)',
-  sibling: 'var(--color-border)'
+  sibling: 'var(--border)'
 }
 
 export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): TopicMessageFlowLayout {

@@ -619,7 +619,7 @@ const MessageList = () => {
           {isLoadingMore && (
             <div
               className="pointer-events-none flex w-full justify-center py-2.5"
-              style={{ background: 'var(--color-background)' }}>
+              style={{ background: 'var(--background)' }}>
               <LoadingIcon color="var(--color-foreground-secondary)" />
             </div>
           )}

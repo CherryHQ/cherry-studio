@@ -170,11 +170,11 @@ describe('PromptEditorField', () => {
     }
 
     expect(tokenStyle('#').color).toBe('var(--color-foreground-secondary)')
-    expect(tokenStyle(' Heading').color).toBe('var(--color-foreground)')
+    expect(tokenStyle(' Heading').color).toBe('var(--foreground)')
     expect(tokenStyle(' Heading').fontWeight).toBe('var(--font-weight-medium)')
     expect(tokenStyle('**').color).toBe('var(--color-foreground-secondary)')
     expect(tokenStyle('strong').fontWeight).toBe('var(--font-weight-bold)')
-    expect(tokenStyle('link').color).toBe('var(--color-primary)')
+    expect(tokenStyle('link').color).toBe('var(--primary)')
     expect(tokenStyle('[').color).toBe('var(--color-foreground-secondary)')
     expect(getComputedStyle(view.contentDOM).padding).toBe('calc(var(--spacing) * 3)')
 

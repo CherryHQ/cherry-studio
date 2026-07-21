@@ -49,9 +49,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: (
-              <Link style={{ color: 'var(--color-primary)' }} to="/settings/provider" search={{ id: providerId }} />
-            )
+            provider: <Link style={{ color: 'var(--primary)' }} to="/settings/provider" search={{ id: providerId }} />
           }}
         />
       )

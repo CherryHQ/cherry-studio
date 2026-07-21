@@ -346,7 +346,7 @@ const NavigationButton = ({ className, ...props }: ComponentPropsWithoutRef<type
 )
 
 const Divider = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['m-0 h-px bg-(--color-border)', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['m-0 h-px bg-border', className].filter(Boolean).join(' ')} {...props} />
 )
 
 export default MessageNavigation

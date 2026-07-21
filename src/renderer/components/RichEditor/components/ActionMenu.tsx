@@ -62,7 +62,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({ show, position, items, onClose
         top: position.y,
         zIndex: 2000,
         background: 'var(--background)',
-        border: '1px solid var(--color-border)',
+        border: '1px solid var(--border)',
         borderRadius: 6,
         boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
         overflow: 'hidden',

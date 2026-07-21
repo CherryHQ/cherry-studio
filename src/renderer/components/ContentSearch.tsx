@@ -465,8 +465,8 @@ const SearchBarContainer = ({
 }: React.HTMLAttributes<HTMLDivElement> & { position: 'fixed' | 'absolute' | 'sticky' }) => (
   <div
     className={classNames(
-      'mb-[5px] flex flex-[1_1_auto] items-center justify-center rounded-[10px] border border-[var(--color-primary)]',
-      'bg-[var(--color-background)] px-[15px] py-[5px] transition-all duration-200 ease-in-out',
+      'mb-[5px] flex flex-[1_1_auto] items-center justify-center rounded-[10px] border border-primary',
+      'bg-background px-[15px] py-[5px] transition-all duration-200 ease-in-out',
       className
     )}
     style={{ position, top: '15px', left: '20px', right: '20px', ...style }}
@@ -503,10 +503,7 @@ const ToolBar = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) 
 )
 
 const Separator = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={classNames('mx-[2px] h-[1.5em] w-px flex-[0_0_auto] bg-[var(--color-border)]', className)}
-    {...props}
-  />
+  <div className={classNames('mx-[2px] h-[1.5em] w-px flex-[0_0_auto] bg-border', className)} {...props} />
 )
 
 const SearchResults = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

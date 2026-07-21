@@ -117,7 +117,7 @@ const MessageHeader: FC<Props> = memo(
             <span
               className="truncate font-semibold text-sm leading-5"
               style={{
-                color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--color-foreground)'
+                color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)'
               }}>
               {username}
             </span>
@@ -128,7 +128,7 @@ const MessageHeader: FC<Props> = memo(
             )}
             {isGroupContextMessage && (
               <Tooltip content={t('chat.message.useful.tip')}>
-                <Sparkle className="shrink-0" fill="var(--color-primary)" strokeWidth={0} size={16} />
+                <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />
               </Tooltip>
             )}
             <div

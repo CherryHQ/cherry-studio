@@ -215,7 +215,7 @@ describe('PdfPreviewPanel', () => {
     mocks.pdfViewerScaleValues.length = 0
     mocks.nextFirstPagePromises.length = 0
     mocks.pdfDocument.numPages = 1
-    document.documentElement.style.setProperty('--color-background', 'rgb(10, 11, 12)')
+    document.documentElement.style.setProperty('--background', 'rgb(10, 11, 12)')
 
     mocks.pdfDocument.destroy = mocks.pdfDocumentDestroy
     mocks.fsRead.mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
@@ -236,7 +236,7 @@ describe('PdfPreviewPanel', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    document.documentElement.style.removeProperty('--color-background')
+    document.documentElement.style.removeProperty('--background')
   })
 
   it('loads the PDF and initializes the pdf.js viewer with the resolved theme background', async () => {
