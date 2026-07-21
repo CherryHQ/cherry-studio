@@ -103,7 +103,6 @@ const DATABASE_OR_FILE_ERROR_CODES: ReadonlySet<DatabaseOrFileErrorCode> = new S
   'sqlite_locked',
   'sqlite_io',
   'sqlite_unknown',
-  'file_invalid_type',
   'file_missing',
   'file_permission',
   'file_readonly',

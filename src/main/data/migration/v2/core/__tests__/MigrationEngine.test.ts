@@ -569,7 +569,7 @@ describe('MigrationEngine', () => {
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_STATUS_PATH')
   })
 
-  it('preserves a filesystem type conflict at the finalization boundary', async () => {
+  it('downgrades an unevidenced filesystem type conflict at the finalization boundary', async () => {
     const error = Object.assign(new Error('PRIVATE_STATUS_PATH'), { code: 'ENOTDIR' })
     vi.mocked((engine as any).markCompleted).mockRejectedValueOnce(error)
 
@@ -582,7 +582,7 @@ describe('MigrationEngine', () => {
         kind: 'migration_finalize_failed',
         scope: 'database',
         phase: 'finalize',
-        errorCode: 'file_invalid_type'
+        errorCode: 'unknown_error'
       }
     })
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_STATUS_PATH')

@@ -1,6 +1,18 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
 import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
 import { clipboard, dialog, ipcMain, shell } from 'electron'
+import StreamZip from 'node-stream-zip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  MigrationDiagnosticBundleBuilder,
+  migrationDiagnosticBundleDocumentSchema,
+  MigrationDiagnosticsCoordinator
+} from '../../diagnostics'
+import { createMigrationRendererExportDiagnosticFailure } from '../../migrationDiagnostics'
 
 // Shared mock fns so each test can configure return values.
 const engineMock = vi.hoisted(() => ({
@@ -43,7 +55,10 @@ const electronMocks = vi.hoisted(() => ({
 
 vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: isSafeExternalUrlMock }))
 vi.mock('electron', () => electronMocks)
-vi.mock('fs/promises', () => ({ default: fsMocks }))
+vi.mock('fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  default: fsMocks
+}))
 
 vi.mock('../../core/MigrationEngine', () => ({ migrationEngine: engineMock }))
 vi.mock('../MigrationWindowManager', () => ({
@@ -666,6 +681,115 @@ describe('MigrationIpcHandler', () => {
       expect(capabilityPayload).not.toContain('PRIVATE_MAIN_WRITE')
       expect(capabilityPayload).not.toContain('/mock/userData')
       expect(capabilityPayload).not.toContain('PRIVATE_JSON')
+    })
+
+    it('publishes handler-produced filesystem evidence through the real coordinator and ZIP builder', async () => {
+      const testDir = mkdtempSync(path.join(tmpdir(), 'cs-migration-handler-evidence-'))
+      const destination = path.join(testDir, 'diagnostics.zip')
+      const coordinator = new MigrationDiagnosticsCoordinator({
+        appVersion: '2.0.0',
+        platform: 'darwin',
+        arch: 'arm64',
+        clock: () => new Date('2026-07-21T08:00:00.000Z')
+      })
+      const bundleBuilder = new MigrationDiagnosticBundleBuilder({
+        clock: () => new Date('2026-07-21T08:01:00.000Z')
+      })
+
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers('/mock/userData', {
+        start: () => {
+          coordinator.beginAttempt('initial')
+          coordinator.updateLocation({ scope: 'renderer_export', phase: 'prepare' })
+        },
+        reportRendererExportFailure: (report, mainWriteFailure) => {
+          coordinator.finishAttempt({
+            status: 'failed',
+            failure: createMigrationRendererExportDiagnosticFailure(report, mainWriteFailure)
+          })
+        },
+        saveDiagnosticBundle: async (saveDestination) => {
+          const result = await bundleBuilder.save({
+            destination: saveDestination,
+            snapshot: await coordinator.snapshot(),
+            collectDatabaseDiagnostics: async () => ({
+              file: { status: 'unreadable', sqliteHeader: 'unavailable' },
+              sqlite: { status: 'unavailable', reason: 'not_attempted' }
+            })
+          })
+          return result.status === 'saved' ? { status: 'saved' } : result
+        },
+        completeVersionGate: () => undefined
+      })
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+      vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: false, filePath: destination } as never)
+
+      const original = Object.assign(new Error('PRIVATE_MAIN_WRITE /mock/userData/migration_temp'), {
+        code: 'ENOTDIR'
+      })
+      fsMocks.mkdir.mockRejectedValueOnce(original)
+      fsMocks.lstat.mockResolvedValueOnce({
+        isFile: () => true,
+        isDirectory: () => false
+      })
+
+      try {
+        await invoke(MigrationIpcChannels.Start)
+        await expect(
+          invoke(
+            MigrationIpcChannels.WriteExportFile,
+            '/mock/userData/migration_temp/localstorage_export',
+            'localStorage',
+            'PRIVATE_JSON'
+          )
+        ).rejects.toBe(original)
+        await invoke(MigrationIpcChannels.ReportError, {
+          message: 'PRIVATE_RENDERER_MESSAGE',
+          report: { sourceRole: 'redux', operationRole: 'parse' }
+        })
+        await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({ status: 'saved' })
+
+        const zip = new StreamZip.async({ file: destination })
+        try {
+          const entries = await zip.entries()
+          expect(Object.keys(entries).sort()).toEqual(['README.txt', 'migration-diagnostics.json'])
+          const document = migrationDiagnosticBundleDocumentSchema.parse(
+            JSON.parse((await zip.entryData('migration-diagnostics.json')).toString('utf8'))
+          )
+          expect(document.current).toMatchObject({
+            status: 'failed',
+            failure: {
+              kind: 'renderer_export_failed',
+              errorCode: 'file_invalid_type',
+              evidence: {
+                kind: 'renderer_export',
+                sourceRole: 'local_storage',
+                operationRole: 'write',
+                filesystemEvidence: {
+                  causeCode: 'ENOTDIR',
+                  filesystemOperation: 'mkdir',
+                  targetRole: 'local_storage_export_file',
+                  blockingNodeRole: 'migration_temp_root',
+                  expectedNodeType: 'file',
+                  observedNodeType: 'file'
+                }
+              }
+            }
+          })
+          const serialized = Buffer.concat([
+            await zip.entryData('migration-diagnostics.json'),
+            await zip.entryData('README.txt')
+          ]).toString('utf8')
+          expect(serialized).not.toContain('/mock/userData')
+          expect(serialized).not.toContain('PRIVATE_MAIN_WRITE')
+          expect(serialized).not.toContain('PRIVATE_RENDERER_MESSAGE')
+          expect(serialized).not.toContain('PRIVATE_JSON')
+        } finally {
+          await zip.close()
+        }
+      } finally {
+        rmSync(testDir, { recursive: true, force: true })
+      }
     })
 
     it('identifies the write boundary and fixed Dexie blocker for EEXIST', async () => {

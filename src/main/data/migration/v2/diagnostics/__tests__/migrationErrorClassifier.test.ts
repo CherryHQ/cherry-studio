@@ -130,9 +130,9 @@ describe('classifyMigrationError', () => {
 })
 
 describe('classifyMigrationPrebootFailure', () => {
-  it('preserves a filesystem type conflict instead of replacing it with the fallback', () => {
+  it('replaces an unevidenced filesystem type conflict with the preboot fallback', () => {
     expect(classifyMigrationPrebootFailure(errorWithCode('ENOTDIR'), 'database_initialize_failed')).toBe(
-      'file_invalid_type'
+      'database_initialize_failed'
     )
   })
 })

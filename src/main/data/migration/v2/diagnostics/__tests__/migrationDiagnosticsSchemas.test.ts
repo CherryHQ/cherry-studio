@@ -278,6 +278,147 @@ describe('migrationDiagnosticFailureSchema', () => {
     ).toBe(false)
   })
 
+  it.each([
+    [
+      'a Dexie target with a non-Dexie source',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          sourceRole: 'redux',
+          operationRole: 'parse'
+        }
+      }
+    ],
+    [
+      'a Dexie target outside the write operation',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          operationRole: 'serialize'
+        }
+      }
+    ],
+    [
+      'a Dexie target that expects a file',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            expectedNodeType: 'file'
+          }
+        }
+      }
+    ],
+    [
+      'a local-storage file target with a non-local-storage source',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            targetRole: 'local_storage_export_file',
+            expectedNodeType: 'file'
+          }
+        }
+      }
+    ],
+    [
+      'a migration-temp blocker observed as a directory',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            observedNodeType: 'directory'
+          }
+        }
+      }
+    ],
+    [
+      'a migration-temp blocker with an unavailable observation',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            observedNodeType: 'unavailable'
+          }
+        }
+      }
+    ],
+    [
+      'a Dexie blocker for a local-storage target',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          kind: 'renderer_export',
+          sourceRole: 'local_storage',
+          operationRole: 'write',
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            targetRole: 'local_storage_export_file',
+            blockingNodeRole: 'dexie_export_directory',
+            expectedNodeType: 'file'
+          }
+        }
+      }
+    ],
+    [
+      'a Dexie blocker observed as a directory',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            blockingNodeRole: 'dexie_export_directory',
+            observedNodeType: 'directory'
+          }
+        }
+      }
+    ],
+    [
+      'an unknown blocker with an available observation',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            blockingNodeRole: 'unknown',
+            observedNodeType: 'file'
+          }
+        }
+      }
+    ]
+  ] as const)('rejects %s', (_description, failure) => {
+    expect(migrationDiagnosticFailureSchema.safeParse(failure).success).toBe(false)
+  })
+
+  it.each([
+    {
+      kind: 'preboot_failed',
+      scope: 'database',
+      phase: 'initialize',
+      errorCode: 'file_invalid_type'
+    },
+    {
+      kind: 'migration_finalize_failed',
+      scope: 'database',
+      phase: 'finalize',
+      errorCode: 'file_invalid_type'
+    }
+  ] as const)('rejects file_invalid_type without renderer filesystem evidence for $kind', (failure) => {
+    expect(migrationDiagnosticFailureSchema.safeParse(failure).success).toBe(false)
+  })
+
   it('allows database validation failures without check evidence but requires it for validation result codes', () => {
     expect(
       migrationDiagnosticFailureSchema.safeParse({

@@ -486,7 +486,7 @@ describe('runV2MigrationGate', () => {
       expect(JSON.stringify(snapshot)).not.toContain('/Users/private')
     })
 
-    it('preserves Main-owned filesystem evidence in the renderer export checkpoint', async () => {
+    it('uses Main-owned target metadata instead of an untrusted renderer report for filesystem evidence', async () => {
       const coordinator = await createMemoryDiagnosticsCoordinator()
       needsMigrationMock.mockResolvedValue(true)
       evaluateCandidateVersionMock.mockReturnValue({
@@ -504,7 +504,7 @@ describe('runV2MigrationGate', () => {
 
       await capabilities.start()
       await capabilities.reportRendererExportFailure(
-        { sourceRole: 'local_storage', operationRole: 'write' },
+        { sourceRole: 'redux', operationRole: 'parse' },
         {
           errorCode: 'file_invalid_type',
           filesystemEvidence: {

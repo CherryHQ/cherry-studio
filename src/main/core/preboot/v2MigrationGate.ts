@@ -1,10 +1,10 @@
 import { application } from '@application'
 import {
   classifyMigrationPrebootFailure,
-  classifyMigrationRendererExportFailure,
   createMigrationDatabaseDiagnostics,
   createMigrationDiagnosticBundleBuilder,
   createMigrationDiagnosticsCoordinator,
+  createMigrationRendererExportDiagnosticFailure,
   createMigrationVersionGateContext,
   createMigrationWindowFailureClaim,
   evaluateCandidateVersion,
@@ -224,19 +224,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       attemptActive = true
       finishAttempt({
         status: 'failed',
-        failure: {
-          kind: 'renderer_export_failed',
-          scope: 'renderer_export',
-          phase: 'finalize',
-          errorCode: mainWriteFailure?.errorCode ?? classifyMigrationRendererExportFailure(report),
-          evidence: {
-            kind: 'renderer_export',
-            ...report,
-            ...(mainWriteFailure?.errorCode === 'file_invalid_type'
-              ? { filesystemEvidence: mainWriteFailure.filesystemEvidence }
-              : {})
-          }
-        }
+        failure: createMigrationRendererExportDiagnosticFailure(report, mainWriteFailure)
       })
     } catch {
       logger.error('Failed to finish renderer export diagnostics')

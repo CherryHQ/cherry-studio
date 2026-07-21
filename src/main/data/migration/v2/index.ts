@@ -26,9 +26,11 @@ export {
   createMigrationDatabaseDiagnostics,
   createMigrationDiagnosticBundleBuilder,
   createMigrationDiagnosticsCoordinator,
+  createMigrationRendererExportDiagnosticFailure,
   createMigrationVersionGateContext,
   type MigrationDiagnosticBundleSaveResult,
   type MigrationDiagnosticFailure,
+  type MigrationRendererExportMainWriteFailure,
   type MigrationVersionGateContext
 } from './migrationDiagnostics'
 export type {
@@ -69,7 +71,6 @@ export {
   presentMigrationDiagnosticRecovery
 } from './window/migrationDiagnosticDialogs'
 export {
-  type MigrationRendererExportMainWriteFailure,
   registerMigrationIpcHandlers,
   resetMigrationData,
   runMigrationDiagnosticSaveTransaction,

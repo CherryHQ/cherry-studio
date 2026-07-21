@@ -36,7 +36,21 @@ type RendererExportFailureErrorCode = Extract<
   MigrationDiagnosticFailure,
   { kind: 'renderer_export_failed' }
 >['errorCode']
+type RendererExportFilesystemEvidence = NonNullable<
+  Extract<MigrationDiagnosticFailure, { kind: 'renderer_export_failed' }>['evidence']['filesystemEvidence']
+>
+type MainExportWriteErrorCode = Extract<
+  RendererExportFailureErrorCode,
+  'unknown_error' | 'file_invalid_type' | 'file_missing' | 'file_permission' | 'file_readonly' | 'file_io'
+>
 type PrebootFailureErrorCode = Extract<MigrationDiagnosticFailure, { kind: 'preboot_failed' }>['errorCode']
+
+export type MigrationRendererExportMainWriteFailure =
+  | { readonly errorCode: Exclude<MainExportWriteErrorCode, 'file_invalid_type'> }
+  | {
+      readonly errorCode: 'file_invalid_type'
+      readonly filesystemEvidence: RendererExportFilesystemEvidence
+    }
 
 export function classifyMigrationRendererExportFailure(
   report: MigrationRendererExportFailureReport
@@ -52,6 +66,32 @@ export function classifyMigrationRendererExportFailure(
     case 'write':
     case 'unknown':
       return 'unknown_error'
+  }
+}
+
+export function createMigrationRendererExportDiagnosticFailure(
+  report: MigrationRendererExportFailureReport,
+  mainWriteFailure?: MigrationRendererExportMainWriteFailure
+): Extract<MigrationDiagnosticFailure, { kind: 'renderer_export_failed' }> {
+  const diagnosticReport =
+    mainWriteFailure?.errorCode === 'file_invalid_type'
+      ? mainWriteFailure.filesystemEvidence.targetRole === 'dexie_export_directory'
+        ? ({ sourceRole: 'dexie', operationRole: 'write' } as const)
+        : ({ sourceRole: 'local_storage', operationRole: 'write' } as const)
+      : report
+
+  return {
+    kind: 'renderer_export_failed',
+    scope: 'renderer_export',
+    phase: 'finalize',
+    errorCode: mainWriteFailure?.errorCode ?? classifyMigrationRendererExportFailure(report),
+    evidence: {
+      kind: 'renderer_export',
+      ...diagnosticReport,
+      ...(mainWriteFailure?.errorCode === 'file_invalid_type'
+        ? { filesystemEvidence: mainWriteFailure.filesystemEvidence }
+        : {})
+    }
   }
 }
 
@@ -75,7 +115,6 @@ export function classifyMigrationPrebootFailure(
     case 'sqlite_locked':
     case 'sqlite_io':
     case 'sqlite_unknown':
-    case 'file_invalid_type':
     case 'file_missing':
     case 'file_permission':
     case 'file_readonly':

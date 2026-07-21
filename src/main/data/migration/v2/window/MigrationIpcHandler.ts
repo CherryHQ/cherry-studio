@@ -22,7 +22,8 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import { migrationEngine } from '../core/MigrationEngine'
-import { classifyMigrationError, type MigrationDiagnosticFailure } from '../diagnostics'
+import { classifyMigrationError } from '../diagnostics'
+import type { MigrationRendererExportMainWriteFailure } from '../migrationDiagnostics'
 import {
   type MigrationDiagnosticNativeSaveResult,
   saveMigrationDiagnosticBundleWithDialog
@@ -45,25 +46,10 @@ const UNKNOWN_RENDERER_EXPORT_REPORT: MigrationRendererExportFailureReport = Obj
   sourceRole: 'unknown',
   operationRole: 'unknown'
 })
-type RendererExportFailureErrorCode = Extract<
-  MigrationDiagnosticFailure,
-  { kind: 'renderer_export_failed' }
->['errorCode']
-type RendererExportFilesystemEvidence = NonNullable<
-  Extract<MigrationDiagnosticFailure, { kind: 'renderer_export_failed' }>['evidence']['filesystemEvidence']
->
-type MainExportWriteErrorCode = Extract<
-  RendererExportFailureErrorCode,
-  'unknown_error' | 'file_invalid_type' | 'file_missing' | 'file_permission' | 'file_readonly' | 'file_io'
->
-
-export type MigrationRendererExportMainWriteFailure =
-  | { readonly errorCode: Exclude<MainExportWriteErrorCode, 'file_invalid_type'> }
-  | {
-      readonly errorCode: 'file_invalid_type'
-      readonly filesystemEvidence: RendererExportFilesystemEvidence
-    }
-
+type RendererExportFilesystemEvidence = Extract<
+  MigrationRendererExportMainWriteFailure,
+  { errorCode: 'file_invalid_type' }
+>['filesystemEvidence']
 interface ControlledRendererExportPaths {
   readonly migrationTempRoot: string
   readonly dexieExportDirectory: string

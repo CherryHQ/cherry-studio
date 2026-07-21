@@ -313,7 +313,6 @@ const databaseOrFileFailureCodeSchema = z.enum([
   'sqlite_locked',
   'sqlite_io',
   'sqlite_unknown',
-  'file_invalid_type',
   'file_missing',
   'file_permission',
   'file_readonly',
@@ -455,13 +454,47 @@ export const migrationDiagnosticFailureSchema = migrationDiagnosticFailureUnionS
     }
   }
   if (failure.kind === 'renderer_export_failed') {
-    const hasFilesystemEvidence = failure.evidence.filesystemEvidence !== undefined
+    const filesystemEvidence = failure.evidence.filesystemEvidence
+    const hasFilesystemEvidence = filesystemEvidence !== undefined
     if ((failure.errorCode === 'file_invalid_type') !== hasFilesystemEvidence) {
       ctx.addIssue({
         code: 'custom',
         message: 'Only a renderer file type conflict carries filesystem evidence',
         path: ['evidence', 'filesystemEvidence']
       })
+    }
+    if (failure.errorCode === 'file_invalid_type' && filesystemEvidence !== undefined) {
+      const targetIsCoherent =
+        filesystemEvidence.targetRole === 'dexie_export_directory'
+          ? failure.evidence.sourceRole === 'dexie' &&
+            failure.evidence.operationRole === 'write' &&
+            filesystemEvidence.expectedNodeType === 'directory'
+          : failure.evidence.sourceRole === 'local_storage' &&
+            failure.evidence.operationRole === 'write' &&
+            filesystemEvidence.expectedNodeType === 'file'
+      if (!targetIsCoherent) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Renderer export source, operation, target, and expected node type must agree',
+          path: ['evidence', 'filesystemEvidence', 'targetRole']
+        })
+      }
+
+      const observedNodeIsConflict =
+        filesystemEvidence.observedNodeType === 'file' || filesystemEvidence.observedNodeType === 'other'
+      const blockerIsCoherent =
+        filesystemEvidence.blockingNodeRole === 'migration_temp_root'
+          ? observedNodeIsConflict
+          : filesystemEvidence.blockingNodeRole === 'dexie_export_directory'
+            ? filesystemEvidence.targetRole === 'dexie_export_directory' && observedNodeIsConflict
+            : filesystemEvidence.observedNodeType === 'unavailable'
+      if (!blockerIsCoherent) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Renderer export blocking node and observed node type must agree',
+          path: ['evidence', 'filesystemEvidence', 'blockingNodeRole']
+        })
+      }
     }
   }
   if (failure.kind === 'source_prepare_failed') {
