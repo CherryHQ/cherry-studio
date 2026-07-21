@@ -14,7 +14,6 @@ import {
   type MigrationApplicationLogCollection,
   MigrationApplicationLogCollector
 } from './MigrationApplicationLogCollector'
-import { createMigrationDiagnosticBundleReadme } from './migrationDiagnosticBundleI18n'
 
 interface MigrationDiagnosticApplicationMetadata {
   readonly version: string
@@ -162,8 +161,7 @@ export class MigrationDiagnosticBundleBuilder {
         {
           name: 'migration-diagnostics.json',
           data: Buffer.from(`${JSON.stringify(document, null, 2)}\n`, 'utf8')
-        },
-        { name: 'README.txt', data: Buffer.from(createMigrationDiagnosticBundleReadme(), 'utf8') }
+        }
       ]
       if (logs.status === 'included') {
         for (const entry of logs.entries) {

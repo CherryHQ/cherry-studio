@@ -37,7 +37,7 @@ describe('MigrationDiagnosticBundleBuilder', () => {
     await rm(workDirectory, { recursive: true, force: true })
   })
 
-  it('writes compact diagnostics, bilingual README, and each original log as an ordered ZIP entry', async () => {
+  it('writes compact diagnostics and each original log as an ordered ZIP entry', async () => {
     const originalBaseLog = Buffer.from([0x00, 0xff, 0x70, 0x61, 0x74, 0x68])
     await Promise.all([
       writeFile(join(logsDirectory, 'app.2026-07-21.log'), originalBaseLog),
@@ -70,7 +70,6 @@ describe('MigrationDiagnosticBundleBuilder', () => {
     const archive = await readZip(destination)
     expect(archive.names).toEqual([
       'migration-diagnostics.json',
-      'README.txt',
       'logs/app.2026-07-21.log',
       'logs/app.2026-07-21.log.1',
       'logs/app.2026-07-21.log.2'
@@ -94,15 +93,6 @@ describe('MigrationDiagnosticBundleBuilder', () => {
         ]
       }
     })
-
-    const readme = archive.data['README.txt'].toString('utf8')
-    expect(readme).toContain('raw application logs for the local day')
-    expect(readme).toContain('当天的原始应用日志，内容未经修改或脱敏')
-    expect(readme).toContain('file paths, error stacks, user content, or credentials')
-    expect(readme).toContain('文件路径、错误堆栈、用户内容或凭据')
-    expect(readme).toContain('does not automatically upload, attach, or send this ZIP')
-    expect(readme).toContain('不会自动上传、附加或发送此 ZIP')
-    expect(readme.endsWith('\n')).toBe(true)
   })
 
   it('still saves compact diagnostics when the daily application logs are unavailable', async () => {
@@ -121,7 +111,7 @@ describe('MigrationDiagnosticBundleBuilder', () => {
 
     expect(result).toEqual({ status: 'saved', logs: 'not_included', size: 'standard' })
     const archive = await readZip(destination)
-    expect(archive.names).toEqual(['migration-diagnostics.json', 'README.txt'])
+    expect(archive.names).toEqual(['migration-diagnostics.json'])
     expect(JSON.parse(archive.data['migration-diagnostics.json'].toString('utf8'))).toEqual({
       formatVersion: 1,
       generatedAt: '2026-07-21T12:34:56.000Z',

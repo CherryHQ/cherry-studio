@@ -1,8 +1,0 @@
-{
-  "en-US": {
-    "readme": "Cherry Studio migration diagnostics\n\nThis ZIP contains migration-diagnostics.json, this README.txt, and, when available, logs/ entries. The JSON contains compact basic application and migration failure information.\n\nThe logs/ entries are the raw application logs for the local day when this ZIP was saved. They are included as original files without modification or redaction and may contain file paths, error stacks, user content, or credentials. The logs may be absent if they could not be collected. Review the ZIP yourself before sharing it.\n\nWhen requesting support, manually attach or otherwise share this ZIP. Cherry Studio does not automatically upload, attach, or send this ZIP."
-  },
-  "zh-CN": {
-    "readme": "Cherry Studio 迁移诊断\n\n此 ZIP 包含 migration-diagnostics.json、本 README.txt，以及可用时的 logs/ 条目。JSON 包含精简的应用和迁移失败基础信息。\n\nlogs/ 条目是保存此 ZIP 当天的原始应用日志，内容未经修改或脱敏，可能含有文件路径、错误堆栈、用户内容或凭据。日志收集失败时，这些条目可能不会包含。发送前请自行检查 ZIP 内容。\n\n请求支持时，请手动附加或以其他方式分享此 ZIP。Cherry Studio 不会自动上传、附加或发送此 ZIP。"
-  }
-}

@@ -62,7 +62,6 @@ atomically. Each bundle contains:
 - `migration-diagnostics.json`: application version, platform, architecture, failure source/stage,
   a stable error summary, current progress, and migrator status. It deliberately avoids raw stack
   traces, paths, and business data that would duplicate the application logs.
-- `README.txt`: bilingual privacy and manual-review guidance.
 - Optional `logs/app.YYYY-MM-DD.log` and numeric rotation files such as
   `logs/app.YYYY-MM-DD.log.1`, each preserved as a separate ZIP entry.
 
