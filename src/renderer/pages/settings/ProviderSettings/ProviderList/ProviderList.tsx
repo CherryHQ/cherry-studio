@@ -282,7 +282,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
             filterMode={filterMode}
             disabled={dragging}
             triggerClassName={providerListClasses.searchInlineAddButton}
-            triggerIconSize={13}
+            triggerIconSize={12}
             onFilterChange={setFilterMode}
           />
         }

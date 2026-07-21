@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { FilePath } from '@shared/types/file'
+import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { getFileType, isTextByContent, mimeToExt } from '../metadata'
+import { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from '../metadata'
 
 // A chunk of UTF-8 text long enough for chardet to detect with high confidence.
 const TEXT_SAMPLE = '这是一段自定义格式的纯文本内容，长度足够让编码检测有信心地判定为文本。\n'.repeat(4)
@@ -91,6 +92,33 @@ describe('isTextByContent', () => {
 
   it('returns false (does not throw) for a missing file', async () => {
     expect(await isTextByContent(path.join(tmp, 'nope') as FilePath)).toBe(false)
+  })
+})
+
+describe('decodeTextBufferIfText', () => {
+  it.each([
+    ['UTF-8', 'Cherry Studio can read this extensionless text file.', 'utf8'],
+    ['GBK', '这是一个没有扩展名的中文文本文件，用于验证自动编码检测。', 'gbk'],
+    ['Big5', '這是一個沒有副檔名的繁體中文文字檔案，用於驗證自動編碼偵測。', 'big5'],
+    ['Shift-JIS', 'これは拡張子のない日本語テキストファイルです。文字コードを確認します。', 'shift_jis']
+  ])('recognizes and decodes %s text', (_, text, encoding) => {
+    expect(decodeTextBufferIfText(iconv.encode(text, encoding))).toBe(text)
+  })
+
+  it.each([
+    ['PDF', Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj')],
+    ['ZIP', Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00, 0xff, 0x00, 0x80, 0x01])],
+    ['binary data', Buffer.from([0x00, 0xff, 0x80, 0x01, 0x02, 0x03, 0xfe, 0x7f])]
+  ])('rejects %s bytes', (_, buffer) => {
+    expect(decodeTextBufferIfText(buffer)).toBeNull()
+  })
+
+  it.each([
+    ['GBK', '中文文本文件', 'gbk'],
+    ['Big5', '中文', 'big5'],
+    ['Shift-JIS', '日本語', 'shift_jis']
+  ])('rejects ambiguous short %s bytes instead of returning mojibake', (_, text, encoding) => {
+    expect(decodeTextBufferIfText(iconv.encode(text, encoding))).toBeNull()
   })
 })
 

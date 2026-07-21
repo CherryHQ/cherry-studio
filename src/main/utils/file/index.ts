@@ -73,7 +73,7 @@ export {
   stat,
   write
 } from './fs'
-export { getFileType, mimeToExt } from './metadata'
+export { decodeTextBufferIfText, getFileType, mimeToExt } from './metadata'
 export { canWrite, isNotEmptyDir, isPathInside, isUnderInternalStorage, resolvePath } from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'

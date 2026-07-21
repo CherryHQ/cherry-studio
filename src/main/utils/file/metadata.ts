@@ -13,30 +13,84 @@ import { open } from 'node:fs/promises'
 import path from 'node:path'
 
 import { FILE_TYPE, type FilePath, type FileType } from '@shared/types/file'
-import { KB } from '@shared/utils/constants'
+import { KB, MB } from '@shared/utils/constants'
 import { getFileTypeByExt } from '@shared/utils/file'
 import chardet from 'chardet'
-import { isBinaryFile } from 'isbinaryfile'
+import iconv from 'iconv-lite'
+import { isBinaryFileSync } from 'isbinaryfile'
 import mime from 'mime'
 
+const MIN_LEGACY_ENCODING_CONFIDENCE = 80
+const RELIABLE_LEGACY_ENCODINGS = new Set(['BIG5', 'EUC-JP', 'EUC-KR', 'GB18030', 'SHIFT_JIS', 'UTF-16BE', 'UTF-16LE'])
+
+function hasSuspiciousDecodedCharacters(text: string): boolean {
+  let controlCharacters = 0
+  let characters = 0
+
+  for (const character of text) {
+    characters++
+    const codePoint = character.codePointAt(0)!
+    if (codePoint === 0 || codePoint === 0xfffd) return true
+    if (
+      (codePoint < 0x20 && codePoint !== 0x09 && codePoint !== 0x0a && codePoint !== 0x0d) ||
+      (codePoint >= 0x7f && codePoint <= 0x9f)
+    ) {
+      controlCharacters++
+    }
+  }
+
+  return controlCharacters / Math.max(characters, 1) > 0.01
+}
+
+function decodeWithoutSuspiciousCharacters(data: Buffer, encoding: string): string | null {
+  try {
+    const text = iconv.decode(data, encoding)
+    return hasSuspiciousDecodedCharacters(text) ? null : text
+  } catch {
+    return null
+  }
+}
+
 /**
- * Content-based text detection: the file is not binary AND `chardet` identifies
- * an encoding with high confidence from the first 8 KB. Best-effort — returns
- * `false` on any read/detection error.
+ * Decode text bytes while preserving support for high-confidence legacy
+ * encodings that UTF-8-oriented binary sniffers reject. Returns `null` when
+ * the bytes are binary or their encoding is too ambiguous to decode safely.
+ */
+export function decodeTextBufferIfText(data: Buffer): string | null {
+  const sample = data.length > MB ? data.subarray(0, MB) : data
+  const isBinary = isBinaryFileSync(sample, sample.byteLength)
+
+  if (!isBinary) {
+    const utf8Text = decodeWithoutSuspiciousCharacters(data, 'UTF-8')
+    if (utf8Text !== null) return utf8Text
+  }
+
+  const match = chardet.analyse(sample)[0]
+  if (
+    !match ||
+    match.confidence < MIN_LEGACY_ENCODING_CONFIDENCE ||
+    !RELIABLE_LEGACY_ENCODINGS.has(match.name.toUpperCase())
+  ) {
+    return null
+  }
+
+  return decodeWithoutSuspiciousCharacters(data, match.name)
+}
+
+/**
+ * Content-based text detection: reads the first 8 KB and delegates to
+ * `decodeTextBufferIfText`, so it inherits the same encoding-aware handling
+ * (UTF-8 plus high-confidence legacy encodings). Best-effort — returns `false`
+ * on any read/detection error.
  */
 export async function isTextByContent(target: FilePath): Promise<boolean> {
   try {
-    if (await isBinaryFile(target)) {
-      return false
-    }
-
     const length = 8 * KB
     const fileHandle = await open(target, 'r')
     try {
       const buffer = Buffer.alloc(length)
       const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
-      const matches = chardet.analyse(buffer.subarray(0, bytesRead))
-      return matches.length > 0 && matches[0].confidence > 0.8
+      return decodeTextBufferIfText(buffer.subarray(0, bytesRead)) !== null
     } finally {
       // Close on every path — a throwing read must not leak the descriptor.
       await fileHandle.close()
