@@ -1710,7 +1710,7 @@ describe('TopicService', () => {
       })
     })
 
-    it('moves ownership and order atomically, rejecting an anchor owned by another Assistant', async () => {
+    it('moves ownership and order atomically, rejecting invalid anchors and target Assistants', async () => {
       const sourceAssistantId = '11111111-1111-4111-8111-111111111111'
       const targetAssistantId = '22222222-2222-4222-8222-222222222222'
       await dbh.db.insert(assistantTable).values([
@@ -1744,17 +1744,31 @@ describe('TopicService', () => {
       expect(invalidAnchorError).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
       expect(topicService.getById('moving').assistantId).toBe(sourceAssistantId)
 
+      let missingAnchorError: unknown
+      try {
+        topicService.move('moving', { assistantId: targetAssistantId, order: { before: 'missing-anchor' } })
+      } catch (error) {
+        missingAnchorError = error
+      }
+      expect(missingAnchorError).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Topic', id: 'missing-anchor' }
+      })
+      expect(topicService.getById('moving').assistantId).toBe(sourceAssistantId)
+
+      const missingAssistantId = '33333333-3333-4333-8333-333333333333'
       let invalidOwnerError: unknown
       try {
         topicService.move('moving', {
-          assistantId: '33333333-3333-4333-8333-333333333333',
+          assistantId: missingAssistantId,
           order: { before: 'target-anchor' }
         })
       } catch (error) {
         invalidOwnerError = error
       }
       expect(invalidOwnerError).toMatchObject({
-        code: ErrorCode.INVALID_TARGET_OWNER
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Assistant', id: missingAssistantId }
       })
       expect(topicService.getById('moving').assistantId).toBe(sourceAssistantId)
 

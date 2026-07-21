@@ -11,7 +11,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type {
@@ -139,13 +139,6 @@ function isActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string): b
 
 function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string): void {
   if (!isActiveAssistantTx(tx, assistantId)) throw DataApiErrorFactory.notFound('Assistant', assistantId)
-}
-
-function invalidTargetOwnerError(assistantId: string) {
-  return DataApiErrorFactory.create(
-    ErrorCode.INVALID_TARGET_OWNER,
-    `move: target assistant '${assistantId}' must exist and be active`
-  )
 }
 
 function buildRecordFilters(query: { q?: string; searchScope?: TopicSearchScope; assistantId?: string }): SQL[] {
@@ -412,9 +405,7 @@ export class TopicService {
             .all()
           if (!target) throw DataApiErrorFactory.notFound('Topic', id)
 
-          if (!isActiveAssistantTx(tx, dto.assistantId)) {
-            throw invalidTargetOwnerError(dto.assistantId)
-          }
+          assertActiveAssistantTx(tx, dto.assistantId)
 
           const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
           if (anchorId === id) {
@@ -428,10 +419,7 @@ export class TopicService {
             .where(and(eq(topicTable.id, anchorId), isNull(topicTable.deletedAt)))
             .limit(1)
             .all()
-          if (!anchor) {
-            const message = 'move: anchor topic must exist'
-            throw DataApiErrorFactory.validation({ order: [message] }, message)
-          }
+          if (!anchor) throw DataApiErrorFactory.notFound('Topic', anchorId)
           if (anchor.assistantId !== dto.assistantId) {
             const message = 'move: anchor topic must belong to the target assistant'
             throw DataApiErrorFactory.validation({ order: [message] }, message)
@@ -445,7 +433,7 @@ export class TopicService {
         }),
       {
         ...defaultHandlersFor('Topic', id),
-        foreignKey: () => invalidTargetOwnerError(dto.assistantId)
+        foreignKey: () => DataApiErrorFactory.notFound('Assistant', dto.assistantId)
       } satisfies SqliteErrorHandlers
     )
   }
