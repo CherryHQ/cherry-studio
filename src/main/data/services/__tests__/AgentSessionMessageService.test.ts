@@ -127,7 +127,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {
-    vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_000_000).mockReturnValueOnce(1_700_000_000_500)
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 
     const created = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -137,6 +137,7 @@ describe('AgentSessionMessageService', () => {
         data: { parts: [{ type: 'text', text: 'hello' }] }
       }
     })
+    nowSpy.mockReturnValue(1_700_000_000_500)
     const updated = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
@@ -154,7 +155,8 @@ describe('AgentSessionMessageService', () => {
 
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_500)
-    expect(session.updatedAt).toBe(1_700_000_000_500)
+    // A content edit contributes no activity, so the session row is not touched.
+    expect(session.updatedAt).toBe(1_700_000_000_000)
     expect(updated.createdAt).toBe(created.createdAt)
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
   })
