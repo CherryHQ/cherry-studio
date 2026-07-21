@@ -2266,6 +2266,7 @@
     "settings": "設定",
     "sort": {
       "created_at": "[to be translated]:Creation time",
+      "last_active": "最近活躍時間",
       "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "依拼音遞增",

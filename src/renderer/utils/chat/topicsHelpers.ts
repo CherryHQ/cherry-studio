@@ -231,7 +231,7 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
 }
 
 export function sortTopicsForDisplayGroups<
-  T extends Pick<Topic, 'assistantId' | 'createdAt' | 'id' | 'lastActivityAt' | 'orderKey' | 'pinned'>
+  T extends Pick<Topic, 'assistantId' | 'createdAt' | 'id' | 'orderKey' | 'pinned'> & { lastActivityAt: string }
 >(topics: readonly T[], options: TopicDisplaySortOptions): T[] {
   const isPinned = (topic: T) => topic.pinned === true
   const compareWithinGroup =

@@ -132,11 +132,12 @@ const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
 const TOPIC_PAGE_SIZE = 50
 const TOPIC_SEARCH_DEBOUNCE_MS = 300
 
-type TopicResourceItem = Topic & Pick<ApiTopicListItem, 'pinId'>
+type TopicResourceItem = Topic & Pick<ApiTopicListItem, 'lastActivityAt' | 'pinId'>
 
 function mapApiTopicListItem(topic: ApiTopicListItem): TopicResourceItem {
   return {
     ...mapApiTopicToRendererTopic(topic),
+    lastActivityAt: topic.lastActivityAt,
     pinned: topic.pinned,
     pinId: topic.pinId
   }

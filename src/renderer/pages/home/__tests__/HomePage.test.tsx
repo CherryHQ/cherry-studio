@@ -10,7 +10,7 @@ import { useState } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const initialTopic: Topic = {
+const initialTopic: Topic & { lastActivityAt: string } = {
   id: 'topic-initial',
   assistantId: 'assistant-1',
   name: 'Initial topic',
@@ -22,7 +22,7 @@ const initialTopic: Topic = {
   isNameManuallyEdited: false
 }
 
-const historyTopic: Topic = {
+const historyTopic: Topic & { lastActivityAt: string } = {
   id: 'topic-history',
   assistantId: 'assistant-1',
   name: 'History topic',
@@ -34,7 +34,7 @@ const historyTopic: Topic = {
   isNameManuallyEdited: false
 }
 
-const createdTopic: Topic = {
+const createdTopic: Topic & { lastActivityAt: string } = {
   id: 'topic-created',
   assistantId: 'assistant-2',
   name: '',
@@ -65,7 +65,7 @@ const homeMocks = vi.hoisted(() => ({
     isNameManuallyEdited?: boolean
     activeNodeId?: string
     createdAt?: string
-    lastActivityAt?: string
+    lastActivityAt: string
     updatedAt: string
   }>,
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
@@ -1528,6 +1528,7 @@ describe('HomePage', () => {
         assistantId: 'assistant-2',
         name: '',
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       },
       // Has an active node (a started conversation) → not an empty placeholder, never reused.
@@ -1537,6 +1538,7 @@ describe('HomePage', () => {
         name: 'Real chat',
         activeNodeId: 'node-real',
         createdAt: '2026-01-01T00:00:00.000Z',
+        lastActivityAt: '2026-01-01T01:00:00.000Z',
         updatedAt: '2026-01-01T01:00:00.000Z'
       }
     ]
@@ -1558,6 +1560,7 @@ describe('HomePage', () => {
         assistantId: 'assistant-2',
         name: '',
         createdAt: 'not-a-date',
+        lastActivityAt: 'not-a-date',
         updatedAt: 'not-a-date'
       },
       {
@@ -1565,6 +1568,7 @@ describe('HomePage', () => {
         assistantId: 'assistant-2',
         name: '',
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       }
     ]
@@ -1587,6 +1591,7 @@ describe('HomePage', () => {
         assistantId: 'assistant-1',
         name: '',
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       }
     ]
@@ -1610,6 +1615,7 @@ describe('HomePage', () => {
         name: 'Real chat',
         activeNodeId: 'node-real',
         createdAt: '2026-01-01T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       }
     ]
@@ -1641,6 +1647,7 @@ describe('HomePage', () => {
         name: '',
         activeNodeId: 'node-chatted',
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       }
     ]
@@ -1664,6 +1671,7 @@ describe('HomePage', () => {
         assistantId: 'assistant-2',
         name: '',
         createdAt: '2026-01-01T00:00:00.000Z',
+        lastActivityAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       }
     ]
@@ -1703,6 +1711,7 @@ describe('HomePage', () => {
         assistantId: 'assistant-2',
         name: '',
         createdAt: '2026-01-03T00:00:00.000Z',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       }
     ]
@@ -2077,6 +2086,7 @@ describe('HomePage', () => {
         assistantId: 'assistant-2',
         name: '',
         createdAt: '2026-01-04T00:00:00.000Z',
+        lastActivityAt: '2026-01-04T00:00:00.000Z',
         updatedAt: '2026-01-04T00:00:00.000Z'
       }
     ]
@@ -2107,6 +2117,7 @@ describe('HomePage', () => {
         assistantId: 'assistant-2',
         name: '',
         createdAt: '2026-01-04T00:00:00.000Z',
+        lastActivityAt: '2026-01-04T00:00:00.000Z',
         updatedAt: '2026-01-04T00:00:00.000Z'
       }
     ]

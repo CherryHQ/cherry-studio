@@ -2258,6 +2258,7 @@
     "settings": "Settings",
     "sort": {
       "created_at": "Creation time",
+      "last_active": "Last active",
       "manual_order": "Manual order",
       "pinyin": {
         "asc": "Sort by Pinyin (A-Z)",

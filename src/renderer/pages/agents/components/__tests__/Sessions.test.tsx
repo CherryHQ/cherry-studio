@@ -569,7 +569,7 @@ vi.mock('react-i18next', () => ({
         'common.sort.created_at': 'Creation time',
         'common.sort.manual_order': 'Manual order',
         'common.sort.title': 'Sort order',
-        'common.sort.updated_at': 'Updated time',
+        'common.sort.last_active': 'Last active',
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
         'agent.session.empty.title': 'No tasks',
         'agent.manage.title': 'Manage Agents',

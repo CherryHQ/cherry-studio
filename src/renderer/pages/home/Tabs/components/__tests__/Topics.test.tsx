@@ -325,7 +325,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.sort.title') return 'Sort order'
         if (key === 'common.sort.created_at') return 'Creation time'
         if (key === 'common.sort.manual_order') return 'Manual order'
-        if (key === 'common.sort.updated_at') return 'Updated time'
+        if (key === 'common.sort.last_active') return 'Last active'
         if (key === 'chat.topics.group.today') return 'Today'
         if (key === 'chat.topics.group.yesterday') return 'Yesterday'
         if (key === 'chat.topics.group.this_week') return 'This week'

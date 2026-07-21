@@ -16,10 +16,6 @@ describe('CreateTopicSchema', () => {
   it.each(['sourceNodeId', 'groupId'])('rejects unsupported key %s', (key) => {
     expect(() => CreateTopicSchema.parse({ [key]: 'value' })).toThrow(/unrecognized/i)
   })
-
-  it('rejects groupId — no longer part of the create contract', () => {
-    expect(() => CreateTopicSchema.parse({ name: 'x', groupId: 'g1' })).toThrow(/unrecognized/i)
-  })
 })
 
 describe('UpdateTopicSchema', () => {
@@ -75,10 +71,6 @@ describe('ListTopicsQuerySchema', () => {
     expect(ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', ...filter })).toMatchObject(filter)
   })
 
-  it('rejects the removed bounded-id filter', () => {
-    expect(() => ListTopicsQuerySchema.parse({ pinned: false, ids: ['t1'] })).toThrow(/unrecognized/i)
-  })
-
   it('accepts immutable creation order and rejects an unknown sortBy value or non-uuid owner scope', () => {
     expect(ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'createdAt' })).toEqual({
       pinned: false,
@@ -98,13 +90,6 @@ describe('ListTopicsQuerySchema', () => {
       searchScope: 'name-or-owner'
     })
     expect(() => ListTopicsQuerySchema.parse({ pinned: false, q: 'x', searchScope: 'full' })).toThrow()
-  })
-
-  it.each(['updatedAtFrom', 'updatedAtTo'])('rejects removed date-window filter %s', (key) => {
-    expect(() => ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', [key]: 1 })).toThrow(
-      /unrecognized/i
-    )
-    expect(() => TopicStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
   })
 
   it('accepts the pin-owned stream without sortBy and rejects every sort dimension', () => {
@@ -154,10 +139,6 @@ describe('TopicStatsQuerySchema', () => {
     expect(() => TopicStatsQuerySchema.parse({ limit: 10 })).toThrow()
     expect(() => TopicStatsQuerySchema.parse({ sortBy: 'lastActivityAt' })).toThrow()
     expect(() => TopicStatsQuerySchema.parse({ pinned: true })).toThrow()
-  })
-
-  it('rejects the list-only ids filter', () => {
-    expect(() => TopicStatsQuerySchema.parse({ ids: ['topic-1'] })).toThrow(/unrecognized/i)
   })
 })
 

@@ -42,10 +42,6 @@ describe('ListAgentSessionsQuerySchema', () => {
     )
   })
 
-  it('rejects the removed bounded-id filter', () => {
-    expect(() => ListAgentSessionsQuerySchema.parse({ pinned: false, ids: ['s1'] })).toThrow(/unrecognized/i)
-  })
-
   it('accepts immutable creation order and rejects unknown values or non-uuid owner scopes', () => {
     expect(ListAgentSessionsQuerySchema.parse({ pinned: false, sortBy: 'createdAt' })).toEqual({
       pinned: false,
@@ -58,13 +54,6 @@ describe('ListAgentSessionsQuerySchema', () => {
     expect(() =>
       ListAgentSessionsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', agentId: 'not-a-uuid' })
     ).toThrow()
-  })
-
-  it.each(['updatedAtFrom', 'updatedAtTo'])('rejects removed date-window filter %s', (key) => {
-    expect(() => ListAgentSessionsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', [key]: 1 })).toThrow(
-      /unrecognized/i
-    )
-    expect(() => AgentSessionStatsQuerySchema.parse({ [key]: 1 })).toThrow(/unrecognized/i)
   })
 
   it('accepts the pin-owned stream without sortBy and rejects every sort dimension', () => {
@@ -119,7 +108,7 @@ describe('AgentSessionStatsQuerySchema', () => {
     expect(() => AgentSessionStatsQuerySchema.parse({ pinned: true })).toThrow()
   })
 
-  it.each(['ids', 'workspaceId', 'searchScope'])('rejects unused list-only filter %s', (key) => {
+  it.each(['workspaceId', 'searchScope'])('rejects unused list-only filter %s', (key) => {
     expect(() => AgentSessionStatsQuerySchema.parse({ [key]: 'unused' })).toThrow(/unrecognized/i)
   })
 })

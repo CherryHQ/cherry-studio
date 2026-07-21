@@ -24,7 +24,7 @@ const TOPIC_DISPLAY_LABEL_KEYS: Record<TopicDisplayMode, string> = {
 const TOPIC_SORT_OPTIONS: TopicSessionSortBy[] = ['lastActivityAt', 'createdAt', 'orderKey']
 const TOPIC_SORT_LABEL_KEYS: Record<TopicSessionSortBy, string> = {
   createdAt: 'common.sort.created_at',
-  lastActivityAt: 'common.sort.updated_at',
+  lastActivityAt: 'common.sort.last_active',
   orderKey: 'common.sort.manual_order'
 }
 const ACTIVE_MENU_ITEM_CLASS = 'data-[active=true]:bg-accent data-[active=true]:text-accent-foreground'

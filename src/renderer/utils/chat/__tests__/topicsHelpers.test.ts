@@ -31,11 +31,12 @@ function localIso(year: number, month: number, day: number, hour = 12) {
   return new Date(year, month - 1, day, hour).toISOString()
 }
 
-function createTopic(overrides: Partial<Topic> = {}): Topic {
+function createTopic(overrides: Partial<Topic> = {}): Topic & { lastActivityAt: string } {
   return {
     id: 'topic-1',
     assistantId: 'assistant-1',
     name: 'Topic one',
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     messages: [],

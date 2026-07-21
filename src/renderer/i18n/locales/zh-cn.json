@@ -2258,6 +2258,7 @@
     "settings": "设置",
     "sort": {
       "created_at": "创建时间",
+      "last_active": "最近活跃时间",
       "manual_order": "手动排序",
       "pinyin": {
         "asc": "按拼音升序",

@@ -672,7 +672,7 @@ describe('classic layout entity resource list actions', () => {
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
 
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.updated_at' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.last_active' }))
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.sort_type', 'lastActivityAt')
@@ -827,7 +827,7 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.updated_at' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.last_active' }))
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'lastActivityAt')

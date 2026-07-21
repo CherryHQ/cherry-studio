@@ -94,7 +94,7 @@ const agentPageMocks = vi.hoisted(() => ({
     name: string
     isNameManuallyEdited?: boolean
     createdAt?: string
-    lastActivityAt?: string
+    lastActivityAt: string
     updatedAt: string
     workspaceId?: string
     workspace?: { type?: string }
@@ -102,7 +102,7 @@ const agentPageMocks = vi.hoisted(() => ({
   isLatestSessionLoading: false,
   // `undefined` → derive the latest from `resourceLayoutSessions`; `null` → none; a session → that exact
   // session (used to prove first-entry restore reads the dedicated latest query, not the paged list).
-  latestSessionOverride: undefined as { id: string; lastActivityAt?: string; updatedAt: string } | null | undefined,
+  latestSessionOverride: undefined as { id: string; lastActivityAt: string; updatedAt: string } | null | undefined,
   // Controls the imperative scoped `/agent-sessions/latest` lookup used by owner fallback.
   loadLatestSessionOverride: undefined as
     | (Record<string, unknown> & { id: string; updatedAt: string })
@@ -2102,6 +2102,7 @@ describe('AgentPage', () => {
         id: 'session-real-latest',
         agentId: 'agent-b',
         name: 'Real session',
+        lastActivityAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspace: { type: 'system' }
       }

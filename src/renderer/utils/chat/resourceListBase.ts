@@ -120,16 +120,8 @@ export function compareResourceCreationOrder<T extends { createdAt: string; id: 
   return compareResourceTimestampOrder(a.createdAt, b.createdAt, a.id, b.id)
 }
 
-export function compareResourceActivityOrder<T extends { lastActivityAt?: string; createdAt?: string; id: string }>(
-  a: T,
-  b: T
-): number {
-  return compareResourceTimestampOrder(
-    a.lastActivityAt ?? a.createdAt ?? '',
-    b.lastActivityAt ?? b.createdAt ?? '',
-    a.id,
-    b.id
-  )
+export function compareResourceActivityOrder<T extends { lastActivityAt: string; id: string }>(a: T, b: T): number {
+  return compareResourceTimestampOrder(a.lastActivityAt, b.lastActivityAt, a.id, b.id)
 }
 
 export type ResourceListOrderAnchor = { before: string } | { after: string } | { position: 'last' }
