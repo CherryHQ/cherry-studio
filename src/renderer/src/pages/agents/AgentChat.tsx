@@ -1,3 +1,5 @@
+import { loggerService } from '@logger'
+import { ContentSearch, type ContentSearchRef } from '@renderer/components/ContentSearch'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -11,6 +13,8 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
+import React, { useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -20,6 +24,8 @@ import AgentChatNavbar from './components/AgentChatNavbar'
 import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
 import Sessions from './components/Sessions'
+
+const logger = loggerService.withContext('AgentChat')
 
 const AgentChat = () => {
   const { t } = useTranslation()
@@ -52,6 +58,42 @@ const AgentChat = () => {
       enableOnFormTags: true
     }
   )
+
+  // In-chat content search (Ctrl/Cmd+F). Mirrors pages/home/Chat.tsx wiring.
+  const messagesScrollRef = React.useRef<HTMLDivElement>(null)
+  const contentSearchRef = React.useRef<ContentSearchRef>(null)
+  const [filterIncludeUser, setFilterIncludeUser] = useState(false)
+
+  useHotkeys('esc', () => {
+    contentSearchRef.current?.disable()
+  })
+
+  useShortcut('search_message_in_chat', () => {
+    try {
+      const selectedText = window.getSelection()?.toString().trim()
+      contentSearchRef.current?.enable(selectedText)
+    } catch (error) {
+      logger.error('Error enabling content search:', error as Error)
+    }
+  })
+
+  const contentSearchFilter: NodeFilter = {
+    acceptNode(node) {
+      const container = node.parentElement?.closest('.message-content-container')
+      if (!container) return NodeFilter.FILTER_REJECT
+
+      const message = container.closest('.message')
+      if (!message) return NodeFilter.FILTER_REJECT
+
+      if (filterIncludeUser) {
+        return NodeFilter.FILTER_ACCEPT
+      }
+      if (message.classList.contains('message-assistant')) {
+        return NodeFilter.FILTER_ACCEPT
+      }
+      return NodeFilter.FILTER_REJECT
+    }
+  }
 
   if (isInitializing) {
     return (
@@ -96,8 +138,17 @@ const AgentChat = () => {
           </div>
 
           {/* Messages */}
-          <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
+          <div
+            ref={messagesScrollRef}
+            className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
             <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+            <ContentSearch
+              ref={contentSearchRef}
+              searchTarget={messagesScrollRef as React.RefObject<HTMLElement>}
+              filter={contentSearchFilter}
+              includeUser={filterIncludeUser}
+              onIncludeUserChange={setFilterIncludeUser}
+            />
             <div className="mt-auto px-4.5 pb-2">
               <NarrowLayout>
                 <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
