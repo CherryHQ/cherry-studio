@@ -943,17 +943,26 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('does not reverse an external search toggle when saving an unrelated agent field', async () => {
+  it('follows external Agent preferences without writing them back', async () => {
     const view = render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    selectTab('Built-in tools')
+    expect(screen.getByRole('switch', { name: 'Web Search' })).toHaveAttribute('aria-checked', 'true')
 
     view.rerender(
       <AgentEditDialog
         open
-        resource={{ ...AGENT, disabledTools: [CLAUDE_WEB_SEARCH_TOOL_NAME] }}
+        resource={{
+          ...AGENT,
+          disabledTools: [CLAUDE_WEB_SEARCH_TOOL_NAME],
+          configuration: { ...AGENT.configuration, permission_mode: 'plan' }
+        }}
         onOpenChange={vi.fn()}
         onSaved={vi.fn()}
       />
     )
+    expect(screen.getByRole('switch', { name: 'Web Search' })).toHaveAttribute('aria-checked', 'false')
+    selectTab('Basic')
+    expect(screen.getByRole('combobox', { name: 'Permission mode' })).toHaveTextContent('Plan Mode')
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Agent' } })
 
     await waitFor(() =>
@@ -963,6 +972,7 @@ describe('edit dialogs', () => {
     )
     for (const [{ body }] of vi.mocked(updateAgentMock).mock.calls) {
       expect(body).not.toHaveProperty('toolUpdates')
+      expect(body.configurationPatch ?? {}).not.toHaveProperty('permission_mode')
     }
   })
 

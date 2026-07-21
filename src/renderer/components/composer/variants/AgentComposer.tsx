@@ -60,7 +60,6 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { cn } from '@renderer/utils/style'
-import { CLAUDE_WEB_SEARCH_TOOL_NAME } from '@shared/ai/claudecode/toolRegistry'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -934,13 +933,9 @@ const AgentComposerInner = ({
   }
 
   const persistedReasoningEffort: ThinkingOption = agentBase?.configuration?.reasoning_effort ?? 'default'
-  const persistedWebSearchEnabled = agentBase
-    ? !(agentBase.disabledTools ?? []).includes(CLAUDE_WEB_SEARCH_TOOL_NAME)
-    : false
-  const [pendingReasoningEffort, setPendingReasoningEffort] = useState<ThinkingOption>()
-  const [pendingWebSearchEnabled, setPendingWebSearchEnabled] = useState<boolean>()
-  const reasoningEffort = pendingReasoningEffort ?? persistedReasoningEffort
-  const webSearchEnabled = pendingWebSearchEnabled ?? persistedWebSearchEnabled
+  const reasoningSaveIdRef = useRef(0)
+  const [pendingReasoning, setPendingReasoning] = useState<{ id: number; value: ThinkingOption }>()
+  const reasoningEffort = pendingReasoning?.value ?? persistedReasoningEffort
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     initialDraftRef.current ? initialDraftRef.current.tokens.map(getSkillFromCachedToken) : []
   )
@@ -957,18 +952,11 @@ const AgentComposerInner = ({
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
-  useEffect(() => {
-    setPendingReasoningEffort((current) => (current === persistedReasoningEffort ? undefined : current))
-  }, [persistedReasoningEffort])
-
-  useEffect(() => {
-    setPendingWebSearchEnabled((current) => (current === persistedWebSearchEnabled ? undefined : current))
-  }, [persistedWebSearchEnabled])
-
   const handleReasoningEffortChange = useCallback(
     (option: ThinkingOption) => {
       if (!agentBase) return
-      setPendingReasoningEffort(option)
+      const saveId = ++reasoningSaveIdRef.current
+      setPendingReasoning({ id: saveId, value: option })
       void agentPreferenceSaveQueueService
         .enqueue(agentId, () =>
           updateAgent(
@@ -979,29 +967,8 @@ const AgentComposerInner = ({
             { showSuccessToast: false }
           )
         )
-        .then((saved) => {
-          if (!saved) setPendingReasoningEffort((current) => (current === option ? undefined : current))
-        })
-    },
-    [agentBase, agentId, updateAgent]
-  )
-
-  const handleWebSearchEnabledChange = useCallback(
-    (enabled: boolean) => {
-      if (!agentBase) return
-      setPendingWebSearchEnabled(enabled)
-      void agentPreferenceSaveQueueService
-        .enqueue(agentId, () =>
-          updateAgent(
-            {
-              id: agentId,
-              toolUpdates: [{ toolName: CLAUDE_WEB_SEARCH_TOOL_NAME, isEnabled: enabled }]
-            },
-            { showSuccessToast: false }
-          )
-        )
-        .then((saved) => {
-          if (!saved) setPendingWebSearchEnabled((current) => (current === enabled ? undefined : current))
+        .then(() => {
+          setPendingReasoning((current) => (current?.id === saveId ? undefined : current))
         })
     },
     [agentBase, agentId, updateAgent]
@@ -1267,14 +1234,8 @@ const AgentComposerInner = ({
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
-    return {
-      ...sessionData,
-      reasoningEffort,
-      onReasoningEffortChange: handleReasoningEffortChange,
-      webSearchEnabled,
-      onWebSearchEnabledChange: handleWebSearchEnabledChange
-    }
-  }, [handleReasoningEffortChange, handleWebSearchEnabledChange, reasoningEffort, sessionData, webSearchEnabled])
+    return { ...sessionData, reasoningEffort, onReasoningEffortChange: handleReasoningEffortChange }
+  }, [handleReasoningEffortChange, reasoningEffort, sessionData])
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token

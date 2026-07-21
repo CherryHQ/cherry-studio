@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { CLAUDE_WEB_SEARCH_TOOL_NAME } from '@shared/ai/claudecode/toolRegistry'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -13,8 +14,10 @@ import WebSearchButton, { AgentWebSearchToolRuntime } from '../WebSearchButton'
 
 const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
+  updateAgent: vi.fn(),
   navigate: vi.fn(),
   assistant: undefined as any,
+  agent: undefined as any,
   model: undefined as Model | undefined
 }))
 
@@ -59,6 +62,11 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     model: mocks.model,
     updateAssistant: mocks.updateAssistant
   })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
+  useAgent: () => ({ agent: mocks.agent }),
+  useUpdateAgent: () => ({ updateAgent: mocks.updateAgent })
 }))
 
 vi.mock('@renderer/utils/api', () => ({
@@ -256,17 +264,26 @@ describe('WebSearchButton', () => {
 describe('AgentWebSearchToolRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.agent = { id: 'agent-1', disabledTools: [] }
+    mocks.updateAgent.mockResolvedValue({ id: 'agent-1' })
   })
 
-  it('registers the persisted Agent state and toggles through its controlled callback', async () => {
-    const onEnabledChange = vi.fn()
-    render(<AgentWebSearchToolRuntime enabled launcher={launcherApi} onEnabledChange={onEnabledChange} />)
+  it('reads and persists Agent web search through the owning tool controller', async () => {
+    render(<AgentWebSearchToolRuntime agentId="agent-1" launcher={launcherApi} />)
 
     await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
     const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
 
     expect(webSearchLauncher).toMatchObject({ id: 'web-search', active: true, sources: ['popover'] })
     webSearchLauncher.action?.({ source: 'popover' } as never)
-    expect(onEnabledChange).toHaveBeenCalledWith(false)
+    await waitFor(() =>
+      expect(mocks.updateAgent).toHaveBeenCalledWith(
+        {
+          id: 'agent-1',
+          toolUpdates: [{ toolName: CLAUDE_WEB_SEARCH_TOOL_NAME, isEnabled: false }]
+        },
+        { showSuccessToast: false }
+      )
+    )
   })
 })

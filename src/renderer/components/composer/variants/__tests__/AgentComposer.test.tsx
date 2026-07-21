@@ -2,7 +2,6 @@ import { cacheService } from '@data/CacheService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ThinkingOption } from '@renderer/types/reasoning'
-import { CLAUDE_WEB_SEARCH_TOOL_NAME } from '@shared/ai/claudecode/toolRegistry'
 import type { FileUIPart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -65,7 +64,6 @@ const mocks = vi.hoisted(() => ({
   ipcOn: vi.fn(),
   sessionLayout: undefined as string | undefined,
   agentConfiguration: {} as Record<string, unknown>,
-  agentDisabledTools: [] as string[],
   runtimeHostProps: undefined as
     | {
         assistant?: { modelId?: string | null }
@@ -74,8 +72,6 @@ const mocks = vi.hoisted(() => ({
           agentId?: string
           reasoningEffort?: string
           onReasoningEffortChange?: (option: ThinkingOption) => void
-          webSearchEnabled?: boolean
-          onWebSearchEnabledChange?: (enabled: boolean) => void
         }
       }
     | undefined,
@@ -338,8 +334,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
       model: 'anthropic::claude-sonnet-4-5',
       modelName: 'Claude Sonnet 4.5',
       instructions: 'Follow instructions',
-      configuration: mocks.agentConfiguration,
-      disabledTools: mocks.agentDisabledTools
+      configuration: mocks.agentConfiguration
     }
   }),
   useUpdateAgent: () => ({ updateAgent: mocks.updateAgent, updateModel: mocks.updateModel })
@@ -665,7 +660,6 @@ describe('AgentComposer', () => {
     mocks.runtimeProviderUnmounts = 0
     mocks.sessionLayout = undefined
     mocks.agentConfiguration = {}
-    mocks.agentDisabledTools = []
     mocks.getDraft.mockReset()
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
@@ -738,10 +732,17 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('persists Agent web search through a per-tool delta', async () => {
-    mocks.agentDisabledTools = ['Bash']
+  it('releases pending reasoning when the save settles after a newer canonical update', async () => {
+    let resolveUpdate: ((value: { id: string }) => void) | undefined
+    mocks.agentConfiguration = { reasoning_effort: 'high' }
+    mocks.updateAgent.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = resolve
+        })
+    )
 
-    render(
+    const view = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -751,19 +752,21 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.runtimeHostProps?.session?.webSearchEnabled).toBe(true)
-
-    act(() => mocks.runtimeHostProps?.session?.onWebSearchEnabledChange?.(false))
-
-    await waitFor(() =>
-      expect(mocks.updateAgent).toHaveBeenCalledWith(
-        {
-          id: 'agent-1',
-          toolUpdates: [{ toolName: CLAUDE_WEB_SEARCH_TOOL_NAME, isEnabled: false }]
-        },
-        { showSuccessToast: false }
-      )
+    act(() => mocks.runtimeHostProps?.session?.onReasoningEffortChange?.('low'))
+    mocks.agentConfiguration = { reasoning_effort: 'medium' }
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
     )
+    expect(mocks.runtimeHostProps?.session?.reasoningEffort).toBe('low')
+
+    await act(async () => resolveUpdate?.({ id: 'agent-1' }))
+    expect(mocks.runtimeHostProps?.session?.reasoningEffort).toBe('medium')
   })
 
   it('waits across a Session remount for an in-flight Agent preference save before sending', async () => {

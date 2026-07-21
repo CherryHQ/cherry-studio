@@ -2,14 +2,17 @@ import { Tooltip } from '@cherrystudio/ui'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { agentPreferenceSaveQueueService } from '@renderer/services/AgentPreferenceSaveQueueService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { canModelUseAssistantWebSearch, hasModelBuiltinWebSearch } from '@renderer/utils/model'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
+import { CLAUDE_WEB_SEARCH_TOOL_NAME } from '@shared/ai/claudecode/toolRegistry'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel, isOpenAIWebSearchModel } from '@shared/utils/model'
 import { isGeminiWebSearchProvider } from '@shared/utils/provider'
@@ -25,9 +28,8 @@ interface Props {
 }
 
 interface AgentWebSearchProps {
-  enabled: boolean
+  agentId: string
   launcher: ToolLauncherApi
-  onEnabledChange: (enabled: boolean) => void
 }
 
 const KEYLESS_PROVIDERS: ReadonlySet<WebSearchProviderId> = new Set(['fetch', 'searxng', 'exa-mcp', 'firecrawl'])
@@ -176,11 +178,26 @@ export const WebSearchToolRuntime: FC<Props> = (props) => {
   return null
 }
 
-export const AgentWebSearchToolRuntime: FC<AgentWebSearchProps> = ({ enabled, launcher, onEnabledChange }) => {
+export const AgentWebSearchToolRuntime: FC<AgentWebSearchProps> = ({ agentId, launcher }) => {
   const { t } = useTranslation()
-  const toggle = useCallback(() => onEnabledChange(!enabled), [enabled, onEnabledChange])
+  const { agent } = useAgent(agentId)
+  const { updateAgent } = useUpdateAgent()
+  const enabled = agent ? !(agent.disabledTools ?? []).includes(CLAUDE_WEB_SEARCH_TOOL_NAME) : false
+  const toggle = useCallback(() => {
+    if (!agent) return
+    void agentPreferenceSaveQueueService.enqueue(agentId, () =>
+      updateAgent(
+        {
+          id: agentId,
+          toolUpdates: [{ toolName: CLAUDE_WEB_SEARCH_TOOL_NAME, isEnabled: !enabled }]
+        },
+        { showSuccessToast: false }
+      )
+    )
+  }, [agent, agentId, enabled, updateAgent])
 
   useEffect(() => {
+    if (!agent) return
     return launcher.registerLaunchers([
       {
         id: 'web-search',
@@ -195,7 +212,7 @@ export const AgentWebSearchToolRuntime: FC<AgentWebSearchProps> = ({ enabled, la
         action: toggle
       }
     ])
-  }, [enabled, launcher, t, toggle])
+  }, [agent, enabled, launcher, t, toggle])
 
   return null
 }

@@ -6,10 +6,9 @@ type WebSearchToolContext = ToolRenderContext<readonly [], readonly []>
 
 const WebSearchRuntime = ({ context }: { context: WebSearchToolContext }) => {
   if (context.scope === TopicType.Session) {
-    const enabled = context.session?.webSearchEnabled
-    const onEnabledChange = context.session?.onWebSearchEnabledChange
-    if (enabled === undefined || !onEnabledChange) return null
-    return <AgentWebSearchToolRuntime enabled={enabled} launcher={context.launcher} onEnabledChange={onEnabledChange} />
+    const agentId = context.session?.agentId
+    if (!agentId) return null
+    return <AgentWebSearchToolRuntime agentId={agentId} launcher={context.launcher} />
   }
 
   if (!context.assistant) return null

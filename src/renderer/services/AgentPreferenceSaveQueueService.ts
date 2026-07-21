@@ -3,15 +3,21 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 type AgentPreferenceSave = () => Promise<AgentEntity | undefined>
 
 class AgentPreferenceSaveQueueService {
-  private readonly pendingSaves = new Map<string, Promise<AgentEntity | undefined>>()
+  private readonly pendingSaves = new Map<string, Promise<boolean>>()
 
   /**
    * Serialize input-composer preference writes per Agent. Service lifetime intentionally spans
    * Session composer mounts, so a save started in one Session remains visible in the next.
    */
   enqueue(agentId: string, save: AgentPreferenceSave): Promise<boolean> {
-    const previous = this.pendingSaves.get(agentId)
-    const queued = previous ? previous.then(save, save) : Promise.resolve().then(save)
+    const previous = this.pendingSaves.get(agentId) ?? Promise.resolve(true)
+    const queued = previous.then(async (previousSaved) => {
+      try {
+        return Boolean(await save()) && previousSaved
+      } catch {
+        return false
+      }
+    })
     this.pendingSaves.set(agentId, queued)
 
     const clearIfLatest = () => {
@@ -19,21 +25,16 @@ class AgentPreferenceSaveQueueService {
     }
     void queued.then(clearIfLatest, clearIfLatest)
 
-    return queued.then(Boolean, () => false)
+    return queued
   }
 
-  /** Wait for the latest preference write, including writes queued while this call is waiting. */
+  /** Wait for the current save batch, including new writes, and preserve any failure in that batch. */
   async wait(agentId: string): Promise<boolean> {
     while (true) {
       const pending = this.pendingSaves.get(agentId)
       if (!pending) return true
 
-      let saved = false
-      try {
-        saved = Boolean(await pending)
-      } catch {
-        saved = false
-      }
+      const saved = await pending
 
       const latest = this.pendingSaves.get(agentId)
       if (!latest || latest === pending) return saved
