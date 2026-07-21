@@ -6,12 +6,12 @@
  * 1. **Runtime model checks** — query Model schema fields (capabilities, reasoning,
  *    parameterSupport). These are the primary API for callers.
  *
- * 2. **Model-ID utilities** — name normalization (`getLowerBaseModelName`)
- *    and the legacy token-limit delegate. Capability inference from raw ids
- *    lives in `@cherrystudio/provider-registry` (creator-declared data).
+ * 2. **Model-ID utilities** — name normalization (`getLowerBaseModelName`).
+ *    Capability inference from raw ids lives in
+ *    `@cherrystudio/provider-registry` (creator-declared data).
  */
 
-import { findHeuristicTokenLimits, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
@@ -604,18 +604,6 @@ export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 
 export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
   /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-lite)?(?!-251015)(?:-\d+)?$/i
-
-// ---------------------------------------------------------------------------
-// Token limit inference
-// ---------------------------------------------------------------------------
-
-/**
- * Find thinking token limits for a raw model ID (used during model creation
- * and by the legacy budget path). Delegates to the registry heuristics table
- * — the single copy of this knowledge (#16598); deleted once runtime
- * consumers read `model.reasoning.thinkingTokenLimits` instead.
- */
-export const findTokenLimit = findHeuristicTokenLimits
 
 // ---------------------------------------------------------------------------
 // Internal helper: extract raw model ID from Model

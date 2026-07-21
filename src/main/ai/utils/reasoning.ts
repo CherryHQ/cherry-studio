@@ -172,11 +172,9 @@ function hasEffortControl(model: Model): boolean {
 }
 
 /**
- * Main-side thinking budget: DESCRIPTOR-FIRST (#16598) — reads the model's
- * registry `thinkingTokenLimits` when present, falling back to the shared
- * regex-table lookup for descriptor-less models. Strict (no-fallback)
- * variant: unknown models return `undefined`. The renderer Code page calls
- * the shared function directly with `{ fallbackOnUnknown: true }`.
+ * Main-side thinking budget: descriptor-only (#16598). Missing limits return
+ * `undefined`; callers whose wire requires a budget choose an explicit
+ * conservative fallback instead of inferring one again from the model id.
  */
 export function getThinkingBudget(
   maxTokens: number | undefined,
@@ -184,18 +182,13 @@ export function getThinkingBudget(
   model: Model
 ): number | undefined {
   if (reasoningEffort === undefined || reasoningEffort === 'none') return undefined
-  const limits = model.reasoning?.thinkingTokenLimits
-  if (limits?.min != null && limits.max != null) {
-    const ratio = EFFORT_RATIO[reasoningEffort as keyof typeof EFFORT_RATIO] ?? EFFORT_RATIO.high
-    return computeBudgetTokens({ min: limits.min, max: limits.max }, ratio, maxTokens)
-  }
-  return sharedGetThinkingBudget(maxTokens, reasoningEffort, model.id, EFFORT_RATIO)
+  return sharedGetThinkingBudget(maxTokens, reasoningEffort, model.reasoning?.thinkingTokenLimits, EFFORT_RATIO)
 }
 
 // Compute a fallback budgetTokens using a conservative token limit when
-// findTokenLimit() cannot determine the model's actual limit. This ensures
-// { type: 'enabled' } always carries a valid budget, which is required by
-// the Claude Agent SDK and the Anthropic Messages API.
+// the descriptor does not declare one. This ensures { type: 'enabled' }
+// always carries a valid budget, which is required by the Claude Agent SDK
+// and the Anthropic Messages API.
 function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
   const effortRatio = EFFORT_RATIO[reasoningEffort ?? 'high'] ?? EFFORT_RATIO.high
   return computeBudgetTokens(FALLBACK_TOKEN_LIMIT, effortRatio)

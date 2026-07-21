@@ -1,18 +1,14 @@
 /**
  * Reasoning-budget computation shared between main and renderer.
  *
- * Both sides used to carry their own copy of `getThinkingBudget` — the main
- * version returned `undefined` when `findTokenLimit` had no entry for the
- * model; the renderer Code page falls back to a conservative
- * `FALLBACK_TOKEN_LIMIT` to keep producing a budget for unknown models.
- * The single source of truth here exposes that divergence as
- * `opts.fallbackOnUnknown`.
+ * Runtime callers pass descriptor-declared token limits. A caller whose wire
+ * requires a budget even without declared limits can opt into the conservative
+ * `FALLBACK_TOKEN_LIMIT`; otherwise missing limits remain visible as
+ * `undefined`.
  */
 
-import { findTokenLimit } from '../utils/model'
-
-/** Used when the registry has no token-limit entry for a model and the
- *  caller still wants a non-undefined budget (renderer Code page).
+/** Used when a descriptor has no token limits and the caller still needs a
+ *  non-undefined budget for its wire envelope.
  *  `Math.max(1024, …)` in `computeBudgetTokens` enforces the floor. */
 export const FALLBACK_TOKEN_LIMIT = { min: 1024, max: 16384 }
 
@@ -28,10 +24,8 @@ export function computeBudgetTokens(
 
 export interface ThinkingBudgetOptions {
   /**
-   * When true and the model isn't in `findTokenLimit`'s registry, derive
-   * a budget from `FALLBACK_TOKEN_LIMIT` instead of returning `undefined`.
-   * Renderer Code page sets this; main path leaves it false so the missing
-   * entry surfaces as "no budget" upstream.
+   * When true and `tokenLimit` is absent, derive a budget from
+   * `FALLBACK_TOKEN_LIMIT` instead of returning `undefined`.
    */
   fallbackOnUnknown?: boolean
 }
@@ -47,7 +41,7 @@ export interface ThinkingBudgetOptions {
 export function getThinkingBudget(
   maxTokens: number | undefined,
   reasoningEffort: string | undefined,
-  modelId: string,
+  tokenLimit: { min?: number; max?: number } | undefined,
   effortRatioMap: Record<string, number>,
   opts: ThinkingBudgetOptions = {}
 ): number | undefined {
@@ -55,8 +49,7 @@ export function getThinkingBudget(
     return undefined
   }
 
-  const tokenLimit = findTokenLimit(modelId)
-  if (!tokenLimit) {
+  if (tokenLimit?.min == null || tokenLimit.max == null) {
     if (!opts.fallbackOnUnknown) return undefined
     const ratio = effortRatioMap[reasoningEffort] ?? effortRatioMap.high
     return computeBudgetTokens(FALLBACK_TOKEN_LIMIT, ratio, maxTokens)
@@ -64,5 +57,9 @@ export function getThinkingBudget(
 
   // Guard the same way as the fallback path: an unknown effort key would otherwise
   // yield a NaN budget that the Anthropic/Claude SDK rejects.
-  return computeBudgetTokens(tokenLimit, effortRatioMap[reasoningEffort] ?? effortRatioMap.high, maxTokens)
+  return computeBudgetTokens(
+    { min: tokenLimit.min, max: tokenLimit.max },
+    effortRatioMap[reasoningEffort] ?? effortRatioMap.high,
+    maxTokens
+  )
 }

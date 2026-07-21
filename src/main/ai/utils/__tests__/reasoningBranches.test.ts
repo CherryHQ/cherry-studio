@@ -196,10 +196,10 @@ describe('native adapter params — descriptor-driven (#16598)', () => {
 
     it('toggle/budget compat model → enabled + budget (fallback beats the SDK 1024 backfill)', () => {
       // kimi-k2.5 has no descriptor here; the enabled marker still needs a
-      // real budget on this wire — the shared legacy fallback resolves the
-      // kimi family limits {0, 30720}: floor(30720*.8) = 24576
+      // valid budget on this wire. With no descriptor limits, use the
+      // conservative fallback: floor((16384-1024)*.8+1024) = 13312.
       expect(getAnthropicReasoningParams(a('high'), model('my-custom', 'kimi-k2.5'))).toEqual({
-        thinking: { type: 'enabled', budgetTokens: 24_576 },
+        thinking: { type: 'enabled', budgetTokens: 13_312 },
         sendReasoning: true
       })
     })

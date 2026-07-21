@@ -514,7 +514,7 @@ export function serializeReasoningEffort(
     provider,
     effort: plan.kind === 'effort' ? plan.effort : 'high',
     off: plan.kind === 'off',
-    budgetTokens: plan.kind === 'effort' ? resolveBudgetTokens(plan.effort, model.reasoning, modelId) : undefined,
+    budgetTokens: plan.kind === 'effort' ? resolveBudgetTokens(plan.effort, model.reasoning) : undefined,
     modelId,
     rawModelId
   }

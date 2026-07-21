@@ -15,7 +15,6 @@
 import type { RuntimeReasoning } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { findTokenLimit } from '../utils/model'
 import { EFFORT_RATIO } from '../utils/reasoning'
 import { computeBudgetTokens } from './reasoningBudget'
 
@@ -32,16 +31,12 @@ export function resolveEffortPlan(setting: string | undefined): EffortPlan {
 
 /**
  * The thinking-token budget for an effort: `floor((max-min) * ratio + min)`,
- * with limits read DESCRIPTOR-FIRST (`model.reasoning.thinkingTokenLimits`)
- * and the legacy regex table as fallback for descriptor-less models. Returns
- * `undefined` when no limits are known — callers decide their own fallback.
+ * with limits read from `model.reasoning.thinkingTokenLimits`. Returns
+ * `undefined` when the descriptor declares no limits — callers decide their
+ * own wire-specific fallback.
  */
-export function resolveBudgetTokens(
-  effort: string,
-  reasoning: RuntimeReasoning | undefined,
-  rawModelId: string
-): number | undefined {
-  const limits = reasoning?.thinkingTokenLimits ?? findTokenLimit(rawModelId)
+export function resolveBudgetTokens(effort: string, reasoning: RuntimeReasoning | undefined): number | undefined {
+  const limits = reasoning?.thinkingTokenLimits
   if (limits?.min == null || limits.max == null) return undefined
   const ratio = EFFORT_RATIO[effort as keyof typeof EFFORT_RATIO]
   if (ratio == null) return undefined

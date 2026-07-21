@@ -7,14 +7,12 @@
  *
  * Consumed at INGEST time only — never as a runtime capability source:
  *  - `ModelService` infers controls when a custom-provider model row is
- *    created (or read) without a descriptor;
- *  - `@shared/utils/model.findTokenLimit` delegates its legacy budget
- *    fallback here until the legacy tower is deleted.
+ *    created (or read) without a descriptor.
  * (The generation script consumes the pure matcher + CREATORS directly, so
  * it never depends on the generated artifact.)
  */
 import type { ReasoningControl } from '../schemas/model'
-import { matchReasoningControls, matchTokenLimits } from './reasoning-families'
+import { matchReasoningControls } from './reasoning-families'
 import { REASONING_FAMILY_RULES } from './reasoning-families.gen'
 import { matchReasoningMembership } from './reasoning-membership'
 
@@ -37,12 +35,4 @@ export function inferReasoningMembership(rawModelId: string): boolean {
  */
 export function inferReasoningControls(rawModelId: string): ReasoningControl[] | undefined {
   return matchReasoningControls(rawModelId, REASONING_FAMILY_RULES)
-}
-
-/**
- * Thinking-token limits for a raw model id (legacy `findTokenLimit`
- * semantics — tests the RAW string, so `provider::model` unique ids match).
- */
-export function findHeuristicTokenLimits(rawModelId: string): { min: number; max: number } | undefined {
-  return matchTokenLimits(rawModelId, REASONING_FAMILY_RULES)
 }

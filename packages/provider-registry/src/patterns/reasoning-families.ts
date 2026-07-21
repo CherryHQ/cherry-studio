@@ -11,9 +11,8 @@
  *    `toggle: false` is an explicit "always-on, no switch" declaration that
  *    wins the part while contributing no control.
  *  - BUDGET part — the first rule declaring `budget` whose pattern matches.
- *    `matchTokenLimits` tests the RAW string (legacy `findTokenLimit`
- *    callers pass `provider::model` unique ids — budget rules stay
- *    unanchored for this reason).
+ *    `matchTokenLimits` tests the raw catalog id during generation; budget
+ *    patterns stay unanchored so namespaced ids remain matchable.
  *
  * This module is import-safe for the generation script (no dependency on
  * the generated artifact); the bound convenience API lives in
@@ -68,8 +67,8 @@ export function matchReasoningControls(
 }
 
 /**
- * Thinking-token limits for a raw model id (legacy `findTokenLimit`
- * semantics: tests the RAW string, unanchored patterns match unique ids).
+ * Thinking-token limits for a raw catalog id. Tests the raw string so
+ * unanchored patterns also match namespaced ids.
  */
 export function matchTokenLimits(
   rawModelId: string,

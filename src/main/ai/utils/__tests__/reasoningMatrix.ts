@@ -248,7 +248,7 @@ export function buildSyntheticRows(): MatrixRow[] {
  * (`ModelService` create/read paths call `inferCustomModelReasoning` for
  * reasoning-capable rows without a descriptor) — the state real custom rows
  * are served in. Rows whose id matches no heuristic keep `reasoning`
- * undefined and stay on the legacy fallback.
+ * undefined and remain knob-less at runtime.
  */
 export function buildEnrichedSyntheticRows(): MatrixRow[] {
   const providers = readProviderRegistry(resolve(DATA_DIR, 'providers.json')).providers
