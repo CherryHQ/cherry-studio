@@ -125,16 +125,10 @@ function invariantErrorCode(evidence: InvariantEvidence): FailureOfKind<'migrati
 }
 
 function prepareErrorCode(
+  error: unknown,
   errorCode: ClassifiedMigrationError['errorCode']
 ): FailureOfKind<'source_prepare_failed'>['errorCode'] {
-  switch (errorCode) {
-    case 'source_read_failed':
-    case 'source_parse_failed':
-    case 'source_serialization_failed':
-      return errorCode
-    default:
-      return databaseOrFileErrorCode(errorCode)
-  }
+  return error instanceof SyntaxError ? 'source_parse_failed' : databaseOrFileErrorCode(errorCode)
 }
 
 function validationErrorCode(
@@ -337,10 +331,10 @@ export class MigrationEngine {
       }
 
       // Safety check: verify new tables status before clearing
-      await this.runDiagnosticBoundary('database', 'initialize', () => this.verifyAndClearNewTables())
+      await this.runDiagnosticBoundary('database', 'execute', () => this.verifyAndClearNewTables())
 
       // Create migration context
-      const context = await this.runDiagnosticBoundary('engine', 'initialize', () =>
+      const context = await this.runDiagnosticBoundary('engine', 'prepare', () =>
         createMigrationContext(this.getDb(), this.paths, reduxData, dexieExportPath, localStorageExportPath)
       )
 
@@ -471,21 +465,17 @@ export class MigrationEngine {
 
       logger.error('Migration failed', err)
 
-      // Persist the display error after the owner boundary has already stored
-      // the root diagnostic failure. A secondary status-write error never
-      // replaces that first terminal fact.
-      try {
-        await this.markFailed(errorMessage)
-      } catch (statusError) {
-        logger.error('Failed to persist migration failure status', statusError as Error)
-      }
-
       if (!this.diagnosticAttemptTerminated) {
         this.finishDiagnosticAttempt({
           status: 'failed',
           failure: this.createDiagnosticFailure('engine', 'finalize', error)
         })
       }
+
+      // Preserve the original migration contract: a failure to persist the
+      // failed status remains observable to the caller. The root diagnostic
+      // fact has already been recorded above or by its owner boundary.
+      await this.markFailed(errorMessage)
 
       return {
         success: false,
@@ -618,10 +608,10 @@ export class MigrationEngine {
     if (phase === 'prepare') {
       return {
         kind: 'source_prepare_failed',
-        scope: 'migrator',
+        scope: scope === 'migrator' ? 'migrator' : 'engine',
         phase,
-        migratorId: migratorId as MigrationDiagnosticMigratorId,
-        errorCode: prepareErrorCode(classification.errorCode)
+        ...(migratorId === undefined ? {} : { migratorId }),
+        errorCode: prepareErrorCode(error, classification.errorCode)
       }
     }
     if (phase === 'validate') {

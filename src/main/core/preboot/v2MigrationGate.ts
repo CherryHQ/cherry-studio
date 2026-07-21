@@ -58,11 +58,8 @@ type RendererExportFailureErrorCode = Extract<
  */
 export type V2MigrationGateResult = 'handled' | 'skipped'
 
-function toNativeSaveResult(
-  result: MigrationDiagnosticBundleSaveResult | { readonly status: 'failed'; readonly code: 'save_in_progress' }
-): MigrationDiagnosticNativeSaveResult {
+function toNativeSaveResult(result: MigrationDiagnosticBundleSaveResult): MigrationDiagnosticNativeSaveResult {
   if (result.status === 'saved') return { status: 'saved' }
-  if (result.code === 'save_in_progress') return result
   return { status: 'failed', code: 'bundle_save_failed' }
 }
 
@@ -95,16 +92,15 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
 
   const saveDiagnosticBundle = async (destination: string): Promise<MigrationDiagnosticNativeSaveResult> => {
     try {
-      const result = await diagnosticsCoordinator.runSave((snapshot) =>
-        bundleBuilder.save({
-          destination,
-          snapshot,
-          collectDatabaseDiagnostics: () => {
-            if (resolvedPaths === null) return Promise.resolve(MEMORY_ONLY_DATABASE_DIAGNOSTICS)
-            return databaseDiagnostics.inspect(resolvedPaths.databaseFile)
-          }
-        })
-      )
+      const snapshot = await diagnosticsCoordinator.snapshot()
+      const result = await bundleBuilder.save({
+        destination,
+        snapshot,
+        collectDatabaseDiagnostics: () => {
+          if (resolvedPaths === null) return Promise.resolve(MEMORY_ONLY_DATABASE_DIAGNOSTICS)
+          return databaseDiagnostics.inspect(resolvedPaths.databaseFile)
+        }
+      })
       return toNativeSaveResult(result)
     } catch {
       return { status: 'failed', code: 'snapshot_failed' }
@@ -279,7 +275,6 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           errorCode: reason,
           evidence: {
             kind: 'interruption',
-            lastLocation: snapshot.current.lastLocation,
             recoverySource: 'live_renderer_event'
           }
         }
@@ -314,14 +309,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     return applyNativeDecision(await presentFailure('path_resolution_failed'))
   }
 
-  const {
-    paths,
-    userDataChanged,
-    inaccessibleLegacyPath,
-    legacyDataConfirmed,
-    directorySelectionRole = 'unknown',
-    dataLocation
-  } = resolved
+  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, directorySelectionRole, dataLocation } =
+    resolved
   try {
     diagnosticsCoordinator.attachPaths(paths)
   } catch {
@@ -447,16 +436,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     await finishWindowFailure(reason)
   }
 
-  const { check: versionCheck, previousVersion, versionLogExists } = versionEvaluation
-  const versionLog =
-    versionEvaluation.versionLog ??
-    (versionLogExists
-      ? {
-          state: 'parsed' as const,
-          validRecordCountBucket: 'unknown' as const,
-          invalidRecordCountBucket: 'unknown' as const
-        }
-      : { state: 'missing' as const })
+  const { check: versionCheck, previousVersion, versionLogExists, versionLog } = versionEvaluation
   logger.info('Version compatibility check', { previousVersion, versionLogExists })
   if (versionCheck.outcome === 'block') {
     const versionGate = createMigrationVersionGateContext(

@@ -22,12 +22,5 @@ process.once('message', (input) => {
     return
   }
 
-  if (process.env.CHERRY_MIGRATION_DATABASE_DIAGNOSTICS_FIXTURE === 'partial') {
-    process.send?.({ type: 'result', result: { status: 'unavailable', reason: 'query_failed' } }, () =>
-      runNativeHang(input.databaseFile)
-    )
-    return
-  }
-
   runNativeHang(input.databaseFile)
 })

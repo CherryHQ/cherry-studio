@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  MIGRATION_FAILURE_ERROR_CODES,
-  MIGRATION_FAILURE_KINDS,
   migrationDiagnosticAttemptSchema,
   migrationDiagnosticFailureSchema,
   migrationDiagnosticsCheckpointSchema
@@ -110,25 +108,11 @@ const failures = [
     scope: 'engine',
     phase: 'interrupted',
     errorCode: 'process_interrupted',
-    evidence: { kind: 'interruption', lastLocation: location, recoverySource: 'checkpoint' }
+    evidence: { kind: 'interruption', recoverySource: 'checkpoint' }
   }
 ] as const
 
 describe('migrationDiagnosticFailureSchema', () => {
-  it('exposes the fixed failure-kind allowlist', () => {
-    expect(MIGRATION_FAILURE_KINDS).toEqual(failures.map((failure) => failure.kind))
-  })
-
-  it('exposes only blocking root error codes', () => {
-    expect(MIGRATION_FAILURE_ERROR_CODES).toContain('sqlite_too_big')
-    expect(MIGRATION_FAILURE_ERROR_CODES).toContain('source_required_records_rejected')
-    expect(MIGRATION_FAILURE_ERROR_CODES).toContain('version_window_failed')
-    expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('database_diagnostics_timeout')
-    expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('bundle_save_failed')
-    expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('validation_relation')
-    expect(MIGRATION_FAILURE_ERROR_CODES).not.toContain('file_unknown')
-  })
-
   it.each(failures)('accepts the fixed $kind failure', (failure) => {
     expect(migrationDiagnosticFailureSchema.parse(failure)).toEqual(failure)
   })
@@ -186,7 +170,7 @@ describe('migrationDiagnosticFailureSchema', () => {
     ['source_prepare_failed', { kind: 'failed_write', truncated: false, values: [] }],
     ['migration_write_failed', { kind: 'invariant', invariantRole: 'foreign_key' }],
     ['migration_invariant_failed', { kind: 'validation', checkRole: 'status' }],
-    ['migration_validation_failed', { kind: 'interruption', lastLocation: location, recoverySource: 'checkpoint' }],
+    ['migration_validation_failed', { kind: 'interruption', recoverySource: 'checkpoint' }],
     ['process_interrupted', { kind: 'validation', checkRole: 'status' }]
   ] as const)('rejects %s with mismatched evidence', (kind, evidence) => {
     const base = failures.find((failure) => failure.kind === kind)
@@ -231,6 +215,34 @@ describe('migrationDiagnosticFailureSchema', () => {
         phase: 'validate',
         migratorId: 'chat',
         errorCode: 'validation_status'
+      }).success
+    ).toBe(false)
+  })
+
+  it('allows an engine-owned source parse but requires migrator ids only for migrator-owned preparation', () => {
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        kind: 'source_prepare_failed',
+        scope: 'engine',
+        phase: 'prepare',
+        errorCode: 'source_parse_failed'
+      }).success
+    ).toBe(true)
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        kind: 'source_prepare_failed',
+        scope: 'engine',
+        phase: 'prepare',
+        migratorId: 'chat',
+        errorCode: 'source_parse_failed'
+      }).success
+    ).toBe(false)
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        kind: 'source_prepare_failed',
+        scope: 'migrator',
+        phase: 'prepare',
+        errorCode: 'source_parse_failed'
       }).success
     ).toBe(false)
   })
@@ -322,6 +334,23 @@ describe('migrationDiagnosticsCheckpointSchema', () => {
     } as const
 
     expect(migrationDiagnosticsCheckpointSchema.parse(checkpoint)).toEqual(checkpoint)
+  })
+
+  it('accepts normalized prerelease versions but rejects build metadata in persisted evidence', () => {
+    expect(
+      migrationDiagnosticsCheckpointSchema.safeParse({
+        formatVersion: 1,
+        app: { version: '2.0.0-beta.1', platform: 'darwin', arch: 'arm64' },
+        state: 'active'
+      }).success
+    ).toBe(true)
+    expect(
+      migrationDiagnosticsCheckpointSchema.safeParse({
+        formatVersion: 1,
+        app: { version: '2.0.0-beta.1+private', platform: 'darwin', arch: 'arm64' },
+        state: 'active'
+      }).success
+    ).toBe(false)
   })
 
   it.each(['attempts', 'events', 'sessionId'])('rejects the legacy %s field', (field) => {

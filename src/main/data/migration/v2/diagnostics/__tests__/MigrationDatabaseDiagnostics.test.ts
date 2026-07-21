@@ -28,7 +28,6 @@ const available = {
 } as const
 
 class FakeChild extends EventEmitter implements MigrationDatabaseDiagnosticsChildLike {
-  readonly stderr = new EventEmitter()
   readonly send = vi.fn((_message: unknown, callback?: (error: Error | null) => void) => {
     callback?.(null)
     return true
@@ -118,7 +117,7 @@ describe('one-shot child lifecycle', () => {
     const [modulePath, options] = createChild.mock.calls[0]
     expect(modulePath).toBe('/fixed/migrationDatabaseDiagnosticsChild.js')
     expect(options).toMatchObject({
-      stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+      stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
       windowsHide: true,
       shell: false,
       env: { ELECTRON_RUN_AS_NODE: '1', CHERRY_MIGRATION_DATABASE_DIAGNOSTICS_CHILD: '1' }
@@ -152,7 +151,6 @@ describe('one-shot child lifecycle', () => {
     expect(child.listenerCount('message')).toBe(0)
     expect(child.listenerCount('error')).toBe(0)
     expect(child.listenerCount('close')).toBe(0)
-    expect(child.stderr.listenerCount('data')).toBe(0)
   })
 
   it('maps timeout, exit, and invalid output to unavailable without losing file facts', async () => {

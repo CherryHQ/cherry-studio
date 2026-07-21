@@ -22,8 +22,6 @@ import type { MigrationPaths } from './MigrationPaths'
 const logger = loggerService.withContext('MigrationDbService')
 
 export class MigrationDbService {
-  private closed = false
-
   private constructor(
     private readonly db: DbType,
     private readonly sqlite: Database.Database
@@ -79,8 +77,6 @@ export class MigrationDbService {
   }
 
   close(): void {
-    if (this.closed) return
-    this.closed = true
     try {
       this.sqlite.close()
       logger.info('Migration database connection closed')

@@ -1909,7 +1909,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     expect(result.error).toContain('insert failed')
   })
 
-  it('records bounded knowledge-base lengths when SQLite rejects an oversized row', async () => {
+  it('classifies an oversized knowledge-base write without retaining the private name', async () => {
     const canary = `PRIVATE_KNOWLEDGE_NAME_${'x'.repeat(90_000)}`
     const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
     const migrator = new KnowledgeMigrator() as any

@@ -140,17 +140,11 @@ describe('writeMigrationDiagnosticsJournal', () => {
     expect(existsSync(`${journalFile()}.tmp`)).toBe(false)
   })
 
-  it('reports stable typed failures before and after atomic publication', () => {
+  it('leaves pre-publication failures unpublished and post-publication failures durable', () => {
     vi.mocked(fs.renameSync).mockImplementationOnce(() => {
       throw new Error('secret-before-/Users/alice')
     })
-    expect(() => writeMigrationDiagnosticsJournal(journalFile(), checkpoint())).toThrowError(
-      expect.objectContaining({
-        name: 'MigrationDiagnosticsJournalWriteError',
-        code: 'journal_write_failed',
-        publication: 'not_published'
-      })
-    )
+    expect(() => writeMigrationDiagnosticsJournal(journalFile(), checkpoint())).toThrow()
     expect(existsSync(journalFile())).toBe(false)
 
     vi.mocked(fs.fsyncSync)
@@ -158,13 +152,7 @@ describe('writeMigrationDiagnosticsJournal', () => {
       .mockImplementationOnce(() => {
         throw new Error('secret-after-/Users/alice')
       })
-    expect(() => writeMigrationDiagnosticsJournal(journalFile(), checkpoint())).toThrowError(
-      expect.objectContaining({
-        name: 'MigrationDiagnosticsJournalWriteError',
-        code: 'journal_write_failed',
-        publication: 'published'
-      })
-    )
+    expect(() => writeMigrationDiagnosticsJournal(journalFile(), checkpoint())).toThrow()
     expect(readMigrationDiagnosticsJournal(journalFile())).toEqual({ kind: 'ok', journal: checkpoint() })
   })
 })

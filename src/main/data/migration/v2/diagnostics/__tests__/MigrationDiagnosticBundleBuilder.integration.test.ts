@@ -3,15 +3,10 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { ZipArchive } from 'archiver'
-import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MIGRATION_DATABASE_OBJECT_DEFINITIONS } from '../migrationDatabaseDiagnosticsSchemas'
-import {
-  MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES,
-  MigrationDiagnosticBundleBuilder
-} from '../MigrationDiagnosticBundleBuilder'
-import { migrationDiagnosticBundleDocumentSchema } from '../migrationDiagnosticBundleSchemas'
+import { MigrationDiagnosticBundleBuilder } from '../MigrationDiagnosticBundleBuilder'
 import type { MigrationDiagnosticsSnapshot } from '../migrationDiagnosticsSchemas'
 
 let testDir = ''
@@ -67,33 +62,9 @@ afterEach(() => {
 })
 
 describe('MigrationDiagnosticBundleBuilder real ZIP publication', () => {
-  it('round-trips the fixed entry order through node-stream-zip', async () => {
-    const result = await new MigrationDiagnosticBundleBuilder().save({
-      destination: destination(),
-      snapshot,
-      collectDatabaseDiagnostics: async () => database
-    })
-
-    expect(result.status).toBe('saved')
-    const zip = new StreamZip.async({ file: destination() })
-    try {
-      const entries = await zip.entries()
-      expect(Object.keys(entries)).toEqual([...MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES])
-      migrationDiagnosticBundleDocumentSchema.parse(
-        JSON.parse((await zip.entryData('migration-diagnostics.json')).toString('utf8'))
-      )
-      expect((await zip.entryData('README.txt')).length).toBeGreaterThan(0)
-    } finally {
-      await zip.close()
-    }
-    expect(tempResidue()).toEqual([])
-  })
-
-  it('keeps an existing destination unchanged when archive creation fails', async () => {
+  it('keeps an existing destination unchanged when archive finalization fails', async () => {
     writeFileSync(destination(), 'original')
-    vi.spyOn(ZipArchive.prototype, 'append').mockImplementationOnce(() => {
-      throw new Error('archive canary')
-    })
+    vi.spyOn(ZipArchive.prototype, 'finalize').mockRejectedValueOnce(new Error('archive canary'))
 
     await expect(
       new MigrationDiagnosticBundleBuilder().save({

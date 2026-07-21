@@ -27,4 +27,4 @@ actions.
 
 ## Notes for release manager
 
-This fragment describes the production strict-bundle privacy policy.
+This fragment describes the privacy-bounded production diagnostic contract.

@@ -14,10 +14,10 @@ const columnRoles = [...new Set(MIGRATION_DATABASE_OBJECT_DEFINITIONS.flatMap(({
 ]
 const maxExpectedColumnCount = Math.max(...MIGRATION_DATABASE_OBJECT_DEFINITIONS.map(({ columns }) => columns.length))
 
-export const migrationDatabaseObjectRoleSchema = z.enum(objectRoles)
-export const migrationDatabaseColumnRoleSchema = z.enum(columnRoles)
+const migrationDatabaseObjectRoleSchema = z.enum(objectRoles)
+const migrationDatabaseColumnRoleSchema = z.enum(columnRoles)
 
-export const migrationDatabaseObjectCheckSchema = z
+const migrationDatabaseObjectCheckSchema = z
   .object({
     role: migrationDatabaseObjectRoleSchema,
     tableName: z.string().min(1).max(128),
@@ -74,7 +74,7 @@ const migrationDatabaseAvailableSqliteResultSchema = z
     }
   })
 
-export const migrationDatabaseSqliteUnavailableReasonSchema = z.enum([
+const migrationDatabaseSqliteUnavailableReasonSchema = z.enum([
   'not_attempted',
   'open_failed',
   'query_failed',
@@ -93,7 +93,7 @@ export const migrationDatabaseSqliteResultSchema = z.discriminatedUnion('status'
     .strict()
 ])
 
-export const migrationDatabaseFileResultSchema = z
+const migrationDatabaseFileResultSchema = z
   .object({
     status: z.enum(['missing', 'not_regular', 'readable', 'unreadable']),
     sizeBucket: z.enum(['0', '1-4095', '4096-1m', '1m-100m', '100m+']).optional(),
@@ -145,8 +145,6 @@ export const migrationDatabaseDiagnosticsChildMessageSchema = z
   })
   .strict()
 
-export type MigrationDatabaseObjectRole = z.infer<typeof migrationDatabaseObjectRoleSchema>
-export type MigrationDatabaseColumnRole = z.infer<typeof migrationDatabaseColumnRoleSchema>
 export type MigrationDatabaseObjectCheck = z.infer<typeof migrationDatabaseObjectCheckSchema>
 export type MigrationDatabaseSqliteResult = z.infer<typeof migrationDatabaseSqliteResultSchema>
 export type MigrationDatabaseFileResult = z.infer<typeof migrationDatabaseFileResultSchema>

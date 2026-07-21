@@ -11,7 +11,7 @@ This directory contains the v2 data migration implementation.
 ```
 src/main/data/migration/v2/
 ├── core/              # MigrationEngine, MigrationContext, MigrationPaths
-├── diagnostics/       # Crash-safe state, strict bundle, and read-only database diagnostics
+├── diagnostics/       # Crash-safe state, privacy-bounded bundle, and read-only database diagnostics
 ├── migrators/         # Domain-specific migrators
 │   └── mappings/      # Mapping definitions
 ├── utils/             # ReduxStateReader, DexieFileReader, JSONStreamReader, LegacyHomeConfigReader
@@ -73,12 +73,11 @@ user's external email client with instructions, reveal the ZIP, or copy the supp
 is available. It never uploads, sends, or attaches the bundle automatically; the user must review and attach the ZIP
 manually.
 
-The acceptance matrix is in
-[`diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts`](diagnostics/__tests__/MigrationDiagnosticAcceptance.integration.test.ts),
-with shared seeded failures in
-[`diagnostics/__tests__/fixtures/migrationDiagnosticAcceptanceFixtures.ts`](diagnostics/__tests__/fixtures/migrationDiagnosticAcceptanceFixtures.ts).
-It builds and extracts real ZIPs, validates both allowlisted entries, checks the uncompressed budget and privacy
-canaries, and covers archive finalization and database-process partial-output failures as support-chain cases.
+Real fault coverage is split by boundary: database integration tests mutate real SQLite tables and columns, the
+process integration test runs and terminates a real native SQLite hang, journal/coordinator tests exercise durable
+recovery, bundle tests build and inspect real ZIPs, and engine/window/exporter tests inject failures at the production
+call sites that classify and hand them off. Tests do not claim a real scenario when they only construct a schema
+object.
 
 ## Path Safety — Use `MigrationPaths` (Strict Requirement)
 

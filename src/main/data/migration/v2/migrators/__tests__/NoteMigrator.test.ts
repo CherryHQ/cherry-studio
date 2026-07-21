@@ -78,7 +78,7 @@ describe('NoteMigrator', () => {
     })
   })
 
-  it('records a bounded note profile when SQLite rejects an oversized row', async () => {
+  it('classifies an oversized note write without retaining private paths', async () => {
     const canary = `PRIVATE_NOTE_PATH_${'x'.repeat(300_000)}`
     const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
     const db = {

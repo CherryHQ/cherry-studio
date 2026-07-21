@@ -92,7 +92,7 @@ describe('minimal previous/current state', () => {
 
     expect(await subject.snapshot()).toEqual({
       formatVersion: 1,
-      app: { version: '2.0.0', platform: 'darwin', arch: 'arm64' },
+      app: { version: '2.0.0-beta.1', platform: 'darwin', arch: 'arm64' },
       state: 'failed',
       current: {
         trigger: 'initial',
@@ -149,29 +149,13 @@ describe('minimal previous/current state', () => {
     })
   })
 
-  it('deep-freezes snapshots and serializes concurrent saves', async () => {
+  it('deep-freezes snapshots', async () => {
     const subject = coordinator()
     subject.beginAttempt('initial')
     const snapshot = await subject.snapshot()
     expect(Object.isFrozen(snapshot)).toBe(true)
     expect(Object.isFrozen(snapshot.current)).toBe(true)
     expect(Object.isFrozen(snapshot.current?.lastLocation)).toBe(true)
-
-    let release: ((value: string) => void) | undefined
-    const first = subject.runSave(
-      () =>
-        new Promise<string>((resolve) => {
-          release = resolve
-        })
-    )
-    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
-
-    await expect(subject.runSave(async () => 'second')).resolves.toEqual({
-      status: 'failed',
-      code: 'save_in_progress'
-    })
-    release?.('first')
-    await expect(first).resolves.toBe('first')
   })
 
   it('removes the durable checkpoint on complete but retains the completed in-memory snapshot', async () => {
@@ -209,19 +193,40 @@ describe('attachment and interruption recovery', () => {
         scope: 'engine',
         phase: 'interrupted',
         errorCode: 'process_interrupted',
-        evidence: { kind: 'interruption', lastLocation: executeLocation, recoverySource: 'checkpoint' }
+        evidence: { kind: 'interruption', recoverySource: 'checkpoint' }
       }
     })
     expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile)).toEqual({ kind: 'ok', journal: snapshot })
   })
 
+  it('does not present an ordinary terminal failure as an interrupted recovery', async () => {
+    writeMigrationDiagnosticsJournal(paths().diagnosticsJournalFile, {
+      ...activeCheckpoint(),
+      state: 'failed',
+      current: {
+        trigger: 'initial',
+        status: 'failed',
+        startedAt: '2026-07-20T07:00:00.000Z',
+        endedAt: '2026-07-20T07:01:00.000Z',
+        lastLocation: executeLocation,
+        failure: writeFailure()
+      }
+    })
+    const subject = coordinator()
+
+    subject.attachPaths(paths())
+
+    expect(subject.recovered).toBe(false)
+    expect((await subject.snapshot()).current).toMatchObject({ status: 'failed' })
+  })
+
   it.each([
-    ['old strict v2', JSON.stringify({ version: 2, sessionId: 'strict-branch', attempts: [] }), true],
-    ['old v1', JSON.stringify({ version: 1, sessionId: 'old-branch', attempts: [] }), true],
-    ['damaged JSON', '{"formatVersion":', true],
-    ['oversized', 'x'.repeat(1_048_577), true],
-    ['non-regular', null, false]
-  ] as const)('replaces or ignores %s without touching business data', async (_name, content, replaced) => {
+    ['old strict v2', JSON.stringify({ version: 2, sessionId: 'strict-branch', attempts: [] }), 'none'],
+    ['old v1', JSON.stringify({ version: 1, sessionId: 'old-branch', attempts: [] }), 'none'],
+    ['damaged JSON', '{"formatVersion":', 'none'],
+    ['oversized', 'x'.repeat(1_048_577), 'none'],
+    ['non-regular', null, 'corrupt']
+  ] as const)('discards or ignores %s without touching business data', async (_name, content, journalKind) => {
     writeFileSync(path.join(testDir, 'cherrystudio.sqlite'), 'business-canary')
     if (content === null) fs.mkdirSync(paths().diagnosticsJournalFile)
     else writeFileSync(paths().diagnosticsJournalFile, content)
@@ -233,9 +238,7 @@ describe('attachment and interruption recovery', () => {
     expect(await subject.snapshot()).toMatchObject({ state: 'active' })
     expect(readFileSync(path.join(testDir, 'cherrystudio.sqlite'), 'utf8')).toBe('business-canary')
     expect(fs.readdirSync(testDir).some((name) => name.startsWith('migration-diagnostics-v2.corrupt.'))).toBe(false)
-    if (replaced) {
-      expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile).kind).toBe('ok')
-    }
+    expect(readMigrationDiagnosticsJournal(paths().diagnosticsJournalFile).kind).toBe(journalKind)
   })
 })
 

@@ -41,7 +41,7 @@ interface MigrationDiagnosticArchiveEntry {
   readonly buffer: Buffer
 }
 
-export interface MigrationDiagnosticBundleSaveInput {
+interface MigrationDiagnosticBundleSaveInput {
   readonly destination: string
   readonly snapshot: MigrationDiagnosticsSnapshot
   readonly collectDatabaseDiagnostics: () => Promise<MigrationDatabaseDiagnosticResult>
@@ -51,7 +51,7 @@ export type MigrationDiagnosticBundleSaveResult =
   | { readonly status: 'saved'; readonly uncompressedBytes: number }
   | { readonly status: 'failed'; readonly code: 'bundle_save_failed' }
 
-export interface MigrationDiagnosticBundleBuilderOptions {
+interface MigrationDiagnosticBundleBuilderOptions {
   readonly clock?: () => Date
 }
 
@@ -81,14 +81,13 @@ function createDocument(
   database: MigrationDatabaseDiagnosticResult,
   generatedAt: string
 ): MigrationDiagnosticBundleDocument {
-  const checkpoint = migrationDiagnosticsCheckpointSchema.parse(snapshot)
   return migrationDiagnosticBundleDocumentSchema.parse({
-    formatVersion: 2,
+    formatVersion: 1,
     generatedAt,
-    app: checkpoint.app,
-    state: checkpoint.state,
-    ...(checkpoint.previous === undefined ? {} : { previous: checkpoint.previous }),
-    ...(checkpoint.current === undefined ? {} : { current: checkpoint.current }),
+    app: snapshot.app,
+    state: snapshot.state,
+    ...(snapshot.previous === undefined ? {} : { previous: snapshot.previous }),
+    ...(snapshot.current === undefined ? {} : { current: snapshot.current }),
     database
   })
 }

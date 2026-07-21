@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { MigrationPaths } from '@main/data/migration/v2/core/MigrationPaths'
 import { app } from 'electron'
+import semver from 'semver'
 
 import {
   cleanupMigrationDiagnosticsJournal,
@@ -21,28 +22,18 @@ import {
 
 const logger = loggerService.withContext('MigrationDiagnosticsCoordinator')
 
-export interface MigrationDiagnosticsCoordinatorOptions {
+interface MigrationDiagnosticsCoordinatorOptions {
   readonly appVersion?: string
   readonly platform?: string
   readonly arch?: string
   readonly clock?: () => Date
 }
 
-export interface MigrationDiagnosticsSaveInProgress {
-  readonly status: 'failed'
-  readonly code: 'save_in_progress'
-}
-
 export type { MigrationDiagnosticsSnapshot }
 
-const SAVE_IN_PROGRESS_RESULT: MigrationDiagnosticsSaveInProgress = Object.freeze({
-  status: 'failed',
-  code: 'save_in_progress'
-})
-
 function normalizeVersion(version: string): string {
-  const match = /^(\d{1,6}\.\d{1,6}\.\d{1,6})(?:[-+].*)?$/.exec(version)
-  return match?.[1] ?? 'unknown'
+  if (version.length > 128) return 'unknown'
+  return semver.valid(version) ?? 'unknown'
 }
 
 function normalizePlatform(platform: string): MigrationDiagnosticsPlatform {
@@ -65,8 +56,6 @@ export class MigrationDiagnosticsCoordinator {
   private attachedPaths: Pick<MigrationPaths, 'diagnosticsJournalFile'> | null = null
   private hasAttached = false
   private wasRecovered = false
-  private snapshotPromise: Promise<MigrationDiagnosticsSnapshot> | null = null
-  private saveInProgress = false
 
   constructor(options: MigrationDiagnosticsCoordinatorOptions = {}) {
     this.clock = options.clock ?? (() => new Date())
@@ -91,29 +80,28 @@ export class MigrationDiagnosticsCoordinator {
     this.attachedPaths = paths
 
     const existing = readMigrationDiagnosticsJournal(paths.diagnosticsJournalFile)
-    if (existing.kind === 'none') {
-      this.persistBestEffort()
-      return
-    }
+    if (existing.kind === 'none') return
     if (existing.kind === 'corrupt') {
       try {
         cleanupMigrationDiagnosticsJournal(paths.diagnosticsJournalFile)
       } catch {
         logger.warn('Failed to remove invalid migration diagnostics checkpoint')
       }
-      this.persistBestEffort()
       return
     }
 
     if (existing.journal.state === 'completed') {
       this.cleanupBestEffort()
-      this.persistBestEffort()
       return
     }
 
     this.currentCheckpoint = existing.journal
-    this.wasRecovered = existing.journal.current !== undefined
-    if (existing.journal.current?.status === 'in_progress') this.closeRecoveredAttempt()
+    if (existing.journal.current?.status === 'in_progress') {
+      this.closeRecoveredAttempt()
+      this.wasRecovered = true
+    } else {
+      this.wasRecovered = existing.journal.current?.status === 'interrupted'
+    }
   }
 
   beginAttempt(trigger: MigrationAttemptTrigger): void {
@@ -198,28 +186,8 @@ export class MigrationDiagnosticsCoordinator {
   }
 
   snapshot(): Promise<MigrationDiagnosticsSnapshot> {
-    if (this.snapshotPromise !== null) return this.snapshotPromise
-
     const snapshot = deepFreeze(migrationDiagnosticsCheckpointSchema.parse(this.currentCheckpoint))
-    const promise = Promise.resolve(snapshot)
-    this.snapshotPromise = promise
-    void promise.finally(() => {
-      if (this.snapshotPromise === promise) this.snapshotPromise = null
-    })
-    return promise
-  }
-
-  async runSave<TResult>(
-    save: (snapshot: MigrationDiagnosticsSnapshot) => Promise<TResult>
-  ): Promise<TResult | MigrationDiagnosticsSaveInProgress> {
-    if (this.saveInProgress) return SAVE_IN_PROGRESS_RESULT
-
-    this.saveInProgress = true
-    try {
-      return await save(await this.snapshot())
-    } finally {
-      this.saveInProgress = false
-    }
+    return Promise.resolve(snapshot)
   }
 
   private nowIso(): string {
@@ -246,7 +214,6 @@ export class MigrationDiagnosticsCoordinator {
       errorCode: 'process_interrupted',
       evidence: {
         kind: 'interruption',
-        lastLocation: current.lastLocation,
         recoverySource: 'checkpoint'
       }
     } as const

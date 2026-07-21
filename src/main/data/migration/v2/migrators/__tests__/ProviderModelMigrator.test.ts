@@ -179,7 +179,7 @@ describe('ProviderModelMigrator', () => {
   })
 
   describe('execute', () => {
-    it('records bounded provider lengths when SQLite rejects an oversized row', async () => {
+    it('classifies an oversized provider write without retaining credentials or endpoints', async () => {
       const endpointCanary = `https://PRIVATE_PROVIDER_ENDPOINT_${'x'.repeat(90_000)}`
       const apiKeyCanary = `PRIVATE_PROVIDER_API_KEY_${'x'.repeat(90_000)}`
       const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })

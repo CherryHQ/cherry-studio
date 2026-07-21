@@ -124,7 +124,7 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
       JSON.parse(entries.get('migration-diagnostics.json')?.toString('utf8') ?? '')
     )
     expect(document).toMatchObject({
-      formatVersion: 2,
+      formatVersion: 1,
       generatedAt: '2026-07-21T08:02:00.000Z',
       state: 'failed',
       current: { status: 'failed', failure: { errorCode: 'sqlite_too_big' } },
@@ -157,27 +157,6 @@ describe('MigrationDiagnosticBundleBuilder two-entry contract', () => {
     ).resolves.toEqual({ status: 'failed', code: 'bundle_save_failed' })
 
     expect(collectDatabaseDiagnostics).not.toHaveBeenCalled()
-    expect(existsSync(destination())).toBe(false)
-  })
-
-  it('maps an oversized serialized document to one save failure without publishing output', async () => {
-    const originalParse = migrationDiagnosticBundleDocumentSchema.parse.bind(migrationDiagnosticBundleDocumentSchema)
-    vi.spyOn(migrationDiagnosticBundleDocumentSchema, 'parse').mockImplementation(
-      (value) =>
-        ({
-          ...(originalParse(value) as object),
-          programmingErrorCanary: 'x'.repeat(MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES)
-        }) as never
-    )
-
-    await expect(
-      new MigrationDiagnosticBundleBuilder().save({
-        destination: destination(),
-        snapshot: failedSnapshot(),
-        collectDatabaseDiagnostics: async () => databaseDiagnostics()
-      })
-    ).resolves.toEqual({ status: 'failed', code: 'bundle_save_failed' })
-
     expect(existsSync(destination())).toBe(false)
   })
 

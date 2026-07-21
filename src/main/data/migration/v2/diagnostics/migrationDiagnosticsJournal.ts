@@ -10,21 +10,6 @@ export type MigrationDiagnosticsJournalReadResult =
   | { kind: 'corrupt'; reason: 'unreadable' | 'oversized' | 'invalid' }
   | { kind: 'ok'; journal: MigrationDiagnosticsSnapshot }
 
-export type MigrationDiagnosticsJournalWritePublication = 'not_published' | 'published'
-
-export class MigrationDiagnosticsJournalWriteError extends Error {
-  override readonly name = 'MigrationDiagnosticsJournalWriteError'
-  readonly code = 'journal_write_failed'
-
-  constructor(readonly publication: MigrationDiagnosticsJournalWritePublication) {
-    super(
-      publication === 'published'
-        ? 'Migration diagnostics journal write failed after publication'
-        : 'Migration diagnostics journal write failed before publication'
-    )
-  }
-}
-
 interface JournalOperationOptions {
   readonly platform?: NodeJS.Platform
 }
@@ -154,7 +139,7 @@ export function writeMigrationDiagnosticsJournal(
 
   const tmpFile = `${journalFile}.tmp`
   let fd: number | undefined
-  let publication: MigrationDiagnosticsJournalWritePublication = 'not_published'
+  let published = false
   try {
     unlinkIfPresent(tmpFile)
     fd = fs.openSync(tmpFile, 'wx', 0o600)
@@ -167,9 +152,9 @@ export function writeMigrationDiagnosticsJournal(
     fs.closeSync(fd)
     fd = undefined
     fs.renameSync(tmpFile, journalFile)
-    publication = 'published'
+    published = true
     fsyncDirectory(path.dirname(journalFile), options.platform)
-  } catch {
+  } catch (error) {
     if (fd !== undefined) {
       try {
         fs.closeSync(fd)
@@ -177,14 +162,14 @@ export function writeMigrationDiagnosticsJournal(
         // Preserve the first failure while still making a best-effort close.
       }
     }
-    if (publication === 'not_published') {
+    if (!published) {
       try {
         unlinkIfPresent(tmpFile)
       } catch {
-        // Preserve a stable write failure even when best-effort tmp cleanup also fails.
+        // Preserve the original write failure when best-effort tmp cleanup also fails.
       }
     }
-    throw new MigrationDiagnosticsJournalWriteError(publication)
+    throw error
   }
 }
 

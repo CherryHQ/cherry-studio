@@ -86,9 +86,8 @@ export function classifyMigrationPrebootFailure(
 }
 
 function normalizeDiagnosticVersion(value: string | null | undefined): string | null {
-  if (!value) return null
-  const normalized = semver.coerce(value)?.version ?? null
-  return normalized !== null && /^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(normalized) ? normalized : null
+  if (!value || value.length > 128) return null
+  return semver.valid(value)
 }
 
 export function createMigrationVersionGateContext(

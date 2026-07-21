@@ -18,13 +18,7 @@ const SQLITE_HEADER = Buffer.from('SQLite format 3\0', 'binary')
 const MAX_HEADER_BYTES = 100
 const DEFAULT_TIMEOUT_MS = 3_000
 
-export interface MigrationDatabaseDiagnosticsChildStderrLike {
-  on(event: 'data', listener: (chunk: unknown) => void): EventEmitter
-  removeListener(event: 'data', listener: (chunk: unknown) => void): EventEmitter
-}
-
 export interface MigrationDatabaseDiagnosticsChildLike {
-  readonly stderr: MigrationDatabaseDiagnosticsChildStderrLike | null
   on(event: 'message', listener: (message: unknown) => void): EventEmitter
   once(event: 'error', listener: (error: Error) => void): EventEmitter
   once(event: 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): EventEmitter
@@ -38,7 +32,7 @@ export interface MigrationDatabaseDiagnosticsChildLike {
 
 export interface MigrationDatabaseDiagnosticsSpawnOptions {
   readonly env: NodeJS.ProcessEnv
-  readonly stdio: ['ignore', 'ignore', 'pipe', 'ipc']
+  readonly stdio: ['ignore', 'ignore', 'ignore', 'ipc']
   readonly windowsHide: true
   readonly shell: false
 }
@@ -167,7 +161,7 @@ export class MigrationDatabaseDiagnostics {
           ELECTRON_RUN_AS_NODE: '1',
           CHERRY_MIGRATION_DATABASE_DIAGNOSTICS_CHILD: '1'
         },
-        stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+        stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
         windowsHide: true,
         shell: false
       })
@@ -180,13 +174,11 @@ export class MigrationDatabaseDiagnostics {
       let received: MigrationDatabaseSqliteResult | undefined
       let killRequested = false
 
-      const handleStderr = (): void => {}
       const cleanup = (): void => {
         clearTimeout(timeout)
         child.removeListener('message', handleMessage)
         child.removeListener('error', handleError)
         child.removeListener('close', handleClose)
-        child.stderr?.removeListener('data', handleStderr)
       }
       const settle = (sqlite: MigrationDatabaseSqliteResult): void => {
         if (settled) return
@@ -233,7 +225,6 @@ export class MigrationDatabaseDiagnostics {
       child.on('message', handleMessage)
       child.once('error', handleError)
       child.once('close', handleClose)
-      child.stderr?.on('data', handleStderr)
       child.unref()
       try {
         child.send(input, (error) => {

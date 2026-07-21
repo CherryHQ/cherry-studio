@@ -135,7 +135,7 @@ describe('FileMigrator id preservation', () => {
     vi.clearAllMocks()
   })
 
-  it('records bounded file-entry lengths when SQLite rejects an oversized batch', async () => {
+  it('classifies an oversized file-entry write without retaining private fields', async () => {
     const canary = `PRIVATE_FILE_NAME_${'x'.repeat(90_000)}`
     const sqliteError = Object.assign(new Error('PRIVATE_STACK_/Users/alice'), { code: 'SQLITE_TOOBIG' })
     const { ctx, insertValues } = createMockContext([makeInternalRow({ name: canary, origin_name: canary })])

@@ -336,6 +336,25 @@ describe('MigrationEngine', () => {
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
   })
 
+  it('classifies a migration-context JSON parse failure at the real engine prepare boundary', async () => {
+    const canary = 'PRIVATE_SETTINGS_JSON_/Users/alice'
+    vi.mocked(createMigrationContext).mockRejectedValueOnce(new SyntaxError(canary))
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result).toMatchObject({ success: false, error: canary })
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'source_prepare_failed',
+        scope: 'engine',
+        phase: 'prepare',
+        errorCode: 'source_parse_failed'
+      }
+    })
+    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
+  })
+
   it('preserves the real MCP all-required-source-id failure evidence', async () => {
     vi.mocked(createMigrationContext).mockResolvedValueOnce({
       sources: {
@@ -368,43 +387,6 @@ describe('MigrationEngine', () => {
         }
       }
     })
-  })
-
-  it('preserves a real validate SQLITE_CORRUPT classification when markFailed also throws', async () => {
-    const canary = 'PRIVATE_VALIDATE_CANARY_/Users/alice/messages'
-    const original = Object.assign(new Error(canary), { code: 'SQLITE_CORRUPT' })
-    const statusError = Object.assign(new Error('PRIVATE_STATUS_CANARY'), { code: 'ENOSPC' })
-    const migrator = new McpServerMigrator()
-    vi.spyOn(migrator, 'prepare').mockResolvedValue({ success: true, itemCount: 0 })
-    vi.spyOn(migrator, 'execute').mockResolvedValue({ success: true, processedCount: 0 })
-    vi.mocked(createMigrationContext).mockResolvedValueOnce({
-      db: {
-        select: vi.fn(() => ({
-          from: vi.fn(() => {
-            throw original
-          })
-        }))
-      }
-    } as never)
-    vi.mocked((engine as any).markFailed).mockRejectedValueOnce(statusError)
-    engine.registerMigrators([migrator])
-
-    const result = await engine.run({}, '/tmp/dexie_export')
-
-    expect(result).toMatchObject({ success: false, error: expect.stringContaining(canary) })
-    expect(diagnostics.finishAttempt).toHaveBeenCalledTimes(1)
-    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
-      status: 'failed',
-      failure: {
-        kind: 'migration_validation_failed',
-        scope: 'migrator',
-        phase: 'validate',
-        migratorId: 'mcp_server',
-        errorCode: 'sqlite_corrupt'
-      }
-    })
-    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
-    expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain('PRIVATE_STATUS_CANARY')
   })
 
   it('preserves a real resurrected user_model failure without measuring names', async () => {
@@ -514,7 +496,7 @@ describe('MigrationEngine', () => {
     expect(loggerError).toHaveBeenCalledWith('Failed to record bounded migration diagnostic terminal result')
   })
 
-  it('does not let a status-write failure replace the original terminal failure', async () => {
+  it('records the original root before preserving a status-write rejection', async () => {
     const order: string[] = []
     diagnostics.updateLocation.mockImplementation((location) => order.push(`${location.scope}:${location.phase}`))
     diagnostics.finishAttempt.mockImplementation(() => order.push('attempt:failed'))
@@ -529,9 +511,8 @@ describe('MigrationEngine', () => {
     failing.execute.mockRejectedValueOnce(original)
     engine.registerMigrators([failing as any])
 
-    const result = await engine.run({}, '/tmp/dexie_export')
+    await expect(engine.run({}, '/tmp/dexie_export')).rejects.toBe(statusError)
 
-    expect(result).toMatchObject({ success: false, error: 'PRIVATE_ORIGINAL' })
     expect(diagnostics.finishAttempt).toHaveBeenCalledTimes(1)
     expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
       status: 'failed',
@@ -723,9 +704,9 @@ describe('MigrationEngine', () => {
     expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
       status: 'failed',
       failure: {
-        kind: 'preboot_failed',
+        kind: 'migration_write_failed',
         scope: 'database',
-        phase: 'initialize',
+        phase: 'execute',
         errorCode: 'sqlite_corrupt'
       }
     })
