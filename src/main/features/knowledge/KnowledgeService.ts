@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
+import { KNOWLEDGE_BASES_MAX_LIMIT, type UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   getKnowledgeItemDisplayTitle,
@@ -24,6 +24,7 @@ import {
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import type { FilePath } from '@shared/types/file'
 import { estimateTokenCount } from 'tokenx'
 
 import { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -465,6 +466,36 @@ export class KnowledgeService extends BaseService {
     await this.workflowService.reindexItems(baseId, rootItemIds)
   }
 
+  /**
+   * Configures an embedding model on a base that has never had one (BM25-only), then
+   * backfills embeddings for its existing items in place — no restore-into-a-new-base
+   * needed, since a BM25-only base has no vectors to invalidate. `knowledgeBaseService.
+   * update` still rejects switching an already-configured model this way; that case
+   * keeps going through `restoreBase` because it does invalidate existing vectors.
+   *
+   * Runs the same admission checks `reindexItems` would run, but before committing the
+   * model — a base whose backfill is doomed (missing source, subtree still running, ...)
+   * must never end up with a model set and no vectors to back it, since there is nothing
+   * to roll back to once it is committed.
+   */
+  async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
+    const rootItemIds = rootItems.map((item) => item.id)
+
+    if (rootItemIds.length > 0) {
+      this.assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
+      await this.assertSubtreesCanReindex(baseId, rootItemIds)
+    }
+
+    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+
+    if (rootItemIds.length > 0) {
+      await this.reindexItems(baseId, rootItemIds)
+    }
+
+    return updatedBase
+  }
+
   listBases(): KnowledgeBase[] {
     const { items } = knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
     return items
@@ -478,6 +509,30 @@ export class KnowledgeService extends BaseService {
 
   listRootItems(baseId: string): KnowledgeItem[] {
     return knowledgeItemService.getRootItemsByBaseId(baseId)
+  }
+
+  getFilePath(itemId: string): FilePath {
+    const item = knowledgeItemService.getById(itemId)
+
+    if (item.type === 'file') {
+      return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
+    }
+
+    if (item.type === 'url') {
+      if (!item.data.relativePath) {
+        throw DataApiErrorFactory.invalidOperation(
+          'getFilePath',
+          `Knowledge URL item '${itemId}' has no captured snapshot to preview`
+        )
+      }
+
+      return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
+    }
+
+    throw DataApiErrorFactory.invalidOperation(
+      'getFilePath',
+      `Knowledge item '${itemId}' must be a file or URL to preview its source`
+    )
   }
 
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })

@@ -1,6 +1,10 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
-import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
+import type {
+  SessionActionContext,
+  SessionExportMenuOptions
+} from '@renderer/components/chat/actions/sessionItemActions'
+import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   ResourceList,
   useResourceListActions,
@@ -8,6 +12,7 @@ import {
 } from '@renderer/components/chat/resourceList/base'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
@@ -17,9 +22,6 @@ import { PinIcon, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import type { SessionActionContext, SessionExportMenuOptions } from './sessionItemActions'
-import { useSessionMenuActions } from './useSessionMenuActions'
 
 const DELETE_CONFIRMATION_TIMEOUT = 2000
 
@@ -74,8 +76,8 @@ const SessionItem = ({
   sessionMenuActions
 }: SessionItemProps) => {
   const { t } = useTranslation()
-  const shellState = useOptionalShellState()
-  const shellActions = useOptionalShellActions()
+  const rightPanelState = useOptionalRightPanelState()
+  const rightPanelActions = useOptionalRightPanelActions()
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
@@ -217,10 +219,10 @@ const SessionItem = ({
         handleOpenInNewTab()
         return
       }
-      if (shellState?.maximized) shellActions?.minimize()
+      if (rightPanelState?.maximized) rightPanelActions?.minimize()
       onPress(session.id)
     },
-    [active, handleOpenInNewTab, onOpenInNewTab, onPress, session.id, shellActions, shellState?.maximized]
+    [active, handleOpenInNewTab, onOpenInNewTab, onPress, rightPanelActions, rightPanelState?.maximized, session.id]
   )
 
   const handleAuxClick = useCallback(

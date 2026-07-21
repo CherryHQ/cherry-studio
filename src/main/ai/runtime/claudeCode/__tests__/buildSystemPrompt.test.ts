@@ -6,15 +6,27 @@
 
 import type * as NodeFs from 'node:fs'
 
+import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFindBySessionId, mockMkdir, mockRealpath, mockGetPath } = vi.hoisted(() => ({
+const {
+  mockFindBySessionId,
+  mockMkdir,
+  mockRealpath,
+  mockGetPath,
+  mockApplicationGet,
+  mockLoadBuiltinAgentDefinition,
+  mockGetAppLanguage
+} = vi.hoisted(() => ({
   mockFindBySessionId: vi.fn(),
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
-  mockGetPath: vi.fn(() => '/tmp/managed-workspaces')
+  mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
+  mockApplicationGet: vi.fn(),
+  mockLoadBuiltinAgentDefinition: vi.fn(),
+  mockGetAppLanguage: vi.fn(() => 'en-US')
 }))
 
 vi.mock('@logger', () => ({
@@ -33,11 +45,11 @@ vi.mock('node:fs', async (importOriginal) => {
 })
 
 vi.mock('@application', () => ({
-  application: { get: vi.fn(), getPath: mockGetPath }
+  application: { get: mockApplicationGet, getPath: mockGetPath }
 }))
 
 vi.mock('@main/i18n', () => ({
-  getAppLanguage: vi.fn(() => 'en-US'),
+  getAppLanguage: mockGetAppLanguage,
   t: vi.fn((key: string) => key)
 }))
 
@@ -49,12 +61,21 @@ vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: mockFindBySessionId, listChannels: vi.fn().mockResolvedValue([]) }
 }))
 
+vi.mock('@data/services/McpServerService', () => ({
+  mcpServerService: { list: vi.fn(() => ({ items: [] })) }
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: { list: vi.fn(() => []) }
+}))
+
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   isProvisioned: vi.fn(() => true),
+  loadBuiltinAgentDefinition: mockLoadBuiltinAgentDefinition,
   provisionBuiltinAgent: vi.fn()
 }))
 
-vi.mock('@main/ai/agents/cherryclaw/prompt', () => ({
+vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT') }))
 }))
 
@@ -62,6 +83,14 @@ const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
 const RUNTIME_MARKER = '## Available Runtimes'
+
+beforeEach(() => {
+  vi.unstubAllGlobals()
+  mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
+  mockFindBySessionId.mockReturnValue(null)
+  mockLoadBuiltinAgentDefinition.mockReset()
+  mockGetAppLanguage.mockReturnValue('en-US')
+})
 
 function makeSession(): AgentSessionEntity {
   return { id: 'sess-1', agentId: 'agent-1' } as unknown as AgentSessionEntity
@@ -73,21 +102,23 @@ function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
 
 describe('buildSystemPrompt — report_artifacts prompt', () => {
   beforeEach(() => {
-    mockFindBySessionId.mockResolvedValue(null)
+    mockFindBySessionId.mockReturnValue(null)
   })
 
-  it('appends the report_artifacts prompt in standard mode with user instructions', async () => {
+  it('appends the report_artifacts prompt with user instructions (raw-string path)', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-    expect(result).toMatchObject({ type: 'preset', preset: 'claude_code' })
-    const append = (result as { append: string }).append
-    expect(append).toContain('Do the task.')
-    expect(append).toContain(ARTIFACTS_MARKER)
+    // Every agent returns a raw string (not a `{ type: 'preset', append }` object) that carries the
+    // soul prompt + user instructions + the artifacts block.
+    expect(typeof result).toBe('string')
+    expect(result as string).toContain('SOUL_PROMPT')
+    expect(result as string).toContain('Do the task.')
+    expect(result as string).toContain(ARTIFACTS_MARKER)
   })
 
-  it('appends the report_artifacts prompt in standard mode without user instructions', async () => {
+  it('appends the report_artifacts prompt without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-    const append = (result as { append: string }).append
-    expect(append).toContain(ARTIFACTS_MARKER)
+    expect(typeof result).toBe('string')
+    expect(result as string).toContain(ARTIFACTS_MARKER)
   })
 
   it('does not append it for the Cherry Assistant (parity with feat/chat-page)', async () => {
@@ -98,42 +129,23 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(JSON.stringify(result)).not.toContain(ARTIFACTS_MARKER)
   })
-
-  it('appends the report_artifacts prompt in soul mode (raw-string path)', async () => {
-    const agent = makeAgent({ instructions: 'Soul task.', configuration: { soul_enabled: true } as never })
-    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-    // Soul mode returns a raw string (not the standard `{ type: 'preset', append }` object), so it's a
-    // distinct path that must still carry the soul prompt + user instructions + the artifacts block.
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('SOUL_PROMPT')
-    expect(result as string).toContain('Soul task.')
-    expect(result as string).toContain(ARTIFACTS_MARKER)
-  })
 })
 
 describe('buildSystemPrompt — bundled-runtime guidance', () => {
   beforeEach(() => {
-    mockFindBySessionId.mockResolvedValue(null)
+    mockFindBySessionId.mockReturnValue(null)
   })
 
-  it('steers the agent to bun/uv in standard mode with user instructions', async () => {
+  it('steers the agent to bun/uv with user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-    const append = (result as { append: string }).append
-    expect(append).toContain(RUNTIME_MARKER)
+    expect(result as string).toContain(RUNTIME_MARKER)
     // The model is told to use bun / uv explicitly, not node/npm/pip.
-    expect(append).toContain('bun')
-    expect(append).toContain('uv run python')
+    expect(result as string).toContain('bun')
+    expect(result as string).toContain('uv run python')
   })
 
-  it('steers the agent to bun/uv in standard mode without user instructions', async () => {
+  it('steers the agent to bun/uv without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-    const append = (result as { append: string }).append
-    expect(append).toContain(RUNTIME_MARKER)
-  })
-
-  it('steers the agent to bun/uv in soul mode', async () => {
-    const agent = makeAgent({ instructions: 'Soul task.', configuration: { soul_enabled: true } as never })
-    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(result as string).toContain(RUNTIME_MARKER)
   })
 
@@ -144,5 +156,94 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
     })
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(JSON.stringify(result)).not.toContain(RUNTIME_MARKER)
+  })
+})
+
+describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
+  beforeEach(() => {
+    mockFindBySessionId.mockReturnValue(null)
+  })
+
+  it('uses the bundled template when DB instructions are empty and resolves it on every build', async () => {
+    mockLoadBuiltinAgentDefinition
+      .mockReturnValueOnce({ instructions: 'English bundled instructions' })
+      .mockReturnValueOnce({ instructions: '中文内置指令' })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+
+    const en = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+    const zh = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(en as string).toContain('English bundled instructions')
+    expect(zh as string).toContain('中文内置指令')
+    expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports the resolved application language in the assistant context', async () => {
+    mockGetAppLanguage.mockReturnValue('zh-CN')
+    mockLoadBuiltinAgentDefinition.mockReturnValue({ instructions: 'Bundled instructions' })
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(result as string).toContain('- Language: zh-CN, Theme: undefined')
+  })
+
+  it('does not make network requests while building an assistant prompt', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('uses user-owned DB instructions when non-empty', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue({ instructions: 'Bundled instructions' })
+    const agent = makeAgent({
+      instructions: 'User instructions',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(result as string).toContain('User instructions')
+    expect(result as string).not.toContain('Bundled instructions')
+    expect(mockLoadBuiltinAgentDefinition).not.toHaveBeenCalled()
+  })
+
+  it('uses a minimal role fallback when the bundled template is missing and DB instructions are empty', async () => {
+    mockLoadBuiltinAgentDefinition.mockReturnValue(undefined)
+    const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'assistant' } as never })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(result as string).toContain('You are Cherry Assistant, the built-in helper for Cherry Studio')
+  })
+
+  it('applies the external channel security policy for linked assistant sessions', async () => {
+    mockFindBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'sess-1' })
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(result as string).toContain(CHANNEL_SECURITY_PROMPT)
+  })
+
+  it('does not apply the external channel security policy for unlinked assistant sessions', async () => {
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+
+    expect(result as string).not.toContain(CHANNEL_SECURITY_PROMPT)
   })
 })

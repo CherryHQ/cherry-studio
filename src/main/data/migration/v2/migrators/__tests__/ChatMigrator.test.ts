@@ -14,6 +14,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
+import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 
@@ -116,6 +117,43 @@ describe('ChatMigrator.prepareTopicData', () => {
     const msgMap = toMsgMap(result?.messages ?? [])
     expect(msgMap.get('u1')?.parentId).toBeNull()
     expect(msgMap.get('a1')?.parentId).toBe('u1')
+  })
+
+  it('snapshots the resolved assistant onto assistant-role messages, leaving user rows null', async () => {
+    // Exercises the full lookup wiring (topic→assistant, legacy remap, validAssistantIds,
+    // assistantLookup) that the other prepareTopicData tests leave empty, so a regression in
+    // any of them that dropped the v1 assistant snapshot would be caught here.
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    m['blockLookup'] = new Map([b1, b2].map((b) => [b.id, b]))
+    m['assistantLookup'] = new Map([['ast-1', { id: 'ast-1', name: 'My Assistant', emoji: '🎯', type: 'assistant' }]])
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['legacyAssistantIdRemap'] = new Map()
+    m['validAssistantIds'] = new Set(['ast-1'])
+    m['skippedMessages'] = 0
+    m['seenMessageIds'] = new Set()
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const model = { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
+    const messages = [msg('u1', 'user', ['b1'], { model }), msg('a1', 'assistant', ['b2'], { model })]
+
+    const fn = m['prepareTopicData'] as (t: OldTopic, deps?: undefined) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, topic('t1', messages), undefined)
+
+    expect(result).not.toBeNull()
+    const msgMap = toMsgMap(result?.messages ?? [])
+    // Assistant row: frozen author identity with the model nested inside.
+    expect(msgMap.get('a1')?.messageSnapshot).toEqual({
+      id: 'ast-1',
+      name: 'My Assistant',
+      emoji: '🎯',
+      model: { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
+    })
+    // User row: never snapshotted, even though the source message carried a model.
+    expect(msgMap.get('u1')?.messageSnapshot).toBeNull()
   })
 
   it('resolves parentId through first-pass skipped messages (no blocks)', async () => {
@@ -513,6 +551,9 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
       sharedData: new Map([['legacyAssistantIdRemap', new Map([['default', remappedDefaultId]])]])
     }
     await migrator.prepare(ctx as any)
+    expect(ctx.sources.dexieExport.readTable).not.toHaveBeenCalled()
+    expect(ctx.sources.dexieExport.createStreamReader).toHaveBeenCalledWith('topics')
+    expect(ctx.sources.dexieExport.createStreamReader).not.toHaveBeenCalledWith('message_blocks')
 
     const internal = migrator as unknown as {
       topicMetaLookup: Map<string, { name?: string; pinned?: boolean }>
@@ -526,6 +567,52 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     // defaultAssistant's topic resolves through the remap, not the dead 'default' literal.
     expect(internal.topicAssistantLookup.get('topic-X')).toBe(remappedDefaultId)
     expect(internal.topicAssistantLookup.get('topic-A')).toBe('ast-1')
+  })
+})
+
+describe('ChatMigrator message block index', () => {
+  const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('resolves blocks from the temporary SQLite index without loading the full table into memory', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'u1')
+    const readInBatches = vi.fn(async (_batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
+      await onBatch([b2, b1])
+      return 2
+    })
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blocksExist'] = true
+    m['assistantLookup'] = new Map()
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const ctx = {
+      db: dbh.db,
+      sources: {
+        dexieExport: {
+          createStreamReader: vi.fn().mockReturnValue({ readInBatches })
+        }
+      }
+    } as unknown as MigrationContext
+
+    const prepareBlockIndex = m['prepareBlockIndex'] as (ctx: MigrationContext) => Promise<void>
+    await prepareBlockIndex.call(migrator, ctx)
+
+    const prepareTopicData = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await prepareTopicData.call(migrator, topic('t1', [msg('u1', 'user', ['b1', 'b2'])]))
+
+    expect(result).not.toBeNull()
+    expect(result?.messages).toHaveLength(1)
+    expect(result?.messages[0]?.searchableText).toContain('Content of b1')
+    expect(result?.messages[0]?.searchableText).toContain('Content of b2')
+    expect(readInBatches).toHaveBeenCalledWith(1000, expect.any(Function))
   })
 })
 
@@ -674,8 +761,8 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
 
   /**
    * Build a minimal NewTopic for staging directly into stagedTopics. The
-   * migrator's insert path only reads {id, name, assistantId, groupId,
-   * orderKey, createdAt, updatedAt} so the activeNodeId/isNameManuallyEdited
+   * migrator's insert path only reads {id, name, assistantId, orderKey,
+   * createdAt, updatedAt} so the activeNodeId/isNameManuallyEdited
    * defaults are fine.
    */
   function newTopic(id: string, updatedAt: number): NewTopic {
@@ -685,7 +772,6 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
       isNameManuallyEdited: false,
       assistantId: null,
       activeNodeId: null,
-      groupId: null,
       orderKey: '', // Stamped by phase 1 of insertStagedTopics
       createdAt: updatedAt,
       updatedAt
@@ -705,7 +791,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     return { db: dbh.db } as unknown as MigrationContext
   }
 
-  it('emits one pin row per pinned topic ordered by topic.updatedAt DESC', async () => {
+  it('stamps one global topic order and emits pinned topics by updatedAt DESC', async () => {
     const migrator = new ChatMigrator()
     stage(migrator, [
       { topic: newTopic('t-old-pin', 100), messages: [], pinned: true },
@@ -719,6 +805,13 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     const result = await fn.call(migrator, ctxOf())
 
     expect(result.pinsInserted).toBe(2)
+
+    const topics = await dbh.db
+      .select({ id: topicTable.id, orderKey: topicTable.orderKey })
+      .from(topicTable)
+      .orderBy(asc(topicTable.orderKey))
+    expect(topics.map((topic) => topic.id)).toEqual(['t-new-pin', 't-mid', 't-old-pin'])
+    expect(new Set(topics.map((topic) => topic.orderKey)).size).toBe(topics.length)
 
     const pins = await dbh.db
       .select({ entityId: pinTable.entityId, orderKey: pinTable.orderKey })
@@ -792,7 +885,7 @@ describe('ChatMigrator model reference sanitization', () => {
         status: 'success',
         siblingsGroupId: 0,
         modelId: 'cherryai::qwen',
-        modelSnapshot: null,
+        messageSnapshot: null,
         stats: null,
         createdAt: 1,
         updatedAt: 1
@@ -833,7 +926,6 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       isNameManuallyEdited: false,
       assistantId: null,
       activeNodeId: null,
-      groupId: null,
       orderKey: '',
       createdAt: updatedAt,
       updatedAt
@@ -868,7 +960,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       status: 'success',
       siblingsGroupId: 0,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       stats: null,
       createdAt: 1,
       updatedAt: 1

@@ -41,7 +41,7 @@ export type ComposerUnifiedPanelResourceProvider = (
 
 export interface ComposerUnifiedPanelControl {
   available: boolean
-  open: () => void
+  open: (options?: { launcherId?: string; searchText?: string }) => void
 }
 
 export type ComposerUnifiedPanelSelectHandler = (
@@ -256,6 +256,7 @@ function createUnifiedPanelListItem(
   const children = getUnifiedChildren(launcher, nextAncestorLauncherIds)
 
   return {
+    id: launcher.id,
     label: launcher.label,
     description: getLauncherDescription(launcher),
     icon: launcher.icon,
@@ -411,6 +412,7 @@ export function createUnifiedQuickPanelOpenOptions(
     resourceItems?: readonly QuickPanelListItem[]
     queryAnchor?: number
     triggerInfo?: QuickPanelTriggerInfo
+    initialSearchText?: string
   }
 ): QuickPanelOpenOptions {
   const getRootPanelOptions = () =>
@@ -445,12 +447,19 @@ export function createUnifiedQuickPanelOpenOptions(
       getRootPanelOptions
     }
   )
+  // Bottom-pinned chrome (e.g. the "customize toolbar" action) belongs to the bare root panel. When
+  // the panel is opened as a category view — seeded with a search text by a toolbar shortcut — those
+  // fixedToBottom items would bypass the category filter and still render, so drop them here.
+  const isCategoryView = (options.initialSearchText ?? '').length > 0
+  const additionalItems = isCategoryView
+    ? options.additionalItems?.filter((item) => !item.fixedToBottom)
+    : options.additionalItems
   const nextSortOrder = { value: 0 }
   const list = [
     ...tagUnifiedPanelSectionItems(options.leadingItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(commandItems, 'commands', nextSortOrder),
-    ...tagUnifiedPanelSectionItems(options.additionalItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(additionalItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(trailingCommandItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(options.resourceItems, 'resources', nextSortOrder)
   ]
@@ -462,6 +471,7 @@ export function createUnifiedQuickPanelOpenOptions(
     queryAnchor: options.queryAnchor,
     triggerInfo: options.triggerInfo ?? { type: 'button' },
     trackInputQuery: true,
+    initialSearchText: options.initialSearchText,
     filterFn: filterUnifiedQuickPanelItems,
     sortFn: sortUnifiedQuickPanelItems
   }

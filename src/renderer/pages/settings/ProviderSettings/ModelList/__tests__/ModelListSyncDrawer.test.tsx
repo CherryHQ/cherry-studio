@@ -1,8 +1,9 @@
 import type * as ModelModule from '@renderer/utils/model'
+import type { Model } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ModelSyncPreviewResponse } from '../../types/modelSyncPreviewTypes'
 import ModelListSyncDrawer from '../ModelListSyncDrawer'
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -11,12 +12,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string, options?: Record<string, unknown>) => {
-        if (options && 'selected' in options && 'total' in options) {
-          return `${key}:${options.selected}/${options.total}`
-        }
-        return key
-      }
+      t: (key: string) => key
     })
   }
 })
@@ -26,30 +22,41 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
-    Alert: ({ message }: any) => <div>{message}</div>,
-    Button: ({ children, ...props }: any) => {
-      Reflect.deleteProperty(props, 'loading')
+    Button: ({ children, loading, ...props }: any) => {
+      Reflect.deleteProperty(props, 'asChild')
       return (
-        <button type="button" {...props}>
+        <button type="button" data-loading={loading ? 'true' : 'false'} {...props}>
           {children}
         </button>
       )
     },
-    Checkbox: ({ checked, disabled, onCheckedChange }: any) => (
-      <input
-        aria-label="model-selection"
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={() => onCheckedChange(!checked)}
-      />
-    )
+    Tooltip: ({ children, content }: any) => <span data-tooltip-content={content}>{children}</span>,
+    Spinner: () => <div data-testid="spinner" />,
+    EmptyState: ({ title }: any) => <div>{title}</div>
   }
 })
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () => ({
+    Avatar: ({ size, shape }: { size: number; shape: string }) => (
+      <span data-testid="model-icon" data-size={size} data-shape={shape} />
+    )
+  })
+}))
+
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelModule>()),
-  getModelLogo: () => null
+  getModelLogoRef: () => undefined
+}))
+
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: ({ list, children, className, getItemKey }: any) => (
+    <div className={className}>
+      {list.map((item: unknown, index: number) => (
+        <div key={getItemKey?.(index) ?? index}>{children(item, index)}</div>
+      ))}
+    </div>
+  )
 }))
 
 vi.mock('../../components/ModelTagsWithLabel', () => ({
@@ -57,10 +64,13 @@ vi.mock('../../components/ModelTagsWithLabel', () => ({
 }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
-  default: ({ open, title, children, footer, bodyClassName, contentClassName }: any) =>
+  default: ({ open, title, titleActions, children, footer, bodyClassName, contentClassName }: any) =>
     open ? (
       <div data-testid="drawer-content" className={contentClassName}>
-        <h1>{title}</h1>
+        <header>
+          <h1>{title}</h1>
+          {titleActions}
+        </header>
         <div data-testid="drawer-body" className={bodyClassName}>
           {children}
         </div>
@@ -69,54 +79,80 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
     ) : null
 }))
 
-const preview: ModelSyncPreviewResponse = {
-  added: [
-    {
-      id: 'openai::gpt-5',
-      providerId: 'openai',
-      apiModelId: 'gpt-5',
-      name: 'GPT 5',
-      capabilities: [],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    },
-    {
-      id: 'openai::claude-sonnet',
-      providerId: 'openai',
-      apiModelId: 'claude-sonnet',
-      name: 'Claude Sonnet',
-      capabilities: [],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    },
-    {
-      id: 'openai::mistral-large',
-      providerId: 'openai',
-      apiModelId: 'mistral-large',
-      name: 'Mistral Large',
-      capabilities: [],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    }
-  ],
-  missing: [
-    {
-      model: {
-        id: 'openai::legacy-model',
-        providerId: 'openai',
-        apiModelId: 'legacy-model',
-        name: 'Legacy Model',
-        capabilities: [],
-        supportsStreaming: true,
-        isEnabled: true,
-        isHidden: false
-      },
-      removalReason: 'missing_from_provider'
-    }
-  ]
+const allModels: Model[] = [
+  {
+    id: 'openai::gpt-5',
+    providerId: 'openai',
+    apiModelId: 'gpt-5',
+    name: 'GPT 5',
+    description: 'GPT 5 model description',
+    group: 'OpenAI',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  },
+  {
+    id: 'openai::claude-sonnet',
+    providerId: 'openai',
+    apiModelId: 'claude-sonnet',
+    name: 'Claude Sonnet',
+    group: 'Anthropic',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  },
+  {
+    id: 'openai::legacy-model',
+    providerId: 'openai',
+    apiModelId: 'legacy-model',
+    presetModelId: 'legacy-model',
+    name: 'Legacy Model',
+    group: 'OpenAI',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  },
+  {
+    id: 'openai::custom-model',
+    providerId: 'openai',
+    apiModelId: 'custom-model',
+    presetModelId: null,
+    name: 'Custom Model',
+    group: undefined,
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  }
+] as Model[]
+
+const localModels = [allModels[2]]
+
+function renderDrawer(props: Partial<React.ComponentProps<typeof ModelListSyncDrawer>> = {}) {
+  return render(
+    <ModelListSyncDrawer
+      open
+      provider={{ id: 'openai', name: 'OpenAI' } as any}
+      allModels={[...allModels]}
+      localModels={[...localModels]}
+      removableModelIds={['openai::legacy-model']}
+      defaultModelIds={[]}
+      isLoading={false}
+      isApplying={false}
+      loadErrorMessage={null}
+      staleModelCount={0}
+      staleModelIds={[]}
+      onRetryLoadModels={vi.fn()}
+      onAddModels={vi.fn()}
+      onRemoveModels={vi.fn()}
+      onCleanStaleModels={vi.fn()}
+      onClose={vi.fn()}
+      {...props}
+    />
+  )
 }
 
 describe('ModelListSyncDrawer', () => {
@@ -124,156 +160,250 @@ describe('ModelListSyncDrawer', () => {
     vi.clearAllMocks()
   })
 
-  it('renders fetched model rows by model id only', () => {
-    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />)
+  it('renders the provider model management drawer', () => {
+    renderDrawer()
 
-    expect(screen.getByText('gpt-5')).toHaveClass('text-sm')
-    expect(screen.getByText('legacy-model')).toHaveClass('text-sm', 'line-through')
-    expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
-    expect(screen.queryByText('Claude Sonnet')).not.toBeInTheDocument()
-    expect(screen.queryByText('Mistral Large')).not.toBeInTheDocument()
-    expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
-  })
-
-  it('renders pull-result search and filters visible model rows', () => {
-    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />)
-
-    const searchInput = screen.getByPlaceholderText('models.search.placeholder')
-    expect(searchInput).toBeInTheDocument()
-    expect(screen.getByTestId('drawer-content')).toHaveClass('w-[min(calc(100vw-24px),520px)]')
-    expect(screen.getByTestId('drawer-body')).toHaveClass('pt-0')
+    expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
+    expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
+    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-size') === '26')).toBe(true)
+    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-shape') === 'circle')).toBe(true)
+    expect(screen.getAllByTestId('model-icon')[0].parentElement).toHaveClass(
+      'size-6.5',
+      'overflow-hidden',
+      'rounded-full',
+      'border',
+      'border-border'
+    )
     expect(screen.getByText('gpt-5')).toBeInTheDocument()
     expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
-    expect(screen.getByText('mistral-large')).toBeInTheDocument()
     expect(screen.getByText('legacy-model')).toBeInTheDocument()
+  })
 
-    fireEvent.change(searchInput, { target: { value: 'claude' } })
+  it('renders a fallback group for models without explicit groups', () => {
+    renderDrawer()
+
+    expect(screen.getByText('custom')).toBeInTheDocument()
+    expect(screen.queryByText('assistants.tags.untagged')).not.toBeInTheDocument()
+    expect(screen.queryByText('__ungrouped__')).not.toBeInTheDocument()
+  })
+
+  it('filters model rows by search text', () => {
+    renderDrawer()
+
+    fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
+      target: { value: 'claude' }
+    })
 
     expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
     expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
-    expect(screen.queryByText('mistral-large')).not.toBeInTheDocument()
     expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
   })
 
-  it('clears pull-result search and restores rows', () => {
-    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />)
+  it('shows search matches inside collapsed groups and restores the collapsed state after search', () => {
+    renderDrawer()
 
-    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'legacy-model' } })
+    fireEvent.click(screen.getByText('legacy').closest('button')!)
+    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
+      target: { value: 'legacy' }
+    })
     expect(screen.getByText('legacy-model')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
+    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+  })
+
+  it('clears model search', () => {
+    renderDrawer()
+
+    fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
+      target: { value: 'legacy' }
+    })
     expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
 
-    expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('')
+    expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).toHaveValue('')
     expect(screen.getByText('gpt-5')).toBeInTheDocument()
-    expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
-    expect(screen.getByText('mistral-large')).toBeInTheDocument()
   })
 
-  it('selects only visible added rows while preserving hidden selections', async () => {
-    const onApply = vi.fn()
-    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={onApply} onClose={vi.fn()} />)
+  it('adds all filtered models that are not already local', () => {
+    const onAddModels = vi.fn()
+    renderDrawer({ onAddModels })
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.add_listed.label' }))
+
+    expect(onAddModels).toHaveBeenCalledWith([allModels[0], allModels[1], allModels[3]])
+  })
+
+  it('removes all filtered models when every filtered model is local', () => {
+    const onRemoveModels = vi.fn()
+    renderDrawer({ localModels: [allModels[2]], onRemoveModels })
+
+    fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
+      target: { value: 'legacy' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' }))
+
+    expect(onRemoveModels).toHaveBeenCalledWith(['openai::legacy-model'])
+  })
+
+  it('removes locally added remote models even when the remote row has no preset model id', () => {
+    const onRemoveModels = vi.fn()
+    renderDrawer({
+      allModels: [allModels[0]],
+      localModels: [allModels[0]],
+      removableModelIds: ['openai::gpt-5'],
+      onRemoveModels
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' }))
+
+    expect(onRemoveModels).toHaveBeenCalledWith(['openai::gpt-5'])
+  })
+
+  it('does not bulk-remove custom local models', () => {
+    const onRemoveModels = vi.fn()
+    renderDrawer({
+      allModels: [allModels[2], allModels[3]],
+      localModels: [allModels[2], allModels[3]],
+      onRemoveModels
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_listed' }))
+
+    expect(onRemoveModels).toHaveBeenCalledWith(['openai::legacy-model'])
+  })
+
+  it('disables bulk remove when only custom local models are listed', () => {
+    const onRemoveModels = vi.fn()
+    renderDrawer({
+      allModels: [allModels[3]],
+      localModels: [allModels[3]],
+      onRemoveModels
+    })
+
+    const bulkRemoveButton = screen.getByRole('button', { name: 'settings.models.manage.remove_listed' })
+    expect(bulkRemoveButton).toBeDisabled()
+
+    fireEvent.click(bulkRemoveButton)
+
+    expect(onRemoveModels).not.toHaveBeenCalled()
+  })
+
+  it('disables individual removal for a local model that is not removable', () => {
+    const onRemoveModels = vi.fn()
+    renderDrawer({
+      allModels: [allModels[2]],
+      localModels: [allModels[2]],
+      removableModelIds: [],
+      onRemoveModels
+    })
+
+    const removeButton = screen.getByRole('button', { name: 'settings.models.manage.remove_model' })
+    expect(removeButton).toBeDisabled()
+
+    fireEvent.click(removeButton)
+
+    expect(onRemoveModels).not.toHaveBeenCalled()
+  })
+
+  it('explains why a default model cannot be removed', () => {
+    renderDrawer({
+      allModels: [allModels[2]],
+      localModels: [allModels[2]],
+      removableModelIds: [],
+      defaultModelIds: [allModels[2].id]
+    })
+
+    const removeButton = screen.getByRole('button', { name: 'settings.models.manage.remove_model' })
+    expect(removeButton).toBeDisabled()
+    expect(removeButton.parentElement).toHaveAttribute(
+      'data-tooltip-content',
+      'settings.models.manage.default_model_cannot_remove'
+    )
+  })
+
+  it('cleans stale models from the title action', () => {
+    const onCleanStaleModels = vi.fn()
+    renderDrawer({ staleModelCount: 1, onCleanStaleModels })
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.clean_stale_models' }))
+
+    expect(onCleanStaleModels).toHaveBeenCalled()
+  })
+
+  it('hides stale cleanup action when there are no stale models', () => {
+    renderDrawer({ staleModelCount: 0 })
+
+    expect(screen.queryByRole('button', { name: 'settings.models.manage.clean_stale_models' })).not.toBeInTheDocument()
+  })
+
+  it('marks stale models in the list', () => {
+    renderDrawer({ staleModelIds: ['openai::legacy-model'] })
+
+    expect(screen.getByText('settings.models.manage.stale_badge')).toBeInTheDocument()
+  })
+
+  it('moves model descriptions into tooltip triggers', () => {
+    renderDrawer()
+
+    expect(screen.queryByText('GPT 5 model description')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('GPT 5 model description')).toBeInTheDocument()
+  })
+
+  it('shows load errors in the drawer with a refresh action', () => {
+    const onRetryLoadModels = vi.fn()
+    renderDrawer({
+      loadErrorMessage: 'settings.models.manage.sync_pull_failed',
+      onRetryLoadModels
+    })
+
+    expect(screen.queryByText('settings.models.manage.sync_pull_failed')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).toBeInTheDocument()
+    expect(screen.getByText('gpt-5')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.sync_pull_failed' }))
+
+    expect(onRetryLoadModels).toHaveBeenCalled()
+  })
+
+  it('keeps bulk actions available when a reload fails but local content is visible', () => {
+    renderDrawer({
+      loadErrorMessage: 'settings.models.manage.sync_pull_failed'
+    })
+
+    expect(screen.getByRole('button', { name: 'settings.models.manage.add_listed.label' })).not.toBeDisabled()
+  })
+
+  it('filters stale models from the filter tabs', async () => {
+    const user = userEvent.setup()
+    renderDrawer({ staleModelCount: 1, staleModelIds: ['openai::legacy-model'] })
+
+    await user.click(screen.getByRole('tab', { name: 'settings.models.manage.stale_filter' }))
 
     await waitFor(() => {
-      expect(screen.getByText('settings.models.manage.fetch_summary_add:3/3')).toBeInTheDocument()
+      expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
     })
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.fetch_deselect_all_add' }))
-    expect(screen.getByText('settings.models.manage.fetch_summary_add:0/3')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('gpt-5'))
-    expect(screen.getByText('settings.models.manage.fetch_summary_add:1/3')).toBeInTheDocument()
-
-    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'claude' } })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.fetch_select_all_add' }))
-    expect(screen.getByText('settings.models.manage.fetch_summary_add:2/3')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.sync_apply_changes' }))
-
-    expect(onApply).toHaveBeenCalledWith({
-      toAdd: [preview.added[0], preview.added[1]],
-      toRemove: ['openai::legacy-model']
-    })
+    expect(screen.getByText('legacy-model')).toBeInTheDocument()
+    expect(screen.queryByText('claude-sonnet')).not.toBeInTheDocument()
   })
 
-  it('deselects only visible added rows while preserving hidden selections', async () => {
-    const onApply = vi.fn()
-    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={onApply} onClose={vi.fn()} />)
+  it('keeps search available and disables bulk action while applying', () => {
+    renderDrawer({ isApplying: true })
 
-    await waitFor(() => {
-      expect(screen.getByText('settings.models.manage.fetch_summary_add:3/3')).toBeInTheDocument()
-    })
-
-    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'claude' } })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.fetch_deselect_all_add' }))
-    expect(screen.getByText('settings.models.manage.fetch_summary_add:2/3')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.sync_apply_changes' }))
-
-    expect(onApply).toHaveBeenCalledWith({
-      toAdd: [preview.added[0], preview.added[2]],
-      toRemove: ['openai::legacy-model']
-    })
+    expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.models.manage.add_listed.label' })).toBeDisabled()
   })
 
-  it('shows no-results copy instead of the up-to-date empty state for unmatched search', () => {
-    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />)
+  it('shows no-results copy for unmatched search', () => {
+    renderDrawer()
 
-    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'no-match' } })
+    fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
+      target: { value: 'no-match' }
+    })
 
     expect(screen.getByText('common.no_results')).toBeInTheDocument()
-    expect(screen.queryByText('settings.models.manage.fetch_up_to_date')).not.toBeInTheDocument()
-  })
-
-  it('disables search while applying', () => {
-    render(<ModelListSyncDrawer open preview={preview} isApplying onApply={vi.fn()} onClose={vi.fn()} />)
-
-    expect(screen.getByPlaceholderText('models.search.placeholder')).toBeDisabled()
-  })
-
-  it('resets search when the drawer closes or receives a new preview', () => {
-    const { rerender } = render(
-      <ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />
-    )
-
-    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'claude' } })
-    expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('claude')
-
-    rerender(
-      <ModelListSyncDrawer open={false} preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />
-    )
-    rerender(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />)
-    expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('')
-
-    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'legacy' } })
-    expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('legacy')
-
-    rerender(
-      <ModelListSyncDrawer
-        open
-        preview={{ ...preview, added: [preview.added[0]], missing: preview.missing }}
-        isApplying={false}
-        onApply={vi.fn()}
-        onClose={vi.fn()}
-      />
-    )
-    expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('')
-  })
-
-  it('keeps hidden selections in the apply payload while filtering visible rows', async () => {
-    const onApply = vi.fn()
-    render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={onApply} onClose={vi.fn()} />)
-
-    await waitFor(() => {
-      expect(screen.getByText('settings.models.manage.fetch_summary_add:3/3')).toBeInTheDocument()
-    })
-
-    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'claude' } })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.sync_apply_changes' }))
-
-    expect(onApply).toHaveBeenCalledWith({
-      toAdd: preview.added,
-      toRemove: ['openai::legacy-model']
-    })
   })
 })

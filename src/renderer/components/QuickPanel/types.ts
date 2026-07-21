@@ -82,6 +82,8 @@ export type QuickPanelOpenOptions = {
   queryAnchor?: number
   /** Whether this panel tracks and consumes an input trigger query such as `/foo` or `@file`. */
   trackInputQuery?: boolean
+  /** Initial tracked search text for panels opened from buttons without inserting query text into the input. */
+  initialSearchText?: string
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
   onClose?: (options: QuickPanelCallBackOptions) => void
@@ -122,6 +124,12 @@ export type QuickPanelListItem = {
    * when there are no matches.
    */
   alwaysVisible?: boolean
+  /**
+   * Keeps an action outside the virtualized result list and anchored at the
+   * bottom of the panel, immediately above the footer. Fixed items stay visible
+   * while filtering and remain part of keyboard navigation after regular rows.
+   */
+  fixedToBottom?: boolean
   action?: (options: QuickPanelCallBackOptions) => void
 }
 
@@ -142,6 +150,7 @@ export interface QuickPanelContextType {
   readonly triggerInfo?: QuickPanelTriggerInfo
   readonly queryAnchor?: number
   readonly trackInputQuery?: boolean
+  readonly initialSearchText?: string
   readonly parentPanel?: QuickPanelOpenOptions
   readonly manageListExternally?: boolean
   readonly lastCloseAction?: QuickPanelCloseAction

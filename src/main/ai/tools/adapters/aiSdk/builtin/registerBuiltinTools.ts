@@ -15,6 +15,7 @@ import { createKbListToolEntry } from './KnowledgeListTool'
 import { createKbManageToolEntry } from './KnowledgeManageTool'
 import { createKbReadToolEntry } from './KnowledgeReadTool'
 import { createKbSearchToolEntry } from './KnowledgeSearchTool'
+import { createGenerateImageToolEntry } from './PaintingTool'
 import { createReadFileToolEntry } from './ReadFileTool'
 import { createWebFetchToolEntry } from './WebFetchTool'
 import { createWebSearchToolEntry } from './WebSearchTool'
@@ -30,6 +31,7 @@ export function registerBuiltinTools(reg: ToolRegistry = registry): void {
   reg.register(createKbReadToolEntry())
   reg.register(createKbManageToolEntry())
   reg.register(createReadFileToolEntry())
+  reg.register(createGenerateImageToolEntry())
   reg.register(createWebFetchToolEntry())
   reg.register(createWebSearchToolEntry())
 }

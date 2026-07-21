@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9b1a03f0-31b7-4a5a-873b-2c461bc5feb9",
+  "id": "2db09e8e-7808-4ecb-a6e2-8e57c0340882",
   "prevId": "056f15b4-1256-4d30-85f9-c1ad2f1b23c6",
   "tables": {
     "agent": {
@@ -557,6 +557,11 @@
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
+          "isUnique": false
+        },
+        "agent_session_updated_at_idx": {
+          "name": "agent_session_updated_at_idx",
+          "columns": ["updated_at"],
           "isUnique": false
         }
       },
@@ -2542,13 +2547,6 @@
         },
         "stats": {
           "name": "stats",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "compaction_summary": {
-          "name": "compaction_summary",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

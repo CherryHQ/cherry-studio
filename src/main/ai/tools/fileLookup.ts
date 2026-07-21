@@ -86,12 +86,13 @@ export async function readFile(
 
   try {
     const { ext } = await application.get('FileManager').getById(entryId)
-    const fileType = getFileTypeByExt(ext?.toLowerCase() ?? '')
+    const bareExt = ext?.toLowerCase() ?? ''
+    const fileType = getFileTypeByExt(bareExt)
 
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
       return textResult(`Cannot read ${fileType} file "${entry.handle}" as text.`)
     }
-    if (fileType === FILE_TYPE.OTHER) {
+    if (fileType === FILE_TYPE.OTHER && bareExt) {
       // Binary / unsupported — don't auto-decode it into mojibake.
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
     }
@@ -101,8 +102,11 @@ export async function readFile(
         ? await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
         : await extractDocumentText(entryId, { signal })
 
+    if (text === null) {
+      return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
+    }
     if (!text.trim()) return textResult(noExtractableTextNote(entry.handle))
-    return paginate(text, input.offset, input.limit)
+    return paginate(text, input.offset ?? undefined, input.limit ?? undefined)
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
     // Log the detail; return a sanitized, filename-level message (no entry ids / paths).

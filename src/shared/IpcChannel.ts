@@ -1,90 +1,32 @@
+/**
+ * Central registry of legacy Electron IPC channel names. Command IPC has largely moved to
+ * IpcApi (`ipcApi.request`); what remains here is the data/IpcApi transport infrastructure
+ * plus channels not yet migrated — v1-only backup / nutstore / copilot, the file module,
+ * LAN transfer, and a handful of micro-domains.
+ */
 export enum IpcChannel {
   App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
-  App_Info = 'app:info',
-  App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
   App_ResolvePath = 'app:resolve-path',
   App_IsPathInside = 'app:is-path-inside',
-  App_Copy = 'app:copy',
   Application_PreventQuit = 'application:prevent-quit',
   Application_AllowQuit = 'application:allow-quit',
-  App_SetAppDataPath = 'app:set-app-data-path',
-  App_GetDataPathFromArgs = 'app:get-data-path-from-args',
-  App_FlushAppData = 'app:flush-app-data',
-  App_IsNotEmptyDir = 'app:is-not-empty-dir',
   Application_Relaunch = 'application:relaunch',
   App_ResetData = 'app:reset-data',
-  App_IsBinaryExist = 'app:is-binary-exist',
-  App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  App_GetSystemFonts = 'app:get-system-fonts',
-  App_GetIpCountry = 'app:get-ip-country',
-
-  App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
-  App_MacRequestProcessTrust = 'app:mac-request-process-trust',
-
   App_QuoteToMain = 'app:quote-to-main',
 
   // StorageMonitor: main-process disk-space watcher for the user-data volume
   StorageMonitor_GetHealth = 'storage-monitor:get-health',
   StorageMonitor_HealthChanged = 'storage-monitor:health-changed',
 
-  Notification_Send = 'notification:send',
-  Notification_OnClick = 'notification:on-click',
-
-  Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
-  Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
-  Webview_SearchHotkey = 'webview:search-hotkey',
-  Webview_PrintToPDF = 'webview:print-to-pdf',
-  Webview_SaveAsHTML = 'webview:save-as-html',
-
-  // Open
-  Open_Path = 'open:path',
-  Open_Website = 'open:website',
-
-  // Quick Assistant
-  QuickAssistant_Hide = 'quick-assistant:hide',
-  QuickAssistant_Close = 'quick-assistant:close',
-  QuickAssistant_SetPin = 'quick-assistant:set-pin',
-  QuickAssistant_Shown = 'quick-assistant:shown',
-
-  // Mcp
-  Mcp_AddServer = 'mcp:add-server',
-  Mcp_RemoveServer = 'mcp:remove-server',
-  Mcp_RestartServer = 'mcp:restart-server',
-  Mcp_StopServer = 'mcp:stop-server',
-  Mcp_RefreshTools = 'mcp:refresh-tools',
-  Mcp_ListPrompts = 'mcp:list-prompts',
-  Mcp_ListResources = 'mcp:list-resources',
-  Mcp_CheckConnectivity = 'mcp:check-connectivity',
-  Mcp_UploadDxt = 'mcp:upload-dxt',
-  Mcp_UploadMcpb = 'mcp:upload-mcpb',
-  Mcp_AbortTool = 'mcp:abort-tool',
-  Mcp_GetServerVersion = 'mcp:get-server-version',
-  Mcp_Progress = 'mcp:progress',
-  Mcp_GetServerLogs = 'mcp:get-server-logs',
-  Mcp_ServerLog = 'mcp:server-log',
-  // Python
+  // Python: main→renderer(pyodide)→main reverse RPC
   Python_ExecutionRequest = 'python:execution-request',
   Python_ExecutionResponse = 'python:execution-response',
-
-  // WeChat channel
-  WeChat_QrLogin = 'wechat:qr-login',
-  WeChat_HasCredentials = 'wechat:has-credentials',
-
-  // Feishu channel
-  Feishu_QrLogin = 'feishu:qr-login',
-
-  // Channel status & logs
-  Channel_StatusChange = 'channel:status-change',
-  Channel_Log = 'channel:log',
-  Channel_GetLogs = 'channel:get-logs',
-  Channel_GetStatuses = 'channel:get-statuses',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
@@ -94,10 +36,6 @@ export enum IpcChannel {
   Copilot_Logout = 'copilot:logout',
   Copilot_GetUser = 'copilot:get-user',
 
-  // obsidian
-  Obsidian_GetVaults = 'obsidian:get-vaults',
-  Obsidian_GetFiles = 'obsidian:get-files',
-
   // nutstore
   Nutstore_GetSsoUrl = 'nutstore:get-sso-url',
   Nutstore_DecryptToken = 'nutstore:decrypt-token',
@@ -106,23 +44,12 @@ export enum IpcChannel {
   //aes
   Aes_Decrypt = 'aes:decrypt',
 
-  // MainWindow: handlers in MainWindowService, operate on main window only.
-  MainWindow_Reload = 'main-window:reload',
-  MainWindow_ResetMinimumSize = 'main-window:reset-minimum-size',
-  MainWindow_SetMinimumSize = 'main-window:set-minimum-size',
-
   Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
   NativeCommandPopupMenu_Show = 'native-command-popup-menu:show',
 
   // Tab
-  Tab_Attach = 'tab:attach',
-  Tab_Detach = 'tab:detach',
   Tab_MoveWindow = 'tab:move-window',
-  Tab_DragEnd = 'tab:drag-end',
-
-  // Sub-window (detached tab window)
-  SubWindow_SetAlwaysOnTop = 'sub-window:set-always-on-top',
 
   //file
   File_Open = 'file:open',
@@ -168,8 +95,6 @@ export enum IpcChannel {
   File_TreeRename = 'file:tree:rename',
   File_TreeMutation = 'file:tree:mutation',
 
-  Export_Word = 'export:word',
-
   // backup
   Backup_Backup = 'backup:backup',
   Backup_Restore = 'backup:restore',
@@ -187,7 +112,6 @@ export enum IpcChannel {
   Backup_RestoreFromS3 = 'backup:restoreFromS3',
   Backup_ListS3Files = 'backup:listS3Files',
   Backup_DeleteS3File = 'backup:deleteS3File',
-  Backup_CheckS3Connection = 'backup:checkS3Connection',
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
   Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
@@ -195,22 +119,11 @@ export enum IpcChannel {
   Zip_Decompress = 'zip:decompress',
 
   // system
-  System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
-  // Git Bash has no IPC channel; resolved in-process (settingsBuilder).
-
-  // DevTools
-  System_ToggleDevTools = 'system:toggleDevTools',
 
   // events
   BackupProgress = 'backup-progress',
-  NativeThemeUpdated = 'native-theme:updated',
   RestoreProgress = 'restore-progress',
-  UpdateError = 'update-error',
-  UpdateAvailable = 'update-available',
-  UpdateNotAvailable = 'update-not-available',
-  DownloadProgress = 'download-progress',
-  UpdateDownloaded = 'update-downloaded',
 
   // Data: Preference
   Preference_Get = 'preference:get',
@@ -236,51 +149,18 @@ export enum IpcChannel {
   IpcApi_Request = 'ipc-api:request',
   IpcApi_Event = 'ipc-api:event',
 
-  // Topic auto-rename push (main → renderer; payload: { topicId })
-  Topic_AutoRenamed = 'topic:auto-renamed',
-  // Agent session auto-rename push (main → renderer; payload: { sessionId })
-  AgentSession_AutoRenamed = 'agent-session:auto-renamed',
-
   // TRACE
   TRACE_GET_DATA = 'trace:getData',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
 
-  // API Gateway
-  ApiGateway_Start = 'api-gateway:start',
-  ApiGateway_Stop = 'api-gateway:stop',
-  ApiGateway_Restart = 'api-gateway:restart',
-
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
 
-  // CodeCli
-  CodeCli_Run = 'code-cli:run',
-  CodeCli_GetAvailableTerminals = 'code-cli:get-available-terminals',
-  CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
-  CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
-  CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
-
-  // OVMS
-  Ovms_IsSupported = 'ovms:is-supported',
-  Ovms_AddModel = 'ovms:add-model',
-  Ovms_StopAddModel = 'ovms:stop-addmodel',
-  Ovms_GetModels = 'ovms:get-models',
-  Ovms_IsRunning = 'ovms:is-running',
-  Ovms_GetStatus = 'ovms:get-status',
-  Ovms_RunOVMS = 'ovms:run-ovms',
-  Ovms_StopOVMS = 'ovms:stop-ovms',
-
   // Global Skills
-  Skill_Install = 'skill:install',
-  Skill_Uninstall = 'skill:uninstall',
-  Skill_InstallFromZip = 'skill:install-from-zip',
-  Skill_InstallFromDirectory = 'skill:install-from-directory',
   Skill_ReadFile = 'skill:read-file',
   Skill_ListFiles = 'skill:list-files',
-  Skill_ListLocal = 'skill:list-local',
 
   // LAN Transfer
-  LanTransfer_ListServices = 'lan-transfer:list',
   LanTransfer_StartScan = 'lan-transfer:start-scan',
   LanTransfer_StopScan = 'lan-transfer:stop-scan',
   LanTransfer_ServicesUpdated = 'lan-transfer:services-updated',
@@ -288,26 +168,7 @@ export enum IpcChannel {
   LanTransfer_Disconnect = 'lan-transfer:disconnect',
   LanTransfer_ClientEvent = 'lan-transfer:client-event',
   LanTransfer_SendFile = 'lan-transfer:send-file',
-  LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer',
-
-  // OpenClaw
-  OpenClaw_CheckInstalled = 'openclaw:check-installed',
-  OpenClaw_Install = 'openclaw:install',
-  OpenClaw_Uninstall = 'openclaw:uninstall',
-  OpenClaw_InstallProgress = 'openclaw:install-progress',
-  OpenClaw_StartGateway = 'openclaw:start-gateway',
-  OpenClaw_StopGateway = 'openclaw:stop-gateway',
-  OpenClaw_GetStatus = 'openclaw:get-status',
-  OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
-  OpenClaw_SyncConfig = 'openclaw:sync-config',
-  OpenClaw_CheckUpdate = 'openclaw:check-update',
-  OpenClaw_PerformUpdate = 'openclaw:perform-update',
-
-  // AI capability IPC (model ops, streaming chat, agent-session warm-up, tool approval,
-  // agent run-task) migrated to IpcApi (`ai.*`). Only `translate.open` remains on legacy IPC.
-  Ai_Translate_Open = 'ai:translate:open'
-
-  // BinaryManager (tool manager) was migrated to IpcApi (`binary.*`).
+  LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via
@@ -316,7 +177,6 @@ export enum IpcChannel {
   // cleanup pass so broadcastToType/invoke call sites get editor
   // auto-complete and cross-reference support:
   //
-  //   - 'notification-click'        (NotificationService + ipc.ts Notification_OnClick handler)
   //   - 'protocol-data'             (ProtocolService + preload)
   //   - 'file-preprocess-finished'  (PreprocessingService + KnowledgeService)
   //   - 'file-preprocess-progress'  (BasePreprocessProvider)

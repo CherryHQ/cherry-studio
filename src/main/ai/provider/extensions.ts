@@ -20,17 +20,22 @@ import {
   createGitHubCopilotOpenAICompatible,
   type GitHubCopilotProviderSettings
 } from '@opeoginni/github-copilot-openai-compatible'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
-import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from './custom/aihubmix/aihubmixProvider'
 import { createDashScopeProvider, type DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import { createGatewayWithImageModel } from './custom/gateway/gatewayProvider'
+import {
+  createLocalEmbeddingProvider,
+  type LocalEmbeddingProviderSettings
+} from './custom/localEmbedding/localEmbeddingProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
+import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from './custom/ovms/ovmsProvider'
 import { createPpioProvider, type PpioProviderSettings } from './custom/ppio/ppioProvider'
 import { createSiliconProvider, type SiliconProviderSettings } from './custom/silicon/siliconProvider'
@@ -147,8 +152,8 @@ export const GroqExtension = ProviderExtension.create({
 
 export const OllamaExtension = ProviderExtension.create({
   name: 'ollama',
-  supportsImageGeneration: false,
-  create: (options?: OllamaProviderSettings) => createOllama(options)
+  supportsImageGeneration: true,
+  create: (options?: OllamaProviderSettings) => createOllamaWithImageModel(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
 
 /** AiHubMix — multi-backend gateway (claude→anthropic, gemini→google, gpt→openai-responses). */
@@ -252,6 +257,20 @@ export const VoyageExtension = ProviderExtension.create({
   create: createVoyage
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
+/**
+ * Local Embedding Extension - optional in-process text embeddings via
+ * transformers.js + onnxruntime-node (no auth, no network). Embedding-only.
+ */
+export const LocalEmbeddingExtension = ProviderExtension.create({
+  name: LOCAL_EMBEDDING_PROVIDER_ID,
+  supportsImageGeneration: false,
+  create: createLocalEmbeddingProvider
+} as const satisfies ProviderExtensionConfig<
+  LocalEmbeddingProviderSettings,
+  ProviderV3,
+  typeof LOCAL_EMBEDDING_PROVIDER_ID
+>)
+
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
@@ -274,5 +293,6 @@ export const extensions = [
   DashScopeExtension,
   VoyageExtension,
   TogetherAIExtension,
-  GroqExtension
+  GroqExtension,
+  LocalEmbeddingExtension
 ] as const

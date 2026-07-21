@@ -11,8 +11,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import { ipcApi } from '@renderer/ipc'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { Group } from '@shared/data/types/group'
 import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FormEvent, ReactNode } from 'react'
@@ -36,10 +38,11 @@ interface CreateKnowledgeBaseDialogProps {
   onCreated: (base: KnowledgeBase) => void
 }
 
-// The embedding model is no longer chosen here — a base is created BM25-only and
-// gets its model later from the RAG settings — so creation only needs name + group.
-type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
-type CreateKnowledgeBaseFormValues = CreateKnowledgeBaseInput
+// The form only collects name + group. A base is created BM25-only unless the
+// optional local embedding model is already downloaded, in which case submit
+// backfills embeddingModelId + dimensions so the base starts as a vector base.
+type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
+type CreateKnowledgeBaseFormValues = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
 
 // Radix Select forbids an empty option value, so represent the default (ungrouped) group with a sentinel.
 const DEFAULT_GROUP_OPTION_VALUE = '__default__'
@@ -143,6 +146,22 @@ const CreateKnowledgeBaseDialogRoot = ({
       createInput.groupId = values.groupId
     }
 
+    // "Build a vector base when the local model is ready": if the optional local
+    // embedding model is already downloaded, default the new base to it (paired
+    // with its fixed dimensions) so users don't have to enable it afterwards. A
+    // 'ready' status guarantees the user_model row exists, so this can't trip the
+    // embeddingModelId foreign key. The probe is best-effort — on failure fall back
+    // to BM25-only creation rather than blocking.
+    try {
+      const { status } = await ipcApi.request('local_model.get_status', { model: 'embedding' })
+      if (status === 'ready') {
+        createInput.embeddingModelId = LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+        createInput.dimensions = LOCAL_EMBEDDING_DIMENSIONS
+      }
+    } catch {
+      // best-effort probe; fall back to BM25-only creation
+    }
+
     let createdBase: KnowledgeBase
 
     try {
@@ -169,7 +188,6 @@ const CreateKnowledgeBaseDialogRoot = ({
                 id="knowledge-create-name"
                 value={values.name}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}
-                placeholder={t('common.name')}
                 onChange={(event) => setValues((currentValues) => ({ ...currentValues, name: event.target.value }))}
               />
               {hasAttemptedSubmit && !values.name.trim() ? (

@@ -23,7 +23,7 @@ const FILE_PROCESSING_FEATURE_SECTIONS: readonly {
 }[] = [
   {
     feature: 'image_to_text',
-    processors: ['system', 'paddleocr', 'tesseract', 'mistral', 'ovocr']
+    processors: ['system', 'paddleocr', 'local-paddleocr', 'tesseract', 'mistral', 'ovocr']
   },
   {
     feature: 'document_to_markdown',
@@ -56,6 +56,12 @@ const PROCESSOR_DISPLAY_META: Record<FileProcessorId, ProcessorDisplayMeta> = {
     descriptionKey: 'settings.tool.file_processing.processors.paddleocr.description',
     logo: Paddleocr,
     apiKeyWebsite: 'https://aistudio.baidu.com/paddleocr/'
+  },
+  'local-paddleocr': {
+    nameKey: 'settings.tool.file_processing.processors.local_paddleocr.name',
+    descriptionKey: 'settings.tool.file_processing.processors.local_paddleocr.description',
+    logo: Paddleocr,
+    apiKeyWebsite: null
   },
   ovocr: {
     nameKey: 'settings.tool.file_processing.processors.ovocr.name',
@@ -148,18 +154,6 @@ export function getFeatureSections(
       entries: sortEntriesByFeatureOrder(entries)
     }
   }).filter((section) => section.entries.length > 0)
-}
-
-export function flattenFeatureSections(featureSections: FileProcessingFeatureSection[]): FileProcessingMenuEntry[] {
-  return featureSections.flatMap((section) => section.entries)
-}
-
-export function getFileProcessingFeatureTitleKey(feature: FileProcessorFeature): string {
-  return `settings.tool.file_processing.features.${feature}.title`
-}
-
-export function getFileProcessingFeatureTooltipKey(feature: FileProcessorFeature): string {
-  return `settings.tool.file_processing.features.${feature}.tooltip`
 }
 
 export function getProcessorNameKey(processorId: FileProcessorId): string {

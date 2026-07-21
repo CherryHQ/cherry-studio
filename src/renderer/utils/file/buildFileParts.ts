@@ -5,10 +5,11 @@
  * The composer holds lean `ComposerAttachment` descriptors; the v2 `FileEntry`
  * is created here, when the message is actually sent. Each attachment is
  * promoted to an internal `FileEntry` via `createInternalEntry` (Cherry copies
- * the bytes into its own storage); the resulting `fileEntryId` lives in
- * `providerMetadata.cherry` so `fileProcessor.materializeNativeFilePart` (main)
- * can read it path-independently — see `packages/shared/data/types/uiParts.ts`
- * for the accessor + Zod.
+ * the bytes into its own storage); the resulting `fileEntryId` and the
+ * composer's stable `fileTokenSourceId` live in `providerMetadata.cherry` so
+ * downstream consumers can identify both the stored file and its composer
+ * token association — see `packages/shared/data/types/uiParts.ts` for the
+ * accessor + Zod.
  */
 
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -16,6 +17,18 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { FilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
+
+export function withComposerFilePartMeta(
+  part: FileUIPart,
+  attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind'>,
+  fileEntryId?: string
+): FileUIPart {
+  return withCherryMeta(part, {
+    ...(fileEntryId ? { fileEntryId } : {}),
+    fileTokenSourceId: attachment.fileTokenSourceId,
+    ...(attachment.composerFileKind ? { composerFileKind: attachment.composerFileKind } : {})
+  })
+}
 
 /**
  * For each `ComposerAttachment` (with an absolute `path`), create a v2 internal
@@ -35,7 +48,7 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
         url: `file://${physicalPath}`,
         filename: attachment.origin_name || attachment.name
       }
-      return withCherryMeta(basePart, { fileEntryId: entry.id })
+      return withComposerFilePartMeta(basePart, attachment, entry.id)
     })
   )
 }

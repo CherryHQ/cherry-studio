@@ -6,7 +6,9 @@ import { CodeEditor, type CodeEditorHandles } from '@renderer/components/CodeEdi
 import RichEditor from '@renderer/components/RichEditor/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
@@ -30,6 +32,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
+    const { activeCmTheme } = useCodeStyle()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
@@ -94,6 +97,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 onChange={onMarkdownChange}
                 className="h-full"
                 expanded={false}
+                height="100%"
+                theme={activeCmTheme}
                 fontSize={settings.fontSize}
                 style={{
                   height: '100%'
@@ -136,7 +141,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                         logger.error('Failed to update spell check preference', error as Error)
                         toast.error(t('notes.settings.save_failed'))
                       })
-                      void window.api.setEnableSpellCheck(newValue).catch((error) => {
+                      void ipcApi.request('app.set_spell_check_enabled', newValue).catch((error) => {
                         logger.error('Failed to update spell check runtime state', error as Error)
                         toast.error(t('notes.settings.save_failed'))
                       })

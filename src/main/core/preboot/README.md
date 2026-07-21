@@ -13,14 +13,14 @@ that builds the IoC container and runs the lifecycle stages
 But some setup must happen even earlier — synchronously, with no lifecycle
 services available — because `application.bootstrap()` itself depends on it.
 Most importantly: `application.initPathRegistry()` is called from preboot
-in `main/index.ts` after userData resolution, the single-instance lock,
-Chromium flag setup, and crash telemetry setup. It calls
-`buildPathRegistry()` to build a frozen snapshot of the path registry by
-reading `app.getPath('userData')` and other Electron paths. So all
+in `main/main.ts` after userData resolution, the single-instance lock,
+Chromium flag setup, and crash telemetry setup. It calls `buildPathRegistry()`
+to build a frozen snapshot of the path registry by reading
+`app.getPath('userData')` and other Electron paths. So all
 `app.setPath('userData', …)` calls must complete **before**
 `application.initPathRegistry()` is called, and the registry must be
-initialized **before** `application.bootstrap()` (which asserts the
-registry exists and refuses to start otherwise).
+initialized **before** `application.bootstrap()` (which asserts the registry
+exists and refuses to start otherwise).
 
 This directory holds that pre-bootstrap work.
 
@@ -28,13 +28,19 @@ This directory holds that pre-bootstrap work.
 
 Code belongs in `core/preboot/` if **all** are true:
 
-1. It must run before `application.bootstrap()` is called.
-2. It only depends on Electron `app` top-level APIs and synchronously-loaded
+1. It must run before `application.bootstrap()` is called. Running before
+   bootstrap is a **timing contract, not directory ownership** — this
+   criterion is necessary but never sufficient on its own.
+2. It is **non-removable**: the app cannot start correctly without it.
+   Removable capabilities — even ones whose execution must happen during
+   the preboot phase — live in their nature-home (e.g. `services/`) and
+   are invoked from `main.ts` at the right point in the preboot sequence.
+3. It only depends on Electron `app` top-level APIs and synchronously-loaded
    modules (e.g. `BootConfigService`, `loggerService`).
-3. It directly performs side effects on global state (paths, command-line
-   switches, file relocations) — or is a pure helper that supports a
-   side-effecting preboot operation.
-4. It does **not** depend on any lifecycle-managed service (anything
+4. It directly performs side effects on global state (paths, command-line
+   switches) — or is a pure helper that supports a side-effecting preboot
+   operation.
+5. It does **not** depend on any lifecycle-managed service (anything
    accessed via `application.get(...)`). This is the real hard
    constraint: async preboot code is allowed when necessary, but
    depending on services that only exist after `application.bootstrap()`
@@ -74,11 +80,6 @@ without good reason.
 - **running** — steady state after `application.bootstrap()` returns and
   the main window is shown.
 
-The legacy file `src/main/bootstrap.ts` predates this vocabulary and uses
-the OS meaning of "bootstrap". It is kept on disk during the v2 transition
-as reference but is no longer imported anywhere; a follow-up cleanup PR
-will delete it.
-
 ### Term: "userData"
 
 Throughout `core/preboot/`, the word **userData** refers exclusively to
@@ -90,20 +91,8 @@ It does **not** mean "user data" in the colloquial sense (用户数据). The
 Electron userData directory contains a mix of user content
 (`cherrystudio.sqlite`, `Data/Files`, `Data/KnowledgeBase`, …) AND
 Chromium runtime state (`Network/`, `Partitions/`, `IndexedDB`,
-`Local Storage`, …) AND application logs (`logs/`). When this code talks
-about "copying userData", it means copying the **entire OS directory** as
-a single opaque tree — there is no curated "user content only" subset.
-
-v1 used to distinguish "occupied dirs" (`logs`, `Network`,
-`Partitions/webview/Network`, locked by the running process on Windows)
-from the rest of userData and copy them in two separate phases: the
-renderer copied the unlocked bulk while running, and the main process
-copied the occupied dirs during the next startup's narrow "no renderer
-yet" window. v2 abandons that distinction entirely — the whole directory
-is copied at startup **after** the previous process has fully exited, so
-nothing is locked. See `occupiedDirs` in
-`src/renderer/pages/settings/DataSettings/BasicDataSettings.tsx` for the
-deprecated v1 constant.
+`Local Storage`, …) AND, on Windows and Linux, application logs
+(`logs/` — macOS keeps them in `~/Library/Logs` instead).
 
 ## Layout
 
@@ -113,32 +102,45 @@ preboot/
 │                        second instances. Runs after userData resolution so
 │                        dev instances with different userData suffixes use
 │                        isolated locks.
-├── userDataLocation.ts  decides where userData lives (dev suffix or
-│                        BootConfig-driven), performs relaunch copy
-├── chromiumFlags.ts     Chromium startup flags (command-line switches and
-│                        hardware-acceleration toggles) that must run
-│                        before app.whenReady()
+├── userDataLocation.ts  resolves userData (dev suffix or BootConfig) and
+│                        exports the shared isUsableDataDir(p) validator
+│                        used by v1→v2 migration
+├── chromiumFlags.ts     Chromium startup flags that must run before
+│                        app.whenReady()
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
 │                        webContents hardening (Document-Policy response
 │                        header and unresponsive renderer call-stack
 │                        collection)
+├── backupRestoreGate.ts
+│                        backup-restore gate; promotes a staged restored DB
+│                        (if any) at the top of startApp(), after the
+│                        single-instance lock and the frozen path registry,
+│                        before v2MigrationGate reads the DB. Thin shell that
+│                        never throws — except when recovery left no live DB
+│                        at all (booting on would create a fresh empty
+│                        database), where it fails fast instead. The
+│                        promotion logic lives in src/main/data/db/restore/
+│                        (same layering as v2MigrationGate → MigrationEngine).
 ├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before
 │                        bootstrap. Calls resolveMigrationPaths() to
 │                        detect v1 legacy userData before engine init.
 │                        Temporary — scoped for deletion once all
-│                        users have migrated off v1.
+│                        users have migrated off v1. Its fat
+│                        orchestrating-gate shape is tolerated only
+│                        because it is throwaway — do not copy it for
+│                        permanent capabilities.
 └── __tests__/           unit tests for each sibling module
 ```
 
 The directory is intentionally flat. New domains add a sibling file rather
-than a subdirectory. Subdirectories are reserved for the case where one
-domain genuinely needs multiple files.
+than a subdirectory.
 
 ### Development userData suffix
 
-Unpackaged development runs never read packaged BootConfig relocation state.
+Unpackaged development runs never read the BootConfig userData mapping
+(`app.user_data_path`).
 Instead, `userDataLocation.ts` appends a suffix to Electron's default
-`userData` directory before the path registry and single-instance lock are
+userData directory before the path registry and single-instance lock are
 initialized. The default suffix is `Dev`.
 
 Set `CS_DEV_USER_DATA_SUFFIX` to run multiple development instances with
@@ -168,8 +170,9 @@ import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 ```
 
 Each preboot module has its own timing contract (`userDataLocation` must run
-before `initPathRegistry`; `chromiumFlags` must run before `app.whenReady`).
+before `initPathRegistry`; `chromiumFlags` must run before
+`app.whenReady`).
 A barrel export would fold away which function lives in which module — and
 therefore which timing rules apply — making the preboot sequence in
-`main/index.ts` harder to reason about. Importing from concrete paths keeps
+`main/main.ts` harder to reason about. Importing from concrete paths keeps
 the timing story visible at every call site.

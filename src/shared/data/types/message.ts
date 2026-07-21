@@ -144,8 +144,8 @@ export interface CherryUIMessageMetadata {
   siblingsGroupId?: number
   /** `UniqueModelId` (`providerId::modelId`) the assistant was generated with. */
   modelId?: string
-  /** Snapshot captured at message creation (`{id, name, provider, group?}`). */
-  modelSnapshot?: ModelSnapshot
+  /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
+  messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
   /**
@@ -380,10 +380,8 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
 // ============================================================================
 
 /**
- * Model snapshot captured at message creation time.
- * Preserves model identity and metadata even if the model is later removed from provider.
- *
- * TODO: Replace with Pick/Omit from v2 Model type once stabilized.
+ * Model identity captured at message creation time.
+ * Preserves model identity even if the model is later removed from provider.
  */
 export const ModelSnapshotSchema = z.strictObject({
   id: z.string(),
@@ -392,6 +390,21 @@ export const ModelSnapshotSchema = z.strictObject({
   group: z.string().optional()
 })
 export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
+
+/**
+ * Per-message snapshot of the producing author (chat assistant or session agent),
+ * captured at creation time so the header/export can still show it after the entity
+ * is renamed or deleted. The author owns the model it ran — `model` is nested. Chat
+ * vs session is already implied by the message's topic, so the kind isn't recorded
+ * here (and the two are converging), keeping this a single flat author shape.
+ */
+export const MessageSnapshotSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  emoji: z.string().optional(),
+  model: ModelSnapshotSchema
+})
+export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
 
 // ============================================================================
 // Message Entity Types
@@ -462,8 +475,8 @@ export type MessageStatus = z.infer<typeof MessageStatusSchema>
 /**
  * Complete message entity as stored in database.
  *
- * JSON blob columns (`data`, `modelSnapshot`, `stats`) are typed via
- * {@link MessageDataSchema} / {@link ModelSnapshotSchema} / {@link MessageStatsSchema}.
+ * JSON blob columns (`data`, `messageSnapshot`, `stats`) are typed via
+ * {@link MessageDataSchema} / {@link MessageSnapshotSchema} / {@link MessageStatsSchema}.
  */
 export const MessageSchema = z.strictObject({
   /** Message ID (UUID — v4 legacy or v7 v2-native) */
@@ -485,8 +498,8 @@ export const MessageSchema = z.strictObject({
   // Assistant info is derived via topic → assistant FK chain; not stored on message.
   /** Model identifier */
   modelId: z.string().nullable().optional(),
-  /** Snapshot of model at message creation time */
-  modelSnapshot: ModelSnapshotSchema.nullable().optional(),
+  /** Snapshot of the producing author (assistant|agent, model nested) at creation time */
+  messageSnapshot: MessageSnapshotSchema.nullable().optional(),
   /** Statistics: token usage, performance metrics */
   stats: MessageStatsSchema.nullable().optional(),
   /** Durable compaction marker: rolling summary covering the conversation up to & incl. this row. */

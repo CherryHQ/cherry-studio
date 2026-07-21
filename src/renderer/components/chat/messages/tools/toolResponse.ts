@@ -1,7 +1,9 @@
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
+import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { isMcpContentBlock } from '@shared/utils/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
@@ -40,6 +42,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isToolType(value: unknown): value is ToolType {
   return value === 'mcp' || value === 'builtin' || value === 'provider'
+}
+
+function isMcpContentArray(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value.every(isMcpContentBlock)
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
@@ -83,7 +89,8 @@ function extractOutputMetadata(part: ToolResponsePart): { response: unknown; met
           type: isToolType(metadata.type) ? metadata.type : undefined
         }
       : undefined
-    return { response: output.content, metadata: normalizedMeta }
+    const response = normalizedMeta?.type === 'mcp' && isMcpContentArray(output.content) ? output : output.content
+    return { response, metadata: normalizedMeta }
   }
 
   return { response: output }
@@ -143,6 +150,7 @@ function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: To
   if (isMetaToolName(toolName)) return 'builtin'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
+  if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
   if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'

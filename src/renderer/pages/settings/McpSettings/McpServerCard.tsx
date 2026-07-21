@@ -2,10 +2,11 @@ import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
-import ContentPopup from '@renderer/components/Popups/ContentPopup'
+import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatMcpError } from '@renderer/utils/error'
@@ -44,7 +45,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const fetchServerVersion = useCallback(async (s: McpServer) => {
     if (!s.isActive) return
     try {
-      const v = await window.api.mcp.getServerVersion(s.id)
+      const v = await ipcApi.request('mcp.server.get_version', { serverId: s.id })
       setVersion(v)
     } catch {
       setVersion(null)
@@ -76,7 +77,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           await updateMcpServer({ body: { isActive: true } })
           try {
             await fetchServerVersion({ ...serverForUpdate, isActive: true })
-            await window.api.mcp.refreshTools(serverForUpdate.id)
+            await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
           } catch (error: any) {
             void popup.error({
               title: t('settings.mcp.startError'),
@@ -86,7 +87,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           }
         } else {
           await updateMcpServer({ body: { isActive: false } })
-          await window.api.mcp.stopServer(serverForUpdate.id)
+          await ipcApi.request('mcp.server.stop', { serverId: serverForUpdate.id })
           setVersion(null)
         }
       } catch (error: any) {
@@ -111,7 +112,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       })
       if (!confirmed) return
 
-      await window.api.mcp.removeServer(server.id)
+      await ipcApi.request('mcp.server.remove', { serverId: server.id })
       await deleteMcpServer({})
       toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {

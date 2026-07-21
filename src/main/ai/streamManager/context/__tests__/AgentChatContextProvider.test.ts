@@ -1,7 +1,7 @@
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '../../types'
+import type { MainDispatchRequest } from '../dispatch'
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -58,13 +58,13 @@ function makeSubscriber(id = 'wc:1:agent-session:session-1'): StreamListener {
   }
 }
 
-function openReq(overrides: Partial<AiStreamOpenRequest> = {}): AiStreamOpenRequest {
+function openReq(overrides: Partial<MainDispatchRequest> = {}): MainDispatchRequest {
   return {
     topicId: 'agent-session:session-1',
     trigger: 'submit-message',
     userMessageParts: [{ type: 'text', text: 'hello' }],
     ...overrides
-  } as AiStreamOpenRequest
+  } as MainDispatchRequest
 }
 
 describe('AgentChatContextProvider', () => {
@@ -86,6 +86,7 @@ describe('AgentChatContextProvider', () => {
     mocks.ensureTraceId.mockReturnValue('a'.repeat(32))
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
+      name: 'My Agent',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet'
@@ -98,7 +99,7 @@ describe('AgentChatContextProvider', () => {
       searchableText: '',
       status: message.status ?? 'success',
       modelId: message.modelId ?? null,
-      modelSnapshot: message.modelSnapshot ?? null,
+      messageSnapshot: message.messageSnapshot ?? null,
       stats: message.stats ?? null,
       runtimeResumeToken: null,
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -113,7 +114,7 @@ describe('AgentChatContextProvider', () => {
         searchableText: '',
         status: message.status ?? 'success',
         modelId: message.modelId ?? null,
-        modelSnapshot: message.modelSnapshot ?? null,
+        messageSnapshot: message.messageSnapshot ?? null,
         stats: message.stats ?? null,
         runtimeResumeToken: null,
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -173,7 +174,12 @@ describe('AgentChatContextProvider', () => {
         metadata: expect.objectContaining({
           status: 'pending',
           modelId: 'anthropic::claude-sonnet',
-          modelSnapshot: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          messageSnapshot: {
+            id: 'agent-1',
+            name: 'My Agent',
+            emoji: '🤖',
+            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          }
         })
       })
     ])
@@ -185,7 +191,14 @@ describe('AgentChatContextProvider', () => {
       modelId: 'anthropic::claude-sonnet',
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
-      traceId: 'a'.repeat(32)
+      headless: false,
+      traceId: 'a'.repeat(32),
+      messageSnapshot: {
+        id: 'agent-1',
+        name: 'My Agent',
+        emoji: '🤖',
+        model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+      }
     })
     expect(prepared.listeners).toEqual([
       subscriber,
@@ -205,7 +218,16 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeBeginTurn).not.toHaveBeenCalled()
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',
-      expect.objectContaining({ role: 'user', sessionId: 'session-1' })
+      expect.objectContaining({ role: 'user', sessionId: 'session-1' }),
+      {
+        headless: false,
+        messageSnapshot: {
+          id: 'agent-1',
+          name: 'My Agent',
+          emoji: '🤖',
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+        }
+      }
     )
     expect(prepared.models).toEqual([])
     expect(prepared.userMessageId).toEqual(expect.any(String))
@@ -217,6 +239,27 @@ describe('AgentChatContextProvider', () => {
       })
     ])
     expect(prepared.listeners).toEqual([subscriber])
+  })
+
+  it('forwards headless to the runtime when busy dispatch enqueues a follow-up', async () => {
+    const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await provider.prepareDispatch(subscriber, openReq({ headless: true }))
+
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ role: 'user', sessionId: 'session-1' }),
+      {
+        headless: true,
+        messageSnapshot: {
+          id: 'agent-1',
+          name: 'My Agent',
+          emoji: '🤖',
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+        }
+      }
+    )
   })
 
   it('triggers first-user-message session rename after submit-message persists the user row', async () => {

@@ -31,262 +31,118 @@
       "submit": "送信",
       "title": "エージェントからの質問"
     },
-    "cherryClaw": {
-      "channels": {
-        "add": "追加",
-        "bindAgent": "バインドエージェント",
-        "chatIdsAutoTrackHint": "空欄のままにしておくと、システムが自動的に追跡します：まずプラットフォーム上でボットにメッセージを送信する必要があり、その後システムがチャットIDを記録して今後の通知に使用します。",
-        "comingSoon": "近日公開",
+    "builtin": {
+      "cherry_assistant": {
+        "description": "内蔵のCherry Studioアドバイザー。問題の診断、操作ガイド、FAQの収集、バグ/機能リクエストの提出、およびスキルの検索/作成を行います。"
+      }
+    },
+    "channels": {
+      "add": "追加",
+      "bindAgent": "バインドエージェント",
+      "chatIdsAutoTrackHint": "空欄のままにしておくと、システムが自動的に追跡します：まずプラットフォーム上でボットにメッセージを送信する必要があり、その後システムがチャットIDを記録して今後の通知に使用します。",
+      "comingSoon": "近日公開",
+      "connected": "接続済み",
+      "connecting": "接続",
+      "createError": "チャンネルの作成に失敗しました",
+      "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
+      "deleteError": "チャンネルの削除に失敗しました",
+      "description": "エージェントをメッセージングプラットフォームに接続します。",
+      "disconnected": "切断済み",
+      "discord": {
+        "botToken": "ボットトークン",
+        "botTokenPlaceholder": "Discordボットのトークンを入力してください",
+        "channelIds": "許可されたチャンネルID",
+        "channelIdsHint": "フォーマット: channel:id または dm:id。すべてを許可するには空のままにしてください。",
+        "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+        "description": "WebSocketゲートウェイを介してDiscordボットでメッセージを受信し、応答する。",
+        "title": "ディスコード",
+        "whoamiTip": "💡 ヒント：正しい形式でチャンネルIDを取得するには、ボットに /whoami を送信してください。"
+      },
+      "error": "エラー",
+      "feishu": {
+        "appId": "App ID",
+        "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",
+        "appSecret": "App Secret",
+        "appSecretPlaceholder": "FeishuアプリのApp Secretを入力してください",
+        "chatIds": "許可するチャットID",
+        "chatIdsHint": "カンマ区切りのチャットID。空欄にするとすべてのチャットを許可します。",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
         "connected": "接続済み",
-        "connecting": "接続",
-        "createError": "チャンネルの作成に失敗しました",
-        "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
-        "deleteError": "チャンネルの削除に失敗しました",
-        "description": "エージェントをメッセージングプラットフォームに接続します。",
-        "disconnected": "切断済み",
-        "discord": {
-          "botToken": "ボットトークン",
-          "botTokenPlaceholder": "Discordボットのトークンを入力してください",
-          "channelIds": "許可されたチャンネルID",
-          "channelIdsHint": "フォーマット: channel:id または dm:id。すべてを許可するには空のままにしてください。",
-          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
-          "description": "WebSocketゲートウェイを介してDiscordボットでメッセージを受信し、応答する。",
-          "title": "ディスコード",
-          "whoamiTip": "💡 ヒント：正しい形式でチャンネルIDを取得するには、ボットに /whoami を送信してください。"
-        },
-        "error": "エラー",
-        "feishu": {
-          "appId": "App ID",
-          "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",
-          "appSecret": "App Secret",
-          "appSecretPlaceholder": "FeishuアプリのApp Secretを入力してください",
-          "chatIds": "許可するチャットID",
-          "chatIdsHint": "カンマ区切りのチャットID。空欄にするとすべてのチャットを許可します。",
-          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "接続済み",
-          "description": "Feishu/Larkボットを使用してWebSocket経由でメッセージを受信・応答します。",
-          "domain": "ドメイン",
-          "domainFeishu": "Feishu（中国）",
-          "domainLark": "Lark（国際版）",
-          "encryptKey": "暗号化キー",
-          "encryptKeyPlaceholder": "Feishuアプリの暗号化キーを入力してください",
-          "loginHint": "資格情報が設定されていません。QRコード登録を開始するにはチャネルを有効にするか、アプリIDとアプリシークレットを手動で入力してください。",
-          "qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
-          "qrHint": "QRコードのスキャンを待っています...",
-          "qrScanHint": "スマートフォンでFeishuを開き、QRコードをスキャンしてボットアプリを作成してください。",
-          "qrTitle": "Feishu QR登録",
-          "title": "Feishu",
-          "verificationToken": "検証トークン",
-          "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
-        },
-        "logs": "ログ",
-        "noInstances": "{{type}}チャンネルが設定されていません。「＋追加」をクリックして作成してください。",
-        "noLogs": "まだログはありません",
-        "notifyReceiver": "タスク通知を受信",
-        "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
-        "qq": {
-          "appId": "App ID",
-          "appIdPlaceholder": "QQ Bot の App ID を入力",
-          "chatIds": "許可するチャット ID",
-          "chatIdsHint": "形式: c2c:openid, group:groupid, channel:channelid。空欄ですべて許可。",
-          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
-          "clientSecret": "Client Secret",
-          "clientSecretPlaceholder": "QQ Bot の Client Secret を入力",
-          "description": "QQ Bot 公式 API を通じてメッセージを受信・返信します。",
-          "title": "QQ",
-          "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
-        },
-        "security": {
-          "inheritFromAgent": "エージェントから継承",
-          "permissionMode": "チャンネル権限モード",
-          "permissionModeHint": "このチャンネルからのメッセージについて、エージェントの権限モードを上書きします。「継承」を選択すると、エージェントのデフォルト設定が使用されます。"
-        },
-        "selectAgent": "エージェントを選択してバインドしてください",
-        "slack": {
-          "appToken": "アプリレベルトークン",
-          "appTokenPlaceholder": "xapp-...",
-          "botToken": "ボットトークン",
-          "botTokenPlaceholder": "xoxb-...",
-          "channelIds": "許可されたチャンネルID",
-          "channelIdsHint": "SlackチャンネルID。すべてを許可する場合は空のままにしてください。",
-          "channelIdsPlaceholder": "C01234567、D89012345",
-          "description": "Socket Mode を使用して Slack ボット経由でメッセージを受信し、返信する。",
-          "title": "スラック",
-          "whoamiTip": "💡ヒント：チャンネルIDを取得するには、ボットに /whoami を送信してください。"
-        },
-        "soulModeRequired": "このエージェントは自律モードが有効になっていません。チャンネル機能は動作しません。エージェント設定で有効にしてください。",
-        "tab": "チャンネル",
-        "telegram": {
-          "botToken": "Bot Token",
-          "botTokenPlaceholder": "Telegram ボットトークンを入力",
-          "chatIds": "許可するチャット ID",
-          "chatIdsHint": "カンマ区切り。空欄ですべてのチャットを許可。",
-          "chatIdsPlaceholder": "123456789, 987654321",
-          "description": "Telegram ボットでロングポーリングを使用してメッセージを受信・返信します。",
-          "title": "Telegram"
-        },
-        "title": "チャンネル",
-        "updateError": "チャンネルの更新に失敗しました",
-        "wechat": {
-          "addAccount": "WeChatアカウントを追加",
-          "chatIds": "許可されたユーザーID",
-          "chatIdsHint": "カンマ区切り。空欄にするとすべてのユーザーが許可されます。",
-          "chatIdsPlaceholder": "wxid_abc123、wxid_def456",
-          "connected": "接続済み",
-          "description": "iLink Bot APIを使用してWeChat経由でメッセージを受信・応答する。",
-          "disconnected": "切断されました",
-          "loginHint": "初回ログインにはQRコードのスキャンが必要です。ログインURLはアプリのログを確認してください。",
-          "qrHint": "スマートフォンでWeChatを開き、QRコードをスキャンしてログインしてください。",
-          "qrTitle": "WeChat QRコードログイン",
-          "title": "WeChat",
-          "whoamiTip": "ヒント：WeChatで/whoamiを送信すると、ユーザーのIDが取得できます。"
-        }
+        "description": "Feishu/Larkボットを使用してWebSocket経由でメッセージを受信・応答します。",
+        "domain": "ドメイン",
+        "domainFeishu": "Feishu（中国）",
+        "domainLark": "Lark（国際版）",
+        "encryptKey": "暗号化キー",
+        "encryptKeyPlaceholder": "Feishuアプリの暗号化キーを入力してください",
+        "loginHint": "資格情報が設定されていません。QRコード登録を開始するにはチャネルを有効にするか、アプリIDとアプリシークレットを手動で入力してください。",
+        "qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
+        "qrHint": "QRコードのスキャンを待っています...",
+        "qrScanHint": "スマートフォンでFeishuを開き、QRコードをスキャンしてボットアプリを作成してください。",
+        "qrTitle": "Feishu QR登録",
+        "title": "Feishu",
+        "verificationToken": "検証トークン",
+        "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
       },
-      "heartbeat": {
-        "enabled": "ハートビートを有効化",
-        "enabledHelper": "有効にすると、ワークスペースに heartbeat.md が存在する場合、スケジューラが設定された間隔でその内容を読み取り、メインセッションに送信します。",
-        "interval": "間隔（分）",
-        "intervalHelper": "ハートビートの実行頻度（分単位）。"
+      "logs": "ログ",
+      "noInstances": "{{type}}チャンネルが設定されていません。「＋追加」をクリックして作成してください。",
+      "noLogs": "まだログはありません",
+      "notifyReceiver": "タスク通知を受信",
+      "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
+      "qq": {
+        "appId": "App ID",
+        "appIdPlaceholder": "QQ Bot の App ID を入力",
+        "chatIds": "許可するチャット ID",
+        "chatIdsHint": "形式: c2c:openid, group:groupid, channel:channelid。空欄ですべて許可。",
+        "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "QQ Bot の Client Secret を入力",
+        "description": "QQ Bot 公式 API を通じてメッセージを受信・返信します。",
+        "title": "QQ",
+        "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
       },
-      "sandbox": {
-        "description": "OS レベルのサンドボックスを使用して、エージェントのファイルシステムとネットワークアクセスをワークスペースディレクトリに制限します。",
-        "helper": "ファイルシステムとコマンドアクセスをワークスペースパスに制限します。",
-        "label": "サンドボックスモード"
+      "security": {
+        "inheritFromAgent": "エージェントから継承",
+        "permissionMode": "チャンネル権限モード",
+        "permissionModeHint": "このチャンネルからのメッセージについて、エージェントの権限モードを上書きします。「継承」を選択すると、エージェントのデフォルト設定が使用されます。"
       },
-      "scheduler": {
-        "cron": {
-          "helper": "標準の cron 式（例: '*/30 * * * *' で 30 分ごと）。",
-          "label": "Cron 式",
-          "placeholder": "*/30 * * * *"
-        },
-        "description": "スケジューラはスケジュールに従ってエージェントを自動的にトリガーします。",
-        "enabled": "スケジューラを有効化",
-        "enabledHelper": "有効にすると、エージェントは設定されたスケジュールに基づいて自動的に実行されます。",
-        "errors": {
-          "invalidCron": "無効な cron 式",
-          "invalidDelay": "遅延は正の数である必要があります",
-          "invalidInterval": "間隔は正の数である必要があります"
-        },
-        "interval": {
-          "helper": "エージェントの実行頻度（秒単位）。",
-          "label": "間隔（秒）"
-        },
-        "lastRun": "前回の実行",
-        "never": "なし",
-        "nextRun": "次回の実行",
-        "oneTime": {
-          "helper": "エージェント実行前の一回限りの遅延（秒単位）。",
-          "label": "遅延（秒）"
-        },
-        "status": {
-          "running": "実行中",
-          "stopped": "停止中",
-          "tickInProgress": "実行中"
-        },
-        "tab": "スケジューラ",
-        "title": "スケジューラ設定",
-        "type": {
-          "cron": "Cron 式",
-          "interval": "固定間隔",
-          "label": "スケジュールタイプ",
-          "one-time": "一回限りの遅延"
-        }
+      "selectAgent": "エージェントを選択してバインドしてください",
+      "slack": {
+        "appToken": "アプリレベルトークン",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "ボットトークン",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "許可されたチャンネルID",
+        "channelIdsHint": "SlackチャンネルID。すべてを許可する場合は空のままにしてください。",
+        "channelIdsPlaceholder": "C01234567、D89012345",
+        "description": "Socket Mode を使用して Slack ボット経由でメッセージを受信し、返信する。",
+        "title": "スラック",
+        "whoamiTip": "💡ヒント：チャンネルIDを取得するには、ボットに /whoami を送信してください。"
       },
-      "soul": {
-        "description": "ソウルはエージェントの個性と基本動作を定義します。ワークスペースルートの soul.md から読み込まれます。",
-        "empty": "ワークスペースルートに soul.md が見つかりません。エージェントの個性を定義するために作成してください。",
-        "enabled": "ソウルを有効化",
-        "enabledHelper": "有効にすると、エージェントはワークスペースルートから soul.md を読み取り、システムプロンプトの先頭に追加します。",
-        "fileLabel": "soul.md",
-        "preview": "ソウルプレビュー",
-        "tab": "ソウル",
-        "title": "ソウル設定"
+      "tab": "チャンネル",
+      "telegram": {
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "Telegram ボットトークンを入力",
+        "chatIds": "許可するチャット ID",
+        "chatIdsHint": "カンマ区切り。空欄ですべてのチャットを許可。",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "Telegram ボットでロングポーリングを使用してメッセージを受信・返信します。",
+        "title": "Telegram"
       },
-      "tasks": {
-        "add": "タスクを追加",
-        "cancel": "キャンセル",
-        "channels": {
-          "label": "チャンネルに送信",
-          "noActiveChatIds": "選択されたチャンネルには利用可能な受信者（チャットID）が存在しません。タスクの結果が配信されない可能性があります。まず、プラットフォーム上でボットにメッセージを送信してください。",
-          "placeholder": "結果を受け取るチャンネルを選択してください"
-        },
-        "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
-        "delete": {
-          "confirm": "このタスクを削除してもよろしいですか？",
-          "label": "削除"
-        },
-        "edit": "編集",
-        "empty": "スケジュールタスクがありません。追加して開始しましょう。",
-        "error": {
-          "createFailed": "タスクの作成に失敗しました",
-          "deleteFailed": "タスクの削除に失敗しました",
-          "loadFailed": "タスクの読み込みに失敗しました",
-          "runFailed": "タスクの実行に失敗しました",
-          "updateFailed": "タスクの更新に失敗しました"
-        },
-        "frequency": {
-          "everyPrefix": "間隔",
-          "everySuffix": "分ごとに実行",
-          "label": "実行頻度"
-        },
-        "intervalPlaceholder": "1以上",
-        "intervalUnit": "議事録",
-        "lastRun": "前回の実行",
-        "logs": {
-          "cancelled": "キャンセル",
-          "completed": "完了",
-          "duration": "所要時間",
-          "empty": "実行履歴がありません。",
-          "failed": "失敗",
-          "justNow": "さっき",
-          "label": "実行履歴",
-          "loadError": "実行履歴の読み込みに失敗しました",
-          "result": "結果",
-          "runAt": "実行時刻",
-          "running": "走っている…",
-          "search": "検索ログ...",
-          "status": "ステータス",
-          "viewSession": "セッションを表示"
-        },
-        "name": {
-          "label": "名前",
-          "placeholder": "例: 毎日のコードレビュー"
-        },
-        "nextRun": "次回の実行",
-        "oncePlaceholder": "日時を選択",
-        "pause": "一時停止",
-        "prompt": {
-          "expand": "エディタを展開",
-          "label": "プロンプト",
-          "placeholder": "このタスク実行時にエージェントが行うべきことは？"
-        },
-        "resume": "再開",
-        "run": "実行",
-        "runTriggered": "タスクがトリガーされました",
-        "save": "保存",
-        "scheduleType": {
-          "cron": "Cron",
-          "interval": "間隔",
-          "once": "一回限り"
-        },
-        "status": {
-          "active": "アクティブ",
-          "completed": "完了",
-          "paused": "一時停止中"
-        },
-        "tab": "タスク",
-        "time": {
-          "hoursAgo": "{{count}}時間前",
-          "minutesAgo": "{{count}}分前"
-        },
-        "timeout": {
-          "label": "最長実行時間",
-          "placeholder": "制限なし"
-        },
-        "title": "スケジュールタスク"
-      },
-      "warning": {
-        "bypassPermissions": "CherryClaw エージェントはデフォルトでフルオートモードで実行されます。すべてのツールは承認なしで実行されます。"
+      "title": "チャンネル",
+      "updateError": "チャンネルの更新に失敗しました",
+      "wechat": {
+        "addAccount": "WeChatアカウントを追加",
+        "chatIds": "許可されたユーザーID",
+        "chatIdsHint": "カンマ区切り。空欄にするとすべてのユーザーが許可されます。",
+        "chatIdsPlaceholder": "wxid_abc123、wxid_def456",
+        "connected": "接続済み",
+        "description": "iLink Bot APIを使用してWeChat経由でメッセージを受信・応答する。",
+        "disconnected": "切断されました",
+        "loginHint": "初回ログインにはQRコードのスキャンが必要です。ログインURLはアプリのログを確認してください。",
+        "qrHint": "スマートフォンでWeChatを開き、QRコードをスキャンしてログインしてください。",
+        "qrTitle": "WeChat QRコードログイン",
+        "title": "WeChat",
+        "whoamiTip": "ヒント：WeChatで/whoamiを送信すると、ユーザーのIDが取得できます。"
       }
     },
     "delete": {
@@ -339,14 +195,19 @@
     "home": {
       "welcome_title": "今日は何について話しましょうか？"
     },
+    "icon": {
+      "type": "エージェントアイコン"
+    },
     "input": {
-      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
-      "soul_placeholder": "Telegramに接続するのを手伝ってください"
+      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
     },
     "list": {
       "error": {
         "failed": "エージェントの一覧取得に失敗しました。"
       }
+    },
+    "manage": {
+      "title": "エージェントの管理"
     },
     "pin": {
       "title": "ピンエージェント"
@@ -499,6 +360,7 @@
         "label": "事前承認済みツール",
         "placeholder": "事前承認するツールを選択"
       },
+      "auto_rename": "タスク名を生成",
       "create": {
         "error": {
           "failed": "セッションの追加に失敗しました"
@@ -712,12 +574,6 @@
         "tab": "スキル",
         "title": "インストール済みスキル"
       },
-      "soulMode": {
-        "description": "有効にすると、エージェントはワークスペースのsoulファイルからカスタムシステムプロンプトを使用し、自律的タスク管理ツールを注入し、自律動作には不適切なインタラクティブツールを無効化します。",
-        "disabledBadge": "自律モードにより無効化されました",
-        "disabledTooltip": "このツールは、自律モードがアクティブな場合に自動的に無効になります",
-        "title": "自律モード"
-      },
       "tooling": {
         "mcp": {
           "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",
@@ -784,6 +640,94 @@
       }
     },
     "sidebar_title": "エージェント",
+    "skill": {
+      "manage": {
+        "title": "スキルを管理する"
+      }
+    },
+    "tasks": {
+      "add": "タスクを追加",
+      "cancel": "キャンセル",
+      "channels": {
+        "label": "チャンネルに送信",
+        "noActiveChatIds": "選択されたチャンネルには利用可能な受信者（チャットID）が存在しません。タスクの結果が配信されない可能性があります。まず、プラットフォーム上でボットにメッセージを送信してください。",
+        "placeholder": "結果を受け取るチャンネルを選択してください"
+      },
+      "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
+      "delete": {
+        "confirm": "このタスクを削除してもよろしいですか？",
+        "label": "削除"
+      },
+      "edit": "編集",
+      "empty": "スケジュールタスクがありません。追加して開始しましょう。",
+      "error": {
+        "createFailed": "タスクの作成に失敗しました",
+        "deleteFailed": "タスクの削除に失敗しました",
+        "loadFailed": "タスクの読み込みに失敗しました",
+        "runFailed": "タスクの実行に失敗しました",
+        "updateFailed": "タスクの更新に失敗しました"
+      },
+      "frequency": {
+        "everyPrefix": "間隔",
+        "everySuffix": "分ごとに実行",
+        "label": "実行頻度"
+      },
+      "intervalPlaceholder": "1以上",
+      "intervalUnit": "議事録",
+      "lastRun": "前回の実行",
+      "logs": {
+        "cancelled": "キャンセル",
+        "completed": "完了",
+        "duration": "所要時間",
+        "empty": "実行履歴がありません。",
+        "failed": "失敗",
+        "justNow": "さっき",
+        "label": "実行履歴",
+        "loadError": "実行履歴の読み込みに失敗しました",
+        "result": "結果",
+        "runAt": "実行時刻",
+        "running": "走っている…",
+        "search": "検索ログ...",
+        "status": "ステータス",
+        "viewSession": "セッションを表示"
+      },
+      "name": {
+        "label": "名前",
+        "placeholder": "例: 毎日のコードレビュー"
+      },
+      "nextRun": "次回の実行",
+      "oncePlaceholder": "日時を選択",
+      "pause": "一時停止",
+      "prompt": {
+        "expand": "エディタを展開",
+        "label": "プロンプト",
+        "placeholder": "このタスク実行時にエージェントが行うべきことは？"
+      },
+      "resume": "再開",
+      "run": "実行",
+      "runTriggered": "タスクがトリガーされました",
+      "save": "保存",
+      "scheduleType": {
+        "cron": "Cron",
+        "interval": "間隔",
+        "once": "一回限り"
+      },
+      "status": {
+        "active": "アクティブ",
+        "completed": "完了",
+        "paused": "一時停止中"
+      },
+      "tab": "タスク",
+      "time": {
+        "hoursAgo": "{{count}}時間前",
+        "minutesAgo": "{{count}}分前"
+      },
+      "timeout": {
+        "label": "最長実行時間",
+        "placeholder": "制限なし"
+      },
+      "title": "スケジュールタスク"
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -935,6 +879,18 @@
           "description": "環境でシェルコマンドを実行します",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "このエージェント設定とチャネルの検査と管理",
+          "label": "エージェント設定"
+        },
+        "CherryCron": {
+          "description": "アプリ内スケジューラを管理します",
+          "label": "スケジューラ"
+        },
+        "CherryGenerateImage": {
+          "description": "設定されたペインティングモデルを使用して、テキストプロンプトから画像を生成します",
+          "label": "画像を生成"
+        },
         "CherryKbManage": {
           "description": "ナレッジベース内のドキュメントを追加、削除、または更新します",
           "label": "ナレッジ管理"
@@ -943,6 +899,10 @@
           "description": "ナレッジベースを検索します",
           "label": "ナレッジ検索"
         },
+        "CherryNotify": {
+          "description": "接続されたチャンネル経由で通知を送信します",
+          "label": "通知"
+        },
         "CherryWebFetch": {
           "description": "ウェブページを取得して読み取る",
           "label": "Web Fetch"
@@ -950,10 +910,6 @@
         "CherryWebSearch": {
           "description": "設定されたプロバイダーを通じてウェブを検索します",
           "label": "ウェブ検索"
-        },
-        "ClawCron": {
-          "description": "アプリ内スケジューラを管理します",
-          "label": "スケジューラ"
         },
         "Edit": {
           "description": "特定のファイルに対してターゲットを絞った編集を行う",
@@ -1087,6 +1043,7 @@
     "clear": {
       "content": "トピックをクリアすると、アシスタント内のすべてのトピックとファイルが削除されます。続行しますか？",
       "menu_title": "すべてのアシスタントとの会話を削除してください",
+      "success_title": "{{count}}トピックをクリアしました",
       "title": "トピックをクリア"
     },
     "copy": {
@@ -1444,7 +1401,7 @@
         "title": "キューに追加済み（{{count}}）"
       },
       "generate_image": "画像を生成する",
-      "generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
+      "generate_image_no_model": "設定 › デフォルトモデルでペインティングモデルを設定してください",
       "knowledge_base": "ナレッジベース",
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
       "knowledge_base_unavailable": "ツール対応モデルを選択するか、プロンプトでのツール使用を有効にしてください",
@@ -1512,12 +1469,29 @@
         },
         "unsupported_model": "現在のモデルは調整可能な推論をサポートしていません"
       },
+      "toolbar": {
+        "customize": "ツールバーをカスタマイズ",
+        "drag": {
+          "cancelled": "{{name}}の再注文がキャンセルされました。",
+          "dropped": "{{name}}がドロップされました。",
+          "instructions": "並べ替えるには、SpaceキーまたはEnterキーでツールを選択し、矢印キーで移動してから、SpaceキーまたはEnterキーでドロップするか、Escapeキーでキャンセルします。",
+          "over": "{{name}}は{{over}}に移動しました。",
+          "picked_up": "{{name}}を拾いました。"
+        },
+        "drag_handle": "{{name}}をドラッグして並べ替えます",
+        "restore_default": "デフォルトに戻す"
+      },
       "tools": {
         "collapse": "折りたたむ",
         "collapse_in": "折りたたむ",
         "collapse_out": "展開",
         "expand": "展開",
         "file_not_found": "ファイルが見つかりません: {{path}}",
+        "generate_image": {
+          "failed": "画像生成に失敗しました",
+          "generating": "画像を生成中…",
+          "title": "生成された画像"
+        },
         "open_file": "ファイルを開く",
         "open_file_error": "ファイルを開けませんでした: {{path}}",
         "reveal_in_finder": "Finderで表示"
@@ -1712,6 +1686,7 @@
               "tip": "トピックは、完全な会話コンテキストを含んだ形でナレッジベースに保存されます"
             }
           },
+          "source_fallback": "会話",
           "success": "トピックがナレッジベースに正常に保存されました（{{count}} 個のコンテンツ）",
           "title": "トピックをナレッジベースに保存"
         }
@@ -1780,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}}トークン",
     "topics": {
       "auto_rename": "自動リネーム",
+      "auto_rename_failed": "会話名の自動生成に失敗しました",
       "clear": {
         "title": "メッセージをクリア"
       },
@@ -1921,54 +1897,212 @@
     }
   },
   "code": {
+    "add_provider_hint": "設定 → モデルサービス でプロバイダーを追加",
+    "add_provider_hint_anthropic_messages": "設定 → モデルサービスでAnthropic Messagesエンドポイントを構成する",
+    "add_provider_hint_gemini": "設定 → モデルサービス で Gemini エンドポイントを設定する",
+    "add_provider_hint_openai_responses": "設定 → モデルサービスでOpenAI Responsesエンドポイントを設定する",
+    "adv": {
+      "claude": {
+        "context_column": "100万",
+        "disable_1m_context": "1Mコンテキストを無効にする",
+        "disable_attribution_header": "アトリビューションヘッダーを無効にする",
+        "disable_auto_upgrade": "自動アップグレードを無効にする",
+        "disable_bundled_skills": "バンドルされたスキルを無効にする",
+        "disable_compact": "コンパクションを無効にする",
+        "disable_extra_usage_command": "追加使用コマンドを無効にする",
+        "disable_nonessential_traffic": "不要なトラフィックを無効化",
+        "disable_terminal_title": "ターミナルタイトルを無効にする",
+        "effort_level_hint": "努力レベル",
+        "enable_teammates": "チームメイトを有効にする",
+        "enable_tool_search": "ツール検索を有効にする",
+        "fable_model": "寓話",
+        "haiku_model": "俳句",
+        "hide_attribution": "AI帰属を非表示にする",
+        "max_context_tokens_hint": "最大コンテキストトークン数",
+        "max_output_tokens_hint": "最大出力トークン数",
+        "model_column": "リクエストモデル",
+        "model_roles": "モデルロールマッピング",
+        "model_roles_hint": "バックグラウンドサブタスク（例：圧縮、タイトル）に使用するモデルを上書きします。メインモデルに従わせる場合は空のままにしてください。",
+        "options": "クイックオプション",
+        "opus_model": "Opus",
+        "permissions_allow": "許可（カンマ区切り）",
+        "permissions_deny": "拒否（カンマ区切り）",
+        "permissions_hint": "ツールパターンを事前承認または拒否します。ワイルドカード（例：Read(secrets-*/config.json)）をサポートします。",
+        "role_column": "役割",
+        "sonnet_model": "ソネット",
+        "subagent_model": "サブエージェント"
+      },
+      "codex": {
+        "disable_response_storage": "応答の保存を無効にする",
+        "goal_mode": "ゴールモードを有効にする",
+        "remote_compaction": "リモートコンパクションを有効にする"
+      },
+      "gemini": {
+        "checkpointing": "チェックポイント機能を有効にする",
+        "disable_usage_stats": "使用状況統計を無効にする",
+        "hide_banner": "スタートアップバナーを非表示にする",
+        "vim_mode": "Vimモードを有効化"
+      },
+      "kimi": {
+        "disable_telemetry": "テレメトリを無効にする",
+        "keep_background_tasks": "終了時にバックグラウンドタスクを維持",
+        "micro_compaction": "マイクロコンパクションを有効にする",
+        "plan_mode": "デフォルトプラン モード",
+        "thinking": "思考を有効にする"
+      },
+      "opencode": {
+        "auto_compact": "オートコンパクト",
+        "enable_reasoning": "推論を有効にする"
+      },
+      "permission_mode": "承認許可",
+      "permission_modes": {
+        "accept_edits": "編集を承認",
+        "ask": "尋ねる",
+        "auto": "オート",
+        "auto_edit": "自動編集",
+        "bypass_high_risk": "権限のバイパス（高リスク）",
+        "default": "デフォルト",
+        "default_allow_all": "デフォルト（すべて許可）",
+        "deny": "拒否",
+        "full_access_high_risk": "フルアクセス（高リスク）",
+        "manual": "マニュアル",
+        "plan": "計画",
+        "read_only": "読み取り専用",
+        "workspace": "ワークスペース",
+        "yolo_high_risk": "YOLO（高リスク）"
+      },
+      "qwen": {
+        "classify_all_shell": "すべてのシェルコマンドを分類する",
+        "disable_auto_update": "自動更新を無効にする",
+        "disable_usage_stats": "使用統計を無効にする",
+        "hide_banner": "起動バナーを非表示にする",
+        "vim_mode": "Vimモードを有効にする"
+      },
+      "reasoning_effort": "推論の労力",
+      "reasoning_efforts": {
+        "default": "デフォルト",
+        "high": "高",
+        "low": "低",
+        "medium": "ミディアム",
+        "minimal": "最小限",
+        "xhigh": "エクストラハイ"
+      },
+      "select_placeholder": "選択…"
+    },
+    "api_gateway": {
+      "description": "あらゆるCLI、すべてのモデル",
+      "requires_running": "有効化後、Cherry Studio を実行し続けてください — 外部 CLI は、Cherry Studio がホストするゲートウェイに接続します。",
+      "title": "統合ゲートウェイ"
+    },
+    "apply_failed": "システムファイルへのCLI設定の書き込みに失敗しました",
     "auto_update_to_latest": "最新バージョンを自動的に更新する",
     "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
+    "can_upgrade": "アップグレードが利用可能です",
+    "clear_config_failed": "CLI設定のクリアに失敗しました。認証情報がツールの設定ファイルに残っている可能性があります。",
+    "cli_config": {
+      "format_failed": "フォーマットに失敗しました。ファイルの構文を確認してください。",
+      "hint": "これはシステムCLI設定ファイルに書き込まれる内容です。APIキーは設定に保存されません。",
+      "title": "CLI設定ファイル",
+      "unknown_model": "不明なモデル",
+      "unknown_provider": "不明なプロバイダ"
+    },
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "GitHub Copilot CLI",
+      "kimi_code": "Kimi Code",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
+    },
+    "collapse": "崩壊",
+    "config_json_hint": "生のJSONを貼り付けたり編集したりできます。上のフィールドと同期します",
+    "configure": "設定",
+    "configuring_provider": "{{provider}}を設定する",
     "count_one": "{{count}}個のアイテム",
     "count_other": "{{count}}個のアイテム",
+    "current_config": "現在",
+    "current_config_settings": "現在の設定",
     "custom_path": "カスタムパス",
     "custom_path_error": "カスタムターミナルパスの設定に失敗しました",
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "disable": "無効にする",
+    "edit_config": "設定を編集",
+    "enable": "有効化",
+    "enabled": "有効",
+    "endpoint_default": "プロバイダーdefaultを使用",
+    "endpoint_hint": "エンドポイント / モデルサービスのキー",
     "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
     "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
+    "format_json": "形式",
     "hero_tagline": "CLIツールを選択して設定してください",
+    "install": "インストール",
     "install_bun": "Bun をインストール",
+    "install_error": "インストールに失敗しました",
+    "install_success": "インストール成功",
+    "install_tool_first": "{{toolName}}を先にインストールして、プロバイダーを選択してください",
+    "installing": "インストール中…",
     "installing_bun": "インストール中...",
+    "latest": "最新",
     "launch": {
       "bun_required": "CLI ツールを実行するには Bun 環境が必要です。まず Bun をインストールしてください",
       "error": "起動に失敗しました。もう一度試してください",
       "label": "起動",
       "launched": "開始されました",
       "success": "起動成功",
+      "title": "{{tool}}を起動",
       "validation_error": "必須項目を入力してください：CLI ツール、モデル、作業ディレクトリ"
     },
     "launching": "起動中...",
     "model": "モデル",
     "model_hint": "CLIツールが使用するAIモデルを選択してください",
+    "model_hint_config": "使用するモデルを選択してください",
+    "model_mode": {
+      "common": "一般",
+      "detailed": "詳細な"
+    },
     "model_placeholder": "使用するモデルを選択してください",
+    "model_providers": "モデルプロバイダー",
     "model_required": "モデルを選択してください",
+    "model_selection": "モデル選択",
+    "more": "もっと",
+    "move_provider_to_top": "プロバイダーをトップに移動",
+    "no_matching_providers": "一致するプロバイダーがありません",
+    "no_model_for_provider": "このプロバイダーには利用可能なモデルがありません",
+    "no_providers_description": "設定 → モデルサービスで対応しているプロバイダーを有効にする",
+    "no_providers_title": "有効なプロバイダがありません",
+    "no_tools": "ツールは利用できません",
+    "not_installed": "インストールされていません",
+    "open_provider_settings": "プロバイダー設定を開く",
+    "own_login": {
+      "title": "{{toolName}} 公式"
+    },
+    "providerless_hint": "このツールは独自のログインフローで認証を行います。作業ディレクトリを選択して起動するだけです。サインインするためにツールを一度実行してください。",
+    "providers": "プロバイダー",
+    "raw_config": "Raw Config (JSON)",
+    "search_provider_placeholder": "検索プロバイダー…",
     "select_folder": "フォルダを選択",
+    "select_provider_before_launch": "{{toolName}}を起動する前にプロバイダーを選択してください",
+    "select_tool_to_start": "左側から設定を開始するCLIツールを選択してください",
     "set_custom_path": "カスタムターミナルパスを設定",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
     "terminal_placeholder": "ターミナルアプリを選択",
     "title": "コードツール",
-    "tool_description": {
-      "claude_code": "Anthropicの公式コマンドラインAIコーディングアシスタント",
-      "gemini_cli": "Googleの公式Geminiコマンドラインアシスタント",
-      "github_copilot_cli": "GitHubの公式Copilotコマンドラインコンパニオン",
-      "kimi_cli": "MoonshotのKimiコマンドラインアシスタント",
-      "openai_codex": "OpenAIの公式コード生成CLI",
-      "opencode": "オープンソースのマルチモデルコーディングエージェント",
-      "qoder_cli": "Alibaba Qoderの自律型コマンドラインコーディングツール",
-      "qwen_code": "Alibaba TongyiのオープンソースCLIコーディングツール"
-    },
+    "tool_parameters": "パラメータ設定",
+    "up_to_date": "最新の状態",
     "update_options": "更新オプション",
+    "upgrade": "アップグレード",
+    "upgrade_error": "アップグレードに失敗しました",
+    "upgrade_success": "アップグレード成功",
     "working_directory": "作業ディレクトリ",
     "working_directory_hint": "CLIツールが起動する作業ディレクトリ"
   },
@@ -2179,6 +2313,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
+    "image-edit": "画像編集 (OpenAI)",
     "image-generation": "画像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
@@ -2318,6 +2453,80 @@
       "reasoning_truncated": "思考過程がブロック分割できません。切り捨てられています。"
     },
     "user": "ユーザー"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "このHTMLファイルにはコンテンツがありません。",
+        "title": "空のファイル"
+      },
+      "mode": {
+        "label": "HTMLビューモード",
+        "preview": "プレビュー",
+        "source": "ソース"
+      },
+      "read_error": {
+        "title": "このファイルを読み取れませんでした"
+      },
+      "too_large": {
+        "description": "HTMLファイルは{{limit}}MiBを超えるとプレビューできません。",
+        "title": "ファイルが大きすぎます"
+      }
+    },
+    "invalid_path": {
+      "description": "ファイルのプレビューには有効な絶対ローカルパスが必要です。",
+      "title": "このファイルをプレビューできません"
+    },
+    "load_error": {
+      "description": "プレビュー内容を読み込めませんでした。",
+      "title": "プレビューに失敗しました"
+    },
+    "loading": "プレビューを読み込み中...",
+    "markdown": {
+      "empty": {
+        "description": "このMarkdownファイルにはコンテンツがありません。",
+        "title": "空のファイル"
+      },
+      "mode": {
+        "label": "Markdown表示モード",
+        "preview": "プレビュー",
+        "source": "ソース"
+      },
+      "read_error": {
+        "title": "このファイルを読み込めませんでした"
+      },
+      "too_large": {
+        "description": "{{limit}} MiBを超えるMarkdownファイルはプレビューできません。",
+        "title": "ファイルが大きすぎます"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "デフォルトのアプリで開く",
+        "description": "{{limit}} MiBを超えるPDFファイルはプレビューできません。",
+        "open_error": "このファイルを開けませんでした",
+        "title": "ファイルが大きすぎます"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "このテキストファイルには内容がありません。",
+        "title": "空のファイル"
+      },
+      "read_error": {
+        "title": "このファイルを読み取れませんでした"
+      },
+      "too_large": {
+        "description": "{{limit}} MiBを超えるテキストファイルはプレビューできません。",
+        "title": "ファイルが大きすぎます"
+      }
+    },
+    "unsupported": {
+      "action": "デフォルトのアプリで開く",
+      "description": "このファイルタイプはまだプレビューできません。",
+      "open_error": "このファイルを開けませんでした",
+      "title": "プレビューは利用できません"
+    }
   },
   "files": {
     "actions": "操作",
@@ -2486,9 +2695,7 @@
       "message": "メッセージを探す"
     },
     "records": {
-      "agentSubtitle": "{{count}}件のタスク",
       "agentTitle": "エージェント履歴",
-      "assistantSubtitle": "{{count}}件の会話",
       "bulkDelete": "バッチ削除",
       "bulkDeleteSessions": {
         "description": "選択したタスク {{count}} 件を削除しますか？",
@@ -2510,11 +2717,19 @@
         "target": "ターゲットアシスタント",
         "title": "選択した会話を移動"
       },
+      "clearSearch": "検索をクリア",
       "empty": {
         "description": "現在のフィルターに該当する会話はありません。",
         "sessionsDescription": "現在のフィルターに該当するタスクはありません。",
         "sessionsTitle": "タスクなし",
         "title": "会話はありません"
+      },
+      "filter": {
+        "selectAgent": "エージェントを選択",
+        "selectAssistant": "アシスタントを選択",
+        "statusLabel": "ステータス",
+        "statusPlaceholder": "ステータスを選択",
+        "unlinkedAssistant": "リンクされていないアシスタント"
       },
       "loading": {
         "description": "会話リストを読み込んでいます。",
@@ -2522,15 +2737,9 @@
         "sessionsTitle": "タスクを読み込んでいます",
         "title": "会話を読み込んでいます"
       },
-      "resultCount": "{{count}}件の結果",
       "searchSession": "タスクを検索...",
       "searchTopic": "会話を検索...",
       "shortTitle": "歴史",
-      "sidebar": {
-        "searchAssistant": "検索アシスタント...",
-        "status": "ステータス",
-        "unknownAssistant": "リンクされていないアシスタント"
-      },
       "status": {
         "completed": "完了",
         "failed": "失敗",
@@ -2538,11 +2747,10 @@
       },
       "table": {
         "actions": "アクション",
+        "conversation": "会話",
         "emptyValue": "—",
-        "messages": "メッセージ",
         "session": "タスク",
-        "time": "時間",
-        "title": "タイトル"
+        "time": "時間"
       },
       "title": "会話履歴"
     },
@@ -2667,6 +2875,7 @@
           "title": "単一のウェブページをインポート"
         }
       },
+      "back_to_parent": "戻る",
       "bulk": {
         "delete": "削除",
         "delete_confirm_description": "{{count}}件の選択したデータソースを削除しますか？この操作は取り消せません。",
@@ -2694,6 +2903,7 @@
         "title": "最初のデータソースをアップロードしてください"
       },
       "empty_description": "まだデータソースがありません",
+      "empty_folder": "このフォルダは空です",
       "filters": {
         "all": "すべて",
         "directory": "フォルダ",
@@ -2726,9 +2936,9 @@
           "type": "タイプ",
           "updated_at": "更新済み"
         },
+        "open_row": "{{title}}を開く",
         "select_all": "すべて選択",
-        "select_row": "行を選択",
-        "view_chunks_row": "{{title}}のチャンクを表示"
+        "select_row": "行を選択"
       },
       "toolbar": {
         "add": "データソースを追加"
@@ -2739,6 +2949,8 @@
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
+    "empty_action": "ナレッジベースを作成",
+    "empty_description": "まだナレッジベースがありません。ドキュメントの整理と検索を開始するために、ナレッジベースを作成してください。",
     "error": {
       "directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
       "failed_base_unknown": "このナレッジベースは移行中に失敗しました。再構築して、新しい埋め込みモデルを選択してください。",
@@ -2789,6 +3001,8 @@
       "chunking": "チャンキング",
       "default_separator": "自動（推奨）",
       "document_count": "文書数",
+      "download_local_embedding": "ローカルモデルをダウンロード",
+      "download_local_embedding_failed": "ローカル埋め込みモデルのダウンロードに失敗しました",
       "embedding_model": "埋め込みモデル",
       "embedding_model_select": "モデル選択",
       "file_processing": "ファイル処理",
@@ -2815,7 +3029,8 @@
       "separator_rule": "セパレータルール",
       "smart_chunking": "スマートチャンキング",
       "threshold": "類似度閾値",
-      "tokens_unit": "トークン"
+      "tokens_unit": "トークン",
+      "use_local_embedding": "ローカルモデルを使用"
     },
     "recall": {
       "collapse": "折りたたみチャンク",
@@ -2986,11 +3201,10 @@
             "placeholder": "エージェントに名前を付けてください"
           },
           "permission_mode": {
-            "help": "bypassPermissionsに切り替えることは、Soulモードを有効にすることと同等です。",
             "label": "パーミッションモード",
             "option": {
               "acceptEdits": "編集を承認する",
-              "bypassPermissions": "権限をバイパス（ソウル）",
+              "bypassPermissions": "権限をバイパス",
               "default": "デフォルト",
               "plan": "プラン モード"
             }
@@ -3002,10 +3216,6 @@
           "small_model": {
             "hint": "軽量なチェックとフォーマット",
             "label": "小型モデル（オプション）"
-          },
-          "soul_enabled": {
-            "help": "有効にすると、bypassPermissions を自動的に付与します",
-            "label": "ソウルモード"
           }
         },
         "model_config": "モデル構成",
@@ -3047,6 +3257,7 @@
             "no_skills_enabled": "スキルが有効になっていません",
             "search_placeholder": "検索ツールまたはサーバー...",
             "skills_coming_soon": "スキルバインディング、近日公開",
+            "skills_enable_all": "すべて有効にする",
             "skills_require_save": "スキルを有効にする前に保存してください",
             "tab": {
               "mcp": "MCPサーバー",
@@ -3135,6 +3346,7 @@
           "avatar_aria": "アバターを選択",
           "back": "戻る",
           "capability": {
+            "builtin_badge": "デフォルトで有効",
             "import": "スキルインポート",
             "no_skills": "インストールされているスキルがありません",
             "search": "検索スキル"
@@ -3168,6 +3380,7 @@
       },
       "knowledge": {
         "add": "ナレッジベースを追加",
+        "create_first": "オープンな知識で一つを作る",
         "desc": "1つ以上のナレッジベースをリンクしてください。チャット中に関連するスニペットが取得されます。",
         "doc_count": "{{count}} 件のドキュメント",
         "empty_desc": "リンクが完了すると、アシスタントはドキュメントの内容に基づいて回答できます",
@@ -3181,6 +3394,7 @@
         "title": "ナレッジベース"
       },
       "prompt": {
+        "copy_variable": "{{variable}}をコピー",
         "create_title": "新しいプロンプト",
         "dblclick_hint": "プレビューをダブルクリックすると編集に戻ります",
         "desc": "システムプロンプトはアシスタントの最初の文脈として送信されます",
@@ -3357,8 +3571,10 @@
       "title": "図書館"
     },
     "skill_add": {
+      "add": "スキルを追加",
       "local_import": "ローカルインポート",
-      "online_search": "オンライン検索"
+      "online_search": "オンライン検索",
+      "system_search": "システム検索"
     },
     "skill_detail": {
       "created_at": "作成済",
@@ -3386,6 +3602,19 @@
       "updated": "更新日時でソート"
     },
     "subtitle": "アシスタント、エージェント、スキルを管理する",
+    "system_skill": {
+      "conflict": "名称の競合",
+      "description": "このシステムに既にインストールされているスキルをインポートします。",
+      "empty_description": "このデバイスの他のコーディングツールでインポート可能なスキルが見つかりませんでした。",
+      "empty_title": "インポートできるスキルがありません",
+      "enable_success": "{{name}}を有効にしました",
+      "enabled": "有効",
+      "import": "インポート",
+      "import_success": "{{name}}をインポートしました",
+      "imported": "インポート済み",
+      "search_placeholder": "検索システムスキル...",
+      "title": "システムスキル"
+    },
     "tag_picker": {
       "no_tags": "まだタグはありません",
       "placeholder": "新しいタグ名..."
@@ -3495,6 +3724,7 @@
     },
     "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
     "error": {
+      "avatar_image_too_large": "画像が大きすぎます（最大 {{limit}}）",
       "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
@@ -3516,6 +3746,7 @@
         "text_extraction_failed": "{{name}}からテキストの抽出に失敗しました"
       },
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
+      "image_process_failed": "画像の処理に失敗しました。もう一度お試しください。",
       "invalid": {
         "api": {
           "host": "無効なAPIアドレスです",
@@ -3680,6 +3911,8 @@
       "abort_failed": "ツール呼び出し中断失敗",
       "aborted": "ツール呼び出し中断",
       "activity": {
+        "analyze": "分析",
+        "analyzing": "分析",
         "archive": "アーカイブ",
         "assistantTask": "タスク",
         "availableFeatures": "利用可能な機能",
@@ -3687,24 +3920,28 @@
         "branch": "コードブランチ",
         "build": "ビルド",
         "building": "建築",
+        "calendar": "カレンダー",
         "check": "確認",
         "checking": "確認中",
         "codeFiles": "コードファイル",
         "codeHostInfo": "コードホスティング情報",
-        "commandName": "{{name}} コマンド",
         "configFiles": "プロジェクトのドキュメントと設定ファイル",
         "copy": "コピー",
         "copying": "コピー",
         "create": "作成",
         "creating": "作成",
         "currentFolder": "現在のフォルダ",
+        "data": "データ",
         "delete": "削除",
         "deleting": "削除",
         "documentFiles": "ドキュメントファイル",
         "download": "ダウンロード",
         "downloading": "ダウンロード中",
+        "email": "メール",
+        "environmentInfo": "環境情報",
         "executeCommand": "コマンドを実行",
         "executingCommand": "コマンドを実行中",
+        "extensionFailed": "拡張機能が失敗しました",
         "extract": "抽出",
         "extracting": "抽出",
         "file": "ファイル",
@@ -3733,6 +3970,10 @@
         "repository": "コードリポジトリ",
         "search": "見つける",
         "searching": "見つける",
+        "send": "送信",
+        "sending": "送信",
+        "start": "開始",
+        "starting": "開始",
         "switch": "スイッチ",
         "switching": "切り替え",
         "sync": "同期",
@@ -3742,6 +3983,8 @@
         "translationFiles": "翻訳ファイル",
         "upload": "アップロード",
         "uploading": "アップロード中",
+        "usedExtension": "拡張機能を使用しました",
+        "usingExtension": "拡張機能を使用する",
         "view": "表示",
         "viewing": "閲覧",
         "webPage": "ウェブページ",
@@ -3753,6 +3996,7 @@
       "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
+      "collapse": "折りたたむ",
       "completed": "完了",
       "error": "エラーが発生しました",
       "groupHeader": "{{count}}ツール呼び出し",
@@ -3797,6 +4041,7 @@
         "usingTools": "タスクに取り組んでいる"
       },
       "preview": "プレビュー",
+      "processed": "処理済み",
       "raw": "生データ",
       "runningCount": "{{count}}個のツールが実行中",
       "runningHeader": "作業中…",
@@ -3933,6 +4178,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "カスタムモデルを設定",
       "pin": "このモデルをピン留め",
       "unpin": "モデルのピン留めを解除"
     },
@@ -4048,10 +4294,13 @@
     "drop_markdown_hint": ".md ファイルまたはディレクトリをここにドラッグ＆ドロップしてインポートしてください",
     "empty": "暫無ノート",
     "expand": "展開",
+    "exportToPDF": "PDFにエクスポート",
     "exportToWord": "Wordにエクスポート",
     "export_failed": "知識ベースへのエクスポートに失敗しました",
     "export_knowledge": "ノートをナレッジベースにエクスポートする",
     "export_success": "知識ベースへのエクスポートが成功しました",
+    "export_to_pdf_failed": "PDFへのエクスポートに失敗しました",
+    "export_to_pdf_success": "PDFにエクスポートされました",
     "export_to_word_failed": "Wordへのエクスポートに失敗しました",
     "folder": "フォルダー",
     "load_failed": "ノートの読み込みに失敗しました",
@@ -4068,6 +4317,8 @@
     "no_valid_files": "有効なファイルがアップロードされていません",
     "open_folder": "外部フォルダーを開きます",
     "open_outside": "外部から開く",
+    "print": "印刷",
+    "print_failed": "ノートの印刷に失敗しました",
     "rename": "名前の変更",
     "rename_changed": "セキュリティポリシーにより、ファイル名は{{original}}から{{final}}に変更されました",
     "rename_failed": "ノートの名前を変更できませんでした",
@@ -4208,6 +4459,7 @@
       "select_provider_model": "プロバイダーとモデルをまず選択してください"
     },
     "gateway": {
+      "open_dashboard": "Open OpenClaw",
       "port": "ポート",
       "restart": "再起動",
       "start": "スタートゲートウェイ",
@@ -4221,7 +4473,6 @@
       "hint": "macOS: brew install git | Windows: git-scm.com からダウンロード（インストール時に Git を PATH に追加するよう設定してください）",
       "title": "Gitが必要"
     },
-    "install_progress": "インストール進行状況",
     "installed_at": "OpenClawのインストール先",
     "migration": {
       "description": "npm経由でインストールされた古いバージョンのOpenClawが検出されました。最新の公式バージョンを入手するために、再インストールをお願いします。",
@@ -4282,7 +4533,6 @@
     },
     "title": "オープンクロー",
     "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
-    "uninstall_progress": "アンインストールの進行状況",
     "uninstalled": {
       "description": "OpenClawは正常にアンインストールされました。",
       "title": "アンインストール完了"
@@ -4538,6 +4788,7 @@
     "req_error_text": "サーバーが混雑しているか、プロンプトに「著作権用語」または「敏感な用語」が含まれています。もう一度お試しください。",
     "req_error_token": "トークンの有効性を確認してください",
     "required_field": "必須項目",
+    "revealing": "生成された画像の公開",
     "safety_tolerance": "安全許容範囲",
     "safety_tolerance_tip": "高いほどフィルターが緩やかになります。0が最も厳しく、6が最も緩やかです。",
     "seed": "シード",
@@ -4729,6 +4980,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "トトロ",
     "mimo": "シャオミ・ミモ",
     "mineru": "MinerU",
@@ -5194,7 +5446,7 @@
         "icon": {
           "error": "無効なアイコン名です",
           "label": "アイコン",
-          "placeholder": "Lucideアイコン名を入力",
+          "placeholder": "アイコン名",
           "random": "ランダム選択",
           "tooltip": "例: arrow-right（小文字で入力）",
           "view_all": "全アイコンを表示"
@@ -5331,6 +5583,13 @@
       "auto_switch_to_topics": "トピックに自動的に切り替える",
       "title": "詳細設定"
     },
+    "agent": {
+      "position": {
+        "label": "セッション位置",
+        "left": "左",
+        "right": "右"
+      }
+    },
     "appearance": {
       "title": "外観"
     },
@@ -5385,7 +5644,8 @@
       },
       "backup": {
         "skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
-        "skip_file_data_title": "精簡バックアップ"
+        "skip_file_data_title": "精簡バックアップ",
+        "v2_unavailable": "Backup & restore V2はまだ利用できません。近日公開予定です。"
       },
       "clear_cache": {
         "button": "キャッシュをクリア",
@@ -5418,75 +5678,6 @@
         "siyuan": "思源ノートにエクスポート",
         "title": "エクスポートメニュー設定",
         "yuque": "語雀にエクスポート"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "バックアップファイルを選択"
-        },
-        "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
-        "file": {
-          "button": "ファイルにエクスポート",
-          "content": "モバイルでファイル経由でインポートできるバックアップファイルとしてデータをエクスポートします。",
-          "export_failed": "エクスポートに失敗しました",
-          "export_success": "エクスポート成功",
-          "title": "ファイルとしてエクスポート"
-        },
-        "lan": {
-          "button": "転送を開始",
-          "connected": "接続済み",
-          "connection_failed": "接続に失敗しました",
-          "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",
-          "device_list_title": "ローカルネットワークデバイス",
-          "discovered_devices": "発見されたデバイス",
-          "error": {
-            "file_too_large": "ファイルが大きすぎます。最大500MBまでサポートされています。",
-            "init_failed": "初期化に失敗しました",
-            "invalid_file_type": "ZIPファイルのみがサポートされています",
-            "no_file": "ファイルが選択されていません",
-            "no_ip": "IPアドレスを取得できません",
-            "not_connected": "まずハンドシェイクを完了してください",
-            "send_failed": "ファイルの送信に失敗しました"
-          },
-          "file_transfer": {
-            "cancelled": "転送がキャンセルされました",
-            "failed": "ファイル転送に失敗しました: {{message}}",
-            "progress": "送信中... {{progress}}%",
-            "success": "ファイルは正常に送信されました"
-          },
-          "handshake": {
-            "button": "握手",
-            "failed": "ハンドシェイクに失敗しました: {{message}}",
-            "in_progress": "ハンドシェイク中...",
-            "success": "{{device}}とのハンドシェイクが完了しました",
-            "test_message_received": "{{device}}からpongを受信しました",
-            "test_message_sent": "hello world テストペイロードを送信しました"
-          },
-          "idle_hint": "スキャンが一時停止されました。スキャンを開始して、LAN上のCherry Studioピアを検索してください。",
-          "ip_addresses": "IPアドレス",
-          "last_seen": "最後に見たのは{{time}}",
-          "metadata": "メタデータ",
-          "no_connection_warning": "Cherry StudioモバイルでLAN転送を開いてください",
-          "no_devices": "まだLANピアが見つかっていません",
-          "scan_devices": "デバイスをスキャン",
-          "scanning_hint": "ローカルネットワークでCherry Studioのピアをスキャンしています...",
-          "send_file": "ファイルを送信",
-          "status": {
-            "completed": "転送完了",
-            "connected": "接続済み",
-            "connecting": "接続中...",
-            "disconnected": "切断されました",
-            "error": "接続エラー",
-            "initializing": "接続を初期化中...",
-            "preparing": "転送準備中...",
-            "sending": "転送中 {{progress}}%"
-          },
-          "status_badge_idle": "アイドル",
-          "status_badge_scanning": "スキャン",
-          "stop_scan": "スキャンを停止",
-          "title": "LAN転送",
-          "transfer_progress": "転送進行"
-        },
-        "title": "スマートフォンにエクスポート"
       },
       "hour_interval_one": "{{count}} 時間",
       "hour_interval_other": "{{count}} 時間",
@@ -5967,6 +6158,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "アップデートを確認",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
@@ -5977,6 +6169,31 @@
       "installError": "Failed to install tool",
       "installing": "インストール中...",
       "invalidTool": "無効なツール名またはキー",
+      "localModels": {
+        "cancel": "キャンセル",
+        "description": "デバイス上でローカルに動作するモデル — 一度ダウンロードすれば、APIキーなしでオフラインで使用できます。",
+        "download": "ダウンロード",
+        "embedding": {
+          "name": "ローカル埋め込み",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
+        },
+        "notice": {
+          "downloadFailed": "ダウンロードに失敗しました。接続を確認して、もう一度お試しください。",
+          "inUse": "ナレッジベースによってまだ使用されている; ウェイトは保持された。",
+          "removeFailed": "削除に失敗しました。詳細についてはログを確認してください。"
+        },
+        "ocr": {
+          "name": "ローカルOCR",
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
+        },
+        "remove": "削除",
+        "status": {
+          "downloading": "ダウンロード中…",
+          "ready": "準備完了"
+        },
+        "title": "ローカルモデル",
+        "unsupported": "このプラットフォームではローカルモデルはサポートされていません。"
+      },
       "notInstalled": "インストールされていません",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -6004,7 +6221,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "アップデートの確認に失敗しました"
     },
     "developer": {
       "enable_developer_mode": "開発者モードを有効にする",
@@ -6448,10 +6666,10 @@
       "user": "ユーザー"
     },
     "menuGroups": {
-      "automation": "自動化",
-      "capabilities": "機能とツール",
+      "automation": "効率",
+      "capabilities": "ツール",
       "models": "モデル",
-      "personal": "個人",
+      "personal": "環境設定",
       "quickAccess": "クイックアクセス",
       "system": "システム"
     },
@@ -6572,7 +6790,8 @@
         },
         "model_id": {
           "label": "モデルID",
-          "placeholder": "必須 例：gpt-3.5-turbo",
+          "placeholder": "例：gpt-5.5",
+          "required": "モデル ID を入力してください",
           "select": {
             "placeholder": "モデルを選択"
           },
@@ -6580,7 +6799,7 @@
         },
         "model_name": {
           "label": "モデル名",
-          "placeholder": "例：GPT-4",
+          "placeholder": "例：GPT-5.5",
           "tooltip": "例：GPT-4"
         },
         "supported_text_delta": {
@@ -6649,14 +6868,18 @@
       },
       "group_disable": "このグループを無効化",
       "group_enable": "このグループを有効化",
-      "list_title": "Model list",
+      "list_title": "モデル",
       "manage": {
         "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
-          "label": "リストにモデルを追加"
+          "label": "すべてのモデルを追加"
         },
+        "add_success_enable_failed": "モデルが追加されましたが、プロバイダーを有効化できませんでした。",
         "add_whole_group": "グループ全体を追加",
+        "clean_stale_models": "無効なモデルをクリーンアップ",
+        "clean_stale_success": "{{count}} 個の無効なモデルをクリーンアップしました",
+        "default_model_cannot_remove": "デフォルトモデルは削除できません。",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
@@ -6678,11 +6901,14 @@
         "operation_failed": "Model operation failed.",
         "refetch_list": "モデルリストを再取得",
         "reload_catalog": "Refresh list",
-        "remove_listed": "リストからモデルを削除",
+        "remove_listed": "すべてのモデルを削除",
         "remove_model": "モデルを削除",
+        "remove_skipped_default_in_use": "{{count}} 個のデフォルトモデルをスキップしました",
         "remove_whole_group": "グループ全体を削除",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
+        "stale_badge": "無効",
+        "stale_filter": "無効",
         "status_all": "All",
         "status_disabled": "Disabled",
         "status_enabled": "Enabled",
@@ -6718,6 +6944,8 @@
       },
       "more_actions": "モデル一覧のその他の操作",
       "not_enabled_models": "無効",
+      "painting_model": "ペインティングモデル",
+      "painting_model_description": "画像生成に使用されたモデル",
       "provider_id": "プロバイダー ID",
       "provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
       "provider_key_add_failed_by_empty_data": "{{provider}} の API キーを追加できませんでした。データが空です。",
@@ -6742,7 +6970,7 @@
         "custom_add": "カスタム",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "追加"
+        "pull_short": "モデル一覧を取得"
       },
       "topic_naming": {
         "auto": "トピックの自動命名",
@@ -6834,6 +7062,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "プロバイダーを追加",
         "name": {
           "label": "プロバイダー名",
           "placeholder": "例：OpenAI",
@@ -7060,6 +7289,7 @@
         "fill_after_create": "認証フィールドは作成後に入力できます",
         "menu_label": "インスタンスを追加"
       },
+      "enable_failed_after_connection": "接続は成功しましたが、プロバイダーを有効にすることができませんでした。",
       "filter": {
         "agent": "エージェントサポート",
         "all": "すべてのプロバイダー",
@@ -7266,6 +7496,7 @@
       "open_tab_in_new_window": "新しいウィンドウでタブを開く",
       "pin_tab": "タブをピン留め/解除",
       "press_shortcut": "ショートカットを押す",
+      "print": "印刷",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
       "reset": "リセット",
@@ -7379,6 +7610,13 @@
           "doc2x": {
             "description": "高度なファイル復元エンジン。",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 medium) をインプロセスで実行 — 完全オフライン、APIキー不要、認識処理はバックグラウンドスレッドで実行されるためUIが応答性を保ちます。初回使用前に環境依存関係でモデル（約140MB）をダウンロードしてください。",
+            "name": "ローカルPaddleOCR",
+            "status": {
+              "local": "お使いのデバイス上で完全に動作"
+            }
           },
           "mineru": {
             "description": "OpenDataLabのオープンソース高品質PDF抽出ツール",
@@ -7588,6 +7826,8 @@
   },
   "tab": {
     "close": "タブを閉じる",
+    "close_others": "他のタブを閉じる",
+    "close_to_right": "右側のタブを閉じる",
     "move_to_first": "最初へ移動",
     "new": "新しいタブ",
     "open_in_new_window": "新しいウィンドウで開く",
@@ -7596,6 +7836,7 @@
   },
   "title": {
     "apps": "アプリ",
+    "chat": "チャット",
     "code": "Code",
     "files": "ファイル",
     "home": "ホーム",

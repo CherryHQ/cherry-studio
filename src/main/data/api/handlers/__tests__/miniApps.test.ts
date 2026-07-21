@@ -73,7 +73,7 @@ describe('miniAppHandlers', () => {
       appId: 'my-app',
       name: 'My App',
       url: 'https://my.app',
-      logo: 'application'
+      logo: { kind: 'key', key: 'application' } as const
     }
 
     it('should parse body and delegate to service', async () => {
@@ -263,13 +263,14 @@ describe('miniAppHandlers', () => {
 
       const result = await miniAppHandlers['/mini-apps/:appId'].PATCH({
         params: { appId: 'custom-app' },
-        body: { name: 'Renamed App', url: 'https://renamed.app', logo: 'data:image/png;base64,avatar' }
+        body: { name: 'Renamed App', url: 'https://renamed.app' }
       })
 
+      // Logo edits no longer ride in the PATCH body (they go through the
+      // `mini_app.set_logo` command); only name/url/status are delegated here.
       expect(updateMock).toHaveBeenCalledWith('custom-app', {
         name: 'Renamed App',
-        url: 'https://renamed.app',
-        logo: 'data:image/png;base64,avatar'
+        url: 'https://renamed.app'
       })
       expect(result).toMatchObject({ name: 'Renamed App' })
     })

@@ -1,16 +1,10 @@
-import {
-  ImmersiveNarrowReportProvider,
-  ImmersiveNavbarStateProvider,
-  resolveImmersiveNavbar
-} from '@renderer/components/chat/layout/ImmersiveNavbarContext'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
+import { useOptionalRightPanelState } from '../panes/Shell'
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import {
@@ -31,6 +25,7 @@ interface ChatAppShellBaseProps {
   centerOverlay?: ReactNode
   /** Overlay scoped to the center area but rendered above the center's transform/stacking layer. */
   centerTopOverlay?: ReactNode
+  rightPane?: ReactNode
   overlay?: ReactNode
   rootId?: string
   rootClassName?: string
@@ -80,6 +75,7 @@ export function ChatAppShell({
   sidePanel,
   centerOverlay,
   centerTopOverlay,
+  rightPane,
   overlay,
   rootId,
   rootClassName,
@@ -92,6 +88,11 @@ export function ChatAppShell({
 }: ChatAppShellProps) {
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
+  const rightPanelState = useOptionalRightPanelState()
+  // While the right pane maximizes/minimizes, its docked spacer snaps under the
+  // covering surface; a FLIP layout animation would smear that snap across the
+  // wipe as visible scale distortion, so the center reflows instantly instead.
+  const centerTransition = rightPanelState?.layoutAnimationPending ? { duration: 0 } : CHAT_SHELL_TRANSITION
   const rootRef = useRef<HTMLDivElement>(null)
   const centerInnerRef = useRef<HTMLDivElement | null>(null)
   const leftPaneOpenRef = useRef(leftPaneOpen)
@@ -100,20 +101,6 @@ export function ChatAppShell({
   const previousShellWidthRef = useRef<number | null>(null)
   const previousCenterWidthRef = useRef<number | null>(null)
 
-  // Immersive navbar owner: the top bar floats over the message list when the list is narrow
-  // (centered) and the center is wide enough for the navbar's edge clusters. Decided from a single
-  // self-measurement (the center's own width) + a `narrow` boolean the list reports up — no probe,
-  // no occupant scraping. When floating, a CSS clamp keeps the navbar's clusters inside the gutters.
-  const isWindow = useWindowFrame().mode === 'window'
-  const [centerWidth, setCenterWidth] = useState(0)
-  const [narrow, setNarrow] = useState(false)
-  const reportNarrow = useCallback((next: boolean) => {
-    setNarrow((current) => (current === next ? current : next))
-  }, [])
-  const immersive = useMemo(
-    () => resolveImmersiveNavbar({ narrow, centerWidth, isWindow }),
-    [narrow, centerWidth, isWindow]
-  )
   const updatePaneAutoCollapse = useCallback((source: AutoCollapseSource, collapsed: boolean) => {
     const reasons = autoCollapseReasonsRef.current
     const wasCollapsed = reasons.center || reasons.shell
@@ -154,12 +141,10 @@ export function ChatAppShell({
     if (!center || typeof ResizeObserver === 'undefined') return
     const initialCenterWidth = center.getBoundingClientRect().width
     previousCenterWidthRef.current = initialCenterWidth > 0 ? initialCenterWidth : null
-    setCenterWidth(initialCenterWidth)
     const observer = new ResizeObserver(([entry]) => {
       const previousCenterWidth = previousCenterWidthRef.current
       const nextCenterWidth = entry.contentRect.width
       previousCenterWidthRef.current = nextCenterWidth
-      setCenterWidth(nextCenterWidth)
 
       if (previousCenterWidth === null) return
 
@@ -213,53 +198,49 @@ export function ChatAppShell({
       id={rootId}
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <PageSidebar
-          open={leftPaneOpen}
-          style={isWindow ? { paddingTop: TITLE_BAR_HEIGHT_PX } : undefined}
-          onPaneCollapse={onPaneCollapse}>
+        <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse}>
           {pane}
         </PageSidebar>
 
-        <div className="relative flex min-w-0 flex-1 flex-col">
-          <motion.div
-            ref={assignCenterRef}
-            data-chat-app-shell-center
-            id={centerId}
-            layout
-            transition={CHAT_SHELL_TRANSITION}
-            className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
-            {topBar && (
-              <div
-                data-chat-navbar-floating={immersive.floating ? '' : undefined}
-                className={cn(
-                  'z-10',
-                  immersive.floating
-                    ? 'absolute inset-x-0 top-0 [&_[data-conversation-shell-topbar]::after]:hidden'
-                    : 'relative shrink-0'
-                )}>
-                <ErrorBoundary>{topBar}</ErrorBoundary>
-              </div>
-            )}
-            <ImmersiveNarrowReportProvider value={reportNarrow}>
-              <ImmersiveNavbarStateProvider value={immersive}>
-                {hasCenterContent ? (
-                  <ErrorBoundary>{centerContent}</ErrorBoundary>
-                ) : (
-                  <>
-                    <ErrorBoundary>
-                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-                    </ErrorBoundary>
-                    {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
-                  </>
-                )}
-              </ImmersiveNavbarStateProvider>
-            </ImmersiveNarrowReportProvider>
-            {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
-          </motion.div>
-          {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
+        <div data-chat-app-shell-main-region className="relative flex min-w-0 flex-1 overflow-hidden">
+          <div className="relative flex min-w-0 flex-1 flex-col">
+            <motion.div
+              ref={assignCenterRef}
+              data-chat-app-shell-center
+              id={centerId}
+              layout
+              transition={centerTransition}
+              className={cn(
+                'relative flex min-w-0 flex-1 flex-col overflow-hidden',
+                centerClassName,
+                // Let the elevated composer escape the center stacking context and paint
+                // above the full-height maximized panel without replacing its editor DOM.
+                rightPanelState?.presentationMaximized && '!transform-none !will-change-auto'
+              )}>
+              {topBar && (
+                <div className="relative z-10 shrink-0 bg-background">
+                  <ErrorBoundary>{topBar}</ErrorBoundary>
+                </div>
+              )}
+              {hasCenterContent ? (
+                <ErrorBoundary>{centerContent}</ErrorBoundary>
+              ) : (
+                <>
+                  <ErrorBoundary>
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+                  </ErrorBoundary>
+                  {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
+                </>
+              )}
+              {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
+            </motion.div>
+            {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
+          </div>
+
+          {rightPane}
         </div>
 
-        <RightPaneHost open={paneOpen && panePosition === 'right'}>{pane}</RightPaneHost>
+        <RightPaneHost open={Boolean(paneOpen && panePosition === 'right')}>{pane}</RightPaneHost>
       </div>
 
       {sidePanel && (

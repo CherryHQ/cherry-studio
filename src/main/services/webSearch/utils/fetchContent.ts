@@ -1,15 +1,10 @@
 import { loggerService } from '@logger'
+import { readableContentService } from '@main/services/readableContent'
 import { isAbortError } from '@main/utils/error'
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { Readability } from '@mozilla/readability'
+import { fetchRemoteText } from '@main/utils/remoteFetch'
 import type { WebSearchResult } from '@shared/data/types/webSearch'
-import { net } from 'electron'
-import { JSDOM } from 'jsdom'
-import TurndownService from 'turndown'
 
 const logger = loggerService.withContext('MainWebSearchContentFetcher')
-const turndownService = new TurndownService()
-const SAFE_JSDOM_URL = 'http://localhost/'
 
 function buildHeaders(headers?: HeadersInit) {
   const resolvedHeaders = new Headers(headers)
@@ -26,33 +21,21 @@ function buildHeaders(headers?: HeadersInit) {
 
 export async function fetchWebSearchContent(url: string, httpOptions: RequestInit = {}): Promise<WebSearchResult> {
   try {
-    // SSRF guard before fetching in the main process: rejects non-http(s) schemes, embedded
-    // credentials, and private/loopback/link-local/metadata-endpoint hosts. web_fetch is reachable
-    // from untrusted channel input and auto-allowed, so this can't be left to the caller.
-    const safeUrl = sanitizeRemoteUrl(url)
-
-    const response = await net.fetch(safeUrl, {
-      ...httpOptions,
+    // web_fetch is reachable from untrusted channel input and auto-allowed, so
+    // direct main-process fetches must bind the connection to validated DNS results.
+    const html = await fetchRemoteText(url, {
       headers: buildHeaders(httpOptions.headers),
-      signal: httpOptions.signal
-        ? AbortSignal.any([httpOptions.signal, AbortSignal.timeout(30000)])
-        : AbortSignal.timeout(30000)
+      signal: httpOptions.signal ?? undefined
     })
 
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`)
-    }
-
-    const html = await response.text()
-
-    const dom = new JSDOM(html, { url: SAFE_JSDOM_URL })
-    const article = new Readability(dom.window.document).parse()
-    const markdown = turndownService.turndown(article?.content || '').trim()
+    const article = await readableContentService.extractReadableMarkdown(html, {
+      signal: httpOptions.signal ?? undefined
+    })
 
     return {
-      title: article?.title || url,
+      title: article.title || url,
       url,
-      content: markdown,
+      content: article.content,
       sourceInput: url
     }
   } catch (error) {

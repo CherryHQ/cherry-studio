@@ -475,6 +475,24 @@ export const REPORT_ARTIFACTS_DESCRIPTION =
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
+// ── generate_image ───────────────────────────────────────────────
+
+export type { GenerateImageOutput, GenerateImageOutputItem } from './generateImageTool'
+export {
+  GENERATE_IMAGE_TOOL_NAME,
+  generateImageOutputItemSchema,
+  generateImageOutputSchema
+} from './generateImageTool'
+
+// ── agent autonomy tools (cron / notify / config) ────────────────
+// Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their input schemas
+// are plain JSON Schema `Tool` definitions in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`;
+// only the names are shared (the approval policy references them).
+
+export const CRON_TOOL_NAME = 'cron'
+export const NOTIFY_TOOL_NAME = 'notify'
+export const CONFIG_TOOL_NAME = 'config'
+
 // ── read_file ────────────────────────────────────────────────────
 
 export const READ_FILE_TOOL_NAME = 'read_file'
@@ -493,19 +511,25 @@ export const readFileInputSchema = z.object({
     .describe(
       'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
     ),
+  // `.nullable()` not `.optional()`: ReadFileTool runs with `strict: true`, and a strict
+  // OpenAI-compatible provider rejects a schema whose `required` omits a property (`z.toJSONSchema`
+  // drops `.optional()` fields from `required`), failing every call with "Missing 'offset'".
+  // `readFile` coerces null back to the paging defaults.
   offset: z
     .number()
     .int()
     .nonnegative()
-    .optional()
-    .describe('0-based character offset to start from. Page through long documents with offset + limit.'),
+    .nullable()
+    .describe(
+      '0-based character offset to start from. Page through long documents with offset + limit. Pass null to start at the beginning.'
+    ),
   limit: z
     .number()
     .int()
     .positive()
     .max(200_000)
-    .optional()
-    .describe(`Max characters to return. Defaults to ${READ_FILE_PAGE_SIZE} when omitted.`)
+    .nullable()
+    .describe(`Max characters to return. Pass null to default to ${READ_FILE_PAGE_SIZE}.`)
 })
 
 export const readFileOutputSchema = z.object({

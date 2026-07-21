@@ -44,6 +44,10 @@ vi.mock('@renderer/ipc', () => ({
   })
 }))
 
+vi.mock('@renderer/ipc/useIpcOn', () => ({
+  useIpcOn: vi.fn()
+}))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key })

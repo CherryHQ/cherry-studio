@@ -101,6 +101,36 @@ describe('normalizeAssistantMessageCitations', () => {
     ])
   })
 
+  it('keeps a bare-URL markdown reference by falling back to the URL as its title', () => {
+    const message = {
+      id: 'msg-bare-url',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'text',
+          text: [
+            '答案见来源 [1][2]。',
+            '',
+            '## 参考文献',
+            '',
+            '[1] https://example.com/report',
+            '',
+            '[2] Smith, J. (2020). *A Titled Source*. https://example.org/paper'
+          ].join('\n')
+        }
+      ]
+    } as unknown as CherryUIMessage
+
+    const normalized = normalizeAssistantMessageCitations(message)
+    const refs = (normalized.parts[0] as any).providerMetadata.cherry.references
+
+    expect(refs).toHaveLength(1)
+    expect(refs[0].content.results).toMatchObject([
+      { number: 1, url: 'https://example.com/report', title: 'https://example.com/report' },
+      { number: 2, url: 'https://example.org/paper', title: 'A Titled Source' }
+    ])
+  })
+
   it('does not overwrite existing cherry references', () => {
     const message = {
       id: 'msg-3',

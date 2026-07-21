@@ -21,6 +21,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { safeValidateMcpConfig } from '@renderer/types/mcp'
 import { formatZodError } from '@renderer/utils/error'
@@ -187,9 +188,10 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         // Process package file
         try {
           const installTimestamp = Date.now()
+          const packageBuffer = await packageFile.arrayBuffer()
           const result = isMcpbImport
-            ? await window.api.mcp.uploadMcpb(packageFile)
-            : await window.api.mcp.uploadDxt(packageFile)
+            ? await ipcApi.request('mcp.package.upload_mcpb', { buffer: packageBuffer, fileName: packageFile.name })
+            : await ipcApi.request('mcp.package.upload_dxt', { buffer: packageBuffer, fileName: packageFile.name })
 
           if (!result.success) {
             toast.error(
@@ -261,8 +263,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           setTimeoutTimer(
             'handleOk',
             () => {
-              window.api.mcp
-                .checkMcpConnectivity(createdServer.id)
+              ipcApi
+                .request('mcp.server.check_connectivity', { serverId: createdServer.id })
                 .then((isConnected) => {
                   logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
                   void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
@@ -331,8 +333,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         onClose()
 
         // 在背景非同步檢查伺服器可用性並更新狀態
-        window.api.mcp
-          .checkMcpConnectivity(createdServer.id)
+        ipcApi
+          .request('mcp.server.check_connectivity', { serverId: createdServer.id })
           .then((isConnected) => {
             logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
             void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {

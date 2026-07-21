@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import { WindowType } from '@main/core/window/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -10,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
   broadcast: vi.fn(),
+  broadcastToType: vi.fn(),
   getTopic: vi.fn(),
   updateTopic: vi.fn(),
   getMessageById: vi.fn(),
@@ -24,7 +26,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AiService: { generateText: mocks.generateText },
-    WindowManager: { broadcast: mocks.broadcast }
+    IpcApiService: { broadcast: mocks.broadcast, broadcastToType: mocks.broadcastToType }
   } as never)
 })
 
@@ -75,7 +77,6 @@ const rendererI18nDir = path.join(process.cwd(), 'src/renderer/i18n')
 const unnamedTranslations = [
   'locales/en-us',
   'locales/zh-cn',
-  'locales/zh-tw',
   'translate/de-de',
   'translate/el-gr',
   'translate/es-es',
@@ -84,7 +85,8 @@ const unnamedTranslations = [
   'translate/pt-pt',
   'translate/ro-ro',
   'translate/ru-ru',
-  'translate/vi-vn'
+  'translate/vi-vn',
+  'translate/zh-tw'
 ].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8')).common.unnamed)
 
 function createService() {
@@ -135,6 +137,22 @@ describe('TopicNamingService', () => {
     expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', {
       name: 'Generated Title',
       isNameManuallyEdited: false
+    })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic_auto_renamed', { topicId: 'topic-1' })
+  })
+
+  it('sends a naming-failed toast event to the main window when summary generation throws', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'openai::gpt-4o-mini')
+    mocks.generateText.mockRejectedValue(new Error('Invalid signature'))
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'ai.topic_naming_failed', {
+      message: 'Invalid signature'
     })
   })
 
@@ -241,7 +259,7 @@ describe('TopicNamingService', () => {
       name: 'Please inspect the renderer startup path and sugge',
       isNameManuallyEdited: false
     })
-    expect(mocks.broadcast).toHaveBeenCalledWith('agent-session:auto-renamed', { sessionId: 'session-1' })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent_session_auto_renamed', { sessionId: 'session-1' })
   })
 
   it.each(unnamedTranslations)('recognizes localized default agent session name "%s"', async (name) => {
@@ -553,5 +571,28 @@ describe('TopicNamingService', () => {
         uniqueModelId: 'openai-codex::gpt-5'
       })
     )
+  })
+
+  it('does not persist a lone surrogate when the first-message title cut lands inside an emoji', () => {
+    // CJK text carries no spaces, so first-message naming falls back to a hard
+    // length cut at 50 chars. Place an emoji straddling that boundary: the 49
+    // CJK chars fill indices 0-48, and the emoji's high/low surrogate halves sit
+    // at indices 49/50. A naive slice(0, 50) keeps the high half but drops its
+    // low partner, leaving a lone surrogate (renders as the replacement glyph).
+    const longText = '字'.repeat(49) + '😀' + '文'.repeat(20)
+    mocks.getMessageById.mockReturnValue({
+      id: 'message-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: longText }] }
+    })
+
+    createService().maybeRenameFromFirstUserMessage('topic-1', 'message-1')
+
+    expect(mocks.updateTopic).toHaveBeenCalledTimes(1)
+    const renamedTo = mocks.updateTopic.mock.calls[0][1] as { name: string }
+    // A lone surrogate is a high surrogate with no following low one (or a low
+    // surrogate with no preceding high one) — exactly what a mid-pair cut leaves.
+    const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
+    expect(LONE_SURROGATE.test(renamedTo.name)).toBe(false)
   })
 })

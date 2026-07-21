@@ -1,9 +1,10 @@
 import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
-import { getModelLogo } from '@renderer/utils/model'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils/naming'
 import { CircleChevronDown } from 'lucide-react'
 import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'react'
@@ -62,11 +63,10 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
     return () => {
       window.removeEventListener('resize', updateHeight)
     }
-  }, [messages])
+  }, [])
 
-  // 函数用于计算根据距离的变化值
-  const calculateValueByDistance = useCallback(
-    (itemId: string, maxValue: number) => {
+  const calculateDistanceFactor = useCallback(
+    (itemId: string) => {
       if (mouseY === null) return 0
 
       const element = messageItemsRef.current.get(itemId)
@@ -74,10 +74,10 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
 
       const rect = element.getBoundingClientRect()
       const centerY = rect.top + rect.height / 2
-      const distance = Math.abs(centerY - (messagesListRef.current?.getBoundingClientRect().top || 0) - mouseY)
+      const distance = Math.abs(centerY - mouseY)
       const maxDistance = 100
 
-      return Math.max(0, maxValue * (1 - distance / maxDistance))
+      return Math.max(0, 1 - distance / maxDistance)
     },
     [mouseY]
   )
@@ -167,7 +167,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
     if (messagesListRef.current) {
       const containerRect = e.currentTarget.getBoundingClientRect()
       const listRect = messagesListRef.current.getBoundingClientRect()
-      setMouseY(e.clientY - listRect.top)
+      setMouseY(e.clientY)
 
       if (listRect.height > containerRect.height) {
         const mousePositionRatio = (e.clientY - containerRect.top) / containerRect.height
@@ -192,12 +192,11 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
       $height={containerHeight}>
       <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
         {messages.map((message, index) => {
-          const opacity = 0.5 + calculateValueByDistance(message.id, 1)
-          const scale = 1 + calculateValueByDistance(message.id, 1.2)
-          const size = 10 + calculateValueByDistance(message.id, 20)
-          // Walk the full resolution chain (model icon → provider-by-model → provider).
+          const distanceFactor = calculateDistanceFactor(message.id)
+          const opacity = 0.5 + distanceFactor
+          const scale = 1 + distanceFactor * 1.2
+          const size = 10 + distanceFactor * 20
           const model = getMessageListItemModel(message)
-          const ModelIcon = getModelLogo(model)
           const username = removeLeadingEmoji(getUserName(message))
           const parts = partsMap?.[message.id]
           const content = parts ? getTextFromParts(parts) : ''
@@ -212,7 +211,8 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
                 else messageItemsRef.current.delete(message.id)
               }}
               style={{
-                opacity: mouseY ? opacity : Math.max(0, 0.6 - (0.3 * Math.abs(index - messages.length / 2)) / 5)
+                opacity:
+                  mouseY !== null ? opacity : Math.max(0, 0.6 - (0.3 * Math.abs(index - messages.length / 2)) / 5)
               }}
               onClick={() => scrollToMessage(message)}>
               <MessageItemContainer style={{ transform: ` scale(${scale})` }}>
@@ -239,16 +239,8 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
                       <AvatarFallback>{firstLetter(assistantProfile.name ?? '').toUpperCase()}</AvatarFallback>
                     </MessageItemAvatar>
                   )
-                ) : ModelIcon ? (
-                  <ModelIcon.Avatar size={size} shape="circle" className="rounded-full" />
                 ) : (
-                  <MessageItemAvatar
-                    style={{
-                      width: size,
-                      height: size,
-                      border: 'none',
-                      filter: theme === 'dark' ? 'invert(0.05)' : undefined
-                    }}></MessageItemAvatar>
+                  <AnchorModelAvatar model={model} size={size} />
                 )
               ) : (
                 <>
@@ -280,11 +272,12 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
             else messageItemsRef.current.delete('bottom-anchor')
           }}
           style={{
-            opacity: mouseY ? 0.5 : Math.max(0, 0.6 - (0.3 * Math.abs(messages.length - messages.length / 2)) / 5)
+            opacity:
+              mouseY !== null ? 0.5 : Math.max(0, 0.6 - (0.3 * Math.abs(messages.length - messages.length / 2)) / 5)
           }}
           onClick={scrollToBottom}>
           <CircleChevronDown
-            size={10 + calculateValueByDistance('bottom-anchor', 20)}
+            size={10 + calculateDistanceFactor('bottom-anchor') * 20}
             style={{ color: theme === 'dark' ? 'var(--color-foreground)' : 'var(--color-primary)' }}
           />
         </MessageItem>
@@ -316,6 +309,28 @@ const MessageItemAvatar = ({ className, ...props }: React.ComponentPropsWithoutR
     {...props}
   />
 )
+
+/** Model avatar for one anchor item: sync ref resolution, async icon component. */
+const AnchorModelAvatar: FC<{ model: ReturnType<typeof getMessageListItemModel>; size: number }> = ({
+  model,
+  size
+}) => {
+  const { theme } = useTheme()
+  // Walk the full resolution chain (model icon → provider-by-model → provider).
+  const ModelIcon = useIcon(getModelLogoRef(model))
+  if (ModelIcon) {
+    return <ModelIcon.Avatar size={size} shape="circle" className="rounded-full" />
+  }
+  return (
+    <MessageItemAvatar
+      style={{
+        width: size,
+        height: size,
+        border: 'none',
+        filter: theme === 'dark' ? 'invert(0.05)' : undefined
+      }}></MessageItemAvatar>
+  )
+}
 
 const MessageLineContainer = ({
   ref,

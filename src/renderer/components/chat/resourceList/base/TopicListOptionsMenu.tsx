@@ -17,6 +17,7 @@ const TOPIC_DISPLAY_ICONS: Record<TopicDisplayMode, ReactNode> = {
 }
 
 type TopicListOptionsMenuProps = {
+  historyRecordsActive?: boolean
   manageAssistantsActive?: boolean
   mode: TopicDisplayMode
   onChange: (mode: TopicDisplayMode) => void
@@ -26,6 +27,7 @@ type TopicListOptionsMenuProps = {
 }
 
 export function TopicListOptionsMenu({
+  historyRecordsActive,
   manageAssistantsActive,
   mode,
   onChange,
@@ -84,6 +86,7 @@ export function TopicListOptionsMenu({
               size="sm"
               icon={<History size={16} />}
               label={t('history.records.shortTitle')}
+              active={historyRecordsActive}
               onClick={() => {
                 setOpen(false)
                 onOpenHistoryRecords()

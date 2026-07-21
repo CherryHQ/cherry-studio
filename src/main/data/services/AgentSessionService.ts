@@ -5,6 +5,7 @@ import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
@@ -23,11 +24,16 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
-import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import {
+  decodePinnedListCursor,
+  encodeEntityCursor,
+  encodeEntitySectionStart,
+  encodePinCursor
+} from './utils/pinnedListCursor'
 
 const logger = loggerService.withContext('AgentSessionService')
 
@@ -108,7 +114,11 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
-  private createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
+  /**
+   * Transactional create for seed-time composition. DbService is not marked ready
+   * while seeders run, so create() would fail through DbService.withWriteTx().
+   */
+  createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
     this.assertAgentExistsTx(tx, dto.agentId)
 
     let workspaceId: string
@@ -169,6 +179,27 @@ export class AgentSessionService {
     return rowToSession(row)
   }
 
+  /**
+   * The single most-recently-updated session, or `null` when there are none.
+   *
+   * First-entry restore resumes the last-touched session. It cannot read the
+   * regular first page of `listByCursor` for this: that pages pinned-first then
+   * by `orderKey ASC` (creation/manual order, newest-created first), so a
+   * recently-active session is not guaranteed to be on it. This
+   * `updatedAt DESC LIMIT 1` proves global latest independent of the rail's ordering.
+   */
+  getLatestUpdated(): AgentSessionEntity | null {
+    const db = application.get('DbService').getDb()
+    const [row] = db
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .limit(1)
+      .all()
+    return row ? rowToSession(row) : null
+  }
+
   ensureTraceId(sessionId: string): string {
     return application.get('DbService').withWriteTx((tx) => {
       const [row] = tx
@@ -187,33 +218,99 @@ export class AgentSessionService {
     })
   }
 
+  /**
+   * Two-section page mirroring `TopicService.listByCursor`: pinned sessions
+   * first (via the shared `pin` table, ordered by `pin.orderKey`) then unpinned
+   * by `session.orderKey ASC, id ASC` (manual/creation drag order). A partial
+   * pin page spills into the unpinned section to fill `limit`. Pins float a
+   * session to the top independent of its own `orderKey`, so both rails share
+   * one pagination contract; recency ordering for the time-grouped view is
+   * applied by the renderer over the loaded list.
+   */
   listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionEntity> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const ordering = keysetOrdering(sessionsTable.orderKey, sessionsTable.id, { major: 'asc', tie: 'asc' })
-    const cursor = decodeListCursor(query.cursor, asStringKey, 'agent-session')
+    const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
+    const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
 
-    const filters: SQL[] = []
-    if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
-    if (cursor) {
-      filters.push(ordering.where(cursor))
+    const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
+
+    if (cursor.section === 'pin') {
+      const pinAfter = cursor.orderKey
+        ? or(
+            gt(pinTable.orderKey, cursor.orderKey),
+            and(eq(pinTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
+          )
+        : undefined
+      const pinRows = db
+        .select({ session: sessionsTable, workspace: agentWorkspaceTable, pinOrderKey: pinTable.orderKey })
+        .from(sessionsTable)
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
+        .where(and(agentFilter, pinAfter))
+        .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
+        .limit(limit + 1)
+        .all()
+
+      // Stale pin cursor (anchor unpinned/deleted between requests) → 0 rows for
+      // a non-empty `cursor.orderKey`. Hand back an entity-section-start cursor so
+      // the next call advances cleanly instead of restarting the pin section.
+      if (pinRows.length === 0 && cursor.orderKey !== '') {
+        return { items: [], nextCursor: encodeEntitySectionStart() }
+      }
+
+      const hasMoreInPin = pinRows.length > limit
+      for (const row of pinRows.slice(0, limit)) {
+        items.push({ session: rowToSession(row), pinOrderKey: row.pinOrderKey })
+      }
+
+      if (hasMoreInPin) {
+        const last = items[items.length - 1]
+        return {
+          items: items.map((i) => i.session),
+          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.session.id)
+        }
+      }
+
+      if (items.length >= limit) {
+        return { items: items.map((i) => i.session), nextCursor: encodeEntitySectionStart() }
+      }
     }
 
-    const rows = db
+    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
+    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
+    const remaining = limit - items.length
+    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
+
+    let sessionAfter: SQL | undefined
+    if (cursor.section === 'entity' && cursor.orderKey !== null) {
+      sessionAfter = or(
+        gt(sessionsTable.orderKey, cursor.orderKey),
+        and(eq(sessionsTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
+      )
+    }
+
+    const sessionRows = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(filters.length > 0 ? and(...filters) : undefined)
-      .orderBy(...ordering.orderBy)
-      .limit(limit + 1)
+      .where(and(agentFilter, notInArray(sessionsTable.id, pinnedSubquery), sessionAfter))
+      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
+      .limit(remaining + 1)
       .all()
 
-    const hasNext = rows.length > limit
-    const items = (hasNext ? rows.slice(0, limit) : rows).map(rowToSession)
-    const last = items[items.length - 1]
-    const nextCursor = hasNext && last ? encodeCursor(last.orderKey, last.id) : undefined
+    const hasMoreInSession = sessionRows.length > remaining
+    for (const row of sessionRows.slice(0, remaining)) {
+      items.push({ session: rowToSession(row) })
+    }
 
-    return { items, nextCursor }
+    let nextCursor: string | undefined
+    if (hasMoreInSession) {
+      const last = sessionRows[remaining - 1]
+      nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
+    }
+
+    return { items: items.map((i) => i.session), nextCursor }
   }
 
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {

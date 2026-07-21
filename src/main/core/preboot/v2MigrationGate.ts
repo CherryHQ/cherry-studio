@@ -1,16 +1,26 @@
-import fs from 'node:fs'
+/**
+ * TEMPORARY convenience gate — deleted wholesale once all users have
+ * migrated off v1 (see data/migration/v2/).
+ *
+ * Do NOT use this file as a sample for preboot work. Its shape — a fat
+ * orchestrating gate holding a whole domain's flow inside core/preboot/ —
+ * is tolerated only because it is throwaway. Permanent capabilities invert
+ * this: the domain entry point owns the orchestration, and core/preboot/
+ * keeps no domain files (see core/preboot/README.md, Membership criteria).
+ */
 
 import { application } from '@application'
 import {
-  checkUpgradePathCompatibility,
+  evaluateCandidateVersion,
   getAllMigrators,
   getBlockMessage,
   isSchemaOutOfSyncError,
   migrationEngine,
   migrationWindowManager,
-  readPreviousVersion,
+  pinUserDataPath,
   registerMigrationIpcHandlers,
   resolveMigrationPaths,
+  setDataLocationNotice,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
@@ -34,6 +44,25 @@ const logger = loggerService.withContext('V2MigrationGate')
  *                  starting bootstrap.
  */
 export type V2MigrationGateResult = 'handled' | 'skipped'
+
+/**
+ * Surface a fatal "cannot persist userData location" error and quit.
+ *
+ * Reached when the strict `pinUserDataPath()` persist fails: the next launch
+ * depends on that write, so continuing would relaunch into the old directory
+ * and loop (or make migrated data appear lost). Stop loudly instead.
+ */
+async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGateResult> {
+  logger.error('Failed to persist userData location; cannot continue', cause as Error)
+  await app.whenReady()
+  dialog.showErrorBox(
+    'Data Location Error - Application Cannot Start',
+    `Could not save the application data directory:\n\n  ${(cause as Error).message}\n\n` +
+      `Check that there is free disk space and that ~/.cherrystudio is writable, then try again. The application will now exit.`
+  )
+  application.quit()
+  return 'handled'
+}
 
 /**
  * Decide whether the v1→v2 data migration must run before
@@ -60,11 +89,23 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   // userData detection. This MUST run before migrationEngine.initialize()
   // so that all subsequent path-dependent operations use the correct
   // directory. See MigrationPaths.ts for the full resolution logic.
-  const { paths, userDataChanged, inaccessibleLegacyPath } = resolveMigrationPaths()
+  let resolved: ReturnType<typeof resolveMigrationPaths>
+  try {
+    resolved = resolveMigrationPaths()
+  } catch (error) {
+    // resolveMigrationPaths()'s only throwing operation is the strict
+    // pinUserDataPath() persist on the redirect branch. Failing there means we
+    // cannot durably record which userData directory to use next launch — a
+    // silent continue would relaunch into the OLD location and loop.
+    return quitWithDataLocationError(error)
+  }
+  const { paths, userDataChanged, inaccessibleLegacyPath, legacyDataConfirmed, dataLocation } = resolved
 
   // Legacy custom path found but inaccessible (e.g. external drive not
-  // mounted). Warn the user — silently falling back to the default path
-  // would cause an empty-data migration, making user data appear lost.
+  // mounted, or a stale abandoned entry). Silently falling back to the default
+  // path would run an empty-data migration and markCompleted-lock it, making
+  // user data appear permanently lost. Offer three ways out so the user is
+  // never stuck in a retry loop when the directory will never come back.
   if (inaccessibleLegacyPath) {
     logger.warn('Legacy userData path inaccessible, prompting user', { inaccessibleLegacyPath })
     await app.whenReady()
@@ -73,23 +114,39 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       title: 'Custom Data Directory Inaccessible',
       message:
         `Your previous data was stored at:\n${inaccessibleLegacyPath}\n\n` +
-        'This directory is currently inaccessible. Please ensure the drive is mounted and try again.',
-      buttons: ['Retry', 'Quit'],
-      defaultId: 0
+        'This directory is currently inaccessible — an external drive may not be mounted.\n\n' +
+        '• Retry after reconnecting it.\n' +
+        '• Continue with a new default data directory (you can change it later in Settings).\n' +
+        '• Quit.',
+      buttons: ['Retry', 'Use Default Directory', 'Quit'],
+      defaultId: 0,
+      cancelId: 2
     })
     if (response === 0) {
       application.relaunch()
       return 'handled'
     }
-    application.quit()
-    return 'handled'
+    if (response === 2) {
+      application.quit()
+      return 'handled'
+    }
+    // response === 1: continue on the default directory. Pin it in boot-config
+    // so this prompt never fires again, then FALL THROUGH to the normal flow —
+    // userData already IS the default and the path registry is frozen there, so
+    // no relaunch is needed.
+    try {
+      pinUserDataPath(paths.userData)
+    } catch (error) {
+      return quitWithDataLocationError(error)
+    }
+    logger.info('User chose to continue with the default data directory', { defaultPath: paths.userData })
   }
 
   let needsMigration = false
 
   try {
     logger.info('Checking if data migration v2 is needed')
-    migrationEngine.initialize(paths)
+    migrationEngine.initialize(paths, legacyDataConfirmed)
     migrationEngine.registerMigrators(getAllMigrators())
     needsMigration = await migrationEngine.needsMigration()
     logger.info('Migration status check result', { needsMigration })
@@ -151,19 +208,18 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   }
 
   if (needsMigration) {
-    // Version compatibility gate: ensure the upgrade path is valid
-    // before showing the migration UI. This catches manual installs
-    // that bypassed the auto-updater's version filtering.
-    const versionLogExists = fs.existsSync(paths.versionLogFile)
-    const previousVersion = versionLogExists ? readPreviousVersion(paths.versionLogFile, app.getVersion()) : null
-
-    logger.info('Version compatibility check', { currentVersion: app.getVersion(), previousVersion, versionLogExists })
-
-    const versionCheck = checkUpgradePathCompatibility({
-      currentAppVersion: app.getVersion(),
+    // Version compatibility gate: ensure the upgrade path is valid before
+    // showing the migration UI. This catches manual installs that bypassed
+    // the auto-updater's version filtering. evaluateCandidateVersion is the
+    // single assembler of the version.log existence/read/compatibility check,
+    // shared with the candidate selector so the two cannot drift.
+    const {
+      check: versionCheck,
       previousVersion,
       versionLogExists
-    })
+    } = evaluateCandidateVersion(paths.userData, app.getVersion())
+
+    logger.info('Version compatibility check', { currentVersion: app.getVersion(), previousVersion, versionLogExists })
 
     if (versionCheck.outcome === 'block') {
       logger.warn('Version compatibility check failed, showing version incompatible UI', {
@@ -193,6 +249,11 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         return 'handled'
       }
     }
+
+    // Surface the auto-recovered non-default data directory on the intro
+    // screen (fuzzy B1 fallback only). Must precede handler registration so the
+    // renderer reads it via GetProgress on mount.
+    if (dataLocation) setDataLocationNotice(dataLocation)
 
     logger.info('Data Migration v2 needed, starting migration process')
     registerMigrationIpcHandlers(paths.userData)

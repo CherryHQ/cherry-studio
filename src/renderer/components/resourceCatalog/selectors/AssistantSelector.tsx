@@ -7,7 +7,7 @@ import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/c
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
-import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +35,7 @@ export type AssistantSelectorItem = ResourceSelectorShellItem
 
 type SharedProps = {
   trigger: ReactElement
+  additionalItems?: readonly AssistantSelectorItem[]
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onDialogCloseAutoFocus?: () => void
@@ -82,6 +83,7 @@ export type AssistantSelectorProps =
 export function AssistantSelector(props: AssistantSelectorProps) {
   const {
     trigger,
+    additionalItems,
     open,
     onOpenChange,
     onDialogCloseAutoFocus,
@@ -124,15 +126,17 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AssistantSelectorItem[] = useMemo(
-    () =>
-      (data?.items ?? []).map((a) => ({
+    () => [
+      ...(data?.items ?? []).map((a) => ({
         id: a.id,
         name: a.name,
         emoji: a.emoji,
         description: a.description,
         tag: a.tags?.[0]?.name
       })),
-    [data]
+      ...(additionalItems ?? [])
+    ],
+    [additionalItems, data]
   )
 
   const tags = useMemo<ResourceSelectorShellTag[]>(() => {
@@ -199,14 +203,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       let created: Assistant
       try {
         created = await createAssistant({
-          body: {
-            name: values.name,
-            emoji: values.avatar,
-            modelId: values.modelId,
-            description: values.description,
-            prompt: values.prompt,
-            knowledgeBaseIds: values.knowledgeBaseIds
-          }
+          body: buildCreateAssistantDto(values)
         })
       } catch (error) {
         logger.error('Failed to create assistant from selector', error as Error)

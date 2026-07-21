@@ -89,6 +89,32 @@
   animation: animation-locate-highlight 2.5s ease-in-out;
 }
 
+@keyframes animation-provider-model-pull-guide {
+  0% {
+    transform: translate3d(-6px, -50%, 0);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  45% {
+    transform: translate3d(0, -50%, 0);
+    opacity: 1;
+  }
+  70% {
+    transform: translate3d(-4px, -50%, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, -50%, 0);
+    opacity: 0;
+  }
+}
+
+.animation-provider-model-pull-guide {
+  animation: animation-provider-model-pull-guide 1.2s ease-in-out both;
+}
+
 @keyframes animation-chat-message-enter-inline {
   from {
     transform: translate3d(-6px, 14px, 0) scale(0.97);
@@ -289,8 +315,8 @@
 }
 
 .animation-shimmer {
-  --color-shimmer-mid: var(--color-text-1);
-  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
+  --color-shimmer-mid: var(--color-foreground);
+  --color-shimmer-end: color-mix(in srgb, var(--color-foreground) 25%, transparent);
   background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
   background-size: 200% 100%;
   background-clip: text;

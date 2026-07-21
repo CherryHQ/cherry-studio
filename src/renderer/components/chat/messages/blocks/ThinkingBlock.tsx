@@ -1,5 +1,5 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
-import { type CSSProperties, memo, useEffect, useId, useMemo, useState } from 'react'
+import { memo, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
@@ -18,7 +18,13 @@ interface Props {
   showTitlePreview?: boolean
 }
 
-const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
+interface ThinkingBlockContentProps {
+  id: string
+  content: string
+  isStreaming: boolean
+}
+
+export const ThinkingBlockContent = memo(({ id, content, isStreaming }: ThinkingBlockContentProps) => {
   const block = useMemo<MarkdownSource>(
     () => ({
       id,
@@ -27,7 +33,25 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
     }),
     [id, content, isStreaming]
   )
-  const { messageFont, fontSize, thoughtAutoCollapse } = useMessageRenderConfig()
+  const { messageFont, fontSize } = useMessageRenderConfig()
+
+  if (!content) return null
+
+  return (
+    <div
+      className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
+      style={{
+        fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+        fontSize
+      }}>
+      <ChatMarkdown block={block} />
+    </div>
+  )
+})
+ThinkingBlockContent.displayName = 'ThinkingBlockContent'
+
+const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
+  const { thoughtAutoCollapse } = useMessageRenderConfig()
   const [isExpanded, setIsExpanded] = useState(false)
   const contentId = useId()
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
@@ -78,18 +102,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         id={contentId}
         hidden={!isExpanded}
         className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-foreground-secondary leading-5">
-        <div
-          className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
-          style={
-            {
-              '--color-text': 'var(--color-foreground-muted)',
-              '--color-text-light': 'var(--color-foreground-muted)',
-              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-              fontSize
-            } as CSSProperties
-          }>
-          <ChatMarkdown block={block} />
-        </div>
+        <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </div>
     </div>
   )

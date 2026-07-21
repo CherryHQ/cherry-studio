@@ -1,9 +1,15 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
+import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
+import {
+  ConversationTopBarPortal,
+  useConversationTopBarPortalLayout
+} from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
+  ComposerPinnedToolsProvider,
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -13,12 +19,22 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
-import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
+import {
+  type QuickPanelInputAdapter,
+  type QuickPanelListItem,
+  useOptionalQuickPanel
+} from '@renderer/components/QuickPanel'
+import {
+  openResourceEditDialog,
+  ResourceEditDialogEventHost,
+  type ResourceEditDialogTarget
+} from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
@@ -30,32 +46,50 @@ import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useModelById } from '@renderer/hooks/useModel'
-import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import { isSoulModeEnabled } from '@renderer/utils/agent/agentConfiguration'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
+import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { FileUIPart } from '@shared/data/types/message'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { OutputFor } from '@shared/ipc/types'
+import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert } from 'lucide-react'
+import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
+import {
+  Bot,
+  Cable,
+  ChevronDown,
+  CircleSlash,
+  Folder,
+  Settings2,
+  Sparkles,
+  Terminal,
+  ToolCase,
+  TriangleAlert,
+  X
+} from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { useInputHistory } from '../useInputHistory'
+import { isPathWithinAccessiblePath } from './agent/accessiblePath'
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
@@ -65,7 +99,7 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { AgentLabel } from './agent/AgentLabel'
-import { useAgentResourceSearchProvider } from './agent/useAgentResourceSearchProvider'
+import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   agentComposerTokenId,
   agentFileToComposerToken,
@@ -77,6 +111,7 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
+  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
@@ -85,7 +120,10 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
+import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('AgentComposer')
 const ResourceEditDialogHost = React.lazy(() =>
@@ -95,6 +133,104 @@ const ResourceEditDialogHost = React.lazy(() =>
 )
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
+const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
+const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
+const FILE_IPC_BATCH_SIZE = 500
+
+type AccessibleAttachment = {
+  attachment: ComposerAttachment
+  filePath: FilePath
+  index: number
+}
+
+const requestAccessiblePathMetadata = async (
+  attachments: readonly AccessibleAttachment[]
+): Promise<OutputFor<'file.batch_get_metadata'>> => {
+  if (attachments.length === 0) return {}
+
+  const chunks: AccessibleAttachment[][] = []
+  for (let i = 0; i < attachments.length; i += FILE_IPC_BATCH_SIZE) {
+    chunks.push(attachments.slice(i, i + FILE_IPC_BATCH_SIZE))
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      ipcApi.request('file.batch_get_metadata', {
+        items: chunk.map(({ filePath }) => ({
+          key: filePath,
+          handle: createFilePathHandle(filePath)
+        }))
+      })
+    )
+  )
+
+  return Object.assign({}, ...results)
+}
+
+const buildAccessiblePathFilePart = (
+  attachment: ComposerAttachment,
+  filePath: FilePath,
+  metadataByPath: OutputFor<'file.batch_get_metadata'>
+): FileUIPart => {
+  const metadata = metadataByPath[filePath]
+  if (!metadata || metadata.kind !== 'file') {
+    throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
+  }
+
+  return withComposerFilePartMeta(
+    {
+      type: 'file',
+      url: toFileUrl(filePath),
+      mediaType: metadata.mime,
+      filename: attachment.origin_name || attachment.name
+    },
+    attachment
+  )
+}
+
+const buildAgentFilePartsForAttachments = async (
+  attachments: ComposerAttachment[],
+  accessiblePaths: readonly string[]
+): Promise<FileUIPart[]> => {
+  const accessibleAttachments: AccessibleAttachment[] = []
+  const internalizedAttachments: ComposerAttachment[] = []
+  const internalizedIndexes: number[] = []
+
+  attachments.forEach((attachment, index) => {
+    if (isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
+      accessibleAttachments.push({
+        attachment,
+        filePath: canonicalizeAbsolutePath(attachment.path) as FilePath,
+        index
+      })
+      return
+    }
+
+    internalizedAttachments.push(attachment)
+    internalizedIndexes.push(index)
+  })
+
+  const [metadataByPath, internalizedFileParts] = await Promise.all([
+    requestAccessiblePathMetadata(accessibleAttachments),
+    buildFilePartsForAttachments(internalizedAttachments)
+  ])
+
+  const fileParts = new Array<FileUIPart>(attachments.length)
+
+  accessibleAttachments.forEach(({ attachment, filePath, index }) => {
+    fileParts[index] = buildAccessiblePathFilePart(attachment, filePath, metadataByPath)
+  })
+
+  internalizedFileParts.forEach((filePart, offset) => {
+    const originalIndex = internalizedIndexes[offset]
+    if (originalIndex === undefined || !filePart) {
+      throw new Error(`Failed to build file part for attachment: ${internalizedAttachments[offset]?.path ?? ''}`)
+    }
+    fileParts[originalIndex] = filePart
+  })
+
+  return fileParts
+}
 
 const createSkillQuickPanelItems = (
   skills: readonly LocalSkill[],
@@ -107,10 +243,11 @@ const createSkillQuickPanelItems = (
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
-    icon: <Sparkles size={16} />,
+    icon: <ToolCase size={16} />,
     suffix: options.skillLabel,
-    // Skills match by name only in the root panel search.
+    // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
     filterText: skill.name,
+    searchAliases: [options.skillLabel],
     action: ({ inputAdapter }) => {
       options.onInsertSkill(skill, inputAdapter)
     }
@@ -131,17 +268,17 @@ type Props = {
   sessionOverride?: AgentComposerSessionSnapshot
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
-  onNewSessionDraft?: () => void | Promise<void>
-  onCreateEmptySession?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
+  canChangeAgent?: boolean
   workspaceId?: string | null
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
-  showWorkspaceSelector?: boolean
   workspaceChanging?: boolean
   canChangeModel?: boolean
   isStreaming: boolean
   sendDisabled?: boolean
+  compactWhenSingleLine?: boolean
 }
 
 type AgentComposerRootProps = Props & {
@@ -155,38 +292,29 @@ const AgentComposerRoot = ({
   sessionOverride,
   sendMessage,
   stop,
-  onNewSessionDraft,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
+  canChangeAgent = false,
   workspaceId,
   onWorkspaceChange,
-  showWorkspaceSelector,
   workspaceChanging,
   canChangeModel = true,
   isStreaming,
   sendDisabled = false,
+  compactWhenSingleLine = false,
   renderControls,
   forceNarrowLayout = false
 }: AgentComposerRootProps) => {
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
   const session = sessionOverride ?? loadedSession
   const { agent } = useAgent(agentId)
-  const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
+  const { model: sessionModel } = useModelById(agent?.model)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
-  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const handleNewSessionShortcut = useCallback(() => {
-    if (isClassicSessionLayout && onCreateEmptySession) {
-      void onCreateEmptySession()
-      return
-    }
-
-    void onNewSessionDraft?.()
-  }, [isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft])
-  const hasNewSessionShortcutAction = isClassicSessionLayout
-    ? Boolean(onCreateEmptySession || onNewSessionDraft)
-    : Boolean(onNewSessionDraft)
+    void onCreateEmptySession?.()
+  }, [onCreateEmptySession])
+  const hasNewSessionShortcutAction = Boolean(onCreateEmptySession)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewSessionShortcut, {
@@ -222,11 +350,12 @@ const AgentComposerRoot = ({
 
   return (
     <ComposerToolRuntimeProvider
+      key={`${agentId}:${sessionId}`}
       initialState={initialState}
       actions={{
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         addNewTopic: () => {
-          void onNewSessionDraft?.()
+          void onCreateEmptySession?.()
         }
       }}>
       <AgentComposerInner
@@ -239,16 +368,16 @@ const AgentComposerRoot = ({
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
         chatStop={stop}
-        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
+        canChangeAgent={canChangeAgent}
         onWorkspaceChange={onWorkspaceChange}
-        showWorkspaceSelector={showWorkspaceSelector}
         workspaceChanging={workspaceChanging}
         canChangeModel={canChangeModel}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
+        compactWhenSingleLine={compactWhenSingleLine}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
       />
@@ -266,16 +395,16 @@ interface InnerProps {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
   chatStop: Props['stop']
-  onNewSessionDraft?: Props['onNewSessionDraft']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
+  canChangeAgent: boolean
   onWorkspaceChange?: Props['onWorkspaceChange']
-  showWorkspaceSelector?: boolean
   workspaceChanging?: boolean
   canChangeModel: boolean
   isStreaming: boolean
   sendDisabled: boolean
+  compactWhenSingleLine: boolean
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
 }
@@ -287,8 +416,7 @@ interface AgentComposerContextControlsProps {
   shouldAutoSelectCreatedAgent: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
-  showAgentTrigger?: boolean
-  agentTriggerMode?: 'selector' | 'edit'
+  agentTriggerMode: 'selector' | 'edit'
   onDialogCloseAutoFocus?: () => void
   onAgentChange: (agentId: string | null) => void | Promise<void>
 }
@@ -306,7 +434,6 @@ interface AgentComposerWorkspaceControlProps {
 
 interface AgentComposerModelControlProps {
   model?: Model
-  modelProviderName?: string
   selectModelLabel: string
   canChangeModel: boolean
   side: 'top' | 'bottom'
@@ -322,8 +449,7 @@ const AgentComposerContextControls = ({
   shouldAutoSelectCreatedAgent,
   side,
   iconOnly = false,
-  showAgentTrigger = true,
-  agentTriggerMode = 'selector',
+  agentTriggerMode,
   onDialogCloseAutoFocus,
   onAgentChange
 }: AgentComposerContextControlsProps) => {
@@ -332,8 +458,6 @@ const AgentComposerContextControls = ({
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
   const [agentEditDialogTarget, setAgentEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
-
-  if (!showAgentTrigger) return null
 
   const agentTrigger = (
     <Button
@@ -349,15 +473,15 @@ const AgentComposerContextControls = ({
       {agent ? (
         <AgentLabel
           agent={agent}
+          avatarSize={20}
           classNames={{
             name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
-            avatar: 'h-4.5 w-4.5',
             container: 'gap-1.5'
           }}
         />
       ) : (
         <>
-          {iconOnly ? <Bot size={16} aria-hidden /> : null}
+          {iconOnly ? <Bot size={20} aria-hidden /> : null}
           <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
         </>
       )}
@@ -365,44 +489,43 @@ const AgentComposerContextControls = ({
     </Button>
   )
 
+  if (agentTriggerMode === 'edit') {
+    return (
+      <>
+        {agentTrigger}
+        {agentEditDialogTarget ? (
+          <React.Suspense fallback={null}>
+            <ResourceEditDialogHost
+              target={agentEditDialogTarget}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setAgentEditDialogTarget(null)
+                  onDialogCloseAutoFocus?.()
+                }
+              }}
+            />
+          </React.Suspense>
+        ) : null}
+      </>
+    )
+  }
+
   return (
-    <>
-      {agentTriggerMode === 'edit' ? (
-        <>
-          {agentTrigger}
-          {agentEditDialogTarget ? (
-            <React.Suspense fallback={null}>
-              <ResourceEditDialogHost
-                target={agentEditDialogTarget}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    setAgentEditDialogTarget(null)
-                    onDialogCloseAutoFocus?.()
-                  }
-                }}
-              />
-            </React.Suspense>
-          ) : null}
-        </>
-      ) : (
-        <AgentSelector
-          value={agent?.id ?? null}
-          onChange={onAgentChange}
-          autoSelectOnCreate={shouldAutoSelectCreatedAgent}
-          side={side}
-          align="start"
-          mountStrategy="lazy-keep"
-          onDialogCloseAutoFocus={onDialogCloseAutoFocus}
-          trigger={agentTrigger}
-        />
-      )}
-    </>
+    <AgentSelector
+      value={agent?.id ?? null}
+      onChange={onAgentChange}
+      autoSelectOnCreate={shouldAutoSelectCreatedAgent}
+      side={side}
+      align="start"
+      mountStrategy="lazy-keep"
+      onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      trigger={agentTrigger}
+    />
   )
 }
 
 const AgentComposerModelControl = ({
   model,
-  modelProviderName,
   selectModelLabel,
   canChangeModel,
   side,
@@ -413,13 +536,13 @@ const AgentComposerModelControl = ({
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const modelLabel = model ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}` : selectModelLabel
+  const modelLabel = model ? model.name : selectModelLabel
   const trigger = (
     <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
       {model ? (
-        <ModelAvatar model={model} size={16} className="shrink-0" />
+        <ModelAvatar model={model} size={20} className="shrink-0" />
       ) : (
-        <Sparkles size={16} aria-hidden className="text-muted-foreground" />
+        <Sparkles size={20} aria-hidden className="text-muted-foreground" />
       )}
       <span
         className={cn(
@@ -429,6 +552,7 @@ const AgentComposerModelControl = ({
         )}>
         {modelLabel}
       </span>
+      <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && model && 'hidden')} />
     </Button>
   )
 
@@ -458,6 +582,7 @@ const AgentComposerWorkspaceControl = ({
   onWorkspaceChange
 }: AgentComposerWorkspaceControlProps) => {
   const { t } = useTranslation()
+  const [menuOpen, setMenuOpen] = useState(false)
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const hasWarning = Boolean(workspaceWarning)
   const isSystemWorkspace = workspace?.type === 'system'
@@ -465,23 +590,90 @@ const AgentComposerWorkspaceControl = ({
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
+  const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
+  if (!onWorkspaceChange && workspace?.type === 'user' && workspace.path) {
+    const openMenuTrigger = (
+      <Button
+        variant="ghost"
+        size="sm"
+        type="button"
+        className={cn(
+          baseTriggerClassName,
+          'relative',
+          iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+          hasWarning && 'text-warning hover:text-warning'
+        )}
+        aria-label={workspaceWarning}>
+        {hasWarning ? (
+          <TriangleAlert size={20} aria-hidden />
+        ) : (
+          <span className="relative flex size-5 shrink-0 items-center justify-center">
+            <Folder size={20} aria-hidden className="shrink-0 text-muted-foreground" />
+          </span>
+        )}
+        <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
+        <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
+      </Button>
+    )
+    return <OpenExternalAppButton workdir={workspace.path} menuTrigger={openMenuTrigger} tooltip={workspaceWarning} />
+  }
+
   const trigger = (
     <Button
       variant="ghost"
       size="sm"
+      type="button"
       className={cn(
         baseTriggerClassName,
+        !menuOpen && 'group',
+        'relative',
         iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
         hasWarning && 'text-warning hover:text-warning'
       )}
       disabled={!onWorkspaceChange || workspaceChanging}
-      aria-label={workspaceWarning}>
+      aria-label={workspaceWarning}
+      onClick={(event) => {
+        const target = event.target as Element | null
+        if (!canQuickClearWorkspace || !target?.closest('[data-clear-workspace-button]')) {
+          return
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+        if (!workspaceChanging) void onWorkspaceChange?.(null)
+      }}>
       {hasWarning ? (
-        <TriangleAlert size={14} aria-hidden />
+        <TriangleAlert size={20} aria-hidden />
       ) : isSystemWorkspace ? (
-        <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
+        <CircleSlash size={20} aria-hidden className="text-muted-foreground" />
       ) : (
-        <Folder size={14} aria-hidden className="text-muted-foreground" />
+        <span className="relative flex size-5 shrink-0 items-center justify-center">
+          <Folder
+            size={20}
+            aria-hidden
+            className={cn(
+              'shrink-0 text-muted-foreground transition-all duration-200',
+              canQuickClearWorkspace && !menuOpen && 'group-hover:scale-75 group-hover:opacity-0'
+            )}
+          />
+          {canQuickClearWorkspace && (
+            <NormalTooltip content={t('agent.session.workspace_selector.no_project')} side="top">
+              <span
+                data-clear-workspace-button
+                data-testid="clear-workspace-button"
+                aria-hidden
+                className={cn(
+                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
+                  !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100',
+                  workspaceChanging && 'cursor-not-allowed opacity-50'
+                )}
+                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => e.preventDefault()}>
+                <X size={10} className="stroke-[2.5]" />
+              </span>
+            </NormalTooltip>
+          )}
+        </span>
       )}
       <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
       {onWorkspaceChange ? (
@@ -498,6 +690,8 @@ const AgentComposerWorkspaceControl = ({
       mountStrategy="lazy-keep"
       disabled={workspaceChanging}
       trigger={trigger}
+      open={menuOpen}
+      onOpenChange={setMenuOpen}
     />
   ) : (
     trigger
@@ -554,21 +748,29 @@ function getContextUsageModelCandidates(model: Model | undefined): string[] | un
 }
 
 type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'> & {
+  topBarPortalAvailable: boolean
+  topBarPortalIconOnly: boolean
   model?: Model
-  modelProviderName?: string
   selectModelLabel: string
   canChangeModel: boolean
   onModelSelect: (model: Model | undefined) => void
   modelFilter?: (model: Model) => boolean
+  leadingControl?: React.ReactNode
+  renderQuickPanelShortcuts?: (args: {
+    inputAdapter?: AgentComposerInputAdapter
+    unifiedPanelControl?: AgentComposerUnifiedPanelControl
+  }) => React.ReactNode
   renderWorkspaceControl?: (args: { side: 'top' | 'bottom'; iconOnly?: boolean }) => React.ReactNode
 }
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
-type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'> & {
-  placesWorkspaceInBelowControls?: boolean
-}
+type AgentComposerControlSlots = Pick<
+  ComposerSurfaceProps,
+  'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
+>
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
 type AgentComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
+type AgentComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
 
 const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
@@ -583,59 +785,94 @@ const AgentComposerContextControlsWithAutoFocus = ({
   return <AgentComposerContextControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
 }
 
-// Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
+const renderAgentComposerContextControls = (
+  props: AgentComposerControlProps,
+  inputAdapter: AgentComposerInputAdapter,
+  { side, iconOnly }: { side: 'top' | 'bottom'; iconOnly: boolean }
+) => {
+  const resolvedSide = props.topBarPortalAvailable ? 'bottom' : side
+  const resolvedIconOnly = props.topBarPortalAvailable ? props.topBarPortalIconOnly : iconOnly
+  const controls = (
+    <>
+      <AgentComposerContextControlsWithAutoFocus
+        {...props}
+        side={resolvedSide}
+        iconOnly={resolvedIconOnly}
+        inputAdapter={inputAdapter}
+      />
+      <AgentComposerModelControl {...props} side={resolvedSide} iconOnly={resolvedIconOnly} />
+      {props.renderWorkspaceControl?.({ side: resolvedSide, iconOnly: resolvedIconOnly })}
+    </>
+  )
+
+  return props.topBarPortalAvailable ? <ConversationTopBarPortal>{controls}</ConversationTopBarPortal> : controls
+}
+
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
-      <ComposerToolbarControls
-        inputAdapter={inputAdapter}
-        unifiedPanelControl={unifiedPanelControl}
-        toolMenuPlacement="beforeContext"
-        renderContextControls={({ side, iconOnly }) => (
-          <>
-            <AgentComposerContextControlsWithAutoFocus
-              {...props}
-              side={side}
-              iconOnly={iconOnly}
-              agentTriggerMode="edit"
-              inputAdapter={inputAdapter}
-            />
-            <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
-          </>
-        )}
-      />
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => {
+      const quickPanelShortcuts = props.renderQuickPanelShortcuts?.({ inputAdapter, unifiedPanelControl })
+
+      return (
+        <ComposerToolbarControls
+          inputAdapter={inputAdapter}
+          leading={
+            <>
+              {props.leadingControl}
+              {quickPanelShortcuts}
+            </>
+          }
+          unifiedPanelControl={unifiedPanelControl}
+          renderContextControls={({ side, iconOnly }) =>
+            renderAgentComposerContextControls(props, inputAdapter, { side, iconOnly })
+          }
+        />
+      )
+    },
+    renderCompactControls: (inputAdapter, unifiedPanelControl) => (
+      <>
+        {props.topBarPortalAvailable
+          ? renderAgentComposerContextControls(props, inputAdapter, {
+              side: 'bottom',
+              iconOnly: props.topBarPortalIconOnly
+            })
+          : null}
+        {props.renderQuickPanelShortcuts?.({ inputAdapter, unifiedPanelControl })}
+      </>
     )
   }
 }
 
 const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
-      <div className={COMPOSER_TOOLBAR_CLASS}>
-        <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
-      </div>
-    ),
-    renderBelowControls: (inputAdapter) => (
-      <ComposerBelowControls
-        renderContextControls={({ side, iconOnly }) => (
-          <>
-            <AgentComposerContextControlsWithAutoFocus
-              {...props}
-              side={side}
-              iconOnly={iconOnly}
-              inputAdapter={inputAdapter}
-            />
-            <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
-          </>
-        )}
-        trailing={
-          props.renderWorkspaceControl
-            ? ({ iconOnly }) => props.renderWorkspaceControl?.({ side: 'bottom', iconOnly })
-            : undefined
-        }
-      />
-    ),
-    placesWorkspaceInBelowControls: true
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => {
+      const quickPanelShortcuts = props.renderQuickPanelShortcuts?.({ inputAdapter, unifiedPanelControl })
+
+      return (
+        <>
+          {props.topBarPortalAvailable
+            ? renderAgentComposerContextControls(props, inputAdapter, {
+                side: 'bottom',
+                iconOnly: false
+              })
+            : null}
+          <div className={COMPOSER_TOOLBAR_CLASS}>
+            {props.leadingControl}
+            {quickPanelShortcuts}
+            <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+          </div>
+        </>
+      )
+    },
+    renderBelowControls: props.topBarPortalAvailable
+      ? undefined
+      : (inputAdapter) => (
+          <ComposerBelowControls
+            renderContextControls={({ side, iconOnly }) =>
+              renderAgentComposerContextControls(props, inputAdapter, { side, iconOnly })
+            }
+          />
+        )
   }
 }
 
@@ -649,16 +886,16 @@ const AgentComposerInner = ({
   actionsRef,
   chatSendMessage,
   chatStop,
-  onNewSessionDraft,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
+  canChangeAgent,
   onWorkspaceChange,
-  showWorkspaceSelector,
   workspaceChanging,
   canChangeModel,
   isStreaming,
   sendDisabled,
+  compactWhenSingleLine,
   renderControls,
   forceNarrowLayout = false
 }: InnerProps) => {
@@ -668,17 +905,24 @@ const AgentComposerInner = ({
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
   const { files, isExpanded } = useComposerToolState()
-  const { setFiles, setIsExpanded } = useComposerToolDispatch()
+  const { setFiles, setIsExpanded, toolsRegistry } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
-  const isClassicSessionLayout = sessionDisplayMode === 'agent'
+  const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
+  const {
+    pinnedIds: pinnedToolIds,
+    setPinnedIds: setPinnedToolIds,
+    resetPinnedIds: resetPinnedToolIds,
+    isDefault: pinnedToolsAtDefault,
+    customizeOpen: customizeToolbarOpen,
+    setCustomizeOpen: setCustomizeToolbarOpen,
+    customizePanelItem
+  } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
-  const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
@@ -697,8 +941,8 @@ const AgentComposerInner = ({
   const textRef = useRef(text)
   const draftTokensRef = useRef(draftTokens)
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
-  const accessiblePaths = sessionData?.accessiblePaths ?? []
-  const enableMentionModelTrigger = accessiblePaths.length > 0
+  const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
+  const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
 
@@ -733,12 +977,58 @@ const AgentComposerInner = ({
   }, [t, userWorkspacePath])
 
   const setText = useCallback(
-    (nextText: string) => {
+    (nextText: string, options: { persist?: boolean } = {}) => {
+      clearTimeoutTimer('agentComposerSendMessage')
       textRef.current = nextText
       setTextState(nextText)
-      writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+      if (options.persist ?? true) {
+        writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+      }
     },
-    [draftCacheKey]
+    [clearTimeoutTimer, draftCacheKey]
+  )
+  const filesRef = useLatest(files)
+  const inputHistoryFilesRef = useRef<ComposerAttachment[] | null>(null)
+  const applyHistoryDraft = useCallback(
+    (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
+      const nextSkillTokens = getCachedSkillTokens(historyDraft.tokens)
+      const persistDraft = options.source === 'draft'
+      actionsRef.current.replaceDraft(historyDraft)
+      setText(historyDraft.text, { persist: false })
+      setDraftTokens(nextSkillTokens)
+      draftTokensRef.current = nextSkillTokens
+      if (persistDraft) {
+        writeAgentDraftCache(draftCacheKey, historyDraft.text, nextSkillTokens)
+      }
+      setSelectedSkills(nextSkillTokens.map(getSkillFromCachedToken))
+
+      if (options.source === 'history') {
+        inputHistoryFilesRef.current ??= filesRef.current
+        setFiles([])
+        return
+      }
+
+      const savedFiles = inputHistoryFilesRef.current
+      inputHistoryFilesRef.current = null
+      if (!savedFiles) return
+      setFiles(savedFiles)
+    },
+    [actionsRef, draftCacheKey, filesRef, setFiles, setText]
+  )
+  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+    applyDraft: applyHistoryDraft
+  })
+  const handleTextChange = useCallback(
+    (nextText: string) => {
+      resetHistoryIndex()
+      inputHistoryFilesRef.current = null
+      setText(nextText)
+    },
+    [resetHistoryIndex, setText]
+  )
+  const handleInputHistoryNavigate = useCallback(
+    (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
+    [actionsRef, navigateHistory]
   )
 
   useEffect(() => {
@@ -789,14 +1079,75 @@ const AgentComposerInner = ({
     [selectedSkills]
   )
 
-  const rootPanelSkillItems = useMemo(
-    () =>
-      createSkillQuickPanelItems(availableSkills, {
+  // Skills live in their own submenu (opened as the `agent-skills` launcher), with a pinned footer
+  // that opens the agent's skills config. The customize-toolbar action stays in the root panel.
+  const skillManageFooterItem = useMemo<QuickPanelListItem>(
+    () => ({
+      id: 'agent-skills:manage',
+      label: t('plugins.manage_skills'),
+      icon: <Settings2 size={16} />,
+      fixedToBottom: true,
+      action: () => openResourceEditDialog({ kind: 'agent', id: agentId, initialTab: 'tools.skills' })
+    }),
+    [agentId, t]
+  )
+
+  const skillPanelItems = useMemo<QuickPanelListItem[]>(
+    () => [
+      ...createSkillQuickPanelItems(availableSkills, {
         skillLabel: t('plugins.skills'),
         onInsertSkill: insertSkillToken
       }),
-    [availableSkills, insertSkillToken, t]
+      skillManageFooterItem
+    ],
+    [availableSkills, insertSkillToken, skillManageFooterItem, t]
   )
+
+  const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
+    const skillLabel = t('plugins.skills')
+    return {
+      id: AGENT_SKILLS_LAUNCHER_ID,
+      kind: 'panel',
+      sources: ['root-panel'],
+      rootPanelPlacement: 'trailing',
+      order: 60,
+      label: skillLabel,
+      icon: <ToolCase />,
+      searchAliases: [skillLabel],
+      panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
+      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+        void refreshAvailableSkills().catch((error) => {
+          logger.warn('Failed to refresh available skills when opening the skills panel', { error })
+        })
+        quickPanel.open({
+          title: skillLabel,
+          list: skillPanelItems,
+          symbol: AGENT_SKILLS_LAUNCHER_ID,
+          parentPanel,
+          queryAnchor,
+          triggerInfo: triggerInfo ?? { type: 'button' }
+        })
+      }
+    }
+  }, [refreshAvailableSkills, skillPanelItems, t])
+
+  useEffect(
+    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
+    [skillsLauncher, toolsRegistry]
+  )
+
+  // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
+  // it with the current (possibly stale) closure, so an externally installed/removed skill would
+  // otherwise only appear on the next open (mirrors the MCP status panel).
+  const quickPanel = useOptionalQuickPanel()
+  const skillsPanelVisible = quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID
+  const updateQuickPanelList = quickPanel?.updateList
+  useEffect(() => {
+    if (!skillsPanelVisible || !updateQuickPanelList) return
+    updateQuickPanelList(skillPanelItems)
+  }, [skillsPanelVisible, skillPanelItems, updateQuickPanelList])
+
+  const rootPanelTrailingItems = useMemo(() => [customizePanelItem], [customizePanelItem])
 
   const handleRootPanelOpen = useCallback(() => {
     void refreshAvailableSkills().catch((error) => {
@@ -834,44 +1185,26 @@ const AgentComposerInner = ({
   const handleCreateEmptySession = useCallback(() => {
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
+  const hasNewSessionAction = Boolean(agentBase && onCreateEmptySession)
 
   const rootPanelNewSessionItems = useMemo<QuickPanelListItem[]>(() => {
-    if (!agentBase) return []
+    if (!hasNewSessionAction) return []
 
     const label = t('agent.session.new')
-
-    if (isClassicSessionLayout) {
-      if (!onCreateEmptySession) return []
-
-      return [
-        {
-          id: 'composer:new-session',
-          label,
-          icon: <MessageSquarePlus size={16} />,
-          filterText: label,
-          searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
-          action: () => {
-            handleCreateEmptySession()
-          }
-        }
-      ]
-    }
-
-    if (!onNewSessionDraft) return []
 
     return [
       {
         id: 'composer:new-session',
         label,
-        icon: <MessageSquarePlus size={16} />,
+        icon: <NewConversationIcon size={16} />,
         filterText: label,
         searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
         action: () => {
-          void onNewSessionDraft()
+          handleCreateEmptySession()
         }
       }
     ]
-  }, [agentBase, handleCreateEmptySession, isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft, t])
+  }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -917,12 +1250,10 @@ const AgentComposerInner = ({
     [availableSkills, draftCacheKey, reconcileTokens]
   )
 
-  const placeholderText = useMemo(() => {
-    if (isSoulModeEnabled(agentBase?.configuration)) return t('agent.input.soul_placeholder')
-    return t('agent.input.placeholder', {
-      key: getSendMessageShortcutLabel(sendMessageShortcut)
-    })
-  }, [agentBase?.configuration, sendMessageShortcut, t])
+  const placeholderText = useMemo(
+    () => t('agent.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) }),
+    [sendMessageShortcut, t]
+  )
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>
@@ -934,19 +1265,20 @@ const AgentComposerInner = ({
     async (payload: ComposerQueuedMessagePayload) => {
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
-        const fileParts = await buildFilePartsForAttachments(attachments)
+        const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
         await chatSendMessage(
           { text: payload.text },
           { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+        saveHistory(payload.text)
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
         return false
       }
     },
-    [agentId, chatSendMessage, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, saveHistory, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -957,7 +1289,13 @@ const AgentComposerInner = ({
     draftTokensRef.current = []
     writeAgentDraftCache(draftCacheKey, '', [])
     setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
-  }, [draftCacheKey, setFiles, setText, setTimeoutTimer])
+    // Drop the input-history nav state so a recalled draft that gets sent/queued
+    // does not leave useInputHistory pointing at it; otherwise the next
+    // ArrowDown would restore the already-sent draft and ArrowUp would resume
+    // from a stale index.
+    resetHistoryIndex()
+    inputHistoryFilesRef.current = null
+  }, [draftCacheKey, resetHistoryIndex, setFiles, setText, setTimeoutTimer])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
@@ -976,19 +1314,25 @@ const AgentComposerInner = ({
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
-  // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
-  // it from the queue. Agent editor tokens derive from `files` + `selectedSkills`, so set those.
+  // Edit a queued item = atomically restore the whole editor draft, then synchronize the persisted
+  // skill subset and managed file/skill state before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
+      const nextDraftTokens = getCachedSkillTokens(item.draft.tokens)
+      resetHistoryIndex()
+      inputHistoryFilesRef.current = null
+      actionsRef.current.replaceDraft(item.draft)
+      setDraftTokens(nextDraftTokens)
+      draftTokensRef.current = nextDraftTokens
       setText(item.draft.text)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
-      setSelectedSkills(item.draft.tokens.filter((token) => token.kind === 'skill').map(getSkillFromCachedToken))
+      setSelectedSkills(nextDraftTokens.map(getSkillFromCachedToken))
     },
-    [setFiles, setText]
+    [actionsRef, resetHistoryIndex, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(
-    (draft: ComposerSerializedDraft) => {
+    async (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
       if (!model) {
         toast.error(t('code.model_required'))
@@ -1015,18 +1359,17 @@ const AgentComposerInner = ({
       const previousDraftTokens = draftTokensRef.current
 
       clearCurrentDraft()
-      void sendQueuedPayload(payload).then((sent) => {
-        if (!sent) {
-          clearTimeoutTimer('agentComposerSendMessage')
-          setText(previousText)
-          setFiles(previousFiles)
-          setSelectedSkills(previousSkills)
-          setDraftTokens(previousDraftTokens)
-          draftTokensRef.current = previousDraftTokens
-          writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
-          toast.error(t('chat.input.send_failed'))
-        }
-      })
+      const sent = await sendQueuedPayload(payload)
+      if (!sent) {
+        clearTimeoutTimer('agentComposerSendMessage')
+        setText(previousText)
+        setFiles(previousFiles)
+        setSelectedSkills(previousSkills)
+        setDraftTokens(previousDraftTokens)
+        draftTokensRef.current = previousDraftTokens
+        writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
+        toast.error(t('chat.input.send_failed'))
+      }
     },
     [
       buildQueuedPayload,
@@ -1047,117 +1390,191 @@ const AgentComposerInner = ({
     ]
   )
 
-  const resourceProvider = useAgentResourceSearchProvider({
+  const resourceMentionSources = useAgentResourceMentionSource({
     accessiblePaths,
     files,
     setFiles,
-    enabled: enableMentionModelTrigger
+    enabled: enableResourceMention
   })
 
-  const renderWorkspaceControl = showWorkspaceSelector
-    ? ({ side, iconOnly = false }: { side: 'top' | 'bottom'; iconOnly?: boolean }) => (
-        <AgentComposerWorkspaceControl
-          workspace={workspace}
-          workspaceId={workspaceId}
-          workspaceWarning={workspaceWarning}
-          selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
-          workspaceChanging={workspaceChanging}
-          side={side}
-          iconOnly={iconOnly}
-          onWorkspaceChange={onWorkspaceChange}
-        />
-      )
-    : undefined
+  const renderWorkspaceControl = ({ side, iconOnly = false }: { side: 'top' | 'bottom'; iconOnly?: boolean }) => (
+    <AgentComposerWorkspaceControl
+      workspace={workspace}
+      workspaceId={workspaceId}
+      workspaceWarning={workspaceWarning}
+      selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
+      workspaceChanging={workspaceChanging}
+      side={side}
+      iconOnly={iconOnly}
+      onWorkspaceChange={onWorkspaceChange}
+    />
+  )
 
-  const renderedControlSlots = renderControls({
+  const newSessionControl = hasNewSessionAction ? (
+    <Tooltip content={t('agent.session.new')} placement="top">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
+        aria-label={t('agent.session.new')}
+        onClick={handleCreateEmptySession}>
+        <NewConversationIcon size={20} aria-hidden />
+      </Button>
+    </Tooltip>
+  ) : undefined
+
+  const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
+    const skillLabel = t('plugins.skills')
+    const slashCommandsLabel = t('chat.input.slash_commands.title')
+    return [
+      {
+        id: 'skills',
+        label: skillLabel,
+        icon: <ToolCase size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) =>
+          unifiedPanelControl?.open({ launcherId: AGENT_SKILLS_LAUNCHER_ID, searchText: skillLabel })
+      },
+      {
+        id: 'slash-commands',
+        label: slashCommandsLabel,
+        icon: <Terminal size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+      },
+      {
+        id: ComposerPanelSymbol.McpStatus,
+        label: 'MCP',
+        icon: <Cable size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) =>
+          unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
+      }
+    ]
+  }, [t])
+
+  const renderQuickPanelShortcuts = useCallback(
+    ({
+      inputAdapter,
+      unifiedPanelControl
+    }: {
+      inputAdapter?: AgentComposerInputAdapter
+      unifiedPanelControl?: AgentComposerUnifiedPanelControl
+    }) => (
+      <ComposerToolbarShortcuts
+        pinnedIds={pinnedToolIds}
+        onPinnedIdsChange={setPinnedToolIds}
+        onResetPinnedIds={resetPinnedToolIds}
+        isDefault={pinnedToolsAtDefault}
+        customTools={toolbarCustomTools}
+        customizeOpen={customizeToolbarOpen}
+        onCustomizeOpenChange={setCustomizeToolbarOpen}
+        inputAdapter={inputAdapter}
+        unifiedPanelControl={unifiedPanelControl}
+      />
+    ),
+    [
+      customizeToolbarOpen,
+      pinnedToolIds,
+      pinnedToolsAtDefault,
+      resetPinnedToolIds,
+      setCustomizeToolbarOpen,
+      setPinnedToolIds,
+      toolbarCustomTools
+    ]
+  )
+
+  const controlSlots = renderControls({
     agent: agentBase,
     model,
-    modelProviderName,
     selectAgentLabel: t('chat.alerts.select_agent'),
     selectModelLabel: t('button.select_model'),
     agentChanging,
-    shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
-    showAgentTrigger: !isClassicSessionLayout,
+    agentTriggerMode: canChangeAgent ? 'selector' : 'edit',
+    shouldAutoSelectCreatedAgent: true,
+    topBarPortalAvailable,
+    topBarPortalIconOnly,
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
+    leadingControl: newSessionControl,
+    renderQuickPanelShortcuts,
     onAgentChange: handleAgentChange,
     renderWorkspaceControl
   })
-  const { placesWorkspaceInBelowControls, ...controlSlots } = renderedControlSlots
 
-  const sendAccessory = (
-    <div className="flex items-center gap-1.5">
-      {!placesWorkspaceInBelowControls ? renderWorkspaceControl?.({ side: 'top' }) : null}
-      <AgentComposerContextUsage model={model} sessionId={sessionId} />
-    </div>
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
+    <AgentComposerContextUsage model={model} sessionId={sessionId} />
   )
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
       {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
-      <ComposerSurface
-        text={text}
-        onTextChange={setText}
-        tokens={tokens}
-        draftTokens={draftTokens}
-        managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
-        onTokensChange={handleTokensChange}
-        resolveSkillMarker={resolveSkillMarker}
-        placeholder={placeholderText}
-        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
-        sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
-        isLoading={isStreaming}
-        onSendDraft={handleSendDraft}
-        onPause={abortAgentSession}
-        queueContent={
-          queuedFollowups.length > 0 ? (
-            <QueuedFollowupsDock
-              items={queuedFollowups}
-              paused={followupPaused}
-              onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={async (id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                // Only drop the item once the send actually succeeds; a failed manual
-                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                const sent = await sendQueuedPayload(item.payload)
-                if (sent) removeFollowup(id)
-                else toast.error(t('chat.input.send_failed'))
-              }}
-              onEdit={(id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                restoreFollowupDraft(item)
-                removeFollowup(id)
-              }}
-              onRemove={removeFollowup}
-              onReorder={reorderFollowups}
-            />
-          ) : undefined
-        }
-        supportedExts={supportedExts}
-        setFiles={setFiles}
-        filesCount={files.length}
-        isExpanded={isExpanded}
-        onExpandedChange={setIsExpanded}
-        quickPanelEnabled={config.enableQuickPanel ?? true}
-        enableDragDrop={config.enableDragDrop ?? true}
-        enableSpellCheck={enableSpellCheck}
-        fontSize={fontSize}
-        narrowMode={forceNarrowLayout || narrowMode}
-        onActionsChange={handleSurfaceActionsChange}
-        getToolLaunchers={() => getLaunchers()}
-        toolLaunchersVersion={toolLaunchersVersion}
-        suggestionSources={[]}
-        resourceProvider={resourceProvider}
-        rootPanelLeadingItems={rootPanelNewSessionItems}
-        rootPanelAdditionalItems={rootPanelSkillItems}
-        onRootPanelOpen={handleRootPanelOpen}
-        onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        sendAccessory={sendAccessory}
-        {...controlSlots}
-      />
+      <ResourceEditDialogEventHost />
+      <ComposerPinnedToolsProvider value={pinnedToolIds}>
+        <ComposerSurface
+          text={text}
+          onTextChange={handleTextChange}
+          tokens={tokens}
+          draftTokens={draftTokens}
+          managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
+          onTokensChange={handleTokensChange}
+          resolveSkillMarker={resolveSkillMarker}
+          placeholder={placeholderText}
+          sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
+          sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
+          isLoading={isStreaming}
+          onSendDraft={handleSendDraft}
+          onPause={abortAgentSession}
+          queueContent={
+            queuedFollowups.length > 0 ? (
+              <QueuedFollowupsDock
+                items={queuedFollowups}
+                paused={followupPaused}
+                onTogglePause={() => setFollowupPaused(!followupPaused)}
+                onSteer={async (id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  // Only drop the item once the send actually succeeds; a failed manual
+                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                  const sent = await sendQueuedPayload(item.payload)
+                  if (sent) removeFollowup(id)
+                  else toast.error(t('chat.input.send_failed'))
+                }}
+                onEdit={(id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  restoreFollowupDraft(item)
+                  removeFollowup(id)
+                }}
+                onRemove={removeFollowup}
+                onReorder={reorderFollowups}
+              />
+            ) : undefined
+          }
+          supportedExts={supportedExts}
+          setFiles={setFiles}
+          filesCount={files.length}
+          isExpanded={isExpanded}
+          onExpandedChange={setIsExpanded}
+          quickPanelEnabled={config.enableQuickPanel ?? true}
+          enableDragDrop={config.enableDragDrop ?? true}
+          enableSpellCheck={enableSpellCheck}
+          fontSize={fontSize}
+          narrowMode={forceNarrowLayout || narrowMode}
+          onActionsChange={handleSurfaceActionsChange}
+          isInputHistoryActive={isInputHistoryActive}
+          onInputHistoryNavigate={handleInputHistoryNavigate}
+          getToolLaunchers={() => getLaunchers()}
+          toolLaunchersVersion={toolLaunchersVersion}
+          suggestionSources={resourceMentionSources}
+          rootPanelLeadingItems={rootPanelNewSessionItems}
+          rootPanelAdditionalItems={rootPanelTrailingItems}
+          onRootPanelOpen={handleRootPanelOpen}
+          onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+          sendAccessory={sendAccessory}
+          compactWhenSingleLine={compactWhenSingleLine}
+          {...controlSlots}
+        />
+      </ComposerPinnedToolsProvider>
     </ComposerToolDerivedStateProvider>
   )
 }
@@ -1184,8 +1601,8 @@ const MissingAgentHomeComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
-  const isClassicSessionLayout = sessionDisplayMode === 'agent'
+  const [narrowMode] = usePreference('chat.narrow_mode')
+  const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -1211,18 +1628,28 @@ const MissingAgentHomeComposerInner = ({
   const placeholderText = t('agent.input.placeholder', {
     key: getSendMessageShortcutLabel(sendMessageShortcut)
   })
-  const controlSlots = renderAgentHomeControls({
+  const controlSlots = renderAgentToolbarControls({
     agent: undefined,
     selectAgentLabel: selectAgentMessage,
     model: undefined,
-    modelProviderName: undefined,
     selectModelLabel: t('button.select_model'),
     agentChanging,
+    agentTriggerMode: 'selector',
     shouldAutoSelectCreatedAgent: true,
-    showAgentTrigger: !isClassicSessionLayout,
+    topBarPortalAvailable,
+    topBarPortalIconOnly,
     canChangeModel: false,
     onAgentChange: handleAgentChange,
-    onModelSelect: () => undefined
+    onModelSelect: () => undefined,
+    // Show the workspace/folder selector as a disabled placeholder (no session to bind yet);
+    // it becomes live once an agent is picked and the real composer mounts.
+    renderWorkspaceControl: ({ side, iconOnly = false }) => (
+      <AgentComposerWorkspaceControl
+        selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
+        side={side}
+        iconOnly={iconOnly}
+      />
+    )
   })
 
   return (
@@ -1249,7 +1676,7 @@ const MissingAgentHomeComposerInner = ({
         enableDragDrop={false}
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
-        narrowMode
+        narrowMode={narrowMode}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
@@ -1286,15 +1713,17 @@ export const MissingAgentHomeComposer = (props: MissingAgentHomeComposerProps) =
   )
 }
 
+// Composer state is agent-scoped, so switching agents must also reset the draft and tool runtime.
 const AgentComposer = (props: Props) => {
-  return <AgentComposerRoot {...props} renderControls={renderAgentToolbarControls} />
+  return <AgentComposerRoot key={props.agentId} {...props} renderControls={renderAgentToolbarControls} />
 }
 
 export const AgentHomeComposer = (props: Props) => {
   return (
     <AgentComposerRoot
+      key={props.agentId}
       {...props}
-      showWorkspaceSelector={props.showWorkspaceSelector ?? true}
+      canChangeAgent={props.canChangeAgent ?? true}
       forceNarrowLayout
       renderControls={renderAgentHomeControls}
     />

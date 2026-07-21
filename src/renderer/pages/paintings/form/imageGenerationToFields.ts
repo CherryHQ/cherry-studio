@@ -68,9 +68,18 @@ const KEY_LABELS: Record<CanonicalParamKey, { title: string; tooltip?: string }>
  * `KEY_LABELS`, but for the *options* of enum/chip controls. Values not listed
  * here fall back to the raw option value — correct for literal enums (`size`,
  * `aspectRatio`, `imageResolution`, `outputFormat`, language codes) whose
- * options are already human-readable.
+ * options are already human-readable, apart from their shared `auto` value
+ * (below), which localizes so chips and the artboard prompt bar read e.g.
+ * `自动` instead of the raw enum.
  */
+// The one size-series option value that isn't already human-readable. Shared by
+// the three size-bearing keys so a `size`/`aspectRatio`/`imageResolution` field
+// that offers `auto` localizes it consistently across chips and the prompt bar.
+const SIZE_AUTO_OPTION = { auto: 'paintings.image_size_options.auto' }
 const OPTION_LABELS: Partial<Record<CanonicalParamKey, Record<string, string>>> = {
+  size: SIZE_AUTO_OPTION,
+  aspectRatio: SIZE_AUTO_OPTION,
+  imageResolution: SIZE_AUTO_OPTION,
   quality: {
     auto: 'paintings.quality_options.auto',
     low: 'paintings.quality_options.low',

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { VersionCheckInput, VersionCheckResult } from '../versionPolicy'
-import { checkUpgradePathCompatibility, readPreviousVersion } from '../versionPolicy'
+import { checkUpgradePathCompatibility, evaluateCandidateVersion, readPreviousVersion } from '../versionPolicy'
 
 vi.mock('node:fs', async () => {
   const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
@@ -157,5 +157,59 @@ describe('readPreviousVersion', () => {
     })
 
     expect(readPreviousVersion('/tmp/nonexistent.log', '2.0.0')).toBeNull()
+  })
+})
+
+// ── evaluateCandidateVersion ───────────────────────────────────────
+
+describe('evaluateCandidateVersion', () => {
+  const mockedExistsSync = vi.mocked(fs.existsSync)
+  const mockedReadFileSync = vi.mocked(fs.readFileSync)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('blocks with no_version_log when the directory has no version.log', () => {
+    mockedExistsSync.mockReturnValue(false)
+
+    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+
+    expect(result.check).toStrictEqual({
+      outcome: 'block',
+      reason: 'no_version_log',
+      details: { requiredVersion: '1.9.12' }
+    })
+    // Intermediates are surfaced for the gate's diagnostic log.
+    expect(result.versionLogExists).toBe(false)
+    expect(result.previousVersion).toBeNull()
+    // version.log path is derived from the candidate directory.
+    expect(mockedExistsSync).toHaveBeenCalledWith('/data/dir/version.log')
+  })
+
+  it('passes when version.log records a previous version at or above the required v1', () => {
+    mockedExistsSync.mockReturnValue(true)
+    mockedReadFileSync.mockReturnValue('1.9.12|darwin|production|true|normal|2025-03-01T00:00:00Z')
+
+    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+
+    expect(result.check).toStrictEqual({ outcome: 'pass' })
+    expect(result.previousVersion).toBe('1.9.12')
+    expect(result.versionLogExists).toBe(true)
+  })
+
+  it('blocks with v1_too_old when the recorded previous version is below the required v1', () => {
+    mockedExistsSync.mockReturnValue(true)
+    mockedReadFileSync.mockReturnValue('1.8.0|darwin|production|true|normal|2025-01-01T00:00:00Z')
+
+    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+
+    expect(result.check).toStrictEqual({
+      outcome: 'block',
+      reason: 'v1_too_old',
+      details: { previousVersion: '1.8.0', requiredVersion: '1.9.12' }
+    })
+    expect(result.previousVersion).toBe('1.8.0')
+    expect(result.versionLogExists).toBe(true)
   })
 })

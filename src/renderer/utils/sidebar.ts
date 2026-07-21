@@ -114,10 +114,6 @@ const SIDEBAR_APP_DEFINITIONS = [
   {
     id: 'notes',
     routePrefix: '/app/notes'
-  },
-  {
-    id: 'openclaw',
-    routePrefix: '/app/openclaw'
   }
 ] as const satisfies readonly SidebarAppDefinition[]
 
@@ -161,11 +157,17 @@ export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>)
 
   const appId = getTabInstanceAppId(tab)
   const app = appId ? getSidebarApp(appId) : undefined
-  const key = app?.instanceKey ? getSidebarAppTabInstanceKey(app, tab) : undefined
+  if (!app?.instanceKey || !tabBelongsToApp(app, tab.url)) return tab.url
 
-  if (app?.instanceKey && key && tabBelongsToApp(app, tab.url)) {
+  const key = getSidebarAppTabInstanceKey(app, tab)
+  if (key) {
     return app.instanceKey.urlForKey(key)
   }
+
+  // Instance-aware pages intentionally remove the key while showing a draft.
+  // The base route is the canonical entry for that state; retaining an older
+  // query-param URL would resurrect the previous conversation after reattach.
+  if (hasTabInstanceMetadataForApp(tab, app.id)) return app.routePrefix
 
   return tab.url
 }
@@ -202,7 +204,7 @@ export function resolveSidebarActiveItem(url: string): SidebarAppId | '' {
   return match?.id ?? ''
 }
 
-function isSidebarAppId(value: string): value is SidebarAppId {
+export function isSidebarAppId(value: string): value is SidebarAppId {
   return sidebarFavoriteSet.has(value as SidebarAppId)
 }
 
@@ -334,7 +336,7 @@ export function getOrderedVisibleSidebarFavorites(
 ): SidebarAppId[] {
   // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
   return getOrderedVisibleSidebarFavoriteItems(favorites).flatMap((favorite) =>
-    favorite.type === 'app' ? [favorite.id] : []
+    favorite.type === 'app' && isSidebarAppId(favorite.id) ? [favorite.id] : []
   )
 }
 

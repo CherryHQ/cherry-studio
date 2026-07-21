@@ -1,5 +1,5 @@
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 
@@ -52,9 +52,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
         })
         return
       }
-      // Defer until after the menu has closed so the action's own UI (rename input,
-      // popups) doesn't fight the menu close.
-      window.requestAnimationFrame(() => void onAction(action))
+      await onAction(action)
     },
     [onAction]
   )

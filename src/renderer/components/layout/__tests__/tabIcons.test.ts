@@ -7,11 +7,11 @@ import {
   MessageCircle,
   MousePointerClick,
   NotepadText,
-  Rocket
+  Rocket,
+  ScanSearch
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
-import { OpenClawSidebarIcon } from '../../icons/SvgIcon'
 import { getTabIcon } from '../tabIcons'
 
 function routeTab(url: string): Tab {
@@ -36,9 +36,9 @@ describe('getTabIcon', () => {
   it.each([
     ['/app/agents', MousePointerClick],
     ['/app/knowledge', FileSearch],
+    ['/app/file-preview?path=%2Ftmp%2Freport.pdf', ScanSearch],
     ['/app/files', Folder],
     ['/app/notes', NotepadText],
-    ['/app/openclaw', OpenClawSidebarIcon],
     ['/app/mini-app', LayoutGrid],
     ['/app/launchpad', Rocket]
   ])('returns the shared app icon for %s', (url, Icon) => {
@@ -51,5 +51,6 @@ describe('getTabIcon', () => {
 
   it('keeps unknown routes on the message icon fallback', () => {
     expect(getTabIcon(routeTab('/unknown'))).toBe(MessageCircle)
+    expect(getTabIcon(routeTab('/app/openclaw'))).toBe(MessageCircle)
   })
 })
