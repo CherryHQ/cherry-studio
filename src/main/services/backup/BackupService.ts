@@ -40,9 +40,10 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { setBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
-import { isPathInside } from '@main/utils/legacyFile'
+import { isPathInside } from '@main/utils/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
 import { and, eq, isNull, sum } from 'drizzle-orm'
@@ -65,7 +66,6 @@ import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
 import { MergeEngine, MergeStrategyNotImplementedError } from './merge'
-import { setBackupInProgress } from './quiesceGate'
 
 const logger = loggerService.withContext('BackupService')
 

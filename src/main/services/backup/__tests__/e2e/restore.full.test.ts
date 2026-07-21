@@ -7,9 +7,9 @@
  * - message.modelId → user_model (PROVIDERS, natural-key aggregate member)
  * - agent_session.workspaceId → agent_workspace (natural-key root, NOT NULL cascade)
  *
- * Scenario A (fresh install): every natural-key aggregate is absent locally → BACKFILL.
- * Preferences / providers+API keys / workspaces / tags all restore; cross-domain FKs
- * resolve against the backfilled rows (backup PKs preserved).
+ * Scenario A (production-shaped fresh install via seeders): backup-only natural-key rows
+ * BACKFILL (provider id that does not collide with PresetProviderSeeder); cross-domain FKs
+ * resolve against the backfilled rows. Seeder rows remain intact.
  *
  * Scenario B (conflicting local data): natural-key conflicts SKIP (local wins) and the
  * repair pass degrades unresolvable refs (nullable → SET NULL, NOT NULL → prune) so the
@@ -21,10 +21,13 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
+import { setBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import type { DbService } from '@main/data/db/DbService'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { snapshotTo } from '@main/data/db/restore/snapshot'
+import { userProviderTable } from '@main/data/db/schemas/userProvider'
+import type { DbType, ISeeder } from '@main/data/db/types'
 import { contributorManager } from '@main/services/backup/contributors/ContributorManager'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
@@ -35,7 +38,6 @@ import { assembleArchive } from '../../archive'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../../ImportOrchestrator'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../../manifest'
 import { MergeEngine } from '../../merge'
-import { setBackupInProgress } from '../../quiesceGate'
 
 const MIGRATIONS_FOLDER = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -44,8 +46,27 @@ const MIGRATIONS_FOLDER = resolve(
 
 const DOMAINS = ['PREFERENCES', 'PROVIDERS', 'TAGS_GROUPS', 'AGENTS', 'TOPICS'] as const
 
+/** Minimal production-shaped seeder: preset openai row (no registry file dependency). */
+const freshInstallSeeder: ISeeder = {
+  name: 'e2e-fresh-openai',
+  version: '1',
+  description: 'openai provider placeholder mimicking PresetProviderSeeder',
+  run(db: DbType): void {
+    db.insert(userProviderTable)
+      .values({
+        providerId: 'openai',
+        name: 'OpenAI',
+        isEnabled: true,
+        orderKey: 'o-seed-openai'
+      })
+      .onConflictDoNothing()
+      .run()
+  }
+}
+
 describe('e2e-restore real data / backfill + degrade', () => {
-  const dbh = setupTestDatabase()
+  // Production seeders — covers the fresh-install shape (preset providers present).
+  const dbh = setupTestDatabase({ seeders: [freshInstallSeeder] })
   const registry = contributorManager.getRegistry()
 
   let tmpDir: string
@@ -115,16 +136,18 @@ describe('e2e-restore real data / backfill + degrade', () => {
 
   /** Seed the REAL-shaped backup dataset: 5 domains with cross-domain FKs. */
   const seedRealBackupData = (db: Database.Database): void => {
-    seedRow(db, 'preference', { scope: 'default', key: 'ui.theme', value: '"dark"' })
+    // Unique preference key — DefaultPreferences from PreferenceSeeder must not collide.
+    seedRow(db, 'preference', { scope: 'default', key: 'backup.e2e.marker', value: '"from-backup"' })
+    // Provider id absent from PresetProviderSeeder so Scenario A exercises BACKFILL.
     seedRow(db, 'user_provider', {
-      provider_id: 'openai',
+      provider_id: 'backup-only',
       name: 'backup-name',
       api_keys: JSON.stringify([{ id: 'k1', key: 'key-from-backup' }]),
       order_key: 'o-p1'
     })
     seedRow(db, 'user_model', {
-      id: 'openai::gpt-4o',
-      provider_id: 'openai',
+      id: 'backup-only::gpt-4o',
+      provider_id: 'backup-only',
       model_id: 'gpt-4o',
       name: 'GPT-4o',
       capabilities: '[]',
@@ -148,7 +171,7 @@ describe('e2e-restore real data / backfill + degrade', () => {
       data: JSON.stringify({ parts: [] }),
       status: 'success',
       siblings_group_id: 0,
-      model_id: 'openai::gpt-4o'
+      model_id: 'backup-only::gpt-4o'
     })
   }
 
@@ -213,25 +236,29 @@ describe('e2e-restore real data / backfill + degrade', () => {
   }
 
   it('fresh install: backfills every natural-key domain with zero loss and zero FK violations', async () => {
-    // Live DB is empty (fresh install). Everything must come back from the archive.
+    // Live DB has production seeders (preset providers). Backup-only rows must BACKFILL;
+    // seeder rows must survive untouched.
     seedBackup(seedRealBackupData)
 
     const work = await runRestore('rst-e2e-fresh')
     try {
-      // PREFERENCES backfilled — a migration restore must not silently drop settings.
-      const pref = work.prepare(`SELECT value FROM preference WHERE scope='default' AND key='ui.theme'`).get() as {
+      const pref = work
+        .prepare(`SELECT value FROM preference WHERE scope='default' AND key='backup.e2e.marker'`)
+        .get() as {
         value: string
       }
-      expect(pref.value).toBe('"dark"')
-      // PROVIDERS backfilled including credentials.
-      const provider = work.prepare(`SELECT api_keys FROM user_provider WHERE provider_id='openai'`).get() as {
+      expect(pref.value).toBe('"from-backup"')
+      // Seeder openai still present (production fresh install shape).
+      expect(work.prepare(`SELECT provider_id FROM user_provider WHERE provider_id='openai'`).get()).toBeDefined()
+      // Backup-only PROVIDERS backfilled including credentials.
+      const provider = work.prepare(`SELECT api_keys FROM user_provider WHERE provider_id='backup-only'`).get() as {
         api_keys: string
       }
       expect(provider.api_keys).toContain('key-from-backup')
-      expect(work.prepare(`SELECT id FROM user_model WHERE id='openai::gpt-4o'`).get()).toBeDefined()
+      expect(work.prepare(`SELECT id FROM user_model WHERE id='backup-only::gpt-4o'`).get()).toBeDefined()
       // TOPICS imported with the cross-domain model link INTACT (resolves to backfilled model).
       const msg = work.prepare(`SELECT model_id FROM message WHERE id='msg-1'`).get() as { model_id: string }
-      expect(msg.model_id).toBe('openai::gpt-4o')
+      expect(msg.model_id).toBe('backup-only::gpt-4o')
       // AGENTS: workspace backfilled, session imported with its NOT NULL owning FK intact.
       expect(work.prepare(`SELECT id FROM agent_workspace WHERE id='ws-backup'`).get()).toBeDefined()
       const sess = work.prepare(`SELECT workspace_id FROM agent_session WHERE id='sess-1'`).get() as {
@@ -248,22 +275,58 @@ describe('e2e-restore real data / backfill + degrade', () => {
   })
 
   it('conflicting local data: restore completes FK-clean, local wins, unresolvable refs degrade', async () => {
-    seedBackup(seedRealBackupData)
-    // Local data conflicting on every natural key (same identity, different values/uuids).
-    seedRow(dbh.sqlite, 'preference', { scope: 'default', key: 'ui.theme', value: '"light"' })
-    seedRow(dbh.sqlite, 'user_provider', {
-      provider_id: 'openai',
-      name: 'local-name',
-      api_keys: JSON.stringify([{ id: 'kl', key: 'key-local' }]),
-      order_key: 'o-lp1'
+    // Backup collides with seeder openai + local tag/workspace identityKeys.
+    // backupDbPath is a copy of the seeded live DB — UPDATE openai (already present) rather than INSERT.
+    seedBackup((db) => {
+      seedRow(db, 'preference', { scope: 'default', key: 'backup.e2e.marker', value: '"from-backup"' })
+      db.prepare(`UPDATE user_provider SET name = ?, api_keys = ? WHERE provider_id = 'openai'`).run(
+        'backup-name',
+        JSON.stringify([{ id: 'k1', key: 'key-from-backup' }])
+      )
+      // Ensure a backup-only model under openai that local seeder does not hold.
+      if (!db.prepare(`SELECT 1 FROM user_model WHERE id = 'openai::gpt-4o-backup'`).get()) {
+        seedRow(db, 'user_model', {
+          id: 'openai::gpt-4o-backup',
+          provider_id: 'openai',
+          model_id: 'gpt-4o-backup',
+          name: 'GPT-4o-backup',
+          capabilities: '[]',
+          order_key: 'o-m1'
+        })
+      }
+      seedRow(db, 'tag', { id: 'tag-backup', name: 'work' })
+      seedRow(db, 'agent', { id: 'agent-1', type: 'agent', name: 'agent', instructions: 'do things' })
+      seedRow(db, 'agent_workspace', { id: 'ws-backup', name: 'proj', path: '/Users/me/proj', order_key: 'o-w1' })
+      seedRow(db, 'agent_session', {
+        id: 'sess-1',
+        agent_id: 'agent-1',
+        name: 'session',
+        workspace_id: 'ws-backup',
+        order_key: 'o-s1'
+      })
+      seedRow(db, 'topic', { id: 'tpc-1', name: 'chat', order_key: 'o-t1' })
+      seedRow(db, 'message', {
+        id: 'msg-1',
+        topic_id: 'tpc-1',
+        role: 'root',
+        data: JSON.stringify({ parts: [] }),
+        status: 'success',
+        siblings_group_id: 0,
+        model_id: 'openai::gpt-4o-backup'
+      })
     })
+    // Overlay local-wins values on seeder openai (row already exists from PresetProviderSeeder).
+    dbh.sqlite
+      .prepare(`UPDATE user_provider SET name = ?, api_keys = ? WHERE provider_id = 'openai'`)
+      .run('local-name', JSON.stringify([{ id: 'kl', key: 'key-local' }]))
+    seedRow(dbh.sqlite, 'preference', { scope: 'default', key: 'backup.e2e.marker', value: '"light"' })
     seedRow(dbh.sqlite, 'tag', { id: 'tag-local', name: 'work' })
     seedRow(dbh.sqlite, 'agent_workspace', { id: 'ws-local', name: 'proj', path: '/Users/me/proj', order_key: 'o-lw1' })
 
     const work = await runRestore('rst-e2e-overlap')
     try {
       // Local values win on every conflicted natural-key row (FIELD_MERGE pending).
-      expect(work.prepare(`SELECT value FROM preference WHERE key='ui.theme'`).get()).toMatchObject({
+      expect(work.prepare(`SELECT value FROM preference WHERE key='backup.e2e.marker'`).get()).toMatchObject({
         value: '"light"'
       })
       const provider = work.prepare(`SELECT name, api_keys FROM user_provider WHERE provider_id='openai'`).get() as {
@@ -274,13 +337,13 @@ describe('e2e-restore real data / backfill + degrade', () => {
       expect(provider.api_keys).toContain('key-local')
       // Conflicted provider aggregate SKIPped wholesale → backup model not imported →
       // message.model_id degraded to NULL by the repair pass (row survives).
-      expect(work.prepare(`SELECT id FROM user_model WHERE id='openai::gpt-4o'`).get()).toBeUndefined()
+      expect(work.prepare(`SELECT id FROM user_model WHERE id='openai::gpt-4o-backup'`).get()).toBeUndefined()
       expect(work.prepare(`SELECT model_id FROM message WHERE id='msg-1'`).get()).toMatchObject({ model_id: null })
       // Workspace conflicts under a different uuid → backup workspace not imported; the
       // session's NOT NULL workspace FK cannot resolve → session pruned (B1 identity
       // propagation will rewrite it to ws-local instead).
-      const workspaces = work.prepare(`SELECT id FROM agent_workspace ORDER BY id`).all() as { id: string }[]
-      expect(workspaces).toEqual([{ id: 'ws-local' }])
+      expect(work.prepare(`SELECT id FROM agent_workspace WHERE id='ws-local'`).get()).toBeDefined()
+      expect(work.prepare(`SELECT id FROM agent_workspace WHERE id='ws-backup'`).get()).toBeUndefined()
       expect(work.prepare(`SELECT id FROM agent_session WHERE id='sess-1'`).get()).toBeUndefined()
       // Tag: local uuid survives alone.
       const tags = work.prepare(`SELECT id FROM tag WHERE name='work'`).all() as { id: string }[]

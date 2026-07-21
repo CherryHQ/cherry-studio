@@ -87,6 +87,10 @@ export { dispatchHandle } from './internal/dispatch'
 // IPC batch-metadata handler.
 export { getMetadataByPath } from './utils/metadata'
 
+// Path resolution for FileEntry → on-disk path (internal UUID store / external).
+// Consumed by backup FileStager and other main callers that must not mirror this logic.
+export { type PathResolvableEntry, resolvePhysicalPath } from './utils/pathResolver'
+
 // Directory listing primitives. Consumed by legacy IPC directory routes
 // (pending IpcApi migration).
 export { listDirectory, listDirectoryEntries } from './tree/search'

@@ -152,12 +152,12 @@ describe('IpcApiService request handling', () => {
 
   describe('BACKUP_IN_PROGRESS gate', () => {
     afterEach(async () => {
-      const { setBackupInProgress } = await import('@main/services/backup/quiesceGate')
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
       setBackupInProgress(false)
     })
 
     it('rejects non-backup routes while restore quiesce is held', async () => {
-      const { setBackupInProgress } = await import('@main/services/backup/quiesceGate')
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
       setBackupInProgress(true)
       const svc = makeService()
       ;(svc as unknown as { onInit(): void }).onInit()
@@ -172,7 +172,7 @@ describe('IpcApiService request handling', () => {
     })
 
     it('allows backup.* routes while restore quiesce is held', async () => {
-      const { setBackupInProgress } = await import('@main/services/backup/quiesceGate')
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
       setBackupInProgress(true)
       dispatchMock.mockResolvedValue({ cancelled: true })
       const svc = makeService()
@@ -182,6 +182,19 @@ describe('IpcApiService request handling', () => {
 
       expect(result).toEqual({ ok: true, data: { cancelled: true } })
       expect(dispatchMock).toHaveBeenCalledWith('backup.cancel', { backupId: 'b-1' }, { senderId: 'win-7' })
+    })
+
+    it('allows read-only routes while restore quiesce is held (reads not gated)', async () => {
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
+      setBackupInProgress(true)
+      dispatchMock.mockResolvedValue({ version: '1.0.0' })
+      const svc = makeService()
+      ;(svc as unknown as { onInit(): void }).onInit()
+
+      const result = await registeredHandler()(trustedEvent, 'app.get_info', undefined)
+
+      expect(result).toEqual({ ok: true, data: { version: '1.0.0' } })
+      expect(dispatchMock).toHaveBeenCalled()
     })
   })
 })

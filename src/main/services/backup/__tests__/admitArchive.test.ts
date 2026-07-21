@@ -341,6 +341,22 @@ describe('admitArchive', () => {
     expect(existsSync(join(workDir, 'unknown-future-dir'))).toBe(false)
   })
 
+  it('extracts skills/ tree entries (recognized dir prefix)', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'skills.cbu')
+    await packCustomArchive(archivePath, [
+      { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
+      { file: dbCopy, name: 'backup.sqlite' },
+      { content: 'skill-body', name: 'skills/zipSkill/SKILL.md' }
+    ])
+    const workDir = join(tmpDir, 'work')
+
+    await admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)
+
+    expect(existsSync(join(workDir, 'skills/zipSkill/SKILL.md'))).toBe(true)
+  })
+
   it('succeeds from a nonexistent staging dir (admission self-creates workDir)', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)

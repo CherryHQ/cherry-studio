@@ -22,7 +22,7 @@ import { loggerService } from '@logger'
 import type { BackupContributor, FileResourceContext } from '@main/data/db/backup/contributorTypes'
 import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
-import { isPathInside } from '@main/utils/legacyFile'
+import { isPathInside } from '@main/utils/file'
 
 // Module-level logger — the context intentionally carries no logger; contributors
 // own their own via loggerService.withContext('backup/<domain>').

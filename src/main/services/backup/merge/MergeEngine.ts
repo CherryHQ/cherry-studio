@@ -3,8 +3,9 @@
 // Merges backup rows into a detached work.sqlite (VACUUM INTO copy of live) inside one
 // synchronous better-sqlite3 transaction. Scope: backfill-when-absent + SKIP-on-conflict,
 // member cascade, the global junction phase (pure junction tables resolved via the
-// role-aware identityMap), a dangling-ref repair pass (nullable FK → SET NULL, NOT NULL
-// FK → prune, both disclosed via degradedToSkips), FTS5 rebuild backstop, and offline
+// role-aware identityMap), a dangling-ref repair pass (onDelete set-null → SET NULL on
+// nullable FK cols; cascade/restrict/no-action → prune, with composite partial-NULL
+// keeping mixed-nullability rows), FTS5 rebuild backstop, and offline
 // FK/integrity/FTS/app_state consistency checks.
 //
 // Conflict semantics: uuid-entity conflicts SKIP (local wins). Natural-key aggregates are
@@ -20,9 +21,10 @@
 
 import type { AggregateBoundary, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
-import { DB_FTS_VIRTUAL_TABLES } from '@main/data/db/backup/dbSchemaRefs'
+import { DB_FTS_VIRTUAL_TABLES, DB_UNIQUE_KEYS } from '@main/data/db/backup/dbSchemaRefs'
 import type { BackupDomain } from '@main/data/db/backup/domains'
 import type { DbType } from '@main/data/db/types'
+import type { EntityType } from '@shared/data/types/entityType'
 import Database from 'better-sqlite3'
 
 import { FtsCentralHelper } from './FtsCentralHelper'
@@ -40,6 +42,9 @@ import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeR
  * but the codegen currently duplicates `name` there — once that is fixed, prefer
  * reading the physical name from the registry instead of recomputing it here.
  */
+// TODO(M7/latent): consecutive capitals (e.g. APIKey) diverge from drizzle snake_case
+// (api_key vs a_p_i_key). No merge-path column hits this today — prefer DbColumnEntry.dbName
+// once codegen stops duplicating `name` there.
 const physicalColumn = (logical: string): string => logical.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)
 
 /**
@@ -103,6 +108,11 @@ export class MergeConsistencyCheckError extends Error {
 export class MergeEngine {
   constructor(private readonly registry: ReadonlyBackupRegistry) {}
 
+  /** Per-merge memo: table → work column Set (from PRAGMA table_info). */
+  private workColumnsByTable = new Map<string, Set<string>>()
+  /** Per-merge memo: cacheKey → prepared statement (bound to the active workSqlite). */
+  private stmtCache = new Map<string, Database.Statement>()
+
   /**
    * Merge backup rows into work.sqlite. The transaction fn is synchronous
    * (better-sqlite3 rejects Promise callbacks); backupDb is opened read-only and
@@ -115,6 +125,8 @@ export class MergeEngine {
       // introduced by rows THIS merge inserted, so it can never destroy pre-existing local
       // data. Guarantee that by refusing to merge into a base that is already FK-dirty.
       this.assertBaseFkClean(workSqlite)
+      this.workColumnsByTable.clear()
+      this.stmtCache.clear()
       const ordered = this.registry.topoSort(ctx.domains)
       const degradedToSkips: DegradedSkip[] = []
       const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx, degradedToSkips)
@@ -196,15 +208,31 @@ export class MergeEngine {
         // Stage 3 streams.
         const backupRoots = backupDb.prepare(`SELECT * FROM ${quoteIdent(agg.root)}`).all() as Record<string, unknown>[]
         let conflictCount = 0
+        // pin is polymorphic (no FK) — skip rows whose entityType maps to a domain
+        // outside this restore (e.g. lite archive with knowledge pins but KNOWLEDGE stripped).
+        const pinEntityMap =
+          agg.root === 'pin' ? this.registry.getSchema('TAGS_GROUPS').polymorphicEntityMap : undefined
         for (const backupRow of backupRoots) {
           // backupRow keys are physical (SELECT *); pkColumns are logical → convert.
           const backupPrimaryKey = pkColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
+          if (pinEntityMap) {
+            const entityType = String(backupRow[physicalColumn('entityType')] ?? '') as EntityType
+            const target = pinEntityMap[entityType]
+            if (target === undefined || target === 'excluded' || !ctx.domains.includes(target)) {
+              decisions.push({
+                aggregate: agg,
+                identity: backupPrimaryKey,
+                backupPrimaryKey,
+                localCanonicalPrimaryKey: undefined,
+                action: 'skip'
+              })
+              continue
+            }
+          }
           // Resolve the local counterpart: natural-key → identityKey match (returns the
           // LOCAL canonical PK, which may differ from the backup PK); uuid-entity → PK
-          // match (canonical = backup PK). A natural-key row whose identityKey has no
-          // local match but whose PK collides (deterministic PKs like user_model
-          // providerId::modelId) is treated as a conflict defensively — plain INSERT
-          // would abort the whole merge on the PK.
+          // match (canonical = backup PK), then secondary UNIQUE (e.g. note(rootPath,path)
+          // if ever scanned as uuid-entity) so plain INSERT cannot UNIQUE-abort the merge.
           let localCanonicalPrimaryKey: readonly (string | number)[] | undefined
           if (naturalKey) {
             localCanonicalPrimaryKey = this.findLocalByIdentityKey(workSqlite, agg, pkColumns, backupRow)
@@ -216,6 +244,8 @@ export class MergeEngine {
             }
           } else if (this.workHasIdentity(workSqlite, agg, pkColumns, backupPrimaryKey)) {
             localCanonicalPrimaryKey = backupPrimaryKey
+          } else {
+            localCanonicalPrimaryKey = this.findLocalBySecondaryUnique(workSqlite, agg.root, pkColumns, backupRow)
           }
           const exists = localCanonicalPrimaryKey !== undefined
           if (exists && fieldMergePending) {
@@ -264,11 +294,56 @@ export class MergeEngine {
       if (v === null || v === undefined) return undefined
       values.push(v as string | number)
     }
+    return this.selectLocalPkByColumns(workSqlite, agg.root, pkColumns, keyColumns, values)
+  }
+
+  /**
+   * uuid-entity secondary UNIQUE fold — when PK differs but a business UNIQUE collides
+   * (e.g. note(rootPath,path) if scanned as uuid-entity), SKIP with the LOCAL PK instead
+   * of plain-INSERT → UNIQUE abort of the whole restore. Skips fts_rowid-only uniques
+   * (local-only, stripped on insert).
+   */
+  private findLocalBySecondaryUnique(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    pkColumns: readonly string[],
+    backupRow: Record<string, unknown>
+  ): readonly (string | number)[] | undefined {
+    const uniques = DB_UNIQUE_KEYS[table] ?? []
+    const pkSet = new Set(pkColumns)
+    for (const uk of uniques) {
+      if (uk.columns.length === pkColumns.length && uk.columns.every((c) => pkSet.has(c))) continue
+      if (uk.columns.every((c) => c === 'ftsRowid')) continue
+      const values: (string | number)[] = []
+      let missing = false
+      for (const c of uk.columns) {
+        const v = backupRow[physicalColumn(c)]
+        if (v === null || v === undefined) {
+          missing = true
+          break
+        }
+        values.push(v as string | number)
+      }
+      if (missing) continue
+      const found = this.selectLocalPkByColumns(workSqlite, table, pkColumns, uk.columns, values)
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+
+  private selectLocalPkByColumns(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    pkColumns: readonly string[],
+    keyColumns: readonly string[],
+    values: readonly (string | number)[]
+  ): readonly (string | number)[] | undefined {
     const where = keyColumns.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
     const select = pkColumns.map((c) => quoteIdent(physicalColumn(c))).join(', ')
-    const row = workSqlite
-      .prepare(`SELECT ${select} FROM ${quoteIdent(agg.root)} WHERE ${where} LIMIT 1`)
-      .get(...values) as Record<string, unknown> | undefined
+    const sql = `SELECT ${select} FROM ${quoteIdent(table)} WHERE ${where} LIMIT 1`
+    const row = this.prepareCached(workSqlite, `sel:${table}:${where}`, sql).get(...values) as
+      | Record<string, unknown>
+      | undefined
     if (!row) return undefined
     return pkColumns.map((c) => row[physicalColumn(c)] as string | number)
   }
@@ -280,10 +355,28 @@ export class MergeEngine {
     pkColumns: readonly string[],
     values: readonly (string | number)[]
   ): boolean {
-    // pkColumns are logical (camelCase); convert to physical (snake_case) for SQL.
     const where = pkColumns.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
-    const row = workSqlite.prepare(`SELECT 1 FROM ${quoteIdent(agg.root)} WHERE ${where} LIMIT 1`).get(...values)
+    const sql = `SELECT 1 FROM ${quoteIdent(agg.root)} WHERE ${where} LIMIT 1`
+    const row = this.prepareCached(workSqlite, `has:${agg.root}:${where}`, sql).get(...values)
     return row !== undefined
+  }
+
+  private getWorkColumns(workSqlite: Database.Database, table: DbTableName): Set<string> {
+    let cols = this.workColumnsByTable.get(table)
+    if (!cols) {
+      cols = new Set((workSqlite.pragma(`table_info("${table}")`) as { name: string }[]).map((c) => c.name))
+      this.workColumnsByTable.set(table, cols)
+    }
+    return cols
+  }
+
+  private prepareCached(workSqlite: Database.Database, key: string, sql: string): Database.Statement {
+    let stmt = this.stmtCache.get(key)
+    if (!stmt) {
+      stmt = workSqlite.prepare(sql)
+      this.stmtCache.set(key, stmt)
+    }
+    return stmt
   }
 
   /**
@@ -405,9 +498,7 @@ export class MergeEngine {
    * tables so the AFTER-INSERT trigger can recompute them — see FTS_SOURCE_TABLES.
    */
   private insertRow(workSqlite: Database.Database, table: DbTableName, row: Record<string, unknown>): void {
-    const workColumns = new Set(
-      (workSqlite.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[]).map((c) => c.name)
-    )
+    const workColumns = this.getWorkColumns(workSqlite, table)
     const isFtsSource = FTS_SOURCE_TABLES.has(table)
     const cols = Object.keys(row).filter(
       (c) => workColumns.has(c) && !(isFtsSource && FTS_DERIVED_PHYSICAL_COLUMNS.has(c))
@@ -422,9 +513,9 @@ export class MergeEngine {
     // already has), so a plain INSERT here never collides on the PK in normal SKIP/INSERT
     // flow. Stage 3 will swap this for ON CONFLICT DO NOTHING with explicit diagnostics
     // once ConflictResolver/upsert lands (plan (b)).
-    workSqlite
-      .prepare(`INSERT INTO ${quoteIdent(table)} (${quotedCols.join(', ')}) VALUES (${placeholders})`)
-      .run(...cols.map((c) => row[c]))
+    // Stmt keyed by table+col list — hoist per distinct shape out of the row loop (N1).
+    const sql = `INSERT INTO ${quoteIdent(table)} (${quotedCols.join(', ')}) VALUES (${placeholders})`
+    this.prepareCached(workSqlite, `ins:${table}:${cols.join(',')}`, sql).run(...cols.map((c) => row[c]))
   }
 
   /**
@@ -488,18 +579,13 @@ export class MergeEngine {
     targetPhys: string,
     targetCanonical: string
   ): void {
-    const workColumns = new Set(
-      (workSqlite.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[]).map((c) => c.name)
-    )
+    const workColumns = this.getWorkColumns(workSqlite, table)
     const cols = Object.keys(row).filter((c) => workColumns.has(c))
     if (cols.length === 0) return
     const values = cols.map((c) => (c === sourcePhys ? sourceCanonical : c === targetPhys ? targetCanonical : row[c]))
     const placeholders = cols.map(() => '?').join(', ')
-    workSqlite
-      .prepare(
-        `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`
-      )
-      .run(...values)
+    const sql = `INSERT INTO ${quoteIdent(table)} (${cols.map(quoteIdent).join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`
+    this.prepareCached(workSqlite, `junc:${table}:${cols.join(',')}`, sql).run(...values)
   }
 
   /**
@@ -518,17 +604,17 @@ export class MergeEngine {
 
   /**
    * Repair dangling FKs left by the import (runs in-tx, after the junction phase, before
-   * the FTS rebuild + final consistency check). All FK columns of the violating FK
-   * nullable → SET NULL (the row survives, the link is dropped — matches the schema's
-   * onDelete 'set null' posture); any NOT NULL column → DELETE the row (matches cascade —
-   * orphans it leaves surface on the next pass and prune transitively). Every repair is
-   * counted into degradedToSkips for disclosure.
+   * the FTS rebuild + final consistency check). Decision order (M1 + self-check #2):
+   * 1. onDelete SET NULL / SET DEFAULT → SET NULL on nullable FK columns (prune if none).
+   * 2. cascade / restrict / no action → DELETE, EXCEPT composite FKs with mixed nullability
+   *    (some cols nullable): SET only those nullable cols NULL so SQLite's partial-NULL
+   *    rule clears the violation while keeping the row (e.g. knowledge_item.group_id).
+   *    A fully-nullable no-action FK (e.g. knowledge_base.embedding_model_id) still prunes —
+   *    nullability alone must not override onDelete:'no action'.
    *
    * The base was asserted FK-clean before the merge (assertBaseFkClean), so violations can
-   * only involve rows this merge inserted: a DELETEd parent was itself just inserted, and
-   * pre-existing local rows cannot reference it. Post-backfill these repairs are RARE —
-   * they are the safety net for identityKey-conflict references until identity propagation
-   * (B1) rewrites them to the local canonical PK.
+   * only involve rows this merge inserted. Post-backfill these repairs are RARE — safety net
+   * until identity propagation (B1) rewrites conflict refs to the local canonical PK.
    */
   private repairDanglingRefs(workSqlite: Database.Database, degradedToSkips: DegradedSkip[]): void {
     const MAX_PASSES = 10
@@ -546,23 +632,39 @@ export class MergeEngine {
         // WITHOUT ROWID tables report rowid NULL — not addressable here; the final
         // consistency check throws and rolls the tx back (fail-closed).
         if (v.rowid === null) continue
-        const fkColumns = (workSqlite.pragma(`foreign_key_list("${v.table}")`) as { id: number; from: string }[])
-          .filter((f) => f.id === v.fkid)
-          .map((f) => f.from)
+        const fkList = workSqlite.pragma(`foreign_key_list("${v.table}")`) as {
+          id: number
+          from: string
+          on_delete: string
+        }[]
+        const fkRows = fkList.filter((f) => f.id === v.fkid)
+        const fkColumns = fkRows.map((f) => f.from)
         if (fkColumns.length === 0) continue
-        const tableInfo = workSqlite.pragma(`table_info("${v.table}")`) as { name: string; notnull: number }[]
-        const nullable = fkColumns.every((c) => tableInfo.find((t) => t.name === c)?.notnull === 0)
-        if (nullable) {
+        const onDelete = (fkRows[0]?.on_delete ?? 'NO ACTION').toUpperCase()
+        const colNullability = workSqlite.pragma(`table_info("${v.table}")`) as {
+          name: string
+          notnull: number
+        }[]
+        const nullableCols = fkColumns.filter((c) => colNullability.find((t) => t.name === c)?.notnull === 0)
+        const setNullPolicy = onDelete === 'SET NULL' || onDelete === 'SET DEFAULT'
+        let setCols: string[] | null = null
+        if (setNullPolicy) {
+          setCols = nullableCols.length > 0 ? nullableCols : null
+        } else if (nullableCols.length > 0 && nullableCols.length < fkColumns.length) {
+          // Mixed-nullability composite under cascade/restrict/no-action — partial NULL.
+          setCols = nullableCols
+        }
+        if (setCols) {
           workSqlite
             .prepare(
-              `UPDATE ${quoteIdent(v.table)} SET ${fkColumns.map((c) => `${quoteIdent(c)} = NULL`).join(', ')} WHERE rowid = ?`
+              `UPDATE ${quoteIdent(v.table)} SET ${setCols.map((c) => `${quoteIdent(c)} = NULL`).join(', ')} WHERE rowid = ?`
             )
             .run(v.rowid)
-          const key = `${v.table}\u0000ref to missing ${v.parent} cleared (SET NULL)`
+          const key = `${v.table} ref to missing ${v.parent} cleared (SET NULL)`
           counts.set(key, (counts.get(key) ?? 0) + 1)
         } else {
           workSqlite.prepare(`DELETE FROM ${quoteIdent(v.table)} WHERE rowid = ?`).run(v.rowid)
-          const key = `${v.table}\u0000row pruned (required ${v.parent} target missing)`
+          const key = `${v.table} row pruned (required ${v.parent} target missing)`
           counts.set(key, (counts.get(key) ?? 0) + 1)
         }
         repaired = true
@@ -571,7 +673,7 @@ export class MergeEngine {
       if (!repaired) break
     }
     for (const [key, count] of counts) {
-      const [table, reason] = key.split('\u0000')
+      const [table, reason] = key.split(' ')
       degradedToSkips.push({ table: table as DbTableName, count, reason })
     }
   }

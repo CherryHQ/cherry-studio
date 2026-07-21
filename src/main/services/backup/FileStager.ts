@@ -10,46 +10,16 @@
 //   - feature.knowledgebase.data (per-base dirs: <baseId>/)
 
 import { copyFile, cp, mkdir, realpath, rm, stat } from 'node:fs/promises'
-import path from 'node:path'
 import { basename, dirname, join, resolve } from 'node:path'
 
-import { application } from '@application'
 import { loggerService } from '@logger'
 import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import { resolvePhysicalPath } from '@main/services/file'
 import { isPathInside } from '@main/utils/file'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 
 const logger = loggerService.withContext('backup/FileStager')
-
-type BackupPathResolvableEntry =
-  | { id: string; origin: 'internal'; ext: string | null }
-  | { id: string; origin: 'external'; ext: string | null; externalPath: string }
-
-/**
- * TEMPORARY self-contained mirror of file/utils/pathResolver.resolvePhysicalPath.
- * Avoids depending on the file barrel (resolvePhysicalPath is not re-exported from
- * file/index.ts). Upstream request pending: ask file owner @DeJeune to export
- * resolvePhysicalPath from the file barrel, then switch this to an import. This
- * self-contained copy is reusable for backup's external-path handling.
- */
-function resolvePhysicalPath(entry: BackupPathResolvableEntry): string {
-  if (entry.id.includes('\0') || (entry.ext && entry.ext.includes('\0'))) {
-    logger.error('Null byte detected in entry id/ext', { entryId: entry.id, origin: entry.origin })
-    throw new Error('Entry id or extension contains null bytes')
-  }
-
-  if (entry.origin === 'internal') {
-    const extSuffix = entry.ext ? `.${entry.ext}` : ''
-    return application.getPath('feature.files.data', `${entry.id}${extSuffix}`)
-  }
-
-  if (entry.externalPath.includes('\0')) {
-    logger.error('Null byte detected in externalPath', { entryId: entry.id })
-    throw new Error(`external entry ${entry.id} externalPath contains null bytes`)
-  }
-  return path.resolve(entry.externalPath)
-}
 
 /**
  * Derived per-base vector index (+ WAL sidecars) under `<baseId>/.cherry/`.

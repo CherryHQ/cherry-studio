@@ -41,7 +41,7 @@ import { BACKUP_FORMAT_VERSION, type BackupManifest, readManifest } from './mani
 /** Exact-match top-level entries (a sibling like `backup.sqlite.bak` must NOT be extracted). */
 const RECOGNIZED_TOP_LEVEL = new Set(['backup.sqlite'])
 /** Directory-prefixed trees extracted recursively (forward-compat: unknown top-levels ignored). */
-const RECOGNIZED_DIR_PREFIXES = ['files/', 'knowledge/', 'notes/'] as const
+const RECOGNIZED_DIR_PREFIXES = ['files/', 'knowledge/', 'notes/', 'skills/'] as const
 
 /**
  * Result of admitting an archive — the validated, migrated backup DB + manifest-derived
@@ -216,7 +216,7 @@ async function extractEntry(zip: StreamZip.StreamZipAsync, name: string, dest: s
   await pipeline(src, createWriteStream(dest))
 }
 
-/** A recognized top-level entry: exact `backup.sqlite`, or any path under files/ knowledge/ notes/. */
+/** A recognized top-level entry: exact `backup.sqlite`, or any path under files/ knowledge/ notes/ skills/. */
 function isRecognized(name: string): boolean {
   // backup.sqlite is an EXACT match — a sibling like `backup.sqlite.bak` must NOT be extracted
   // (a previous startsWith('backup.sqlite') prefix check let such siblings through).

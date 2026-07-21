@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
 import type { Disposable } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
-// eslint-disable-next-line barrel/closed -- quiesceGate only; avoid pulling BackupService into DataApi load path
-import { isBackupInProgress } from '@main/services/backup/quiesceGate'
+import { isBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { DataApiError, ERROR_STATUS_MAP, ErrorCode, toDataApiError } from '@shared/data/api/errors'
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'

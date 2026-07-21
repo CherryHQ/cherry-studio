@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { assertNotBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import {
   listDirectory as searchListDirectory,
   listDirectoryEntries as searchListDirectoryEntries
@@ -12,8 +13,6 @@ import { BrowserWindow, dialog, ipcMain, session } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
-// eslint-disable-next-line barrel/closed -- quiesceGate only; avoid pulling BackupService into legacy IPC load path
-import { assertNotBackupInProgress } from './services/backup/quiesceGate'
 import { copilotService } from './services/CopilotService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'

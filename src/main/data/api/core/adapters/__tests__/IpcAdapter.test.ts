@@ -101,12 +101,12 @@ describe('IpcAdapter', () => {
 
   describe('BACKUP_IN_PROGRESS gate', () => {
     afterEach(async () => {
-      const { setBackupInProgress } = await import('@main/services/backup/quiesceGate')
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
       setBackupInProgress(false)
     })
 
     it('rejects non-GET mutations while restore quiesce is held', async () => {
-      const { setBackupInProgress } = await import('@main/services/backup/quiesceGate')
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
       setBackupInProgress(true)
 
       const response = await requestHandler(trustedEvent, {
@@ -121,7 +121,7 @@ describe('IpcAdapter', () => {
     })
 
     it('allows GET reads while restore quiesce is held', async () => {
-      const { setBackupInProgress } = await import('@main/services/backup/quiesceGate')
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
       setBackupInProgress(true)
 
       const request = { id: 'req-get', method: 'GET', path: '/topics' }

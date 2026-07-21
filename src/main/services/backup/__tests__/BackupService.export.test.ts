@@ -48,13 +48,13 @@ vi.mock('@application', async () => {
 })
 
 import { BaseService } from '@main/core/lifecycle'
+import { isBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { app } from 'electron'
 
 import { BackupService } from '../BackupService'
 import { ExportOrchestrator } from '../ExportOrchestrator'
 import { ImportOrchestrator } from '../ImportOrchestrator'
-import { isBackupInProgress } from '../quiesceGate'
 
 describe('BackupService packaged export path', () => {
   beforeEach(() => {

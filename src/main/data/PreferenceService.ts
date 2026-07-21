@@ -5,8 +5,7 @@ import { Phase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
 import { bootConfigService } from '@main/data/bootConfig'
-// eslint-disable-next-line barrel/closed -- quiesceGate only; avoid pulling BackupService into Preference BeforeReady graph
-import { assertNotBackupInProgress } from '@main/services/backup/quiesceGate'
+import { assertNotBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {

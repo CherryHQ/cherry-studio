@@ -442,4 +442,82 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     // the imported content after the connection re-enters autocommit.
     expect(() => FtsCentralHelper.integrityCheck(dbh.sqlite)).not.toThrow()
   })
+
+  it('skips pin rows whose polymorphic entityType maps outside selected domains', async () => {
+    const now = Date.now()
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO pin (id, entity_type, entity_id, order_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      ).run('pin-knowledge', 'knowledge', 'kb-1', 'o1', now, now)
+      db.prepare(
+        `INSERT INTO pin (id, entity_type, entity_id, order_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      ).run('pin-topic', 'topic', 'tpc-1', 'o2', now, now)
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      // lite-shaped: TOPICS selected, KNOWLEDGE not
+      domains: ['TAGS_GROUPS', 'TOPICS'],
+      skippedFileEntryIds: new Set<string>()
+    })
+
+    expect(dbh.sqlite.prepare(`SELECT id FROM pin WHERE id = 'pin-knowledge'`).get()).toBeUndefined()
+    expect(dbh.sqlite.prepare(`SELECT id FROM pin WHERE id = 'pin-topic'`).get()).toBeDefined()
+  })
+
+  it('SKIPs a uuid-entity root that collides on a secondary UNIQUE (note rootPath,path)', async () => {
+    // note is natural-key in production (identityKey rootPath+path). Force the secondary-UNIQUE
+    // fold by planting a local note under the same overlay key with a different uuid — if the
+    // engine only checked PK it would INSERT and UNIQUE-abort.
+    const now = Date.now()
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO note (id, root_path, path, is_starred, is_expanded, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 0, ?, ?)`
+      )
+      .run('note-local', '/notes', 'a.md', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO note (id, root_path, path, is_starred, is_expanded, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 0, ?, ?)`
+      ).run('note-backup', '/notes', 'a.md', now, now)
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PREFERENCES'],
+      skippedFileEntryIds: new Set<string>()
+    })
+
+    const rows = dbh.sqlite
+      .prepare(`SELECT id, is_starred FROM note WHERE root_path='/notes' AND path='a.md'`)
+      .all() as {
+      id: string
+      is_starred: number
+    }[]
+    expect(rows).toEqual([{ id: 'note-local', is_starred: 1 }]) // local wins, no UNIQUE abort
+  })
+
+  it('prunes a nullable onDelete=no-action FK instead of SET NULL (knowledge_base.embedding_model_id)', async () => {
+    const now = Date.now()
+    seedBackup(
+      (db) => {
+        db.prepare(
+          `INSERT INTO knowledge_base (
+             id, name, embedding_model_id, dimensions, status, chunk_size, chunk_overlap, created_at, updated_at
+           ) VALUES (?, ?, ?, 1536, 'completed', 500, 50, ?, ?)`
+        ).run('kb-1', 'kb', 'um-missing', now, now)
+      },
+      { foreignKeys: false }
+    )
+
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['KNOWLEDGE'],
+      skippedFileEntryIds: new Set<string>()
+    })) as { degradedToSkips: { table: string; reason: string }[] }
+
+    expect(dbh.sqlite.prepare(`SELECT id FROM knowledge_base WHERE id = 'kb-1'`).get()).toBeUndefined()
+    expect(result.degradedToSkips.some((s) => s.table === 'knowledge_base' && s.reason.includes('pruned'))).toBe(true)
+  })
 })

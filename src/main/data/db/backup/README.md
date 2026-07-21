@@ -34,6 +34,7 @@ See `docs/references/backup/backup-architecture.md` §7 (placement / neutral lay
 | `contributorTypes.ts` | Pure types — `BackupContributor` / `EntityGraphSchema` / hook context interfaces (`BackupContextBase` + per-hook subtypes) + `ReadonlyBackupRegistry` query interface. D-model JSDoc on `AfterImportContext` / `RestoreResourceContext`. |
 | `contexts.ts` | `BackupScopedDb` (drizzle wrapper, `allowedTables` write-boundary guard) / `BackupReadonlyDb` (select-only) / `ContributorWriteBoundaryViolationError`. |
 | `__tests__/contexts.test.ts` | Tests — allowedTables guard, error payload, select-unrestricted, BackupReadonlyDb select-only. |
+| `quiesceGate.ts` | Partial restore write-quiesce flag (`BACKUP_IN_PROGRESS`) — neutral tier so BeforeReady DataApi/Preference/IpcApi import it without reverse-depending on `services/backup`. |
 
 ## Later stack PRs (not in track-a)
 

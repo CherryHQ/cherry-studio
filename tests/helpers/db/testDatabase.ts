@@ -45,7 +45,7 @@ let activeHarnessCount = 0
  *   seeders), then wires the resulting Drizzle instance into the global
  *   `MockMainDbServiceUtils` so that any production code calling
  *   `application.get('DbService').getDb()` transparently hits the test DB.
- * - `beforeEach` truncates user tables while keeping schema intact.
+ * - `beforeEach` truncates user tables (keeping schema) then re-runs optional seeders.
  * - `afterAll` closes the connection, removes the tmpdir, and resets mocks.
  *
  * Usage:
@@ -113,6 +113,11 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
       throw new Error('Test database not initialised — setupTestDatabase() beforeAll did not run')
     }
     truncateAll(db, sqlite)
+    // Re-apply seeders after truncate so each test sees a production-shaped fresh install
+    // (beforeAll seed alone is wiped by truncateAll).
+    if (options.seeders?.length) {
+      new SeedRunner(db).runAll(options.seeders)
+    }
   })
 
   afterAll(async () => {

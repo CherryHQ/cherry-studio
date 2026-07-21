@@ -63,7 +63,7 @@ vi.mock('electron', async () => {
   }
 })
 
-import { setBackupInProgress } from '@main/services/backup/quiesceGate'
+import { setBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { PreferenceService } from '../PreferenceService'

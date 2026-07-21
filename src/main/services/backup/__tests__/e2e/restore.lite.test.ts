@@ -17,6 +17,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
+import { isBackupInProgress, setBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import type { DbService } from '@main/data/db/DbService'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
@@ -31,7 +32,6 @@ import { assembleArchive } from '../../archive'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../../ImportOrchestrator'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../../manifest'
 import { MergeEngine } from '../../merge'
-import { isBackupInProgress, setBackupInProgress } from '../../quiesceGate'
 
 const MIGRATIONS_FOLDER = resolve(
   dirname(fileURLToPath(import.meta.url)),
