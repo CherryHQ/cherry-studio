@@ -22,6 +22,7 @@ describe('MessageHtmlArtifact', () => {
     render(<MessageHtmlArtifact html="<h1>Hello</h1>" isStreaming />)
 
     expect(screen.getByTestId('html-artifact-generating-placeholder')).toHaveTextContent('html_artifacts.generating')
+    expect(screen.getByTestId('html-artifact-generating-placeholder')).not.toHaveClass('aspect-video')
     expect(screen.queryByText('<h1>Hello</h1>')).not.toBeInTheDocument()
     expect(screen.queryByTestId('html-artifact-view')).not.toBeInTheDocument()
   })
@@ -61,7 +62,7 @@ describe('MessageHtmlArtifact', () => {
     vi.spyOn(artifact, 'getBoundingClientRect').mockReturnValue({ left: 300 } as DOMRect)
     fireEvent(window, new Event('resize'))
 
-    expect(artifact).toHaveStyle({ width: '896px', marginLeft: '-48px' })
+    expect(artifact).toHaveStyle({ width: '1152px', marginLeft: '-176px' })
   })
 
   it('stays inside the message column in narrow mode', () => {

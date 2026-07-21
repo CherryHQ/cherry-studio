@@ -4,10 +4,7 @@ import { extractHtmlTitle } from '@renderer/utils/formats'
 import { memo, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const ARTIFACT_ASPECT_RATIO = 16 / 9
-const ARTIFACT_MAX_WIDTH = 1440
 const ARTIFACT_HORIZONTAL_GUTTER = 48
-const ARTIFACT_MAX_VIEWPORT_HEIGHT_RATIO = 0.72
 
 interface MessageHtmlArtifactProps {
   html: string
@@ -23,7 +20,7 @@ const HtmlArtifactGeneratingPlaceholder = memo(function HtmlArtifactGeneratingPl
     <div
       data-testid="html-artifact-generating-placeholder"
       role="status"
-      className="relative aspect-video w-full overflow-hidden rounded-xl bg-background-subtle p-5">
+      className="relative w-full overflow-hidden rounded-xl bg-background-subtle p-5">
       <div className="flex items-center gap-2 text-foreground-muted text-xs">
         <span className="size-1.5 animate-pulse rounded-full bg-primary" />
         <span>{label}</span>
@@ -78,10 +75,7 @@ export const MessageHtmlArtifact = memo(function MessageHtmlArtifact({ html, isS
               left: scrollerRect.left + ARTIFACT_HORIZONTAL_GUTTER / 2,
               width: Math.max(0, scrollerRect.width - ARTIFACT_HORIZONTAL_GUTTER)
             }
-      const availableHeight = Math.max(0, scrollerRect.height * ARTIFACT_MAX_VIEWPORT_HEIGHT_RATIO)
-      const width = Math.floor(
-        Math.min(ARTIFACT_MAX_WIDTH, horizontalBounds.width, availableHeight * ARTIFACT_ASPECT_RATIO)
-      )
+      const width = Math.floor(horizontalBounds.width)
       if (width <= 0) return
 
       const currentMarginLeft = Number.parseFloat(artifact.style.marginLeft) || 0

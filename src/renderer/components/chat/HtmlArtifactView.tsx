@@ -11,75 +11,165 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('HtmlArtifactView')
 
-const DESKTOP_VIEWPORT_WIDTH = 1440
-const DESKTOP_VIEWPORT_HEIGHT = 810
 const DEFAULT_ZOOM = 100
 const MIN_ZOOM = 50
 const MAX_ZOOM = 200
 const ZOOM_STEP = 10
+const INITIAL_PREVIEW_HEIGHT = 240
+const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
 
 interface HtmlArtifactViewProps {
   html: string
   title: string
 }
 
-const DesktopHtmlPreview = memo(function DesktopHtmlPreview({
+function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
+  try {
+    const frameDocument = iframe.contentDocument
+    const body = frameDocument?.body
+    const documentElement = frameDocument?.documentElement
+    const frameWindow = iframe.contentWindow
+    if (!frameDocument || !body || !documentElement || !frameWindow) return null
+
+    const bodyStyle = frameWindow.getComputedStyle(body)
+    const bodyEndSpacing =
+      (Number.parseFloat(bodyStyle.paddingBottom) || 0) + (Number.parseFloat(bodyStyle.borderBottomWidth) || 0)
+    const bodyMarginBottom = Number.parseFloat(bodyStyle.marginBottom) || 0
+    const scrollTop = frameWindow.scrollY || documentElement.scrollTop || body.scrollTop
+    let renderedContentBottom = 0
+
+    for (const child of body.children) {
+      const bounds = child.getBoundingClientRect()
+      if (bounds.width === 0 && bounds.height === 0) continue
+
+      const childMarginBottom = Number.parseFloat(frameWindow.getComputedStyle(child).marginBottom) || 0
+      renderedContentBottom = Math.max(
+        renderedContentBottom,
+        bounds.bottom + scrollTop + Math.max(childMarginBottom, bodyMarginBottom) + bodyEndSpacing
+      )
+    }
+
+    const documentScrollHeight = Math.max(
+      body.scrollHeight,
+      documentElement.scrollHeight,
+      frameDocument.scrollingElement?.scrollHeight ?? 0
+    )
+    const renderedContentHeight = Math.ceil(renderedContentBottom)
+
+    if (documentScrollHeight > iframe.clientHeight + 1) {
+      return Math.max(documentScrollHeight, renderedContentHeight)
+    }
+
+    return renderedContentHeight > 0 ? renderedContentHeight : documentScrollHeight || null
+  } catch {
+    return null
+  }
+}
+
+function getMaxPreviewHeight(viewport: HTMLElement): number {
+  const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
+  const scrollerHeight = scroller ? Math.max(scroller.clientHeight, scroller.getBoundingClientRect().height) : 0
+  const availableHeight = scrollerHeight > 0 ? scrollerHeight : window.innerHeight
+  return Math.max(1, Math.floor(availableHeight * MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO))
+}
+
+const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   html,
   title,
-  zoom
+  zoom,
+  onHeightChange
 }: {
   html: string
   title: string
   zoom: number
+  onHeightChange: (height: number) => void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   const zoomScale = zoom / 100
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
-    const canvas = canvasRef.current
-    if (!viewport || !canvas) return
+    const iframe = iframeRef.current
+    if (!viewport || !iframe) return
 
-    const syncScale = () => {
-      const scale = Math.min(
-        viewport.clientWidth / DESKTOP_VIEWPORT_WIDTH,
-        viewport.clientHeight / DESKTOP_VIEWPORT_HEIGHT
-      )
-      if (scale > 0) canvas.style.transform = `scale(${scale})`
+    let isDisposed = false
+    let documentResizeObserver: ResizeObserver | undefined
+    let documentMutationObserver: MutationObserver | undefined
+    let observedDocument: Document | undefined
+
+    const syncHeight = () => {
+      const contentHeight = getIframeContentHeight(iframe)
+      if (contentHeight === null) return
+
+      const nextHeight = Math.min(getMaxPreviewHeight(viewport), Math.max(1, Math.ceil(contentHeight * zoomScale)))
+      onHeightChange(nextHeight)
     }
-    syncScale()
 
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', syncScale)
-      return () => window.removeEventListener('resize', syncScale)
+    const observeDocument = () => {
+      documentResizeObserver?.disconnect()
+      documentMutationObserver?.disconnect()
+      observedDocument?.removeEventListener('load', syncHeight, true)
+
+      const frameDocument = iframe.contentDocument
+      const body = frameDocument?.body
+      if (!frameDocument || !body) return
+      observedDocument = frameDocument
+
+      syncHeight()
+
+      if (typeof ResizeObserver !== 'undefined') {
+        documentResizeObserver = new ResizeObserver(syncHeight)
+        documentResizeObserver.observe(body)
+        documentResizeObserver.observe(frameDocument.documentElement)
+        for (const child of body.children) documentResizeObserver.observe(child)
+      }
+
+      if (typeof MutationObserver !== 'undefined') {
+        documentMutationObserver = new MutationObserver(observeDocument)
+        documentMutationObserver.observe(body, { childList: true, subtree: true, characterData: true })
+      }
+
+      frameDocument.addEventListener('load', syncHeight, true)
+      void frameDocument.fonts?.ready.then(() => {
+        if (!isDisposed) syncHeight()
+      })
     }
 
-    const resizeObserver = new ResizeObserver(syncScale)
-    resizeObserver.observe(viewport)
-    return () => resizeObserver.disconnect()
-  }, [])
+    observeDocument()
+    iframe.addEventListener('load', observeDocument)
+    window.addEventListener('resize', syncHeight)
+
+    let layoutResizeObserver: ResizeObserver | undefined
+    if (typeof ResizeObserver !== 'undefined') {
+      layoutResizeObserver = new ResizeObserver(syncHeight)
+      layoutResizeObserver.observe(viewport)
+      const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
+      if (scroller) layoutResizeObserver.observe(scroller)
+    }
+
+    return () => {
+      isDisposed = true
+      documentResizeObserver?.disconnect()
+      documentMutationObserver?.disconnect()
+      layoutResizeObserver?.disconnect()
+      observedDocument?.removeEventListener('load', syncHeight, true)
+      iframe.removeEventListener('load', observeDocument)
+      window.removeEventListener('resize', syncHeight)
+    }
+  }, [html, onHeightChange, zoomScale])
 
   return (
-    <div
-      ref={viewportRef}
-      data-testid="desktop-html-preview"
-      className="relative aspect-video w-full overflow-hidden bg-background">
+    <div ref={viewportRef} data-testid="adaptive-html-preview" className="relative h-full w-full overflow-hidden">
       <div
-        ref={canvasRef}
-        data-testid="desktop-html-canvas"
-        className="absolute top-0 left-0 origin-top-left"
-        style={{ width: DESKTOP_VIEWPORT_WIDTH, height: DESKTOP_VIEWPORT_HEIGHT }}>
-        <div
-          data-testid="desktop-html-zoom-layer"
-          className="origin-top-left"
-          style={{
-            width: `${100 / zoomScale}%`,
-            height: `${100 / zoomScale}%`,
-            transform: `scale(${zoomScale})`
-          }}>
-          <HtmlPreviewFrame html={html} title={title} />
-        </div>
+        data-testid="adaptive-html-zoom-layer"
+        className="origin-top-left"
+        style={{
+          width: `${100 / zoomScale}%`,
+          height: `${100 / zoomScale}%`,
+          transform: `scale(${zoomScale})`
+        }}>
+        <HtmlPreviewFrame html={html} title={title} iframeRef={iframeRef} />
       </div>
     </div>
   )
@@ -89,8 +179,10 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview')
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
+  const [previewHeight, setPreviewHeight] = useState(INITIAL_PREVIEW_HEIGHT)
   const hasContent = html.trim().length > 0
   const showCode = viewMode === 'code'
+  const surfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
   const toggleLabel = t(showCode ? 'html_artifacts.preview' : 'html_artifacts.code')
   const handleToggle = () => {
     setViewMode((current) => (current === 'preview' ? 'code' : 'preview'))
@@ -131,13 +223,14 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
     <div data-testid="html-artifact-view" className="w-full">
       <div
         data-testid="html-artifact-surface"
-        className="group relative aspect-video w-full overflow-hidden rounded-xl border border-border-subtle bg-background">
+        className="group relative w-full overflow-hidden"
+        style={{ height: surfaceHeight }}>
         {showCode ? (
           <div className="h-full min-h-0">
             <CodeViewer value={html} language="html" height="100%" expanded={false} className="h-full" />
           </div>
         ) : (
-          <DesktopHtmlPreview html={html} title={title} zoom={zoom} />
+          <AdaptiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
         )}
 
         <div
