@@ -29,7 +29,7 @@ const SEARCH_TOOL: Tool = {
 const INSTALL_TOOL: Tool = {
   name: 'install_skill',
   description:
-    "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Ask the user for explicit confirmation before calling this: skills are third-party code that runs with full agent permissions.",
+    "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Call this only when the user intends to install the skill; the active Claude permission mode controls whether execution prompts or runs directly.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -138,7 +138,7 @@ class SkillsServer {
       content: [
         {
           type: 'text' as const,
-          text: `Found ${view.length} installable skill(s) for "${query}":\n${JSON.stringify(view, null, 2)}\n\nAfter the user confirms, pass the exact 'install_source' string to install_skill.`
+          text: `Found ${view.length} installable skill(s) for "${query}":\n${JSON.stringify(view, null, 2)}\n\nWhen the user asks to install one, pass its exact 'install_source' string to install_skill.`
         }
       ]
     }
