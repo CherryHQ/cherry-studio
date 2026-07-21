@@ -125,11 +125,11 @@ describe('AgentSessionService', () => {
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
-  describe('getLatestUpdated', () => {
-    it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
+  describe('getLatestActive', () => {
+    it('returns the globally most-recently-active session, independent of orderKey ordering', async () => {
       const workspace = await createWorkspace('latest')
-      // `active-latest` has the largest orderKey (oldest-created → last under `orderKey ASC` paging) yet
-      // the highest updatedAt, so returning it proves the query ranks by updatedAt, not list position.
+      // `active-latest` has the largest orderKey (last under `orderKey ASC` paging) yet
+      // the highest activity time, proving selection is independent of list position.
       await dbh.db.insert(agentSessionTable).values([
         {
           id: 'created-newest',
@@ -137,6 +137,7 @@ describe('AgentSessionService', () => {
           name: 'A',
           workspaceId: workspace.id,
           orderKey: 'a0',
+          lastActivityAt: 100,
           updatedAt: 100
         },
         {
@@ -145,6 +146,7 @@ describe('AgentSessionService', () => {
           name: 'B',
           workspaceId: workspace.id,
           orderKey: 'a1',
+          lastActivityAt: 200,
           updatedAt: 200
         },
         {
@@ -153,18 +155,145 @@ describe('AgentSessionService', () => {
           name: 'C',
           workspaceId: workspace.id,
           orderKey: 'a2',
+          lastActivityAt: 300,
           updatedAt: 300
         }
       ])
 
-      const latest = agentSessionService.getLatestUpdated()
+      const latest = agentSessionService.getLatestActive()
       expect(latest?.id).toBe('active-latest')
       // Fully hydrated (workspace joined), matching getById.
       expect(latest?.workspace.id).toBe(workspace.id)
     })
 
+    it('restricts latest selection to a concrete or unlinked owner scope', async () => {
+      const workspace = await createWorkspace('scoped-latest')
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'owned-latest',
+          agentId: 'agent-session-test',
+          name: 'Owned',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          lastActivityAt: 100
+        },
+        {
+          id: 'unlinked-latest',
+          agentId: null,
+          name: 'Unlinked',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          lastActivityAt: 200
+        }
+      ])
+
+      expect(agentSessionService.getLatestActive({ agentId: 'agent-session-test' })?.id).toBe('owned-latest')
+      expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('unlinked-latest')
+    })
+
     it('returns null when there are no sessions', () => {
-      expect(agentSessionService.getLatestUpdated()).toBeNull()
+      expect(agentSessionService.getLatestActive()).toBeNull()
+    })
+  })
+
+  describe('PR1 collection contracts', () => {
+    it('separates pin streams and applies activity, owner, workspace, and owner-name filters in SQLite', async () => {
+      const workspace = await createWorkspace('pr1-list')
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'pinned-session',
+          agentId: 'agent-session-test',
+          name: 'Plain',
+          workspaceId: workspace.id,
+          orderKey: 'a2',
+          lastActivityAt: 10
+        },
+        {
+          id: 'active-session',
+          agentId: 'agent-session-test',
+          name: 'Active',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          lastActivityAt: 30
+        },
+        {
+          id: 'unlinked-session',
+          agentId: null,
+          name: 'Unlinked',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          lastActivityAt: 20
+        }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: 'pin-session-pr1',
+        entityType: 'session',
+        entityId: 'pinned-session',
+        orderKey: 'a0'
+      })
+
+      expect(agentSessionService.listByCursor({ pinned: true }).items).toMatchObject([
+        { id: 'pinned-session', pinned: true, pinId: 'pin-session-pr1' }
+      ])
+      expect(
+        agentSessionService
+          .listByCursor({ pinned: false, sortBy: 'lastActivityAt', workspaceId: workspace.id })
+          .items.map((session) => session.id)
+      ).toEqual(['active-session', 'unlinked-session'])
+      expect(
+        agentSessionService.listByCursor({ pinned: false, agentId: 'unlinked' }).items.map((session) => session.id)
+      ).toEqual(['unlinked-session'])
+      expect(
+        agentSessionService
+          .listByCursor({ pinned: false, q: 'Session Test', searchScope: 'name-or-owner' })
+          .items.map((session) => session.id)
+      ).toEqual(['active-session'])
+    })
+
+    it('returns factual per-Agent and stable workspace statistics', async () => {
+      const workspace = await createWorkspace('pr1-stats')
+      const system = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'System',
+        workspace: { type: 'system' }
+      })
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'stats-owned',
+          agentId: 'agent-session-test',
+          name: 'Owned',
+          workspaceId: workspace.id,
+          orderKey: 'a0'
+        },
+        {
+          id: 'stats-unlinked',
+          agentId: null,
+          name: 'Unlinked',
+          workspaceId: workspace.id,
+          orderKey: 'a1'
+        }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: 'pin-stats-session-pr1',
+        entityType: 'session',
+        entityId: 'stats-owned',
+        orderKey: 'a0'
+      })
+
+      const stats = agentSessionService.stats()
+      expect(stats).toMatchObject({ total: 3, pinnedCount: 1 })
+      expect(stats.byAgent.find((entry) => entry.agentId === null)).toEqual({
+        agentId: null,
+        count: 1,
+        pinnedCount: 0
+      })
+      expect(stats.byWorkspace).toEqual(
+        expect.arrayContaining([
+          { workspaceId: workspace.id, count: 2, pinnedCount: 1 },
+          { workspaceId: 'system', count: 1, pinnedCount: 0 }
+        ])
+      )
+      expect(system.workspace.type).toBe('system')
     })
   })
 

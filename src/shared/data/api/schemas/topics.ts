@@ -41,18 +41,72 @@ export const UpdateTopicSchema = TopicSchema.pick({
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
+/** Atomically move a topic to a live Assistant at one visible-neighbour position. */
+export const MoveTopicSchema = z.strictObject({
+  assistantId: z.uuidv4(),
+  order: z.union([z.strictObject({ before: z.string().min(1) }), z.strictObject({ after: z.string().min(1) })])
+})
+export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
+
+/** A concrete live Assistant id, or the reserved unlinked-owner scope. */
+export const TopicOwnerScopeSchema = z.union([z.uuidv4(), z.literal('unlinked')])
+export type TopicOwnerScope = z.infer<typeof TopicOwnerScopeSchema>
+
+export const TopicSortBySchema = z.enum(['createdAt', 'lastActivityAt', 'orderKey'])
+export type TopicSortBy = z.infer<typeof TopicSortBySchema>
+
+export const TopicSearchScopeSchema = z.enum(['name', 'name-or-owner'])
+export type TopicSearchScope = z.infer<typeof TopicSearchScopeSchema>
+
+/** Collection projection; pin ordering remains internal to the pin stream. */
+export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
+
 /**
- * Query parameters for `GET /topics` (cursor pagination + search).
+ * Query parameters for `GET /topics`.
+ *
+ * During the PR1 backend transition, omitting `pinned` preserves the existing
+ * composed pinned-then-ordinary list. Passing it explicitly selects one of two
+ * independent streams and enables server-side sort/owner/search filtering.
  */
 export const ListTopicsQuerySchema = z.strictObject({
   /** Opaque cursor from previous page's `nextCursor`. */
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */
   limit: z.coerce.number().int().positive().max(200).optional(),
-  /** Substring filter on topic name (case-insensitive LIKE). */
-  q: z.string().optional()
+  /** Literal substring search term (`%`, `_`, and `\\` are escaped). */
+  q: z.string().optional(),
+  /** Search topic name only, or topic/owning-live-Assistant name. */
+  searchScope: TopicSearchScopeSchema.optional(),
+  /** Ordinary-stream sort profile; ignored for pinned and compatibility streams. */
+  sortBy: TopicSortBySchema.optional(),
+  /** Concrete live Assistant id, or `unlinked`. */
+  assistantId: TopicOwnerScopeSchema.optional(),
+  /** true = pinned-only, false = ordinary-only, omitted = compatibility stream. */
+  pinned: z.boolean().optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+
+export const LatestTopicQuerySchema = z.strictObject({
+  assistantId: TopicOwnerScopeSchema.optional()
+})
+export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
+
+export const TopicStatsQuerySchema = z.strictObject({
+  q: z.string().optional(),
+  assistantId: TopicOwnerScopeSchema.optional()
+})
+export type TopicStatsQuery = z.infer<typeof TopicStatsQuerySchema>
+
+export interface CountWithPins {
+  count: number
+  pinnedCount: number
+}
+
+export interface TopicStats {
+  total: number
+  pinnedCount: number
+  byAssistant: Array<{ assistantId: string | null } & CountWithPins>
+}
 
 /**
  * DTO for setting active node. Pins the exact `nodeId` — the conversation
@@ -105,7 +159,7 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
-/** Response for `GET /topics/latest` — the globally most-recently-updated topic, or `null` when empty. */
+/** Most-recently-active topic in the requested owner scope, or `null`. */
 export interface LatestTopicResponse {
   topic: Topic | null
 }
@@ -139,24 +193,19 @@ export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
 export type TopicSchemas = {
   /**
    * Topics collection endpoint
-   * @example GET /topics?limit=50
-   * @example GET /topics?cursor=...&q=search
+   * @example GET /topics?pinned=false&limit=50
+   * @example GET /topics?pinned=true&cursor=...
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
    * @example DELETE /topics?ids=topic_1,topic_2
    */
   '/topics': {
     /**
-     * List topics with cursor pagination + optional name search.
-     *
-     * The list is a server-composed view: pinned topics first (joining the
-     * `pin` table on `entityType = 'topic'` ordered by `pin.orderKey`), then
-     * unpinned topics ordered by `topic.orderKey ASC, id ASC` (manual/creation
-     * order + id tiebreak). The cursor encodes the section + last boundary so
-     * paging across the boundary is seamless.
+     * Explicit `pinned=true/false` requests use independent streams. Omitting
+     * the flag preserves the existing composed view until the renderer moves.
      */
     GET: {
       query?: ListTopicsQuery
-      response: CursorPaginationResponse<Topic>
+      response: CursorPaginationResponse<TopicListItem>
     }
     /** Create a new topic. */
     POST: {
@@ -177,18 +226,27 @@ export type TopicSchemas = {
   }
 
   /**
-   * Most-recently-updated topic across all assistants.
+   * Most-recently-active topic globally or within one owner scope.
    *
    * First-entry restore reads this to resume the last-touched conversation.
    * Declared before `/topics/:id` and matched exactly by the server router, so
    * `latest` is never mistaken for a topic id. Proves global latest via
-   * `updatedAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   * `lastActivityAt DESC LIMIT 1`, independent of list ordering.
    *
    * @example GET /topics/latest
    */
   '/topics/latest': {
     GET: {
+      query?: LatestTopicQuery
       response: LatestTopicResponse
+    }
+  }
+
+  /** Factual totals, pin counts, and per-Assistant breakdowns. */
+  '/topics/stats': {
+    GET: {
+      query?: TopicStatsQuery
+      response: TopicStats
     }
   }
 
@@ -213,6 +271,15 @@ export type TopicSchemas = {
     /** Delete a topic and all its messages */
     DELETE: {
       params: { id: string }
+      response: void
+    }
+  }
+
+  /** Atomically change owner and place the topic beside a target-owner topic. */
+  '/topics/:id/move': {
+    POST: {
+      params: { id: string }
+      body: MoveTopicDto
       response: void
     }
   }

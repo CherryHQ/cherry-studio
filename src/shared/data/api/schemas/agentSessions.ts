@@ -103,10 +103,14 @@ export const AgentSessionEntitySchema = z.strictObject({
   /** Container-level OTel trace id — one trace tree per session. */
   traceId: TraceIdSchema.optional(),
   orderKey: z.string(),
+  lastActivityAt: z.iso.datetime(),
   createdAt: z.string(),
   updatedAt: z.string()
 })
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
+
+/** Collection projection; pin ordering remains internal to the pin stream. */
+export type AgentSessionListItem = AgentSessionEntity & { pinned: boolean; pinId: string | null }
 
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
 export const CreateAgentSessionSchema = z.strictObject({
@@ -136,20 +140,65 @@ export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
 export const SetAgentSessionWorkspaceSchema = AgentSessionWorkspaceSourceSchema
 export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 
-/** Query for `GET /agent-sessions` (cursor pagination + optional agent filter). */
+/** A concrete Agent id, or the reserved unlinked-owner scope. */
+export const AgentSessionOwnerScopeSchema = z.string().min(1)
+export type AgentSessionOwnerScope = z.infer<typeof AgentSessionOwnerScopeSchema>
+
+/** A concrete user-workspace id, or the aggregate `system` scope. */
+export const AgentSessionWorkspaceScopeSchema = z.string().min(1)
+export type AgentSessionWorkspaceScope = z.infer<typeof AgentSessionWorkspaceScopeSchema>
+
+export const AgentSessionSortBySchema = z.enum(['createdAt', 'lastActivityAt', 'orderKey'])
+export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
+
+export const AgentSessionSearchScopeSchema = z.enum(['name', 'name-or-owner'])
+export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSchema>
+
+/**
+ * Query for `GET /agent-sessions`.
+ *
+ * During the PR1 backend transition, omitting `pinned` preserves the existing
+ * composed pinned-then-ordinary list. Passing it explicitly selects one of two
+ * independent streams and enables server-side sort/owner/workspace/search filters.
+ */
 export const ListAgentSessionsQuerySchema = z.strictObject({
-  agentId: z.string().optional(),
+  agentId: AgentSessionOwnerScopeSchema.optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional()
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  sortBy: AgentSessionSortBySchema.optional(),
+  q: z.string().optional(),
+  searchScope: AgentSessionSearchScopeSchema.optional(),
+  /** true = pinned-only, false = ordinary-only, omitted = compatibility stream. */
+  pinned: z.boolean().optional(),
+  /** Concrete user workspace id, or `system`. */
+  workspaceId: AgentSessionWorkspaceScopeSchema.optional()
 })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
+
+export const LatestAgentSessionQuerySchema = z.strictObject({
+  agentId: AgentSessionOwnerScopeSchema.optional()
+})
+export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
+
+export const AgentSessionStatsQuerySchema = z.strictObject({
+  q: z.string().optional(),
+  agentId: AgentSessionOwnerScopeSchema.optional()
+})
+export type AgentSessionStatsQuery = z.infer<typeof AgentSessionStatsQuerySchema>
+
+export interface AgentSessionStats {
+  total: number
+  pinnedCount: number
+  byAgent: Array<{ agentId: string | null; count: number; pinnedCount: number }>
+  byWorkspace: Array<{ workspaceId: AgentSessionWorkspaceScope; count: number; pinnedCount: number }>
+}
 
 export interface DeleteAgentSessionsResult {
   deletedIds: string[]
 }
 
-/** Response for `GET /agent-sessions/latest` — the most-recently-updated session, or `null` when there are none. */
+/** Most-recently-active session in the requested owner scope, or `null`. */
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
 }
@@ -179,7 +228,7 @@ export type AgentSessionSchemas = {
   '/agent-sessions': {
     GET: {
       query?: ListAgentSessionsQueryParams
-      response: CursorPaginationResponse<AgentSessionEntity>
+      response: CursorPaginationResponse<AgentSessionListItem>
     }
     POST: {
       body: CreateAgentSessionDto
@@ -200,17 +249,25 @@ export type AgentSessionSchemas = {
   }
 
   /**
-   * Most-recently-updated session across all agents.
+   * Most-recently-active session globally or within one owner scope.
    *
    * First-entry restore reads this to resume the last-touched session. Declared
    * before `/agent-sessions/:sessionId` and matched exactly by the server router,
    * so `latest` is never mistaken for a session id. Proves global latest via
-   * `updatedAt DESC LIMIT 1`, unlike the `orderKey`-paged `/agent-sessions` first
-   * page.
+   * `lastActivityAt DESC LIMIT 1`, independent of list ordering.
    */
   '/agent-sessions/latest': {
     GET: {
+      query?: LatestAgentSessionQuery
       response: LatestAgentSessionResponse
+    }
+  }
+
+  /** Factual totals, pin counts, and per-Agent/workspace breakdowns. */
+  '/agent-sessions/stats': {
+    GET: {
+      query?: AgentSessionStatsQuery
+      response: AgentSessionStats
     }
   }
 

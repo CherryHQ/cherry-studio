@@ -143,6 +143,7 @@ function buildVirtualRoot(id: string, topicId: string, createdAt: number): NewMe
     data: { parts: [] },
     searchableText: '',
     status: 'success',
+    activityAt: null,
     siblingsGroupId: 0,
     modelId: null,
     messageSnapshot: null,
@@ -1070,6 +1071,10 @@ export class ChatMigrator extends BaseMigrator {
 
     // Transform topic with correct activeNodeId
     const newTopic = transformTopic(oldTopic, activeNodeId)
+    newTopic.lastActivityAt = newMessages.reduce(
+      (latest, message) => Math.max(latest, message.activityAt ?? newTopic.createdAt),
+      newTopic.createdAt
+    )
 
     return {
       topic: newTopic,

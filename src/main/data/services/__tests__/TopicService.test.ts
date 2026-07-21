@@ -1627,22 +1627,186 @@ describe('TopicService', () => {
     })
   })
 
-  describe('getLatestUpdated', () => {
-    it('returns the globally most-recently-updated non-deleted topic, independent of pin/order', async () => {
-      const service = new TopicService()
+  describe('PR1 collection contracts', () => {
+    it('separates pinned and ordinary streams while retaining the omitted-flag compatibility view', async () => {
       await dbh.db.insert(topicTable).values([
-        { id: 'old', name: 'old', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
-        // Highest updatedAt but soft-deleted → must be excluded.
-        { id: 'deleted-newest', name: 'deleted', orderKey: 'a1', deletedAt: 999, createdAt: 2, updatedAt: 900 },
-        { id: 'latest', name: 'latest', orderKey: 'a2', createdAt: 3, updatedAt: 300 },
-        { id: 'mid', name: 'mid', orderKey: 'a3', createdAt: 4, updatedAt: 200 }
+        { id: 'pinned', name: 'Pinned', orderKey: 'a2', lastActivityAt: 10, createdAt: 1, updatedAt: 1 },
+        { id: 'active', name: 'Active', orderKey: 'a1', lastActivityAt: 30, createdAt: 2, updatedAt: 2 },
+        { id: 'older', name: 'Older', orderKey: 'a0', lastActivityAt: 20, createdAt: 3, updatedAt: 3 }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: 'pin-topic-pr1',
+        entityType: 'topic',
+        entityId: 'pinned',
+        orderKey: 'a0'
+      })
+
+      expect(topicService.listByCursor({ pinned: true }).items).toMatchObject([
+        { id: 'pinned', pinned: true, pinId: 'pin-topic-pr1' }
+      ])
+      expect(
+        topicService.listByCursor({ pinned: false, sortBy: 'lastActivityAt' }).items.map((topic) => topic.id)
+      ).toEqual(['active', 'older'])
+      expect(topicService.listByCursor().items.map((topic) => topic.id)).toEqual(['pinned', 'older', 'active'])
+    })
+
+    it('filters/searches in SQLite and returns factual per-owner pin statistics', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          name: 'Needle Owner',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          name: 'Deleted Owner',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          deletedAt: 10
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'owned',
+          name: 'Plain topic',
+          assistantId: '11111111-1111-4111-8111-111111111111',
+          orderKey: 'a0'
+        },
+        {
+          id: 'orphaned',
+          name: 'Orphaned topic',
+          assistantId: '22222222-2222-4222-8222-222222222222',
+          orderKey: 'a1'
+        },
+        { id: 'unlinked', name: 'Needle local', assistantId: null, orderKey: 'a2' }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: 'pin-owned-pr1',
+        entityType: 'topic',
+        entityId: 'owned',
+        orderKey: 'a0'
+      })
+
+      expect(
+        topicService
+          .listByCursor({ pinned: true, q: 'Needle', searchScope: 'name-or-owner' })
+          .items.map((topic) => topic.id)
+      ).toEqual(['owned'])
+      expect(
+        topicService
+          .listByCursor({ pinned: false, assistantId: 'unlinked' })
+          .items.map((topic) => topic.id)
+          .sort()
+      ).toEqual(['orphaned', 'unlinked'])
+
+      expect(topicService.stats()).toMatchObject({ total: 3, pinnedCount: 1 })
+      expect(topicService.stats().byAssistant.find((entry) => entry.assistantId === null)).toEqual({
+        assistantId: null,
+        count: 2,
+        pinnedCount: 0
+      })
+    })
+
+    it('moves ownership and order atomically, rejecting an anchor owned by another Assistant', async () => {
+      const sourceAssistantId = '11111111-1111-4111-8111-111111111111'
+      const targetAssistantId = '22222222-2222-4222-8222-222222222222'
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: sourceAssistantId,
+          name: 'Source',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: targetAssistantId,
+          name: 'Target',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1'
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'moving', name: 'Moving', assistantId: sourceAssistantId, orderKey: 'a0' },
+        { id: 'target-anchor', name: 'Anchor', assistantId: targetAssistantId, orderKey: 'a1' },
+        { id: 'wrong-anchor', name: 'Wrong', assistantId: sourceAssistantId, orderKey: 'a2' }
       ])
 
-      expect(service.getLatestUpdated()?.id).toBe('latest')
+      let invalidAnchorError: unknown
+      try {
+        topicService.move('moving', { assistantId: targetAssistantId, order: { before: 'wrong-anchor' } })
+      } catch (error) {
+        invalidAnchorError = error
+      }
+      expect(invalidAnchorError).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+      expect(topicService.getById('moving').assistantId).toBe(sourceAssistantId)
+
+      let invalidOwnerError: unknown
+      try {
+        topicService.move('moving', {
+          assistantId: '33333333-3333-4333-8333-333333333333',
+          order: { before: 'target-anchor' }
+        })
+      } catch (error) {
+        invalidOwnerError = error
+      }
+      expect(invalidOwnerError).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Assistant' }
+      })
+      expect(topicService.getById('moving').assistantId).toBe(sourceAssistantId)
+
+      topicService.move('moving', { assistantId: targetAssistantId, order: { before: 'target-anchor' } })
+      expect(topicService.getById('moving').assistantId).toBe(targetAssistantId)
+      const ordered = topicService.listByCursor({ pinned: false, sortBy: 'orderKey' }).items.map((topic) => topic.id)
+      expect(ordered.indexOf('moving')).toBeLessThan(ordered.indexOf('target-anchor'))
+    })
+  })
+
+  describe('getLatestActive', () => {
+    it('returns the globally most-recently-active non-deleted topic, independent of pin/order', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'old', name: 'old', orderKey: 'a0', lastActivityAt: 100, createdAt: 1, updatedAt: 900 },
+        {
+          id: 'deleted-newest',
+          name: 'deleted',
+          orderKey: 'a1',
+          deletedAt: 999,
+          lastActivityAt: 900,
+          createdAt: 2,
+          updatedAt: 900
+        },
+        { id: 'latest', name: 'latest', orderKey: 'a2', lastActivityAt: 300, createdAt: 3, updatedAt: 100 },
+        { id: 'mid', name: 'mid', orderKey: 'a3', lastActivityAt: 200, createdAt: 4, updatedAt: 800 }
+      ])
+
+      expect(service.getLatestActive()?.id).toBe('latest')
+    })
+
+    it('restricts latest selection to a concrete or unlinked owner scope', async () => {
+      const assistantId = '11111111-1111-4111-8111-111111111111'
+      await dbh.db.insert(assistantTable).values({
+        id: assistantId,
+        name: 'Owner',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(topicTable).values([
+        { id: 'owned-latest', name: 'Owned', assistantId, orderKey: 'a0', lastActivityAt: 100 },
+        { id: 'unlinked-latest', name: 'Unlinked', assistantId: null, orderKey: 'a1', lastActivityAt: 200 }
+      ])
+
+      expect(topicService.getLatestActive({ assistantId })?.id).toBe('owned-latest')
+      expect(topicService.getLatestActive({ assistantId: 'unlinked' })?.id).toBe('unlinked-latest')
     })
 
     it('returns null when there are no topics', () => {
-      expect(new TopicService().getLatestUpdated()).toBeNull()
+      expect(new TopicService().getLatestActive()).toBeNull()
     })
   })
 })

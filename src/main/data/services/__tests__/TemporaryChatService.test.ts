@@ -4,7 +4,7 @@ import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 function fieldsOf(err: unknown): Record<string, string[]> {
   const details = (err as { details?: { fieldErrors?: Record<string, string[]> } }).details
@@ -21,6 +21,10 @@ describe('TemporaryChatService', () => {
 
   beforeEach(() => {
     service = new TemporaryChatService()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   describe('appendMessage — input validation', () => {
@@ -110,6 +114,7 @@ describe('TemporaryChatService', () => {
       expect(topic.orderKey).toBe('')
       expect(typeof topic.createdAt).toBe('string')
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)
+      expect(topic.lastActivityAt).toBe(topic.createdAt)
     })
 
     it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=""', async () => {
@@ -183,6 +188,7 @@ describe('TemporaryChatService', () => {
       const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
       expect(dbTopic?.activeNodeId).toBe(m3.id)
       expect(dbTopic?.name).toBe('persisted')
+      expect(dbTopic?.lastActivityAt).toBe(new Date(m3.createdAt).getTime())
 
       // Messages form a linear chain root <- m1 <- m2 <- m3, with the first message
       // hanging off the topic's virtual root (the single parentId-null row).
@@ -193,7 +199,29 @@ describe('TemporaryChatService', () => {
       expect(byId.get(m1.id)?.parentId).toBe(virtualRoot?.id)
       expect(byId.get(m2.id)?.parentId).toBe(m1.id)
       expect(byId.get(m3.id)?.parentId).toBe(m2.id)
+      expect(byId.get(m1.id)?.activityAt).toBe(new Date(m1.createdAt).getTime())
+      expect(byId.get(m2.id)?.activityAt).toBe(new Date(m2.createdAt).getTime())
+      expect(byId.get(m3.id)?.activityAt).toBe(new Date(m3.createdAt).getTime())
       expect(rows.every((r) => r.siblingsGroupId === 0)).toBe(true)
+    })
+
+    it('preserves activity timestamps instead of treating persistence as new activity', async () => {
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(100)
+      const topic = service.createTopic({ name: 'activity' })
+      nowSpy.mockReturnValue(200)
+      const message = service.appendMessage(topic.id, { role: 'user', data: mainText('hello') })
+      nowSpy.mockReturnValue(300)
+
+      service.persist(topic.id)
+
+      const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
+      const [dbMessage] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, message.id)).limit(1)
+      expect(dbTopic.createdAt).toBe(100)
+      expect(dbTopic.updatedAt).toBe(100)
+      expect(dbTopic.lastActivityAt).toBe(200)
+      expect(dbMessage.createdAt).toBe(200)
+      expect(dbMessage.updatedAt).toBe(200)
+      expect(dbMessage.activityAt).toBe(200)
     })
 
     it('empty session: persists topic with activeNodeId=null', async () => {

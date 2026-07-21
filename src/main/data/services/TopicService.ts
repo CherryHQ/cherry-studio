@@ -8,6 +8,7 @@ import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
+import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -17,18 +18,26 @@ import type {
   CreateTopicDto,
   DeleteTopicsResult,
   DuplicateTopicDto,
+  LatestTopicQuery,
   ListTopicsQuery,
+  MoveTopicDto,
+  TopicListItem,
+  TopicSearchScope,
+  TopicSortBy,
+  TopicStats,
+  TopicStatsQuery,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
+import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -55,10 +64,17 @@ function rowToTopic(row: TopicRow): Topic {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    lastActivityAt: timestampToISO(row.lastActivityAt),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
 }
+
+function toTopicListItem(topic: Topic, pinId: string | null): TopicListItem {
+  return { ...topic, pinned: pinId !== null, pinId }
+}
+
+const TOPIC_ORDER_SCOPE: SQL = isNull(topicTable.deletedAt)
 
 function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: ReadonlyMap<string, string>): void {
   if (sourceIdMap.size === 0) return
@@ -102,6 +118,15 @@ function buildSearchPredicate(q: string | undefined): SQL | undefined {
   return sql`${topicTable.name} LIKE ${pattern} ESCAPE '\\'`
 }
 
+function buildScopedSearchPredicate(q: string | undefined, scope: TopicSearchScope): SQL | undefined {
+  const trimmed = q?.trim()
+  if (!trimmed) return undefined
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${topicTable.name} LIKE ${pattern} ESCAPE '\\'`
+  if (scope === 'name') return nameMatch
+  return or(nameMatch, sql`${assistantTable.name} LIKE ${pattern} ESCAPE '\\'`)
+}
+
 function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string): void {
   const [assistant] = tx
     .select({ id: assistantTable.id })
@@ -110,6 +135,18 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
     .limit(1)
     .all()
   if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+}
+
+function buildRecordFilters(query: { q?: string; searchScope?: TopicSearchScope; assistantId?: string }): SQL[] {
+  const filters: SQL[] = [isNull(topicTable.deletedAt)]
+  const search = buildScopedSearchPredicate(query.q, query.searchScope ?? 'name')
+  if (search) filters.push(search)
+  if (query.assistantId === 'unlinked') {
+    filters.push(isNull(assistantTable.id))
+  } else if (query.assistantId !== undefined) {
+    filters.push(eq(assistantTable.id, query.assistantId))
+  }
+  return filters
 }
 
 export class TopicService {
@@ -130,28 +167,60 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  /**
-   * The single most-recently-updated non-deleted topic across all assistants, or
-   * `null` when the library is empty.
-   *
-   * First-entry restore resumes the last-touched conversation. It cannot read the
-   * regular first page of `listByCursor` for this: that page is pinned-first then
-   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-updated
-   * topic is not guaranteed to be on it. This `updatedAt DESC LIMIT 1` proves global
-   * latest independent of how the rail happens to page.
-   */
-  getLatestUpdated(): Topic | null {
+  /** Most-recently-active topic globally or in one live/unlinked owner scope. */
+  getLatestActive(query: LatestTopicQuery = {}): Topic | null {
     const db = application.get('DbService').getDb()
+    const filters = buildRecordFilters(query)
 
     const [row] = db
-      .select()
+      .select({ topic: topicTable })
       .from(topicTable)
-      .where(isNull(topicTable.deletedAt))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(1)
       .all()
 
-    return row ? rowToTopic(row) : null
+    return row ? rowToTopic(row.topic) : null
+  }
+
+  /** Monotonically advance activity from inside a caller-owned write transaction. */
+  advanceLastActivityAtTx(tx: DbOrTx, topicId: string, timestamp: number): void {
+    const updated = tx
+      .update(topicTable)
+      .set({ lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})` })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+      .all()
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
+  }
+
+  /** Restore `max(topic.createdAt, surviving message activity)` after deletion/copying. */
+  recomputeLastActivityAtTx(tx: DbOrTx, topicId: string): void {
+    const [topic] = tx
+      .select({ createdAt: topicTable.createdAt })
+      .from(topicTable)
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
+
+    const [activity] = tx
+      .select({
+        timestamp: sql<number | null>`max(case
+          when ${messageTable.role} in ('user', 'assistant')
+            then max(${messageTable.createdAt}, coalesce(${messageTable.activityAt}, ${messageTable.createdAt}))
+          else null
+        end)`
+      })
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .all()
+
+    tx.update(topicTable)
+      .set({ lastActivityAt: Math.max(topic.createdAt, activity?.timestamp ?? topic.createdAt) })
+      .where(eq(topicTable.id, topicId))
+      .run()
   }
 
   ensureTraceId(topicId: string): string {
@@ -192,11 +261,17 @@ export class TopicService {
         {
           pkColumn: topicTable.id,
           position: 'first',
-          scope: isNull(topicTable.deletedAt)
+          scope: TOPIC_ORDER_SCOPE
         }
       ) as TopicRow
+      const [initializedTopicRow] = tx
+        .update(topicTable)
+        .set({ lastActivityAt: topicRow.createdAt })
+        .where(eq(topicTable.id, topicRow.id))
+        .returning()
+        .all()
       messageService.createRootMessageTx(tx, topicRow.id)
-      return topicRow
+      return initializedTopicRow
     })
 
     logger.info('Created empty topic', { id: row.id })
@@ -232,9 +307,13 @@ export class TopicService {
           pkColumn: topicTable.id,
           // Keep duplicated conversations aligned with newly created agent sessions: newest active work appears first.
           position: 'first',
-          scope: isNull(topicTable.deletedAt)
+          scope: TOPIC_ORDER_SCOPE
         }
       ) as TopicRow
+      tx.update(topicTable)
+        .set({ lastActivityAt: newTopicRow.createdAt })
+        .where(eq(topicTable.id, newTopicRow.id))
+        .run()
 
       // New topic is a creation path → create its virtual root before copying the path
       // (copyPathRowsTx reparents the copied head onto it).
@@ -247,6 +326,7 @@ export class TopicService {
       // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
       // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
       copyChatMessageFileRefsBySourceIdMapTx(tx, copiedMessageIds)
+      this.recomputeLastActivityAtTx(tx, newTopicRow.id)
 
       const [updatedTopicRow] = tx
         .update(topicTable)
@@ -306,6 +386,55 @@ export class TopicService {
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
     return topic
+  }
+
+  /** Atomically change owner and place the topic beside a target-owner topic. */
+  move(id: string, dto: MoveTopicDto): void {
+    return withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          const [target] = tx
+            .select({ id: topicTable.id })
+            .from(topicTable)
+            .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+            .limit(1)
+            .all()
+          if (!target) throw DataApiErrorFactory.notFound('Topic', id)
+
+          assertActiveAssistantTx(tx, dto.assistantId)
+
+          const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
+          if (anchorId === id) {
+            const message = 'move: anchor topic must differ from the moved topic'
+            throw DataApiErrorFactory.validation({ order: [message] }, message)
+          }
+
+          const [anchor] = tx
+            .select({ assistantId: topicTable.assistantId })
+            .from(topicTable)
+            .where(and(eq(topicTable.id, anchorId), isNull(topicTable.deletedAt)))
+            .limit(1)
+            .all()
+          if (!anchor) {
+            const message = 'move: anchor topic must exist'
+            throw DataApiErrorFactory.validation({ order: [message] }, message)
+          }
+          if (anchor.assistantId !== dto.assistantId) {
+            const message = 'move: anchor topic must belong to the target assistant'
+            throw DataApiErrorFactory.validation({ order: [message] }, message)
+          }
+
+          tx.update(topicTable).set({ assistantId: dto.assistantId }).where(eq(topicTable.id, id)).run()
+          applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
+            pkColumn: topicTable.id,
+            scope: TOPIC_ORDER_SCOPE
+          })
+        }),
+      {
+        ...defaultHandlersFor('Topic', id),
+        foreignKey: () => DataApiErrorFactory.notFound('Assistant', dto.assistantId)
+      } satisfies SqliteErrorHandlers
+    )
   }
 
   /**
@@ -418,21 +547,21 @@ export class TopicService {
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
-  /**
-   * Two-section page: pinned topics (via `pin` JOIN, ordered by `pin.orderKey`)
-   * then unpinned (ordered by `topic.orderKey ASC, id ASC` — manual/creation
-   * drag order). A partial pin page spills into the unpinned section to fill
-   * `limit`. This mirrors `AgentSessionService.listByCursor` so both rails share
-   * one pagination contract (pinned-first, then manual order); recency ordering
-   * for the time-grouped view is applied by the renderer over the loaded list.
-   */
-  listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<Topic> {
+  /** Select the compatibility composite view or one explicit independent stream. */
+  listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<TopicListItem> {
+    if (query.pinned === undefined) return this.listCompatibilityByCursor(query)
+    if (query.pinned) return this.listPinnedByCursor(query)
+    return this.listOrdinaryByCursor(query, query.sortBy ?? 'createdAt')
+  }
+
+  /** Existing pinned-then-orderKey stream kept until the renderer migrates in PR2. */
+  private listCompatibilityByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'topic')
     const search = buildSearchPredicate(query.q)
 
-    const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
+    const items: Array<{ topic: Topic; pinId: string | null; pinOrderKey?: string }> = []
 
     if (cursor.section === 'pin') {
       const pinAfter = cursor.orderKey
@@ -442,7 +571,7 @@ export class TopicService {
           )
         : undefined
       const pinRows = db
-        .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
+        .select({ topic: topicTable, pinId: pinTable.id, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
         .where(and(isNull(topicTable.deletedAt), pinAfter, search))
@@ -459,20 +588,20 @@ export class TopicService {
 
       const hasMoreInPin = pinRows.length > limit
       for (const row of pinRows.slice(0, limit)) {
-        items.push({ topic: rowToTopic(row.topic), pinOrderKey: row.pinOrderKey })
+        items.push({ topic: rowToTopic(row.topic), pinId: row.pinId, pinOrderKey: row.pinOrderKey })
       }
 
       if (hasMoreInPin) {
         const last = items[items.length - 1]
         return {
-          items: items.map((i) => i.topic),
+          items: items.map((i) => toTopicListItem(i.topic, i.pinId)),
           nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.topic.id)
         }
       }
 
       if (items.length >= limit) {
         return {
-          items: items.map((i) => i.topic),
+          items: items.map((i) => toTopicListItem(i.topic, i.pinId)),
           nextCursor: encodeEntitySectionStart()
         }
       }
@@ -501,7 +630,7 @@ export class TopicService {
 
     const hasMoreInTopic = topicRows.length > remaining
     for (const row of topicRows.slice(0, remaining)) {
-      items.push({ topic: rowToTopic(row) })
+      items.push({ topic: rowToTopic(row), pinId: null })
     }
 
     let nextCursor: string | undefined
@@ -510,7 +639,113 @@ export class TopicService {
       nextCursor = encodeEntityCursor(last.orderKey, last.id)
     }
 
-    return { items: items.map((i) => i.topic), nextCursor }
+    return { items: items.map((i) => toTopicListItem(i.topic, i.pinId)), nextCursor }
+  }
+
+  /** Pinned-only page in persisted pin order. */
+  private listPinnedByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+    const filters = buildRecordFilters(query)
+    const ordering = keysetOrdering(pinTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = decodeListCursor(query.cursor, asStringKey, 'topics-pinned')
+    if (cursor) filters.push(ordering.where(cursor))
+
+    const rows = db
+      .select({ topic: topicTable, pinId: pinTable.id, pinOrderKey: pinTable.orderKey })
+      .from(topicTable)
+      .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasMore = rows.length > limit
+    const pageRows = rows.slice(0, limit)
+    const last = pageRows[pageRows.length - 1]
+
+    return {
+      items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), row.pinId)),
+      nextCursor: hasMore && last ? encodeCursor(last.pinOrderKey, last.topic.id) : undefined
+    }
+  }
+
+  /** Ordinary-only page excluding pins, ordered by the requested fixed profile. */
+  private listOrdinaryByCursor(query: ListTopicsQuery, sortBy: TopicSortBy): CursorPaginationResponse<TopicListItem> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+    const filters = buildRecordFilters(query)
+    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
+    filters.push(notInArray(topicTable.id, pinnedSubquery))
+
+    const isTimestampSort = sortBy === 'createdAt' || sortBy === 'lastActivityAt'
+    const timestampColumn = sortBy === 'createdAt' ? topicTable.createdAt : topicTable.lastActivityAt
+    const ordering = isTimestampSort
+      ? keysetOrdering(timestampColumn, topicTable.id, { major: 'desc', tie: 'asc' })
+      : keysetOrdering(topicTable.orderKey, topicTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = isTimestampSort
+      ? decodeListCursor(query.cursor, asNumericKey, 'topics-ordinary')
+      : decodeListCursor(query.cursor, asStringKey, 'topics-ordinary')
+    if (cursor) filters.push(ordering.where(cursor))
+
+    const rows = db
+      .select({ topic: topicTable })
+      .from(topicTable)
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasMore = rows.length > limit
+    const pageRows = rows.slice(0, limit)
+    const last = pageRows[pageRows.length - 1]
+    const getSortValue = (row: (typeof pageRows)[number]) =>
+      sortBy === 'createdAt'
+        ? row.topic.createdAt
+        : sortBy === 'lastActivityAt'
+          ? row.topic.lastActivityAt
+          : row.topic.orderKey
+
+    return {
+      items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), null)),
+      nextCursor: hasMore && last ? encodeCursor(getSortValue(last), last.topic.id) : undefined
+    }
+  }
+
+  /** Factual totals and pin counts under the same owner/name filters as list. */
+  stats(query: TopicStatsQuery = {}): TopicStats {
+    const db = application.get('DbService').getDb()
+    const filters = buildRecordFilters(query)
+    const pinJoin = and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id))
+    const assistantScope = sql<string | null>`CASE
+      WHEN ${assistantTable.id} IS NULL THEN NULL
+      ELSE ${topicTable.assistantId}
+    END`
+
+    const rows = db
+      .select({
+        assistantId: assistantScope,
+        count: count(),
+        pinnedCount: count(pinTable.id)
+      })
+      .from(topicTable)
+      .leftJoin(pinTable, pinJoin)
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...filters))
+      .groupBy(assistantScope)
+      .all()
+
+    return {
+      total: rows.reduce((sum, row) => sum + row.count, 0),
+      pinnedCount: rows.reduce((sum, row) => sum + row.pinnedCount, 0),
+      byAssistant: rows.map((row) => ({
+        assistantId: row.assistantId,
+        count: row.count,
+        pinnedCount: row.pinnedCount
+      }))
+    }
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): TopicEntitySearchItem[] {
@@ -553,7 +788,7 @@ export class TopicService {
     db.transaction((tx) => {
       applyMoves(tx, topicTable, [{ id, anchor }], {
         pkColumn: topicTable.id,
-        scope: isNull(topicTable.deletedAt)
+        scope: TOPIC_ORDER_SCOPE
       })
     })
   }
@@ -565,7 +800,7 @@ export class TopicService {
     db.transaction((tx) => {
       applyMoves(tx, topicTable, moves, {
         pkColumn: topicTable.id,
-        scope: isNull(topicTable.deletedAt)
+        scope: TOPIC_ORDER_SCOPE
       })
     })
   }

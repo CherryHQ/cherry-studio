@@ -19,6 +19,9 @@ export const agentSessionMessageTable = sqliteTable(
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),
+    // Latest activity-bearing lifecycle point for this message. Internal-only:
+    // it makes session activity exactly recomputable after deletes and resumes.
+    activityAt: integer(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
@@ -30,6 +33,7 @@ export const agentSessionMessageTable = sqliteTable(
   },
   (t) => [
     index('agent_session_message_session_created_id_idx').on(t.sessionId, t.createdAt, t.id),
+    index('agent_session_message_session_activity_idx').on(t.sessionId, t.activityAt),
     // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not
     // partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('agent_session_message_status_idx').on(t.status),

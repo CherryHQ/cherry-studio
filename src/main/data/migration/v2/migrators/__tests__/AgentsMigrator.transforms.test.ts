@@ -58,7 +58,10 @@ describe('importLegacySessionMessages', () => {
       agentId: 'a1',
       name: id,
       workspaceId,
-      orderKey: 'a0'
+      orderKey: 'a0',
+      lastActivityAt: 0,
+      createdAt: 0,
+      updatedAt: 0
     })
     insertedSessions.push(id)
   }
@@ -138,6 +141,9 @@ describe('importLegacySessionMessages', () => {
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hello' }] })
     expect(JSON.stringify(row.data)).not.toContain('"message"')
     expect(row.runtimeResumeToken).toBe('sdk-1')
+    expect(row.activityAt).toBe(new Date('2026-01-01T00:00:01.000Z').getTime())
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 's-legacy'))
+    expect(session.lastActivityAt).toBe(row.activityAt)
   })
 
   it('converts legacy block envelopes during import without a second pass', async () => {
@@ -192,5 +198,6 @@ describe('importLegacySessionMessages', () => {
     expect(row.role).toBe('user')
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hi' }] })
     expect(row.searchableText).toBe('hi')
+    expect(row.activityAt).toBe(new Date('2026-01-01T00:00:00.000Z').getTime())
   })
 })

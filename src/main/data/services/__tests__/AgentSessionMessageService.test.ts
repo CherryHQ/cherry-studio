@@ -94,14 +94,22 @@ describe('AgentSessionMessageService', () => {
 
       expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([PENDING])
 
+      vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
       agentSessionMessageService.markMessagesError([PENDING])
       expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
+      const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
       expect(row.status).toBe('error')
+      expect(row.activityAt).toBe(1_800_000_000_000)
+      expect(session.lastActivityAt).toBe(1_800_000_000_000)
     })
   })
 
   it('creates messages with service-owned audit timestamps', async () => {
+    await dbh.db
+      .update(agentSessionTable)
+      .set({ createdAt: 0, lastActivityAt: 0, updatedAt: 0 })
+      .where(eq(agentSessionTable.id, SESSION_ID))
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 
     const saved = agentSessionMessageService.saveMessage({
@@ -121,13 +129,19 @@ describe('AgentSessionMessageService', () => {
 
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_000)
+    expect(row.activityAt).toBe(1_700_000_000_000)
+    expect(session.lastActivityAt).toBe(1_700_000_000_000)
     expect(session.updatedAt).toBe(1_700_000_000_000)
     expect(saved.createdAt).toBe('2023-11-14T22:13:20.000Z')
     expect(saved.updatedAt).toBe('2023-11-14T22:13:20.000Z')
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {
-    vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_000_000).mockReturnValueOnce(1_700_000_000_500)
+    await dbh.db
+      .update(agentSessionTable)
+      .set({ createdAt: 0, lastActivityAt: 0, updatedAt: 0 })
+      .where(eq(agentSessionTable.id, SESSION_ID))
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 
     const created = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -137,6 +151,7 @@ describe('AgentSessionMessageService', () => {
         data: { parts: [{ type: 'text', text: 'hello' }] }
       }
     })
+    nowSpy.mockReturnValue(1_700_000_000_500)
     const updated = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
@@ -154,12 +169,18 @@ describe('AgentSessionMessageService', () => {
 
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_500)
-    expect(session.updatedAt).toBe(1_700_000_000_500)
+    expect(row.activityAt).toBe(1_700_000_000_000)
+    expect(session.lastActivityAt).toBe(1_700_000_000_000)
+    expect(session.updatedAt).toBe(1_700_000_000_000)
     expect(updated.createdAt).toBe(created.createdAt)
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
   })
 
   it('uses one timestamp for a batch of newly saved messages', async () => {
+    await dbh.db
+      .update(agentSessionTable)
+      .set({ createdAt: 0, lastActivityAt: 0, updatedAt: 0 })
+      .where(eq(agentSessionTable.id, SESSION_ID))
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_001_000)
 
     agentSessionMessageService.saveMessages({
@@ -185,7 +206,123 @@ describe('AgentSessionMessageService', () => {
     expect(rows).toHaveLength(2)
     expect(rows.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
     expect(rows.map((row) => row.updatedAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
+    expect(rows.map((row) => row.activityAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
+    expect(session.lastActivityAt).toBe(1_700_000_001_000)
     expect(session.updatedAt).toBe(1_700_000_001_000)
+  })
+
+  it('advances activity only for assistant lifecycle transitions', async () => {
+    await dbh.db
+      .update(agentSessionTable)
+      .set({ createdAt: 0, lastActivityAt: 0, updatedAt: 0 })
+      .where(eq(agentSessionTable.id, SESSION_ID))
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(100)
+
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+
+    nowSpy.mockReturnValue(200)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [{ type: 'text', text: 'streaming' }] }
+      }
+    })
+    let [row] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+    let [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(row.activityAt).toBe(100)
+    expect(session.lastActivityAt).toBe(100)
+
+    nowSpy.mockReturnValue(300)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'done' }] }
+      }
+    })
+    ;[row] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+    ;[session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(row.activityAt).toBe(300)
+    expect(session.lastActivityAt).toBe(300)
+
+    nowSpy.mockReturnValue(400)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [{ type: 'text', text: 'resuming' }] }
+      }
+    })
+    nowSpy.mockReturnValue(500)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'paused',
+        data: { parts: [{ type: 'text', text: 'paused' }] }
+      }
+    })
+    ;[row] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+    ;[session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(row.activityAt).toBe(500)
+    expect(session.lastActivityAt).toBe(500)
+  })
+
+  it('recomputes session activity after deleting the newest message', async () => {
+    await dbh.db
+      .update(agentSessionTable)
+      .set({ createdAt: 50, lastActivityAt: 50, updatedAt: 50 })
+      .where(eq(agentSessionTable.id, SESSION_ID))
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(100)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: USER_MESSAGE_ID,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'question' }] }
+      }
+    })
+    nowSpy.mockReturnValue(200)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    nowSpy.mockReturnValue(300)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'answer' }] }
+      }
+    })
+
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(session.lastActivityAt).toBe(100)
   })
 
   it('falls back to the newest page when list pagination receives a malformed cursor', async () => {

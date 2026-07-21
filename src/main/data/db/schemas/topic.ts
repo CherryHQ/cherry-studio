@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
@@ -26,10 +27,16 @@ export const topicTable = sqliteTable(
     // Global fractional-indexing order key.
     ...orderKeyColumns,
 
+    // Conversation activity only. Metadata edits continue to advance
+    // `updatedAt`, while message lifecycle events advance this column.
+    lastActivityAt: integer().notNull().$defaultFn(Date.now),
+
     ...createUpdateDeleteTimestamps
   },
   (t) => [
-    index('topic_updated_at_idx').on(t.updatedAt),
+    index('topic_created_at_id_idx').on(sql`${t.createdAt} desc`, t.id),
+    index('topic_last_activity_at_id_idx').on(sql`${t.lastActivityAt} desc`, t.id),
+    index('topic_updated_at_id_idx').on(sql`${t.updatedAt} desc`, t.id),
     orderKeyIndex('topic')(t),
     index('topic_assistant_id_idx').on(t.assistantId)
   ]

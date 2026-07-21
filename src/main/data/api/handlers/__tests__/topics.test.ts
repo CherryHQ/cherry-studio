@@ -7,11 +7,13 @@ const {
   deleteMock,
   duplicateMock,
   getByIdMock,
-  getLatestUpdatedMock,
+  getLatestActiveMock,
   listByCursorMock,
+  moveMock,
   reorderBatchMock,
   reorderMock,
   setActiveNodeMock,
+  statsMock,
   updateMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
@@ -20,11 +22,13 @@ const {
   deleteMock: vi.fn(),
   duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestUpdatedMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
   listByCursorMock: vi.fn(),
+  moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
   setActiveNodeMock: vi.fn(),
+  statsMock: vi.fn(),
   updateMock: vi.fn()
 }))
 
@@ -36,11 +40,13 @@ vi.mock('@data/services/TopicService', () => ({
     deleteByIds: deleteByIdsMock,
     duplicate: duplicateMock,
     getById: getByIdMock,
-    getLatestUpdated: getLatestUpdatedMock,
+    getLatestActive: getLatestActiveMock,
     listByCursor: listByCursorMock,
+    move: moveMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
     setActiveNode: setActiveNodeMock,
+    stats: statsMock,
     update: updateMock
   }
 }))
@@ -53,6 +59,19 @@ describe('topicHandlers', () => {
   })
 
   describe('/topics', () => {
+    it('forwards an explicit stream query while preserving omitted-query compatibility', async () => {
+      const response = { items: [], nextCursor: undefined }
+      listByCursorMock.mockReturnValue(response)
+
+      await expect(topicHandlers['/topics'].GET({ query: { pinned: false, limit: '10' } } as never)).resolves.toBe(
+        response
+      )
+      expect(listByCursorMock).toHaveBeenLastCalledWith({ pinned: false, limit: 10 })
+
+      await topicHandlers['/topics'].GET({} as never)
+      expect(listByCursorMock).toHaveBeenLastCalledWith({})
+    })
+
     it('delegates selected topic delete to TopicService', async () => {
       const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
       deleteByIdsMock.mockResolvedValueOnce(result)
@@ -94,15 +113,28 @@ describe('topicHandlers', () => {
   describe('/topics/latest', () => {
     it('wraps the latest topic from TopicService', async () => {
       const topic = { id: 'topic-latest' }
-      getLatestUpdatedMock.mockReturnValueOnce(topic)
+      getLatestActiveMock.mockReturnValueOnce(topic)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
+      expect(getLatestActiveMock).toHaveBeenCalledWith({})
     })
 
     it('returns { topic: null } when the library is empty', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
+    })
+  })
+
+  describe('/topics/stats', () => {
+    it('parses filters and delegates to TopicService', async () => {
+      const result = { total: 2, pinnedCount: 1, byAssistant: [] }
+      statsMock.mockReturnValueOnce(result)
+
+      await expect(
+        topicHandlers['/topics/stats'].GET({ query: { assistantId: 'unlinked', q: 'needle' } } as never)
+      ).resolves.toBe(result)
+      expect(statsMock).toHaveBeenCalledWith({ assistantId: 'unlinked', q: 'needle' })
     })
   })
 
@@ -131,6 +163,7 @@ describe('topicHandlers', () => {
         activeNodeId: 'copied-node',
         orderKey: 'a0',
         isNameManuallyEdited: false,
+        lastActivityAt: '2026-06-03T00:00:00.000Z',
         createdAt: '2026-06-03T00:00:00.000Z',
         updatedAt: '2026-06-03T00:00:00.000Z'
       }
@@ -147,6 +180,20 @@ describe('topicHandlers', () => {
         nodeId: 'source-node',
         name: 'Source (Copy)'
       })
+    })
+  })
+
+  describe('/topics/:id/move', () => {
+    it('delegates owner and neighbour placement as one operation', async () => {
+      const assistantId = '22222222-2222-4222-8222-222222222222'
+
+      await expect(
+        topicHandlers['/topics/:id/move'].POST({
+          params: { id: 'topic-1' },
+          body: { assistantId, order: { after: 'topic-2' } }
+        } as never)
+      ).resolves.toBeUndefined()
+      expect(moveMock).toHaveBeenCalledWith('topic-1', { assistantId, order: { after: 'topic-2' } })
     })
   })
 })

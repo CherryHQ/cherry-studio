@@ -80,6 +80,7 @@ const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   workspaceId: workspace.id,
   workspace,
   orderKey: 'a0',
+  lastActivityAt: '2024-01-01T00:00:00Z',
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
   ...overrides,

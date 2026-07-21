@@ -138,6 +138,28 @@ const rows = await db
 const nextCursor = hasNext ? encodeCursor(tail.createdAt, tail.id) : undefined
 ```
 
+### `messageActivity.ts` — message lifecycle activity classification
+
+Keeps Topic and Agent Session parent clocks aligned without treating every
+streaming row update as user-visible activity.
+
+**Exports:**
+
+- `getInitialMessageActivityAt(role, status, createdAt, updatedAt?)` — returns
+  `createdAt` for a newly persisted user or pending assistant message, and the
+  later of `createdAt` / `updatedAt` for an already-terminal assistant response;
+  system/root rows are inert.
+- `getMessageTransitionActivityAt(role, previousStatus, nextStatus, timestamp)`
+  — returns `timestamp` only for assistant response terminal transitions and
+  terminal-to-pending resume transitions; repeated/streaming updates are inert.
+
+**Design boundaries:**
+
+- Pure lifecycle classification only; services own all database writes.
+- The returned value is stored on the message so parent activity can be
+  recomputed exactly after deletion.
+- Metadata/content-only writes never count as conversation activity.
+
 ### `ftsSearch.ts` — FTS cursor, filtering, and pagination core
 
 Shared by full-text search services that use SQLite FTS5 trigram tables. It

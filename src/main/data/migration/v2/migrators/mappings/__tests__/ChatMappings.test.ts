@@ -793,6 +793,27 @@ function mainTextBlock(id: string, messageId: string, content: string): OldMainT
 }
 
 describe('transformMessage', () => {
+  it('maps user send and assistant completion timestamps to activity', async () => {
+    const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
+    const user = await transformMessage(
+      msg('u1', 'user', { updatedAt: '2025-01-01T00:00:10.000Z' }),
+      null,
+      0,
+      blocks,
+      'topic-1'
+    )
+    const assistant = await transformMessage(
+      msg('a1', 'assistant', { updatedAt: '2025-01-01T00:00:10.000Z' }),
+      'u1',
+      0,
+      blocks,
+      'topic-1'
+    )
+
+    expect(user.activityAt).toBe(new Date('2025-01-01T00:00:00.000Z').getTime())
+    expect(assistant.activityAt).toBe(new Date('2025-01-01T00:00:10.000Z').getTime())
+  })
+
   it('builds UniqueModelId from model object', async () => {
     const oldMsg: OldMessage = {
       ...msg('m1', 'assistant'),

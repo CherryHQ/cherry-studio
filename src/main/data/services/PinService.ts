@@ -85,7 +85,9 @@ export class PinService {
    * converge to one row without leaking a UNIQUE violation to the caller.
    *
    * Strategy: fast-path SELECT first; if nothing is there, INSERT with scoped
-   * orderKey. Under concurrency the INSERT may race a peer's INSERT and hit
+   * orderKey. Topic/session pins are inserted first for their independent
+   * pinned streams; every other entity type preserves append behavior. Under
+   * concurrency the INSERT may race a peer's INSERT and hit
    * the UNIQUE(entityType, entityId) index — in that case classify the error
    * as `unique` and re-SELECT to return the winner's row. Any non-UNIQUE
    * error is re-thrown unchanged.
@@ -105,12 +107,14 @@ export class PinService {
       if (existing) return rowToPin(existing)
 
       try {
+        const position = dto.entityType === 'topic' || dto.entityType === 'session' ? 'first' : undefined
         const inserted = insertWithOrderKey(
           tx,
           pinTable,
           { entityType: dto.entityType, entityId: dto.entityId },
           {
             pkColumn: pinTable.id,
+            ...(position ? { position } : {}),
             scope: eq(pinTable.entityType, dto.entityType)
           }
         )

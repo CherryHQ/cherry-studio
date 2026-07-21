@@ -32,6 +32,9 @@ export const messageTable = sqliteTable(
     searchableText: text().notNull().default(''),
     // Final status: SUCCESS, ERROR, PAUSED
     status: text().notNull(),
+    // Latest activity-bearing lifecycle point for this message. Internal-only:
+    // it makes parent activity exactly recomputable after deletes and resumes.
+    activityAt: integer(),
     // Group ID for siblings (0 = normal branch)
     siblingsGroupId: integer().notNull().default(0),
     // Assistant info is derived via topic → assistant FK chain; not stored on message.
@@ -56,6 +59,7 @@ export const messageTable = sqliteTable(
     // Indexes
     index('message_parent_id_idx').on(t.parentId),
     index('message_topic_created_idx').on(t.topicId, t.createdAt),
+    index('message_topic_activity_idx').on(t.topicId, t.activityAt),
     // Backs findPendingAssistantMessageIds (boot reconcile); without it that lookup full-SCANs.
     // Plain, not partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('message_status_idx').on(t.status),

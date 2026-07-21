@@ -14,8 +14,10 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   AgentSessionMessagesListQuerySchema,
   type AgentSessionSchemas,
+  AgentSessionStatsQuerySchema,
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
+  LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
@@ -49,8 +51,18 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   },
 
   '/agent-sessions/latest': {
-    GET: async () => {
-      return { session: agentSessionService.getLatestUpdated() }
+    GET: async ({ query }) => {
+      const parsed = LatestAgentSessionQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return { session: agentSessionService.getLatestActive(parsed.data) }
+    }
+  },
+
+  '/agent-sessions/stats': {
+    GET: async ({ query }) => {
+      const parsed = AgentSessionStatsQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.stats(parsed.data)
     }
   },
 

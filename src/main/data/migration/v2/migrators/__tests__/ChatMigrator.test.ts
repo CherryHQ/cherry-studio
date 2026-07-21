@@ -119,6 +119,23 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a1')?.parentId).toBe('u1')
   })
 
+  it('derives topic activity from the latest migrated message lifecycle point', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const result = await prepareTopic(
+      topic('t-activity', [
+        msg('u1', 'user', ['b1'], { createdAt: '2025-01-01T00:00:01.000Z' }),
+        msg('a1', 'assistant', ['b2'], {
+          createdAt: '2025-01-01T00:00:02.000Z',
+          updatedAt: '2025-01-01T00:00:05.000Z'
+        })
+      ]),
+      [b1, b2]
+    )
+
+    expect(result?.topic.lastActivityAt).toBe(new Date('2025-01-01T00:00:05.000Z').getTime())
+  })
+
   it('snapshots the resolved assistant onto assistant-role messages, leaving user rows null', async () => {
     // Exercises the full lookup wiring (topic→assistant, legacy remap, validAssistantIds,
     // assistantLookup) that the other prepareTopicData tests leave empty, so a regression in
@@ -773,6 +790,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
       assistantId: null,
       activeNodeId: null,
       orderKey: '', // Stamped by phase 1 of insertStagedTopics
+      lastActivityAt: updatedAt,
       createdAt: updatedAt,
       updatedAt
     }
@@ -883,6 +901,7 @@ describe('ChatMigrator model reference sanitization', () => {
         data: { parts: [] },
         searchableText: '',
         status: 'success',
+        activityAt: 1,
         siblingsGroupId: 0,
         modelId: 'cherryai::qwen',
         messageSnapshot: null,
@@ -927,6 +946,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       assistantId: null,
       activeNodeId: null,
       orderKey: '',
+      lastActivityAt: updatedAt,
       createdAt: updatedAt,
       updatedAt
     }
@@ -958,6 +978,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       },
       searchableText: '',
       status: 'success',
+      activityAt: 1,
       siblingsGroupId: 0,
       modelId: null,
       messageSnapshot: null,

@@ -45,6 +45,7 @@ import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
+import { getInitialMessageActivityAt, getMessageTransitionActivityAt } from './utils/messageActivity'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
@@ -133,6 +134,19 @@ function rowToMessage(row: MessageRow): Message {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+function initializeMessageActivityTx(tx: DbOrTx, row: MessageRow): number | null {
+  const activityAt = getInitialMessageActivityAt(
+    row.role as Message['role'],
+    row.status as Message['status'],
+    row.createdAt,
+    row.updatedAt
+  )
+  if (activityAt !== null) {
+    tx.update(messageTable).set({ activityAt, updatedAt: row.updatedAt }).where(eq(messageTable.id, row.id)).run()
+  }
+  return activityAt
 }
 
 /**
@@ -761,8 +775,40 @@ export class MessageService {
    */
   markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    const db = application.get('DbService').getDb()
-    db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
+    application.get('DbService').withWriteTx((tx) => {
+      const rows = tx
+        .select({ id: messageTable.id, topicId: messageTable.topicId })
+        .from(messageTable)
+        .where(
+          and(
+            inArray(messageTable.id, ids),
+            eq(messageTable.role, 'assistant'),
+            eq(messageTable.status, 'pending'),
+            isNull(messageTable.deletedAt)
+          )
+        )
+        .all()
+      if (rows.length === 0) return
+
+      const activityAt = Date.now()
+      tx.update(messageTable)
+        .set({ status: 'error', activityAt })
+        .where(
+          and(
+            inArray(
+              messageTable.id,
+              rows.map((row) => row.id)
+            ),
+            eq(messageTable.status, 'pending')
+          )
+        )
+        .run()
+
+      const topicService = getDataService('TopicService')
+      for (const topicId of new Set(rows.map((row) => row.topicId))) {
+        topicService.advanceLastActivityAtTx(tx, topicId, activityAt)
+      }
+    })
   }
 
   search(query: MessageContentSearchInput) {
@@ -901,9 +947,13 @@ export class MessageService {
         .returning()
         .all()
       replaceChatMessageFileRefsTx(tx, row.id, data)
+      const activityAt = initializeMessageActivityTx(tx, row)
 
       const topicService = getDataService('TopicService')
       topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
+      if (activityAt !== null) {
+        topicService.advanceLastActivityAtTx(tx, source.topicId, activityAt)
+      }
 
       logger.info('Created sibling message', {
         sourceId,
@@ -1020,11 +1070,15 @@ export class MessageService {
         .returning()
         .all()
       replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+      const activityAt = initializeMessageActivityTx(tx, row)
+      const topicService = getDataService('TopicService')
 
       // Update activeNodeId if setAsActive is not explicitly false
       if (dto.setAsActive !== false) {
-        const topicService = getDataService('TopicService')
         topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
+      }
+      if (activityAt !== null) {
+        topicService.advanceLastActivityAtTx(tx, topicId, activityAt)
       }
 
       logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
@@ -1064,6 +1118,7 @@ export class MessageService {
       if (!topic) {
         throw DataApiErrorFactory.notFound('Topic', input.topicId)
       }
+      let turnActivityAt: number | null = null
 
       // 1. Resolve user message — insert new, or fetch existing
       let userMessage: Message
@@ -1101,6 +1156,7 @@ export class MessageService {
           .returning()
           .all()
         replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+        turnActivityAt = initializeMessageActivityTx(tx, row)
         userMessage = rowToMessage(row)
       } else {
         const [row] = tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1).all()
@@ -1144,6 +1200,10 @@ export class MessageService {
           .returning()
           .all()
         replaceChatMessageFileRefsTx(tx, row.id, p.data)
+        const placeholderActivityAt = initializeMessageActivityTx(tx, row)
+        if (placeholderActivityAt !== null) {
+          turnActivityAt = Math.max(turnActivityAt ?? placeholderActivityAt, placeholderActivityAt)
+        }
         placeholders.push(rowToMessage(row))
       }
 
@@ -1151,6 +1211,9 @@ export class MessageService {
       const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
       const topicService = getDataService('TopicService')
       topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
+      if (turnActivityAt !== null) {
+        topicService.advanceLastActivityAtTx(tx, input.topicId, turnActivityAt)
+      }
 
       logger.info('Reserved assistant turn', {
         topicId: input.topicId,
@@ -1219,16 +1282,24 @@ export class MessageService {
 
       // Build update object
       const updates: Partial<typeof messageTable.$inferInsert> = {}
+      let transitionActivityAt: number | null = null
 
       if (dto.data !== undefined) updates.data = dto.data
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
-      if (dto.status !== undefined) updates.status = dto.status
+      if (dto.status !== undefined) {
+        updates.status = dto.status
+        transitionActivityAt = getMessageTransitionActivityAt(existing.role, existing.status, dto.status, Date.now())
+        if (transitionActivityAt !== null) updates.activityAt = transitionActivityAt
+      }
       if (dto.stats !== undefined) updates.stats = dto.stats
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
       if (dto.data !== undefined) {
         replaceChatMessageFileRefsTx(tx, id, dto.data)
+      }
+      if (transitionActivityAt !== null) {
+        getDataService('TopicService').advanceLastActivityAtTx(tx, existing.topicId, transitionActivityAt)
       }
 
       logger.info('Updated message', { id, changes: Object.keys(dto) })
@@ -1440,9 +1511,10 @@ export class MessageService {
         logger.info('Deleted message with reparenting', { id, reparentedCount: reparentedIds.length })
       }
 
+      const topicService = getDataService('TopicService')
+
       // Update topic.activeNodeId if needed
       if (newActiveNodeId !== undefined) {
-        const topicService = getDataService('TopicService')
         if (newActiveNodeId === null) {
           topicService.clearActiveNodeTx(tx, message.topicId)
         } else {
@@ -1455,6 +1527,8 @@ export class MessageService {
           newActiveNodeId
         })
       }
+
+      topicService.recomputeLastActivityAtTx(tx, message.topicId)
 
       return {
         deletedIds,
@@ -1490,7 +1564,9 @@ export class MessageService {
       tx.delete(messageTable)
         .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
         .run()
-      getDataService('TopicService').clearActiveNodeTx(tx, topicId)
+      const topicService = getDataService('TopicService')
+      topicService.clearActiveNodeTx(tx, topicId)
+      topicService.recomputeLastActivityAtTx(tx, topicId)
 
       logger.info('Cleared topic messages', { topicId, count: deletedIds.length })
       return { deletedIds }
@@ -1632,6 +1708,7 @@ export class MessageService {
         })
         .returning()
         .all()
+      initializeMessageActivityTx(tx, copiedMessage)
 
       copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
       copiedActiveNodeId = copiedMessage.id

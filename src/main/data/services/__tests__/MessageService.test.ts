@@ -17,7 +17,7 @@ import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -297,12 +297,24 @@ describe('MessageService', () => {
 
     it('flips only the listed rows to error and leaves others untouched', async () => {
       await seedStatuses()
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
 
       messageService.markMessagesError(['m-a', 'm-b'])
 
       expect(await statusOf('m-a')).toBe('error')
       expect(await statusOf('m-b')).toBe('error')
       expect(await statusOf('m-keep')).toBe('success')
+      const rows = await dbh.db
+        .select({ id: messageTable.id, activityAt: messageTable.activityAt })
+        .from(messageTable)
+        .where(eq(messageTable.topicId, 'topic-e'))
+      const activityById = new Map(rows.map((row) => [row.id, row.activityAt]))
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-e'))
+      expect(activityById.get('m-a')).toBe(1_800_000_000_000)
+      expect(activityById.get('m-b')).toBe(1_800_000_000_000)
+      expect(activityById.get('m-keep')).toBeNull()
+      expect(topic.lastActivityAt).toBe(1_800_000_000_000)
+      nowSpy.mockRestore()
     })
 
     it('is a no-op for an empty id list', async () => {
@@ -1484,6 +1496,60 @@ describe('MessageService', () => {
       })
 
       expect(message.parentId).toBe(rootId)
+    })
+  })
+
+  describe('conversation activity', () => {
+    it('tracks message lifecycle events and recomputes after deletion', async () => {
+      const topicId = 'topic-activity'
+      await seedTopicWithRoot(topicId)
+      await dbh.db
+        .update(topicTable)
+        .set({ createdAt: 50, lastActivityAt: 50, updatedAt: 50 })
+        .where(eq(topicTable.id, topicId))
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(100)
+
+      const user = messageService.create(topicId, {
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+      nowSpy.mockReturnValue(200)
+      const assistant = messageService.create(topicId, {
+        role: 'assistant',
+        data: mainText(''),
+        status: 'pending'
+      })
+
+      nowSpy.mockReturnValue(300)
+      messageService.update(assistant.id, { data: mainText('streaming'), status: 'pending' })
+      let [assistantRow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id))
+      let [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId))
+      expect(assistantRow.activityAt).toBe(200)
+      expect(topic.lastActivityAt).toBe(200)
+
+      nowSpy.mockReturnValue(400)
+      messageService.update(assistant.id, { status: 'success' })
+      ;[assistantRow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id))
+      ;[topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId))
+      expect(assistantRow.activityAt).toBe(400)
+      expect(topic.lastActivityAt).toBe(400)
+
+      nowSpy.mockReturnValue(500)
+      messageService.update(assistant.id, { status: 'pending' })
+      nowSpy.mockReturnValue(600)
+      messageService.update(assistant.id, { status: 'paused' })
+      ;[assistantRow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id))
+      ;[topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId))
+      expect(assistantRow.activityAt).toBe(600)
+      expect(topic.lastActivityAt).toBe(600)
+
+      messageService.delete(assistant.id)
+      const [userRow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, user.id))
+      ;[topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId))
+      expect(userRow.activityAt).toBe(100)
+      expect(topic.lastActivityAt).toBe(100)
+      nowSpy.mockRestore()
     })
   })
 
