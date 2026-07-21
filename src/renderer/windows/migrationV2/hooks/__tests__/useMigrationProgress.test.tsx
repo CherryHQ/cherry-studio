@@ -2,7 +2,7 @@ import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migra
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useMigrationProgress } from '../useMigrationProgress'
+import { useMigrationActions, useMigrationProgress } from '../useMigrationProgress'
 
 const cleanup = vi.fn()
 const invoke = vi.fn()
@@ -126,5 +126,30 @@ describe('useMigrationProgress', () => {
     })
 
     expect(result.current.progress.summary?.durationMs).toBe(3_250)
+  })
+})
+
+describe('useMigrationActions diagnostics', () => {
+  beforeEach(() => {
+    invoke.mockReset().mockResolvedValue(undefined)
+    ;(window as unknown as { electron: { ipcRenderer: unknown } }).electron = {
+      ipcRenderer: { invoke }
+    }
+  })
+
+  it.each([
+    ['saveDiagnostics', MigrationIpcChannels.SaveDiagnosticBundle],
+    ['openDiagnosticEmail', MigrationIpcChannels.OpenDiagnosticEmail],
+    ['showDiagnosticBundleInFolder', MigrationIpcChannels.ShowDiagnosticBundleInFolder],
+    ['copySupportEmail', MigrationIpcChannels.CopySupportEmail]
+  ] as const)('invokes %s without a payload', async (action, channel) => {
+    const { result } = renderHook(() => useMigrationActions())
+
+    await act(async () => {
+      await result.current[action]()
+    })
+
+    expect(invoke).toHaveBeenCalledOnce()
+    expect(invoke.mock.calls[0]).toEqual([channel])
   })
 })

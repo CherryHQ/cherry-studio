@@ -13,7 +13,7 @@ const controlButtonClass =
  * Custom minimize/close controls for the frameless migration window on Windows/Linux.
  * macOS renders real native traffic lights instead, so this returns null there.
  */
-export const MigrationWindowControls: React.FC = () => {
+export const MigrationWindowControls: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
   const { t } = useTranslation()
 
   if (isMac) {
@@ -35,6 +35,7 @@ export const MigrationWindowControls: React.FC = () => {
         variant="ghost"
         size="icon-sm"
         className={controlButtonClass}
+        disabled={disabled}
         onClick={handleMinimize}
         aria-label={t('migration.window.minimize')}>
         <Minus size={16} />
@@ -44,6 +45,7 @@ export const MigrationWindowControls: React.FC = () => {
         variant="ghost"
         size="icon-sm"
         className={cn(controlButtonClass, 'hover:bg-destructive hover:text-white')}
+        disabled={disabled}
         onClick={handleClose}
         aria-label={t('migration.window.close')}>
         <X size={16} />

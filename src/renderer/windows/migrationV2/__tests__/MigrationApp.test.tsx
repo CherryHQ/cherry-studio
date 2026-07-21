@@ -26,7 +26,12 @@ const platformState = vi.hoisted(() => ({
 const migrationHookMock = vi.hoisted(() => ({
   actions: {
     cancel: vi.fn(),
+    copySupportEmail: vi.fn(),
+    openDiagnosticEmail: vi.fn(),
     restart: vi.fn(),
+    retry: vi.fn(),
+    saveDiagnostics: vi.fn(),
+    showDiagnosticBundleInFolder: vi.fn(),
     skipMigration: vi.fn(),
     startMigration: vi.fn()
   },
@@ -149,7 +154,8 @@ vi.mock('../components', () => {
           )
         : null,
     Confetti: () => null,
-    MigrationWindowControls: () => null,
+    MigrationWindowControls: ({ disabled }: { disabled?: boolean }) =>
+      React.createElement('button', { type: 'button', disabled, 'aria-label': 'mock-window-control' }),
     MigratorProgressList: () => null,
     SkipMigrationDialog: () => null
   }
@@ -170,6 +176,7 @@ vi.mock('../hooks/useMigrationProgress', () => ({
 }))
 
 import { DexieExporter, LocalStorageExporter, ReduxExporter } from '../exporters'
+import { enUS, zhCN } from '../i18n/locales'
 import MigrationApp from '../MigrationApp'
 
 describe('MigrationApp', () => {
@@ -192,9 +199,14 @@ describe('MigrationApp', () => {
       }))
     })
     vi.mocked(migrationHookMock.actions.cancel).mockClear()
+    vi.mocked(migrationHookMock.actions.copySupportEmail).mockReset().mockResolvedValue(undefined)
+    vi.mocked(migrationHookMock.actions.openDiagnosticEmail).mockReset().mockResolvedValue(undefined)
     vi.mocked(migrationHookMock.actions.restart).mockClear()
+    vi.mocked(migrationHookMock.actions.retry).mockReset().mockResolvedValue(undefined)
+    vi.mocked(migrationHookMock.actions.saveDiagnostics).mockReset().mockResolvedValue({ status: 'canceled' })
+    vi.mocked(migrationHookMock.actions.showDiagnosticBundleInFolder).mockReset().mockResolvedValue(undefined)
     vi.mocked(migrationHookMock.actions.skipMigration).mockClear()
-    vi.mocked(migrationHookMock.actions.startMigration).mockClear()
+    vi.mocked(migrationHookMock.actions.startMigration).mockReset().mockResolvedValue(undefined)
     vi.mocked(ReduxExporter).mockReset()
     vi.mocked(DexieExporter).mockReset()
     vi.mocked(LocalStorageExporter).mockReset()
@@ -471,6 +483,282 @@ describe('MigrationApp', () => {
 
     expect(await screen.findByText('migration.migration.title')).toBeInTheDocument()
     expect(screen.queryByText('migration.error.title')).not.toBeInTheDocument()
+  })
+
+  describe('migration diagnostics', () => {
+    const setStage = (stage: 'error' | 'version_incompatible') => {
+      migrationHookMock.progress = {
+        currentMessage: stage === 'error' ? 'Migration failed' : 'Install the gateway version first',
+        migrators: [],
+        overallProgress: 35,
+        stage
+      }
+    }
+
+    const rejectRendererExport = () => {
+      vi.mocked(ReduxExporter).mockImplementation(
+        () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+      )
+      vi.mocked(DexieExporter).mockImplementation(
+        () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
+      )
+    }
+
+    it.each(['error', 'version_incompatible'] as const)('shows a save entry on the %s page', (stage) => {
+      setStage(stage)
+
+      render(<MigrationApp />)
+
+      expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+    })
+
+    it('shows diagnostics for a renderer-local failure only after main accepts ReportError', async () => {
+      rejectRendererExport()
+      invoke.mockImplementation((channel: string) =>
+        Promise.resolve(channel === MigrationIpcChannels.ReportError ? true : '/tmp/userData')
+      )
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+      expect(await screen.findByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+      expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'Dexie export failed')
+    })
+
+    it.each([
+      ['returns false', () => Promise.resolve(false)],
+      ['rejects', () => Promise.reject(new Error('report failed'))]
+    ] as const)('does not offer diagnostics when ReportError %s', async (_case, reportResult) => {
+      rejectRendererExport()
+      invoke.mockImplementation((channel: string) =>
+        channel === MigrationIpcChannels.ReportError ? reportResult() : Promise.resolve('/tmp/userData')
+      )
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+      expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
+    })
+
+    it('reports a rejected handoff before offering diagnostics', async () => {
+      vi.mocked(ReduxExporter).mockImplementation(
+        () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+      )
+      vi.mocked(DexieExporter).mockImplementation(
+        () => ({ exportAll: vi.fn().mockResolvedValue(undefined) }) as unknown as DexieExporter
+      )
+      vi.mocked(LocalStorageExporter).mockImplementation(
+        () =>
+          ({
+            export: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/localstorage_export/localStorage.json'),
+            getEntryCount: vi.fn(() => 1)
+          }) as unknown as LocalStorageExporter
+      )
+      migrationHookMock.actions.startMigration.mockRejectedValue(new Error('handoff failed'))
+      invoke.mockImplementation((channel: string) =>
+        Promise.resolve(channel === MigrationIpcChannels.ReportError ? true : '/tmp/userData')
+      )
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+      expect(await screen.findByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+      expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'handoff failed')
+    })
+
+    it.each(['error', 'version_incompatible'] as const)(
+      'disables failure and window controls while saving from %s and prevents a duplicate save',
+      async (stage) => {
+        setStage(stage)
+        let resolveSave: (result: { status: 'canceled' }) => void = () => undefined
+        migrationHookMock.actions.saveDiagnostics.mockReturnValue(
+          new Promise((resolve) => {
+            resolveSave = resolve
+          })
+        )
+
+        render(<MigrationApp />)
+        const save = screen.getByRole('button', { name: 'migration.diagnostics.save' })
+        fireEvent.click(save)
+
+        expect(save).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'migration.buttons.close' })).toBeDisabled()
+        expect(
+          screen.getByRole('button', {
+            name: stage === 'error' ? 'migration.buttons.retry' : 'migration.buttons.ignore_migration'
+          })
+        ).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'mock-window-control' })).toBeDisabled()
+        fireEvent.click(save)
+        expect(migrationHookMock.actions.saveDiagnostics).toHaveBeenCalledOnce()
+
+        await act(async () => resolveSave({ status: 'canceled' }))
+      }
+    )
+
+    it('keeps the save entry without an error after the save dialog is canceled', async () => {
+      setStage('error')
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      expect(await screen.findByRole('button', { name: 'migration.diagnostics.save' })).toBeEnabled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it.each([
+      [{ status: 'saved', logs: 'included', size: 'standard' }, ['logs_included', 'not_uploaded']],
+      [{ status: 'saved', logs: 'included', size: 'large' }, ['logs_included', 'large', 'not_uploaded']],
+      [{ status: 'saved', logs: 'not_included', size: 'standard' }, ['logs_not_included', 'not_uploaded']],
+      [{ status: 'saved', logs: 'not_included', size: 'large' }, ['logs_not_included', 'large', 'not_uploaded']]
+    ] as const)('renders saved notices in contract order for %j', async (result, noticeParts) => {
+      setStage('error')
+      migrationHookMock.actions.saveDiagnostics.mockResolvedValue(result)
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      const panel = await screen.findByTestId('migration-diagnostics-panel')
+      const notices = within(panel)
+        .getAllByTestId('migration-diagnostics-notice')
+        .map((notice) => notice.textContent)
+      expect(notices).toEqual(noticeParts.map((part) => `migration.diagnostics.saved.${part}`))
+    })
+
+    it.each(['dialog_failed', 'bundle_save_failed', 'save_in_progress'] as const)(
+      'shows the fixed %s failure message without raw error details',
+      async (code) => {
+        setStage('error')
+        migrationHookMock.actions.saveDiagnostics.mockResolvedValue({ status: 'failed', code })
+
+        render(<MigrationApp />)
+        fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+        expect(await screen.findByText(`migration.diagnostics.failures.${code}`)).toBeInTheDocument()
+      }
+    )
+
+    it('normalizes a rejected save to bundle_save_failed', async () => {
+      setStage('error')
+      migrationHookMock.actions.saveDiagnostics.mockRejectedValue(new Error('Bearer diagnostic-canary'))
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      expect(await screen.findByText('migration.diagnostics.failures.bundle_save_failed')).toBeInTheDocument()
+      expect(screen.queryByText(/diagnostic-canary/)).not.toBeInTheDocument()
+    })
+
+    it('offers exactly three no-payload support actions after saving', async () => {
+      setStage('error')
+      migrationHookMock.actions.saveDiagnostics.mockResolvedValue({
+        status: 'saved',
+        logs: 'included',
+        size: 'standard'
+      })
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      const supportActions = await screen.findByTestId('migration-diagnostics-saved-actions')
+      const buttons = within(supportActions).getAllByRole('button')
+
+      expect(buttons).toHaveLength(3)
+      await act(async () => {
+        fireEvent.click(
+          within(supportActions).getByRole('button', { name: 'migration.diagnostics.actions.open_email' })
+        )
+      })
+      await act(async () => {
+        fireEvent.click(
+          within(supportActions).getByRole('button', { name: 'migration.diagnostics.actions.show_in_folder' })
+        )
+      })
+      await act(async () => {
+        fireEvent.click(
+          within(supportActions).getByRole('button', { name: 'migration.diagnostics.actions.copy_email' })
+        )
+      })
+      expect(migrationHookMock.actions.openDiagnosticEmail.mock.calls[0]).toEqual([])
+      expect(migrationHookMock.actions.showDiagnosticBundleInFolder.mock.calls[0]).toEqual([])
+      expect(migrationHookMock.actions.copySupportEmail.mock.calls[0]).toEqual([])
+    })
+
+    it('serializes support actions, reports rejection, and clears it on the next action', async () => {
+      setStage('error')
+      migrationHookMock.actions.saveDiagnostics.mockResolvedValue({
+        status: 'saved',
+        logs: 'included',
+        size: 'standard'
+      })
+      let rejectEmail: (error: Error) => void = () => undefined
+      migrationHookMock.actions.openDiagnosticEmail.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectEmail = reject
+        })
+      )
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      const supportActions = await screen.findByTestId('migration-diagnostics-saved-actions')
+      const openEmail = within(supportActions).getByRole('button', {
+        name: 'migration.diagnostics.actions.open_email'
+      })
+      const showInFolder = within(supportActions).getByRole('button', {
+        name: 'migration.diagnostics.actions.show_in_folder'
+      })
+      const copyEmail = within(supportActions).getByRole('button', {
+        name: 'migration.diagnostics.actions.copy_email'
+      })
+
+      fireEvent.click(openEmail)
+      expect(openEmail).toBeDisabled()
+      expect(showInFolder).toBeDisabled()
+      expect(copyEmail).toBeDisabled()
+      fireEvent.click(showInFolder)
+      expect(migrationHookMock.actions.showDiagnosticBundleInFolder).not.toHaveBeenCalled()
+
+      await act(async () => rejectEmail(new Error('mail failed')))
+      expect(await screen.findByText('migration.diagnostics.actions.failed')).toBeInTheDocument()
+
+      await act(async () => {
+        fireEvent.click(copyEmail)
+      })
+      expect(screen.queryByText('migration.diagnostics.actions.failed')).not.toBeInTheDocument()
+    })
+
+    it('clears diagnostic state on Retry while preserving the original retry action', async () => {
+      setStage('error')
+      migrationHookMock.actions.saveDiagnostics.mockResolvedValue({
+        status: 'saved',
+        logs: 'included',
+        size: 'large'
+      })
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      expect(await screen.findByText('migration.diagnostics.saved.title')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.retry' }))
+
+      expect(migrationHookMock.actions.retry).toHaveBeenCalledOnce()
+      expect(screen.queryByText('migration.diagnostics.saved.title')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+    })
+
+    it('contains the exact Chinese notices and equivalent English notices', () => {
+      expect(zhCN.migration.diagnostics.saved).toEqual({
+        title: '诊断包已保存',
+        logs_included: '诊断包包含当天的原始应用日志，可能含有文件路径、错误堆栈、用户内容或凭据。发送前请自行检查。',
+        logs_not_included: '诊断包已保存，但当天应用日志未能加入。您可以重新保存后再发送。',
+        large: '文件较大，建议使用邮箱的大附件或网盘功能发送。',
+        not_uploaded: '诊断包不会自动上传。'
+      })
+      expect(enUS.migration.diagnostics.saved.logs_included).toMatch(/raw application logs/i)
+      expect(enUS.migration.diagnostics.saved.logs_not_included).toMatch(/could not be included/i)
+      expect(enUS.migration.diagnostics.saved.large).toMatch(/large attachment|cloud storage/i)
+      expect(enUS.migration.diagnostics.saved.not_uploaded).toMatch(/not.*automatically upload/i)
+    })
   })
 
   describe('theme toggle', () => {

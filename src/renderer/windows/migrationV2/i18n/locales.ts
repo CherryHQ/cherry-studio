@@ -116,6 +116,27 @@ export const zhCN = {
       error_prefix: '错误信息：',
       unknown: '未知错误'
     },
+    diagnostics: {
+      save: '保存诊断包',
+      saved: {
+        title: '诊断包已保存',
+        logs_included: '诊断包包含当天的原始应用日志，可能含有文件路径、错误堆栈、用户内容或凭据。发送前请自行检查。',
+        logs_not_included: '诊断包已保存，但当天应用日志未能加入。您可以重新保存后再发送。',
+        large: '文件较大，建议使用邮箱的大附件或网盘功能发送。',
+        not_uploaded: '诊断包不会自动上传。'
+      },
+      actions: {
+        open_email: '打开邮件客户端',
+        show_in_folder: '在文件夹中显示',
+        copy_email: '复制支持邮箱',
+        failed: '无法完成支持操作，请重试。'
+      },
+      failures: {
+        dialog_failed: '无法打开保存对话框，请重试。',
+        bundle_save_failed: '无法将诊断包保存到所选位置，请重试。',
+        save_in_progress: '另一个诊断包正在保存，请稍候再试。'
+      }
+    },
     version_incompatible: {
       title: '版本升级提示',
       preamble: 'Cherry Studio 对数据存储进行了重大重构，为了保证旧数据的安全迁移，我们对升级顺序有严格要求。',
@@ -244,6 +265,29 @@ export const enUS = {
         'An error occurred during migration. You can retry or continue using the previous version (original data is intact).',
       error_prefix: 'Error: ',
       unknown: 'Unknown error'
+    },
+    diagnostics: {
+      save: 'Save diagnostic bundle',
+      saved: {
+        title: 'Diagnostic bundle saved',
+        logs_included:
+          "The diagnostic bundle contains today's raw application logs, which may include file paths, error stacks, user content, or credentials. Review it before sending.",
+        logs_not_included:
+          "The diagnostic bundle was saved, but today's application logs could not be included. Save it again before sending.",
+        large: "The file is large. Use your email provider's large-attachment feature or cloud storage to send it.",
+        not_uploaded: 'The diagnostic bundle is not automatically uploaded.'
+      },
+      actions: {
+        open_email: 'Open email client',
+        show_in_folder: 'Show in folder',
+        copy_email: 'Copy support email',
+        failed: 'The support action could not be completed. Please try again.'
+      },
+      failures: {
+        dialog_failed: 'The save dialog could not be opened. Please try again.',
+        bundle_save_failed: 'The diagnostic bundle could not be saved to that location. Please try again.',
+        save_in_progress: 'Another diagnostic bundle is being saved. Please try again shortly.'
+      }
     },
     version_incompatible: {
       title: 'Version Upgrade Required',

@@ -3,6 +3,7 @@
  */
 
 import { loggerService } from '@logger'
+import type { MigrationDiagnosticSaveResult } from '@shared/data/migration/v2/diagnostics'
 import {
   MigrationIpcChannels,
   type MigrationProgress,
@@ -129,11 +130,31 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SkipMigration)
   }, [])
 
+  const saveDiagnostics = useCallback((): Promise<MigrationDiagnosticSaveResult> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+  }, [])
+
+  const openDiagnosticEmail = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDiagnosticEmail)
+  }, [])
+
+  const showDiagnosticBundleInFolder = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+  }, [])
+
+  const copySupportEmail = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.CopySupportEmail)
+  }, [])
+
   return {
     startMigration,
     retry,
     cancel,
     restart,
-    skipMigration
+    skipMigration,
+    saveDiagnostics,
+    openDiagnosticEmail,
+    showDiagnosticBundleInFolder,
+    copySupportEmail
   }
 }

@@ -51,4 +51,16 @@ describe('MigrationWindowControls', () => {
     expect(screen.queryByRole('button', { name: 'Minimize' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
   })
+
+  it('disables both custom controls when requested', () => {
+    const invoke = vi.fn().mockResolvedValue(undefined)
+    ;(window as unknown as { electron: { ipcRenderer: { invoke: typeof invoke } } }).electron = {
+      ipcRenderer: { invoke }
+    }
+
+    render(<MigrationWindowControls disabled />)
+
+    expect(screen.getByRole('button', { name: 'Minimize' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled()
+  })
 })

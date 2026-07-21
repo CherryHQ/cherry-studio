@@ -21,14 +21,22 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
+import {
+  getMigrationDiagnosticNoticeParts,
+  type MigrationDiagnosticNoticePart,
+  type MigrationDiagnosticSaveResult
+} from '@shared/data/migration/v2/diagnostics'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 import {
   AlertTriangle,
   ArrowRight,
   Check,
+  ClipboardCopy,
   Database,
+  Download,
   FolderOpen,
   Loader2,
+  Mail,
   Monitor,
   Moon,
   Rocket,
@@ -62,6 +70,21 @@ const badgeToneClass: Record<BadgeTone, string> = {
   warning: 'border-warning bg-warning-bg text-warning',
   destructive: 'border-error-border bg-error-bg text-error-text',
   neutral: 'border-border bg-muted/40 text-foreground-secondary'
+}
+
+type MigrationDiagnosticSaveFailureCode = Extract<MigrationDiagnosticSaveResult, { status: 'failed' }>['code']
+
+const diagnosticFailureMessageKey: Record<MigrationDiagnosticSaveFailureCode, string> = {
+  dialog_failed: 'migration.diagnostics.failures.dialog_failed',
+  bundle_save_failed: 'migration.diagnostics.failures.bundle_save_failed',
+  save_in_progress: 'migration.diagnostics.failures.save_in_progress'
+}
+
+const diagnosticNoticeMessageKey: Record<MigrationDiagnosticNoticePart, string> = {
+  logs_included: 'migration.diagnostics.saved.logs_included',
+  logs_not_included: 'migration.diagnostics.saved.logs_not_included',
+  large: 'migration.diagnostics.saved.large',
+  not_uploaded: 'migration.diagnostics.saved.not_uploaded'
 }
 
 const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({ tone = 'neutral', children }) => (
@@ -241,6 +264,11 @@ const MigrationApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   // Some runMigration failures happen before progress can reliably move to error.
   const [localMigrationError, setLocalMigrationError] = useState<string | null>(null)
+  const [localMigrationDiagnosticsAvailable, setLocalMigrationDiagnosticsAvailable] = useState(false)
+  const [diagnosticSaveResult, setDiagnosticSaveResult] = useState<MigrationDiagnosticSaveResult | null>(null)
+  const [isSavingDiagnostics, setIsSavingDiagnostics] = useState(false)
+  const [isRunningDiagnosticSupportAction, setIsRunningDiagnosticSupportAction] = useState(false)
+  const [diagnosticSupportActionFailed, setDiagnosticSupportActionFailed] = useState(false)
   const [skipOpen, setSkipOpen] = useState(false)
   const [skipMenuOpen, setSkipMenuOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
@@ -248,6 +276,9 @@ const MigrationApp: React.FC = () => {
   // is still in flight; drives the non-blocking "closing after the current step" notice.
   const [quitDeferred, setQuitDeferred] = useState(false)
   const startGuardRef = useRef(false)
+  const diagnosticSaveGuardRef = useRef(false)
+  const diagnosticSupportActionGuardRef = useRef(false)
+  const previousProgressStageRef = useRef(progress.stage)
 
   const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
   const toggleTheme = () => {
@@ -292,10 +323,16 @@ const MigrationApp: React.FC = () => {
     }
   }, [])
 
-  // Main-driven non-error progress clears the renderer-local error latch.
+  // A new Main-driven stage must not inherit diagnostics from an earlier failure.
   useEffect(() => {
+    if (previousProgressStageRef.current !== progress.stage) {
+      setDiagnosticSaveResult(null)
+      setDiagnosticSupportActionFailed(false)
+      previousProgressStageRef.current = progress.stage
+    }
     if (progress.stage !== 'error') {
       setLocalMigrationError(null)
+      setLocalMigrationDiagnosticsAvailable(false)
     }
   }, [progress.stage])
 
@@ -309,6 +346,9 @@ const MigrationApp: React.FC = () => {
     startGuardRef.current = true
     setIsLoading(true)
     setLocalMigrationError(null)
+    setLocalMigrationDiagnosticsAvailable(false)
+    setDiagnosticSaveResult(null)
+    setDiagnosticSupportActionFailed(false)
     try {
       logger.info('Starting migration process...')
 
@@ -350,11 +390,55 @@ const MigrationApp: React.FC = () => {
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
       const message = errorMessage(error)
+      let diagnosticsAvailable = false
+      try {
+        diagnosticsAvailable =
+          (await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)) === true
+      } catch (reportError) {
+        logger.error('Failed to report renderer migration error', reportError as Error)
+      }
+      setLocalMigrationDiagnosticsAvailable(diagnosticsAvailable)
       setLocalMigrationError(message)
-      void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)
     } finally {
       startGuardRef.current = false
       setIsLoading(false)
+    }
+  }
+
+  const saveDiagnostics = async () => {
+    if (diagnosticSaveGuardRef.current) {
+      return
+    }
+
+    diagnosticSaveGuardRef.current = true
+    setIsSavingDiagnostics(true)
+    setDiagnosticSaveResult(null)
+    setDiagnosticSupportActionFailed(false)
+    try {
+      setDiagnosticSaveResult(await actions.saveDiagnostics())
+    } catch {
+      setDiagnosticSaveResult({ status: 'failed', code: 'bundle_save_failed' })
+    } finally {
+      diagnosticSaveGuardRef.current = false
+      setIsSavingDiagnostics(false)
+    }
+  }
+
+  const runDiagnosticSupportAction = async (action: () => Promise<unknown>) => {
+    if (diagnosticSupportActionGuardRef.current) {
+      return
+    }
+
+    diagnosticSupportActionGuardRef.current = true
+    setIsRunningDiagnosticSupportAction(true)
+    setDiagnosticSupportActionFailed(false)
+    try {
+      await action()
+    } catch {
+      setDiagnosticSupportActionFailed(true)
+    } finally {
+      diagnosticSupportActionGuardRef.current = false
+      setIsRunningDiagnosticSupportAction(false)
     }
   }
 
@@ -368,6 +452,76 @@ const MigrationApp: React.FC = () => {
   const stage = localMigrationError ? 'error' : progress.stage
 
   const showRail = stage !== 'version_incompatible'
+
+  const renderDiagnosticsPanel = () =>
+    diagnosticSaveResult?.status === 'saved' ? (
+      <div
+        className="space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3"
+        data-testid="migration-diagnostics-panel">
+        <div>
+          <p className="font-medium text-foreground text-sm">{t('migration.diagnostics.saved.title')}</p>
+          <div className="mt-1 space-y-1 text-foreground-muted text-xs leading-relaxed">
+            {getMigrationDiagnosticNoticeParts(diagnosticSaveResult).map((part) => (
+              <p key={part} data-testid="migration-diagnostics-notice">
+                {t(diagnosticNoticeMessageKey[part])}
+              </p>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2" data-testid="migration-diagnostics-saved-actions">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            disabled={isRunningDiagnosticSupportAction}
+            onClick={() => void runDiagnosticSupportAction(actions.openDiagnosticEmail)}>
+            <Mail size={14} />
+            {t('migration.diagnostics.actions.open_email')}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            disabled={isRunningDiagnosticSupportAction}
+            onClick={() => void runDiagnosticSupportAction(actions.showDiagnosticBundleInFolder)}>
+            <FolderOpen size={14} />
+            {t('migration.diagnostics.actions.show_in_folder')}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            disabled={isRunningDiagnosticSupportAction}
+            onClick={() => void runDiagnosticSupportAction(actions.copySupportEmail)}>
+            <ClipboardCopy size={14} />
+            {t('migration.diagnostics.actions.copy_email')}
+          </Button>
+        </div>
+        {diagnosticSupportActionFailed && (
+          <p className="text-center text-error-text text-xs" role="alert">
+            {t('migration.diagnostics.actions.failed')}
+          </p>
+        )}
+      </div>
+    ) : (
+      <div className="space-y-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full gap-2"
+          loading={isSavingDiagnostics}
+          disabled={isSavingDiagnostics}
+          onClick={() => void saveDiagnostics()}>
+          <Download size={14} />
+          {t('migration.diagnostics.save')}
+        </Button>
+        {diagnosticSaveResult?.status === 'failed' && (
+          <p className="text-center text-error-text text-xs" role="alert">
+            {t(diagnosticFailureMessageKey[diagnosticSaveResult.code])}
+          </p>
+        )}
+      </div>
+    )
 
   const renderStage = () => {
     switch (stage) {
@@ -542,16 +696,21 @@ const MigrationApp: React.FC = () => {
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
+            {(progress.stage === 'error' || localMigrationDiagnosticsAvailable) && renderDiagnosticsPanel()}
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
+              <Button variant="outline" size="lg" disabled={isSavingDiagnostics} onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}
               </Button>
               <Button
                 variant="default"
                 size="lg"
                 className="flex-1 gap-2"
+                disabled={isSavingDiagnostics}
                 onClick={() => {
+                  setDiagnosticSaveResult(null)
+                  setDiagnosticSupportActionFailed(false)
                   setLocalMigrationError(null)
+                  setLocalMigrationDiagnosticsAvailable(false)
                   void actions.retry()
                 }}>
                 <RotateCcw size={14} />
@@ -563,7 +722,7 @@ const MigrationApp: React.FC = () => {
 
       case 'version_incompatible':
         return (
-          <div className="mx-auto w-full max-w-115 space-y-4">
+          <div className="mx-auto w-full max-w-140 space-y-4">
             <div className="text-center">
               <StageBadge tone="warning">
                 <AlertTriangle size={26} strokeWidth={1.5} />
@@ -577,11 +736,17 @@ const MigrationApp: React.FC = () => {
               <p>{progressMessage}</p>
               <p>{t('migration.version_incompatible.ignore_hint')}</p>
             </div>
+            {renderDiagnosticsPanel()}
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
+              <Button variant="outline" size="lg" disabled={isSavingDiagnostics} onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}
               </Button>
-              <Button variant="destructive" size="lg" className="flex-1" onClick={() => setSkipOpen(true)}>
+              <Button
+                variant="destructive"
+                size="lg"
+                className="flex-1"
+                disabled={isSavingDiagnostics}
+                onClick={() => setSkipOpen(true)}>
                 {t('migration.buttons.ignore_migration')}
               </Button>
             </div>
@@ -631,7 +796,7 @@ const MigrationApp: React.FC = () => {
           <span className="text-foreground-muted">·</span>
           <span className="text-foreground-muted text-xs">{t('migration.title')}</span>
         </div>
-        <MigrationWindowControls />
+        <MigrationWindowControls disabled={isSavingDiagnostics} />
       </header>
 
       <div className="flex min-h-0 flex-1">
