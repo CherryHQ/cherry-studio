@@ -360,6 +360,91 @@ describe('listModels — ppioFetcher capability mapping', () => {
   })
 })
 
+describe('listModels — openRouterFetcher image models', () => {
+  function makeOpenRouterProvider() {
+    return makeProvider({
+      id: 'openrouter',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1/',
+          modelsApiUrls: {
+            default: 'https://openrouter.example/models',
+            embedding: 'https://openrouter.example/embeddings/models',
+            image: 'https://openrouter.example/images/models'
+          }
+        },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1/'
+        }
+      }
+    })
+  }
+
+  it('unions the dedicated image catalog and marks duplicate image models for image routing', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models')) {
+        return Promise.resolve({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
+      }
+      if (url.endsWith('/images/models')) {
+        return Promise.resolve({
+          value: {
+            data: [
+              { id: 'openai/gpt-image-2', name: 'OpenAI: GPT Image 2' },
+              { id: 'sourceful/riverflow-v2.5-fast', name: 'Sourceful: Riverflow V2.5 Fast' }
+            ]
+          }
+        })
+      }
+      return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'openai/gpt-image-2' }] } })
+    })
+
+    const models = await listModels(provider)
+
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual([
+      'https://openrouter.example/models',
+      'https://openrouter.example/embeddings/models',
+      'https://openrouter.example/images/models'
+    ])
+    expect(models.map((model) => model.apiModelId)).toEqual([
+      'anthropic/claude-sonnet-4',
+      'openai/gpt-image-2',
+      'openai/text-embedding-3-small',
+      'sourceful/riverflow-v2.5-fast'
+    ])
+    expect(models.find((model) => model.apiModelId === 'openai/gpt-image-2')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+    expect(models.find((model) => model.apiModelId === 'sourceful/riverflow-v2.5-fast')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      name: 'Sourceful: Riverflow V2.5 Fast'
+    })
+  })
+
+  it('keeps the primary and embedding catalogs when the image catalog fails in strict sync mode', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/images/models')) {
+        return Promise.reject(new Error('image catalog unavailable'))
+      }
+      if (url.endsWith('/embeddings/models')) {
+        return Promise.resolve({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
+      }
+      return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }] } })
+    })
+
+    await expect(listModels(provider, undefined, { throwOnError: true })).resolves.toEqual([
+      expect.objectContaining({ apiModelId: 'anthropic/claude-sonnet-4' }),
+      expect.objectContaining({ apiModelId: 'openai/text-embedding-3-small' })
+    ])
+  })
+})
+
 describe('listModels — copied preset provider routing', () => {
   it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
     const provider = makeProvider({

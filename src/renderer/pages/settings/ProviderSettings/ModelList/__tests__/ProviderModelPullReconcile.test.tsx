@@ -94,7 +94,7 @@ describe('ProviderModelPullReconcile', () => {
     })
 
     expect(pullReconcileState.value.openPullReconcile).not.toHaveBeenCalled()
-    expect(screen.getByTestId('model-pull-guide-arrow')).toHaveClass('text-icon')
+    expect(screen.getByTestId('model-pull-guide-arrow')).toHaveClass('text-foreground-secondary')
 
     act(() => {
       vi.advanceTimersByTime(1200)

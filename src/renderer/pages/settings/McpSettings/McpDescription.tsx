@@ -41,8 +41,8 @@ const McpDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
       <div
         className="rounded-lg border border-border bg-card p-6"
         style={{
-          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--card)',
-          borderColor: 'var(--border)'
+          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--color-card)',
+          borderColor: 'var(--color-border)'
         }}>
         {loading ? (
           <Spinner text={t('common.loading')} />
