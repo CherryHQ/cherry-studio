@@ -157,31 +157,6 @@ export function inferCustomModelReasoning(
   )
 }
 
-/**
- * Normalize a USER-declared reasoning descriptor (model editor PATCH,
- * #16598): when it carries `controls`, the legacy pair + defaultEffort are
- * re-derived authoritatively, and an absent/blank `type` is resolved from
- * the serving provider's reasoning config — the UI declares knobs only; the
- * wire dialect always follows the provider.
- */
-export function normalizeUserReasoning(
-  reasoning: RuntimeReasoning,
-  endpointTypes: EndpointType[] | undefined,
-  reasoningFormatTypes: Partial<Record<EndpointType, ReasoningFormatType>> | null | undefined,
-  defaultChatEndpoint: EndpointType | undefined
-): RuntimeReasoning {
-  if (!reasoning.controls?.length) return reasoning
-  const proto: ProtoReasoningSupport = {
-    controls: reasoning.controls,
-    ...deriveLegacyReasoningFields(reasoning.controls)
-  }
-  const resolved = extractRuntimeReasoning(
-    proto,
-    resolveReasoningFormatType(endpointTypes, defaultChatEndpoint, reasoningFormatTypes)
-  )
-  return reasoning.type ? { ...resolved, type: reasoning.type } : resolved
-}
-
 /** Create a minimal custom model used when a model ID has no registry match. */
 export function createCustomModel(
   providerId: string,

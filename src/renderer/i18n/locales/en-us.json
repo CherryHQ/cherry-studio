@@ -6978,23 +6978,6 @@
         "setting_title": "Quick model setup",
         "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
       },
-      "reasoning_controls": {
-        "budget": {
-          "label": "Thinking budget",
-          "max": "Max tokens",
-          "min": "Min tokens",
-          "tooltip": "The model accepts a thinking token budget within this range."
-        },
-        "effort": {
-          "label": "Effort levels"
-        },
-        "label": "Reasoning controls",
-        "toggle": {
-          "label": "Thinking switch",
-          "tooltip": "The model accepts an on/off thinking switch."
-        },
-        "tooltip": "Declare which reasoning knobs this model accepts. The wire format follows the provider and is not set here."
-      },
       "toolbar": {
         "custom_add": "Custom",
         "filter_close": "Close filter",

@@ -14,7 +14,7 @@ import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { CURRENCY, type Currency, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isNewApiProvider } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
@@ -27,22 +27,15 @@ import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
-  draftToReasoning,
   getInitialSelectedCapabilities,
   getModelApiId,
   MODEL_DRAWER_CURRENCY_SYMBOLS,
   readCurrency,
-  reasoningToDraft,
   toggleSetToCaps
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
 import { ModelCapabilityToggles } from './ModelCapabilityToggles'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
-import {
-  EMPTY_REASONING_DRAFT,
-  ModelReasoningControlsFields,
-  type ReasoningControlsDraft
-} from './ModelReasoningControlsFields'
 import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
 
 interface EditModelDrawerProps {
@@ -64,7 +57,6 @@ interface BuildPatchOverrides {
   contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
-  reasoningDraft?: ReasoningControlsDraft
 }
 
 interface AutoSaveQueueItem {
@@ -116,11 +108,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
-  const [reasoningDraft, setReasoningDraft] = useState<ReasoningControlsDraft>(EMPTY_REASONING_DRAFT)
-  // `reasoning` enters the PATCH only after the user touches this section —
-  // otherwise every unrelated auto-save would stamp userOverrides['reasoning']
-  // and freeze the model out of registry re-enrichment.
-  const [reasoningTouched, setReasoningTouched] = useState(false)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
@@ -152,8 +139,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
-    setReasoningDraft(reasoningToDraft(model.reasoning))
-    setReasoningTouched(false)
   }, [model, open])
 
   const handleUpdateModel = useCallback(
@@ -167,8 +152,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         contextWindow: patch.contextWindow,
         maxInputTokens: patch.maxInputTokens,
         maxOutputTokens: patch.maxOutputTokens,
-        pricing: patch.pricing,
-        reasoning: patch.reasoning
+        pricing: patch.pricing
       })
     },
     [updateModel]
@@ -186,10 +170,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextName = overrides?.name ?? name
       const nextGroup = overrides?.group ?? group
       const nextEndpointTypes = overrides?.endpointTypes ?? endpointTypes
-      const nextReasoningDraft = overrides?.reasoningDraft ?? (reasoningTouched ? reasoningDraft : undefined)
 
       return {
-        reasoning: nextReasoningDraft ? draftToReasoning(nextReasoningDraft, model.reasoning) : undefined,
         name: nextName || model.name,
         group: nextGroup || model.group,
         endpointTypes: mode === 'new-api' && nextEndpointTypes.length ? [...nextEndpointTypes] : undefined,
@@ -225,8 +207,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       model,
       name,
       outputPrice,
-      reasoningDraft,
-      reasoningTouched,
       selectedCaps,
       supportsStreaming
     ]
@@ -294,22 +274,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setHasUserModified(false)
     autoSave({ caps: new Set(savedCaps) })
   }, [autoSave, savedCaps])
-
-  const handleReasoningDraftChange = useCallback(
-    (next: ReasoningControlsDraft) => {
-      const textOnlyEdit =
-        next.effortValues === reasoningDraft.effortValues &&
-        next.toggle === reasoningDraft.toggle &&
-        next.budgetEnabled === reasoningDraft.budgetEnabled
-      setReasoningDraft(next)
-      setReasoningTouched(true)
-      // Chips / switches commit immediately; budget min-max text commits on blur.
-      if (!textOnlyEdit) {
-        autoSave({ reasoningDraft: next })
-      }
-    },
-    [autoSave, reasoningDraft]
-  )
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
@@ -390,16 +354,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   onReset={handleResetCapabilities}
                 />
               </div>
-
-              {selectedCaps.has(MODEL_CAPABILITY.REASONING) && (
-                <div className={drawerClasses.sectionCard}>
-                  <ModelReasoningControlsFields
-                    draft={reasoningDraft}
-                    onChange={handleReasoningDraftChange}
-                    onBlurCommit={() => autoSave({ reasoningDraft })}
-                  />
-                </div>
-              )}
 
               <div className={drawerClasses.sectionCard}>
                 <ModelContextWindowFields

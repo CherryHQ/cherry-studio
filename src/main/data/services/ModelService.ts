@@ -17,7 +17,6 @@ import { pinService } from '@data/services/PinService'
 import {
   inferCustomModelReasoning,
   mergePresetModel,
-  normalizeUserReasoning,
   providerRegistryService
 } from '@data/services/ProviderRegistryService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
@@ -265,22 +264,6 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'isDeprecated',
   'notes'
 ]
-
-/**
- * Normalize a user-declared reasoning descriptor on the PATCH path (#16598):
- * the model editor sends knobs (`controls`) only — the wire dialect and the
- * derived legacy fields are the service's job (dialect follows the provider).
- */
-function normalizeReasoningPatch(
-  providerId: string,
-  modelId: string,
-  reasoning: RuntimeReasoning,
-  endpointTypes: EndpointType[] | null | undefined
-): RuntimeReasoning {
-  if (!reasoning.controls?.length) return reasoning
-  const { reasoningFormatTypes, defaultChatEndpoint } = providerRegistryService.lookupModel(providerId, modelId)
-  return normalizeUserReasoning(reasoning, endpointTypes ?? undefined, reasoningFormatTypes, defaultChatEndpoint)
-}
 
 /** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
 function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
@@ -785,15 +768,6 @@ class ModelService {
         ;(updates as Record<string, unknown>)[dbKey] = dto[dtoKey]
       }
     }
-    if (updates.reasoning) {
-      updates.reasoning = normalizeReasoningPatch(
-        providerId,
-        modelId,
-        updates.reasoning as RuntimeReasoning,
-        existing.endpointTypes
-      )
-    }
-
     // Track which registry-enrichable fields the user explicitly changed
     // Map DTO keys to DB column names (e.g. parameterSupport → parameters)
     const dtoToDbKey = (key: string): string => {
@@ -869,15 +843,6 @@ class ModelService {
             ;(updates as Record<string, unknown>)[dbKey] = patch[dtoKey]
           }
         }
-        if (updates.reasoning) {
-          updates.reasoning = normalizeReasoningPatch(
-            providerId,
-            modelId,
-            updates.reasoning as RuntimeReasoning,
-            existing.endpointTypes
-          )
-        }
-
         const changedEnrichableFields = Object.keys(patch).map(dtoToDbKey).filter(isRegistryEnrichableField)
         if (changedEnrichableFields.length > 0) {
           const existingOverrides = existing.userOverrides ?? []
