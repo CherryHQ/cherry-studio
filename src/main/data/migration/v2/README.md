@@ -59,9 +59,9 @@ Migration failures, blocked upgrade paths, and native preboot migration failures
 bundle without changing the successful migration flow. Main owns the save dialog and writes the ZIP
 atomically. Each bundle contains:
 
-- `migration-diagnostics.json`: application name and version, platform, architecture, failure
-  source/stage, a stable error summary, current progress, and migrator status. It deliberately
-  avoids raw stack traces, paths, and business data that would duplicate the application logs.
+- `migration-diagnostics.json`: application version, platform, architecture, failure source/stage,
+  a stable error summary, current progress, and migrator status. It deliberately avoids raw stack
+  traces, paths, and business data that would duplicate the application logs.
 - `README.txt`: bilingual privacy and manual-review guidance.
 - Optional `logs/app.YYYY-MM-DD.log` and numeric rotation files such as
   `logs/app.YYYY-MM-DD.log.1`, each preserved as a separate ZIP entry.
