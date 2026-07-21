@@ -340,6 +340,20 @@ export class MigrationWindowManager {
     reason: MigrationRendererFailureReason
   ): void {
     if (this.window !== window || this.rendererFailurePromise !== null) return
+
+    if (this.currentStage === 'completed') {
+      logger.warn('Migration renderer failed after completion; restarting without diagnostics', { reason })
+      const restart = failureClaim.claim(() => this.restartApp())
+      this.rendererFailurePromise = restart.completion
+      if (!restart.claimed) return
+
+      void restart.completion.catch(() => {
+        logger.error('Failed to restart after the completed migration renderer stopped')
+        this.forceQuit('completed-renderer-failure')
+      })
+      return
+    }
+
     const handler = this.onRendererFailure
     if (handler === undefined) {
       this.forceQuit(reason)

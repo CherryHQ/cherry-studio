@@ -350,6 +350,34 @@ describe('MigrationWindowManager', () => {
       vi.useRealTimers()
     })
 
+    it('restarts after a completed migration instead of opening renderer failure diagnostics', async () => {
+      const onRendererFailure = vi.fn().mockResolvedValue(undefined)
+      manager = new MigrationWindowManager()
+      const restartApp = vi.spyOn(manager, 'restartApp').mockResolvedValue(undefined)
+      manager.create({ onRendererFailure })
+      manager.setStage('completed')
+
+      fakeWindow.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
+
+      await vi.waitFor(() => expect(restartApp).toHaveBeenCalledTimes(1))
+      expect(onRendererFailure).not.toHaveBeenCalled()
+    })
+
+    it('restarts after a completed migration when the renderer stays unresponsive', async () => {
+      vi.useFakeTimers()
+      const onRendererFailure = vi.fn().mockResolvedValue(undefined)
+      manager = new MigrationWindowManager()
+      const restartApp = vi.spyOn(manager, 'restartApp').mockResolvedValue(undefined)
+      manager.create({ onRendererFailure })
+      manager.setStage('completed')
+
+      fakeWindow.webContents.emit('unresponsive')
+      vi.advanceTimersByTime(RENDERER_UNRESPONSIVE_GRACE_MS)
+
+      await vi.waitFor(() => expect(restartApp).toHaveBeenCalledTimes(1))
+      expect(onRendererFailure).not.toHaveBeenCalled()
+    })
+
     it('cancels a transient unresponsive signal when the renderer becomes responsive', () => {
       vi.useFakeTimers()
       const onRendererFailure = vi.fn().mockResolvedValue(undefined)
