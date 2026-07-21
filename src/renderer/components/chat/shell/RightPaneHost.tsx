@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
-  ARTIFACT_RIGHT_PANE_CLOSE_DRAG_THRESHOLD,
+  ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT,
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
@@ -110,7 +110,6 @@ function useRightPaneResize({
   const [storedWidth, setStoredWidth] = usePersistCache(cacheKey)
   const paneRef = useRef<HTMLDivElement>(null)
   const paneRightRef = useRef(0)
-  const dragStartClientXRef = useRef(0)
   const pendingDragCloseRef = useRef(false)
   const onDragCloseRef = useRef(onDragClose)
   useEffect(() => {
@@ -150,8 +149,10 @@ function useRightPaneResize({
   const handleMouseMove = useCallback(
     (moveEvent: MouseEvent, stop: () => void) => {
       const geometricWidth = paneRightRef.current - moveEvent.clientX
-      const dragDelta = moveEvent.clientX - dragStartClientXRef.current
-      if (geometricWidth < minWidth && dragDelta >= ARTIFACT_RIGHT_PANE_CLOSE_DRAG_THRESHOLD) {
+      // Close once the handle overshoots the minimum-width line, regardless of
+      // where the drag started — a delta-based threshold made narrow windows
+      // (pane already at its minimum) require dragging across most of the pane.
+      if (geometricWidth < minWidth - ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT) {
         pendingWidthRef.current = null
         pendingDragCloseRef.current = true
         stop()
@@ -218,7 +219,6 @@ function useRightPaneResize({
   const startResizing = useCallback(
     (event: ReactMouseEvent) => {
       paneRightRef.current = paneRef.current?.getBoundingClientRect().right ?? event.clientX + paneWidth
-      dragStartClientXRef.current = event.clientX
       startResizeDrag(event)
     },
     [paneWidth, startResizeDrag]

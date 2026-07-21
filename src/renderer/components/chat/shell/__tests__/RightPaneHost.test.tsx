@@ -433,9 +433,11 @@ describe('RightPaneHost', () => {
     vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(340, 0, 460, 500))
 
     fireEvent.mouseDown(handle, { clientX: 340 })
-    // Below the minimum width AND past the close threshold (mirrors the left
-    // list's drag-collapse): 800 - 560 = 240 < 255, delta 220 ≥ 200.
+    // Just under the minimum width is a clamp, not a close.
     fireEvent.mouseMove(document, { clientX: 560 })
+    expect(onDragClose).not.toHaveBeenCalled()
+    // Overshooting the minimum-width line by more than 80px closes: 800 - 630 = 170 < 255 - 80.
+    fireEvent.mouseMove(document, { clientX: 630 })
 
     expect(onDragClose).toHaveBeenCalledTimes(1)
     expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
