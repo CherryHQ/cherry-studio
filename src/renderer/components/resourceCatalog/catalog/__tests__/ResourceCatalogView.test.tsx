@@ -93,11 +93,11 @@ function createController(resourceError?: Error) {
     refetch: refetchMock,
     gridProps: {
       activeResourceType: 'assistant',
-      activeTag: null,
-      allTagNames: [],
-      allTags: [],
+      activeGroupId: null,
+      allGroups: [],
+      groups: [],
       isLoading: false,
-      onAddTag: vi.fn(),
+      onAddGroup: vi.fn(),
       onCreate: vi.fn(),
       onDelete: vi.fn(),
       onDuplicate: vi.fn(),
@@ -107,10 +107,9 @@ function createController(resourceError?: Error) {
       onOpenAssistantLibrary: vi.fn(),
       onOpenSystemSkills: vi.fn(),
       onSearchChange: vi.fn(),
-      onTagFilter: vi.fn(),
+      onGroupFilter: vi.fn(),
       resources: [],
-      search: '',
-      tags: []
+      search: ''
     },
     dialogs: {
       assistantImportOpen: false,

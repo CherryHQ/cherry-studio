@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e54dfa7e-4b58-40fa-a25c-b2b76e8edf76",
+  "id": "a77f1218-2bec-4fa7-8c19-9ad6e8d3cb30",
   "prevId": "fb46843d-760a-443b-b30c-d09fd8d68a5c",
   "tables": {
     "agent": {
@@ -984,6 +984,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "settings": {
           "name": "settings",
           "type": "text",
@@ -1038,6 +1045,15 @@
           "tableFrom": "assistant",
           "tableTo": "user_model",
           "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "assistant_group_id_group_id_fk": {
+          "name": "assistant_group_id_group_id_fk",
+          "tableFrom": "assistant",
+          "tableTo": "group",
+          "columnsFrom": ["group_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
@@ -2697,13 +2713,6 @@
         },
         "stats": {
           "name": "stats",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "compaction_summary": {
-          "name": "compaction_summary",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
