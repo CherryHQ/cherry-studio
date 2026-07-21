@@ -64,7 +64,6 @@ The repository already has the smaller primitives needed for this feature:
 - Preserving development-only four-file ZIP or journal v1/v2 contracts that have not shipped.
 - Uploading or emailing diagnostics automatically.
 - Replacing the migration IPC subsystem with IpcApi.
-- Running the repository-wide test suite.
 
 ## Approved decisions
 
@@ -84,7 +83,20 @@ The journal stores only the previous failed/interrupted attempt summary and the 
 
 ### D2 — One-shot SQLite diagnostics
 
-The main process performs native-free file/header inspection. A one-shot read-only child process performs `quick_check`, `foreign_key_check`, and checks a fixed allowlist of key tables and columns. Timeout, invalid output, or child exit becomes `unavailable`; native-free evidence remains usable.
+The main process performs native-free file/header inspection. A one-shot read-only child process performs `quick_check`, `foreign_key_check`, and checks a fixed allowlist of every persistent table directly read or written by the v1 → v2 migration. For each allowlisted table, the diagnostic contract carries the physical table name and the complete expected physical column list derived from the current Drizzle table definition. Timeout, invalid output, or child exit becomes `unavailable`; native-free evidence remains usable.
+
+The allowlist contains 36 target tables:
+
+- migration state and preferences: `app_state`, `preference`;
+- notes, mini apps, MCP, providers, models, and assistants: `note`, `mini_app`, `mcp_server`, `user_provider`, `user_model`, `assistant`, `assistant_mcp_server`, `assistant_knowledge_base`, `tag`, `entity_tag`;
+- files and owner references: `file_entry`, `provider_logo_file_ref`, `mini_app_logo_file_ref`;
+- agents: `agent`, `agent_session`, `agent_workspace`, `agent_global_skill`, `agent_skill`, `agent_channel`, `agent_session_message`, `job_schedule`, `agent_channel_task`, `agent_mcp_server`;
+- knowledge: `knowledge_base`, `knowledge_item`;
+- chat: `topic`, `message`, `chat_message_file_ref`, `pin`;
+- painting: `painting`, `painting_file_ref`;
+- translation and prompts: `translate_language`, `translate_history`, `prompt`.
+
+Temporary tables, FTS virtual tables, triggers, indexes, runtime-only tables, and v1 source stores are excluded. They are either recreated during initialization, outside the target SQLite file, or not persistent migration targets. Extra user-database tables and columns are not inventoried.
 
 ### D3 — Two-file ZIP
 
@@ -110,7 +122,8 @@ The three version-incompatibility reasons are the only exception: they block upg
 
 - The sum of uncompressed ZIP entries remains limited to 1 MiB.
 - Schema field lengths and array cardinalities make the document bounded by construction; there is no dynamic priority-based trimming.
-- `migration-diagnostics.json` uses `formatVersion: 1`.
+- `migration-diagnostics.json` uses `formatVersion: 2` because the strict database-diagnostics document adds target table names and expected columns.
+- The persisted migration checkpoint remains `formatVersion: 1`; its shape does not change.
 - Development-only old ZIP formats have no reader.
 - Development-only old journals are treated as invalid diagnostic state and quarantined; business data and migration eligibility are unaffected.
 
@@ -231,13 +244,16 @@ Checkpoint publication remains atomic and bounded. Corrupt or incompatible diagn
 
 `migration-diagnostics.json` contains:
 
-- `formatVersion: 1`;
+- `formatVersion: 2`;
 - safe generation/app/platform/architecture metadata;
 - current and optional recovered attempt summaries;
 - optional fatal failure evidence;
 - a non-fatal warning count summary when the existing completed-warning save interaction is used;
 - database file/header evidence;
-- SQLite child result or fixed `unavailable` status.
+- SQLite child result or fixed `unavailable` status;
+- for each migration target, its stable role, physical `tableName`, complete `standardColumns`, status, and missing-column subset when applicable.
+
+The table name and columns come from the fixed in-app allowlist, never from an unbounded `sqlite_schema` dump. The child may report only whether an allowlisted table exists and which allowlisted expected columns are absent. It cannot return unknown table names, unknown column names, SQL, defaults, constraints, indexes, triggers, or database-defined extra objects.
 
 The document is schema-validated before the archive stream is created. All strings and arrays have explicit maximums. If a programming error still produces an oversized document, save returns `bundle_save_failed` and no destination is published.
 
@@ -287,7 +303,9 @@ Child process:
 - opens the database read-only;
 - runs bounded `quick_check`;
 - runs `foreign_key_check` and caps returned violation roles/counts;
-- checks a fixed set of migration-critical tables and columns;
+- checks all 36 persistent migration-target tables;
+- derives each target's physical table name and complete expected physical columns from its existing Drizzle table definition;
+- returns the stable role, `tableName`, `standardColumns`, status, and bounded missing-column subset in fixed order;
 - sends exactly one schema-validated result and exits.
 
 There is no L0/L1/L2 stream, ready handshake, lease, inode identity, WAL race analysis, full schema dump, index/trigger inventory, or partial message accumulation.
@@ -356,6 +374,8 @@ The archive excludes:
 
 Allowed metadata is restricted to enums, booleans, timestamps, normalized app version, platform/architecture, safe migrator roles, bounded counts, and failure-only length measurements.
 
+The fixed migration-target table and column names are also allowed. They are application schema metadata compiled into the app, not names or values read from user records. Unknown database objects remain excluded.
+
 Tests place privacy canaries in raw errors, paths, SQL, tokens, IDs, and source values and inspect the checkpoint plus both extracted ZIP entries.
 
 ## Historical-scenario coverage
@@ -391,14 +411,16 @@ Tests place privacy canaries in raw errors, paths, SQL, tokens, IDs, and source 
 
 At least one renderer-process scenario is exercised through a real Electron migration window. Physical power loss and a native SQLite hang are represented by deterministic process/checkpoint fixtures, not machine-level destructive tests.
 
-## Targeted verification
+## Verification
 
-No repository-wide `pnpm test` or `pnpm build:check` is run because `build:check` expands to the full test suite. Verification is limited to:
+Development proceeds with the closest targeted tests first. Before completion and before a code commit, run the repository-required `pnpm lint`, `pnpm test`, `pnpm format`, and `pnpm build:check`. The focused regression set includes:
 
 - strict schema unit tests;
 - coordinator/journal recovery tests;
 - bundle builder unit and real-ZIP extraction integration tests;
 - native-free and child SQLite diagnostic tests with real file-backed databases;
+- a healthy production-schema assertion covering all 36 migration targets and their complete expected columns;
+- real damaged-database assertions for both a missing allowlisted table and a missing allowlisted column;
 - `MigrationEngine` phase/fatal-boundary tests;
 - selected migrator tests for swallowed native errors, aggregate required-field failure, invalid identifiers, foreign keys, and failed-write length;
 - renderer export, migration IPC, migration window crash/unresponsive, native dialog, version policy, version page, and preboot gate tests;
@@ -432,6 +454,8 @@ Database tests use `setupTestDatabase()` and production migrations. They do not 
 - gate/engine/IPC adapters and their tests;
 - the migration diagnostics README and acceptance fixtures.
 
+The schema-diagnostics increment is expected to touch roughly 10–14 files and add or change approximately 200–350 lines. Production changes remain local to the migration database target manifest, strict database-diagnostic schemas, one-shot child result construction, bundle format version, and exports. Most changed lines are test fixtures and exact-contract assertions.
+
 ### Remove when orphaned
 
 - journal v1 schema and v1 → v2 upgrade code;
@@ -464,7 +488,10 @@ The implementation is complete when:
 9. SQLite child failure does not prevent saving the remaining diagnostic evidence.
 10. Archive failure publishes no destination and returns the unified save error.
 11. Privacy canaries are absent from the checkpoint and extracted ZIP.
-12. Targeted tests, lint, formatting, and documentation-link checks pass; the handoff explicitly states that the full test suite was not run.
+12. The database result contains all 36 persistent migration targets with their physical table names and complete expected physical columns in fixed order.
+13. A real missing target table reports `missing_table`, and a real missing expected column reports `missing_columns` with only allowlisted column names.
+14. Unknown database tables, columns, SQL, and user values cannot enter the strict result.
+15. Targeted tests and the repository-required lint, full test, formatting, build-check, and documentation-link commands pass.
 
 ## Tradeoffs
 
@@ -473,3 +500,5 @@ The implementation is complete when:
 - Removing development-only compatibility means a developer who ran the strict branch can lose an old diagnostic checkpoint, but never business data; keeping those parsers would permanently preserve unshipped complexity.
 - The 1 MiB ceiling is larger than expected output, but reuses an existing tested guard and avoids rejecting useful evidence for negligible user cost.
 - Failure-only length capture needs small wrappers around write boundaries whose native errors are otherwise swallowed. This is the only retained per-migrator diagnostic instrumentation and does not change write execution.
+- Carrying all expected columns makes the JSON larger than a representative three-column sample, but the names are fixed, content-free, and still far below the existing 1 MiB limit. It avoids a false `present` result when a non-sampled migration column is missing.
+- Deriving physical columns from Drizzle avoids a second hand-maintained schema list. The 36-table membership remains an explicit migration-only allowlist so unrelated production tables do not create support noise.
