@@ -1,4 +1,5 @@
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
+import { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(() => ({
@@ -48,7 +49,8 @@ const fileManager = {
   rename: vi.fn(),
   open: vi.fn(),
   showInFolder: vi.fn(),
-  batchCreateInternalEntries: vi.fn()
+  batchCreateInternalEntries: vi.fn(),
+  findInternalByContentHash: vi.fn()
 }
 
 beforeEach(() => {
@@ -62,6 +64,32 @@ beforeEach(() => {
 const ctx = { senderId: null }
 
 describe('fileHandlers', () => {
+  it('validates tagged content hashes and delegates candidate lookup without selection policy', async () => {
+    const schema = fileRequestSchemas['file.find_internal_by_content_hash'].input
+    expect(schema.safeParse({ contentHash: '9555e8555c62dcfd' }).success).toBe(false)
+    expect(schema.safeParse({ contentHash: 'xxh3-64:9555E8555C62DCFD' }).success).toBe(false)
+
+    const contentHash = 'xxh3-64:9555e8555c62dcfd'
+    const candidates = [
+      {
+        id: ids[0],
+        origin: 'internal',
+        name: 'candidate',
+        ext: 'txt',
+        size: 5,
+        contentHash,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ]
+    fileManager.findInternalByContentHash.mockReturnValue(candidates)
+
+    await expect(fileHandlers['file.find_internal_by_content_hash']({ contentHash } as never, ctx)).resolves.toBe(
+      candidates
+    )
+    expect(fileManager.findInternalByContentHash).toHaveBeenCalledWith(contentHash)
+  })
+
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
     const items = [
       { key: ids[0], handle: { kind: 'entry' as const, entryId: ids[0] } },

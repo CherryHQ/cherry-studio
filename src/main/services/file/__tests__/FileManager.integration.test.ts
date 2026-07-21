@@ -10,6 +10,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,6 +42,7 @@ vi.mock('@data/db/restore/restoreJournal', () => ({
 const { FileManager } = await import('../FileManager')
 const { danglingCache } = await import('../danglingCache')
 const { fileRefService } = await import('@data/services/FileRefService')
+const { fileEntryService } = await import('@data/services/FileEntryService')
 
 describe('FileManager (integration)', () => {
   const dbh = setupTestDatabase()
@@ -68,11 +70,50 @@ describe('FileManager (integration)', () => {
     BaseService.resetInstances()
     danglingCache.clear()
     hasPendingRestoreMock.mockReturnValue(false)
+    const jobManager = application.get('JobManager')
+    vi.mocked(jobManager.registerHandler).mockReset()
+    vi.mocked(jobManager.enqueue)
+      .mockReset()
+      .mockReturnValue({ id: 'mock-job-id', snapshot: {} as never, finished: Promise.resolve({} as never) })
+    mockMainLoggerService.warn.mockClear()
     fm = new FileManager()
   })
 
   afterEach(async () => {
     await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('registers the content-hash backfill handler during onInit', async () => {
+    await (fm as unknown as { onInit: () => Promise<void> }).onInit()
+    expect(application.get('JobManager').registerHandler).toHaveBeenCalledWith(
+      'file.contenthash-backfill',
+      expect.objectContaining({ recovery: 'singleton' })
+    )
+  })
+
+  it('enqueues one startup backfill only when internal hashes are pending', async () => {
+    const countSpy = vi.spyOn(fileEntryService, 'countInternalMissingContentHash')
+    countSpy.mockReturnValueOnce(0)
+    ;(fm as unknown as { onAllReady: () => void }).onAllReady()
+    expect(application.get('JobManager').enqueue).not.toHaveBeenCalled()
+
+    countSpy.mockReturnValueOnce(2)
+    ;(fm as unknown as { onAllReady: () => void }).onAllReady()
+    expect(application.get('JobManager').enqueue).toHaveBeenCalledOnce()
+    expect(application.get('JobManager').enqueue).toHaveBeenCalledWith('file.contenthash-backfill', {})
+  })
+
+  it('warns without rejecting readiness when the startup backfill enqueue fails', async () => {
+    vi.spyOn(fileEntryService, 'countInternalMissingContentHash').mockReturnValueOnce(1)
+    vi.mocked(application.get('JobManager').enqueue).mockImplementationOnce(() => {
+      throw new Error('enqueue failed')
+    })
+
+    expect(() => (fm as unknown as { onAllReady: () => void }).onAllReady()).not.toThrow()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'contentHash backfill: failed to enqueue at startup',
+      expect.objectContaining({ err: expect.any(Error) })
+    )
   })
 
   it('INT-1: end-to-end internal entry read', async () => {
@@ -140,7 +181,7 @@ describe('FileManager (integration)', () => {
 
     // Content hash works for external entries
     const hash = await fm.getContentHash(id)
-    expect(hash).toMatch(/^[0-9a-f]+$/)
+    expect(hash).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 
   it('INT-3: missing-file ENOENT propagates from read', async () => {

@@ -104,6 +104,7 @@ interface PreparedFileEntry {
   name: string
   ext: string | null
   size: number
+  contentHash: null
   externalPath: null
   deletedAt: null
   createdAt: number
@@ -196,6 +197,7 @@ function toFileEntry(
     name: deriveSafeName(row.origin_name || row.name, row.id, onWarning),
     ext,
     size,
+    contentHash: null,
     externalPath: null,
     deletedAt: null,
     createdAt,
@@ -213,6 +215,7 @@ function toFileEntry(
     name: entry.name,
     ext: entry.ext,
     size: entry.size,
+    contentHash: entry.contentHash,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt
   })

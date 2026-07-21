@@ -1,7 +1,7 @@
 /**
  * Compute content hash for a managed FileEntry or a raw FilePath.
  *
- * Algorithm: xxhash-h64 streamed via `@main/utils/file/fs.hash` —
+ * Algorithm: tagged xxh3-64 streamed via `@main/utils/file/fs.hash` —
  * non-cryptographic, fast, sufficient for the `writeIfUnchanged`
  * second-precision fallback that compares hashes when mtimes are ambiguous.
  *
@@ -10,19 +10,19 @@
  */
 
 import { hash as fsHash } from '@main/utils/file'
-import type { FileEntryId } from '@shared/data/types/file'
+import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
 
-export async function hash(deps: FileManagerDeps, id: FileEntryId): Promise<string> {
+export async function hash(deps: FileManagerDeps, id: FileEntryId): Promise<ContentHash> {
   const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
   return observeExternalAccess(deps, entry, physicalPath, () => fsHash(physicalPath))
 }
 
-export async function hashByPath(_deps: FileManagerDeps, target: FilePath): Promise<string> {
+export async function hashByPath(_deps: FileManagerDeps, target: FilePath): Promise<ContentHash> {
   return fsHash(target)
 }

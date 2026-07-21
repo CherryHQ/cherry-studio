@@ -3,6 +3,7 @@ import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { ContentHashSchema } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -279,26 +280,32 @@ describe('hash', () => {
     expect(await hash(f1 as FilePath)).not.toBe(await hash(f2 as FilePath))
   })
 
-  it('returns lowercase hex string', async () => {
+  it('returns a tagged lowercase XXH3-64 hash', async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'sample')
     const h = await hash(f as FilePath)
-    expect(h).toMatch(/^[0-9a-f]+$/)
+    expect(h).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 
-  it('returns 16-char xxhash-h64 hex (not 32-char md5)', async () => {
+  it('returns the same tagged digest as the in-memory content hasher', async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'sample')
     const h = await hash(f as FilePath)
-    expect(h).toHaveLength(16)
+    expect(h).toBe('xxh3-64:06a58212247c13bb')
   })
 
-  it('matches the known xxhash-h64 fixture for "hello"', async () => {
+  it('matches the canonical XXH3-64 fixture for "hello"', async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'hello')
     const h = await hash(f as FilePath)
-    // xxhash-h64('hello') = 0x26c7827d889f6da3 (default seed = 0).
-    expect(h).toBe('26c7827d889f6da3')
+    expect(h).toBe('xxh3-64:9555e8555c62dcfd')
+  })
+
+  it('rejects without hashing when the abort signal is already aborted', async () => {
+    const f = path.join(tmp, 'a.txt')
+    await writeFile(f, 'hello')
+    const signal = AbortSignal.abort(new DOMException('hash cancelled', 'AbortError'))
+    await expect(hash(f as FilePath, signal)).rejects.toThrow('hash cancelled')
   })
 })
 
@@ -447,7 +454,7 @@ describe('atomicWriteIfUnchanged', () => {
     await writeFile(target, 'aaaa')
     await utimes(target, 1700000000, 1700000000)
     const expected = { mtime: 1700000000_000, size: 4 }
-    const wrongHash = '0'.repeat(32)
+    const wrongHash = ContentHashSchema.parse(`xxh3-64:${'0'.repeat(16)}`)
     await expect(atomicWriteIfUnchanged(target, 'bbbb', expected, wrongHash)).rejects.toBeInstanceOf(
       PathStaleVersionError
     )

@@ -33,7 +33,7 @@
  * enrichment queries, etc.) take `FileEntryId` directly.
  */
 
-import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
+import type { ContentHash, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 
 import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, UrlString } from './common'
 import type { OrphanReport } from './sweep'
@@ -87,16 +87,19 @@ export type CreateInternalEntryIpcParams =
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
       path: FilePath
+      contentHash?: ContentHash
     }
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
       source: 'url'
       url: UrlString
+      contentHash?: ContentHash
     }
   | {
       /** Decode `data:<mime>;base64,...` and write into Cherry storage. `ext` derived from mime; caller may override the UX display name. */
       source: 'base64'
       data: Base64String
+      contentHash?: ContentHash
       /** Optional display name override. If omitted, FileManager synthesizes one (e.g. `Pasted Image 2026-04-21`). */
       name?: string
     }
@@ -104,6 +107,7 @@ export type CreateInternalEntryIpcParams =
       /** Write raw bytes into Cherry storage. No derivation possible — caller is the sole authority for `name` and `ext`. */
       source: 'bytes'
       data: Uint8Array
+      contentHash?: ContentHash
       /** Display name without extension. */
       name: string
       /** File extension without leading dot (e.g. `'pdf'`), or `null` for extensionless. */
@@ -392,10 +396,10 @@ export interface FileIpcApi {
   getVersion(handle: FileHandle): Promise<FileVersion>
 
   /**
-   * Compute xxhash-h64 of file content.
+   * Compute a tagged XXH3-64 hash of file content.
    * @phase 2 — not yet wired
    */
-  getContentHash(handle: FileHandle): Promise<string>
+  getContentHash(handle: FileHandle): Promise<ContentHash>
 
   // ─── D. Write (accepts FileHandle; both branches land in ops' atomic write) ───
   //
@@ -410,7 +414,7 @@ export interface FileIpcApi {
   /**
    * Optimistic-concurrency write. Throws StaleVersionError on version mismatch.
    *
-   * `expectedContentHash` (xxhash-h64 hex) is optional and only consulted on
+   * `expectedContentHash` (tagged XXH3-64) is optional and only consulted on
    * second-precision filesystems (FAT32 / SMB / NFS) where the observed mtime
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.
@@ -421,7 +425,7 @@ export interface FileIpcApi {
     handle: FileHandle,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: string
+    expectedContentHash?: ContentHash
   ): Promise<FileVersion>
 
   // ─── E. Trash / Delete ───

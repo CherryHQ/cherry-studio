@@ -1,5 +1,6 @@
 import {
   AbsolutePathSchema,
+  ContentHashSchema,
   DanglingStateSchema,
   FileEntryIdSchema,
   FileEntrySchema,
@@ -42,14 +43,20 @@ const batchCreateResultSchema = z.strictObject({
 // future drift; refactor them to share one source of truth before migrating the
 // remaining File IPC surface.
 const createInternalEntryInputSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
-  z.strictObject({ source: z.literal('url'), url: z.url() }),
-  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
+  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema, contentHash: ContentHashSchema.optional() }),
+  z.strictObject({ source: z.literal('url'), url: z.url(), contentHash: ContentHashSchema.optional() }),
+  z.strictObject({
+    source: z.literal('base64'),
+    data: z.string().min(1),
+    name: SafeNameSchema.optional(),
+    contentHash: ContentHashSchema.optional()
+  }),
   z.strictObject({
     source: z.literal('bytes'),
     data: z.instanceof(Uint8Array),
     name: SafeNameSchema,
-    ext: SafeExtSchema.nullable()
+    ext: SafeExtSchema.nullable(),
+    contentHash: ContentHashSchema.optional()
   })
 ])
 
@@ -79,6 +86,10 @@ export const fileRequestSchemas = {
   'file.batch_create_internal_entries': defineRoute({
     input: batchCreateInternalEntriesInputSchema,
     output: batchCreateResultSchema
+  }),
+  'file.find_internal_by_content_hash': defineRoute({
+    input: z.strictObject({ contentHash: ContentHashSchema }),
+    output: z.array(FileEntrySchema)
   }),
   'file.batch_trash': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_restore': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),

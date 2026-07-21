@@ -2,6 +2,8 @@ import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { hashContent } from '@main/utils/file'
+import { ContentHashSchema } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -93,6 +95,7 @@ describe('internal/content/write', () => {
       const refreshed = fileEntryService.getById(e.id)
       if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
       expect(refreshed.size).toBe(3)
+      expect(refreshed.contentHash).toBe(hashContent(new Uint8Array([0x01, 0x02, 0x03])))
       expect(cacheStore.get(e.id)).toEqual(next)
     })
 
@@ -108,6 +111,7 @@ describe('internal/content/write', () => {
       // from File IPC `getMetadata`). The DB row still stores `size: null`.
       expect(refreshed.origin).toBe('external')
       expect(refreshed).not.toHaveProperty('size')
+      expect(refreshed).not.toHaveProperty('contentHash')
     })
 
     it('logs WRITE_DB_DESYNC and rethrows when post-commit metadata sync fails', async () => {
@@ -151,6 +155,9 @@ describe('internal/content/write', () => {
       const expected: FileVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
       const next = await writeIfUnchanged(deps, e.id, new Uint8Array([1, 2]), expected)
       expect(next.size).toBe(2)
+      const refreshed = fileEntryService.getById(e.id)
+      if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
+      expect(refreshed.contentHash).toBe(hashContent(new Uint8Array([1, 2])))
     })
 
     it('throws StaleVersionError on size mismatch', async () => {
@@ -222,9 +229,9 @@ describe('internal/content/write', () => {
       const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
       await utimes(physical, 1700000000, 1700000000)
       const expected: FileVersion = { mtime: 1700000000_000, size: 4 }
-      // Wrong xxhash-h64 hex (16 chars). With ambiguous mtime + matching size,
+      // Wrong tagged XXH3-64 value. With ambiguous mtime + matching size,
       // the implementation must fall back to hash comparison and reject.
-      const wrongHash = 'deadbeefdeadbeef'
+      const wrongHash = ContentHashSchema.parse('xxh3-64:deadbeefdeadbeef')
       await expect(
         writeIfUnchanged(deps, e.id, new Uint8Array([9, 8, 7, 6]), expected, wrongHash)
       ).rejects.toBeInstanceOf(StaleVersionError)
@@ -268,6 +275,7 @@ describe('internal/content/write', () => {
         const refreshed = fileEntryService.getById(e.id)
         if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
         expect(refreshed.size).toBe(payload.length)
+        expect(refreshed.contentHash).toBe(hashContent(payload))
         expect(cacheStore.get(e.id)?.size).toBe(payload.length)
       })
     })
@@ -295,6 +303,7 @@ describe('internal/content/write', () => {
       // File IPC `getMetadata`); the DB still stores `size: null` per CHECK.
       expect(refreshed.origin).toBe('external')
       expect(refreshed).not.toHaveProperty('size')
+      expect(refreshed).not.toHaveProperty('contentHash')
     })
 
     it('error-logs WRITE_STREAM_DB_DESYNC when the post-commit re-stat fails', async () => {
@@ -333,6 +342,34 @@ describe('internal/content/write', () => {
           err: statErr
         })
       )
+    })
+
+    it('error-logs WRITE_STREAM_DB_DESYNC when the post-commit DB update fails', async () => {
+      const { createWriteStream } = await import('../write')
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([0x01]),
+        name: 'db-desync',
+        ext: 'bin'
+      })
+      const updateErr = new Error('SQLITE_BUSY: database is locked')
+      vi.spyOn(fileEntryService, 'update').mockImplementationOnce(() => {
+        throw updateErr
+      })
+      mockLoggerError.mockClear()
+
+      const stream = createWriteStream(deps, e.id)
+      stream.end(Buffer.from('payload'))
+      await new Promise<void>((resolve, reject) => {
+        stream.once('finish', () => setImmediate(resolve))
+        stream.once('error', reject)
+      })
+      await vi.waitFor(() => {
+        expect(mockLoggerError).toHaveBeenCalledWith(
+          'createWriteStream: post-commit metadata sync failed',
+          expect.objectContaining({ code: 'WRITE_STREAM_DB_DESYNC', id: e.id, err: updateErr })
+        )
+      })
     })
   })
 })

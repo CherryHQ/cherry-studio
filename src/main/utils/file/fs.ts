@@ -39,13 +39,15 @@ import {
   unlink
 } from 'node:fs/promises'
 import path from 'node:path'
-import { Writable } from 'node:stream'
+import { addAbortSignal, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
+import type { ContentHash } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
-import xxhashLoader from 'xxhash-wasm'
+
+import { createContentHasher } from './contentHash'
 
 const logger = loggerService.withContext('utils/file/fs')
 
@@ -396,7 +398,7 @@ export async function atomicWriteIfUnchanged(
   target: FilePath,
   data: string | Uint8Array,
   expected: PathVersion,
-  expectedContentHash?: string
+  expectedContentHash?: ContentHash
 ): Promise<PathVersion> {
   const s = await fsStat(target)
   const current: PathVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
@@ -571,28 +573,15 @@ export async function download(url: string, dest: FilePath): Promise<void> {
 }
 
 /**
- * Compute the content hash of a file (streaming).
- *
- * Algorithm: xxhash-h64 — non-cryptographic, ~10× faster than MD5, and the
- * `writeIfUnchanged` precision-fallback only needs collision resistance under
- * a single file's write history (which h64 trivially satisfies).
- *
- * The architecture doc names xxhash-128 as the conceptual contract; the
- * `xxhash-wasm` package available at this version exposes only h32 / h64,
- * so we ship h64 and revisit if a 128-bit variant becomes necessary.
+ * Compute the tagged XXH3-64 content hash of a file without buffering it whole.
  */
-let xxhashApi: Awaited<ReturnType<typeof xxhashLoader>> | undefined
-async function getXxhash() {
-  if (!xxhashApi) xxhashApi = await xxhashLoader()
-  return xxhashApi
-}
-
-export async function hash(path: FilePath): Promise<string> {
-  const api = await getXxhash()
-  const hasher = api.create64()
+export async function hash(path: FilePath, signal?: AbortSignal): Promise<ContentHash> {
+  signal?.throwIfAborted()
+  const hasher = createContentHasher()
   const stream = createReadStream(path)
+  if (signal) addAbortSignal(signal, stream)
   for await (const chunk of stream) {
-    hasher.update(new Uint8Array(chunk as Buffer))
+    hasher.update(chunk as Buffer)
   }
-  return hasher.digest().toString(16).padStart(16, '0')
+  return hasher.digest()
 }

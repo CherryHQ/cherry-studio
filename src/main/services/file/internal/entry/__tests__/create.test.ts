@@ -3,6 +3,7 @@ import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { hashContent } from '@main/utils/file/contentHash'
 import type { FilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -75,9 +76,32 @@ describe('internal/entry/create.createInternal', () => {
       expect(entry.ext).toBe('bin')
       if (entry.origin !== 'internal') throw new Error('expected internal entry')
       expect(entry.size).toBe(4)
+      expect(entry.contentHash).toBe(hashContent(data))
       const physical = path.join(filesDir, `${entry.id}.bin`)
       const onDisk = await readFile(physical)
       expect(Buffer.from(onDisk).equals(Buffer.from(data))).toBe(true)
+    })
+
+    it('always inserts a fresh entry for identical content without querying candidates', async () => {
+      const data = new Uint8Array([0x01, 0x02, 0x03])
+      const candidateSpy = vi.spyOn(fileEntryService, 'findInternalByContentHash')
+      const first = await createInternal(deps, { source: 'bytes', data, name: 'first', ext: 'bin' })
+      const second = await createInternal(deps, { source: 'bytes', data, name: 'second', ext: 'bin' })
+      expect(first.id).not.toBe(second.id)
+      expect(candidateSpy).not.toHaveBeenCalled()
+    })
+
+    it('persists a caller-provided valid content hash without recomputing it', async () => {
+      const contentHash = 'sha256-truncated:deadbeef00'
+      const entry = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([0x01]),
+        name: 'provided',
+        ext: 'bin',
+        contentHash
+      } as never)
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
+      expect(entry.contentHash).toBe(contentHash)
     })
 
     it('writes a row that survives schema parse (brand contract)', async () => {
@@ -144,6 +168,7 @@ describe('internal/entry/create.createInternal', () => {
       expect(entry.ext).toBe('png')
       if (entry.origin !== 'internal') throw new Error('expected internal entry')
       expect(entry.size).toBe(4)
+      expect(entry.contentHash).toBe(hashContent(new Uint8Array([0x89, 0x50, 0x4e, 0x47])))
       // Verify the downloaded bytes ended up at the expected storage path.
       const physical = path.join(filesDir, `${entry.id}.png`)
       const buf = await readFile(physical)
@@ -195,6 +220,17 @@ describe('internal/entry/create.createInternal', () => {
       expect(entry.size).toBe(4)
       expect(entry.ext).toBe('png')
       expect(entry.name.length).toBeGreaterThan(0)
+      expect(entry.contentHash).toBe(hashContent(bytes))
+    })
+  })
+
+  describe('source: path', () => {
+    it('hashes the copied physical file', async () => {
+      const source = path.join(tmp, 'source.txt')
+      await writeFile(source, 'copied content')
+      const entry = await createInternal(deps, { source: 'path', path: source as FilePath })
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
+      expect(entry.contentHash).toBe(hashContent('copied content'))
     })
   })
 
