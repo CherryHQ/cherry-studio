@@ -42,6 +42,19 @@ describe('useBinaryActions', () => {
     expect(toast.success).toHaveBeenCalledWith('code.install_success')
   })
 
+  it('forwards a retry target version so a failed update repeats the same targeted install', async () => {
+    const { result } = renderHook(() => useBinaryActions())
+
+    await act(async () => {
+      await result.current.install(CodeCli.CLAUDE_CODE, '1.2.3')
+    })
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
+      name: 'claude',
+      targetVersion: '1.2.3'
+    })
+  })
+
   it('upgrades by name with the detected latest version as a one-shot target', async () => {
     const { result } = renderHook(() => useBinaryActions())
 

@@ -50,12 +50,19 @@ export function useBinaryActions() {
     [t]
   )
 
+  // `targetVersion` is only supplied when retrying a failed one-shot update, so
+  // the retry repeats the same targeted install instead of a name-only no-op.
   const install = useCallback(
-    (toolId: CodeCli) =>
-      runInstallTool(toolId, setInstallingTools, {
-        successKey: 'code.install_success',
-        logLabel: 'Failed to install:'
-      }),
+    (toolId: CodeCli, targetVersion?: string) =>
+      runInstallTool(
+        toolId,
+        setInstallingTools,
+        {
+          successKey: 'code.install_success',
+          logLabel: 'Failed to install:'
+        },
+        targetVersion
+      ),
     [runInstallTool]
   )
 

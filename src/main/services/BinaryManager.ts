@@ -363,7 +363,7 @@ export class BinaryManager extends BaseService {
     for (const definition of customDefinitions) addCandidate(definition.name, definition.tool)
     for (const name of requestedNames) addCandidate(name, name)
 
-    const installed: Record<string, Array<{ version?: string; active?: boolean }>> = {}
+    const installed: Record<string, Array<{ version?: string; active?: boolean; install_path?: string }>> = {}
     // Backend state is derived once and drives the independent application fact:
     // a missing backend is `backend_unavailable`, a failed/malformed query is
     // `query_failed`. Neither may ever collapse a tool to `absent`.
@@ -473,7 +473,16 @@ export class BinaryManager extends BaseService {
         } catch {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
-        if (!(await this.resolveManagedBinaryPath(name))) {
+        const resolved = await this.resolveManagedBinaryPath(name)
+        if (!resolved) {
+          return { application: { status: 'broken', ...(version ? { version } : {}) } }
+        }
+        // The active entry proves the exact recipe is installed; the shim must also
+        // resolve to THIS entry's install, not a same-named binary from another
+        // backend entry in the isolated env. Otherwise `applied` would grant
+        // Update/Uninstall authority over a foreign provider. When mise omits
+        // install_path, fall back to the runnable-only check above.
+        if (typeof activeEntry.install_path === 'string' && !isPathWithin(activeEntry.install_path, resolved)) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
         return {
@@ -1044,7 +1053,12 @@ export class BinaryManager extends BaseService {
     }
     if (!this.miseBin) {
       const error = new Error('Binary backend not available')
-      this.setOperation(name, { status: 'failed', action: 'install', error: error.message })
+      this.setOperation(name, {
+        status: 'failed',
+        action: 'install',
+        error: error.message,
+        ...(targetVersion ? { targetVersion } : {})
+      })
       return Promise.reject(error)
     }
 
@@ -1110,7 +1124,15 @@ export class BinaryManager extends BaseService {
       return
     }
     if (outcome.kind === 'failed') {
-      this.setOperation(name, { status: 'failed', action: 'install', error: outcome.error })
+      // Retain the update target so a Retry repeats the same targeted install; a
+      // name-only retry of a failed update would hit the applied no-op and falsely
+      // clear the failure without repeating the update.
+      this.setOperation(name, {
+        status: 'failed',
+        action: 'install',
+        error: outcome.error,
+        ...(targetVersion ? { targetVersion } : {})
+      })
       throw new Error(outcome.error)
     }
     // Unknown name: validation found no fixed/custom recipe, so there is no card

@@ -378,7 +378,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
                   action: snapshot?.operation?.status === 'failed' ? snapshot.operation.action : 'install'
                 })
               }
-              onInstall={() => installTool(tool.name)}
+              // A failed update surfaces its Retry through this same install
+              // handler, so carry the failed op's target — a name-only retry would
+              // hit the applied no-op and clear the failure without re-updating.
+              onInstall={() =>
+                installTool(
+                  tool.name,
+                  snapshot?.operation?.status === 'failed' ? snapshot.operation.targetVersion : undefined
+                )
+              }
               onUpdate={() => installTool(tool.name, latestVersion ?? 'latest')}
               onOpenPath={() => view.resolvedPath && openToolDir(view.resolvedPath)}
               onRemove={() => setDeleteTarget({ name: tool.name, runtime: false, custom: false })}
@@ -410,7 +418,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
                   action: snapshot.operation?.status === 'failed' ? snapshot.operation.action : 'install'
                 })
               }
-              onInstall={() => installTool(snapshot.name)}
+              onInstall={() =>
+                installTool(
+                  snapshot.name,
+                  snapshot.operation?.status === 'failed' ? snapshot.operation.targetVersion : undefined
+                )
+              }
               onUpdate={() => installTool(snapshot.name, latestVersion ?? 'latest')}
               onOpenPath={() => view.resolvedPath && openToolDir(view.resolvedPath)}
               onRemove={() => setDeleteTarget({ name: snapshot.name, runtime, custom: true })}

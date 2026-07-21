@@ -4,7 +4,9 @@ import type { CustomToolDefinition } from '@shared/data/preference/preferenceTyp
 export type BinaryOperation =
   | { status: 'installing' }
   | { status: 'removing' }
-  | { status: 'failed'; action: 'install' | 'remove'; error: string }
+  // `targetVersion` is retained only for a failed one-shot update so Retry can
+  // repeat the same targeted install instead of a name-only no-op.
+  | { status: 'failed'; action: 'install' | 'remove'; error: string; targetVersion?: string }
 
 export type BinaryOperations = Record<string, BinaryOperation>
 
@@ -61,7 +63,7 @@ export type BinaryAvailability =
  * answer yields `unknown` rather than a misleading `absent`.
  *
  * - `applied`  — the exact recipe has an active installed entry and a runnable isolated shim.
- * - `broken`   — the exact recipe has only inactive entries or no executable shim.
+ * - `broken`   — the exact recipe has only inactive entries, no executable shim, or a shim that resolves outside the active entry's install.
  * - `absent`   — the exact recipe has no installed entries (and no live shim of its own).
  * - `conflict` — no exact entries, but a shim mise still resolves to a runnable target.
  * - `unknown`  — the mise backend was unavailable or its query failed/was malformed.

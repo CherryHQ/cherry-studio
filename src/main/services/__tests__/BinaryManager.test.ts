@@ -512,6 +512,60 @@ describe('BinaryManager', () => {
       expect(mockFsp.access).toHaveBeenCalledWith('/mock/feature.binary.data/shims/fd', mockFs.constants.X_OK)
     })
 
+    it('stays applied when the active entry exposes an install_path the shim resolves within', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              fd: [{ version: '10.0.0', active: true, install_path: '/opt/mise/installs/fd/10.0.0' }]
+            }),
+            stderr: ''
+          }
+        }
+        // The shim resolves to a binary inside this exact entry's install.
+        if (args[0] === 'which') return { stdout: '/opt/mise/installs/fd/10.0.0/bin/fd\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      expect(snapshots.fd).toEqual({
+        name: 'fd',
+        availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
+        application: { status: 'applied', version: '10.0.0' }
+      })
+    })
+
+    it('reports broken when an active entry shim resolves outside that entry install_path', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              fd: [{ version: '10.0.0', active: true, install_path: '/opt/mise/installs/fd/10.0.0' }]
+            }),
+            stderr: ''
+          }
+        }
+        // The shim resolves to a same-named binary from a *different* backend install.
+        if (args[0] === 'which') return { stdout: '/opt/other/backend/bin/fd\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+      vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      // The exact recipe is installed, but its shim points at a foreign install —
+      // calling this `applied` would grant Update/Uninstall over another backend's fd.
+      expect(snapshots.fd.application).toEqual({ status: 'broken', version: '10.0.0' })
+      expect(snapshots.fd.availability).toEqual({ source: 'system', path: '/usr/local/bin/fd' })
+    })
+
     it('matches a non-runtime fixed recipe when mise reports its core-prefixed identity', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -1781,6 +1835,29 @@ describe('BinaryManager', () => {
 
       expect(miseArgs()).toContainEqual(['use', '-g', 'fd@11.0.0'])
       expect(manifestRef.value).toEqual([])
+    })
+
+    it('retains the update target on a failed one-shot update so Retry repeats it', async () => {
+      const service = makeService()
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        // fd is applied at 10.0.0; the requested 11.0.0 update never lands.
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'use') throw new Error('network is down')
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'fd', targetVersion: '11.0.0' })).rejects.toThrow('network is down')
+
+      // Without the retained target, a name-only Retry would hit the applied
+      // no-op and silently clear the failure without re-attempting the update.
+      expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual({
+        status: 'failed',
+        action: 'install',
+        error: 'network is down',
+        targetVersion: '11.0.0'
+      })
     })
 
     it('skips the managed install when an absent fixed tool is already on the system PATH', async () => {

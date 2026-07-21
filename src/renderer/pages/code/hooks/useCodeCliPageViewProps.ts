@@ -255,7 +255,14 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           currentProviderId,
           currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
           resolveProviderMeta,
-          onInstall: () => void install(selectedCliTool),
+          // A failed update carries its target so Retry repeats the same targeted
+          // install; a name-only retry would hit the applied no-op and clear the
+          // failure without ever re-attempting the update.
+          onInstall: () =>
+            void install(
+              selectedCliTool,
+              versionStatus.operation?.status === 'failed' ? versionStatus.operation.targetVersion : undefined
+            ),
           onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
           // Uninstall authority is the live application fact: offer removal only
           // when the fixed CLI's exact recipe is applied or broken.

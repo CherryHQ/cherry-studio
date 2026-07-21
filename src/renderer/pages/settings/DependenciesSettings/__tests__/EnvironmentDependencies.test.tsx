@@ -417,6 +417,22 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
+  it('carries the failed update target so a preset Retry repeats the same targeted install', async () => {
+    setSnapshots({
+      uv: {
+        name: 'uv',
+        availability: { source: 'mise', path: '/mise/uv', version: '1.0.0' },
+        application: { status: 'applied', version: '1.0.0' },
+        operation: { status: 'failed', action: 'install', error: 'network is down', targetVersion: '2.0.0' }
+      }
+    })
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+    fireEvent.click(within(card).getByText('common.retry'))
+    // A name-only retry would hit the applied no-op; the retained target re-runs the update.
+    expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', targetVersion: '2.0.0' })
+  })
+
   it('renders a failed custom install from its definition and lets the user retry', async () => {
     // The definition is persisted before backend work, so a failed custom install
     // still carries one and renders a retryable card.

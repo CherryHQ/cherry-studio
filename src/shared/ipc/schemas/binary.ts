@@ -87,7 +87,9 @@ const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('
   z.object({
     status: z.literal('failed'),
     action: z.enum(['install', 'remove']),
-    error: z.string()
+    error: z.string(),
+    // Retained only for a failed one-shot update so Retry repeats the same target.
+    targetVersion: z.string().optional()
   })
 ])
 
