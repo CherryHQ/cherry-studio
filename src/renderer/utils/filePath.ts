@@ -44,42 +44,30 @@ export function isInlineFilePath(value: string): boolean {
   )
 }
 
-/** Windows drive-letter absolute path, e.g. `C:/Users/…` or `C:\Users\…`. */
-export const isWindowsDrivePath = (value: string): boolean => /^[A-Za-z]:[\\/]/.test(value)
-
 /**
  * Parse a markdown link href that targets a workspace file (not a web page) and
  * return the decoded filesystem path to open, or `null` for external links.
  *
- * File vs external is decided by URL scheme (`http`/`https`/`mailto`/… → external;
- * schemeless or `file:` → file), except Windows drive paths (`C:/…`), whose leading
- * `C:` must not be mistaken for a scheme. Query and hash are stripped and
+ * The markdown link-safety pipeline (defaultUrlTransform + rehype-sanitize +
+ * rehype-harden) only lets protocol-less hrefs through, so a workspace file link is
+ * exactly a schemeless target: relative (`./x`, `.agents/x.md`, `README.md`) or
+ * POSIX-absolute (`/Users/x.md`). Anything with an explicit scheme (http/https/
+ * mailto/file/`C:`…) is treated as external. Query and hash are stripped and
  * percent-encoding decoded, so `./Docs%20Notes.md#section` opens `./Docs Notes.md`.
  *
  * This is the link-boundary counterpart to `isInlineFilePath` (which classifies
- * inline *text*): any non-external target is treated as a file, so single-segment
+ * inline *text*): any schemeless target is treated as a file, so single-segment
  * links like `README.md` resolve too.
  */
 export function parseFileLinkHref(href: string | undefined): string | null {
   if (!href) return null
   if (href.startsWith('//')) return null // protocol-relative → external
-  // Guard Windows drive paths before the generic scheme check: `C:/…` must not
-  // parse as scheme `c`.
-  const scheme = isWindowsDrivePath(href) ? undefined : /^([a-z][a-z0-9+.-]*):/i.exec(href)?.[1]?.toLowerCase()
-  if (scheme && scheme !== 'file') return null // http(s), mailto, tel, … → external
-  let path = href.replace(/[?#].*$/, '') // drop query + hash
-  if (scheme === 'file') {
-    try {
-      path = new URL(path).pathname
-    } catch {
-      return null
-    }
-  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return null // any explicit scheme → external
+  const path = href.replace(/[?#].*$/, '') // drop query + hash
   if (!path) return null
   try {
-    path = decodeURIComponent(path)
+    return decodeURIComponent(path) || null
   } catch {
-    // keep raw path on malformed percent-encoding
+    return path // keep raw path on malformed percent-encoding
   }
-  return path || null
 }

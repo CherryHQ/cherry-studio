@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   isInlineFilePath,
-  isWindowsDrivePath,
   normalizeInlineFilePath,
   parseFileLinkHref,
   resolveInlineFilePath,
@@ -23,16 +22,6 @@ describe('filePath utils', () => {
   })
 })
 
-describe('isWindowsDrivePath', () => {
-  it.each(['C:/Users/x.md', 'C:\\Users\\x.md', 'c:/users/x.md', 'D:\\a'])('detects %s', (value) => {
-    expect(isWindowsDrivePath(value)).toBe(true)
-  })
-
-  it.each(['/Users/x.md', './x.md', 'C:x', 'https://c/x', 'CC:/x'])('rejects %s', (value) => {
-    expect(isWindowsDrivePath(value)).toBe(false)
-  })
-})
-
 describe('parseFileLinkHref', () => {
   it.each([
     // strips hash / query, decodes percent-encoding, keeps single-segment names
@@ -42,14 +31,8 @@ describe('parseFileLinkHref', () => {
     ['README.md', 'README.md'],
     ['./src/', './src/'],
     ['.agents/skills/gh-create-pr/SKILL.md', '.agents/skills/gh-create-pr/SKILL.md'],
-    ['/abs/path/x.md', '/abs/path/x.md'],
-    // Windows drive paths must not be mistaken for a `c:` URL scheme
-    ['C:/Users/Alice/project/README.md', 'C:/Users/Alice/project/README.md'],
-    ['C:\\Users\\Alice\\project\\README.md', 'C:\\Users\\Alice\\project\\README.md'],
-    ['C:/Users/Alice/notes.md#top', 'C:/Users/Alice/notes.md'],
-    // file: URLs → pathname
-    ['file:///Users/x.md', '/Users/x.md']
-  ])('parses %s → %s', (href, expected) => {
+    ['/abs/path/x.md', '/abs/path/x.md']
+  ])('parses schemeless file path %s → %s', (href, expected) => {
     expect(parseFileLinkHref(href)).toBe(expected)
   })
 
@@ -59,9 +42,14 @@ describe('parseFileLinkHref', () => {
     ['mailto:a@b.com'],
     ['//cdn.example.com/x.md'], // protocol-relative
     ['#section'], // in-page anchor
+    // Scheme-prefixed absolute paths never reach Link — the markdown link-safety pipeline
+    // strips them upstream — so they are treated as external (unsupported by design).
+    ['C:/Users/Alice/README.md'],
+    ['file:///C:/Users/Alice/README.md'],
+    ['file:///Users/x.md'],
     [''],
     [undefined]
-  ])('returns null for external / non-file href %s', (href) => {
+  ])('returns null for external / scheme-prefixed href %s', (href) => {
     expect(parseFileLinkHref(href)).toBeNull()
   })
 })

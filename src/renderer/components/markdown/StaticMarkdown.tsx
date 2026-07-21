@@ -40,7 +40,8 @@ export const StaticMarkdown: FC<Props> = ({ children, id, className }) => {
       plugins={plugins}
       components={components}
       className={className}
-      footnoteLabel={t('common.footnotes')}>
+      footnoteLabel={t('common.footnotes')}
+      disableLinkHardening>
       {content}
     </Markdown>
   )

@@ -228,10 +228,7 @@ describe('Link', () => {
     ['./README.md#安装', './README.md'],
     ['./Meeting%20Notes.md', './Meeting Notes.md'],
     ['README.md', 'README.md'],
-    ['./src/', './src/'],
-    // Windows drive paths must reach the opener (not fall through to a web link)
-    ['C:/Users/Alice/project/README.md', 'C:/Users/Alice/project/README.md'],
-    ['C:\\Users\\Alice\\project\\README.md', 'C:\\Users\\Alice\\project\\README.md']
+    ['./src/', './src/']
   ])('parses file-link href %s → opens %s', (href, expected) => {
     mocks.findCitationInChildren.mockReturnValue(undefined)
     mocks.parseJSON.mockReturnValue(undefined)

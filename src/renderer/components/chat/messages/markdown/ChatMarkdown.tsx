@@ -91,7 +91,8 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
           components={mergedComponents}
           footnoteLabel={footnoteLabel}
           animated={isStreaming ? undefined : false}
-          parseIncompleteMarkdown={isStreaming}>
+          parseIncompleteMarkdown={isStreaming}
+          disableLinkHardening>
           {content}
         </StreamingMarkdown>
       </MarkdownHostContext>
@@ -104,7 +105,8 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
         plugins={plugins}
         components={mergedComponents}
         className={className}
-        footnoteLabel={footnoteLabel}>
+        footnoteLabel={footnoteLabel}
+        disableLinkHardening>
         {content}
       </Markdown>
     </MarkdownHostContext>
