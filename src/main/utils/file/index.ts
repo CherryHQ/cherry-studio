@@ -48,6 +48,7 @@
  * here.
  */
 
+export { createContentHasher, hashContent, parseContentHash } from './contentHash'
 export {
   atomicWriteFile,
   atomicWriteIfUnchanged,

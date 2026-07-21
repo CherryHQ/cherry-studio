@@ -32,6 +32,7 @@ FileEntry
 ├── name: filename (without extension)
 ├── ext: extension (without leading dot), nullable
 ├── size: bytes
+├── contentHash: '{algo}:{hex}' content-dedup detection hash; internal-only, null until backfilled
 ├── externalPath: absolute path, non-null only when origin='external'
 ├── deletedAt: ms epoch | null
 ├── createdAt / updatedAt
@@ -152,8 +153,19 @@ Invariants:
 | `ext` | SoT | Pure projection of `externalPath` (extname) |
 | `size` | SoT (non-null, ≥ 0) | **Always `null`** — no DB snapshot; live value via `getMetadata` |
 | `externalPath` | NULL | Absolute path (the authoritative identity of external) |
+| `contentHash` | Detection substrate `{algo}:{hex}` (for example `xxh3-64:…`); maintained on every write; `null` only until backfilled | **Always `null`** — content lives outside Cherry (`fe_contenthash_external_null` CHECK) |
 
 For external entries the row stores only identity + stable projections. `name` / `ext` do not drift because `externalPath` is fixed for the lifetime of the entry (external rename by the user surfaces as a dangling entry, not an in-place rewrite of `name`). `size` / `mtime` are served live by File IPC `getMetadata(id)` on demand — see [§3 External Entry Liveness Model](#3-external-entry-liveness-model).
+
+#### Content-level dedup detection (`contentHash`)
+
+`contentHash` is a **detection substrate** for content-level deduplication, not an identity or key. It is orthogonal to external-path deduplication: external paths enforce identity and upsert behavior, while internal hashes only surface possible content matches for a consumer-defined policy.
+
+- **Tagged format.** Values use `{algo}:{lowercase hex}`; the current producer is XXH3-64 via native `@node-rs/xxhash`. Keeping the algorithm in the value allows old and new algorithms to coexist during a future incremental migration.
+- **Internal-only and maintained on writes.** `createInternalEntry`, `write`, `writeIfUnchanged`, and `createWriteStream` persist the current hash. In-memory sources are hashed directly; copy, download, and stream sources hash the committed file. A caller may supply an already-computed valid hash. External rows never carry one. If a stream commit succeeds but the post-commit DB update fails, `finish` remains successful and `WRITE_STREAM_DB_DESYNC` is logged; the persisted hash may remain stale or `null` until a later write or backfill.
+- **Non-unique by design.** `fe_content_hash_idx` is a plain index. Multiple logical entries may contain identical bytes, and a collision must never raise a constraint violation. `FileEntryService.findInternalByContentHash`, delegated through FileManager and the typed IpcApi route `file.find_internal_by_content_hash`, returns active candidates oldest-first without selecting one.
+- **Insert-always remains unchanged.** `createInternalEntry` never looks up or reuses candidates. A consumer may hash, query candidates, apply its own secondary check or user decision, and then either reuse or create while passing the hash.
+- **Startup backfill.** Existing internal rows start with `contentHash = null`. The singleton `file.contenthash-backfill` job keyset-pages through those rows by `id`, including trashed rows whose blobs still exist. Missing blobs are skipped; unexpected persistence failures fail the job. FileManager enqueues the job after startup whenever missing rows remain, making the NULL set its resumable work queue.
 
 ### 1.3 FileRef (Business Reference)
 
@@ -557,7 +569,7 @@ interface FileVersion {
 
 Used as a fast signal for detecting external changes. Two tiers of usage:
 - Fast path: `statVersion(path)` (microsecond-level, covers 99% of cases)
-- Deep path: `contentHash(path)` → xxhash-h64 (millisecond-to-second level, used when mtime/size match but further confirmation is needed)
+- Deep path: `contentHash(path)` → tagged XXH3-64 (millisecond-to-second level, used when mtime/size match but further confirmation is needed). This uses the same algorithm as persisted dedup detection, but the OCC value is computed on demand and is not persisted by the comparison itself.
 
 Rationale for mtime + size as a signature:
 - Six scenarios where mtime alone fails—multiple writes within the same ms, clock rewind, backup preserving mtime, user touch, low-precision FS (FAT32), in-place 1-byte edit—are covered by size or hash as fallbacks
@@ -885,7 +897,7 @@ CREATE TABLE file_upload (
   file_entry_id   TEXT NOT NULL REFERENCES file_entry(id) ON DELETE CASCADE,
   provider        TEXT NOT NULL,
   remote_id       TEXT NOT NULL,
-  content_version TEXT NOT NULL,   -- xxhash-h64 at upload time
+  content_version TEXT NOT NULL,   -- XXH3-64 at upload time
   uploaded_at     INTEGER NOT NULL,
   expires_at      INTEGER,
   status          TEXT NOT NULL,   -- 'active' | 'expired' | 'failed'
@@ -1337,7 +1349,7 @@ These thresholds are heuristic starting points — tune based on real-world tele
 | **Dangling state carrier** | In-memory singleton DanglingCache | Not in DB (avoids bidirectional DB-FS sync); three states `present/missing/unknown`; TTL-based lazy expiration (§11.6, 30 min); refreshed on query / FS observation / watcher; no periodic background sweep — IO cost scales with query frequency, not entry count |
 | **Dangling exposure method** | File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi) | DataApi is pure SQL; FS probe lives in IPC where side effects are expected; zero cost by default; parallel stat on demand |
 | **Watcher → DanglingCache wiring** | Factory auto-wires | Business modules unaware of DanglingCache; a single watcher instance serves business events + dangling tracking |
-| **Content hash algorithm** | xxhash-h64 | Optimal cost-performance for non-cryptographic scenarios (~20GB/s). 64-bit collision space is sufficient for distinguishing successive versions within a single file's write history — the `xxhash-wasm` package shipped in this version exposes only h32 / h64, and h64 is the strongest variant available; revisit if a 128-bit variant becomes a dependency-cost tradeoff worth taking. |
+| **Content hash algorithm** | XXH3-64 via native `@node-rs/xxhash`, stored as `{algo}:{hex}` | One implementation serves persisted dedup detection and on-demand OCC comparison. The native package avoids the previous WASM throughput ceiling and provides incremental XXH3-64 hashing; its XXH3-128 API is one-shot only, which would require buffering streamed files. The 64-bit value is a candidate signal, never an identity: collisions only produce a candidate that the consumer must verify, and the algorithm tag preserves an incremental upgrade path. |
 | **Does write carry version** | Split into write / writeIfUnchanged | Force the caller to explicitly choose; avoid silent degradation to blind write when version is forgotten |
 | **Atomic write fsync** | On by default | Correctness guarantee takes precedence over performance; Cherry is not a high-throughput scenario |
 | **Trash model** | deletedAt timestamp | parentId unchanged; naturally supports expiry; no system_trash entries |

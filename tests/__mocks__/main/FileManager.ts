@@ -1,4 +1,4 @@
-import type { FileEntryId } from '@shared/data/types/file'
+import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { FileUrlString } from '@shared/types/file'
 import { vi } from 'vitest'
 
@@ -9,7 +9,8 @@ import { vi } from 'vitest'
  * `logoSrc` in tests. Deterministic path so assertions can predict it.
  */
 const mockFileManager = {
-  getUrl: vi.fn((id: FileEntryId): FileUrlString => `file:///mock/files/${id}.webp` as FileUrlString)
+  getUrl: vi.fn((id: FileEntryId): FileUrlString => `file:///mock/files/${id}.webp` as FileUrlString),
+  findInternalByContentHash: vi.fn((_contentHash: ContentHash) => [])
 }
 
 export const MockMainFileManagerExport = {

@@ -18,10 +18,12 @@ import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   createAtomicWriteStream,
+  hash as fsHash,
+  hashContent,
   PathStaleVersionError,
   stat as fsStat
 } from '@main/utils/file'
-import type { FileEntryId } from '@shared/data/types/file'
+import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 
 import { type FileVersion, StaleVersionError } from '../../FileManager'
@@ -45,7 +47,7 @@ export async function write(deps: FileManagerDeps, id: FileEntryId, data: string
     const s = await fsStat(physical)
     const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
     if (entry.origin === 'internal') {
-      deps.fileEntryService.update(id, { size: version.size })
+      deps.fileEntryService.update(id, { size: version.size, contentHash: hashContent(data) })
     }
     deps.versionCache.set(id, version)
     return version
@@ -60,7 +62,7 @@ export async function writeIfUnchanged(
   id: FileEntryId,
   data: string | Uint8Array,
   expected: FileVersion,
-  expectedContentHash?: string
+  expectedContentHash?: ContentHash
 ): Promise<FileVersion> {
   const entry = deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
@@ -80,7 +82,7 @@ export async function writeIfUnchanged(
   // failed".
   try {
     if (entry.origin === 'internal') {
-      deps.fileEntryService.update(id, { size: next.size })
+      deps.fileEntryService.update(id, { size: next.size, contentHash: hashContent(data) })
     }
     deps.versionCache.set(id, next)
     return next
@@ -99,7 +101,7 @@ export function createWriteStream(deps: FileManagerDeps, id: FileEntryId): Atomi
       const s = await fsStat(physical)
       const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
       if (entry.origin === 'internal') {
-        deps.fileEntryService.update(id, { size: version.size })
+        deps.fileEntryService.update(id, { size: version.size, contentHash: await fsHash(physical) })
       }
       deps.versionCache.set(id, version)
     } catch (err) {
@@ -129,7 +131,7 @@ export async function writeIfUnchangedByPath(
   target: FilePath,
   data: string | Uint8Array,
   expected: { mtime: number; size: number },
-  expectedContentHash?: string
+  expectedContentHash?: ContentHash
 ): Promise<{ mtime: number; size: number }> {
   return atomicWriteIfUnchanged(target, data, expected, expectedContentHash)
 }

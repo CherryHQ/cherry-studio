@@ -43,6 +43,14 @@ const packages = [
   '@napi-rs/canvas-darwin-arm64',
   '@napi-rs/canvas-win32-x64-msvc',
   '@napi-rs/canvas-win32-arm64-msvc',
+  '@node-rs/xxhash-darwin-arm64',
+  '@node-rs/xxhash-darwin-x64',
+  '@node-rs/xxhash-linux-arm64-gnu',
+  '@node-rs/xxhash-linux-arm64-musl',
+  '@node-rs/xxhash-linux-x64-gnu',
+  '@node-rs/xxhash-linux-x64-musl',
+  '@node-rs/xxhash-win32-arm64-msvc',
+  '@node-rs/xxhash-win32-x64-msvc',
   // sqlite-vec prebuilt extensions (vec0.dylib/.so/.dll), from the @aiany/sqlite-vec fork
   // which adds a windows-arm64 build (upstream ships none). Note the package names use
   // `windows`, not `win32` — see platformTokens below for why the keep-filter must match both.

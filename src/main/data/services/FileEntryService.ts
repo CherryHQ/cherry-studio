@@ -31,16 +31,24 @@ import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryListResponse, FileEntryStats } from '@shared/data/api/schemas/files'
-import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
+import type {
+  CanonicalExternalPath,
+  ContentHash,
+  FileEntry,
+  FileEntryId,
+  FileEntryOrigin,
+  InternalFileEntry
+} from '@shared/data/types/file'
 import {
   AbsolutePathSchema,
+  ContentHashSchema,
   ExternalEntrySchema,
   FileEntrySchema,
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
 import { chatMessageSourceType, miniAppLogoRef, paintingSourceType, providerLogoRef } from '@shared/data/types/file'
-import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, count, eq, gt, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
 import { ZodError } from 'zod'
@@ -55,7 +63,8 @@ const CreateFileEntryRowSchema = z.discriminatedUnion('origin', [
     origin: z.literal('internal'),
     name: InternalEntrySchema.shape.name,
     ext: InternalEntrySchema.shape.ext,
-    size: InternalEntrySchema.shape.size
+    size: InternalEntrySchema.shape.size,
+    contentHash: ContentHashSchema.nullable().optional()
   }),
   z.strictObject({
     origin: z.literal('external'),
@@ -82,6 +91,7 @@ export interface UpdateFileEntryRow {
   readonly name?: string
   readonly ext?: string | null
   readonly size?: number
+  readonly contentHash?: ContentHash | null
   readonly deletedAt?: number | null
 }
 
@@ -155,6 +165,15 @@ export interface FileEntryService {
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
   findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): FileEntry[]
+
+  /** Active internal entries whose persisted hash exactly matches, oldest first. */
+  findInternalByContentHash(contentHash: ContentHash): FileEntry[]
+
+  /** Number of internal rows awaiting content-hash backfill, including trashed rows. */
+  countInternalMissingContentHash(): number
+
+  /** Keyset page of internal rows awaiting content-hash backfill, including trashed rows. */
+  findInternalMissingContentHash(afterId: FileEntryId | null, limit: number): InternalFileEntry[]
 
   /**
    * Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted.
@@ -267,6 +286,7 @@ function rowToFileEntry(row: FileEntryRow): FileEntry {
       name: row.name,
       ext: row.ext,
       size: row.size,
+      contentHash: row.contentHash,
       // deletedAt is `optional` on the BO — present iff the DB column is
       // non-null. Bypass `nullsToUndefined` so we don't pull in a helper
       // whose project-wide meaning is "every null becomes undefined";
@@ -423,6 +443,48 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null)
   }
 
+  findInternalByContentHash(contentHash: ContentHash): FileEntry[] {
+    const rows = this.getDb()
+      .select()
+      .from(fileEntryTable)
+      .where(
+        and(
+          eq(fileEntryTable.origin, 'internal'),
+          isNull(fileEntryTable.deletedAt),
+          eq(fileEntryTable.contentHash, contentHash)
+        )
+      )
+      .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
+      .all()
+    return rows.map(rowToFileEntrySafe).filter((entry): entry is FileEntry => entry !== null)
+  }
+
+  countInternalMissingContentHash(): number {
+    const rows = this.getDb()
+      .select({ value: count() })
+      .from(fileEntryTable)
+      .where(and(eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)))
+      .all()
+    return rows[0]?.value ?? 0
+  }
+
+  findInternalMissingContentHash(afterId: FileEntryId | null, limit: number): InternalFileEntry[] {
+    const conditions: SQL[] = [eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)]
+    if (afterId !== null) conditions.push(gt(fileEntryTable.id, afterId))
+    const rows = this.getDb()
+      .select()
+      .from(fileEntryTable)
+      .where(and(...conditions))
+      .orderBy(asc(fileEntryTable.id))
+      .limit(limit)
+      .all()
+    return rows.map((row) => {
+      const entry = rowToFileEntry(row)
+      if (entry.origin !== 'internal') throw new Error('Expected an internal file entry')
+      return entry
+    })
+  }
+
   findMany(query: FindEntriesQuery = {}): FileEntry[] {
     return this.findManyTx(this.getDb(), query)
   }
@@ -574,6 +636,7 @@ class FileEntryServiceImpl implements FileEntryService {
         name: parsed.name,
         ext: parsed.ext,
         size: parsed.origin === 'internal' ? parsed.size : null,
+        contentHash: parsed.origin === 'internal' ? (parsed.contentHash ?? null) : null,
         externalPath: parsed.origin === 'external' ? parsed.externalPath : null,
         deletedAt: null,
         createdAt: now,
@@ -596,12 +659,14 @@ class FileEntryServiceImpl implements FileEntryService {
     // un-parseable.
     if (values.name !== undefined) SafeNameSchema.parse(values.name)
     if (values.ext !== undefined) InternalEntrySchema.shape.ext.parse(values.ext)
+    if (values.contentHash !== undefined) ContentHashSchema.nullable().parse(values.contentHash)
     const updates: Partial<typeof fileEntryTable.$inferInsert> = {
       updatedAt: Date.now()
     }
     if (values.name !== undefined) updates.name = values.name
     if (values.ext !== undefined) updates.ext = values.ext
     if (values.size !== undefined) updates.size = values.size
+    if (values.contentHash !== undefined) updates.contentHash = values.contentHash
     if (values.deletedAt !== undefined) updates.deletedAt = values.deletedAt
     const rows = tx.update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning().all()
     if (rows.length === 0) {

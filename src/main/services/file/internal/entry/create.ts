@@ -14,7 +14,15 @@ import { realpath } from 'node:fs/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file'
+import {
+  atomicWriteFile,
+  copy as fsCopy,
+  download,
+  hash as fsHash,
+  hashContent,
+  remove as fsRemove,
+  stat as fsStat
+} from '@main/utils/file'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
@@ -55,6 +63,7 @@ async function bestEffortCleanup(physical: FilePath, context: string): Promise<v
 interface NormalisedSource {
   name: string
   ext: string | null
+  bytes?: Uint8Array
   writeTo(target: FilePath): Promise<void>
 }
 
@@ -66,6 +75,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: params.name,
       ext: params.ext,
+      bytes: data,
       writeTo: (target) => atomicWriteFile(target, data)
     }
   }
@@ -81,6 +91,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: params.name ?? `Pasted ${new Date().toISOString().slice(0, 10)}`,
       ext: ext ?? null,
+      bytes: new Uint8Array(bytes),
       writeTo: (target) => atomicWriteFile(target, new Uint8Array(bytes))
     }
   }
@@ -142,10 +153,12 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   const physical = application.getPath('feature.files.data', filename) as FilePath
   await source.writeTo(physical)
   let stats
+  let contentHash
   try {
     stats = await fsStat(physical)
+    contentHash = params.contentHash ?? (source.bytes ? hashContent(source.bytes) : await fsHash(physical))
   } catch (err) {
-    await bestEffortCleanup(physical, 'createInternal:stat-failed')
+    await bestEffortCleanup(physical, 'createInternal:metadata-failed')
     throw err
   }
   try {
@@ -154,7 +167,8 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
       origin: 'internal',
       name: source.name,
       ext: source.ext,
-      size: stats.size
+      size: stats.size,
+      contentHash
     })
   } catch (err) {
     logger.warn('createInternal: DB insert failed; unlinking physical file', { id, err })

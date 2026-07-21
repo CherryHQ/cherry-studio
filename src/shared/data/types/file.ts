@@ -37,6 +37,7 @@
  * | `name`        | SoT (user renamable)               | derived from `externalPath` basename (stable)  |
  * | `ext`         | SoT                                | derived from `externalPath` extname (stable)   |
  * | `size`        | SoT (bytes, ≥ 0)                   | **absent** — live value via `getMetadata`      |
+ * | `contentHash` | nullable tagged content hash      | **absent**                                     |
  * | `externalPath`| **absent**                         | non-null absolute path (canonical)             |
  * | `deletedAt`   | optional (present iff trashed)     | **absent** (external cannot be trashed)        |
  *
@@ -118,6 +119,17 @@ import { MessageIdSchema } from './message'
 
 /** Millisecond epoch timestamp (non-negative integer) */
 export const TimestampSchema = z.int().nonnegative()
+
+/** Canonical lowercase `{algorithm}:{hex}` shape for content-hash values. */
+export const CONTENT_HASH_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*):([0-9a-f]+)$/
+
+export const ContentHashSchema = z
+  .string()
+  .regex(CONTENT_HASH_PATTERN, 'contentHash must be `{algorithm}:{lowercase hex}`')
+  .brand<'ContentHash'>()
+
+/** Algorithm-tagged content hash validated by {@link ContentHashSchema}. */
+export type ContentHash = z.infer<typeof ContentHashSchema>
 
 /**
  * Name schema with security validations.
@@ -293,10 +305,10 @@ const CommonEntryFields = {
  * Internal entry — Cherry owns the content at `{userData}/Data/Files/{id}.{ext}`.
  *
  * Variant-only fields: `size` (authoritative byte count), `deletedAt`
- * (optional, present and non-null when entry is trashed). `externalPath`
- * is absent on this variant — there is no user-provided path. The DB row
- * carries `externalPath: null` to satisfy the table schema; the BO
- * dispatcher drops it.
+ * (optional, present and non-null when entry is trashed), and `contentHash`
+ * (nullable while legacy rows await backfill). `externalPath` is absent on
+ * this variant — there is no user-provided path. The DB row carries
+ * `externalPath: null` to satisfy the table schema; the BO dispatcher drops it.
  */
 export const InternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
@@ -306,6 +318,8 @@ export const InternalEntrySchema = z.strictObject({
    * this value is authoritative and kept in sync with the backing file on disk.
    */
   size: z.int().nonnegative(),
+  /** Algorithm-tagged content hash. Null only while an existing row awaits backfill. */
+  contentHash: ContentHashSchema.nullable(),
   /**
    * Trash timestamp (ms epoch). Optional — present and non-null when the
    * entry is in the trash, absent when it is live. Internal entries are the
