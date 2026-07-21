@@ -1104,6 +1104,16 @@ describe('ModelSelector', () => {
     expect(mockVirtualListSizes.at(-1)).toBe(MODEL_SELECTOR_CONTENT_HEIGHT - 8)
   })
 
+  it('matches the popover width to the trigger', () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({
+      width: 'var(--radix-popover-trigger-width)'
+    })
+  })
+
   it('fills the unified popover content height for short model lists', () => {
     const item = makeModelItem('openai::gpt-4' as UniqueModelId)
     mockUseModelSelectorData.mockReturnValue(
