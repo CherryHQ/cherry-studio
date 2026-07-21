@@ -61,6 +61,14 @@ export interface MigrationPaths {
   readonly customMiniAppsFile: string
   /** {userData}/migration-diagnostics-v2.json — active crash-safe migration diagnostics journal. */
   readonly diagnosticsJournalFile: string
+  /** {userData}/migration_temp — renderer export staging root. */
+  readonly migrationTempDir: string
+  /** {userData}/migration_temp/dexie_export — Dexie table export directory. */
+  readonly dexieExportDir: string
+  /** {userData}/migration_temp/localstorage_export — localStorage export directory. */
+  readonly localStorageExportDir: string
+  /** {userData}/migration_temp/localstorage_export/localStorage.json — localStorage export file. */
+  readonly localStorageExportFile: string
 
   // ── Derived from cherryHome ──
 
@@ -228,6 +236,9 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   }
 
   const filesDataDir = path.join(currentUserData, 'Data', 'Files')
+  const migrationTempDir = path.join(currentUserData, 'migration_temp')
+  const dexieExportDir = path.join(migrationTempDir, 'dexie_export')
+  const localStorageExportDir = path.join(migrationTempDir, 'localstorage_export')
   const paths: MigrationPaths = Object.freeze({
     userData: currentUserData,
     cherryHome: CHERRY_HOME,
@@ -239,6 +250,10 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     agentWorkspacesDir: path.join(currentUserData, 'Data', 'Agents'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
     diagnosticsJournalFile: path.join(currentUserData, 'migration-diagnostics-v2.json'),
+    migrationTempDir,
+    dexieExportDir,
+    localStorageExportDir,
+    localStorageExportFile: path.join(localStorageExportDir, 'localStorage.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)

@@ -31,6 +31,7 @@ describe('classifyMigrationError', () => {
     ['ENOENT', 'file_missing'],
     ['ENOTDIR', 'file_invalid_type'],
     ['EEXIST', 'file_invalid_type'],
+    ['EISDIR', 'file_invalid_type'],
     ['EACCES', 'file_permission'],
     ['EPERM', 'file_permission'],
     ['EROFS', 'file_readonly'],

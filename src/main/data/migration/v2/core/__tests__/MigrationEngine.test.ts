@@ -42,6 +42,10 @@ const mockPaths: MigrationPaths = {
   agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   diagnosticsJournalFile: '/tmp/test-userdata/migration-diagnostics-v2.json',
+  migrationTempDir: '/tmp/test-userdata/migration_temp',
+  dexieExportDir: '/tmp/test-userdata/migration_temp/dexie_export',
+  localStorageExportDir: '/tmp/test-userdata/migration_temp/localstorage_export',
+  localStorageExportFile: '/tmp/test-userdata/migration_temp/localstorage_export/localStorage.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
 }

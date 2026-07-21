@@ -172,10 +172,16 @@ const migrationVersionGateFailureEvidenceSchema = z
 
 const migrationRendererFilesystemEvidenceSchema = z
   .object({
-    causeCode: z.enum(['ENOTDIR', 'EEXIST']),
+    causeCode: z.enum(['ENOTDIR', 'EEXIST', 'EISDIR']),
     filesystemOperation: z.enum(['mkdir', 'write']),
     targetRole: z.enum(['dexie_export_directory', 'local_storage_export_file']),
-    blockingNodeRole: z.enum(['migration_temp_root', 'dexie_export_directory', 'unknown']),
+    blockingNodeRole: z.enum([
+      'migration_temp_root',
+      'dexie_export_directory',
+      'local_storage_export_directory',
+      'local_storage_export_file',
+      'unknown'
+    ]),
     expectedNodeType: z.enum(['directory', 'file']),
     observedNodeType: z.enum(['file', 'directory', 'other', 'unavailable'])
   })
@@ -482,16 +488,43 @@ export const migrationDiagnosticFailureSchema = migrationDiagnosticFailureUnionS
 
       const observedNodeIsConflict =
         filesystemEvidence.observedNodeType === 'file' || filesystemEvidence.observedNodeType === 'other'
-      const blockerIsCoherent =
-        filesystemEvidence.blockingNodeRole === 'migration_temp_root'
-          ? observedNodeIsConflict
-          : filesystemEvidence.blockingNodeRole === 'dexie_export_directory'
-            ? filesystemEvidence.targetRole === 'dexie_export_directory' && observedNodeIsConflict
-            : filesystemEvidence.observedNodeType === 'unavailable'
+      let blockerIsCoherent: boolean
+      switch (filesystemEvidence.blockingNodeRole) {
+        case 'migration_temp_root':
+          blockerIsCoherent =
+            filesystemEvidence.causeCode === 'ENOTDIR' &&
+            filesystemEvidence.filesystemOperation === 'mkdir' &&
+            observedNodeIsConflict
+          break
+        case 'dexie_export_directory':
+          blockerIsCoherent =
+            filesystemEvidence.causeCode === 'EEXIST' &&
+            filesystemEvidence.filesystemOperation === 'mkdir' &&
+            filesystemEvidence.targetRole === 'dexie_export_directory' &&
+            observedNodeIsConflict
+          break
+        case 'local_storage_export_directory':
+          blockerIsCoherent =
+            filesystemEvidence.causeCode === 'EEXIST' &&
+            filesystemEvidence.filesystemOperation === 'mkdir' &&
+            filesystemEvidence.targetRole === 'local_storage_export_file' &&
+            observedNodeIsConflict
+          break
+        case 'local_storage_export_file':
+          blockerIsCoherent =
+            filesystemEvidence.causeCode === 'EISDIR' &&
+            filesystemEvidence.filesystemOperation === 'write' &&
+            filesystemEvidence.targetRole === 'local_storage_export_file' &&
+            (filesystemEvidence.observedNodeType === 'directory' || filesystemEvidence.observedNodeType === 'other')
+          break
+        case 'unknown':
+          blockerIsCoherent = filesystemEvidence.observedNodeType === 'unavailable'
+          break
+      }
       if (!blockerIsCoherent) {
         ctx.addIssue({
           code: 'custom',
-          message: 'Renderer export blocking node and observed node type must agree',
+          message: 'Renderer export cause, operation, blocking node, and observed node type must agree',
           path: ['evidence', 'filesystemEvidence', 'blockingNodeRole']
         })
       }

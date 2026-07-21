@@ -70,7 +70,7 @@ src/main/data/migration/v2/
 ## Core Contracts
 
 - `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and marks status in `app_state.key = 'migration_v2_status'`. It will clear new-schema tables before running and abort on any validation failure.
-- `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
+- `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. The object includes the renderer-export probe nodes (`migrationTempDir`, `dexieExportDir`, `localStorageExportDir`, and `localStorageExportFile`), so the IPC handler receives a narrow pre-computed path set instead of deriving paths locally. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
   - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
   - `db`: current SQLite connection
@@ -114,6 +114,7 @@ src/main/data/migration/v2/
 
 - `window/MigrationIpcHandler.ts` exposes IPC channels for the migration UI:
   - Receives Redux data and Dexie export path, starts the engine, and streams progress back to renderer.
+  - Classifies real export-path type conflicts (`ENOTDIR`, `EEXIST`, and `EISDIR`) and probes only the ordered, pre-computed `MigrationPaths` nodes for privacy-bounded filesystem evidence.
   - Manages retry/cancel/restart/skip actions.
 - `window/MigrationWindowManager.ts` creates the frameless migration window, handles lifecycle, and relaunch instructions after completion in production.
 

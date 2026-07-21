@@ -101,7 +101,11 @@ const defaultMigrationPaths = {
   userData: '/mock/userData',
   versionLogFile: '/mock/version.log',
   databaseFile: '/mock/userData/cherrystudio.sqlite',
-  diagnosticsJournalFile: '/mock/userData/migration-diagnostics-v2.json'
+  diagnosticsJournalFile: '/mock/userData/migration-diagnostics-v2.json',
+  migrationTempDir: '/mock/userData/migration_temp',
+  dexieExportDir: '/mock/userData/migration_temp/dexie_export',
+  localStorageExportDir: '/mock/userData/migration_temp/localstorage_export',
+  localStorageExportFile: '/mock/userData/migration_temp/localstorage_export/localStorage.json'
 }
 const defaultResolveResult = {
   paths: defaultMigrationPaths,
@@ -389,7 +393,7 @@ describe('runV2MigrationGate', () => {
       expect(result).toBe('handled')
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith(
-        '/mock/userData',
+        defaultMigrationPaths,
         expect.objectContaining({
           reportRendererExportFailure: expect.any(Function),
           saveDiagnosticBundle: expect.any(Function),

@@ -441,7 +441,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       logger.error('Failed to normalize version-gate diagnostics')
     }
     setVersionIncompatible(versionCheck.reason, versionCheck.details)
-    registerMigrationIpcHandlers(paths.userData, migrationIpcDiagnosticCapabilities)
+    registerMigrationIpcHandlers(paths, migrationIpcDiagnosticCapabilities)
     try {
       await app.whenReady()
       migrationWindowManager.create({ failureClaim: windowFailureClaim, onRendererFailure })
@@ -480,7 +480,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   }
 
   if (dataLocation) setDataLocationNotice(dataLocation)
-  registerMigrationIpcHandlers(paths.userData, migrationIpcDiagnosticCapabilities)
+  registerMigrationIpcHandlers(paths, migrationIpcDiagnosticCapabilities)
   try {
     await app.whenReady()
     migrationWindowManager.create({ failureClaim: windowFailureClaim, onRendererFailure })

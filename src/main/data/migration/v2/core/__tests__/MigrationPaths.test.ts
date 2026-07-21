@@ -335,6 +335,12 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     const { paths } = resolveMigrationPaths()
 
     expect(paths.diagnosticsJournalFile).toBe(path.join(DEFAULT_USER_DATA, 'migration-diagnostics-v2.json'))
+    expect(paths.migrationTempDir).toBe(path.join(DEFAULT_USER_DATA, 'migration_temp'))
+    expect(paths.dexieExportDir).toBe(path.join(DEFAULT_USER_DATA, 'migration_temp', 'dexie_export'))
+    expect(paths.localStorageExportDir).toBe(path.join(DEFAULT_USER_DATA, 'migration_temp', 'localstorage_export'))
+    expect(paths.localStorageExportFile).toBe(
+      path.join(DEFAULT_USER_DATA, 'migration_temp', 'localstorage_export', 'localStorage.json')
+    )
     expect(paths).not.toHaveProperty('legacyDiagnosticsJournalFile')
     expect(Object.isFrozen(paths)).toBe(true)
   })
@@ -353,6 +359,10 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     const { paths } = resolveMigrationPaths()
 
     expect(paths.diagnosticsJournalFile).toBe('/custom/data/migration-diagnostics-v2.json')
+    expect(paths.migrationTempDir).toBe('/custom/data/migration_temp')
+    expect(paths.dexieExportDir).toBe('/custom/data/migration_temp/dexie_export')
+    expect(paths.localStorageExportDir).toBe('/custom/data/migration_temp/localstorage_export')
+    expect(paths.localStorageExportFile).toBe('/custom/data/migration_temp/localstorage_export/localStorage.json')
     expect(paths).not.toHaveProperty('legacyDiagnosticsJournalFile')
   })
 

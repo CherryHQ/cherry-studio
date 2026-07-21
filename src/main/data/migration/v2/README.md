@@ -65,10 +65,11 @@ For an actual blocking string or JSON write failure, the failed boundary may rec
 byte lengths and whether the sample was truncated. Optional row failures and warning-only work do not produce this
 evidence, and diagnostics never serialize the failed values themselves.
 
-Renderer export node-type conflicts are recorded as `file_invalid_type` with fixed `ENOTDIR` / `EEXIST`, operation,
-target, blocking-node, expected-type, and observed-type enums. Main derives and probes only its predefined
-`migration_temp` / `dexie_export` nodes; probe failure becomes `unavailable` and never replaces the original failure.
-Renderer-provided paths, raw filesystem messages, stacks, and user content are not persisted or added to the ZIP.
+Renderer export node-type conflicts are recorded as `file_invalid_type` with fixed `ENOTDIR` / `EEXIST` / `EISDIR`,
+operation, target, blocking-node, expected-type, and observed-type enums. Main probes in order only the predefined
+`migrationTempDir`, `dexieExportDir`, `localStorageExportDir`, and `localStorageExportFile` values from
+`MigrationPaths`; probe failure becomes `unavailable` and never replaces the original failure. Renderer-provided
+paths, raw filesystem messages, stacks, and user content are not persisted or added to the ZIP.
 
 The same save operation is available from renderer migration errors, version-incompatibility blocks, pre-window
 native failures, renderer crashes, renderer hangs that persist for 10 seconds, and unfinished-session recovery.
@@ -80,9 +81,9 @@ manually.
 
 Real fault coverage is split by boundary: database integration tests mutate real SQLite tables and columns, the
 process integration test runs and terminates a real native SQLite hang, journal/coordinator tests exercise durable
-recovery, bundle tests build and inspect real ZIPs, and engine/window/exporter tests inject failures at the production
-call sites that classify and hand them off. Tests do not claim a real scenario when they only construct a schema
-object.
+recovery, bundle tests build and inspect real ZIPs, and the renderer-export handler tests use temporary filesystem
+nodes to produce real `ENOTDIR`, `EEXIST`, and `EISDIR` failures at the production call sites. Tests do not claim a
+real scenario when they only construct a schema object.
 
 ## Path Safety — Use `MigrationPaths` (Strict Requirement)
 

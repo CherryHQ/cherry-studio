@@ -71,6 +71,7 @@ export {
   presentMigrationDiagnosticRecovery
 } from './window/migrationDiagnosticDialogs'
 export {
+  type MigrationIpcPaths,
   registerMigrationIpcHandlers,
   resetMigrationData,
   runMigrationDiagnosticSaveTransaction,

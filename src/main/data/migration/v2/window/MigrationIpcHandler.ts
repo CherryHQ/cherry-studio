@@ -22,6 +22,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import { migrationEngine } from '../core/MigrationEngine'
+import type { MigrationPaths } from '../core/MigrationPaths'
 import { classifyMigrationError } from '../diagnostics'
 import type { MigrationRendererExportMainWriteFailure } from '../migrationDiagnostics'
 import {
@@ -50,11 +51,10 @@ type RendererExportFilesystemEvidence = Extract<
   MigrationRendererExportMainWriteFailure,
   { errorCode: 'file_invalid_type' }
 >['filesystemEvidence']
-interface ControlledRendererExportPaths {
-  readonly migrationTempRoot: string
-  readonly dexieExportDirectory: string
-  readonly localStorageExportDirectory: string
-}
+export type MigrationIpcPaths = Pick<
+  MigrationPaths,
+  'userData' | 'migrationTempDir' | 'dexieExportDir' | 'localStorageExportDir' | 'localStorageExportFile'
+>
 
 interface DiagnosticRegistrationState {
   epoch: number
@@ -104,7 +104,7 @@ let dataLocationNotice: string | null = null
  * Register all migration IPC handlers
  */
 export function registerMigrationIpcHandlers(
-  userDataPath: string,
+  paths: MigrationIpcPaths,
   diagnosticCapabilities: MigrationIpcDiagnosticCapabilities
 ): void {
   logger.info('Registering migration IPC handlers')
@@ -116,12 +116,6 @@ export function registerMigrationIpcHandlers(
     rendererExportGeneration: 0,
     rendererExportPhase: null
   }
-  const migrationTempRoot = path.join(userDataPath, 'migration_temp')
-  const controlledExportPaths: ControlledRendererExportPaths = Object.freeze({
-    migrationTempRoot,
-    dexieExportDirectory: path.join(migrationTempRoot, 'dexie_export'),
-    localStorageExportDirectory: path.join(migrationTempRoot, 'localstorage_export')
-  })
   activeDiagnosticRegistration = diagnosticRegistration
   const requestRegisteredQuit = (): boolean => requestQuit(diagnosticRegistration, diagnosticCapabilities)
 
@@ -205,7 +199,7 @@ export function registerMigrationIpcHandlers(
 
   // Get user data path
   ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
-    return userDataPath
+    return paths.userData
   })
 
   // Check if migration is needed
@@ -254,7 +248,7 @@ export function registerMigrationIpcHandlers(
           filesystemOperation,
           exportPath,
           tableName,
-          controlledExportPaths
+          paths
         )
         if (
           activeDiagnosticRegistration === diagnosticRegistration &&
@@ -550,7 +544,7 @@ async function classifyMainExportWriteFailure(
   filesystemOperation: 'mkdir' | 'write',
   exportPath: string,
   tableName: string,
-  controlledPaths: ControlledRendererExportPaths
+  paths: MigrationIpcPaths
 ): Promise<MigrationRendererExportMainWriteFailure> {
   const { errorCode } = classifyMigrationError(error)
   switch (errorCode) {
@@ -561,13 +555,9 @@ async function classifyMainExportWriteFailure(
       const targetRole = tableName === 'localStorage' ? 'local_storage_export_file' : 'dexie_export_directory'
       const isControlledExportPath =
         path.normalize(exportPath) ===
-        path.normalize(
-          targetRole === 'local_storage_export_file'
-            ? controlledPaths.localStorageExportDirectory
-            : controlledPaths.dexieExportDirectory
-        )
+        path.normalize(targetRole === 'local_storage_export_file' ? paths.localStorageExportDir : paths.dexieExportDir)
       const blocker = isControlledExportPath
-        ? await probeControlledFilesystemBlocker(controlledPaths, targetRole)
+        ? await probeControlledFilesystemBlocker(paths, targetRole, filesystemOperation)
         : { blockingNodeRole: 'unknown' as const, observedNodeType: 'unavailable' as const }
       return {
         errorCode,
@@ -591,22 +581,37 @@ async function classifyMainExportWriteFailure(
 }
 
 async function probeControlledFilesystemBlocker(
-  paths: ControlledRendererExportPaths,
-  targetRole: RendererExportFilesystemEvidence['targetRole']
+  paths: MigrationIpcPaths,
+  targetRole: RendererExportFilesystemEvidence['targetRole'],
+  filesystemOperation: RendererExportFilesystemEvidence['filesystemOperation']
 ): Promise<Pick<RendererExportFilesystemEvidence, 'blockingNodeRole' | 'observedNodeType'>> {
   try {
-    const migrationTempType = nodeType(await fs.lstat(paths.migrationTempRoot))
+    const migrationTempType = nodeType(await fs.lstat(paths.migrationTempDir))
     if (migrationTempType !== 'directory') {
       return { blockingNodeRole: 'migration_temp_root', observedNodeType: migrationTempType }
     }
-    if (targetRole !== 'dexie_export_directory') {
+    if (targetRole === 'dexie_export_directory') {
+      const dexieExportType = nodeType(await fs.lstat(paths.dexieExportDir))
+      return dexieExportType === 'directory'
+        ? { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
+        : { blockingNodeRole: 'dexie_export_directory', observedNodeType: dexieExportType }
+    }
+
+    const localStorageExportType = nodeType(await fs.lstat(paths.localStorageExportDir))
+    if (localStorageExportType !== 'directory') {
+      return {
+        blockingNodeRole: 'local_storage_export_directory',
+        observedNodeType: localStorageExportType
+      }
+    }
+    if (filesystemOperation !== 'write') {
       return { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
     }
 
-    const dexieExportType = nodeType(await fs.lstat(paths.dexieExportDirectory))
-    return dexieExportType === 'directory'
+    const localStorageExportFileType = nodeType(await fs.lstat(paths.localStorageExportFile))
+    return localStorageExportFileType === 'file'
       ? { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
-      : { blockingNodeRole: 'dexie_export_directory', observedNodeType: dexieExportType }
+      : { blockingNodeRole: 'local_storage_export_file', observedNodeType: localStorageExportFileType }
   } catch {
     return { blockingNodeRole: 'unknown', observedNodeType: 'unavailable' }
   }
@@ -618,7 +623,7 @@ function nodeType(stats: Awaited<ReturnType<typeof fs.lstat>>): RendererExportFi
   return 'other'
 }
 
-function findFilesystemTypeCauseCode(error: unknown): 'ENOTDIR' | 'EEXIST' | null {
+function findFilesystemTypeCauseCode(error: unknown): 'ENOTDIR' | 'EEXIST' | 'EISDIR' | null {
   let current = error
   const visited = new WeakSet<object>()
   for (let causeDepth = 0; causeDepth <= 4; causeDepth++) {
@@ -629,7 +634,7 @@ function findFilesystemTypeCauseCode(error: unknown): 'ENOTDIR' | 'EEXIST' | nul
     try {
       const codeDescriptor = Object.getOwnPropertyDescriptor(current, 'code')
       const code = codeDescriptor && 'value' in codeDescriptor ? codeDescriptor.value : undefined
-      if (code === 'ENOTDIR' || code === 'EEXIST') return code
+      if (code === 'ENOTDIR' || code === 'EEXIST' || code === 'EISDIR') return code
       const causeDescriptor = Object.getOwnPropertyDescriptor(current, 'cause')
       current = causeDescriptor && 'value' in causeDescriptor ? causeDescriptor.value : undefined
     } catch {

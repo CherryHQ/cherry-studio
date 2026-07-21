@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -45,6 +45,18 @@ const diagnosticsSaveBundleMock = vi.hoisted(() => vi.fn())
 const diagnosticsCompleteVersionGateMock = vi.hoisted(() => vi.fn())
 const isSafeExternalUrlMock = vi.hoisted(() => vi.fn())
 const fsMocks = vi.hoisted(() => ({ lstat: vi.fn(), mkdir: vi.fn(), writeFile: vi.fn() }))
+function createMigrationIpcPaths(userData: string) {
+  const migrationTempDir = path.join(userData, 'migration_temp')
+  const localStorageExportDir = path.join(migrationTempDir, 'localstorage_export')
+  return Object.freeze({
+    userData,
+    migrationTempDir,
+    dexieExportDir: path.join(migrationTempDir, 'dexie_export'),
+    localStorageExportDir,
+    localStorageExportFile: path.join(localStorageExportDir, 'localStorage.json')
+  })
+}
+const migrationIpcPaths = createMigrationIpcPaths('/mock/userData')
 const electronMocks = vi.hoisted(() => ({
   app: { getLocale: vi.fn(), quit: vi.fn() },
   clipboard: { writeText: vi.fn() },
@@ -113,6 +125,16 @@ describe('MigrationIpcHandler', () => {
     return invokeFrom({ sender: migrationWebContents, senderFrame: migrationMainFrame }, channel, ...args)
   }
 
+  function useRealExportFilesystem(): void {
+    fsMocks.mkdir.mockImplementation(async (target, options) => {
+      mkdirSync(target, options)
+    })
+    fsMocks.writeFile.mockImplementation(async (target, data, encoding) => {
+      writeFileSync(target, data, encoding)
+    })
+    fsMocks.lstat.mockImplementation(async (target) => lstatSync(target))
+  }
+
   beforeEach(() => {
     vi.resetAllMocks()
     electronMocks.app.getLocale.mockReturnValue('en-US')
@@ -131,7 +153,7 @@ describe('MigrationIpcHandler', () => {
     engineMock.run.mockResolvedValue({ success: true, totalDuration: 1, migratorResults: [] })
     engineMock.skipMigration.mockResolvedValue(undefined)
     resetMigrationData()
-    registerMigrationIpcHandlers('/mock/userData', {
+    registerMigrationIpcHandlers(migrationIpcPaths, {
       start: diagnosticsStartMock,
       reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
       saveDiagnosticBundle: diagnosticsSaveBundleMock,
@@ -148,6 +170,10 @@ describe('MigrationIpcHandler', () => {
       ShowDiagnosticBundleInFolder: 'migration:show-diagnostic-bundle-in-folder',
       CopySupportEmail: 'migration:copy-support-email'
     })
+  })
+
+  it('returns the precomputed MigrationPaths userData value', async () => {
+    await expect(invoke(MigrationIpcChannels.GetUserDataPath)).resolves.toBe(migrationIpcPaths.userData)
   })
 
   it('starts renderer-export diagnostics without making StartMigration begin a second attempt', async () => {
@@ -258,7 +284,7 @@ describe('MigrationIpcHandler', () => {
     it('clears the reveal destination when handlers are unregistered and registered again', async () => {
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
       unregisterMigrationIpcHandlers()
-      registerMigrationIpcHandlers('/mock/userData', {
+      registerMigrationIpcHandlers(migrationIpcPaths, {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
@@ -280,7 +306,7 @@ describe('MigrationIpcHandler', () => {
       await vi.waitFor(() => expect(diagnosticsSaveBundleMock).toHaveBeenCalledTimes(1))
 
       unregisterMigrationIpcHandlers()
-      registerMigrationIpcHandlers('/mock/userData', {
+      registerMigrationIpcHandlers(migrationIpcPaths, {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
@@ -387,7 +413,7 @@ describe('MigrationIpcHandler', () => {
       await vi.waitFor(() => expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1))
 
       unregisterMigrationIpcHandlers()
-      registerMigrationIpcHandlers('/mock/userData', {
+      registerMigrationIpcHandlers(migrationIpcPaths, {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
@@ -539,7 +565,7 @@ describe('MigrationIpcHandler', () => {
       await staleStart({ sender: migrationWebContents, senderFrame: migrationMainFrame })
 
       unregisterMigrationIpcHandlers()
-      registerMigrationIpcHandlers('/mock/userData', {
+      registerMigrationIpcHandlers(migrationIpcPaths, {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,
@@ -638,54 +664,57 @@ describe('MigrationIpcHandler', () => {
       expect(JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)).not.toContain('PRIVATE_MAIN_WRITE')
     })
 
-    it('captures a fixed migration-temp blocker when local-storage mkdir fails with ENOTDIR', async () => {
-      const original = Object.assign(new Error('PRIVATE_MAIN_WRITE /mock/userData/migration_temp'), {
-        code: 'ENOTDIR'
+    it('captures a real ENOTDIR migration-temp blocker without exposing the path or payload', async () => {
+      const userData = mkdtempSync(path.join(tmpdir(), 'cs-migration-handler-enotdir-'))
+      const paths = createMigrationIpcPaths(userData)
+      writeFileSync(paths.migrationTempDir, 'blocker')
+      useRealExportFilesystem()
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers(paths, {
+        start: diagnosticsStartMock,
+        reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+        saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        completeVersionGate: diagnosticsCompleteVersionGateMock
       })
-      fsMocks.mkdir.mockRejectedValueOnce(original)
-      fsMocks.lstat.mockResolvedValueOnce({
-        isFile: () => true,
-        isDirectory: () => false
-      })
-      await invoke(MigrationIpcChannels.Start)
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
 
-      await expect(
-        invoke(
-          MigrationIpcChannels.WriteExportFile,
-          '/mock/userData/migration_temp/localstorage_export',
-          'localStorage',
-          'PRIVATE_JSON'
-        )
-      ).rejects.toBe(original)
-      await invoke(MigrationIpcChannels.ReportError, {
-        message: 'renderer received a rejected IPC invoke',
-        report: { sourceRole: 'local_storage', operationRole: 'write' }
-      })
+      try {
+        await invoke(MigrationIpcChannels.Start)
+        await expect(
+          invoke(MigrationIpcChannels.WriteExportFile, paths.localStorageExportDir, 'localStorage', 'PRIVATE_JSON')
+        ).rejects.toMatchObject({ code: 'ENOTDIR' })
+        await invoke(MigrationIpcChannels.ReportError, {
+          message: 'renderer received a rejected IPC invoke',
+          report: { sourceRole: 'local_storage', operationRole: 'write' }
+        })
 
-      expect(fsMocks.lstat).toHaveBeenCalledWith('/mock/userData/migration_temp')
-      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
-        { sourceRole: 'local_storage', operationRole: 'write' },
-        {
-          errorCode: 'file_invalid_type',
-          filesystemEvidence: {
-            causeCode: 'ENOTDIR',
-            filesystemOperation: 'mkdir',
-            targetRole: 'local_storage_export_file',
-            blockingNodeRole: 'migration_temp_root',
-            expectedNodeType: 'file',
-            observedNodeType: 'file'
+        expect(fsMocks.lstat.mock.calls).toEqual([[paths.migrationTempDir]])
+        expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+          { sourceRole: 'local_storage', operationRole: 'write' },
+          {
+            errorCode: 'file_invalid_type',
+            filesystemEvidence: {
+              causeCode: 'ENOTDIR',
+              filesystemOperation: 'mkdir',
+              targetRole: 'local_storage_export_file',
+              blockingNodeRole: 'migration_temp_root',
+              expectedNodeType: 'file',
+              observedNodeType: 'file'
+            }
           }
-        }
-      )
-      const capabilityPayload = JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)
-      expect(capabilityPayload).not.toContain('PRIVATE_MAIN_WRITE')
-      expect(capabilityPayload).not.toContain('/mock/userData')
-      expect(capabilityPayload).not.toContain('PRIVATE_JSON')
+        )
+        const capabilityPayload = JSON.stringify(diagnosticsReportRendererExportFailureMock.mock.calls)
+        expect(capabilityPayload).not.toContain(userData)
+        expect(capabilityPayload).not.toContain('PRIVATE_JSON')
+      } finally {
+        rmSync(userData, { recursive: true, force: true })
+      }
     })
 
     it('publishes handler-produced filesystem evidence through the real coordinator and ZIP builder', async () => {
       const testDir = mkdtempSync(path.join(tmpdir(), 'cs-migration-handler-evidence-'))
       const destination = path.join(testDir, 'diagnostics.zip')
+      const paths = createMigrationIpcPaths(path.join(testDir, 'user-data'))
       const coordinator = new MigrationDiagnosticsCoordinator({
         appVersion: '2.0.0',
         platform: 'darwin',
@@ -695,9 +724,11 @@ describe('MigrationIpcHandler', () => {
       const bundleBuilder = new MigrationDiagnosticBundleBuilder({
         clock: () => new Date('2026-07-21T08:01:00.000Z')
       })
+      mkdirSync(paths.localStorageExportFile, { recursive: true })
+      useRealExportFilesystem()
 
       unregisterMigrationIpcHandlers()
-      registerMigrationIpcHandlers('/mock/userData', {
+      registerMigrationIpcHandlers(paths, {
         start: () => {
           coordinator.beginAttempt('initial')
           coordinator.updateLocation({ scope: 'renderer_export', phase: 'prepare' })
@@ -724,25 +755,11 @@ describe('MigrationIpcHandler', () => {
       handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
       vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: false, filePath: destination } as never)
 
-      const original = Object.assign(new Error('PRIVATE_MAIN_WRITE /mock/userData/migration_temp'), {
-        code: 'ENOTDIR'
-      })
-      fsMocks.mkdir.mockRejectedValueOnce(original)
-      fsMocks.lstat.mockResolvedValueOnce({
-        isFile: () => true,
-        isDirectory: () => false
-      })
-
       try {
         await invoke(MigrationIpcChannels.Start)
         await expect(
-          invoke(
-            MigrationIpcChannels.WriteExportFile,
-            '/mock/userData/migration_temp/localstorage_export',
-            'localStorage',
-            'PRIVATE_JSON'
-          )
-        ).rejects.toBe(original)
+          invoke(MigrationIpcChannels.WriteExportFile, paths.localStorageExportDir, 'localStorage', 'PRIVATE_JSON')
+        ).rejects.toMatchObject({ code: 'EISDIR' })
         await invoke(MigrationIpcChannels.ReportError, {
           message: 'PRIVATE_RENDERER_MESSAGE',
           report: { sourceRole: 'redux', operationRole: 'parse' }
@@ -766,22 +783,26 @@ describe('MigrationIpcHandler', () => {
                 sourceRole: 'local_storage',
                 operationRole: 'write',
                 filesystemEvidence: {
-                  causeCode: 'ENOTDIR',
-                  filesystemOperation: 'mkdir',
+                  causeCode: 'EISDIR',
+                  filesystemOperation: 'write',
                   targetRole: 'local_storage_export_file',
-                  blockingNodeRole: 'migration_temp_root',
+                  blockingNodeRole: 'local_storage_export_file',
                   expectedNodeType: 'file',
-                  observedNodeType: 'file'
+                  observedNodeType: 'directory'
                 }
               }
             }
           })
+          expect(fsMocks.lstat.mock.calls).toEqual([
+            [paths.migrationTempDir],
+            [paths.localStorageExportDir],
+            [paths.localStorageExportFile]
+          ])
           const serialized = Buffer.concat([
             await zip.entryData('migration-diagnostics.json'),
             await zip.entryData('README.txt')
           ]).toString('utf8')
-          expect(serialized).not.toContain('/mock/userData')
-          expect(serialized).not.toContain('PRIVATE_MAIN_WRITE')
+          expect(serialized).not.toContain(paths.userData)
           expect(serialized).not.toContain('PRIVATE_RENDERER_MESSAGE')
           expect(serialized).not.toContain('PRIVATE_JSON')
         } finally {
@@ -792,45 +813,94 @@ describe('MigrationIpcHandler', () => {
       }
     })
 
-    it('identifies the write boundary and fixed Dexie blocker for EEXIST', async () => {
-      const original = Object.assign(new Error('PRIVATE_WRITE_STACK'), { code: 'EEXIST' })
-      fsMocks.writeFile.mockRejectedValueOnce(original)
-      fsMocks.lstat
-        .mockResolvedValueOnce({ isFile: () => false, isDirectory: () => true })
-        .mockResolvedValueOnce({ isFile: () => true, isDirectory: () => false })
-      await invoke(MigrationIpcChannels.Start)
-
-      await expect(
-        invoke(
-          MigrationIpcChannels.WriteExportFile,
-          '/mock/userData/migration_temp/dexie_export',
-          'topics',
-          'PRIVATE_JSON'
-        )
-      ).rejects.toBe(original)
-      await invoke(MigrationIpcChannels.ReportError, {
-        message: 'renderer received a rejected IPC invoke',
-        report: { sourceRole: 'dexie', operationRole: 'write' }
+    it('captures a real EEXIST Dexie export-directory blocker', async () => {
+      const userData = mkdtempSync(path.join(tmpdir(), 'cs-migration-handler-dexie-eexist-'))
+      const paths = createMigrationIpcPaths(userData)
+      mkdirSync(paths.migrationTempDir, { recursive: true })
+      writeFileSync(paths.dexieExportDir, 'blocker')
+      useRealExportFilesystem()
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers(paths, {
+        start: diagnosticsStartMock,
+        reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+        saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        completeVersionGate: diagnosticsCompleteVersionGateMock
       })
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
 
-      expect(fsMocks.lstat.mock.calls).toEqual([
-        ['/mock/userData/migration_temp'],
-        ['/mock/userData/migration_temp/dexie_export']
-      ])
-      expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
-        { sourceRole: 'dexie', operationRole: 'write' },
-        {
-          errorCode: 'file_invalid_type',
-          filesystemEvidence: {
-            causeCode: 'EEXIST',
-            filesystemOperation: 'write',
-            targetRole: 'dexie_export_directory',
-            blockingNodeRole: 'dexie_export_directory',
-            expectedNodeType: 'directory',
-            observedNodeType: 'file'
+      try {
+        await invoke(MigrationIpcChannels.Start)
+        await expect(
+          invoke(MigrationIpcChannels.WriteExportFile, paths.dexieExportDir, 'topics', 'PRIVATE_JSON')
+        ).rejects.toMatchObject({ code: 'EEXIST' })
+        await invoke(MigrationIpcChannels.ReportError, {
+          message: 'renderer received a rejected IPC invoke',
+          report: { sourceRole: 'dexie', operationRole: 'write' }
+        })
+
+        expect(fsMocks.lstat.mock.calls).toEqual([[paths.migrationTempDir], [paths.dexieExportDir]])
+        expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+          { sourceRole: 'dexie', operationRole: 'write' },
+          {
+            errorCode: 'file_invalid_type',
+            filesystemEvidence: {
+              causeCode: 'EEXIST',
+              filesystemOperation: 'mkdir',
+              targetRole: 'dexie_export_directory',
+              blockingNodeRole: 'dexie_export_directory',
+              expectedNodeType: 'directory',
+              observedNodeType: 'file'
+            }
           }
-        }
-      )
+        )
+      } finally {
+        rmSync(userData, { recursive: true, force: true })
+      }
+    })
+
+    it('captures a real EEXIST local-storage export-directory blocker', async () => {
+      const userData = mkdtempSync(path.join(tmpdir(), 'cs-migration-handler-local-eexist-'))
+      const paths = createMigrationIpcPaths(userData)
+      mkdirSync(paths.migrationTempDir, { recursive: true })
+      writeFileSync(paths.localStorageExportDir, 'blocker')
+      useRealExportFilesystem()
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers(paths, {
+        start: diagnosticsStartMock,
+        reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+        saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        completeVersionGate: diagnosticsCompleteVersionGateMock
+      })
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+
+      try {
+        await invoke(MigrationIpcChannels.Start)
+        await expect(
+          invoke(MigrationIpcChannels.WriteExportFile, paths.localStorageExportDir, 'localStorage', 'PRIVATE_JSON')
+        ).rejects.toMatchObject({ code: 'EEXIST' })
+        await invoke(MigrationIpcChannels.ReportError, {
+          message: 'renderer received a rejected IPC invoke',
+          report: { sourceRole: 'local_storage', operationRole: 'write' }
+        })
+
+        expect(fsMocks.lstat.mock.calls).toEqual([[paths.migrationTempDir], [paths.localStorageExportDir]])
+        expect(diagnosticsReportRendererExportFailureMock).toHaveBeenCalledWith(
+          { sourceRole: 'local_storage', operationRole: 'write' },
+          {
+            errorCode: 'file_invalid_type',
+            filesystemEvidence: {
+              causeCode: 'EEXIST',
+              filesystemOperation: 'mkdir',
+              targetRole: 'local_storage_export_file',
+              blockingNodeRole: 'local_storage_export_directory',
+              expectedNodeType: 'file',
+              observedNodeType: 'file'
+            }
+          }
+        )
+      } finally {
+        rmSync(userData, { recursive: true, force: true })
+      }
     })
 
     it('keeps the original type conflict when the controlled lstat probe fails', async () => {
@@ -955,7 +1025,7 @@ describe('MigrationIpcHandler', () => {
       await invoke(MigrationIpcChannels.Start)
       resetMigrationData()
       unregisterMigrationIpcHandlers()
-      registerMigrationIpcHandlers('/mock/userData', {
+      registerMigrationIpcHandlers(migrationIpcPaths, {
         start: diagnosticsStartMock,
         reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
         saveDiagnosticBundle: diagnosticsSaveBundleMock,

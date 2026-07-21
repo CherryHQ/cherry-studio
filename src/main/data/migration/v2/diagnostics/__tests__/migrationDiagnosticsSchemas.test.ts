@@ -239,6 +239,37 @@ describe('migrationDiagnosticFailureSchema', () => {
     ).toBe(false)
   })
 
+  it.each([
+    {
+      causeCode: 'EEXIST',
+      filesystemOperation: 'mkdir',
+      targetRole: 'local_storage_export_file',
+      blockingNodeRole: 'local_storage_export_directory',
+      expectedNodeType: 'file',
+      observedNodeType: 'file'
+    },
+    {
+      causeCode: 'EISDIR',
+      filesystemOperation: 'write',
+      targetRole: 'local_storage_export_file',
+      blockingNodeRole: 'local_storage_export_file',
+      expectedNodeType: 'file',
+      observedNodeType: 'directory'
+    }
+  ] as const)('accepts coherent local-storage filesystem evidence for $blockingNodeRole', (filesystemEvidence) => {
+    expect(
+      migrationDiagnosticFailureSchema.safeParse({
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          kind: 'renderer_export',
+          sourceRole: 'local_storage',
+          operationRole: 'write',
+          filesystemEvidence
+        }
+      }).success
+    ).toBe(true)
+  })
+
   it.each(['rawError', 'path', 'message', 'stack'])('rejects nested filesystem %s evidence', (field) => {
     expect(
       migrationDiagnosticFailureSchema.safeParse({
@@ -384,6 +415,121 @@ describe('migrationDiagnosticFailureSchema', () => {
         }
       }
     ],
+    [
+      'a local-storage directory blocker for a Dexie target',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            blockingNodeRole: 'local_storage_export_directory'
+          }
+        }
+      }
+    ],
+    ...(['directory', 'unavailable'] as const).map(
+      (observedNodeType) =>
+        [
+          `a local-storage directory blocker observed as ${observedNodeType}`,
+          {
+            ...rendererFilesystemTypeFailure,
+            evidence: {
+              kind: 'renderer_export' as const,
+              sourceRole: 'local_storage' as const,
+              operationRole: 'write' as const,
+              filesystemEvidence: {
+                ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+                targetRole: 'local_storage_export_file' as const,
+                blockingNodeRole: 'local_storage_export_directory' as const,
+                expectedNodeType: 'file' as const,
+                observedNodeType
+              }
+            }
+          }
+        ] as const
+    ),
+    [
+      'a local-storage file blocker for a Dexie target',
+      {
+        ...rendererFilesystemTypeFailure,
+        evidence: {
+          ...rendererFilesystemTypeFailure.evidence,
+          filesystemEvidence: {
+            ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+            blockingNodeRole: 'local_storage_export_file',
+            observedNodeType: 'directory'
+          }
+        }
+      }
+    ],
+    ...(['file', 'unavailable'] as const).map(
+      (observedNodeType) =>
+        [
+          `a local-storage file blocker observed as ${observedNodeType}`,
+          {
+            ...rendererFilesystemTypeFailure,
+            evidence: {
+              kind: 'renderer_export' as const,
+              sourceRole: 'local_storage' as const,
+              operationRole: 'write' as const,
+              filesystemEvidence: {
+                ...rendererFilesystemTypeFailure.evidence.filesystemEvidence,
+                causeCode: 'EISDIR' as const,
+                filesystemOperation: 'write' as const,
+                targetRole: 'local_storage_export_file' as const,
+                blockingNodeRole: 'local_storage_export_file' as const,
+                expectedNodeType: 'file' as const,
+                observedNodeType
+              }
+            }
+          }
+        ] as const
+    ),
+    ...(
+      [
+        ['migration-temp blocker with the wrong cause', 'EEXIST', 'mkdir', 'migration_temp_root'],
+        ['migration-temp blocker with the wrong operation', 'ENOTDIR', 'write', 'migration_temp_root'],
+        ['Dexie blocker with the wrong cause', 'ENOTDIR', 'mkdir', 'dexie_export_directory'],
+        ['Dexie blocker with the wrong operation', 'EEXIST', 'write', 'dexie_export_directory'],
+        ['local-storage directory blocker with the wrong cause', 'EISDIR', 'mkdir', 'local_storage_export_directory'],
+        [
+          'local-storage directory blocker with the wrong operation',
+          'EEXIST',
+          'write',
+          'local_storage_export_directory'
+        ],
+        ['local-storage file blocker with the wrong cause', 'EEXIST', 'write', 'local_storage_export_file'],
+        ['local-storage file blocker with the wrong operation', 'EISDIR', 'mkdir', 'local_storage_export_file']
+      ] as const
+    ).map(
+      ([description, causeCode, filesystemOperation, blockingNodeRole]) =>
+        [
+          description,
+          {
+            ...rendererFilesystemTypeFailure,
+            evidence: {
+              kind: 'renderer_export' as const,
+              sourceRole:
+                blockingNodeRole === 'dexie_export_directory' ? ('dexie' as const) : ('local_storage' as const),
+              operationRole: 'write' as const,
+              filesystemEvidence: {
+                causeCode,
+                filesystemOperation,
+                targetRole:
+                  blockingNodeRole === 'dexie_export_directory'
+                    ? ('dexie_export_directory' as const)
+                    : ('local_storage_export_file' as const),
+                blockingNodeRole,
+                expectedNodeType:
+                  blockingNodeRole === 'dexie_export_directory' ? ('directory' as const) : ('file' as const),
+                observedNodeType:
+                  blockingNodeRole === 'local_storage_export_file' ? ('directory' as const) : ('file' as const)
+              }
+            }
+          }
+        ] as const
+    ),
     [
       'an unknown blocker with an available observation',
       {

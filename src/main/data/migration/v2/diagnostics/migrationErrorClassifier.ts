@@ -70,6 +70,7 @@ function classifyCode(code: string): MigrationFailureErrorCode | undefined {
       return 'file_readonly'
     case 'ENOTDIR':
     case 'EEXIST':
+    case 'EISDIR':
       return 'file_invalid_type'
     case 'ENOENT':
       return 'file_missing'
