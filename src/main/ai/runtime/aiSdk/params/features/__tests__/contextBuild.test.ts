@@ -2,7 +2,7 @@
  * P1 contract for the context-build feature: oversized tool results are
  * persisted + truncated, exempted tools are preserved verbatim, and
  * everything else round-trips losslessly. `transformParams` converts the
- * prompt through context-chef's IR and back on EVERY call, so any field
+ * prompt through the context module's IR and back on EVERY call, so any field
  * dropped here would be silently dropped in production for every provider.
  * The round-trip assertions are the shipping gate for this feature.
  */
@@ -12,14 +12,14 @@ import path from 'node:path'
 
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { application } from '@application'
-import { createMiddleware } from '@context-chef/ai-sdk-middleware'
-import { FileSystemAdapter } from '@context-chef/core'
+import { createContextMiddleware } from '@cherrystudio/ai-core'
+import { FileSystemAdapter } from '@main/services/VfsBlobService'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { LanguageModelMiddleware } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RequestScope } from '../../scope'
-import { buildChefOptions, contextBuildFeature } from '../contextBuild'
+import { buildContextOptions, contextBuildFeature } from '../contextBuild'
 
 const CACHE_MARK = { anthropic: { cacheControl: { type: 'ephemeral' } } }
 const BIG = 150_000
@@ -55,12 +55,12 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
 }
 
 /**
- * Fixture deliberately covers the shapes chef's adapter handles specially:
- * a multimodal file part (mapped through chef's attachments), a multi-call
+ * Fixture deliberately covers the shapes the context adapter handles specially:
+ * a multimodal file part (mapped through the adapter's attachments), a multi-call
  * assistant turn, a two-part tool message (split into per-part IR messages
  * and re-merged on the way back), and a `json`-typed tool output (rewritten
  * to text only when truncated — it must survive as `json` under the
- * threshold). A well-formed history must also pass chef's boundary
+ * threshold). A well-formed history must also pass the module's boundary
  * sanitization (`ensureValidHistory`) completely untouched; the round-trip
  * deep-equality pins all of this.
  */
@@ -109,7 +109,7 @@ function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
  * runs: the stale reasoning part on the (non-final) assistant message is
  * dropped. Everything else — system content, tool-call inputs, part- and
  * message-level providerOptions, the json tool output — must still round-trip
- * losslessly through chef's fromAISDK/toAISDK adapter. This helper lets the
+ * losslessly through the context module's fromAISDK/toAISDK adapter. This helper lets the
  * round-trip assertions stay strict on the adapter while accounting for the
  * compaction step the feature now configures.
  */
@@ -120,7 +120,7 @@ function compacted(prompt: LanguageModelV3Prompt): LanguageModelV3Prompt {
 }
 
 async function runTransform(prompt: LanguageModelV3Prompt, scope: RequestScope): Promise<LanguageModelV3Prompt> {
-  const middleware = createMiddleware(buildChefOptions(scope)!)
+  const middleware = createContextMiddleware(buildContextOptions(scope)!)
   const result = await middleware.transformParams!({
     params: { prompt } as never,
     type: 'generate',
@@ -135,7 +135,7 @@ function toolOutput(prompt: LanguageModelV3Prompt): { value: string; providerOpt
   return { value: part.output.value, providerOptions: part.providerOptions }
 }
 
-describe('buildChefOptions → createMiddleware', () => {
+describe('buildContextOptions → createMiddleware', () => {
   it('persists oversized tool results and points the marker at the file', async () => {
     const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
     const { value } = toolOutput(out)
@@ -173,8 +173,8 @@ describe('buildChefOptions → createMiddleware', () => {
     // input, part-level and message-level providerOptions, the json output.
     // The stale reasoning part is intentionally dropped by the always-on
     // `compact` step (see compacted()); everything else must survive. If the
-    // surviving fields differ, the bug is in context-chef's fromAISDK/toAISDK
-    // adapter — STOP and fix upstream (@context-chef/ai-sdk-middleware), do
+    // surviving fields differ, the bug is in the context module's fromAISDK/toAISDK
+    // adapter — STOP and fix it there (packages/aiCore/src/core/context), do
     // not paper over it here.
     const out = await runTransform(makePrompt('web__fetch', 100), makeScope())
     expect(out).toEqual(compacted(makePrompt('web__fetch', 100)))
@@ -212,15 +212,15 @@ describe('contextBuildFeature', () => {
   })
 })
 
-describe('buildChefOptions — compression wiring', () => {
+describe('buildContextOptions — compression wiring', () => {
   it('returns null when context settings are disabled', () => {
     const scope = makeScope({ contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, enabled: false } })
-    expect(buildChefOptions(scope)).toBeNull()
+    expect(buildContextOptions(scope)).toBeNull()
   })
 
   it('wires compact + truncate + contextWindow when enabled', () => {
     const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS })
-    const opts = buildChefOptions(scope)!
+    const opts = buildContextOptions(scope)!
     expect(opts).not.toBeNull()
     expect(opts.compact).toEqual({ reasoning: 'before-last-message', emptyMessages: 'remove' })
     expect(opts.truncate?.threshold).toBe(DEFAULT_CONTEXT_SETTINGS.truncateThreshold)
@@ -229,20 +229,19 @@ describe('buildChefOptions — compression wiring', () => {
     expect(opts.logger).toBeDefined()
   })
 
-  it('durable+mid-loop owns LLM compress: options.compress and onCompress are never set', () => {
-    // compress.enabled + model present: durable path owns it — chef gets NO Janitor.
+  it('durable+mid-loop owns LLM compress: only the no-model fallback wires a budget hook', () => {
+    // In-flight LLM compression no longer exists as an option — the trimmed
+    // ContextMiddlewareOptions type makes it unrepresentable. What remains to
+    // pin is the onBeforeCompress wiring per compression state.
+    // compress.enabled + model present: durable path owns it — the middleware gets NO Janitor.
     const withModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: {} as never })
-    const withModelOpts = buildChefOptions(withModel)!
-    expect(withModelOpts.compress).toBeUndefined()
-    expect(withModelOpts.onCompress).toBeUndefined()
+    const withModelOpts = buildContextOptions(withModel)!
     // Model present → durable path handles it; no sliding-window fallback needed.
     expect(withModelOpts.onBeforeCompress).toBeUndefined()
 
     // compress.enabled + no model: no-LLM sliding-window fallback still active.
     const noModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: null })
-    const noModelOpts = buildChefOptions(noModel)!
-    expect(noModelOpts.compress).toBeUndefined()
-    expect(noModelOpts.onCompress).toBeUndefined()
+    const noModelOpts = buildContextOptions(noModel)!
     // Wanted but unavailable → no-LLM sliding-window guard.
     expect(noModelOpts.onBeforeCompress).toBeTypeOf('function')
 
@@ -251,19 +250,17 @@ describe('buildChefOptions — compression wiring', () => {
       contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
       compressionModel: {} as never
     })
-    expect(buildChefOptions(compressOff)!.compress).toBeUndefined()
+    expect(buildContextOptions(compressOff)!.onBeforeCompress).toBeUndefined()
   })
 
-  it('attaches NO budget machinery when compression is disabled (no chef Janitor → no warnings)', () => {
-    // Regression: setting onCompress/onBeforeCompress unconditionally made chef
+  it('attaches NO budget machinery when compression is disabled (no Janitor → no warnings)', () => {
+    // Regression: setting onCompress/onBeforeCompress unconditionally made the middleware
     // build a Janitor on every request and warn when no model/tokenizer.
     const scope = makeScope({
       contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
       compressionModel: {} as never
     })
-    const opts = buildChefOptions(scope)!
-    expect(opts.compress).toBeUndefined()
-    expect(opts.onCompress).toBeUndefined()
+    const opts = buildContextOptions(scope)!
     expect(opts.onBeforeCompress).toBeUndefined()
     // truncate + compact still active.
     expect(opts.truncate).toBeDefined()

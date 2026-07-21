@@ -1,7 +1,7 @@
 /**
- * Context-build feature: wires context-management middleware into the AI SDK
- * plugin chain. chef (@context-chef/ai-sdk-middleware) is the implementation;
- * the role is "build / shape the context the model sees on each call".
+ * Context-build feature: wires the aiCore context middleware into the AI SDK
+ * plugin chain. The role is "build / shape the context the model sees on
+ * each call".
  *
  * Layers, all gated on `scope.contextSettings.enabled`:
  * - truncate: large tool results → VfsBlobService, replaced with a
@@ -13,18 +13,16 @@
  *   remaining budget guard; active when compress is enabled but no compression
  *   model is configured. In-flight LLM compress was removed in P2-B stage 2:
  *   durable cherry-driven compaction (turn-start) + the mid-loop in-loop
- *   compaction (prepareStep) hook now own LLM summarization; running chef's
- *   in-flight compress too would double-compress. `options.compress` and
- *   `options.onCompress` are never set any more.
- * - logger: routes chef degradation warnings to loggerService.
+ *   compaction (prepareStep) hook now own LLM summarization; running an
+ *   in-flight compress too would double-compress.
+ * - logger: routes middleware degradation warnings to loggerService.
  *
  * Ordering invariant: registered before anthropicCacheFeature so truncation
- * happens before cache markers are placed (see features/index.ts).
+ * happens before cache markers are placed (see internalFeatures.ts).
  */
 import { application } from '@application'
-import { definePlugin } from '@cherrystudio/ai-core'
-import type { ContextChefOptions } from '@context-chef/ai-sdk-middleware'
-import { createMiddleware } from '@context-chef/ai-sdk-middleware'
+import type { ContextMiddlewareOptions } from '@cherrystudio/ai-core'
+import { createContextMiddleware, definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 
 import type { RequestFeature } from '../feature'
@@ -39,11 +37,11 @@ const TAIL_CHARS = 1_000
 const MIN_MESSAGES_KEPT = 2
 
 /** Exported for direct middleware testing. Returns null when the layer is off. */
-export function buildChefOptions(scope: RequestScope): ContextChefOptions | null {
+export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptions | null {
   const settings = scope.contextSettings
   if (!settings.enabled) return null
 
-  const options: ContextChefOptions = {
+  const options: ContextMiddlewareOptions = {
     // Required input — the model layer's contract guarantees it; never defaulted here.
     contextWindow: scope.model.contextWindow as number,
 
@@ -70,7 +68,7 @@ export function buildChefOptions(scope: RequestScope): ContextChefOptions | null
 
   // In-flight LLM compress was removed in P2-B stage 2: durable cherry-driven compaction
   // (turn-start) + the mid-loop in-loop compaction (prepareStep) hook now own LLM summarization,
-  // and running chef's in-flight compress too would double-compress. The no-LLM sliding-window
+  // and running an in-flight compress too would double-compress. The no-LLM sliding-window
   // remains as the only guard when compression is enabled but no model is configured
   // (the durable path also needs a model).
   if (settings.compress.enabled && !scope.compressionModel) {
@@ -85,8 +83,8 @@ export function buildChefOptions(scope: RequestScope): ContextChefOptions | null
  *  keeping at least MIN_MESSAGES_KEPT. Length is a proxy for tokens (no
  *  tokenizer here). Ported from PR #14916. */
 function dropOldestUntilUnderBudget(
-  history: Parameters<NonNullable<ContextChefOptions['onBeforeCompress']>>[0],
-  tokenInfo: Parameters<NonNullable<ContextChefOptions['onBeforeCompress']>>[1]
+  history: Parameters<NonNullable<ContextMiddlewareOptions['onBeforeCompress']>>[0],
+  tokenInfo: Parameters<NonNullable<ContextMiddlewareOptions['onBeforeCompress']>>[1]
 ): typeof history {
   const { currentTokens, limit } = tokenInfo
   if (currentTokens <= limit) return history
@@ -109,7 +107,7 @@ function dropOldestUntilUnderBudget(
   if (dropped === 0) return history
 
   const kept = [...history.slice(0, dropFromIdx), ...history.slice(cursor)]
-  logger.info('chef budget exceeded, dropped oldest (sliding-window fallback)', {
+  logger.info('context budget exceeded, dropped oldest (sliding-window fallback)', {
     droppedCount: dropped,
     keptCount: kept.length,
     currentTokens,
@@ -123,10 +121,10 @@ function createContextBuildPlugin(scope: RequestScope) {
     name: 'context-build',
     enforce: 'pre',
     configureContext: (context) => {
-      const options = buildChefOptions(scope)
+      const options = buildContextOptions(scope)
       if (!options) return
       context.middlewares = context.middlewares || []
-      context.middlewares.push(createMiddleware(options))
+      context.middlewares.push(createContextMiddleware(options))
     }
   })
 }

@@ -47,11 +47,11 @@ describe('VfsBlobService', () => {
       const adapter = svc.getAdapter()
       adapter.write('vfs_get.txt', 'shared adapter')
       expect(fs.readFileSync(path.join(tmpRef.current, 'vfs_get.txt'), 'utf8')).toBe('shared adapter')
-      // Same instance across calls — chef middleware can cache it safely.
+      // Same instance across calls — the context middleware can cache it safely.
       expect(svc.getAdapter()).toBe(adapter)
     })
 
-    it('exposes getPhysicalPath so chef writes absolute paths into markers', () => {
+    it('exposes getPhysicalPath so the offloader writes absolute paths into markers', () => {
       const adapter = svc.getAdapter()
       adapter.write('vfs_path.txt', 'has a path')
       expect(adapter.getPhysicalPath('vfs_path.txt')).toBe(path.join(tmpRef.current, 'vfs_path.txt'))

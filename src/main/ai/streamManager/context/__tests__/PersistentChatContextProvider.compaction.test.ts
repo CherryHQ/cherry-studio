@@ -7,6 +7,7 @@
  *   4. multiple markers on path → deepest wins
  */
 
+import type * as AiCore from '@cherrystudio/ai-core'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,10 +49,11 @@ vi.mock('../../../contextBuild/resolveRequestContextSettings', () => ({
   resolveRequestContextSettings: mockResolveRequestContextSettings
 }))
 
-// Mock the chef summarizers. summarizeModelMessages (turn-start fold) returns
+// Mock the context-module summarizers. summarizeModelMessages (turn-start fold) returns
 // 'SUMMARY_TEXT' by default; compactModelMessages (in-loop hook) is wired so the
 // interaction test can assert it is NOT called at step 0 and IS called on growth.
-vi.mock('@context-chef/ai-sdk-middleware', () => ({
+vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof AiCore>()),
   summarizeModelMessages: mockSummarizeModelMessages,
   compactModelMessages: mockCompactModelMessages
 }))
@@ -506,7 +508,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSummarizeModelMessages.mockResolvedValue('SUMMARY_TEXT')
-    // Default: chef returns a DISTINCT compacted array (so the hook would emit an
+    // Default: the compactor returns a DISTINCT compacted array (so the hook would emit an
     // override IF it fired). Assertion A asserts it is never called regardless.
     mockCompactModelMessages.mockImplementation(async () => [{ role: 'user' as const, content: 'COMPACTED' }])
   })
@@ -544,7 +546,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
     const prepareStep = inLoopCompactionFeature.contributeHooks!(inLoopScope(WINDOW)).prepareStep!
     const result = await prepareStep({ messages: modelMessages } as any)
 
-    // Hook is a no-op: no override, and chef's compactor was NOT invoked.
+    // Hook is a no-op: no override, and the compactor was NOT invoked.
     expect(result).toBeUndefined()
     expect(mockCompactModelMessages).not.toHaveBeenCalled()
     // Net across both layers: turn-start summarized once, in-loop compacted zero.
@@ -576,14 +578,14 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
     const prepareStep = inLoopCompactionFeature.contributeHooks!(inLoopScope(WINDOW)).prepareStep!
     const result = await prepareStep({ messages: grownPrompt } as any)
 
-    // Now it fires: chef compactor called exactly once with keepRecentTurns ≥ 1,
+    // Now it fires: the compactor called exactly once with keepRecentTurns ≥ 1,
     // and the hook returns the override with the mocked compacted messages.
     expect(mockCompactModelMessages).toHaveBeenCalledTimes(1)
     const [passedMessages, , options] = mockCompactModelMessages.mock.calls[0]
     expect(options.keepRecentTurns).toBeGreaterThanOrEqual(1)
     expect(result).toEqual({ messages: [{ role: 'user', content: 'COMPACTED' }] })
 
-    // Disjointness: the prompt handed to chef carries the turn-start summary in its
+    // Disjointness: the prompt handed to the compactor carries the turn-start summary in its
     // OLD prefix (position 0, to be folded), while the appended turns — what
     // keepRecentTurns retains — are the grown tail. Different ranges, not a
     // re-summary of the identical turn-start slice.

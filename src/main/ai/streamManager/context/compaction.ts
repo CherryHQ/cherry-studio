@@ -1,4 +1,4 @@
-import { Prompts } from '@context-chef/core'
+import { ContextPrompts } from '@cherrystudio/ai-core'
 import { estimateTokenCount } from 'tokenx'
 
 /**
@@ -21,12 +21,12 @@ export function summaryMessageId(boundaryId: string): string {
   return `compaction:${boundaryId}`
 }
 
-/** Build the injected summary row (role 'user', continuation-framed via chef). */
+/** Build the injected summary row (role 'user', continuation-framed). */
 export function summaryRow(boundaryId: string, summary: string): CompactionRow {
   return {
     id: summaryMessageId(boundaryId),
     role: 'user',
-    parts: [{ type: 'text', text: Prompts.getCompactSummaryWrapper(summary) }]
+    parts: [{ type: 'text', text: ContextPrompts.getCompactSummaryWrapper(summary) }]
   }
 }
 

@@ -40,7 +40,7 @@ export interface ToolEntry {
 
   /**
    * Whether the context-build truncate/persist layer may rewrite this
-   * tool's results. `false` exempts the tool (chef `perTool` preserve):
+   * tool's results. `false` exempts the tool (truncate `perTool` preserve):
    *   - citation tools (kb__search, web__search) — truncation breaks the
    *     inline `[id]` anchors the model cites in its reply
    *   - read-style tools — persisting their output would route the model

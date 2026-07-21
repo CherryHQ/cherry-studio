@@ -39,6 +39,16 @@ export type {
   WebSearchToolConfigMap
 } from './core/providers'
 
+// ==================== Context 模块(截断 + 历史压缩) ====================
+export type {
+  ContextLogger,
+  ContextMessage,
+  ContextMiddlewareOptions,
+  TruncateOptions,
+  VFSStorageAdapter
+} from './core/context'
+export { compactModelMessages, ContextPrompts, createContextMiddleware, summarizeModelMessages } from './core/context'
+
 // ==================== 错误处理 ====================
 export {
   AiCoreError,

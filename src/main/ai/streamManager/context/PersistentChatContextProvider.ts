@@ -6,8 +6,7 @@
  */
 
 import { application } from '@application'
-import { summarizeModelMessages } from '@context-chef/ai-sdk-middleware'
-import { Prompts } from '@context-chef/core'
+import { ContextPrompts, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
@@ -576,7 +575,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // + its prepareModelMessages were removed in main #16257; toModelMessages is the successor.)
       const realModelMessages = await toModelMessages(recent.slice(0, keepIdx).map((r) => this.toServed(r)))
       const modelMessages: ModelMessage[] = [
-        ...(oldSummary ? [{ role: 'user' as const, content: Prompts.getCompactSummaryWrapper(oldSummary) }] : []),
+        ...(oldSummary
+          ? [{ role: 'user' as const, content: ContextPrompts.getCompactSummaryWrapper(oldSummary) }]
+          : []),
         ...realModelMessages
       ]
       const summary = await summarizeModelMessages(modelMessages, compressionModel)

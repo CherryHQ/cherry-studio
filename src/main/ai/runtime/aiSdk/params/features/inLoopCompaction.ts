@@ -1,7 +1,7 @@
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
  * about-to-send prompt in place when it crosses 80% of the model's context
- * window. chef (@context-chef/ai-sdk-middleware) does the work via
+ * window. The aiCore context module does the work via
  * `compactModelMessages` — it splits only on turn boundaries (never orphans a
  * tool result), preserves `system` verbatim, and returns
  * `[...system, <summary>, ...recent turns]`.
@@ -19,7 +19,7 @@
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
-import { compactModelMessages } from '@context-chef/ai-sdk-middleware'
+import { compactModelMessages } from '@cherrystudio/ai-core'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
@@ -83,7 +83,7 @@ function estimatePromptTokens(
 
 /**
  * Walk turns from the TAIL accumulating tokens until `keepBudget` is reached;
- * return the count of recent turns to keep verbatim. A turn mirrors chef's rule:
+ * return the count of recent turns to keep verbatim. A turn mirrors the planner's rule:
  * a `user`/`assistant` message, or an `assistant` plus all its immediately
  * following `tool` messages (one atomic turn). Leading `system` is not a turn.
  * Always keeps at least one turn so the tail is never emptied.

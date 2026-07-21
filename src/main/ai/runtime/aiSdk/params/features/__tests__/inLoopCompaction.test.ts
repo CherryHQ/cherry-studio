@@ -1,8 +1,10 @@
+import type * as AiCore from '@cherrystudio/ai-core'
 import type { ModelMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 const compactModelMessages = vi.fn()
-vi.mock('@context-chef/ai-sdk-middleware', () => ({
+vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof AiCore>()),
   compactModelMessages: (...args: unknown[]) => compactModelMessages(...args)
 }))
 vi.mock('@main/ai/agentSession/topic', () => ({
@@ -149,7 +151,7 @@ describe('inLoopCompactionFeature', () => {
     compactModelMessages.mockClear()
     const prepareStep = getPrepareStep()
     const messages = [userMessage(90_000)]
-    // chef returns the input reference unchanged on a no-op.
+    // compactModelMessages returns the input reference unchanged on a no-op.
     compactModelMessages.mockResolvedValue(messages)
     const result = await prepareStep({ messages } as any)
     expect(compactModelMessages).toHaveBeenCalledOnce()

@@ -40,7 +40,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // Must precede anthropic-cache: middleware array order = transformParams
   // order, and truncation has to rewrite tool results BEFORE cache markers
   // are placed on trailing messages (part-level providerOptions survive
-  // chef's IR round-trip — pinned by contextBuild.test.ts).
+  // the context middleware's IR round-trip — pinned by contextBuild.test.ts).
   contextBuildFeature,
   anthropicCacheFeature,
   anthropicHeadersFeature,
@@ -52,7 +52,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   providerUrlContextFeature,
   // Stop condition only (no plugins/hooks) — yields a chat turn when a steer is queued.
   steerYieldFeature,
-  // Hook only — `prepareStep` rewrites the in-flight prompt with a chef-compacted
+  // Hook only — `prepareStep` rewrites the in-flight prompt with a compacted
   // history when it crosses 80% of the context window (keeps each call under budget).
   inLoopCompactionFeature
 ]
