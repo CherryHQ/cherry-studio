@@ -2279,6 +2279,7 @@
     "swap": "交換",
     "topics": "トピック",
     "translate_text": "翻訳",
+    "undo": "元に戻す",
     "unknown": "Unknown",
     "unnamed": "無題",
     "unsubscribe": "配信停止",
@@ -3415,6 +3416,11 @@
         "insert_variable": "変数を挿入",
         "label": "システムプロンプト",
         "placeholder": "回答スタイル、役割設定、背景情報など、アシスタントへの指示を入力してください",
+        "polish": "ポーランド語のプロンプト",
+        "polish_failed_description": "デフォルトモデルを確認または変更して、もう一度お試しください。",
+        "polish_failed_title": "プロンプトの磨き上げに失敗しました",
+        "polish_variables_changed_description": "洗練された結果により、プロンプト変数が変更または削除されました。もう一度お試しください。",
+        "polish_variables_changed_title": "磨き上げたプロンプトを適用できませんでした",
         "title": "プロンプト",
         "tokens_label": "トークン:",
         "variables_description": "これらのシステム変数をシステムプロンプトに挿入してください。アシスタントの各返答の前に、現在の情報で変数が埋められます。",
@@ -4885,6 +4891,7 @@
     "install": "インストール",
     "install_plugins_from_browser": "利用可能なプラグインを閲覧して、使用を開始してください",
     "installing": "インストール中...",
+    "manage_skills": "スキルを管理",
     "name": "名称",
     "no_description": "説明なし",
     "no_installed_plugins": "まだプラグインがインストールされていません",
@@ -5629,14 +5636,15 @@
         "select": "ディレクトリを変更",
         "select_error": "データディレクトリの変更に失敗しました",
         "select_error_in_app_path": "新しいパスはアプリのインストールパスと同じです。別のパスを選択してください",
+        "select_error_protected_path": "選択されたパスは、オペレーティングシステムまたはCherry Studioによって保護されています。別のフォルダを選択してください。",
         "select_error_root_path": "新しいパスはルートパスにできません",
         "select_error_same_path": "新しいパスは元のパスと同じです。別のパスを選択してください",
         "select_error_write_permission": "新しいパスに書き込み権限がありません",
         "select_not_empty_dir": "新しいパスは空ではありません",
-        "select_not_empty_dir_content": "新しいパスは空ではありません。新しいパスのデータが上書きされます。データが失われるリスクがあります。続行しますか？",
         "select_success": "データディレクトリが変更されました。変更を適用するためにアプリが再起動します",
         "select_title": "アプリデータディレクトリの変更",
-        "stop_quit_app_reason": "アプリは現在データを移行しているため、終了できません"
+        "stop_quit_app_reason": "アプリは現在データを移行しているため、終了できません",
+        "switch_existing_notice": "この空でないディレクトリはそのまま使用されます。既存のファイルは上書きされません。"
       },
       "app_logs": {
         "button": "ログを開く",
@@ -6860,6 +6868,7 @@
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",
       "empty": "モデルが見つかりません",
+      "empty_hint": "上の「モデルリストを取得」ボタンをクリックしてモデルを追加してください。",
       "enabled_models": "有効",
       "expand_all": "すべて展開",
       "filter": {
@@ -7357,9 +7366,6 @@
         "usage_title": "使用",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
-      },
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",
       "reorder_failed": "プロバイダーの並び替えに失敗しました",
@@ -7435,6 +7441,7 @@
         "autoEmpty": "有効化された MCP サーバーはありません",
         "description": "現在のMCPサーバーのステータスを表示",
         "disabled": "このアシスタントではMCPは無効になっています",
+        "open_config": "MCPサーバーを構成する",
         "unknownServer": "不明な MCP サーバー"
       },
       "multiple": "複数選択",

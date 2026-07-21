@@ -2279,6 +2279,7 @@
     "swap": "Schimbă",
     "topics": "Subiecte",
     "translate_text": "Traduceți textul",
+    "undo": "Anulare",
     "unknown": "Necunoscut",
     "unnamed": "Fără nume",
     "unsubscribe": "Dezabonează-te",
@@ -3415,6 +3416,11 @@
         "insert_variable": "Inserează variabilă",
         "label": "Prompt de sistem",
         "placeholder": "Introduceți instrucțiuni pentru asistent, cum ar fi stilul răspunsului, rolul sau contextul",
+        "polish": "Prompt în limba poloneză",
+        "polish_failed_description": "Verificați sau schimbați modelul implicit, apoi încercați din nou.",
+        "polish_failed_title": "Nu s-a reușit îmbunătățirea promptului",
+        "polish_variables_changed_description": "Rezultatul finalizat a modificat sau eliminat variabilele din prompt. Încercați din nou.",
+        "polish_variables_changed_title": "Nu s-a putut aplica promptul rafinat",
         "title": "Prompt",
         "tokens_label": "Tokeni:",
         "variables_description": "Inserează aceste variabile de sistem în promptul de sistem; înainte de fiecare răspuns al asistentului, ele sunt completate cu informațiile curente.",
@@ -4885,6 +4891,7 @@
     "install": "Instalează",
     "install_plugins_from_browser": "Răsfoiește pluginurile disponibile pentru a începe",
     "installing": "Se instalează...",
+    "manage_skills": "Gestionează abilități",
     "name": "Nume",
     "no_description": "Nicio descriere disponibilă",
     "no_installed_plugins": "Niciun plugin instalat încă",
@@ -5629,14 +5636,15 @@
         "select": "Modifică directorul",
         "select_error": "Schimbarea directorului de date a eșuat",
         "select_error_in_app_path": "Noua cale este aceeași cu calea de instalare a aplicației, te rugăm să selectezi o altă cale",
+        "select_error_protected_path": "Calea selectată este protejată de sistemul de operare sau de Cherry Studio. Vă rugăm să alegeți un alt folder.",
         "select_error_root_path": "Noua cale nu poate fi calea rădăcină",
         "select_error_same_path": "Noua cale este aceeași cu vechea cale, te rugăm să selectezi o altă cale",
         "select_error_write_permission": "Noua cale nu are permisiuni de scriere",
         "select_not_empty_dir": "Noua cale nu este goală",
-        "select_not_empty_dir_content": "Noua cale nu este goală, va suprascrie datele din noua cale și există riscul de pierdere a datelor și de eșec al copierii. Continui?",
         "select_success": "Directorul de date a fost schimbat, aplicația va reporni pentru a aplica modificările",
         "select_title": "Schimbă directorul de date al aplicației",
-        "stop_quit_app_reason": "Aplicația migrează datele momentan și nu poate fi închisă"
+        "stop_quit_app_reason": "Aplicația migrează datele momentan și nu poate fi închisă",
+        "switch_existing_notice": "Acest director ne-gol va fi folosit așa cum este. Fișierele sale existente nu vor fi suprascrise."
       },
       "app_logs": {
         "button": "Deschide jurnalele",
@@ -6860,6 +6868,7 @@
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",
       "empty": "Nu s-au găsit modele",
+      "empty_hint": "Apăsați butonul Obțineți lista de modele de mai sus pentru a adăuga modele.",
       "enabled_models": "Activate",
       "expand_all": "Extinde tot",
       "filter": {
@@ -7357,9 +7366,6 @@
         "usage_title": "Utilizare",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "Furnizorul OpenAI nu mai acceptă metodele vechi de apelare. Dacă folosești un API terț, te rugăm să creezi un furnizor de servicii nou."
-      },
       "remove_duplicate_keys": "Elimină cheile duplicate",
       "remove_invalid_keys": "Elimină cheile invalide",
       "reorder_failed": "Nu s-a reușit reordonarea furnizorilor",
@@ -7435,6 +7441,7 @@
         "autoEmpty": "Niciun server MCP activat",
         "description": "Vizualizați starea actuală a serverului MCP",
         "disabled": "MCP este dezactivat pentru acest asistent",
+        "open_config": "Configurați serverele MCP",
         "unknownServer": "Server MCP necunoscut"
       },
       "multiple": "Selecție multiplă",
