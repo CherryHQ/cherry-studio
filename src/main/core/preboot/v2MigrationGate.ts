@@ -18,6 +18,7 @@ import {
   migrationEngine,
   migrationWindowManager,
   pinUserDataPath,
+  presentMigrationDiagnosticFailure,
   registerMigrationIpcHandlers,
   resolveMigrationPaths,
   setDataLocationNotice,
@@ -26,7 +27,7 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { app, dialog } from 'electron'
+import { app } from 'electron'
 
 const logger = loggerService.withContext('V2MigrationGate')
 
@@ -45,6 +46,27 @@ const logger = loggerService.withContext('V2MigrationGate')
  */
 export type V2MigrationGateResult = 'handled' | 'skipped'
 
+interface NativeMigrationFailure {
+  readonly failureCode: string
+  readonly errorSummary: string
+  readonly type: 'error' | 'warning'
+  readonly title: string
+  readonly message: string
+  readonly buttons: readonly string[]
+  readonly defaultId: number
+  readonly cancelId: number
+}
+
+async function presentNativeMigrationFailure(failure: NativeMigrationFailure): Promise<number> {
+  await app.whenReady()
+  const { failureCode, errorSummary, ...dialogFailure } = failure
+  return presentMigrationDiagnosticFailure({
+    locale: app.getLocale(),
+    context: { source: 'native', stage: 'preboot', failureCode, errorSummary },
+    failure: dialogFailure
+  })
+}
+
 /**
  * Surface a fatal "cannot persist userData location" error and quit.
  *
@@ -54,12 +76,100 @@ export type V2MigrationGateResult = 'handled' | 'skipped'
  */
 async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGateResult> {
   logger.error('Failed to persist userData location; cannot continue', cause as Error)
-  await app.whenReady()
-  dialog.showErrorBox(
-    'Data Location Error - Application Cannot Start',
-    `Could not save the application data directory:\n\n  ${(cause as Error).message}\n\n` +
-      `Check that there is free disk space and that ~/.cherrystudio is writable, then try again. The application will now exit.`
-  )
+  await presentNativeMigrationFailure({
+    failureCode: 'data_location_pin_failed',
+    errorSummary: 'Could not save the application data directory.',
+    type: 'error',
+    title: 'Data Location Error - Application Cannot Start',
+    message:
+      `Could not save the application data directory:\n\n  ${(cause as Error).message}\n\n` +
+      `Check that there is free disk space and that ~/.cherrystudio is writable, then try again. The application will now exit.`,
+    buttons: ['Quit'],
+    defaultId: 0,
+    cancelId: 0
+  })
+  application.quit()
+  return 'handled'
+}
+
+async function quitWithMigrationCheckError(
+  error: unknown,
+  databaseFile: string,
+  failureCode: 'database_initialize_failed' | 'migration_status_probe_failed',
+  errorSummary: string
+): Promise<V2MigrationGateResult> {
+  logger.error('Migration status check failed', error as Error)
+
+  // Dev-only: when the disposable migration SQL is regenerated/deleted but
+  // the local DB is kept, drizzle re-runs CREATE TABLE on objects that
+  // already exist and throws "... already exists". Guide the developer to
+  // reset the local DB instead of the generic connectivity message. Never
+  // auto-delete, and never surface this in production — real users must not
+  // be told to delete their database.
+  if (isDev && isSchemaOutOfSyncError(error)) {
+    await presentNativeMigrationFailure({
+      failureCode,
+      errorSummary,
+      type: 'error',
+      title: 'Database Schema Out of Sync (Dev)',
+      message:
+        `During v2 development (before release), the database schema can change at any time. ` +
+        `Your local database no longer matches the bundled migration SQL, so startup migration cannot continue.\n\n` +
+        `To fix this, delete the local database, then restart:\n\n` +
+        `  ${databaseFile}\n\n` +
+        `Or run:\n  rm -f "${databaseFile}"\n\n` +
+        `Then start the app again (pnpm dev).\n\n` +
+        `Original error: ${(error as Error).message}`,
+      buttons: ['Quit'],
+      defaultId: 0,
+      cancelId: 0
+    })
+    logger.error('Exiting application due to schema out of sync (dev)')
+    application.quit()
+    return 'handled'
+  }
+
+  // The error wasn't the unambiguous "object already exists" signal handled above. Anything else
+  // (e.g. a SQLITE_CONSTRAINT_* thrown from migrate() when a new constraint is incompatible with
+  // existing rows) is AMBIGUOUS: it may be incompatible legacy/dev data OR a genuine migration bug.
+  // So we never assert "delete the DB" here — in dev we surface both possibilities plus the path;
+  // in production we stay neutral and never tell a real user to delete their data.
+  if (isDev) {
+    await presentNativeMigrationFailure({
+      failureCode,
+      errorSummary,
+      type: 'error',
+      title: 'Migration Failed (Dev) - Application Cannot Start',
+      message:
+        `Startup migration failed while applying schema changes:\n\n` +
+        `  ${(error as Error).message}\n\n` +
+        `In development this is usually one of:\n\n` +
+        `  1. Your local database predates a schema change (incompatible legacy data). ` +
+        `If this is throwaway dev data, reset it and restart:\n` +
+        `       rm -f "${databaseFile}"\n\n` +
+        `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
+        `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
+        `with real data.\n\n` +
+        `The application will now exit.`,
+      buttons: ['Quit'],
+      defaultId: 0,
+      cancelId: 0
+    })
+  } else {
+    await presentNativeMigrationFailure({
+      failureCode,
+      errorSummary,
+      type: 'error',
+      title: 'Migration Failed - Application Cannot Start',
+      message:
+        `Could not complete data migration:\n\n  ${(error as Error).message}\n\n` +
+        `The application will now exit. Please try again, and contact support if the problem persists.`,
+      buttons: ['Quit'],
+      defaultId: 0,
+      cancelId: 0
+    })
+  }
+  logger.error('Exiting application due to migration status check failure')
   application.quit()
   return 'handled'
 }
@@ -108,8 +218,9 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   // never stuck in a retry loop when the directory will never come back.
   if (inaccessibleLegacyPath) {
     logger.warn('Legacy userData path inaccessible, prompting user', { inaccessibleLegacyPath })
-    await app.whenReady()
-    const { response } = await dialog.showMessageBox({
+    const response = await presentNativeMigrationFailure({
+      failureCode: 'legacy_data_location_unavailable',
+      errorSummary: 'The previous custom data directory is not currently accessible.',
       type: 'warning',
       title: 'Custom Data Directory Inaccessible',
       message:
@@ -148,63 +259,25 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     logger.info('Checking if data migration v2 is needed')
     migrationEngine.initialize(paths, legacyDataConfirmed)
     migrationEngine.registerMigrators(getAllMigrators())
+  } catch (error) {
+    return quitWithMigrationCheckError(
+      error,
+      paths.databaseFile,
+      'database_initialize_failed',
+      'Could not initialize the migration database.'
+    )
+  }
+
+  try {
     needsMigration = await migrationEngine.needsMigration()
     logger.info('Migration status check result', { needsMigration })
   } catch (error) {
-    logger.error('Migration status check failed', error as Error)
-    await app.whenReady()
-
-    // Dev-only: when the disposable migration SQL is regenerated/deleted but
-    // the local DB is kept, drizzle re-runs CREATE TABLE on objects that
-    // already exist and throws "... already exists". Guide the developer to
-    // reset the local DB instead of the generic connectivity message. Never
-    // auto-delete, and never surface this in production — real users must not
-    // be told to delete their database.
-    if (isDev && isSchemaOutOfSyncError(error)) {
-      dialog.showErrorBox(
-        'Database Schema Out of Sync (Dev)',
-        `During v2 development (before release), the database schema can change at any time. ` +
-          `Your local database no longer matches the bundled migration SQL, so startup migration cannot continue.\n\n` +
-          `To fix this, delete the local database, then restart:\n\n` +
-          `  ${paths.databaseFile}\n\n` +
-          `Or run:\n  rm -f "${paths.databaseFile}"\n\n` +
-          `Then start the app again (pnpm dev).\n\n` +
-          `Original error: ${(error as Error).message}`
-      )
-      logger.error('Exiting application due to schema out of sync (dev)')
-      application.quit()
-      return 'handled'
-    }
-
-    // The error wasn't the unambiguous "object already exists" signal handled above. Anything else
-    // (e.g. a SQLITE_CONSTRAINT_* thrown from migrate() when a new constraint is incompatible with
-    // existing rows) is AMBIGUOUS: it may be incompatible legacy/dev data OR a genuine migration bug.
-    // So we never assert "delete the DB" here — in dev we surface both possibilities plus the path;
-    // in production we stay neutral and never tell a real user to delete their data.
-    if (isDev) {
-      dialog.showErrorBox(
-        'Migration Failed (Dev) - Application Cannot Start',
-        `Startup migration failed while applying schema changes:\n\n` +
-          `  ${(error as Error).message}\n\n` +
-          `In development this is usually one of:\n\n` +
-          `  1. Your local database predates a schema change (incompatible legacy data). ` +
-          `If this is throwaway dev data, reset it and restart:\n` +
-          `       rm -f "${paths.databaseFile}"\n\n` +
-          `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
-          `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
-          `with real data.\n\n` +
-          `The application will now exit.`
-      )
-    } else {
-      dialog.showErrorBox(
-        'Migration Failed - Application Cannot Start',
-        `Could not complete data migration:\n\n  ${(error as Error).message}\n\n` +
-          `The application will now exit. Please try again, and contact support if the problem persists.`
-      )
-    }
-    logger.error('Exiting application due to migration status check failure')
-    application.quit()
-    return 'handled'
+    return quitWithMigrationCheckError(
+      error,
+      paths.databaseFile,
+      'migration_status_probe_failed',
+      'Could not check the migration status.'
+    )
   }
 
   if (needsMigration) {
@@ -244,7 +317,16 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         logger.error('Failed to create version incompatible window, falling back to dialog', windowError as Error)
         unregisterMigrationIpcHandlers()
         migrationEngine.close()
-        dialog.showErrorBox('Version Upgrade Required', getBlockMessage(versionCheck.reason, versionCheck.details))
+        await presentNativeMigrationFailure({
+          failureCode: 'version_window_failed',
+          errorSummary: 'Could not open the upgrade guidance window.',
+          type: 'error',
+          title: 'Version Upgrade Required',
+          message: getBlockMessage(versionCheck.reason, versionCheck.details),
+          buttons: ['Quit'],
+          defaultId: 0,
+          cancelId: 0
+        })
         application.quit()
         return 'handled'
       }
@@ -267,10 +349,16 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     } catch (migrationError) {
       logger.error('Failed to start migration process', migrationError as Error)
       unregisterMigrationIpcHandlers()
-      dialog.showErrorBox(
-        'Migration Required - Application Cannot Start',
-        `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
-      )
+      await presentNativeMigrationFailure({
+        failureCode: 'migration_window_failed',
+        errorSummary: 'Could not open the migration window.',
+        type: 'error',
+        title: 'Migration Required - Application Cannot Start',
+        message: `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`,
+        buttons: ['Quit'],
+        defaultId: 0,
+        cancelId: 0
+      })
       logger.error('Exiting application due to failed migration startup')
       application.quit()
       return 'handled'
