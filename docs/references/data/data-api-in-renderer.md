@@ -62,8 +62,9 @@ const { trigger } = useMutation('POST', '/topics', {
 ```
 
 Functions returned by data hooks (`trigger`, `invalidate`, `refetch`, `nextPage`,
-`prevPage`, `reset`, ...) keep stable identity across re-renders, consistent with
-SWR's own `mutate`/`trigger`, changing only when a meaningful input changes
+`prevPage`, `loadPrevious`, `loadNext`, `reset`, ...) keep stable identity
+across re-renders, consistent with SWR's own `mutate`/`trigger`, changing only
+when a meaningful input changes
 (e.g. `nextPage` when page availability flips). `useMutation`'s `trigger` reads
 its options through a ref, so inline `options` objects never churn its identity.
 
@@ -99,6 +100,40 @@ generic is constrained via `CursorPaginatedPath`. `pages` is reference-stable
 across rerenders when SWR's underlying data is unchanged, so
 `useInfiniteFlatItems(pages)` skips recomputation.
 
+### useBidirectionalInfiniteQuery (Anchored Cursor Window)
+
+Use `useBidirectionalInfiniteQuery` when an endpoint can return an anchored
+first page with cursors toward both the canonical query head and tail. The
+hook prepends pages loaded through `previousCursor`, appends pages loaded
+through `nextCursor`, and always exposes `pages` in canonical query order.
+
+```typescript
+import { useBidirectionalInfiniteQuery, useInfiniteFlatItems } from '@data/hooks/useDataApi'
+
+const {
+  pages,
+  hasPrevious,
+  hasNext,
+  isLoadingPrevious,
+  isLoadingNext,
+  loadPrevious,
+  loadNext
+} = useBidirectionalInfiniteQuery('/feed', {
+  query: endpointSpecificAnchorQuery
+})
+const items = useInfiniteFlatItems(pages)
+```
+
+The anchor selector is part of the concrete endpoint query; the generic hook
+only owns `cursor` and `limit`. Current Topic and Session endpoints are still
+next-only and should continue using `useInfiniteQuery`.
+
+The bidirectional hook uses separate SWR chains for the two directions and
+does not expose a raw `mutate`. A combined pages updater cannot be split back
+into those caches reliably after changing page count or order. Use `refresh`
+to revalidate both chains and `reset` to collapse them back to the anchored
+first page; cross-chain reconstruction belongs to the collection controller.
+
 ### usePaginatedQuery (Offset-based Pagination)
 
 For page-by-page navigation with previous/next controls. Rejects
@@ -120,12 +155,13 @@ const { items, page, total, hasNext, hasPrev, nextPage, prevPage } =
 | Use Case | Hook |
 |----------|------|
 | Infinite scroll, chat, feeds | `useInfiniteQuery` |
+| Anchored cursor window with previous/next loading | `useBidirectionalInfiniteQuery` |
 | Page navigation, tables | `usePaginatedQuery` |
 | Manual control | `useQuery` |
 
 Each pagination hook constrains its path generic to the matching pagination
 shape: passing a cursor path to `usePaginatedQuery` or an offset path to
-`useInfiniteQuery` is a compile-time error, not a silent runtime hang.
+either infinite hook is a compile-time error, not a silent runtime hang.
 
 > For the full pagination model — when to choose offset vs cursor, the wire
 > contract, and the server-side implementation — see the
@@ -447,7 +483,7 @@ const { data: topic } = useQuery('/topics/abc123')
 ## Best Practices
 
 1. **Use hooks for components**: `useQuery` and `useMutation` handle loading/error states
-2. **Choose the right pagination hook**: Use `useInfiniteQuery` for infinite scroll, `usePaginatedQuery` for page navigation
+2. **Choose the right pagination hook**: Use `useInfiniteQuery` for next-only infinite scroll, `useBidirectionalInfiniteQuery` for anchored previous/next loading, and `usePaginatedQuery` for page navigation
 3. **Derive flat infinite items via `useInfiniteFlatItems`**: Pick `reversePages` / `reverseItems` to match the endpoint's pagination shape and container layout — never assume page-load order equals item display order
 4. **Handle loading states**: Always show feedback while data is loading
 5. **Handle errors gracefully**: Provide meaningful error messages to users

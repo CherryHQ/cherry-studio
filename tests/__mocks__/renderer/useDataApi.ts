@@ -273,6 +273,34 @@ export const mockUseInfiniteQuery = vi.fn(
 )
 
 /**
+ * Mock useBidirectionalInfiniteQuery hook.
+ * Mirrors the composite result without exposing a raw two-chain mutator.
+ */
+export const mockUseBidirectionalInfiniteQuery = vi.fn(
+  <TPath extends ApiPath>(
+    _path: TPath,
+    _options?: ParamsOption<TPath, 'GET'> & {
+      query?: Record<string, unknown>
+      limit?: number
+      enabled?: boolean
+    }
+  ) => ({
+    pages: [] as Array<{ items: unknown[]; previousCursor?: string; nextCursor?: string }>,
+    isLoading: false,
+    isRefreshing: false,
+    isLoadingPrevious: false,
+    isLoadingNext: false,
+    error: undefined as Error | undefined,
+    hasPrevious: false,
+    hasNext: false,
+    loadPrevious: vi.fn(),
+    loadNext: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(undefined),
+    reset: vi.fn()
+  })
+)
+
+/**
  * Mock useInfiniteFlatItems helper.
  * Mirrors production: flattens `pages[].items` honoring optional reverse flags.
  */
@@ -372,6 +400,7 @@ export const MockUseDataApi = {
   useQuery: mockUseQuery,
   useMutation: mockUseMutation,
   useInfiniteQuery: mockUseInfiniteQuery,
+  useBidirectionalInfiniteQuery: mockUseBidirectionalInfiniteQuery,
   useInfiniteFlatItems: mockUseInfiniteFlatItems,
   usePaginatedQuery: mockUsePaginatedQuery,
   useInvalidateCache: mockUseInvalidateCache,
@@ -391,6 +420,7 @@ export const MockUseDataApiUtils = {
     mockUseQuery.mockClear()
     mockUseMutation.mockClear()
     mockUseInfiniteQuery.mockClear()
+    mockUseBidirectionalInfiniteQuery.mockClear()
     mockUseInfiniteFlatItems.mockClear()
     mockUsePaginatedQuery.mockClear()
     mockUseInvalidateCache.mockClear()

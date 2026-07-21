@@ -24,6 +24,7 @@ vi.mock('@renderer/utils/platform', async (importOriginal) => {
 
 import {
   __testing,
+  useBidirectionalInfiniteQuery,
   useInfiniteFlatItems,
   useInfiniteQuery,
   useInvalidateCache,
@@ -383,6 +384,15 @@ describe('extractInfinitePath', () => {
     )
   })
 
+  it('extracts the path when an infinite key carries a private direction tag', () => {
+    const taggedKey = unstable_serialize_infinite(() => [
+      '/topics',
+      { cursor: 'opaque', limit: 10 },
+      'data-api:bidirectional:previous'
+    ])
+    expect(extractInfinitePath(taggedKey)).toBe('/topics')
+  })
+
   it('preserves paths containing escaped double quotes', () => {
     const pathWithQuote = '/items/he said "hi"'
     expect(extractInfinitePath(infKey(pathWithQuote, { x: 1 }))).toBe(pathWithQuote)
@@ -576,6 +586,39 @@ describe('useInfiniteQuery / useInfiniteFlatItems type contracts', () => {
       void _first
     }
   })
+
+  it('preserves response metadata without exposing a composite bidirectional mutator', () => {
+    if ((false as boolean) === true) {
+      const r = useBidirectionalInfiniteQuery('/topics/:topicId/messages', { params: { topicId: '' } })
+      const _firstPage: BranchMessagesResponse | undefined = r.pages[0]
+      const _activeNodeId: string | null | undefined = r.pages[0]?.activeNodeId
+      const _hasPrevious: boolean = r.hasPrevious
+      const _isLoadingPrevious: boolean = r.isLoadingPrevious
+      // @ts-expect-error - two SWR chains cannot safely expose one raw pages mutator
+      void r.mutate
+      void [_firstPage, _activeNodeId, _hasPrevious, _isLoadingPrevious]
+    }
+  })
+
+  it('rejects offset-paginated paths passed to useBidirectionalInfiniteQuery', () => {
+    if ((false as boolean) === true) {
+      // @ts-expect-error - offset-paginated path rejected by CursorPaginatedPath guard
+      void useBidirectionalInfiniteQuery('/assistants')
+    }
+  })
+
+  it('keeps cursor mechanics and SWR chain configuration private', () => {
+    if ((false as boolean) === true) {
+      useBidirectionalInfiniteQuery('/topics', {
+        // @ts-expect-error - cursor is supplied by the hook from page responses
+        query: { cursor: 'opaque', limit: 20 }
+      })
+      useBidirectionalInfiniteQuery('/topics', {
+        // @ts-expect-error - two-chain SWR configuration is owned by the hook
+        swrOptions: { parallel: true }
+      })
+    }
+  })
 })
 
 describe('useInfiniteFlatItems behavior', () => {
@@ -764,6 +807,292 @@ describe('useInfiniteQuery integration', () => {
 
     await waitFor(() => expect(result.current.pages).toHaveLength(1))
     expect(getSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('useBidirectionalInfiniteQuery integration', () => {
+  type TestPage = {
+    items: Array<{ id: string }>
+    previousCursor?: string
+    nextCursor?: string
+  }
+
+  const page = (id: string, previousCursor?: string, nextCursor?: string): TestPage => ({
+    items: [{ id }],
+    previousCursor,
+    nextCursor
+  })
+
+  function createDeferred<T>() {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((resolvePromise) => {
+      resolve = resolvePromise
+    })
+    return { promise, resolve }
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('prepends previous pages and appends next pages in canonical order', async () => {
+    const getSpy = vi.spyOn(dataApiService, 'get').mockImplementation((async (
+      _path: string,
+      opts: { query?: { cursor?: string } } = {}
+    ) => {
+      switch (opts.query?.cursor) {
+        case 'previous-1':
+          return page('previous-near', 'previous-2', 'unused-next')
+        case 'previous-2':
+          return page('previous-head', undefined, 'unused-next')
+        case 'next-1':
+          return page('next-near', 'unused-previous', 'next-2')
+        case 'next-2':
+          return page('next-tail', 'unused-previous', undefined)
+        default:
+          return page('anchor', 'previous-1', 'next-1')
+      }
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useBidirectionalInfiniteQuery('/topics'), { wrapper: Wrapper })
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    expect(result.current.hasPrevious).toBe(true)
+    expect(result.current.hasNext).toBe(true)
+
+    act(() => result.current.loadPrevious())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+    expect(result.current.pages.map((entry) => entry.items[0]?.id)).toEqual(['previous-near', 'anchor'])
+
+    act(() => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(3))
+    expect(result.current.pages.map((entry) => entry.items[0]?.id)).toEqual(['previous-near', 'anchor', 'next-near'])
+
+    act(() => result.current.loadPrevious())
+    await waitFor(() => expect(result.current.pages).toHaveLength(4))
+    expect(result.current.pages.map((entry) => entry.items[0]?.id)).toEqual([
+      'previous-head',
+      'previous-near',
+      'anchor',
+      'next-near'
+    ])
+    expect(result.current.hasPrevious).toBe(false)
+
+    act(() => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(5))
+    expect(result.current.pages.map((entry) => entry.items[0]?.id)).toEqual([
+      'previous-head',
+      'previous-near',
+      'anchor',
+      'next-near',
+      'next-tail'
+    ])
+    expect(result.current.hasNext).toBe(false)
+
+    const requestCountAtEdges = getSpy.mock.calls.length
+    act(() => {
+      result.current.loadPrevious()
+      result.current.loadNext()
+    })
+    expect(getSpy).toHaveBeenCalledTimes(requestCountAtEdges)
+  })
+
+  it('does not share infinite cache metadata with useInfiniteQuery', async () => {
+    vi.spyOn(dataApiService, 'get').mockImplementation((async (
+      _path: string,
+      opts: { query?: { cursor?: string } } = {}
+    ) => {
+      if (opts.query?.cursor === 'next-1') return page('next')
+      return page('anchor', undefined, 'next-1')
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        oneWay: useInfiniteQuery('/topics'),
+        bidirectional: useBidirectionalInfiniteQuery('/topics')
+      }),
+      { wrapper: Wrapper }
+    )
+
+    await waitFor(() => {
+      expect(result.current.oneWay.pages).toHaveLength(1)
+      expect(result.current.bidirectional.pages).toHaveLength(1)
+    })
+
+    act(() => result.current.bidirectional.loadNext())
+    await waitFor(() => expect(result.current.bidirectional.pages).toHaveLength(2))
+    expect(result.current.oneWay.pages).toHaveLength(1)
+
+    await act(async () => {
+      await result.current.oneWay.mutate([page('one-way-only') as never], { revalidate: false })
+    })
+    expect(result.current.oneWay.pages[0]?.items[0]?.id).toBe('one-way-only')
+    expect(result.current.bidirectional.pages[0]?.items[0]?.id).toBe('anchor')
+  })
+
+  it('reports directional loading independently and coalesces repeated loads', async () => {
+    const previous = createDeferred<TestPage>()
+    const next = createDeferred<TestPage>()
+    let previousRequests = 0
+    let nextRequests = 0
+
+    vi.spyOn(dataApiService, 'get').mockImplementation((async (
+      _path: string,
+      opts: { query?: { cursor?: string } } = {}
+    ) => {
+      if (opts.query?.cursor === 'previous-1') {
+        previousRequests += 1
+        return previous.promise
+      }
+      if (opts.query?.cursor === 'next-1') {
+        nextRequests += 1
+        return next.promise
+      }
+      return page('anchor', 'previous-1', 'next-1')
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useBidirectionalInfiniteQuery('/topics'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+
+    act(() => {
+      result.current.loadPrevious()
+      result.current.loadPrevious()
+    })
+    await waitFor(() => expect(result.current.isLoadingPrevious).toBe(true))
+    expect(result.current.isLoadingNext).toBe(false)
+    expect(previousRequests).toBe(1)
+
+    await act(async () => {
+      previous.resolve(page('previous', undefined, 'unused-next'))
+      await previous.promise
+    })
+    await waitFor(() => expect(result.current.isLoadingPrevious).toBe(false))
+
+    act(() => {
+      result.current.loadNext()
+      result.current.loadNext()
+    })
+    await waitFor(() => expect(result.current.isLoadingNext).toBe(true))
+    expect(result.current.isLoadingPrevious).toBe(false)
+    expect(nextRequests).toBe(1)
+
+    await act(async () => {
+      next.resolve(page('next', 'unused-previous', undefined))
+      await next.promise
+    })
+    await waitFor(() => expect(result.current.isLoadingNext).toBe(false))
+    expect(result.current.pages.map((entry) => entry.items[0]?.id)).toEqual(['previous', 'anchor', 'next'])
+  })
+
+  it('retries a failed direction without advancing past the missing page', async () => {
+    let previousRequests = 0
+    let skippedPreviousRequests = 0
+    let nextRequests = 0
+    let skippedNextRequests = 0
+
+    vi.spyOn(dataApiService, 'get').mockImplementation((async (
+      _path: string,
+      opts: { query?: { cursor?: string } } = {}
+    ) => {
+      switch (opts.query?.cursor) {
+        case 'previous-1':
+          previousRequests += 1
+          if (previousRequests === 1) throw new Error('previous failed')
+          return page('previous-near', 'previous-2', 'unused-next')
+        case 'previous-2':
+          skippedPreviousRequests += 1
+          return page('previous-head')
+        case 'next-1':
+          nextRequests += 1
+          if (nextRequests === 1) throw new Error('next failed')
+          return page('next-near', 'unused-previous', 'next-2')
+        case 'next-2':
+          skippedNextRequests += 1
+          return page('next-tail')
+        default:
+          return page('anchor', 'previous-1', 'next-1')
+      }
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useBidirectionalInfiniteQuery('/topics'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+
+    act(() => result.current.loadPrevious())
+    await waitFor(() => expect(result.current.error?.message).toBe('previous failed'))
+    expect(result.current.isLoadingPrevious).toBe(false)
+
+    act(() => result.current.loadPrevious())
+    await waitFor(() => {
+      expect(result.current.pages.map((entry) => entry.items[0]?.id)).toEqual(['previous-near', 'anchor'])
+    })
+    expect(previousRequests).toBe(2)
+    expect(skippedPreviousRequests).toBe(0)
+
+    act(() => result.current.loadNext())
+    await waitFor(() => expect(result.current.error?.message).toBe('next failed'))
+    expect(result.current.isLoadingNext).toBe(false)
+
+    act(() => result.current.loadNext())
+    await waitFor(() => {
+      expect(result.current.pages.map((entry) => entry.items[0]?.id)).toEqual(['previous-near', 'anchor', 'next-near'])
+    })
+    expect(nextRequests).toBe(2)
+    expect(skippedNextRequests).toBe(0)
+  })
+
+  it('drops previous pages when the query family changes', async () => {
+    vi.spyOn(dataApiService, 'get').mockImplementation((async (
+      _path: string,
+      opts: { query?: { cursor?: string; q?: string } } = {}
+    ) => {
+      if (opts.query?.cursor === 'previous-a') return page('previous-a')
+      if (opts.query?.q === 'b') return page('anchor-b')
+      return page('anchor-a', 'previous-a')
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(({ q }) => useBidirectionalInfiniteQuery('/topics', { query: { q } }), {
+      initialProps: { q: 'a' },
+      wrapper: Wrapper
+    })
+
+    await waitFor(() => expect(result.current.pages[0]?.items[0]?.id).toBe('anchor-a'))
+    act(() => result.current.loadPrevious())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+
+    rerender({ q: 'b' })
+    await waitFor(() => {
+      expect(result.current.pages.map((entry) => entry.items[0]?.id)).toEqual(['anchor-b'])
+    })
+    expect(result.current.hasPrevious).toBe(false)
+  })
+
+  it('reset collapses both directions back to the anchor page', async () => {
+    vi.spyOn(dataApiService, 'get').mockImplementation((async (
+      _path: string,
+      opts: { query?: { cursor?: string } } = {}
+    ) => {
+      if (opts.query?.cursor === 'previous-1') return page('previous')
+      if (opts.query?.cursor === 'next-1') return page('next')
+      return page('anchor', 'previous-1', 'next-1')
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useBidirectionalInfiniteQuery('/topics'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+
+    act(() => {
+      result.current.loadPrevious()
+      result.current.loadNext()
+    })
+    await waitFor(() => expect(result.current.pages).toHaveLength(3))
+
+    act(() => result.current.reset())
+    await waitFor(() => expect(result.current.pages.map((entry) => entry.items[0]?.id)).toEqual(['anchor']))
   })
 })
 
@@ -1011,6 +1340,28 @@ describe('useInfiniteQuery function identity', () => {
     rerender()
     rerender()
     expect(result.current.loadNext).toBe(firstLoad)
+    expect(result.current.refresh).toBe(firstRefresh)
+    expect(result.current.reset).toBe(firstReset)
+  })
+
+  it('keeps bidirectional load/refresh/reset identity across plain rerenders', async () => {
+    vi.spyOn(dataApiService, 'get').mockResolvedValue({
+      items: [],
+      previousCursor: 'previous-1',
+      nextCursor: 'next-1'
+    } as never)
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => useBidirectionalInfiniteQuery('/topics'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const firstLoadPrevious = result.current.loadPrevious
+    const firstLoadNext = result.current.loadNext
+    const firstRefresh = result.current.refresh
+    const firstReset = result.current.reset
+    rerender()
+    rerender()
+    expect(result.current.loadPrevious).toBe(firstLoadPrevious)
+    expect(result.current.loadNext).toBe(firstLoadNext)
     expect(result.current.refresh).toBe(firstRefresh)
     expect(result.current.reset).toBe(firstReset)
   })

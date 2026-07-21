@@ -6,6 +6,7 @@
  * - {@link useQuery} - Fetch data with automatic caching and revalidation
  * - {@link useMutation} - Perform POST/PUT/PATCH/DELETE operations
  * - {@link useInfiniteQuery} - Cursor-based infinite scrolling
+ * - {@link useBidirectionalInfiniteQuery} - Cursor pagination around an anchored page
  * - {@link usePaginatedQuery} - Offset-based pagination with navigation
  * - {@link useInvalidateCache} - Manual cache invalidation
  * - {@link useReadCache} - Non-reactive cache peek (single sanctioned home for `unstable_serialize`)
@@ -85,6 +86,8 @@ const DEFAULT_SWR_OPTIONS = {
 
 /** Stable empty-array constant so `items` identity doesn't churn while data is undefined. */
 const EMPTY_ITEMS: readonly never[] = Object.freeze([])
+const BIDIRECTIONAL_NEXT_KEY = 'data-api:bidirectional:next' as const
+const BIDIRECTIONAL_PREVIOUS_KEY = 'data-api:bidirectional:previous' as const
 
 // ============================================================================
 // Hook Result Types
@@ -209,6 +212,15 @@ export interface UseMutationResult<TPath extends ApiPath, TMethod extends 'POST'
   error: Error | undefined
 }
 
+type BidirectionalInfiniteQueryOptions<TPath extends ApiPath> = ParamsOption<TPath, 'GET'> & {
+  /** Additional query parameters (cursor/limit are managed internally) */
+  query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
+  /** Items per page (default: 10) */
+  limit?: number
+  /** Set to false to disable fetching (default: true) */
+  enabled?: boolean
+}
+
 /**
  * useInfiniteQuery result type (cursor-based pagination).
  *
@@ -240,6 +252,34 @@ export interface UseInfiniteQueryResult<TResponse> {
   refresh: () => Promise<unknown>
   reset: () => void
   mutate: SWRInfiniteKeyedMutator<TResponse[]>
+}
+
+/**
+ * Result for bidirectional cursor pagination around an anchored first page.
+ *
+ * The hook deliberately omits a raw SWR mutator: previous and next pages live
+ * in separate SWR infinite chains, so one array updater cannot be split back
+ * into those caches reliably after it changes page count or order.
+ */
+export interface UseBidirectionalInfiniteQueryResult<TResponse> {
+  /** Pages in canonical query order: previous pages, anchor page, next pages. */
+  pages: TResponse[]
+  /** True during the initial anchor-page request. */
+  isLoading: boolean
+  /** True while already-loaded pages are being revalidated. */
+  isRefreshing: boolean
+  /** True while one additional previous page is loading. */
+  isLoadingPrevious: boolean
+  /** True while one additional next page is loading. */
+  isLoadingNext: boolean
+  error?: Error
+  hasPrevious: boolean
+  hasNext: boolean
+  loadPrevious: () => void
+  loadNext: () => void
+  refresh: () => Promise<unknown>
+  /** Collapse both directions back to the anchored first page. */
+  reset: () => void
 }
 
 /**
@@ -904,6 +944,210 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     refresh,
     reset,
     mutate: mutate as SWRInfiniteKeyedMutator<ResponseForPath<TPath, 'GET'>[]>
+  }
+}
+
+/**
+ * Load cursor pages in both directions around an anchored first page.
+ *
+ * The existing {@link useInfiniteQuery} remains the next-only primitive so
+ * its raw SWR mutator keeps its established meaning. This hook composes that
+ * forward chain with a previous-only chain whose first cursor comes from the
+ * anchor response. Previous pages are reversed before composition because
+ * they are fetched from the anchor toward the canonical query head.
+ */
+export function useBidirectionalInfiniteQuery<TPath extends ApiPath>(
+  path: CursorPaginatedPath<TPath>,
+  options?: BidirectionalInfiniteQueryOptions<TPath>
+): UseBidirectionalInfiniteQueryResult<ResponseForPath<TPath, 'GET'>> {
+  const limit = options?.limit ?? 10
+  const enabled = options?.enabled !== false
+  const resolvedPath = resolveTemplate(path as string, options?.params as Record<string, string | number> | undefined)
+
+  const getNextKey = useCallback(
+    (_pageIndex: number, previousPageData: CursorPaginationResponse<unknown> | null) => {
+      if (!enabled || (previousPageData && !previousPageData.nextCursor)) return null
+
+      const paginationQuery = {
+        ...options?.query,
+        limit,
+        ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {})
+      }
+      return [resolvedPath, paginationQuery, BIDIRECTIONAL_NEXT_KEY] as [
+        string,
+        typeof paginationQuery,
+        typeof BIDIRECTIONAL_NEXT_KEY
+      ]
+    },
+    [enabled, limit, options?.query, resolvedPath]
+  )
+
+  const directionalFetcher = (key: [string, Record<string, unknown>, string]) => {
+    const [requestPath, query] = key
+    return getFetcher([
+      requestPath as ConcreteApiPaths,
+      query as QueryParamsForPath<ConcreteApiPaths, 'GET'>
+    ]) as Promise<ResponseForPath<TPath, 'GET'>>
+  }
+
+  const nextResult = useSWRInfinite(getNextKey, directionalFetcher, {
+    ...DEFAULT_SWR_OPTIONS,
+    keepPreviousData: false,
+    persistSize: false,
+    parallel: false,
+    initialSize: 1
+  })
+  const {
+    data: nextData,
+    error: nextError,
+    isLoading: isInitialLoading,
+    isValidating: isNextValidating,
+    mutate: mutateNext,
+    setSize: setNextSize,
+    size: nextSize
+  } = nextResult
+
+  // Never expose a late page beyond the current size after reset() shrinks a chain.
+  const nextPages = useMemo<ResponseForPath<TPath, 'GET'>[]>(() => {
+    const data = nextData ?? []
+    return data.length > nextSize ? data.slice(0, nextSize) : data
+  }, [nextData, nextSize])
+  const nextPageCount = nextPages.length
+  const nextTail = nextPages[nextPageCount - 1] as CursorPaginationResponse<unknown> | undefined
+  const hasNext = !!nextTail?.nextCursor
+  const isLoadingNext = !isInitialLoading && isNextValidating && nextSize > nextPageCount
+  const firstPreviousCursor = (nextPages[0] as CursorPaginationResponse<unknown> | undefined)?.previousCursor
+
+  const getPreviousKey = useCallback(
+    (pageIndex: number, previousPageData: CursorPaginationResponse<unknown> | null) => {
+      if (!enabled) return null
+
+      const cursor = pageIndex === 0 ? firstPreviousCursor : previousPageData?.previousCursor
+      if (!cursor) return null
+
+      const paginationQuery = {
+        ...options?.query,
+        limit,
+        cursor
+      }
+      return [resolvedPath, paginationQuery, BIDIRECTIONAL_PREVIOUS_KEY] as [
+        string,
+        typeof paginationQuery,
+        typeof BIDIRECTIONAL_PREVIOUS_KEY
+      ]
+    },
+    [enabled, firstPreviousCursor, limit, options?.query, resolvedPath]
+  )
+
+  const previousResult = useSWRInfinite(getPreviousKey, directionalFetcher, {
+    ...DEFAULT_SWR_OPTIONS,
+    keepPreviousData: false,
+    persistSize: false,
+    parallel: false,
+    initialSize: 0
+  })
+  const {
+    data: previousData,
+    error: previousError,
+    isValidating: isPreviousValidating,
+    mutate: mutatePrevious,
+    setSize: setPreviousSize,
+    size: previousSize
+  } = previousResult
+
+  const previousPages = useMemo<ResponseForPath<TPath, 'GET'>[]>(() => {
+    const data = previousData ?? []
+    return data.length > previousSize ? data.slice(0, previousSize) : data
+  }, [previousData, previousSize])
+  const previousPageCount = previousPages.length
+
+  const pages = useMemo<ResponseForPath<TPath, 'GET'>[]>(() => {
+    if (!previousPages.length) return nextPages
+    return previousPages.slice().reverse().concat(nextPages)
+  }, [nextPages, previousPages])
+
+  const previousHead = previousPageCount
+    ? (previousPages[previousPageCount - 1] as CursorPaginationResponse<unknown>)
+    : (nextPages[0] as CursorPaginationResponse<unknown> | undefined)
+  const hasPrevious = !!previousHead?.previousCursor
+  const isLoadingPrevious = isPreviousValidating && previousSize > previousPageCount
+
+  const loadPreviousIdentity = unstable_serialize([
+    BIDIRECTIONAL_PREVIOUS_KEY,
+    resolvedPath,
+    options?.query ?? null,
+    limit,
+    firstPreviousCursor ?? null,
+    enabled
+  ])
+  const loadPreviousRequestRef = useRef<{ identity: string; token: symbol } | null>(null)
+  const loadNextIdentity = unstable_serialize([
+    BIDIRECTIONAL_NEXT_KEY,
+    resolvedPath,
+    options?.query ?? null,
+    limit,
+    enabled
+  ])
+  const loadNextRequestRef = useRef<{ identity: string; token: symbol } | null>(null)
+
+  const loadPrevious = useCallback(() => {
+    if (!hasPrevious || loadPreviousRequestRef.current?.identity === loadPreviousIdentity) return
+
+    const token = Symbol('load-previous')
+    loadPreviousRequestRef.current = { identity: loadPreviousIdentity, token }
+    void setPreviousSize(previousPageCount + 1).then(
+      () => {
+        if (loadPreviousRequestRef.current?.token === token) loadPreviousRequestRef.current = null
+      },
+      () => {
+        if (loadPreviousRequestRef.current?.token === token) loadPreviousRequestRef.current = null
+      }
+    )
+  }, [hasPrevious, loadPreviousIdentity, previousPageCount, setPreviousSize])
+
+  const loadNext = useCallback(() => {
+    if (!hasNext || loadNextRequestRef.current?.identity === loadNextIdentity) return
+
+    const token = Symbol('load-next')
+    loadNextRequestRef.current = { identity: loadNextIdentity, token }
+    void setNextSize(nextPageCount + 1).then(
+      () => {
+        if (loadNextRequestRef.current?.token === token) loadNextRequestRef.current = null
+      },
+      () => {
+        if (loadNextRequestRef.current?.token === token) loadNextRequestRef.current = null
+      }
+    )
+  }, [hasNext, loadNextIdentity, nextPageCount, setNextSize])
+
+  const refresh = useCallback(
+    () => (previousSize > 0 ? Promise.all([mutateNext(), mutatePrevious()]) : mutateNext()),
+    [mutateNext, mutatePrevious, previousSize]
+  )
+  const reset = useCallback(() => {
+    loadPreviousRequestRef.current = null
+    loadNextRequestRef.current = null
+    void setPreviousSize(0)
+    void setNextSize(1)
+  }, [setNextSize, setPreviousSize])
+
+  const isRefreshing =
+    (!isInitialLoading && !isLoadingNext && isNextValidating) ||
+    (previousSize > 0 && !isLoadingPrevious && isPreviousValidating)
+
+  return {
+    pages,
+    isLoading: isInitialLoading,
+    isRefreshing,
+    isLoadingPrevious,
+    isLoadingNext,
+    error: (nextError ?? previousError) as Error | undefined,
+    hasPrevious,
+    hasNext,
+    loadPrevious,
+    loadNext,
+    refresh,
+    reset
   }
 }
 

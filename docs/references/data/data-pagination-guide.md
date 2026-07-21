@@ -16,7 +16,7 @@ often uses both at once.
 | Mode | Request params | Response | Renderer hook | Use it for |
 |---|---|---|---|---|
 | **Offset** | `page` + `limit` | `{ items, total, page }` | `usePaginatedQuery` | Page navigation, tables, "page 3 of 12", anything that needs a `total` count |
-| **Cursor** (keyset) | `cursor` + `limit` | `{ items, previousCursor?, nextCursor? }` | `useInfiniteQuery` (next-only today) | Infinite scroll, chat history, feeds, large/append-only data where offset would drift under concurrent writes |
+| **Cursor** (keyset) | `cursor` + `limit` | `{ items, previousCursor?, nextCursor? }` | `useInfiniteQuery` / `useBidirectionalInfiniteQuery` | Infinite scroll, chat history, feeds, large/append-only data where offset would drift under concurrent writes |
 
 The mode is a property of the endpoint, declared once in its API schema, and is
 **not caller-configurable**. Mixing them is a compile-time error, not a runtime
@@ -40,7 +40,7 @@ Each layer has an authoritative doc — this guide is the map.
 |---|---|---|
 | **1. API schema** | `query` = `OffsetPaginationParams` / `CursorPaginationParams` (compose with `SortParams` / `SearchParams`); `response` = `OffsetPaginationResponse<T>` / `CursorPaginationResponse<T>` | [api-types.md § Pagination Types](./api-types.md#pagination-types) |
 | **2. Server service** | Offset: `(page-1)*limit` + `count(*)`. Cursor: the shared `keysetCursor` codec + `keysetOrdering` (never hand-roll the cursor or the `ORDER BY`) | [data-api-in-main.md](./data-api-in-main.md), [services/utils README — `keysetCursor.ts`](../../../src/main/data/services/utils/README.md) |
-| **3. Renderer hook** | Offset: `usePaginatedQuery`. Cursor: `useInfiniteQuery` + `useInfiniteFlatItems`, currently for next-only walking; previous loading requires a separate Renderer extension | [data-api-in-renderer.md](./data-api-in-renderer.md#useinfinitequery-cursor-based-infinite-scroll) |
+| **3. Renderer hook** | Offset: `usePaginatedQuery`. Cursor: `useInfiniteQuery` for next-only walking or `useBidirectionalInfiniteQuery` around an anchor; flatten either with `useInfiniteFlatItems` | [data-api-in-renderer.md](./data-api-in-renderer.md#useinfinitequery-cursor-based-infinite-scroll) |
 | **4. Query-param wire format** | `page`+`limit`, `cursor`+`limit`, `sortBy`+`sortOrder`, `search` | [api-design-guidelines.md § Query Parameters](./api-design-guidelines.md#query-parameters) |
 
 ## 3. Wire Contract
@@ -301,16 +301,15 @@ the rest of the query changes. The full result also exposes `isLoading`,
 `isRefreshing`, `error`, `refresh`, and `reset`. Rejects cursor-paginated paths
 at compile time.
 
-### Cursor — `useInfiniteQuery` + `useInfiniteFlatItems`
+### Cursor — Renderer infinite hooks + `useInfiniteFlatItems`
 
 `useInfiniteQuery` exposes the **raw `pages` array**; consumers derive a flat
 item list with `useInfiniteFlatItems`, explicitly picking the order that matches
 the endpoint and the container layout — never assume page-load order equals
 display order.
 
-The current hook follows `nextCursor` only. This shared/Main contract makes
-`previousCursor` representable, but does not yet make the Renderer hook load
-toward the query head.
+`useInfiniteQuery` follows `nextCursor` only and keeps its raw SWR mutator for
+existing optimistic consumers.
 
 ```typescript
 import { useInfiniteQuery, useInfiniteFlatItems } from '@data/hooks/useDataApi'
@@ -330,6 +329,28 @@ const activeNodeId = pages[0]?.activeNodeId ?? null   // top-level metadata, no 
 // Time-ascending render in a non-`column-reverse` container: flip page order
 const ascItems = useInfiniteFlatItems(pages, { reversePages: true })
 ```
+
+For an endpoint whose initial query selects an anchored page and can return
+both cursors, `useBidirectionalInfiniteQuery` loads in both directions:
+
+```typescript
+const {
+  pages,
+  hasPrevious,
+  hasNext,
+  isLoadingPrevious,
+  isLoadingNext,
+  loadPrevious,
+  loadNext
+} = useBidirectionalInfiniteQuery('/feed', { query: endpointSpecificAnchorQuery })
+```
+
+It exposes `reverse(previousPages) + nextPages`, which is canonical query
+order regardless of load direction. The anchor selector remains an
+endpoint-specific query field; it is not a generic pagination parameter.
+The two directions use isolated SWR infinite chains, so this hook deliberately
+does not expose a composite raw `mutate`. `refresh` revalidates both chains and
+`reset` returns to the anchored first page.
 
 `pages` is reference-stable across rerenders while SWR's underlying data is
 unchanged, so `useInfiniteFlatItems(pages)` skips recomputation. Rejects
@@ -382,7 +403,7 @@ lives in `src/main/data/services/utils/ftsSearch.ts`; see
 ## 8. See Also
 
 - [api-types.md § Pagination Types](./api-types.md#pagination-types) — type signatures, guards, `Infer*` helpers
-- [data-api-in-renderer.md](./data-api-in-renderer.md#useinfinitequery-cursor-based-infinite-scroll) — `usePaginatedQuery` / `useInfiniteQuery` / `useInfiniteFlatItems`
+- [data-api-in-renderer.md](./data-api-in-renderer.md#useinfinitequery-cursor-based-infinite-scroll) — `usePaginatedQuery` / `useInfiniteQuery` / `useBidirectionalInfiniteQuery` / `useInfiniteFlatItems`
 - [data-api-in-main.md](./data-api-in-main.md) — service-layer patterns
 - [services/utils README](../../../src/main/data/services/utils/README.md) — `keysetCursor.ts` codec + `ftsSearch.ts`
 - [api-design-guidelines.md § Query Parameters](./api-design-guidelines.md#query-parameters) — wire-format conventions
