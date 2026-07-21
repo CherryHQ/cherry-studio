@@ -9,18 +9,14 @@ import { useTranslation } from 'react-i18next'
 
 import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  ARTIFACT_RIGHT_PANE_CLOSE_DRAG_THRESHOLD,
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
   CHAT_SHELL_PANE_WIDTH,
   CHAT_SHELL_TRANSITION
 } from './paneLayout'
-import {
-  buildDockedPaneWidthExpression,
-  getPaneSpaceCap,
-  isPaneResizeHandleUsable,
-  resolveDockedPaneWidth
-} from './paneWidthPolicy'
+import { buildDockedPaneWidthExpression, getPaneSpaceCap, resolveDockedPaneWidth } from './paneWidthPolicy'
 import {
   getInitialPersistentRightPaneState,
   getRightPaneDockedClip,
@@ -64,6 +60,8 @@ export interface PersistentRightPaneHostProps extends ResizableRightPaneProps {
   /** Reports the full-width phase (maximizing/maximized/minimizing/closing-maximized) upward. */
   onFullWidthPhaseChange?: (active: boolean) => void
   onResizingChange?: (active: boolean) => void
+  /** Invoked when a resize drag travels past the close threshold (drag-to-close). */
+  onDragClose?: () => void
 }
 
 function clampRightPaneWidth(width: number, minWidth: number, maxWidth: number): number {
@@ -97,7 +95,8 @@ function useRightPaneResize({
   defaultWidth,
   minWidth,
   maxWidth,
-  spaceCapRef
+  spaceCapRef,
+  onDragClose
 }: {
   cacheKey: RightPaneResizeCacheKey
   defaultWidth: number
@@ -105,10 +104,18 @@ function useRightPaneResize({
   maxWidth: number
   /** Current space-imposed display cap; null before the main region is measured. */
   spaceCapRef?: RefObject<number | null>
+  /** Dragging well past the minimum width closes the pane (mirrors the left list's drag-collapse). */
+  onDragClose?: () => void
 }) {
   const [storedWidth, setStoredWidth] = usePersistCache(cacheKey)
   const paneRef = useRef<HTMLDivElement>(null)
   const paneRightRef = useRef(0)
+  const dragStartClientXRef = useRef(0)
+  const pendingDragCloseRef = useRef(false)
+  const onDragCloseRef = useRef(onDragClose)
+  useEffect(() => {
+    onDragCloseRef.current = onDragClose
+  }, [onDragClose])
 
   // Drag-local width shown while actively dragging; null when not dragging,
   // in which case paneWidth falls back to the persisted storedWidth.
@@ -141,8 +148,16 @@ function useRightPaneResize({
   }, [])
 
   const handleMouseMove = useCallback(
-    (moveEvent: MouseEvent) => {
-      pendingWidthRef.current = clampRightPaneWidth(paneRightRef.current - moveEvent.clientX, minWidth, maxWidth)
+    (moveEvent: MouseEvent, stop: () => void) => {
+      const geometricWidth = paneRightRef.current - moveEvent.clientX
+      const dragDelta = moveEvent.clientX - dragStartClientXRef.current
+      if (geometricWidth < minWidth && dragDelta >= ARTIFACT_RIGHT_PANE_CLOSE_DRAG_THRESHOLD) {
+        pendingWidthRef.current = null
+        pendingDragCloseRef.current = true
+        stop()
+        return
+      }
+      pendingWidthRef.current = clampRightPaneWidth(geometricWidth, minWidth, maxWidth)
 
       if (rafScheduledRef.current) return
       rafScheduledRef.current = true
@@ -191,9 +206,19 @@ function useRightPaneResize({
   // mid-drag, so a stray frame never calls setLiveWidth after unmount.
   useEffect(() => cancelPendingRaf, [cancelPendingRaf])
 
+  // Fire the drag-close after the drag state has fully settled (mirrors the
+  // left list's pending-collapse effect) so the close doesn't race the drag
+  // teardown's own state updates.
+  useEffect(() => {
+    if (isResizing || !pendingDragCloseRef.current) return
+    pendingDragCloseRef.current = false
+    onDragCloseRef.current?.()
+  }, [isResizing])
+
   const startResizing = useCallback(
     (event: ReactMouseEvent) => {
       paneRightRef.current = paneRef.current?.getBoundingClientRect().right ?? event.clientX + paneWidth
+      dragStartClientXRef.current = event.clientX
       startResizeDrag(event)
     },
     [paneWidth, startResizeDrag]
@@ -295,7 +320,8 @@ export function PersistentRightPaneHost({
   cacheKey = ARTIFACT_RIGHT_PANE_CACHE_KEY,
   onLayoutAnimationComplete,
   onFullWidthPhaseChange,
-  onResizingChange
+  onResizingChange,
+  onDragClose
 }: PersistentRightPaneHostProps) {
   const reduceMotion = useReducedMotion()
   const animationControls = useAnimationControls()
@@ -306,7 +332,8 @@ export function PersistentRightPaneHost({
     defaultWidth: resolvedDefaultWidth,
     minWidth,
     maxWidth,
-    spaceCapRef
+    spaceCapRef,
+    onDragClose
   })
   const mainRegionWidth = useMainRegionWidth(paneRef)
   useLayoutEffect(() => {
@@ -429,7 +456,6 @@ export function PersistentRightPaneHost({
   const closed = isClosedRightPanePhase(phase)
   const interactionHidden = targetMode === 'closed'
   const spacerTransition = isResizing || fullWidthLayout ? { duration: 0 } : CHAT_SHELL_TRANSITION
-  const resizeHandleUsable = mainRegionWidth === null || isPaneResizeHandleUsable(mainRegionWidth)
 
   const onFullWidthPhaseChangeRef = useRef(onFullWidthPhaseChange)
   const onResizingChangeRef = useRef(onResizingChange)
@@ -487,7 +513,7 @@ export function PersistentRightPaneHost({
             paneWidth={effectiveWidth}
             minWidth={minWidth}
             maxWidth={maxWidth}
-            resizeHandleVisible={resizable && isDocked && resizeHandleUsable}
+            resizeHandleVisible={resizable && isDocked}
             startResizing={startResizing}
             setPaneWidth={setPaneWidth}>
             {children}

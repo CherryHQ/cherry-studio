@@ -4,7 +4,6 @@ import {
   buildDockedPaneWidthExpression,
   evaluateAutoCollapse,
   getPaneSpaceCap,
-  isPaneResizeHandleUsable,
   predictCenterWidth,
   resolveDockedPaneWidth
 } from '../paneWidthPolicy'
@@ -96,10 +95,5 @@ describe('space cap and handle usability', () => {
   it('caps resize commits at the space the pane can currently show', () => {
     expect(getPaneSpaceCap(700)).toBe(340)
     expect(getPaneSpaceCap(500)).toBe(255)
-  })
-
-  it('hides the handle at and below 615 where every direction is a dead zone', () => {
-    expect(isPaneResizeHandleUsable(615)).toBe(false)
-    expect(isPaneResizeHandleUsable(616)).toBe(true)
   })
 })

@@ -398,7 +398,7 @@ describe('RightPaneHost', () => {
     expect(pane).toHaveAttribute('data-resizing', 'true')
 
     fireEvent.mouseMove(document, { clientX: 300 })
-    fireEvent.mouseMove(document, { clientX: 600 })
+    fireEvent.mouseMove(document, { clientX: 500 })
     fireEvent.mouseMove(document, { clientX: 20 })
 
     // No commits to the persisted cache while the drag is in progress — the
@@ -414,6 +414,33 @@ describe('RightPaneHost', () => {
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
+  })
+
+  it('closes the pane instead of committing when the drag travels well past the minimum width', () => {
+    const onDragClose = vi.fn()
+    const { container } = render(
+      <PersistentRightPaneHost open resizable width={460} onDragClose={onDragClose}>
+        <div>artifact pane</div>
+      </PersistentRightPaneHost>
+    )
+    const pane = container.querySelector('[data-right-pane]')
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected right pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(340, 0, 460, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 340 })
+    // Below the minimum width AND past the close threshold (mirrors the left
+    // list's drag-collapse): 800 - 560 = 240 < 255, delta 220 ≥ 200.
+    fireEvent.mouseMove(document, { clientX: 560 })
+
+    expect(onDragClose).toHaveBeenCalledTimes(1)
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+    expect(pane).not.toHaveAttribute('data-resizing')
+    expect(document.body.style.cursor).toBe('')
   })
 
   it('does not commit to the persisted cache before window blur ends the drag', () => {

@@ -556,7 +556,8 @@ export function RightPanelViewport({ children }: { children: ReactNode }) {
         cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
         onLayoutAnimationComplete={actions.completeLayoutAnimation}
         onFullWidthPhaseChange={actions.reportFullWidthPhase}
-        onResizingChange={actions.reportPaneResizing}>
+        onResizingChange={actions.reportPaneResizing}
+        onDragClose={actions.close}>
         {children}
       </PersistentRightPaneHost>
     </>

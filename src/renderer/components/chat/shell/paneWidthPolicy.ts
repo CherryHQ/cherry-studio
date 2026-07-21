@@ -32,11 +32,6 @@ export function getPaneSpaceCap(available: number): number {
   return Math.max(PANE_MIN, available - CENTER_MIN)
 }
 
-/** The resize handle is pointless while space clamps the pane to PANE_MIN or below. */
-export function isPaneResizeHandleUsable(available: number): boolean {
-  return available > PANE_MIN + CENTER_MIN
-}
-
 export interface PredictCenterWidthInput {
   shellWidth: number
   listWidth: number
