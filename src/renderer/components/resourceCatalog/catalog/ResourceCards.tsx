@@ -36,9 +36,10 @@ function hasOverflowActions(resource: ResourceItem) {
 export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, onEdit, onExport }: ResourceCardProps) {
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
-  // Skills get the type-specific tinted background to match the menu icon;
-  // other resources keep their own avatar on the neutral accent block.
+  // Skills get the type-specific tinted background and lucide icon; other resources keep their own
+  // avatar (emoji/initials) on the neutral accent block.
   const useTypedAvatarBg = r.type === 'skill'
+  const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
   const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
 
@@ -56,7 +57,7 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base ${
               useTypedAvatarBg ? cfg.color : 'bg-secondary'
             }`}>
-            {r.avatar}
+            {useTypedAvatarBg ? <TypeIcon size={20} aria-hidden /> : r.avatar}
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>

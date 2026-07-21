@@ -1,6 +1,6 @@
 import type { ResourceType, ResourceTypeUIConfig } from '@renderer/types/resourceCatalog'
 import type { AssistantSettings } from '@shared/data/types/assistant'
-import { Bot, FileText, MessageCircle, Zap } from 'lucide-react'
+import { Bot, FileText, MessageCircle, ToolCase } from 'lucide-react'
 
 export type AssistantConfigMcpMode = AssistantSettings['mcpMode']
 
@@ -18,7 +18,7 @@ export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
     labelKey: 'library.type.assistant'
   },
   skill: {
-    icon: Zap,
+    icon: ToolCase,
     color: 'bg-warning-bg text-warning-text',
     labelKey: 'library.type.skill'
   },

@@ -52,6 +52,7 @@ const mocks = vi.hoisted(() => ({
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
+  pinnedToolIds: ['thinking', 'web-search'] as string[],
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
@@ -372,7 +373,9 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
         close edit dialog
       </button>
     </div>
-  )
+  ),
+  ResourceEditDialogEventHost: () => null,
+  openResourceEditDialog: vi.fn()
 }))
 
 vi.mock('@renderer/utils/model', () => ({
@@ -418,7 +421,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'chat.input.toolbar.pinned_tools': ['thinking', 'web-search'],
+      'chat.input.toolbar.pinned_tools': mocks.pinnedToolIds,
       'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
     }
     return [values[key]]
@@ -670,6 +673,7 @@ describe('ChatComposer', () => {
     mocks.dispatchLauncher.mockReset()
     mocks.unifiedPanelOpen.mockReset()
     mocks.unifiedPanelAvailable = true
+    mocks.pinnedToolIds = ['thinking', 'web-search']
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
@@ -768,6 +772,18 @@ describe('ChatComposer', () => {
         inputAdapter: expect.objectContaining({ focus: mocks.inputAdapterFocus })
       })
     )
+  })
+
+  it('exposes MCP as a customizable chat toolbar shortcut', () => {
+    mocks.pinnedToolIds = ['mcp-status']
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const mcpButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })
+    expect(mcpButton.querySelector('.lucide-cable')).toBeInTheDocument()
+
+    fireEvent.click(mcpButton)
+    expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
   })
 
   it('keeps the home composer narrow even when chat wide layout is enabled', () => {
