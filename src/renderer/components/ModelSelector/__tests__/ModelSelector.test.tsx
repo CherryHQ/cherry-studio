@@ -1104,10 +1104,26 @@ describe('ModelSelector', () => {
     expect(mockVirtualListSizes.at(-1)).toBe(MODEL_SELECTOR_CONTENT_HEIGHT - 8)
   })
 
-  it('matches the popover width to the trigger', () => {
+  it('keeps a usable default popover width for compact triggers', () => {
     mockUseModelSelectorData.mockReturnValue(makeData())
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ width: '400px' })
+  })
+
+  it('accepts a popover width from the call site', () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        contentWidth="var(--radix-popover-trigger-width)"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
 
     expect(screen.getByTestId('model-selector-content')).toHaveStyle({
       width: 'var(--radix-popover-trigger-width)'

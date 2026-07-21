@@ -42,7 +42,7 @@ const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
-const MODEL_SELECTOR_WIDTH = 'var(--radix-popover-trigger-width)'
+const MODEL_SELECTOR_WIDTH = 400
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
 const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
@@ -264,6 +264,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     align = 'start',
     sideOffset = 4,
     contentClassName,
+    contentWidth = MODEL_SELECTOR_WIDTH,
     portalContainer,
     mountStrategy = 'destroy',
     multiSelectMode: multiSelectModeProp,
@@ -821,7 +822,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         search={searchConfig}
         filterContent={filterContent}
         multiSelect={multiSelectConfig}
-        width={MODEL_SELECTOR_WIDTH}
+        width={contentWidth}
         side={side}
         align={align}
         sideOffset={sideOffset}
