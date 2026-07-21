@@ -1,7 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@cherrystudio/ui/styles/theme.css';
-@import './legacy-vars.css';
 
 @source '../../../../packages/ui/src/**/*.{js,ts,jsx,tsx}';
 @source '../../../../node_modules/streamdown/dist/*.js';
@@ -21,9 +20,6 @@
  * 4. Add renderer-only reusable patterns in `@layer components` when needed.
  * 5. Add custom utilities in `@layer utilities`.
  *
- * TODO(v2-ui): Gradually remove the legacy compatibility variables in this file
- * as renderer surfaces migrate from old `var(--color-*)` usage to the shared
- * `@cherrystudio/ui` theme contract and Tailwind semantic utilities.
  */
 
 /* App shell tokens: light mode */

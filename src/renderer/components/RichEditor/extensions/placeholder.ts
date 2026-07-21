@@ -29,11 +29,17 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
         key: new PluginKey('placeholder'),
         props: {
           decorations: ({ doc, selection }) => {
+            // Tiptap keeps this plugin instance when React updates editor options, so
+            // read the currently configured extension instead of the creation-time options.
+            const options =
+              (this.editor.options.extensions.find((extension) => extension.name === this.name)?.options as
+                | PlaceholderOptions
+                | undefined) ?? this.options
             const active = this.editor.isEditable
             const { anchor } = selection
             const decorations: Decoration[] = []
 
-            if (!active && this.options.showOnlyWhenEditable) {
+            if (!active && options.showOnlyWhenEditable) {
               return DecorationSet.empty
             }
 
@@ -50,7 +56,7 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
               }
 
               // Only show placeholder on current node (where cursor is) or all nodes based on showOnlyCurrent
-              if ((hasAnchor || !this.options.showOnlyCurrent) && isEmpty) {
+              if ((hasAnchor || !options.showOnlyCurrent) && isEmpty) {
                 const classes = ['placeholder']
                 if (hasAnchor) {
                   classes.push('has-focus')
@@ -59,20 +65,20 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
                 const decoration = Decoration.node(pos, pos + node.nodeSize, {
                   class: classes.join(' '),
                   'data-placeholder':
-                    typeof this.options.placeholder === 'function'
-                      ? this.options.placeholder({
+                    typeof options.placeholder === 'function'
+                      ? options.placeholder({
                           editor: this.editor,
                           node,
                           pos,
                           hasAnchor
                         })
-                      : this.options.placeholder
+                      : options.placeholder
                 })
 
                 decorations.push(decoration)
               }
 
-              return this.options.includeChildren
+              return options.includeChildren
             })
 
             return DecorationSet.create(doc, decorations)

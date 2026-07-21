@@ -525,12 +525,6 @@ export interface FileIpcApi {
    */
   listDirectory(dirPath: AbsoluteFilePath, options?: DirectoryListOptions): Promise<string[]>
 
-  /**
-   * Check if a directory is non-empty.
-   * @phase 2 — not yet wired
-   */
-  isNotEmptyDir(dirPath: AbsoluteFilePath): Promise<boolean>
-
   // ─── J. Entry Enrichment (FileEntryId only; FS / main-side compute) ───
   //
   // These methods replace the former DataApi opt-in fields

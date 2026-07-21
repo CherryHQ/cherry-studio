@@ -108,6 +108,26 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(labels(options.list)).toEqual(['MCP', 'Agent skill', 'Slash command'])
   })
 
+  it('drops bottom-pinned chrome from category views seeded with a search text', () => {
+    const additionalItems = [
+      { id: 'skill:pdf', label: 'Agent skill', filterText: 'Skills', icon: 'skill' },
+      { id: 'composer:customize-toolbar', label: 'Customize toolbar', icon: 'settings', fixedToBottom: true }
+    ]
+
+    // Bare root panel keeps the fixedToBottom customize action.
+    const bareRoot = createUnifiedQuickPanelOpenOptions([], { quickPanel, additionalItems })
+    expect(labels(bareRoot.list)).toContain('Customize toolbar')
+
+    // A category view (opened via a toolbar shortcut that seeds a search text) drops it so it does
+    // not bypass the category filter.
+    const categoryView = createUnifiedQuickPanelOpenOptions([], {
+      quickPanel,
+      additionalItems,
+      initialSearchText: 'Skills'
+    })
+    expect(labels(categoryView.list)).toEqual(['Agent skill'])
+  })
+
   it('does not reorder items when there is no search text', () => {
     const options = createUnifiedQuickPanelOpenOptions(
       [
