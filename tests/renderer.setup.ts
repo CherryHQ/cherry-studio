@@ -228,6 +228,17 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return React.createElement('button', buttonProps, startContent, children)
     },
+    ConfirmDialog: ({ cancelText, confirmText, description, onConfirm, open, title }) =>
+      open
+        ? React.createElement(
+            'div',
+            { role: 'dialog' },
+            React.createElement('h2', null, title),
+            description ? React.createElement('p', null, description) : null,
+            React.createElement('button', { type: 'button' }, cancelText),
+            React.createElement('button', { type: 'button', onClick: onConfirm }, confirmText)
+          )
+        : null,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
       React.createElement('input', {
         ...props,
@@ -564,7 +575,7 @@ vi.mock('@cherrystudio/ui', () => {
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     Scrollbar: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Dropzone: ({ children, getFilesFromEvent: _getFilesFromEvent, onDrop: _onDrop, maxFiles: _maxFiles, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
     DropzoneEmptyState: ({ children }) => React.createElement(React.Fragment, null, children),
@@ -804,7 +815,7 @@ vi.mock('@cherrystudio/ui', () => {
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
     Scrollbar: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
     AvatarImage: ({ src, ...props }) =>

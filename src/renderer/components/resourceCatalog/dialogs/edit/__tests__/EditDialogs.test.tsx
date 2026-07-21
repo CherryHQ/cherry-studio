@@ -1,5 +1,4 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -116,6 +115,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value,
     onChange,
     placeholder,
+    resetPreviewKey,
     minHeight,
     maxHeight
   }: {
@@ -125,6 +125,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value: string
     onChange: (value: string) => void
     placeholder?: string
+    resetPreviewKey?: number
     minHeight?: string
     maxHeight?: string
   }) => (
@@ -141,6 +142,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         onChange={(event) => onChange(event.target.value)}
         style={{ minHeight, maxHeight }}
       />
+      <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
 }))
@@ -220,6 +222,10 @@ vi.mock('react-i18next', async (importOriginal) => {
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
+          'agent.settings.tooling.permissionMode.acceptEdits.title': 'Auto-edit Mode',
+          'agent.settings.tooling.permissionMode.bypassPermissions.title': 'Full Auto Mode',
+          'agent.settings.tooling.permissionMode.default.title': 'Normal Mode',
+          'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
           'common.avatar': 'Avatar',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
@@ -258,10 +264,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.env_vars.label': 'Environment variables',
           'library.config.agent.field.env_vars.placeholder': 'KEY=value\nANOTHER_KEY=another_value',
           'library.config.agent.field.permission_mode.label': 'Permission mode',
-          'library.config.agent.field.permission_mode.option.acceptEdits': 'Auto-edit Mode',
-          'library.config.agent.field.permission_mode.option.bypassPermissions': 'Full Auto Mode',
-          'library.config.agent.field.permission_mode.option.default': 'Normal Mode',
-          'library.config.agent.field.permission_mode.option.plan': 'Plan Mode',
           'library.config.agent.section.permission.desc': 'Permission options.',
           'library.config.agent.section.permission.title': 'Permission',
           'library.config.agent.section.tools.add': 'Add',
@@ -314,6 +316,11 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.generate': 'Generate prompt',
           'library.config.prompt.generate_failed_description': 'Check or change the default model, then try again.',
           'library.config.prompt.generate_failed_title': 'Failed to generate prompt',
+          'library.config.prompt.polish': 'Polish prompt',
+          'library.config.prompt.polish_failed_description': 'Check or change the default model, then try again.',
+          'library.config.prompt.polish_failed_title': 'Failed to polish prompt',
+          'library.config.prompt.polish_variables_changed_description': 'Prompt variables changed.',
+          'library.config.prompt.polish_variables_changed_title': 'Could not apply polished prompt',
           'library.config.prompt.tokens_label': 'Tokens: ',
           'library.config.prompt.variables_description':
             'Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.',
@@ -710,6 +717,64 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('polishes agent instructions and auto-saves the polished value', async () => {
+    fetchGenerateMock.mockResolvedValue('Polished agent instructions')
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+
+    await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished agent instructions'))
+    expect(fetchGenerateMock).toHaveBeenCalledWith({
+      prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
+      content: 'Original instructions',
+      throwOnError: true
+    })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ instructions: 'Polished agent instructions' })
+      })
+    )
+  })
+
+  it('generates agent instructions from the agent name when instructions are blank', async () => {
+    fetchGenerateMock.mockResolvedValue('Generated agent instructions')
+    render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
+    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    expect(generateButton).toBeEnabled()
+    fireEvent.click(generateButton)
+
+    await waitFor(() =>
+      expect(fetchGenerateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: expect.stringContaining('You are a Prompt Generator.'),
+          content: 'Alpha Agent',
+          throwOnError: true
+        })
+      )
+    )
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated agent instructions')
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
+  })
+
+  it('allows closing and tab navigation while an agent prompt action is in flight', async () => {
+    fetchGenerateMock.mockReturnValueOnce(new Promise<string>(() => undefined))
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    selectTab('Prompt')
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    selectTab('Basic')
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(screen.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('keeps MCP catalog rows compact without detail text', async () => {
     mcpStatusState.current = {
       'mcp-command-only': { state: 'connected', lastCheckedAt: 1 }
@@ -792,57 +857,64 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('generates and restores assistant prompts inside the dialog', async () => {
+  it('polishes and restores assistant prompts through the shared action', async () => {
+    fetchGenerateMock.mockResolvedValueOnce('Polished assistant prompt')
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
     await expectVariablesHelpOnOpen()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
+    const polishButton = screen.getByRole('button', { name: 'Polish prompt' })
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
+    fireEvent.click(polishButton)
+
+    await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished assistant prompt'))
+    expect(fetchGenerateMock).toHaveBeenCalledWith({
+      prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
+      content: 'Original prompt',
+      throwOnError: true
+    })
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
+
+    const undoButton = screen.getByRole('button', { name: 'Undo' })
+    fireEvent.click(undoButton)
+
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
+    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('2')
+  })
+
+  it('generates an assistant prompt from its name when the prompt is blank', async () => {
+    render(
+      <AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} onSaved={vi.fn()} />
+    )
+
+    selectTab('Prompt')
+    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    fireEvent.click(generateButton)
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
-
-    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
+    expect(fetchGenerateMock).toHaveBeenCalledWith({
+      prompt: expect.stringContaining('You are a Prompt Generator.'),
+      content: 'Alpha Assistant',
+      throwOnError: true
+    })
+    expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
+      'Create a useful system prompt from the supplied name or title.'
+    )
+    expect(screen.getByRole('button', { name: 'Polish prompt' })).toBeInTheDocument()
   })
 
-  it('shows a toast when assistant prompt generation fails', async () => {
-    fetchGenerateMock.mockRejectedValueOnce(new Error('Model failed'))
-
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
-
-    selectTab('Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
-
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith({
-        description: 'Check or change the default model, then try again.',
-        title: 'Failed to generate prompt'
-      })
-    )
-    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
-    expect(fetchGenerateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: 'Original prompt',
-        throwOnError: true
-      })
-    )
-  })
-
-  it('shows a toast when assistant prompt generation returns no response', async () => {
-    fetchGenerateMock.mockResolvedValueOnce('')
-
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+  it('allows closing and tab navigation while an assistant prompt action is in flight', async () => {
+    fetchGenerateMock.mockReturnValueOnce(new Promise<string>(() => undefined))
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    selectTab('Basic')
 
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith({
-        description: 'Check or change the default model, then try again.',
-        title: 'Failed to generate prompt'
-      })
-    )
-    expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(screen.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('submits agent permission defaults and advanced changes', async () => {
@@ -890,6 +962,21 @@ describe('edit dialogs', () => {
 
     selectTab('Skills')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('opens the agent edit dialog directly on the requested initial tab', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
+
+    expect(screen.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('opens the assistant edit dialog directly on the requested initial tab', () => {
+    render(
+      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.mcp" />
+    )
+
+    expect(screen.getByRole('tab', { name: 'MCP' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('auto-saves agent skill toggles after a debounce', async () => {

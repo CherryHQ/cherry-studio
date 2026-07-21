@@ -27,10 +27,12 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { BinaryManager } from '@main/services/BinaryManager'
+import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { LanTransferService } from '@main/services/lanTransfer'
+import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -72,6 +74,7 @@ import { WebviewService } from '@main/services/WebviewService'
  * Value = service class constructor
  */
 export const services = {
+  MainNetworkDevtoolsService,
   WindowManager,
   DbService,
   CacheService,
@@ -84,6 +87,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   CommandService,
+  CitationPreviewService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,

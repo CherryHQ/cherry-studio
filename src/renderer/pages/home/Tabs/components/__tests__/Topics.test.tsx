@@ -1,3 +1,4 @@
+import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
@@ -123,6 +124,7 @@ const tabsContextMocks = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
 const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
+const resourceEditDialogMocks = vi.hoisted(() => ({ renderHost: vi.fn() }))
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
@@ -134,8 +136,10 @@ vi.mock('@renderer/hooks/useWindowFrame', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
-  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
-    target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) => {
+    resourceEditDialogMocks.renderHost(target)
+    return target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+  }
 }))
 
 vi.mock('@renderer/pages/home/messages/TopicImageCaptureHost', () => ({
@@ -195,7 +199,10 @@ const cacheHookMocks = vi.hoisted(() => ({
   values: new Map<string, unknown>()
 }))
 
-vi.mock('@data/hooks/useCache', () => ({
+vi.mock('@data/hooks/useCache', async (importOriginal) => ({
+  // Real hook over the globally mocked cacheService: the stream-status tests
+  // seed that store via setShared and spy on its subscribe.
+  useSharedCacheSelector: (await importOriginal<typeof UseCacheModule>()).useSharedCacheSelector,
   useCache: (key: string) => {
     if (!cacheHookMocks.setters.has(key)) {
       cacheHookMocks.setters.set(key, (value: unknown) => {
@@ -2742,6 +2749,7 @@ describe('Topics', () => {
   it('moves assistant group actions into the more menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     const { onCreateTopicAfterClear, onNewTopic, setActiveTopic } = renderTopicList()
+    expect(resourceEditDialogMocks.renderHost).not.toHaveBeenCalled()
 
     const assistantGroupButton = screen.getByRole('button', { name: 'Alpha Assistant' })
     const assistantHeader = assistantGroupButton.closest('div')
@@ -2760,13 +2768,15 @@ describe('Topics', () => {
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Edit Assistant' }))
     await vi.waitFor(() => expect(animationFrameCallbacks).toHaveLength(1))
-    act(() => {
+    await act(async () => {
       for (const callback of animationFrameCallbacks.splice(0)) {
         callback(0)
       }
     })
-    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
-    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-1')
+    const editDialogHost = await screen.findByTestId('resource-edit-dialog-host')
+    expect(editDialogHost).toHaveAttribute('data-kind', 'assistant')
+    expect(editDialogHost).toHaveAttribute('data-id', 'assistant-1')
+    expect(resourceEditDialogMocks.renderHost).toHaveBeenCalledOnce()
     expect(tabsContextMocks.openTab).not.toHaveBeenCalledWith(
       '/app/library?resourceType=assistant&action=edit&id=assistant-1',
       expect.anything()

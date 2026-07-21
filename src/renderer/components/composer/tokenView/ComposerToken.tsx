@@ -10,7 +10,7 @@ import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { Boxes, Braces, FileText, Folder, TextQuote, X, Zap } from 'lucide-react'
+import { Boxes, Braces, FileText, Folder, TextQuote, ToolCase, X } from 'lucide-react'
 import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
@@ -38,7 +38,7 @@ const tokenPreviewHeaderClassName =
 const pastedTextPreviewCache = new Map<string, Promise<string>>()
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
-  skill: <Zap className={tokenIconClassName} />,
+  skill: <ToolCase className={tokenIconClassName} />,
   file: <FileText className={tokenIconClassName} />,
   folder: <Folder className={tokenIconClassName} />,
   knowledge: <Boxes className={tokenIconClassName} />,

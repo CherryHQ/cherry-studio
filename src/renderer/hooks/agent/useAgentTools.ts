@@ -1,4 +1,4 @@
-import { cacheService } from '@renderer/data/CacheService'
+import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import type { McpTool } from '@renderer/types/tool'
@@ -11,10 +11,9 @@ import {
 import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { AgentConfiguration, AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { AgentType } from '@shared/data/types/agent'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 type McpToolsCacheKey = `mcp.tools.${string}`
 
@@ -27,27 +26,24 @@ export type AgentToolSource = {
   permissionMode?: AgentPermissionMode | string | null
 }
 
+// Module-level constant so the cache-miss fallback stays reference-stable
+// across selector runs (see useSharedCacheSelector's fallback discipline).
+const EMPTY_MCP_TOOLS: McpTool[] = []
+
 function useMcpToolsCache(serverIds: readonly string[]): Record<string, McpTool[]> {
+  // Keys and the zip source both derive from `uniqueIds` (zip-source coherence).
   const uniqueIds = useMemo(() => Array.from(new Set(serverIds)).sort(), [serverIds])
-  const cacheKeys = useMemo(() => uniqueIds.map((id) => mcpToolsCacheKey(id)), [uniqueIds])
 
-  const readSnapshot = () =>
-    Object.fromEntries(
-      uniqueIds.map((id) => [id, cacheService.getShared(mcpToolsCacheKey(id) as SharedCacheKey) ?? []])
-    ) as Record<string, McpTool[]>
+  const selector = useCallback(
+    (values: readonly (McpTool[] | undefined)[]) =>
+      Object.fromEntries(uniqueIds.map((id, index): [string, McpTool[]] => [id, values[index] ?? EMPTY_MCP_TOOLS])),
+    [uniqueIds]
+  )
 
-  const [snapshot, setSnapshot] = useState<Record<string, McpTool[]>>(readSnapshot)
-
-  useEffect(() => {
-    setSnapshot(readSnapshot())
-    const disposers = cacheKeys.map((key) => cacheService.subscribe(key, () => setSnapshot(readSnapshot())))
-    return () => {
-      disposers.forEach((dispose) => dispose())
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cacheKeys.join('|')])
-
-  return snapshot
+  return useSharedCacheSelector(
+    uniqueIds.map((id) => mcpToolsCacheKey(id)),
+    selector
+  )
 }
 
 function toTool(descriptor: ClaudeToolDescriptor, source: AgentToolSource): Tool {

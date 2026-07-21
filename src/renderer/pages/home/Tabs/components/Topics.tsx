@@ -1,7 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import { useCache, usePersistCache } from '@data/hooks/useCache'
+import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -10,7 +9,7 @@ import type {
   TopicExportMenuOptions,
   TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
-import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
+import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   type ConversationResourceMenuItem,
   renderAssistantEntityIcon,
@@ -29,10 +28,7 @@ import {
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import {
-  ResourceEditDialogHost,
-  type ResourceEditDialogTarget
-} from '@renderer/components/resourceCatalog/dialogs/edit'
+import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -74,12 +70,13 @@ import {
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
+import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -97,6 +94,11 @@ import {
 } from './assistantGroupActions'
 
 const logger = loggerService.withContext('Topics')
+const ResourceEditDialogHost = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
+    default: module.ResourceEditDialogHost
+  }))
+)
 // Let the context menu close before mounting the heavier offscreen message list.
 const IMAGE_CAPTURE_START_DELAY_MS = 160
 
@@ -1341,13 +1343,17 @@ export function Topics({
         />
       </TopicResourceList>
 
-      <ResourceEditDialogHost
-        target={editDialogTarget}
-        onOpenChange={(open) => {
-          if (!open) setEditDialogTarget(null)
-        }}
-        onSaved={refreshAssistants}
-      />
+      {editDialogTarget ? (
+        <Suspense fallback={null}>
+          <ResourceEditDialogHost
+            target={editDialogTarget}
+            onOpenChange={(open) => {
+              if (!open) setEditDialogTarget(null)
+            }}
+            onSaved={refreshAssistants}
+          />
+        </Suspense>
+      ) : null}
       {imageCaptureTargets.map(({ requestId, target: topic }) => (
         <TopicImageCaptureHost key={requestId} topic={topic} />
       ))}
@@ -1361,11 +1367,6 @@ type TopicStreamState = {
   isPending: boolean
 }
 
-type TopicStreamStatusSnapshot = {
-  signature: string
-  value: TopicStreamState
-}
-
 const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
   isFulfilled: false,
   isPending: false
@@ -1376,9 +1377,10 @@ const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses
 const getTopicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as const
 
-const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnapshot => {
-  const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
-  const lastSeenCompletion = cacheService.getShared(getTopicStreamLastSeenCompletionCacheKey(topicId))
+const selectTopicStreamState = (
+  values: readonly [TopicStatusSnapshotEntry | null | undefined, number | null | undefined]
+): TopicStreamState => {
+  const [statusEntry, lastSeenCompletion] = values
   const status = statusEntry?.status
   const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
   const streamStatus = {
@@ -1386,49 +1388,16 @@ const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnaps
     isPending: status === 'pending' || status === 'streaming'
   }
 
-  return {
-    signature: `${topicId}:${status ?? ''}:${lastCompletedAt ?? ''}:${lastSeenCompletion ?? ''}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`,
-    value: streamStatus.isPending || streamStatus.isFulfilled ? streamStatus : EMPTY_TOPIC_STREAM_STATE
-  }
+  // Normalize the idle case to a module constant; the non-idle object is
+  // rebuilt per run and bails out via the default shallowEqual.
+  return streamStatus.isPending || streamStatus.isFulfilled ? streamStatus : EMPTY_TOPIC_STREAM_STATE
 }
 
-const subscribeTopicStreamStatus = (topicId: string, onStoreChange: () => void): (() => void) => {
-  const unsubscribes = [
-    cacheService.subscribe(getTopicStreamStatusCacheKey(topicId), onStoreChange),
-    cacheService.subscribe(getTopicStreamLastSeenCompletionCacheKey(topicId), onStoreChange)
-  ]
-
-  return () => {
-    for (const unsubscribe of unsubscribes) {
-      unsubscribe()
-    }
-  }
-}
-
-const useTopicListStreamStatus = (topicId: string): TopicStreamState => {
-  const snapshotRef = useRef<TopicStreamStatusSnapshot>({
-    signature: '',
-    value: EMPTY_TOPIC_STREAM_STATE
-  })
-
-  const getSnapshot = useCallback(() => {
-    const nextSnapshot = buildTopicStreamStatusSnapshot(topicId)
-
-    if (snapshotRef.current.signature === nextSnapshot.signature) {
-      return snapshotRef.current.value
-    }
-
-    snapshotRef.current = nextSnapshot
-    return nextSnapshot.value
-  }, [topicId])
-
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => subscribeTopicStreamStatus(topicId, onStoreChange),
-    [topicId]
+const useTopicListStreamStatus = (topicId: string): TopicStreamState =>
+  useSharedCacheSelector(
+    [getTopicStreamStatusCacheKey(topicId), getTopicStreamLastSeenCompletionCacheKey(topicId)],
+    selectTopicStreamState
   )
-
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-}
 
 interface TopicListBodyProps {
   activeTopic?: Topic
@@ -1597,8 +1566,8 @@ const TopicRow = memo(function TopicRow({
   topicsLength
 }: TopicRowProps) {
   const { t } = useTranslation()
-  const shellState = useOptionalShellState()
-  const shellActions = useOptionalShellActions()
+  const rightPanelState = useOptionalRightPanelState()
+  const rightPanelActions = useOptionalRightPanelActions()
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(topic.id)
   const streamStatus = useTopicListStreamStatus(topic.id)
@@ -1664,7 +1633,7 @@ const TopicRow = memo(function TopicRow({
       className="relative"
       style={{ cursor: 'pointer' }}
       onClick={() => {
-        if (shellState?.maximized) shellActions?.minimize()
+        if (rightPanelState?.maximized) rightPanelActions?.minimize()
         onSwitchTopic(topic)
       }}>
       {showLeadingSlot && <ResourceList.ItemLeadingSlot className="relative" />}
