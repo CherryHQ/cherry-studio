@@ -31,7 +31,7 @@ interface NativeBinding {
 export function normalizeAspectRatio(value: string | undefined): string | undefined {
   if (!value) return undefined
   const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
-  return /^\d+:\d+$/.test(stripped) ? stripped : undefined
+  return /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(stripped) ? stripped : undefined
 }
 
 // The genuine AI SDK `ImageModelV3CallOptions` image params (`@ai-sdk/provider`):

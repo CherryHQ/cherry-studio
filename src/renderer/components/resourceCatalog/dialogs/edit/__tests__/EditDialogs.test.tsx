@@ -11,7 +11,6 @@ import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '..
 
 const {
   agentTools,
-  ensureTagsMock,
   fetchGenerateMock,
   mcpStatusState,
   openSettingsTabMock,
@@ -48,7 +47,6 @@ const {
     { id: 'WebSearch', name: 'WebSearch', description: 'Search web', origin: 'builtin', approval: 'prompt' },
     { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
   ],
-  ensureTagsMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
@@ -147,21 +145,22 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
   )
 }))
 
-vi.mock('@renderer/hooks/useTags', () => ({
-  useEnsureTags: () => ({ ensureTags: ensureTagsMock }),
-  useTagList: () => ({
-    tags: [
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroups: () => ({
+    groups: [
       {
-        id: 'tag-work',
+        id: 'group-work',
+        entityType: 'assistant',
         name: 'work',
-        color: '#8b5cf6',
+        orderKey: 'a0',
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z'
       },
       {
-        id: 'tag-personal',
+        id: 'group-personal',
+        entityType: 'assistant',
         name: 'personal',
-        color: '#10b981',
+        orderKey: 'a1',
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z'
       }
@@ -222,6 +221,10 @@ vi.mock('react-i18next', async (importOriginal) => {
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
+          'agent.settings.tooling.permissionMode.acceptEdits.title': 'Auto-edit Mode',
+          'agent.settings.tooling.permissionMode.bypassPermissions.title': 'Full Auto Mode',
+          'agent.settings.tooling.permissionMode.default.title': 'Normal Mode',
+          'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
           'common.avatar': 'Avatar',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
@@ -260,10 +263,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.env_vars.label': 'Environment variables',
           'library.config.agent.field.env_vars.placeholder': 'KEY=value\nANOTHER_KEY=another_value',
           'library.config.agent.field.permission_mode.label': 'Permission mode',
-          'library.config.agent.field.permission_mode.option.acceptEdits': 'Auto-edit Mode',
-          'library.config.agent.field.permission_mode.option.bypassPermissions': 'Full Auto Mode',
-          'library.config.agent.field.permission_mode.option.default': 'Normal Mode',
-          'library.config.agent.field.permission_mode.option.plan': 'Plan Mode',
           'library.config.agent.section.permission.desc': 'Permission options.',
           'library.config.agent.section.permission.title': 'Permission',
           'library.config.agent.section.tools.add': 'Add',
@@ -301,6 +300,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.precise': 'Precise',
           'library.config.basic.stream_output': 'Stream output',
+          'library.config.basic.group': 'Group',
+          'library.config.basic.group_empty': 'No groups',
+          'library.config.basic.group_placeholder': 'Select group',
           'library.config.basic.tags': 'Tags',
           'library.config.basic.tag_empty': 'No tags',
           'library.config.basic.tag_placeholder': 'Select tag',
@@ -412,17 +414,9 @@ const ASSISTANT: Assistant = {
   orderKey: 'a0',
   mcpServerIds: [],
   knowledgeBaseIds: [],
+  groupId: 'group-work',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z',
-  tags: [
-    {
-      id: 'tag-work',
-      name: 'work',
-      color: '#8b5cf6',
-      createdAt: '2024-01-01T00:00:00.000Z',
-      updatedAt: '2024-01-01T00:00:00.000Z'
-    }
-  ],
   modelName: 'Old Model'
 }
 
@@ -524,7 +518,6 @@ beforeEach(() => {
   })
   updateAssistantMock.mockResolvedValue({ ...ASSISTANT, name: 'Updated Assistant' })
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
-  ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
 })
 
@@ -560,8 +553,8 @@ async function expectVariablesHelpOnOpen() {
   await waitFor(() => expect(screen.getAllByText('{{date}}').length).toBeGreaterThan(0))
 }
 
-function openTagSelect() {
-  const select = screen.getByRole('combobox', { name: 'Tags' })
+function openGroupSelect() {
+  const select = screen.getByRole('combobox', { name: 'Group' })
   fireEvent.pointerDown(select)
   fireEvent.click(select)
 }
@@ -637,49 +630,49 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('submits assistant tag changes through ensureTags', async () => {
-    ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-personal', name: 'personal', color: '#10b981' }])
+  it('submits assistant group changes directly', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    openTagSelect()
+    openGroupSelect()
     fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['personal']))
-    expect(updateAssistantMock).toHaveBeenCalledWith({
-      body: expect.objectContaining({
-        tagIds: ['tag-personal']
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: 'group-personal'
+        })
       })
-    })
+    )
   })
 
-  it('clears the assistant tag from the single-select tag field', async () => {
-    ensureTagsMock.mockResolvedValueOnce([])
+  it('clears the assistant group from the single-select group field', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    const clearButton = screen.getByRole('button', { name: 'Tags Clear' })
+    const clearButton = screen.getByRole('button', { name: 'Group Clear' })
     expect(clearButton).toHaveClass('focus-visible:pointer-events-auto', 'focus-visible:opacity-100')
     fireEvent.click(clearButton)
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith([]))
-    expect(updateAssistantMock).toHaveBeenCalledWith({
-      body: expect.objectContaining({
-        tagIds: []
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: null
+        })
       })
-    })
+    )
   })
 
-  it('limits assistant tag editing to existing tags', async () => {
+  it('limits assistant group editing to existing groups', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    openTagSelect()
-    expect(screen.queryByPlaceholderText('Search tags')).not.toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'No tag' })).not.toBeInTheDocument()
-    expect(screen.queryByText('new-tag')).not.toBeInTheDocument()
+    openGroupSelect()
+    expect(screen.queryByPlaceholderText('Search groups')).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'No group' })).not.toBeInTheDocument()
+    expect(screen.queryByText('new-group')).not.toBeInTheDocument()
   })
 
-  it('closes the tag selector without closing the assistant edit dialog when clicking elsewhere inside it', async () => {
+  it('closes the group selector without closing the assistant edit dialog when clicking elsewhere inside it', async () => {
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
-    openTagSelect()
+    openGroupSelect()
     await screen.findByRole('option', { name: 'personal' })
     fireEvent.pointerDown(screen.getByLabelText('Name'))
     fireEvent.click(screen.getByLabelText('Name'))
@@ -962,6 +955,21 @@ describe('edit dialogs', () => {
 
     selectTab('Skills')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('opens the agent edit dialog directly on the requested initial tab', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
+
+    expect(screen.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('opens the assistant edit dialog directly on the requested initial tab', () => {
+    render(
+      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.mcp" />
+    )
+
+    expect(screen.getByRole('tab', { name: 'MCP' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('auto-saves agent skill toggles after a debounce', async () => {

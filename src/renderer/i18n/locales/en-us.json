@@ -1059,12 +1059,18 @@
     "edit": {
       "title": "Edit Assistant"
     },
+    "groups": {
+      "delete": "Delete Group",
+      "deleteConfirm": "Are you sure you want to delete this group?",
+      "group_by": "Show in groups",
+      "ungroup": "Stop grouping",
+      "ungrouped": "Ungrouped"
+    },
     "icon": {
       "type": "Assistant Icon"
     },
     "list": {
-      "showByList": "List View",
-      "showByTags": "Tag View"
+      "showByList": "List View"
     },
     "pin": {
       "title": "Pin Assistant"
@@ -1248,20 +1254,6 @@
         "label": "Tool Use Mode",
         "prompt": "Prompt"
       }
-    },
-    "tags": {
-      "add": "Add Tag",
-      "delete": "Delete Tag",
-      "deleteConfirm": "Are you sure to delete this tag?",
-      "group_by": "Group by tag",
-      "manage": "Tag Management",
-      "modify": "Modify Tag",
-      "none": "No tags",
-      "settings": {
-        "title": "Tag Settings"
-      },
-      "ungroup": "Turn off tag grouping",
-      "untagged": "Untagged"
     },
     "title": "Assistants",
     "unpin": {
@@ -3119,7 +3111,7 @@
       "duplicate": "Duplicate",
       "edit": "Edit",
       "enable": "Enable",
-      "manage_tags": "Manage tags",
+      "manage_groups": "Manage groups",
       "uninstall": "Uninstall"
     },
     "assistant_catalog": {
@@ -3318,6 +3310,9 @@
             "hint": "Limits token sampling range when enabled"
           }
         },
+        "group": "Group",
+        "group_empty": "No groups available",
+        "group_placeholder": "Select group",
         "json_invalid": "Invalid JSON format",
         "max_tokens": "Max tokens",
         "max_tool_calls": "Max tool calls",
@@ -3523,6 +3518,10 @@
       "title": "No resources"
     },
     "export_assistant_failed": "Failed to export assistant",
+    "group_picker": {
+      "no_groups": "No groups yet"
+    },
+    "group_sync_failed": "Failed to sync groups",
     "import_dialog": {
       "clipboard": {
         "button": "Parse and import",
@@ -3570,7 +3569,6 @@
     },
     "sidebar": {
       "all_resources": "All resources",
-      "all_tags": "All tags",
       "no_tags": "No tags yet",
       "subtitle": "Manage your AI resources",
       "tags": "Tags",
@@ -3635,11 +3633,11 @@
     },
     "title": "Library",
     "toolbar": {
-      "add_tag_placeholder": "Tag name...",
-      "all_tags": "All tags",
+      "add_group_placeholder": "Group name...",
+      "all_groups": "All groups",
+      "group_button": "Group",
       "new_resource": "New resource",
-      "search_placeholder": "Search by name or description...",
-      "tag_button": "Tag"
+      "search_placeholder": "Search by name or description..."
     },
     "type": {
       "agent": "Agent",
@@ -4211,6 +4209,9 @@
       "selected": "Selected tags"
     },
     "function_calling": "Function Calling",
+    "group": {
+      "ungrouped": "Ungrouped"
+    },
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
     "multi_select": {
@@ -4719,6 +4720,7 @@
     "inference_steps": "Inference Steps",
     "inference_steps_tip": "The number of inference steps to perform ({{min}}-{{max}}). More steps produce higher quality but take longer",
     "input_image": "Input Image",
+    "input_image_limit_exceeded": "Too many reference images for the selected model. Remove some images and try again.",
     "input_parameters": "Input Parameters",
     "invalid_image_url": "Invalid image URL format",
     "learn_more": "Learn More",
@@ -4743,6 +4745,7 @@
     "number_images": "Number Images",
     "number_images_tip": "Number of images to generate ({{min}}-{{max}})",
     "operation_failed": "Operation failed, please try again later",
+    "output_compression": "Output Compression",
     "paint_course": "tutorial",
     "per_image": "per image",
     "per_images": "per images",
@@ -4891,6 +4894,7 @@
     "install": "Install",
     "install_plugins_from_browser": "Browse available skills to get started",
     "installing": "Installing...",
+    "manage_skills": "Manage skills",
     "name": "Name",
     "no_description": "No description available",
     "no_installed_plugins": "No skills installed yet",
@@ -5514,6 +5518,7 @@
       "create_new": "New Assistant",
       "empty_text": "No assistants yet",
       "filter": "Filter assistants",
+      "group_filter": "Filter by group",
       "multi_hint": "(mutually exclusive with multi-model)",
       "multi_label": "Multi-assistant simultaneous responses",
       "search_placeholder": "Search assistants…"
@@ -7440,6 +7445,7 @@
         "autoEmpty": "No enabled MCP servers",
         "description": "View current MCP server status",
         "disabled": "MCP is disabled for this assistant",
+        "open_config": "Configure MCP servers",
         "unknownServer": "Unknown MCP server"
       },
       "multiple": "Multiple Select",

@@ -5,12 +5,12 @@
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
-import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -26,6 +26,14 @@ interface AssistantState {
   assistants: OldAssistant[]
   presets: OldAssistant[]
   defaultAssistant?: OldAssistant
+  tagsOrder?: unknown
+}
+
+interface PreparedAssistantGroup {
+  id: string
+  entityType: 'assistant'
+  name: string
+  orderKey: string
 }
 
 /**
@@ -106,6 +114,7 @@ export class AssistantMigrator extends BaseMigrator {
   readonly order = 2
 
   private preparedResults: AssistantTransformResult[] = []
+  private preparedGroups: PreparedAssistantGroup[] = []
   private skippedCount = 0
   private validAssistantIds = new Set<string>()
   // v1 → v2 id remap. Currently only used for the legacy 'default' sentinel,
@@ -116,6 +125,7 @@ export class AssistantMigrator extends BaseMigrator {
 
   override reset(): void {
     this.preparedResults = []
+    this.preparedGroups = []
     this.skippedCount = 0
     this.validAssistantIds.clear()
     this.legacyAssistantIdRemap.clear()
@@ -123,6 +133,7 @@ export class AssistantMigrator extends BaseMigrator {
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.preparedResults = []
+    this.preparedGroups = []
     this.skippedCount = 0
     this.legacyAssistantIdRemap.clear()
 
@@ -181,7 +192,13 @@ export class AssistantMigrator extends BaseMigrator {
 
       for (const source of sourceById.values()) {
         try {
-          this.preparedResults.push(transformAssistant(source))
+          const result = transformAssistant(source)
+          this.preparedResults.push(result)
+          if (result.discardedLegacyTagCount > 0) {
+            const warning = `Discarded ${result.discardedLegacyTagCount} invalid or additional legacy tag entries for assistant ${source.id}`
+            warnings.push(warning)
+            logger.warn(warning)
+          }
         } catch (err) {
           this.skippedCount++
           warnings.push(`Failed to transform assistant ${source.id}: ${(err as Error).message}`)
@@ -195,8 +212,31 @@ export class AssistantMigrator extends BaseMigrator {
         return { success: false, itemCount: 0, warnings }
       }
 
+      const usedGroupNames = [
+        ...new Set(
+          this.preparedResults
+            .map((result) => result.legacyTagName)
+            .filter((name): name is string => typeof name === 'string')
+        )
+      ]
+      const usedGroupNameSet = new Set(usedGroupNames)
+      const savedGroupOrder = Array.isArray(state.tagsOrder)
+        ? state.tagsOrder
+            .filter((name): name is string => typeof name === 'string')
+            .map((name) => name.trim())
+            .filter((name) => name.length > 0 && usedGroupNameSet.has(name))
+        : []
+      const orderedGroupNames = [
+        ...new Set(savedGroupOrder),
+        ...usedGroupNames.filter((name) => !savedGroupOrder.includes(name))
+      ]
+      this.preparedGroups = assignOrderKeysInSequence(
+        orderedGroupNames.map((name) => ({ id: uuidv4(), entityType: 'assistant' as const, name }))
+      )
+
       logger.info('Preparation completed', {
         assistantCount: this.preparedResults.length,
+        groupCount: this.preparedGroups.length,
         skipped: this.skippedCount
       })
 
@@ -220,7 +260,14 @@ export class AssistantMigrator extends BaseMigrator {
       let processed = 0
 
       const BATCH_SIZE = 100
-      const assistantRows = this.preparedResults.map((r) => r.assistant)
+      const groupIdByName = new Map(this.preparedGroups.map((group) => [group.name, group.id]))
+      const assistantRows = this.preparedResults.map((result) => {
+        const groupName = result.legacyTagName
+        return {
+          ...result.assistant,
+          groupId: groupName ? groupIdByName.get(groupName)! : null
+        }
+      })
       const existingModelIds = new Set(
         (await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id)
       )
@@ -245,6 +292,12 @@ export class AssistantMigrator extends BaseMigrator {
       const orderedAssistantRows = assignOrderKeysInSequence(sanitizedAssistantRows)
 
       ctx.db.transaction((tx) => {
+        for (let i = 0; i < this.preparedGroups.length; i += BATCH_SIZE) {
+          tx.insert(groupTable)
+            .values(this.preparedGroups.slice(i, i + BATCH_SIZE))
+            .run()
+        }
+
         for (let i = 0; i < orderedAssistantRows.length; i += BATCH_SIZE) {
           const batch = orderedAssistantRows.slice(i, i + BATCH_SIZE)
           tx.insert(assistantTable).values(batch).run()
@@ -327,75 +380,16 @@ export class AssistantMigrator extends BaseMigrator {
             `Filtered ${allKnowledgeBaseRows.length - knowledgeBaseRows.length} dangling knowledge_base references`
           )
         }
-
-        // --- Tag migration: assistant.tags[] → tag + entity_tag tables ---
-        const uniqueTagNames = new Set<string>()
-        const assistantTagNames = new Map<string, string[]>()
-        for (const r of this.preparedResults) {
-          if (r.tags.length > 0) {
-            const dedupedTags = [...new Set(r.tags)]
-            assistantTagNames.set(r.assistant.id as string, dedupedTags)
-            for (const t of dedupedTags) uniqueTagNames.add(t)
-          }
-        }
-
-        if (uniqueTagNames.size > 0) {
-          const tagRows = [...uniqueTagNames].map((name) => ({ name }))
-          let insertedTagRowCount = 0
-          for (let i = 0; i < tagRows.length; i += BATCH_SIZE) {
-            const insertedRows = tx
-              .insert(tagTable)
-              .values(tagRows.slice(i, i + BATCH_SIZE))
-              .onConflictDoNothing()
-              .returning({ id: tagTable.id })
-              .all()
-            insertedTagRowCount += insertedRows.length
-          }
-
-          // Query back to get tag IDs (name → id mapping)
-          const insertedTags = tx.select({ id: tagTable.id, name: tagTable.name }).from(tagTable).all()
-          const tagNameToId = new Map(insertedTags.map((t) => [t.name, t.id]))
-          const missingTagNames = [...uniqueTagNames].filter((name) => !tagNameToId.has(name))
-          if (missingTagNames.length > 0) {
-            logger.warn(`Tag migration could not resolve some tag names after insert`, { missingTagNames })
-          }
-
-          const entityTagRows: (typeof entityTagTable.$inferInsert)[] = []
-          for (const [assistantId, tags] of assistantTagNames) {
-            for (const tagName of tags) {
-              const tagId = tagNameToId.get(tagName)
-              if (tagId) {
-                entityTagRows.push({ entityType: 'assistant', entityId: assistantId, tagId })
-              }
-            }
-          }
-
-          let insertedAssociationCount = 0
-          for (let i = 0; i < entityTagRows.length; i += BATCH_SIZE) {
-            const insertedRows = tx
-              .insert(entityTagTable)
-              .values(entityTagRows.slice(i, i + BATCH_SIZE))
-              .onConflictDoNothing()
-              .returning({ tagId: entityTagTable.tagId })
-              .all()
-            insertedAssociationCount += insertedRows.length
-          }
-
-          logger.info(`Migrated ${uniqueTagNames.size} unique tags and ${entityTagRows.length} tag associations`, {
-            insertedTagRowCount,
-            insertedAssociationCount
-          })
-        }
       })
 
       // Self-check FK integrity for the tables that should be fully resolved by now:
-      // assistant.modelId is sanitized, assistant_mcp_server.mcpServerId points at rows
-      // McpServerMigrator (order 1.5) already inserted, and tag/entity_tag were inserted in
-      // the transaction above. assistant_knowledge_base is intentionally EXCLUDED — KnowledgeMigrator
+      // assistant.modelId is sanitized, assistant.groupId points at groups inserted in the
+      // same transaction, and assistant_mcp_server.mcpServerId points at rows McpServerMigrator
+      // (order 1.5) already inserted. assistant_knowledge_base is intentionally EXCLUDED — KnowledgeMigrator
       // (order 1.8) already created its bases and we just remapped each junction row's knowledgeBaseId
       // legacy→new and dropped any unmapped ref above, so the engine's final verifyForeignKeys() is
       // the single source of truth for them.
-      this.assertOwnedForeignKeys(ctx.db, [assistantTable, assistantMcpServerTable, tagTable, entityTagTable])
+      this.assertOwnedForeignKeys(ctx.db, [groupTable, assistantTable, assistantMcpServerTable])
 
       // FK whitelist for ChatMigrator. v2 has no system-reserved 'default' row,
       // so the set contains only the migrated user assistants (including the
@@ -409,7 +403,7 @@ export class AssistantMigrator extends BaseMigrator {
         params: { processed, total: this.preparedResults.length }
       })
 
-      logger.info('Execute completed', { processedCount: processed })
+      logger.info('Execute completed', { processedCount: processed, groupCount: this.preparedGroups.length })
 
       return { success: true, processedCount: processed }
     } catch (error) {
@@ -426,12 +420,25 @@ export class AssistantMigrator extends BaseMigrator {
     try {
       const result = ctx.db.select({ count: sql<number>`count(*)` }).from(assistantTable).get()
       const count = result?.count ?? 0
+      const groupResult = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(groupTable)
+        .where(eq(groupTable.entityType, 'assistant'))
+        .get()
+      const groupCount = groupResult?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
       if (count !== this.preparedResults.length) {
         errors.push({
           key: 'count_mismatch',
           message: `Expected ${this.preparedResults.length} assistants but found ${count}`
+        })
+      }
+
+      if (groupCount !== this.preparedGroups.length) {
+        errors.push({
+          key: 'group_count_mismatch',
+          message: `Expected ${this.preparedGroups.length} assistant groups but found ${groupCount}`
         })
       }
 

@@ -10,7 +10,10 @@ import { useTranslation } from 'react-i18next'
 import { AgentEditDialog } from './AgentEditDialog'
 import { AssistantEditDialog } from './AssistantEditDialog'
 
-export type ResourceEditDialogTarget = { kind: 'assistant'; id: string } | { kind: 'agent'; id: string }
+export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { kind: 'agent'; id: string }) & {
+  /** Leaf tab id to open the dialog on (e.g. `tools.mcp`, `tools.skills`). */
+  initialTab?: string
+}
 
 type ResourceEditDialogHostProps = {
   target: ResourceEditDialogTarget | null
@@ -64,6 +67,7 @@ function AssistantEditDialogHost({
       onOpenChange={onOpenChange}
       onSaved={handleSaved}
       modelFilter={isSelectableAssistantModel}
+      initialTab={target.initialTab}
     />
   )
 }
@@ -101,6 +105,7 @@ function AgentEditDialogHost({
       onOpenChange={onOpenChange}
       onSaved={handleSaved}
       modelFilter={modelFilter}
+      initialTab={target.initialTab}
     />
   )
 }

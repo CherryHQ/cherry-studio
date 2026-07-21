@@ -1059,12 +1059,18 @@
     "edit": {
       "title": "编辑助手"
     },
+    "groups": {
+      "delete": "删除分组",
+      "deleteConfirm": "确定要删除这个分组吗？",
+      "group_by": "按分组显示",
+      "ungroup": "取消分组显示",
+      "ungrouped": "未分组"
+    },
     "icon": {
       "type": "助手图标"
     },
     "list": {
-      "showByList": "列表展示",
-      "showByTags": "标签展示"
+      "showByList": "列表展示"
     },
     "pin": {
       "title": "置顶助手"
@@ -1248,20 +1254,6 @@
         "label": "工具调用方式",
         "prompt": "提示词"
       }
-    },
-    "tags": {
-      "add": "添加标签",
-      "delete": "删除标签",
-      "deleteConfirm": "确定要删除这个标签吗？",
-      "group_by": "按照标签分组",
-      "manage": "标签管理",
-      "modify": "修改标签",
-      "none": "暂无标签",
-      "settings": {
-        "title": "标签设置"
-      },
-      "ungroup": "关闭标签分组",
-      "untagged": "未分组"
     },
     "title": "助手",
     "unpin": {
@@ -3119,7 +3111,7 @@
       "duplicate": "复制",
       "edit": "编辑",
       "enable": "启用",
-      "manage_tags": "管理标签",
+      "manage_groups": "管理分组",
       "uninstall": "卸载"
     },
     "assistant_catalog": {
@@ -3318,6 +3310,9 @@
             "hint": "启用后限制采样范围"
           }
         },
+        "group": "分组",
+        "group_empty": "没有可选的分组",
+        "group_placeholder": "选择分组",
         "json_invalid": "JSON 格式错误",
         "max_tokens": "最大 Token 数",
         "max_tool_calls": "最大工具调用次数",
@@ -3523,6 +3518,10 @@
       "title": "暂无资源"
     },
     "export_assistant_failed": "导出助手失败",
+    "group_picker": {
+      "no_groups": "暂无分组"
+    },
+    "group_sync_failed": "分组同步失败",
     "import_dialog": {
       "clipboard": {
         "button": "解析并导入",
@@ -3570,7 +3569,6 @@
     },
     "sidebar": {
       "all_resources": "所有资源",
-      "all_tags": "全部标签",
       "no_tags": "暂无标签",
       "subtitle": "管理你的 AI 资源",
       "tags": "标签",
@@ -3635,11 +3633,11 @@
     },
     "title": "资源库",
     "toolbar": {
-      "add_tag_placeholder": "标签名...",
-      "all_tags": "全部标签",
+      "add_group_placeholder": "分组名...",
+      "all_groups": "全部分组",
+      "group_button": "分组",
       "new_resource": "新建资源",
-      "search_placeholder": "搜索资源名称、描述...",
-      "tag_button": "标签"
+      "search_placeholder": "搜索资源名称、描述..."
     },
     "type": {
       "agent": "智能体",
@@ -4211,6 +4209,9 @@
       "selected": "已选标签"
     },
     "function_calling": "函数调用",
+    "group": {
+      "ungrouped": "未分组"
+    },
     "invalid_model": "无效模型",
     "json_parse_error": "JSON 格式无效",
     "multi_select": {
@@ -4719,6 +4720,7 @@
     "inference_steps": "推理步数",
     "inference_steps_tip": "要执行的推理步数 ({{min}}-{{max}})。步数越多，质量越高但耗时越长",
     "input_image": "输入图片",
+    "input_image_limit_exceeded": "参考图片数量超过所选模型限制，请删除部分图片后重试",
     "input_parameters": "输入参数",
     "invalid_image_url": "无效的图片URL格式",
     "learn_more": "了解更多",
@@ -4743,6 +4745,7 @@
     "number_images": "生成数量",
     "number_images_tip": "一次生成的图片数量 ({{min}}-{{max}})",
     "operation_failed": "操作失败，请稍后重试",
+    "output_compression": "输出压缩率",
     "paint_course": "教程",
     "per_image": "每张图片",
     "per_images": "每张图片",
@@ -4891,6 +4894,7 @@
     "install": "安装",
     "install_plugins_from_browser": "浏览可用技能以开始使用",
     "installing": "安装中...",
+    "manage_skills": "管理技能",
     "name": "名称",
     "no_description": "无描述",
     "no_installed_plugins": "尚未安装任何技能",
@@ -5514,6 +5518,7 @@
       "create_new": "新建助手",
       "empty_text": "暂无助手",
       "filter": "筛选助手",
+      "group_filter": "按分组筛选",
       "multi_hint": "（与多模型互斥）",
       "multi_label": "多助手同时回答",
       "search_placeholder": "搜索助手…"
@@ -7440,6 +7445,7 @@
         "autoEmpty": "暂无已启用的 MCP 服务器",
         "description": "查看当前 MCP 服务器状态",
         "disabled": "当前助手已禁用 MCP",
+        "open_config": "配置 MCP 服务器",
         "unknownServer": "未知 MCP 服务器"
       },
       "multiple": "多选",
