@@ -782,7 +782,7 @@ describe('TopicService', () => {
       })
     })
 
-    it('throws NOT_FOUND when anchor id does not exist in scope', async () => {
+    it('throws INVALID_ANCHOR when anchor id does not exist in scope', async () => {
       await seedThree()
       let err: unknown
       try {
@@ -792,11 +792,11 @@ describe('TopicService', () => {
       }
       expect(err).toBeInstanceOf(DataApiError)
       expect(err).toMatchObject({
-        code: ErrorCode.NOT_FOUND
+        code: ErrorCode.INVALID_ANCHOR
       })
     })
 
-    it('throws VALIDATION_ERROR when anchor equals target', async () => {
+    it('throws INVALID_ANCHOR when anchor equals target', async () => {
       await seedThree()
       let err: unknown
       try {
@@ -805,7 +805,7 @@ describe('TopicService', () => {
         err = e
       }
       expect(err).toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
+        code: ErrorCode.INVALID_ANCHOR
       })
     })
 
@@ -1741,7 +1741,7 @@ describe('TopicService', () => {
       } catch (error) {
         invalidAnchorError = error
       }
-      expect(invalidAnchorError).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+      expect(invalidAnchorError).toMatchObject({ code: ErrorCode.INVALID_ANCHOR })
       expect(topicService.getById('moving').assistantId).toBe(sourceAssistantId)
 
       let invalidOwnerError: unknown
@@ -1754,8 +1754,7 @@ describe('TopicService', () => {
         invalidOwnerError = error
       }
       expect(invalidOwnerError).toMatchObject({
-        code: ErrorCode.NOT_FOUND,
-        details: { resource: 'Assistant' }
+        code: ErrorCode.INVALID_TARGET_OWNER
       })
       expect(topicService.getById('moving').assistantId).toBe(sourceAssistantId)
 

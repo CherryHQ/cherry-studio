@@ -47,9 +47,11 @@ export class DefaultAssistantSeeder implements ISeeder {
         topicTable,
         { name: '', assistantId: assistant.id as string, activeNodeId: null },
         { pkColumn: topicTable.id, scope: isNull(topicTable.deletedAt) }
-      )
+      ) as typeof topicTable.$inferSelect
 
-      messageService.createRootMessageTx(tx, topic.id as string)
+      tx.update(topicTable).set({ lastActivityAt: topic.createdAt }).where(eq(topicTable.id, topic.id)).run()
+
+      messageService.createRootMessageTx(tx, topic.id)
     })
   }
 

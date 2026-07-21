@@ -73,6 +73,7 @@ describe('DefaultAssistantSeeder', () => {
       assistantId: assistant.id,
       activeNodeId: null
     })
+    expect(topic.lastActivityAt).toBe(topic.createdAt)
 
     const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topic.id))
     expect(messages).toHaveLength(1)

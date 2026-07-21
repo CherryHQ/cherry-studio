@@ -88,7 +88,7 @@ Backs every Service's reorder write path and POST-create. Encapsulates the `frac
 - `generateOrderKeySequence(count)` / `generateOrderKeyBetween(before, after)` / `generateOrderKeySequenceBetween(before, after, count)` — the ONLY wrappers around `fractional-indexing` in this codebase. Migrator helpers and migration scripts re-import from here.
 - `insertWithOrderKey(tx, table, values, { pkColumn, position?, scope? })` — the only correct entry for POST-create endpoints on sortable tables; never write `tx.insert(table).values(...)` directly.
 - `insertManyWithOrderKey(tx, table, valuesList, { pkColumn, position?, scope? })` — batch variant. Does ONE boundary-key lookup and ONE bulk `INSERT .. RETURNING` for N rows. Preferred whenever creating ≥2 rows at once (bulk imports, multi-row service ops). `insertWithOrderKey` internally delegates to it.
-- `applyMoves(tx, table, moves, { pkColumn, scope? })` — the only correct entry for reorder operations (batch + single). Dedups duplicate ids (keeps last, warns). Contract rejections surface as `DataApiError`: missing target id → `NOT_FOUND`, missing anchor id → `NOT_FOUND`, anchor === own id → `VALIDATION_ERROR`. Resource name in the error is the Drizzle table name. Suitable for both fixed-scope and nullable-scope callers — the consumer constructs `scope?` (e.g. `isNull(col)` or `eq(col, value)`) and propagates the error verbatim.
+- `applyMoves(tx, table, moves, { pkColumn, scope? })` — the only correct entry for reorder operations (batch + single). Dedups duplicate ids (keeps last, warns). Contract rejections surface as `DataApiError`: missing target id → `NOT_FOUND`; missing, out-of-scope, or self-referencing anchor → `INVALID_ANCHOR`. Resource name for a missing target is the Drizzle table name. Suitable for both fixed-scope and nullable-scope callers — the consumer constructs `scope?` (e.g. `isNull(col)` or `eq(col, value)`) and propagates the error verbatim.
 - `resetOrder(tx, table, orderedRows, { pkColumn })` — paired with `POST /:res/order:reset`; rewrites `orderKey` with a fresh evenly-spaced sequence in the given order.
 - `computeNewOrderKey(tx, table, request, { pkColumn, scope? })` — exported only for unit tests.
 
@@ -150,14 +150,16 @@ streaming row update as user-visible activity.
   later of `createdAt` / `updatedAt` for an already-terminal assistant response;
   system/root rows are inert.
 - `getMessageTransitionActivityAt(role, previousStatus, nextStatus, timestamp)`
-  — returns `timestamp` only for assistant response terminal transitions and
-  terminal-to-pending resume transitions; repeated/streaming updates are inert.
+  — returns `timestamp` only for assistant response transitions from pending to
+  a terminal status; resume, repeated, and streaming updates are inert.
 
 **Design boundaries:**
 
 - Pure lifecycle classification only; services own all database writes.
 - The returned value is stored on the message so parent activity can be
   recomputed exactly after deletion.
+- Returning a terminal response to `pending` for resume does not advance
+  activity until that resumed response reaches a terminal status again.
 - Metadata/content-only writes never count as conversation activity.
 
 ### `ftsSearch.ts` — FTS cursor, filtering, and pagination core

@@ -269,6 +269,14 @@ describe('AgentSessionMessageService', () => {
         data: { parts: [{ type: 'text', text: 'resuming' }] }
       }
     })
+    ;[row] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+    ;[session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(row.activityAt).toBe(300)
+    expect(session.lastActivityAt).toBe(300)
+
     nowSpy.mockReturnValue(500)
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,

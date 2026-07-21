@@ -26,7 +26,6 @@ export function getMessageTransitionActivityAt(
   timestamp: number
 ): number | null {
   if (role !== 'assistant' || previousStatus === nextStatus) return null
-  if (nextStatus === 'pending') return timestamp
   if (previousStatus === 'pending' && TERMINAL_STATUSES.has(nextStatus)) return timestamp
   return null
 }

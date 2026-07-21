@@ -1537,6 +1537,11 @@ describe('MessageService', () => {
 
       nowSpy.mockReturnValue(500)
       messageService.update(assistant.id, { status: 'pending' })
+      ;[assistantRow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id))
+      ;[topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId))
+      expect(assistantRow.activityAt).toBe(400)
+      expect(topic.lastActivityAt).toBe(400)
+
       nowSpy.mockReturnValue(600)
       messageService.update(assistant.id, { status: 'paused' })
       ;[assistantRow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id))

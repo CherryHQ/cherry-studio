@@ -11,7 +11,7 @@
  */
 
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import { and, type AnyColumn, asc, desc, eq, getTableName, gt, inArray, lt, ne, type SQL } from 'drizzle-orm'
 import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
@@ -185,8 +185,8 @@ export function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues
  * Contract rejections (surfaced as `DataApiError` for direct propagation to
  * the API layer):
  * - Move target id not found in scope → `NOT_FOUND` (resource is the table name).
- * - Anchor id (`before` / `after`) not found in scope → `NOT_FOUND`.
- * - Anchor id equals the move's own id → `VALIDATION_ERROR`.
+ * - Anchor id (`before` / `after`) not found in scope → `INVALID_ANCHOR`.
+ * - Anchor id equals the move's own id → `INVALID_ANCHOR`.
  *
  * Known boundary: when the target is already in the anchor's neighbour slot
  * (e.g. anchor `{ before: X }` while the target is already immediately before
@@ -248,8 +248,8 @@ export function applyMoves(
  * - The batch spans more than one distinct scope value → `VALIDATION_ERROR`.
  *   Scoped reorders must not cross scope boundaries; a single request is
  *   expected to stay within one scope bucket.
- * - Missing target / anchor ids → `NOT_FOUND` (raised from `applyMoves`,
- *   which performs the actual scoped lookup per move).
+ * - Missing target ids → `NOT_FOUND`; missing anchor ids → `INVALID_ANCHOR`
+ *   (raised from `applyMoves`, which performs the actual scoped lookup per move).
  *
  * Empty `moves` is a no-op (no DB access).
  */
@@ -396,11 +396,11 @@ function buildExclusion(pkColumn: AnyColumn, excludePkValue: string, scope?: SQL
 function assertAnchorNotSelf(moveId: string, anchor: OrderRequest): void {
   if ('before' in anchor && anchor.before === moveId) {
     const message = `applyMoves: anchor "before" id "${moveId}" cannot equal the move's own id`
-    throw DataApiErrorFactory.validation({ anchor: ['anchor "before" id must not equal the move id'] }, message)
+    throw DataApiErrorFactory.create(ErrorCode.INVALID_ANCHOR, message)
   }
   if ('after' in anchor && anchor.after === moveId) {
     const message = `applyMoves: anchor "after" id "${moveId}" cannot equal the move's own id`
-    throw DataApiErrorFactory.validation({ anchor: ['anchor "after" id must not equal the move id'] }, message)
+    throw DataApiErrorFactory.create(ErrorCode.INVALID_ANCHOR, message)
   }
 }
 
@@ -459,7 +459,7 @@ function requireOrderKey(
 ): string {
   const row = selectRowByPk(tx, table, pkColumn, id, scope)
   if (!row) {
-    throw DataApiErrorFactory.notFound(getTableName(table), id)
+    throw DataApiErrorFactory.create(ErrorCode.INVALID_ANCHOR, `applyMoves: anchor id '${id}' is not valid in scope`)
   }
   return row.orderKey
 }

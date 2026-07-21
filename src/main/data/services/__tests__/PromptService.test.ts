@@ -191,7 +191,7 @@ describe('PromptService', () => {
       expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('should throw NOT_FOUND when the before anchor does not exist', async () => {
+    it('should throw INVALID_ANCHOR when the before anchor does not exist', async () => {
       const a = await seedPrompt('a', 'a')
       let err: unknown
       try {
@@ -199,7 +199,7 @@ describe('PromptService', () => {
       } catch (e) {
         err = e
       }
-      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+      expect(err).toMatchObject({ code: ErrorCode.INVALID_ANCHOR })
     })
 
     it('should touch only the target row', async () => {
@@ -237,7 +237,7 @@ describe('PromptService', () => {
       expect(ids).toEqual([c.id, b.id, a.id])
     })
 
-    it('should throw NOT_FOUND when a move references a missing anchor', async () => {
+    it('should throw INVALID_ANCHOR when a move references a missing anchor', async () => {
       const a = await seedPrompt('a', 'a')
       const b = await seedPrompt('b', 'b')
 
@@ -250,7 +250,7 @@ describe('PromptService', () => {
       } catch (e) {
         err = e
       }
-      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+      expect(err).toMatchObject({ code: ErrorCode.INVALID_ANCHOR })
     })
   })
 })
