@@ -24,10 +24,11 @@ Cherry gives you two built-in tools for skills — use them, and do NOT shell ou
 `npx skills`, `git`, or any package manager:
 
 - **`search_skills(query)`** — search the marketplace by keyword. Returns matches, each with an
-  `identifier` in `owner/repo/skill-name` format.
-- **`install_skill(identifier)`** — install ONE skill by its identifier into Cherry's managed
+  opaque `install_source` value.
+- **`install_skill(install_source)`** — install ONE skill into Cherry's managed
   library and enable it for this agent. Cherry clones the repo, installs just that one skill,
-  and registers it in a single deterministic step. Requires the user's confirmation first (Step 6).
+  and registers it in a single deterministic step. Permission handling follows the active Claude
+  permission mode (Step 6).
 
 **Browse skills at:** https://skills.sh/
 
@@ -57,7 +58,7 @@ If the leaderboard doesn't cover the user's need, call the `search_skills` tool:
 - User asks "can you help me with PR reviews?" → `search_skills("pr review")`
 - User asks "I need to create a changelog" → `search_skills("changelog")`
 
-Each result includes an `identifier` (`owner/repo/skill-name`) — that is what you pass to
+Each result includes an opaque `install_source` — pass that exact value to
 `install_skill`.
 
 ### Step 4: Verify Quality Before Recommending
@@ -74,7 +75,7 @@ When you find relevant skills, present them to the user with:
 
 1. The skill name and what it does
 2. The install count and source
-3. That you can install it for them into Cherry (with their confirmation)
+3. That you can install it for them into Cherry
 4. A link to learn more at skills.sh
 
 Example response:
@@ -89,31 +90,33 @@ I can install it into Cherry's skill library for you — want me to go ahead?
 Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
 ```
 
-### Step 6: Install (Requires User Confirmation)
+### Step 6: Install (Uses the Active Permission Mode)
 
 **⚠️ Security:** Skills are third-party code that runs with full agent
 permissions. A malicious skill could read, modify, or delete files on your
 system.
 
-Before installing any skill you **MUST**:
+Before installing any skill:
 
 1. **Show a security warning** — tell the user that the skill is third-party
    code and will run with full agent permissions.
 2. **Provide a review link** — the skills.sh page (or source repository) so
    the user can review the skill's SKILL.md and any scripts it contains.
-3. **Ask the user for explicit confirmation** — do NOT install the skill until the
-   user says "yes" or equivalent. Never install silently.
+3. **Require install intent** — call `install_skill` only when the user asked to install the skill
+   or accepted a presented option. A search-only request must not mutate the skill library.
 
-Only after the user confirms, call the `install_skill` tool with the `identifier` from the
-search result:
+Once the user has expressed install intent, call `install_skill` with the exact `install_source`
+from the search result. Do not add another model-level confirmation step: Claude's active permission
+mode is the authority. Default and accept-edits modes may prompt through the SDK; bypass-permissions
+mode runs directly.
 
-- `install_skill("vercel-labs/agent-skills/react-best-practices")`
+- `install_skill("claude-plugins:vercel-labs/agent-skills/skills/react-best-practices")`
 
 Do **not** run `npx skills add`, `git clone`, or any shell command to install — that would
 install the whole repo (dozens of skills), scatter symlinks across other tools, and land
 outside Cherry's library. `install_skill` installs **only that one skill** into Cherry's
-managed library, in one deterministic step, and Cherry prompts the user to approve it before
-it runs. Once done it is registered and listed in the app — nothing is left elsewhere.
+managed library in one deterministic step. The Claude Agent SDK applies the configured permission
+mode before it runs. Once done it is registered and listed in the app — nothing is left elsewhere.
 
 ## Common Skill Categories
 

@@ -196,6 +196,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
       isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => undefined),
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
@@ -624,6 +625,102 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
+  it.each([
+    { permissionMode: 'default', headless: false, shouldDeny: false },
+    { permissionMode: 'acceptEdits', headless: false, shouldDeny: false },
+    { permissionMode: 'bypassPermissions', headless: false, shouldDeny: false },
+    { permissionMode: 'default', headless: true, shouldDeny: true },
+    { permissionMode: 'acceptEdits', headless: true, shouldDeny: true },
+    { permissionMode: 'bypassPermissions', headless: true, shouldDeny: false }
+  ])(
+    'applies SDK permission semantics to skill install ($permissionMode, headless=$headless)',
+    async ({ permissionMode, headless, shouldDeny }) => {
+      const isCurrentTurnHeadless = vi.fn(() => headless)
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: vi.fn(),
+        isDisabled: vi.fn(() => false),
+        getPermissionMode: vi.fn(() => permissionMode),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const session = {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      }
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      const results = await Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            {
+              hook_event_name: 'PreToolUse',
+              tool_name: 'mcp__skills__install_skill',
+              tool_input: { install_source: 'claude-plugins:owner/repo/skills/example' }
+            } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+      const denial = expect.objectContaining({
+        hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
+      })
+
+      if (shouldDeny) expect(results).toContainEqual(denial)
+      else expect(results).not.toContainEqual(denial)
+    }
+  )
+
+  it('uses the live permission mode when a warm session switches to bypassPermissions', async () => {
+    let permissionMode = 'default'
+    const isCurrentTurnHeadless = vi.fn(() => true)
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => permissionMode),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    permissionMode = 'bypassPermissions'
+    const results = await Promise.all(
+      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+        hook(
+          {
+            hook_event_name: 'PreToolUse',
+            tool_name: 'mcp__skills__install_skill',
+            tool_input: { install_source: 'claude-plugins:owner/repo/skills/example' }
+          } as never,
+          'tool-use-1',
+          {} as never
+        )
+      )
+    )
+
+    expect(results).not.toContainEqual(
+      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+    )
+  })
+
   it('does not deny AskUserQuestion at tool fire time for the current interactive turn', async () => {
     const isCurrentTurnHeadless = vi.fn(() => false)
     mocks.applicationGet.mockImplementation((name: string) => {
@@ -814,7 +911,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // headlessInteractiveToolHook + headlessConfigMutationHook + skillInstallApprovalHook + disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    // headlessInteractiveToolHook + headlessConfigMutationHook + headlessSkillInstallHook + disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
     expect(preToolUse).toHaveLength(7)
 
     const steerHook = preToolUse![6] as unknown as (input: {

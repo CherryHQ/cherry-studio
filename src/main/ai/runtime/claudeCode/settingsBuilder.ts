@@ -844,26 +844,23 @@ async function buildToolPermissions(
     }
   }
 
-  // Installing a skill clones and runs third-party code with full agent permissions, so it must never
-  // run unattended. `canUseTool` alone is not enough: bypassPermissions / acceptEdits skip it entirely
-  // and would auto-run install_skill. A PreToolUse hook fires in every permission mode, so enforce the
-  // gate here — deny outright when there is no one to approve (headless turns) or the session auto-runs
-  // tools (bypassPermissions / acceptEdits). In normal interactive modes this hook no-ops and the
-  // regular per-call approval (canUseTool) applies, since install_skill is not on the auto-approve list.
-  const AUTO_RUN_PERMISSION_MODES = new Set(['bypassPermissions', 'acceptEdits'])
-  const skillInstallApprovalHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+  // Installing a skill requires the same permission handling as any other mutating tool. Interactive
+  // turns defer to the SDK: default / acceptEdits prompt through canUseTool, while bypassPermissions
+  // runs directly. A headless turn has no responder, so deny only when its live permission mode still
+  // requires approval. Resolve the mode from the session snapshot so a warm connection observes a
+  // live permission-mode update instead of the agent config captured when these hooks were built.
+  const headlessSkillInstallHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'mcp__skills__install_skill') return {}
-    const headless = application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
-    const autoRuns = AUTO_RUN_PERMISSION_MODES.has(String(agentConfig?.permission_mode ?? ''))
-    if (!headless && !autoRuns) return {}
+    if (getToolPolicySnapshot(session.id)?.getPermissionMode() === 'bypassPermissions') return {}
+    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
         permissionDecisionReason:
-          'Installing a skill runs third-party code and requires interactive per-call approval, which this turn cannot provide (headless or auto-run permission mode). Ask the user to install it from Cherry Studio, or run in a mode that prompts for approval.'
+          'This channel or scheduled turn cannot approve a skill installation. Use bypassPermissions for unattended installation, or install it from an interactive turn.'
       }
     }
   }
@@ -930,7 +927,7 @@ async function buildToolPermissions(
           hooks: [
             headlessInteractiveToolHook,
             headlessConfigMutationHook,
-            skillInstallApprovalHook,
+            headlessSkillInstallHook,
             disabledToolHook,
             dependencyIsolationHook,
             rtkRewriteHook,
