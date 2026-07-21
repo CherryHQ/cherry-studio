@@ -22,7 +22,7 @@
           "version": "1.9.12",
           "feedUrls": {
             "github": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.9.12",
-            "gitcode": "https://releases.cherry-ai.com"
+            "gitcode": "https://gitcode.com/CherryHQ/cherry-studio/releases/download/v1.9.12"
           }
         },
         "rc": {
@@ -70,7 +70,7 @@
           "version": "1.8.0",
           "feedUrls": {
             "github": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.8.0",
-            "gitcode": "https://releases.cherry-ai.com"
+            "gitcode": "https://gitcode.com/CherryHQ/cherry-studio/releases/download/v1.8.0"
           }
         },
         "rc": {
