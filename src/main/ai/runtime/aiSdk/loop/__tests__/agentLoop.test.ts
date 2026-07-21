@@ -250,6 +250,7 @@ describe('Agent', () => {
     const fakeStep = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 }
     }
@@ -318,12 +319,14 @@ describe('Agent', () => {
     const fakeStep1 = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8 }
     }
     const fakeStep2 = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 2, outputTokens: 4, totalTokens: 6 }
     }
@@ -386,12 +389,14 @@ describe('Agent', () => {
     const fakeStep1 = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8, outputTokenDetails: { reasoningTokens: 10 } }
     }
     const fakeStep2 = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 2, outputTokens: 4, totalTokens: 6, outputTokenDetails: { reasoningTokens: 15 } }
     }
