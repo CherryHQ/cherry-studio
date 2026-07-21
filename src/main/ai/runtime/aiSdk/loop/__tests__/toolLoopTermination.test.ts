@@ -45,8 +45,8 @@ function terminalFailure() {
     error: 'raw failure',
     retryable: false,
     terminal: true,
-    userMessage: 'Change the proxy setting.',
-    i18nKey: 'web_search_proxy_fake_ip'
+    userMessage: 'Check the network connection.',
+    i18nKey: 'web_lookup_network_error'
   }
 }
 
@@ -57,13 +57,13 @@ describe('tool-loop termination', () => {
 
     expect(getLastTerminalToolFailure(steps)).toEqual({
       error: 'raw failure',
-      userMessage: 'Change the proxy setting.',
-      i18nKey: 'web_search_proxy_fake_ip'
+      userMessage: 'Check the network connection.',
+      i18nKey: 'web_lookup_network_error'
     })
     expect(await stopOnTerminalToolFailure({ steps })).toBe(true)
     expect(resolveToolLoopTerminalError({ steps, stopWhen: undefined })).toMatchObject({
-      message: 'Change the proxy setting.',
-      i18nKey: 'web_search_proxy_fake_ip'
+      message: 'Check the network connection.',
+      i18nKey: 'web_lookup_network_error'
     })
   })
 

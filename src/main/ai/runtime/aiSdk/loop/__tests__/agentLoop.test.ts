@@ -72,8 +72,8 @@ describe('Agent', () => {
       error: 'Unsafe remote url',
       retryable: false,
       terminal: true,
-      userMessage: 'Change the proxy setting.',
-      i18nKey: 'web_search_proxy_fake_ip'
+      userMessage: 'Check the network connection.',
+      i18nKey: 'web_lookup_network_error'
     })
 
     mockCreateAgent.mockResolvedValue({
@@ -106,8 +106,8 @@ describe('Agent', () => {
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'tool-output-available' }, done: false })
     await expect(reader.read()).rejects.toMatchObject({
       name: 'ToolLoopTerminalError',
-      message: 'Change the proxy setting.',
-      i18nKey: 'web_search_proxy_fake_ip'
+      message: 'Check the network connection.',
+      i18nKey: 'web_lookup_network_error'
     })
   })
 

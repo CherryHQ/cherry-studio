@@ -214,17 +214,16 @@ describe('web_fetch', () => {
     const out = await callFetchExecute({ urls: ['https://example.com'] })
 
     expect(out).toEqual({
-      error: message,
+      error: 'Web access failed. Check your network connection and try again.',
       retryable: false,
       terminal: true,
-      userMessage:
-        'Web access was blocked because proxy DNS returned a Fake-IP address. Disable the proxy or change its DNS enhanced mode from fake-ip to redir-host, then try again.',
-      i18nKey: 'web_search_proxy_fake_ip'
+      userMessage: 'Web access failed. Check your network connection and try again.',
+      i18nKey: 'web_lookup_network_error'
     })
     expect(fetchEntry.tool.toModelOutput!({ output: out } as never)).toEqual({
       type: 'text',
       value:
-        'Web access is blocked because proxy DNS returned a Fake-IP address. Tell the user to disable the proxy or change its DNS enhanced mode from fake-ip to redir-host; do not retry until the proxy setting changes.'
+        'Web access failed because of the current network environment. Tell the user to check their network connection and try again; do not retry automatically or provide configuration-specific guidance.'
     })
   })
 

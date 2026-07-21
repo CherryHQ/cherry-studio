@@ -12,11 +12,11 @@ Web lookup failures caused by permanent configuration problems now stop the assi
 
 ## Why this matters to the user
 
-Users may now see an actionable Web Search or proxy error earlier in a turn, and long-running tool loops report that their configured limit was reached rather than appearing to finish without an answer.
+Users may now see an actionable Web Search or network error earlier in a turn, and long-running tool loops report that their configured limit was reached rather than appearing to finish without an answer.
 
 ## What the user should do
 
-Follow the error guidance to configure a compatible Web Search provider, add any required API key or API host, or change Clash DNS enhanced mode from `fake-ip` to `redir-host`. For legitimate long-running tasks, increase the assistant's tool-call limit or reduce the task scope.
+Follow the error guidance to configure a compatible Web Search provider, add any required API key or API host, or check the network connection and try again. For legitimate long-running tasks, increase the assistant's tool-call limit or reduce the task scope.
 
 ## Notes for release manager
 

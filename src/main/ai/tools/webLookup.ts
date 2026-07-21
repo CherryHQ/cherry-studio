@@ -81,15 +81,15 @@ export const WEB_LOOKUP_ERROR_NOTE = 'Web lookup failed (network/provider error)
 export const WEB_PROVIDER_NOT_CONFIGURED_NOTE =
   'No usable web search provider for this capability (none configured, or the configured one does not support it). Tell the user to configure one in Settings (Web Search); do not retry — it cannot succeed until then.'
 
-/** Clash Fake-IP addresses use the RFC 2544 benchmarking range (198.18.0.0/15). */
-export const WEB_PROXY_FAKE_IP_NOTE =
-  'Web access is blocked because proxy DNS returned a Fake-IP address. Tell the user to disable the proxy or change its DNS enhanced mode from fake-ip to redir-host; do not retry until the proxy setting changes.'
+/** Keep the model-facing guidance generic while the internal classifier handles Fake-IP details. */
+export const WEB_NETWORK_ERROR_NOTE =
+  'Web access failed because of the current network environment. Tell the user to check their network connection and try again; do not retry automatically or provide configuration-specific guidance.'
 
-const WEB_PROXY_FAKE_IP_MESSAGE =
-  'Web access was blocked because proxy DNS returned a Fake-IP address. Disable the proxy or change its DNS enhanced mode from fake-ip to redir-host, then try again.'
+const WEB_NETWORK_ERROR_MESSAGE = 'Web access failed. Check your network connection and try again.'
 const WEB_PROVIDER_NOT_CONFIGURED_MESSAGE =
   'Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again.'
 
+/** Clash Fake-IP addresses use the RFC 2544 benchmarking range (198.18.0.0/15). */
 function isProxyFakeIpError(message: string): boolean {
   return (
     /Unsafe remote url: DNS resolved to local or private address/i.test(message) &&
@@ -112,11 +112,11 @@ function classifyWebLookupError(error: unknown): WebLookupError {
 
   if (isProxyFakeIpError(message)) {
     return {
-      error: message,
+      error: WEB_NETWORK_ERROR_MESSAGE,
       retryable: false,
       terminal: true,
-      userMessage: WEB_PROXY_FAKE_IP_MESSAGE,
-      i18nKey: 'web_search_proxy_fake_ip'
+      userMessage: WEB_NETWORK_ERROR_MESSAGE,
+      i18nKey: 'web_lookup_network_error'
     }
   }
 
@@ -125,8 +125,8 @@ function classifyWebLookupError(error: unknown): WebLookupError {
 
 /** Branch the model-facing note: permanent failures must not trigger a retry loop. */
 function webLookupNote(error: WebLookupError): string {
-  if (error.i18nKey === 'web_search_proxy_fake_ip' || isProxyFakeIpError(error.error)) {
-    return WEB_PROXY_FAKE_IP_NOTE
+  if (error.i18nKey === 'web_lookup_network_error' || isProxyFakeIpError(error.error)) {
+    return WEB_NETWORK_ERROR_NOTE
   }
   if (error.i18nKey === 'web_search_provider_unavailable' || isPermanentWebSearchConfigError(error.error)) {
     return WEB_PROVIDER_NOT_CONFIGURED_NOTE
