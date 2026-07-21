@@ -11,6 +11,7 @@ This directory contains the v2 data migration implementation.
 ```
 src/main/data/migration/v2/
 ├── core/              # MigrationEngine, MigrationContext, MigrationPaths
+├── diagnostics/       # Failure support bundle builder and application-log collector
 ├── migrators/         # Domain-specific migrators
 │   └── mappings/      # Mapping definitions
 ├── utils/             # ReduxStateReader, DexieFileReader, JSONStreamReader, LegacyHomeConfigReader
@@ -46,6 +47,39 @@ paths with `path.join()` from scratch inside migration code.
 then passed through `MigrationContext.paths` to all migrators. If you
 need a new path, add it to the `MigrationPaths` interface — do not
 construct it inline.
+
+The diagnostic log collector is a separate domain: it reads the application's runtime logs, not
+migration data. It resolves that directory through the central path registry with
+`application.getPath('app.logs')`; this is not an exception permitting Electron `app.getPath()` in
+migration code.
+
+## Failure Diagnostic Bundle
+
+Migration failures, blocked upgrade paths, and native preboot migration failures offer a support
+bundle without changing the successful migration flow. Main owns the save dialog and writes the ZIP
+atomically. Each bundle contains:
+
+- `migration-diagnostics.json`: application name and version, platform, architecture, failure
+  source/stage, a stable error summary, current progress, and migrator status. It deliberately
+  avoids raw stack traces, paths, and business data that would duplicate the application logs.
+- `README.txt`: bilingual privacy and manual-review guidance.
+- Optional `logs/app.YYYY-MM-DD.log` and numeric rotation files such as
+  `logs/app.YYYY-MM-DD.log.1`, each preserved as a separate ZIP entry.
+
+"Today" means the user's local calendar date when they click save. The collector accepts only
+regular application log files for that date; it excludes `app-error` logs, other dates, symlinks,
+and directories. Included files retain their original bytes without redaction, parsing, or
+truncation. If any eligible file cannot be collected, the entire log set is omitted while the basic
+bundle is still saved.
+
+The application never uploads, attaches, emails, or otherwise sends the bundle automatically; the
+user must inspect it and attach it manually. A final compressed ZIP strictly larger than 15 MiB is
+still saved and only triggers advice to use an email large-attachment or cloud-storage feature.
+
+Renderer diagnostic commands carry no paths or file content. Main serializes save requests, waits
+for an active save before quitting, remembers only the most recently saved bundle path, and owns the
+fixed support address and prefilled `mailto:` URL. After saving, the user can open the email client,
+reveal the ZIP in its folder, or copy the support address.
 
 ## Version Compatibility Gate
 
