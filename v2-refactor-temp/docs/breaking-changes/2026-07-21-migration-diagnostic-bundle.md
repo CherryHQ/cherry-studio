@@ -2,7 +2,7 @@
 title: Migration failures can save a diagnostic bundle
 category: data-migration
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#17243'
 date: 2026-07-21
 ---
 
