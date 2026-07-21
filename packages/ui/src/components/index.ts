@@ -28,6 +28,22 @@ export {
 } from './primitives/tooltip'
 
 // Composite Components
+export {
+  ColorPicker,
+  ColorPickerAlpha,
+  type ColorPickerAlphaProps,
+  ColorPickerEyeDropper,
+  type ColorPickerEyeDropperProps,
+  ColorPickerFormat,
+  type ColorPickerFormatProps,
+  ColorPickerHue,
+  type ColorPickerHueProps,
+  ColorPickerOutput,
+  type ColorPickerOutputProps,
+  type ColorPickerProps,
+  ColorPickerSelection,
+  type ColorPickerSelectionProps
+} from './composites/color-picker'
 export { ConfirmDialog, type ConfirmDialogProps } from './composites/confirm-dialog'
 export {
   type ColumnDef,
@@ -134,6 +150,8 @@ export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/
 export { PageHeader, type PageHeaderProps } from './composites/page-header'
 // ReorderableList
 export { ReorderableList, type ReorderableListProps, type SortableDragHandleProps } from './composites/reorderable-list'
+// SettingsPageHeader
+export { SettingsPageHeader, type SettingsPageHeaderProps } from './composites/settings-page-header'
 // Sortable
 export {
   CompositeInput,

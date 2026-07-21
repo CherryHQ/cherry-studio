@@ -57,11 +57,30 @@ describe('SelectDropdown', () => {
     it('opens popover and shows items on trigger click', () => {
       render(<SelectDropdown {...defaultProps} />)
       // Click the trigger button to open
-      fireEvent.click(screen.getByRole('button'))
+      const trigger = screen.getByRole('button')
+      fireEvent.click(trigger)
       // All items should be visible
       expect(screen.getByText('Alpha')).toBeInTheDocument()
       expect(screen.getByText('Beta')).toBeInTheDocument()
       expect(screen.getByText('Gamma')).toBeInTheDocument()
+      expect(trigger).toHaveAttribute('aria-haspopup', 'listbox')
+      expect(trigger).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('listbox')).toHaveAttribute('aria-labelledby', trigger.id)
+      expect(screen.getAllByRole('option')).toHaveLength(3)
+    })
+
+    it('moves focus between options with arrow keys', () => {
+      render(<SelectDropdown {...defaultProps} />)
+      fireEvent.click(screen.getByRole('button'))
+      const options = screen.getAllByRole('option')
+      options[0].focus()
+
+      fireEvent.keyDown(options[0], { key: 'ArrowDown' })
+      expect(options[1]).toHaveFocus()
+      fireEvent.keyDown(options[1], { key: 'End' })
+      expect(options[2]).toHaveFocus()
+      fireEvent.keyDown(options[2], { key: 'ArrowDown' })
+      expect(options[0]).toHaveFocus()
     })
 
     it('calls onSelect when an item is clicked', () => {
