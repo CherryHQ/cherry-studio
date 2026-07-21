@@ -122,6 +122,12 @@ export interface MergeContext {
   readonly userStrategy?: ConflictStrategy
   /** file_entry IDs whose blobs were not staged — skip these rows during import. */
   readonly skippedFileEntryIds: ReadonlySet<string>
+  /**
+   * file_entry IDs whose blobs WERE staged into the archive / restore staging tree.
+   * Used after merge to disclose `message.data` soft refs whose blobs are missing
+   * (DB-only restore passes an empty set → every fileEntryId is disclosed).
+   */
+  readonly stagedFileEntryIds: ReadonlySet<string>
 }
 
 /** Merge engine entry signature — invoked by ImportOrchestrator inside the staging spine. */

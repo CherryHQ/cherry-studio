@@ -113,7 +113,8 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   const topCtx = (): MergeContext => ({
     backupDbPath: backupPath,
     domains: ['TOPICS'],
-    skippedFileEntryIds: new Set<string>()
+    skippedFileEntryIds: new Set<string>(),
+    stagedFileEntryIds: new Set<string>()
   })
 
   it('SKIPs a uuid-entity root that already exists in work (no duplicate, no overwrite)', async () => {
@@ -213,7 +214,8 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     const result = await runMerge({
       backupDbPath: backupPath,
       domains: ['PROVIDERS'],
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
     })
 
     expect(result).toMatchObject({ degradedToSkips: [] }) // backfill is not a degradation
@@ -225,26 +227,269 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(model).toBeDefined() // include member cascaded with the backfilled root
   })
 
-  it('SKIPs a conflicting natural-key aggregate (local wins) and discloses the pending FIELD_MERGE', async () => {
-    // Work already has provider 'openai' with a LOCAL key; the backup holds different
-    // values. Until FIELD_MERGE lands the local row wins wholesale, and the conflict is
-    // recorded in degradedToSkips for UI disclosure (backup field values not merged).
+  it('FIELD_MERGEs a conflicting natural-key aggregate (keeps local non-null, fills from backup)', async () => {
+    // Work has provider 'openai' with a LOCAL name; backup has a different name.
+    // FIELD_MERGE keeps local name (non-null) and does not disclose "not implemented".
     insertProvider(dbh.sqlite, 'openai', 'local-name')
-    seedBackup((db) => insertProvider(db, 'openai', 'backup-name'))
+    seedBackup((db) => {
+      insertProvider(db, 'openai', 'backup-name')
+      insertModel(db, 'openai', 'gpt-4o')
+    })
 
     const result = (await runMerge({
       backupDbPath: backupPath,
       domains: ['PROVIDERS'],
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
     })) as { degradedToSkips: { table: string; count: number; reason: string }[] }
 
     const row = dbh.sqlite.prepare(`SELECT name FROM user_provider WHERE provider_id = 'openai'`).get() as {
       name: string
     }
-    expect(row.name).toBe('local-name') // local wins
-    expect(result.degradedToSkips).toEqual([
-      { table: 'user_provider', count: 1, reason: expect.stringContaining('FIELD_MERGE not implemented') }
-    ])
+    expect(row.name).toBe('local-name') // local non-null wins
+    expect(dbh.sqlite.prepare(`SELECT id FROM user_model WHERE id = 'openai::gpt-4o'`).get()).toBeDefined()
+    expect(result.degradedToSkips.filter((d) => d.reason.includes('FIELD_MERGE not implemented'))).toEqual([])
+  })
+
+  it('remote-fills-local-empty: backup apiKeys fill a seeded empty [] local provider', async () => {
+    const now = Date.now()
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+      )
+      .run('openai', 'OpenAI', '[]', 'o-local', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+      ).run('openai', 'OpenAI', JSON.stringify([{ id: 'k1', key: 'from-backup' }]), 'o-backup', now, now)
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const row = dbh.sqlite.prepare(`SELECT api_keys FROM user_provider WHERE provider_id = 'openai'`).get() as {
+      api_keys: string
+    }
+    expect(row.api_keys).toContain('from-backup')
+  })
+
+  it('deep-merge authConfig: seeder skeleton keeps type, backup fills empty credential fields', async () => {
+    // M1 regression: seeded {type:'iam-gcp',project:'',location:''} is NOT empty under
+    // remote-fills-local-empty (type is non-empty). deep-merge must fill project/location.
+    const now = Date.now()
+    const skeleton = JSON.stringify({ type: 'iam-gcp', project: '', location: '' })
+    const backed = JSON.stringify({ type: 'iam-gcp', project: 'my-proj', location: 'us-central1' })
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      )
+      .run('vertexai', 'Vertex AI', skeleton, 'o-local', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      ).run('vertexai', 'Vertex AI', backed, 'o-backup', now, now)
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const row = dbh.sqlite.prepare(`SELECT auth_config FROM user_provider WHERE provider_id = 'vertexai'`).get() as {
+      auth_config: string
+    }
+    const auth = JSON.parse(row.auth_config) as { type: string; project: string; location: string }
+    expect(auth.type).toBe('iam-gcp')
+    expect(auth.project).toBe('my-proj')
+    expect(auth.location).toBe('us-central1')
+  })
+
+  it('deep-merge authConfig: type-mismatched seeder skeleton takes backup whole-cell (no hybrid)', async () => {
+    // Discriminator conflict: local iam-aws skeleton + backup api-key-aws must NOT become
+    // {type:'iam-aws', region:'us-west-2'} hybrid — take backup type + credentials.
+    const now = Date.now()
+    const skeleton = JSON.stringify({ type: 'iam-aws', region: '' })
+    const backed = JSON.stringify({ type: 'api-key-aws', region: 'us-west-2' })
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      )
+      .run('aws-bedrock', 'AWS Bedrock', skeleton, 'o-local', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      ).run('aws-bedrock', 'AWS Bedrock', backed, 'o-backup', now, now)
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const row = dbh.sqlite.prepare(`SELECT auth_config FROM user_provider WHERE provider_id = 'aws-bedrock'`).get() as {
+      auth_config: string
+    }
+    const auth = JSON.parse(row.auth_config) as { type: string; region: string }
+    expect(auth.type).toBe('api-key-aws')
+    expect(auth.region).toBe('us-west-2')
+  })
+
+  it('deep-merge authConfig: type conflict with local credentials keeps local and discloses', async () => {
+    const now = Date.now()
+    const localConfigured = JSON.stringify({ type: 'iam-aws', region: 'eu-west-1' })
+    const backed = JSON.stringify({ type: 'api-key-aws', region: 'us-west-2' })
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      )
+      .run('aws-bedrock', 'AWS Bedrock', localConfigured, 'o-local', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      ).run('aws-bedrock', 'AWS Bedrock', backed, 'o-backup', now, now)
+    })
+
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })) as { degradedToSkips: { table: string; reason: string }[] }
+
+    const row = dbh.sqlite.prepare(`SELECT auth_config FROM user_provider WHERE provider_id = 'aws-bedrock'`).get() as {
+      auth_config: string
+    }
+    const auth = JSON.parse(row.auth_config) as { type: string; region: string }
+    expect(auth.type).toBe('iam-aws')
+    expect(auth.region).toBe('eu-west-1')
+    expect(
+      result.degradedToSkips.some(
+        (d) => d.table === 'user_provider' && d.reason.includes('type conflict') && d.reason.includes('iam-aws')
+      )
+    ).toBe(true)
+  })
+
+  it('deep-merge authConfig: nested empty credentials shell still counts as seeder skeleton', async () => {
+    // Vertex UI shape: credentials:{privateKey:'',clientEmail:''} must NOT defeat skeleton detection.
+    const now = Date.now()
+    const skeleton = JSON.stringify({
+      type: 'iam-gcp',
+      project: '',
+      location: '',
+      credentials: { privateKey: '', clientEmail: '' }
+    })
+    const backed = JSON.stringify({ type: 'oauth', accessToken: 'tok-from-backup', refreshToken: 'ref' })
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      )
+      .run('vertexai', 'Vertex AI', skeleton, 'o-local', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      ).run('vertexai', 'Vertex AI', backed, 'o-backup', now, now)
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const row = dbh.sqlite.prepare(`SELECT auth_config FROM user_provider WHERE provider_id = 'vertexai'`).get() as {
+      auth_config: string
+    }
+    const auth = JSON.parse(row.auth_config) as { type: string; accessToken?: string }
+    expect(auth.type).toBe('oauth')
+    expect(auth.accessToken).toBe('tok-from-backup')
+  })
+
+  it('deep-merge authConfig: nested typeConflict propagates to degradedToSkips', async () => {
+    // Same parent type, nested credentials.type conflict — keep local nested + disclose.
+    const now = Date.now()
+    const localConfigured = JSON.stringify({
+      type: 'iam-gcp',
+      project: 'p',
+      credentials: { type: 'service_account', privateKey: 'local-key' }
+    })
+    const backed = JSON.stringify({
+      type: 'iam-gcp',
+      project: 'p',
+      credentials: { type: 'external_account', privateKey: 'backup-key' }
+    })
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      )
+      .run('vertexai', 'Vertex AI', localConfigured, 'o-local', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, auth_config, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, '[]', ?, 1, ?, ?, ?)`
+      ).run('vertexai', 'Vertex AI', backed, 'o-backup', now, now)
+    })
+
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })) as { degradedToSkips: { table: string; reason: string }[] }
+
+    const row = dbh.sqlite.prepare(`SELECT auth_config FROM user_provider WHERE provider_id = 'vertexai'`).get() as {
+      auth_config: string
+    }
+    const auth = JSON.parse(row.auth_config) as {
+      type: string
+      credentials: { type: string; privateKey: string }
+    }
+    expect(auth.credentials.type).toBe('service_account')
+    expect(auth.credentials.privateKey).toBe('local-key')
+    expect(
+      result.degradedToSkips.some(
+        (d) => d.table === 'user_provider' && d.reason.includes('type conflict') && d.reason.includes('service_account')
+      )
+    ).toBe(true)
+  })
+
+  it('discloses nested member skip when parent member produced no anchors', async () => {
+    // Backup has a chat_message_file_ref but no message rows → nested member parent anchors
+    // empty → previously silent skip; now disclosed.
+    seedBackup(
+      (db) => {
+        insertTopic(db, 'tpc-orphan-fr')
+        insertChatMessageFileRef(db, 'fr-orphan', 'msg-missing', 'fe-any')
+      },
+      { foreignKeys: false }
+    )
+
+    const result = (await runMerge(topCtx())) as { degradedToSkips: { table: string; reason: string }[] }
+    expect(
+      result.degradedToSkips.some(
+        (d) =>
+          d.table === 'chat_message_file_ref' && d.reason.includes('parent member') && d.reason.includes('no anchor')
+      )
+    ).toBe(true)
   })
 
   it('repairs a dangling nullable FK by SET NULL (disclosed) instead of aborting the restore', async () => {
@@ -313,17 +558,15 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     })
   })
 
-  it('throws MergeStrategyNotImplementedError for an explicit non-SKIP userStrategy (fail-loud)', async () => {
-    // The MVP supports only SKIP conflict resolution for uuid-entity; an explicit
-    // OVERWRITE/RENAME/FIELD_MERGE override must fail loud rather than silently
-    // degrade to skip (which would ignore the user's choice). The guard fires at
-    // scan entry, before any row read.
+  it('throws MergeStrategyNotImplementedError for OVERWRITE/RENAME userStrategy (fail-loud)', async () => {
+    // FIELD_MERGE is implemented; OVERWRITE/RENAME still fail loud.
     await expect(
       runMerge({
         backupDbPath: backupPath,
         domains: ['TOPICS'],
         userStrategy: 'OVERWRITE',
-        skippedFileEntryIds: new Set<string>()
+        skippedFileEntryIds: new Set<string>(),
+        stagedFileEntryIds: new Set<string>()
       })
     ).rejects.toThrow(MergeStrategyNotImplementedError)
   })
@@ -340,7 +583,8 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     const result = await runMerge({
       backupDbPath: backupPath,
       domains: ['FILE_STORAGE'],
-      skippedFileEntryIds: new Set(['fe-skip'])
+      skippedFileEntryIds: new Set(['fe-skip']),
+      stagedFileEntryIds: new Set<string>()
     })
 
     expect(result).toMatchObject({ degradedToSkips: [] })
@@ -350,17 +594,23 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(ids).not.toContain('fe-skip')
   })
 
-  it('fails closed on a non-PK UNIQUE conflict instead of silently dropping the row', async () => {
+  it('SKIPs file_entry roots that collide on lower(external_path) (expression UNIQUE)', async () => {
     // Work has file_entry 'fe-local' with externalPath '/tmp/dup'; backup has a DIFFERENT
-    // file_entry (different id, same case-insensitive externalPath). Plain INSERT must
-    // throw on the UNIQUE(externalPath) conflict so the tx rolls back — fail-closed,
-    // never silently drop + report success.
+    // id with the same case-insensitive path. Expression UNIQUE is folded into SKIP
+    // (local wins) — not a whole-restore abort.
     insertFileEntry(dbh.sqlite, 'fe-local', '/tmp/dup')
     seedBackup((db) => insertFileEntry(db, 'fe-backup', '/tmp/dup'))
 
-    await expect(
-      runMerge({ backupDbPath: backupPath, domains: ['FILE_STORAGE'], skippedFileEntryIds: new Set<string>() })
-    ).rejects.toThrow()
+    const result = await runMerge({
+      backupDbPath: backupPath,
+      domains: ['FILE_STORAGE'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    const ids = (dbh.sqlite.prepare(`SELECT id FROM file_entry`).all() as { id: string }[]).map((r) => r.id)
+    expect(ids).toContain('fe-local')
+    expect(ids).not.toContain('fe-backup')
   })
 
   it('traverses nested include members via their parent member ids (chat_message_file_ref)', async () => {
@@ -393,14 +643,14 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   })
 
   it('honors an explicit SKIP override on a natural-key domain instead of throwing', async () => {
-    // PROVIDERS is natural-key (FIELD_MERGE default). Default → throws NotImplemented (MVP
-    // can't FIELD_MERGE). An explicit SKIP opts out → every backup row skipped (local
-    // survives), no throw. Empty backup is enough — the guard either throws or it doesn't.
+    // PROVIDERS is natural-key (FIELD_MERGE default). An explicit SKIP opts out → every
+    // backup row skipped (local survives), no throw.
     const result = await runMerge({
       backupDbPath: backupPath,
       domains: ['PROVIDERS'],
       userStrategy: 'SKIP',
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
     })
     expect(result).toMatchObject({ degradedToSkips: [] })
   })
@@ -458,7 +708,8 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       backupDbPath: backupPath,
       // lite-shaped: TOPICS selected, KNOWLEDGE not
       domains: ['TAGS_GROUPS', 'TOPICS'],
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
     })
 
     expect(dbh.sqlite.prepare(`SELECT id FROM pin WHERE id = 'pin-knowledge'`).get()).toBeUndefined()
@@ -486,7 +737,8 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     await runMerge({
       backupDbPath: backupPath,
       domains: ['PREFERENCES'],
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
     })
 
     const rows = dbh.sqlite
@@ -514,10 +766,56 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     const result = (await runMerge({
       backupDbPath: backupPath,
       domains: ['KNOWLEDGE'],
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
     })) as { degradedToSkips: { table: string; reason: string }[] }
 
     expect(dbh.sqlite.prepare(`SELECT id FROM knowledge_base WHERE id = 'kb-1'`).get()).toBeUndefined()
     expect(result.degradedToSkips.some((s) => s.table === 'knowledge_base' && s.reason.includes('pruned'))).toBe(true)
+  })
+  it('discloses message.data fileEntryId when blob is not in stagedFileEntryIds', async () => {
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-att')
+      const now = Date.now()
+      db.prepare(
+        `INSERT INTO message (id, parent_id, topic_id, role, data, searchable_text, status, siblings_group_id, model_id, created_at, updated_at)
+         VALUES (?, NULL, ?, 'root', ?, '', 'success', 0, NULL, ?, ?)`
+      ).run(
+        'msg-att',
+        'tpc-att',
+        JSON.stringify({ parts: [{ type: 'file', fileEntryId: 'fe-missing-blob' }] }),
+        now,
+        now
+      )
+    })
+
+    const disclosed = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['TOPICS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>() // DB-only → disclose all
+    })) as { degradedToSkips: { table: string; reason: string }[] }
+
+    expect(disclosed.degradedToSkips.some((d) => d.table === 'message' && d.reason.includes('not staged'))).toBe(true)
+  })
+
+  it('does not disclose fileEntryId when the blob id is in stagedFileEntryIds', async () => {
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-att2')
+      const now = Date.now()
+      db.prepare(
+        `INSERT INTO message (id, parent_id, topic_id, role, data, searchable_text, status, siblings_group_id, model_id, created_at, updated_at)
+         VALUES (?, NULL, ?, 'root', ?, '', 'success', 0, NULL, ?, ?)`
+      ).run('msg-att2', 'tpc-att2', JSON.stringify({ parts: [{ type: 'file', fileEntryId: 'fe-staged' }] }), now, now)
+    })
+
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['TOPICS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set(['fe-staged'])
+    })) as { degradedToSkips: { table: string; reason: string }[] }
+
+    expect(result.degradedToSkips.filter((d) => d.reason.includes('not staged'))).toEqual([])
   })
 })

@@ -1,25 +1,22 @@
 // MergeEngine — detached restore import pipeline (plan (b)).
 //
 // Merges backup rows into a detached work.sqlite (VACUUM INTO copy of live) inside one
-// synchronous better-sqlite3 transaction. Scope: backfill-when-absent + SKIP-on-conflict,
-// member cascade, the global junction phase (pure junction tables resolved via the
-// role-aware identityMap), a dangling-ref repair pass (onDelete set-null → SET NULL on
-// nullable FK cols; cascade/restrict/no-action → prune, with composite partial-NULL
-// keeping mixed-nullability rows), FTS5 rebuild backstop, and offline
-// FK/integrity/FTS/app_state consistency checks.
+// synchronous better-sqlite3 transaction. Scope: backfill-when-absent + FIELD_MERGE on
+// natural-key conflict (column merge keeping local row+PK) / SKIP on uuid-entity conflict,
+// member cascade (uniqueMergeRules for per-member conflict), the global junction phase,
+// dangling-ref repair (onDelete set-null → SET NULL; cascade/restrict/no-action → prune,
+// with composite partial-NULL), FTS5 rebuild backstop, message.data fileEntryId blob
+// disclosure, and offline FK/integrity/FTS/app_state consistency checks.
 //
-// Conflict semantics: uuid-entity conflicts SKIP (local wins). Natural-key aggregates are
-// matched by identityKey — absent locally → INSERT keeping the backup PK (backfill: fresh
-// installs get preferences/providers/workspaces back and incoming FKs resolve naturally);
-// present locally → SKIP with the LOCAL canonical PK recorded in the identityMap so junction
-// rows resolve to it. Field-level merging of conflicting rows (fieldMergePolicies, e.g.
-// apiKeys remote-fills-local-empty) is the FIELD_MERGE milestone; until it lands, conflicts
-// on FIELD_MERGE-default aggregates are recorded in degradedToSkips (local values win).
-// OVERWRITE / RENAME / explicit FIELD_MERGE throw NotImplemented (fail-loud).
+// Conflict semantics (§3): uuid-entity → SKIP (local wins). Natural-key/slot → FIELD_MERGE
+// (local API keys kept; backup fills SQL NULL / policy-empty columns; members merged by
+// uniqueMergeRules). Settings-class preference/note keep conflictDefault SKIP.
+// OVERWRITE / RENAME still throw NotImplemented (fail-loud).
 //
-// See spec `backup-restore-safety/import-orchestrator.md` + plan `cryptic-inventing-toucan.md`.
+// See `docs/references/backup/backup-architecture.md` §3/§9.
 
-import type { AggregateBoundary, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
+import { loggerService } from '@logger'
+import type { AggregateBoundary, FieldMergePolicy, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import { DB_FTS_VIRTUAL_TABLES, DB_UNIQUE_KEYS } from '@main/data/db/backup/dbSchemaRefs'
 import type { BackupDomain } from '@main/data/db/backup/domains'
@@ -30,6 +27,8 @@ import Database from 'better-sqlite3'
 import { FtsCentralHelper } from './FtsCentralHelper'
 import { deriveJunctionDescriptors } from './junctionDeriver'
 import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult } from './types'
+
+const logger = loggerService.withContext('MergeEngine')
 
 /**
  * Convert a Drizzle logical (camelCase) column name to its physical (snake_case)
@@ -64,6 +63,162 @@ const quoteIdent = (name: string): string => `"${name.replace(/"/g, '""')}"`
  */
 const FTS_SOURCE_TABLES: ReadonlySet<string> = new Set(Object.values(DB_FTS_VIRTUAL_TABLES))
 const FTS_DERIVED_PHYSICAL_COLUMNS = new Set(['fts_rowid', 'searchable_text'])
+
+/** Record-separator for degradedToSkips aggregation keys (must not appear in table names). */
+const DEGRADE_KEY_SEP = '\x1e'
+
+/**
+ * Parse a SQLite cell that may already be a JS value (drizzle) or a JSON text string
+ * (raw better-sqlite3 SELECT *). Returns the logical value for emptiness checks.
+ */
+const parseMaybeJson = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (!trimmed) return value
+  if (trimmed[0] !== '{' && trimmed[0] !== '[') return value
+  try {
+    return JSON.parse(trimmed) as unknown
+  } catch {
+    return value
+  }
+}
+
+/**
+ * Default "empty" for FIELD_MERGE fill: SQL NULL only. '' / '{}' / '[]' are explicit
+ * empty values and keep local unless a fieldMergePolicy widens the rule.
+ */
+const isSqlNull = (value: unknown): boolean => value === null || value === undefined
+
+/**
+ * remote-fills-local-empty: NULL, '', [], {}. Objects with any non-empty leaf
+ * (e.g. seeded authConfig `{type:'iam-gcp',project:''}`) are NOT empty — use
+ * deep-merge for those columns instead of whole-cell remote-fills-local-empty.
+ */
+const isEmptyForRemoteFill = (value: unknown): boolean => {
+  if (isSqlNull(value)) return true
+  if (value === '') return true
+  const parsed = parseMaybeJson(value)
+  if (parsed === '') return true
+  if (Array.isArray(parsed)) return parsed.length === 0
+  if (parsed && typeof parsed === 'object') {
+    const entries = Object.entries(parsed as Record<string, unknown>)
+    if (entries.length === 0) return true
+    return entries.every(([, v]) => v === null || v === undefined || v === '')
+  }
+  return false
+}
+
+/**
+ * Leaf emptiness for deep-merge sub-fields (null / '' / [] / {}).
+ * Nested objects recurse: `{privateKey:'',clientEmail:''}` is empty (all leaves empty).
+ * Arrays stay length===0 (no element-wise emptiness). Cycle / depth-cap safe.
+ */
+const isEmptyMergeLeaf = (value: unknown, visited: Set<object> = new Set(), depth = 0): boolean => {
+  if (isSqlNull(value) || value === '') return true
+  if (Array.isArray(value)) return value.length === 0
+  if (value && typeof value === 'object') {
+    // Depth cap: treat as non-empty so we never falsely classify as seeder skeleton.
+    if (depth > 32) return false
+    const obj = value
+    if (visited.has(obj)) return true // cycle already walked — do not block all-empty
+    visited.add(obj)
+    const entries = Object.entries(value as Record<string, unknown>)
+    if (entries.length === 0) return true
+    return entries.every(([, v]) => isEmptyMergeLeaf(v, visited, depth + 1))
+  }
+  return false
+}
+
+/**
+ * Seeder / placeholder authConfig: non-empty `type` discriminator + all other fields empty
+ * (including nested credential shells like `{privateKey:'',clientEmail:''}`).
+ * Used to decide whether a type-mismatched deep-merge may take the backup whole-cell.
+ */
+const isDiscriminatorSkeleton = (obj: Record<string, unknown>): boolean => {
+  const type = obj.type
+  if (typeof type !== 'string' || type.length === 0) return false
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === 'type') continue
+    if (!isEmptyMergeLeaf(v)) return false
+  }
+  return true
+}
+
+type DeepMergeResult = {
+  value: unknown
+  /** Local kept because authConfig-like `type` conflicted and local was not a skeleton. */
+  typeConflict?: { localType: string; backupType: string }
+}
+
+/**
+ * Recursive deep-merge for FIELD_MERGE `deep-merge` strategy.
+ * Local non-empty leaves win; local null/''/empty sub-fields take backup.
+ * Arrays are treated as leaves (no element-wise merge).
+ *
+ * Discriminated unions (authConfig `type`): never hybrid-merge across different types.
+ * - same type → recursive field merge
+ * - different type + local is seeder skeleton → backup whole-cell (restore auth mode)
+ * - different type + local has credentials → keep local + typeConflict disclosure
+ * Nested typeConflict (e.g. credentials.type) propagates to the parent result.
+ */
+const deepMergeJson = (local: unknown, backup: unknown): DeepMergeResult => {
+  const localP = parseMaybeJson(local)
+  const backupP = parseMaybeJson(backup)
+  if (isEmptyForRemoteFill(localP) || isSqlNull(localP)) return { value: backupP }
+  if (
+    localP &&
+    typeof localP === 'object' &&
+    !Array.isArray(localP) &&
+    backupP &&
+    typeof backupP === 'object' &&
+    !Array.isArray(backupP)
+  ) {
+    const localObj = localP as Record<string, unknown>
+    const backupObj = backupP as Record<string, unknown>
+    const localType = localObj.type
+    const backupType = backupObj.type
+    if (typeof localType === 'string' && typeof backupType === 'string' && localType !== backupType) {
+      if (isDiscriminatorSkeleton(localObj)) {
+        return { value: backupP }
+      }
+      return { value: localP, typeConflict: { localType, backupType } }
+    }
+    const result: Record<string, unknown> = { ...localObj }
+    let nestedConflict: DeepMergeResult['typeConflict']
+    for (const [k, bv] of Object.entries(backupObj)) {
+      const lv = result[k]
+      if (lv && typeof lv === 'object' && !Array.isArray(lv) && bv && typeof bv === 'object' && !Array.isArray(bv)) {
+        const nested = deepMergeJson(lv, bv)
+        result[k] = nested.value
+        if (nested.typeConflict && !nestedConflict) {
+          nestedConflict = nested.typeConflict
+        }
+      } else if (isEmptyMergeLeaf(lv)) {
+        result[k] = bv
+      }
+      // else keep local non-empty leaf
+    }
+    return { value: result, typeConflict: nestedConflict }
+  }
+  return { value: localP }
+}
+
+/** Persist merged JSON matching how the column was stored (text vs object). */
+const serializeMergedCell = (merged: unknown, localVal: unknown, backupVal: unknown): unknown => {
+  if (typeof localVal === 'string' || typeof backupVal === 'string') {
+    return typeof merged === 'string' ? merged : JSON.stringify(merged ?? null)
+  }
+  return merged
+}
+
+const cellEqualForMerge = (a: unknown, b: unknown): boolean => {
+  if (Object.is(a, b)) return true
+  try {
+    return JSON.stringify(parseMaybeJson(a)) === JSON.stringify(parseMaybeJson(b))
+  } catch {
+    return false
+  }
+}
 
 /**
  * Set an identityMap entry under its endpoint table. The maps are per-table nested
@@ -153,6 +308,9 @@ export class MergeEngine {
         // nullable FK → SET NULL, NOT NULL FK → prune the row, both disclosed). The base was
         // asserted FK-clean pre-merge, so every repair touches merge-inserted rows only.
         this.repairDanglingRefs(workSqlite, degradedToSkips)
+        // Soft-ref disclosure: message.data fileEntryId blobs not in stagedFileEntryIds
+        // (DB-only restore → empty set → every attachment disclosed).
+        this.discloseFileIdSoftRefs(workSqlite, ctx, degradedToSkips)
         // FTS rebuild backstop — whole-index resync after the bulk import (single-row triggers
         // can't backstop it; skipped rows / fts_rowid collisions leave stale indexes otherwise).
         FtsCentralHelper.rebuild(workSqlite)
@@ -170,50 +328,36 @@ export class MergeEngine {
    * Scan work.sqlite (merge base) + backup.sqlite for each aggregate root and produce
    * a decision per backup root. Runs BEFORE the write tx (read-only on both DBs).
    *
-   * uuid-entity aggregates: conflict (work has same PK) → SKIP, else INSERT.
-   * natural-key/slot aggregates: matched by identityKey — present locally → SKIP with the
-   * local canonical PK recorded (junction resolution + B1 identity propagation); absent →
-   * INSERT keeping the backup PK (backfill — incoming FKs resolve naturally). Field-level
-   * merging of conflicting rows is the FIELD_MERGE milestone; conflicts on
-   * FIELD_MERGE-default aggregates are counted into degradedToSkips (local values win).
+   * uuid-entity: conflict → SKIP. natural-key/slot: absent → INSERT (backfill); present →
+   * FIELD_MERGE (default) or SKIP (settings-class preference/note conflictDefault).
    */
   private scanAggregates(
     workSqlite: Database.Database,
     ordered: readonly BackupDomain[],
     backupDb: Database.Database,
     ctx: MergeContext,
-    degradedToSkips: DegradedSkip[]
+    _degradedToSkips: DegradedSkip[]
   ): AggregateDecision[] {
-    // Honor an explicit user strategy override. Only SKIP conflict resolution is
-    // implemented; FIELD_MERGE/OVERWRITE/RENAME are unsupported — fail loud here rather
-    // than silently degrading to skip (which would ignore the user's choice and quietly
-    // no-op a RENAME/OVERWRITE request). An explicit SKIP means "keep local on conflict";
-    // backfill-when-absent still applies (restoring missing rows is not a conflict).
-    if (ctx.userStrategy !== undefined && ctx.userStrategy !== 'SKIP') {
+    // Explicit OVERWRITE/RENAME still unsupported — fail loud. FIELD_MERGE (and omit /
+    // SKIP) are implemented.
+    if (ctx.userStrategy === 'OVERWRITE' || ctx.userStrategy === 'RENAME') {
       throw new MergeStrategyNotImplementedError(`userStrategy ${ctx.userStrategy}`)
     }
+    const forceSkip = ctx.userStrategy === 'SKIP'
     const decisions: AggregateDecision[] = []
     for (const domain of ordered) {
       for (const agg of this.registry.getAggregatesForDomain(domain)) {
         const pkColumns = this.registry.getPrimaryKey(agg.root).columns
         const naturalKey = (agg.identityClass ?? 'uuid-entity') !== 'uuid-entity'
-        // A conflict on a FIELD_MERGE-default aggregate keeps the local row wholesale —
-        // that loses backup field values (e.g. credentials only present remotely), so it
-        // is a degradation to disclose. conflictDefault 'SKIP' (PREFERENCES/note) makes
-        // local-wins the spec'd behavior — not a degradation.
-        const fieldMergePending = naturalKey && (agg.conflictDefault ?? 'FIELD_MERGE') !== 'SKIP'
+        const conflictDefault = agg.conflictDefault ?? (naturalKey ? 'FIELD_MERGE' : 'SKIP')
         // TODO(Stage3): stream via prepare().iterate() instead of .all() to avoid OOM on
-        // unbounded roots (TOPICS chat history / translate_history) — spec MAJOR 2. Production
-        // restore reaches this engine, so large archives exercise the .all() load until
-        // Stage 3 streams.
+        // unbounded roots (TOPICS chat history / translate_history) — spec MAJOR 2.
         const backupRoots = backupDb.prepare(`SELECT * FROM ${quoteIdent(agg.root)}`).all() as Record<string, unknown>[]
-        let conflictCount = 0
         // pin is polymorphic (no FK) — skip rows whose entityType maps to a domain
         // outside this restore (e.g. lite archive with knowledge pins but KNOWLEDGE stripped).
         const pinEntityMap =
           agg.root === 'pin' ? this.registry.getSchema('TAGS_GROUPS').polymorphicEntityMap : undefined
         for (const backupRow of backupRoots) {
-          // backupRow keys are physical (SELECT *); pkColumns are logical → convert.
           const backupPrimaryKey = pkColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
           if (pinEntityMap) {
             const entityType = String(backupRow[physicalColumn('entityType')] ?? '') as EntityType
@@ -229,10 +373,6 @@ export class MergeEngine {
               continue
             }
           }
-          // Resolve the local counterpart: natural-key → identityKey match (returns the
-          // LOCAL canonical PK, which may differ from the backup PK); uuid-entity → PK
-          // match (canonical = backup PK), then secondary UNIQUE (e.g. note(rootPath,path)
-          // if ever scanned as uuid-entity) so plain INSERT cannot UNIQUE-abort the merge.
           let localCanonicalPrimaryKey: readonly (string | number)[] | undefined
           if (naturalKey) {
             localCanonicalPrimaryKey = this.findLocalByIdentityKey(workSqlite, agg, pkColumns, backupRow)
@@ -246,15 +386,23 @@ export class MergeEngine {
             localCanonicalPrimaryKey = backupPrimaryKey
           } else {
             localCanonicalPrimaryKey = this.findLocalBySecondaryUnique(workSqlite, agg.root, pkColumns, backupRow)
+            // file_entry expression UNIQUE lower(external_path) — not in DB_UNIQUE_KEYS.
+            if (localCanonicalPrimaryKey === undefined && agg.root === 'file_entry') {
+              localCanonicalPrimaryKey = this.findLocalByExternalPath(workSqlite, backupRow)
+            }
           }
           const exists = localCanonicalPrimaryKey !== undefined
-          if (exists && fieldMergePending) {
-            conflictCount++
+          const skippedBlob = agg.root === 'file_entry' && ctx.skippedFileEntryIds.has(String(backupPrimaryKey[0]))
+          let action: AggregateDecision['action'] = 'insert'
+          if (skippedBlob) {
+            action = 'skip'
+          } else if (exists) {
+            if (forceSkip || !naturalKey || conflictDefault === 'SKIP') {
+              action = 'skip'
+            } else {
+              action = 'field-merge'
+            }
           }
-          // Honor skippedFileEntryIds — a file_entry root whose blob was not staged MUST be
-          // skipped, else the merged DB holds a row + refs pointing at a missing blob.
-          const skipped = agg.root === 'file_entry' && ctx.skippedFileEntryIds.has(String(backupPrimaryKey[0]))
-          const action = skipped || exists ? 'skip' : 'insert'
           decisions.push({
             aggregate: agg,
             identity: backupPrimaryKey,
@@ -263,16 +411,24 @@ export class MergeEngine {
             action
           })
         }
-        if (conflictCount > 0) {
-          degradedToSkips.push({
-            table: agg.root,
-            count: conflictCount,
-            reason: 'FIELD_MERGE not implemented — conflicting rows kept local values (backup field values not merged)'
-          })
-        }
       }
     }
     return decisions
+  }
+
+  /** file_entry lower(external_path) conflict fold (expression UNIQUE not in DB_UNIQUE_KEYS). */
+  private findLocalByExternalPath(
+    workSqlite: Database.Database,
+    backupRow: Record<string, unknown>
+  ): readonly (string | number)[] | undefined {
+    const ext = backupRow['external_path']
+    if (ext === null || ext === undefined || ext === '') return undefined
+    const row = this.prepareCached(
+      workSqlite,
+      'sel:file_entry:lower_ext',
+      `SELECT id FROM ${quoteIdent('file_entry')} WHERE lower(external_path) = lower(?) LIMIT 1`
+    ).get(ext) as { id: string } | undefined
+    return row ? [row.id] : undefined
   }
 
   /**
@@ -381,8 +537,9 @@ export class MergeEngine {
 
   /**
    * importRows — exhaustive action switch (B3). Each strategy exclusively owns root +
-   * member processing; no fall-through. MVP: insert writes root + include members;
-   * skip is a no-op. overwrite/field-merge/rename throw NotImplemented.
+   * member processing; no fall-through. insert writes root + include members; field-merge
+   * column-merges the local root + runs the member loop; skip is identityMap-only;
+   * overwrite/rename throw NotImplemented.
    */
   private importRows(
     workSqlite: Database.Database,
@@ -416,18 +573,64 @@ export class MergeEngine {
           continue
         }
         case 'insert': {
-          this.insertAggregate(workSqlite, decision, ctx, backupDb, identityMap)
+          this.insertAggregate(workSqlite, decision, ctx, backupDb, identityMap, degradedToSkips)
+          break
+        }
+        case 'field-merge': {
+          this.fieldMergeAggregate(workSqlite, decision, backupDb, identityMap, degradedToSkips)
           break
         }
         case 'overwrite':
-        case 'field-merge':
         case 'rename':
           throw new MergeStrategyNotImplementedError(decision.action)
       }
     }
-    // Record any degraded skips (MVP: none yet — RENAME fallback lands at lite milestone).
-    void degradedToSkips
     void ordered
+  }
+
+  /**
+   * FIELD_MERGE an aggregate root into its local survivor, then run the member loop
+   * (uniqueMergeRules / PK / secondary UNIQUE → merge or INSERT).
+   */
+  private fieldMergeAggregate(
+    workSqlite: Database.Database,
+    decision: AggregateDecision,
+    backupDb: Database.Database,
+    identityMap: IdentityMap,
+    degradedToSkips: DegradedSkip[]
+  ): void {
+    const { aggregate: agg, backupPrimaryKey, localCanonicalPrimaryKey } = decision
+    if (localCanonicalPrimaryKey === undefined) return
+    const pkColumns = this.registry.getPrimaryKey(agg.root).columns
+    const whereBackup = pkColumns.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
+    const backupRoot = backupDb
+      .prepare(`SELECT * FROM ${quoteIdent(agg.root)} WHERE ${whereBackup}`)
+      .get(...backupPrimaryKey) as Record<string, unknown> | undefined
+    if (!backupRoot) return
+
+    const domain = this.registry.getTableOwner(agg.root)
+    const policies =
+      domain === 'excluded' || domain === 'infrastructure'
+        ? []
+        : (this.registry.getPolicy(domain).fieldMergePolicies ?? []).filter((p) => p.table === agg.root)
+    const exclude = new Set<string>([...pkColumns, ...(agg.identityKey ?? [])])
+    this.fieldMergeRow(
+      workSqlite,
+      agg.root,
+      pkColumns,
+      localCanonicalPrimaryKey,
+      backupRoot,
+      exclude,
+      policies,
+      degradedToSkips
+    )
+
+    const localPk = String(localCanonicalPrimaryKey[0])
+    const backupPk = String(backupPrimaryKey[0])
+    setIdentityEntry(identityMap.sourceMap, agg.root, backupPk, localPk)
+    setIdentityEntry(identityMap.targetMap, agg.root, backupPk, localPk)
+
+    this.mergeIncludeMembers(workSqlite, decision, backupDb, identityMap, /*fieldMergeRoot*/ true, degradedToSkips)
   }
 
   /**
@@ -443,7 +646,8 @@ export class MergeEngine {
     decision: AggregateDecision,
     _ctx: MergeContext,
     backupDb: Database.Database,
-    identityMap: IdentityMap
+    identityMap: IdentityMap,
+    degradedToSkips: DegradedSkip[]
   ): void {
     const { aggregate: agg, backupPrimaryKey } = decision
     // Root row — read from backup, insert into work. PK columns are logical → physical.
@@ -462,9 +666,27 @@ export class MergeEngine {
     setIdentityEntry(identityMap.sourceMap, agg.root, pkStr, pkStr)
     setIdentityEntry(identityMap.targetMap, agg.root, pkStr, pkStr)
 
-    // Include members — cascade with the root. Track each member's inserted PKs so a
-    // nested member (parent set) resolves against its PARENT member's ids, not the root PK.
-    // Members are declared parent-first in the contributor schema; viaColumn is logical → physical.
+    this.mergeIncludeMembers(workSqlite, decision, backupDb, identityMap, /*fieldMergeRoot*/ false, degradedToSkips)
+  }
+
+  /**
+   * Include-member cascade for insert + field-merge. Absent members INSERT (keep backup PK);
+   * conflicting members FIELD_MERGE by uniqueMergeRules / PK / secondary UNIQUE.
+   */
+  private mergeIncludeMembers(
+    workSqlite: Database.Database,
+    decision: AggregateDecision,
+    backupDb: Database.Database,
+    identityMap: IdentityMap,
+    fieldMergeRoot: boolean,
+    degradedToSkips: DegradedSkip[]
+  ): void {
+    const { aggregate: agg, backupPrimaryKey } = decision
+    const domain = this.registry.getTableOwner(agg.root)
+    const policy = domain === 'excluded' || domain === 'infrastructure' ? undefined : this.registry.getPolicy(domain)
+    const uniqueRules = policy?.uniqueMergeRules ?? []
+    const allFieldPolicies = policy?.fieldMergePolicies ?? []
+
     const members = agg.members ?? []
     const memberPksByTable = new Map<DbTableName, Set<string>>()
     for (const member of members) {
@@ -472,23 +694,237 @@ export class MergeEngine {
       const anchorIds = member.parent
         ? (memberPksByTable.get(member.parent) ?? new Set<string>())
         : new Set(backupPrimaryKey.map(String))
-      if (anchorIds.size === 0) continue // parent imported nothing → no nested rows to cascade
+      if (anchorIds.size === 0) {
+        // Nested member whose parent member produced no anchors (parent skipped / empty /
+        // not yet inserted) — previously a silent continue. Disclose orphan nested rows
+        // in backup that point at a missing parent (count = actual skipped rows, not 1).
+        if (member.parent) {
+          const viaPhys = physicalColumn(member.viaColumn)
+          const parentPkPhys = physicalColumn(this.registry.getPrimaryKey(member.parent).columns[0])
+          const skipped = backupDb
+            .prepare(
+              `SELECT COUNT(*) AS c FROM ${quoteIdent(member.table)} nested
+               WHERE nested.${quoteIdent(viaPhys)} IS NOT NULL
+                 AND NOT EXISTS (
+                   SELECT 1 FROM ${quoteIdent(member.parent)} parent
+                   WHERE parent.${quoteIdent(parentPkPhys)} = nested.${quoteIdent(viaPhys)}
+                 )`
+            )
+            .get() as { c: number }
+          const reason = `nested member skipped: parent member '${member.parent}' produced no anchor ids (parent not imported or empty)`
+          // Dedupe: orphan count is global to the backup nested table.
+          const already = degradedToSkips.some((d) => d.table === member.table && d.reason === reason)
+          if (!already && skipped.c > 0) {
+            degradedToSkips.push({ table: member.table, count: skipped.c, reason })
+          }
+        }
+        continue
+      }
       const placeholders = [...anchorIds].map(() => '?').join(',')
       const memberRows = backupDb
         .prepare(
           `SELECT * FROM ${quoteIdent(member.table)} WHERE ${quoteIdent(physicalColumn(member.viaColumn))} IN (${placeholders})`
         )
         .all(...anchorIds) as Record<string, unknown>[]
-      const memberPkCol = physicalColumn(this.registry.getPrimaryKey(member.table).columns[0])
+      const memberPkCols = this.registry.getPrimaryKey(member.table).columns
+      const memberPkColPhys = physicalColumn(memberPkCols[0])
+      const rule = uniqueRules.find((r) => r.table === member.table)
+      const memberPolicies = allFieldPolicies.filter((p) => p.table === member.table)
+
       for (const memberRow of memberRows) {
-        this.insertRow(workSqlite, member.table, memberRow)
+        let localPk: readonly (string | number)[] | undefined
+        if (rule) {
+          const values: (string | number)[] = []
+          let missing = false
+          for (const c of rule.uniqueColumns) {
+            const v = memberRow[physicalColumn(c)]
+            if (v === null || v === undefined) {
+              missing = true
+              break
+            }
+            values.push(v as string | number)
+          }
+          localPk = missing
+            ? undefined
+            : this.selectLocalPkByColumns(workSqlite, member.table, memberPkCols, rule.uniqueColumns, values)
+        } else {
+          const backupMemberPk = memberPkCols.map((c) => memberRow[physicalColumn(c)] as string | number)
+          const wherePk = memberPkCols.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
+          const hit = this.prepareCached(
+            workSqlite,
+            `has:${member.table}:${wherePk}`,
+            `SELECT 1 FROM ${quoteIdent(member.table)} WHERE ${wherePk} LIMIT 1`
+          ).get(...backupMemberPk)
+          if (hit) {
+            localPk = backupMemberPk
+          } else {
+            localPk = this.findLocalBySecondaryUnique(workSqlite, member.table, memberPkCols, memberRow)
+          }
+        }
+
+        if (localPk !== undefined && (fieldMergeRoot || rule)) {
+          const exclude = new Set<string>([...memberPkCols, ...(rule?.uniqueColumns ?? [])])
+          this.fieldMergeRow(
+            workSqlite,
+            member.table,
+            memberPkCols,
+            localPk,
+            memberRow,
+            exclude,
+            memberPolicies,
+            degradedToSkips
+          )
+          setIdentityEntry(identityMap.sourceMap, member.table, String(memberRow[memberPkColPhys]), String(localPk[0]))
+          setIdentityEntry(identityMap.targetMap, member.table, String(memberRow[memberPkColPhys]), String(localPk[0]))
+        } else if (localPk !== undefined) {
+          // PK/secondary collide on insert path without field-merge root — keep local (skip insert).
+          setIdentityEntry(identityMap.targetMap, member.table, String(memberRow[memberPkColPhys]), String(localPk[0]))
+        } else {
+          this.insertRow(workSqlite, member.table, memberRow)
+          const id = String(memberRow[memberPkColPhys])
+          setIdentityEntry(identityMap.sourceMap, member.table, id, id)
+          setIdentityEntry(identityMap.targetMap, member.table, id, id)
+        }
+
         let bucket = memberPksByTable.get(member.table)
         if (!bucket) {
           bucket = new Set()
           memberPksByTable.set(member.table, bucket)
         }
-        bucket.add(String(memberRow[memberPkCol]))
+        // Nested members still resolve against BACKUP parent ids (backup SELECT anchors).
+        bucket.add(String(memberRow[memberPkColPhys]))
       }
+    }
+  }
+
+  /**
+   * Column-level FIELD_MERGE into an existing local row. Excludes PK/identity columns.
+   * Default fill = SQL NULL only; per-column fieldMergePolicies may widen
+   * (remote-fills-local-empty / deep-merge).
+   */
+  private fieldMergeRow(
+    workSqlite: Database.Database,
+    table: DbTableName,
+    pkColumns: readonly string[],
+    localPk: readonly (string | number)[],
+    backupRow: Record<string, unknown>,
+    excludeLogical: ReadonlySet<string>,
+    policies: readonly FieldMergePolicy[],
+    degradedToSkips: DegradedSkip[]
+  ): void {
+    const workColumns = this.getWorkColumns(workSqlite, table)
+    const where = pkColumns.map((c) => `${quoteIdent(physicalColumn(c))} = ?`).join(' AND ')
+    const localRow = this.prepareCached(
+      workSqlite,
+      `sel:${table}:fm:${where}`,
+      `SELECT * FROM ${quoteIdent(table)} WHERE ${where}`
+    ).get(...localPk) as Record<string, unknown> | undefined
+    if (!localRow) return
+
+    const policyByPhys = new Map<string, FieldMergePolicy>()
+    for (const p of policies) policyByPhys.set(physicalColumn(p.column), p)
+
+    const sets: string[] = []
+    const values: unknown[] = []
+    for (const phys of Object.keys(backupRow)) {
+      if (!workColumns.has(phys)) continue
+      if (FTS_SOURCE_TABLES.has(table) && FTS_DERIVED_PHYSICAL_COLUMNS.has(phys)) continue
+      // Reverse physical→logical for exclude set (identityKey/PK are logical).
+      const logicalGuess = phys.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+      if (excludeLogical.has(logicalGuess) || [...excludeLogical].some((l) => physicalColumn(l) === phys)) {
+        continue
+      }
+      const localVal = localRow[phys]
+      const backupVal = backupRow[phys]
+      const policy = policyByPhys.get(phys)
+      let nextVal: unknown | undefined
+      if (!policy || policy.strategy === 'remote-fills-local-null') {
+        if (isSqlNull(localVal) && !isSqlNull(backupVal)) nextVal = backupVal
+      } else if (policy.strategy === 'remote-fills-local-empty') {
+        if (isEmptyForRemoteFill(localVal) && !isEmptyForRemoteFill(backupVal)) nextVal = backupVal
+      } else if (policy.strategy === 'deep-merge') {
+        const { value: merged, typeConflict } = deepMergeJson(localVal, backupVal)
+        if (typeConflict) {
+          degradedToSkips.push({
+            table,
+            count: 1,
+            reason: `deep-merge type conflict kept local ('${typeConflict.localType}' vs backup '${typeConflict.backupType}')`
+          })
+        }
+        const serialized = serializeMergedCell(merged, localVal, backupVal)
+        if (!cellEqualForMerge(serialized, localVal)) nextVal = serialized
+      } else if (policy.strategy === 'local-priority') {
+        // Not implemented: keep null-only so we never silently overwrite non-null local.
+        logger.warn('fieldMergePolicy local-priority not implemented; falling back to remote-fills-local-null', {
+          table,
+          column: phys
+        })
+        if (isSqlNull(localVal) && !isSqlNull(backupVal)) nextVal = backupVal
+      }
+      if (nextVal === undefined) continue
+      sets.push(`${quoteIdent(phys)} = ?`)
+      values.push(nextVal)
+    }
+    if (sets.length === 0) return
+    values.push(...localPk)
+    this.prepareCached(
+      workSqlite,
+      `upd:${table}:${sets.join(',')}:${where}`,
+      `UPDATE ${quoteIdent(table)} SET ${sets.join(', ')} WHERE ${where}`
+    ).run(...values)
+  }
+
+  /**
+   * Disclose message.data soft refs whose fileEntryId blob was not staged.
+   * DB-only restore passes empty stagedFileEntryIds → every attachment disclosed.
+   */
+  private discloseFileIdSoftRefs(
+    workSqlite: Database.Database,
+    ctx: MergeContext,
+    degradedToSkips: DegradedSkip[]
+  ): void {
+    const hasMessage =
+      workSqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='message'").get() !== undefined
+    if (!hasMessage) return
+    const staged = ctx.stagedFileEntryIds
+    let missing = 0
+    const rows = workSqlite.prepare(`SELECT data FROM ${quoteIdent('message')}`).all() as { data: string | null }[]
+    for (const row of rows) {
+      if (!row.data) continue
+      let parsed: unknown
+      try {
+        parsed = typeof row.data === 'string' ? JSON.parse(row.data) : row.data
+      } catch {
+        continue
+      }
+      const ids = new Set<string>()
+      const walk = (node: unknown): void => {
+        if (!node || typeof node !== 'object') return
+        if (Array.isArray(node)) {
+          for (const item of node) walk(item)
+          return
+        }
+        const obj = node as Record<string, unknown>
+        for (const [k, v] of Object.entries(obj)) {
+          if ((k === 'fileEntryId' || k === 'fileId') && typeof v === 'string' && v.length > 0) {
+            ids.add(v)
+          } else {
+            walk(v)
+          }
+        }
+      }
+      walk(parsed)
+      for (const id of ids) {
+        if (!staged.has(id)) missing++
+      }
+    }
+    if (missing > 0) {
+      degradedToSkips.push({
+        table: 'message',
+        count: missing,
+        reason:
+          'message attachment blob not staged (fileEntryId missing from stagedFileEntryIds — DB-only restore discloses all)'
+      })
     }
   }
 
@@ -527,8 +963,9 @@ export class MergeEngine {
    * + target availability (targetMap — imported OR pre-existing local). Either absent →
    * cascade-prune (§5.2: a junction endpoint missing → drop the row, NOT SET NULL). Both
    * present → rewrite both FK cols to their canonical work PKs + ON CONFLICT DO NOTHING
-   * (idempotent re-import). Per-row identity propagation is a no-op for uuid-entity (Stage 4
-   * keeps the backup PK); the FIELD_MERGE milestone will rewrite natural-key FKs here.
+   * (idempotent re-import). Per-row identity propagation is a no-op for uuid-entity
+   * (keeps the backup PK); natural-key FIELD_MERGE already maps backup→local canonical
+   * via identityMap — conflict identity propagation for non-deterministic PK FKs remains B1.
    *
    * Note: chat_message_file_ref / painting_file_ref are NOT imported here — their `sourceId`
    * ref is `kind:'owning'` (not junction), so `deriveJunctionDescriptors` filters them out;
@@ -660,11 +1097,11 @@ export class MergeEngine {
               `UPDATE ${quoteIdent(v.table)} SET ${setCols.map((c) => `${quoteIdent(c)} = NULL`).join(', ')} WHERE rowid = ?`
             )
             .run(v.rowid)
-          const key = `${v.table} ref to missing ${v.parent} cleared (SET NULL)`
+          const key = `${v.table}${DEGRADE_KEY_SEP}ref to missing ${v.parent} cleared (SET NULL)`
           counts.set(key, (counts.get(key) ?? 0) + 1)
         } else {
           workSqlite.prepare(`DELETE FROM ${quoteIdent(v.table)} WHERE rowid = ?`).run(v.rowid)
-          const key = `${v.table} row pruned (required ${v.parent} target missing)`
+          const key = `${v.table}${DEGRADE_KEY_SEP}row pruned (required ${v.parent} target missing)`
           counts.set(key, (counts.get(key) ?? 0) + 1)
         }
         repaired = true
@@ -673,7 +1110,7 @@ export class MergeEngine {
       if (!repaired) break
     }
     for (const [key, count] of counts) {
-      const [table, reason] = key.split(' ')
+      const [table, reason] = key.split(DEGRADE_KEY_SEP)
       degradedToSkips.push({ table: table as DbTableName, count, reason })
     }
   }

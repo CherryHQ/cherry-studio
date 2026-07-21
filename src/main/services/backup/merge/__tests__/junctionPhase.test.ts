@@ -122,7 +122,8 @@ const agentsSkillsCtx = (): MergeContext => ({
   backupDbPath: backupPath,
   domains: ['AGENTS', 'SKILLS'],
   userStrategy: 'SKIP',
-  skippedFileEntryIds: new Set<string>()
+  skippedFileEntryIds: new Set<string>(),
+  stagedFileEntryIds: new Set<string>()
 })
 
 const agentSkillRows = (): { agent_id: string; skill_id: string }[] =>
@@ -132,9 +133,9 @@ const agentSkillRows = (): { agent_id: string; skill_id: string }[] =>
   }[]
 
 describe('importAllJunctionRows (global junction phase)', () => {
-  it('imports agent_skill when source is imported + target is local-canonical (SKIP)', async () => {
-    // Work already has skill-1 (natural-key conflict → SKIP, targetMap carries local
-    // canonical 'skill-1'; the local-wins conflict is disclosed — FIELD_MERGE pending).
+  it('imports agent_skill when source is imported + target is local-canonical (FIELD_MERGE)', async () => {
+    // Work already has skill-1 (natural-key conflict → FIELD_MERGE, targetMap carries local
+    // canonical 'skill-1'). Junction still imports against the local PK.
     seedSkill(dbh.sqlite, 'skill-1')
     seedBackup((db) => {
       seedAgent(db, 'agent-1')
@@ -142,12 +143,10 @@ describe('importAllJunctionRows (global junction phase)', () => {
       seedAgentSkill(db, 'agent-1', 'skill-1')
     })
 
-    const result = (await runMerge(agentsSkillsCtx())) as { degradedToSkips: { table: string; count: number }[] }
+    await runMerge(agentsSkillsCtx())
 
     // agent-1 INSERTed (sourceMap) + skill-1 local-canonical (targetMap) → junction imported.
     expect(agentSkillRows()).toEqual([{ agent_id: 'agent-1', skill_id: 'skill-1' }])
-    // The skill conflict kept local values — recorded for disclosure (FIELD_MERGE milestone).
-    expect(result.degradedToSkips).toEqual([{ table: 'agent_global_skill', count: 1, reason: expect.any(String) }])
   })
 
   it('rewrites the junction FK to the LOCAL canonical PK when the natural-key target conflicts under a different uuid', async () => {
@@ -237,7 +236,8 @@ describe('importAllJunctionRows (global junction phase)', () => {
       backupDbPath: backupPath,
       domains: ['AGENTS', 'MCP_SERVERS'],
       userStrategy: 'SKIP',
-      skippedFileEntryIds: new Set<string>()
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
     })
 
     expect(result).toMatchObject({ degradedToSkips: [] })
@@ -250,10 +250,9 @@ describe('importAllJunctionRows (global junction phase)', () => {
 
   it('imports agent_channel_task (same-domain AGENTS junction) with local-canonical job_schedule', async () => {
     // job_schedule is natural-key (FIELD_MERGE default). Pre-seed work with the same
-    // (type,name) identity so the backup row conflicts → SKIP with targetMap local-canonical
-    // (disclosed as a FIELD_MERGE-pending conflict); agent_channel (uuid) INSERTs as the
-    // source. Both legs are AGENTS — deriveJunctionDescriptors picks agent_channel as source
-    // (first same-domain endpoint), job_schedule as target.
+    // (type,name) identity so the backup row FIELD_MERGEs onto the local PK; agent_channel
+    // (uuid) INSERTs as the source. Both legs are AGENTS — deriveJunctionDescriptors picks
+    // agent_channel as source (first same-domain endpoint), job_schedule as target.
     seedJobSchedule(dbh.sqlite, 'task-1')
     seedBackup((db) => {
       seedAgentChannel(db, 'chan-1')
@@ -261,14 +260,14 @@ describe('importAllJunctionRows (global junction phase)', () => {
       seedAgentChannelTask(db, 'chan-1', 'task-1')
     })
 
-    const result = (await runMerge({
+    await runMerge({
       backupDbPath: backupPath,
       domains: ['AGENTS'],
       userStrategy: 'SKIP',
-      skippedFileEntryIds: new Set<string>()
-    })) as { degradedToSkips: { table: string; count: number }[] }
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
 
-    expect(result.degradedToSkips).toEqual([{ table: 'job_schedule', count: 1, reason: expect.any(String) }])
     const rows = dbh.sqlite.prepare(`SELECT channel_id, task_id FROM agent_channel_task`).all() as {
       channel_id: string
       task_id: string

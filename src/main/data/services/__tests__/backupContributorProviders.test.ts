@@ -78,10 +78,9 @@ describe('PROVIDERS contributor', () => {
     ])
   })
 
-  it('declares fieldMergePolicies for apiKeys + authConfig (remote-fills-local-empty)', () => {
-    // remote-fills-local-empty treats [], null, and empty/skeleton auth as missing —
-    // seeded providers ship apiKeys=[] / auth skeletons, so plain -local-null would
-    // drop backed-up credentials.
+  it('declares fieldMergePolicies for apiKeys (remote-fills-local-empty) + authConfig (deep-merge)', () => {
+    // apiKeys: seeded [] is empty → whole-cell fill. authConfig: seeded skeletons keep a
+    // non-empty `type` so deep-merge fills credential sub-fields without wiping type.
     expect(PROVIDERS_CONTRIBUTOR.backupPolicy.fieldMergePolicies).toEqual([
       expect.objectContaining({
         table: table('user_provider'),
@@ -91,7 +90,7 @@ describe('PROVIDERS contributor', () => {
       expect.objectContaining({
         table: table('user_provider'),
         column: 'authConfig',
-        strategy: 'remote-fills-local-empty'
+        strategy: 'deep-merge'
       })
     ])
   })

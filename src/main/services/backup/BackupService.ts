@@ -20,7 +20,8 @@
 // ImportOrchestrator spine (quiesce → fingerprint → snapshot → merge → migrate → seal →
 // stage → 2nd fingerprint → journal → relaunch). quiesce is PARTIAL (BACKUP_IN_PROGRESS
 // flag + JobManager.pause + best-effort drain; full quiesce a1/#17014 follow-up).
-// MergeEngine (backfill/SKIP + junction + dangling-ref repair + FTS) is wired; file/KB/Notes blob staging is
+// MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction + dangling-ref
+// repair + FTS) is wired; file/KB/Notes blob staging is
 // deferred (stageFileResources returns [] — DB-only journal). performRestoreRecovery at
 // startup GCs staging residue from a crashed prior restore.
 
@@ -66,6 +67,7 @@ import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { ImportOrchestrator } from './ImportOrchestrator'
 import { MergeEngine, MergeStrategyNotImplementedError } from './merge'
+import { presetIncludesFiles } from './presets'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -231,7 +233,9 @@ export class BackupService extends BaseService {
       // notesRoot callback both read pendingNotesRoot, so a mid-export change to
       // feature.notes.path can't make the budget cover a different tree than staging
       // reads (TOCTOU). May throw (unreadable custom path) → fails the export here.
-      this.pendingNotesRoot = this.resolveNotesRoot()
+      // lite never stages notes/files — skip resolve so a broken custom Notes path
+      // cannot abort a lite export (ExportOrchestrator resolves notesRoot lazily too).
+      this.pendingNotesRoot = presetIncludesFiles(preset) ? this.resolveNotesRoot() : undefined
       // Emit the FIRST progress event BEFORE preflight so the renderer has backupId
       // (the cancel/progress routing key) while the disk-space scan runs. Without it,
       // cancel() is a no-op until ExportOrchestrator's first 'collect' tick — leaving a
@@ -276,12 +280,12 @@ export class BackupService extends BaseService {
    * quiesce → snapshot → merge → migrate → seal → 2nd fingerprint → staged journal,
    * then relaunches so the preboot promotion gate (#16884) swaps work.sqlite in.
    *
-   * Partial quiesce + backfill/SKIP merge with dangling-ref repair are wired (natural-key
-   * aggregates absent locally are backfilled; identityKey conflicts keep the local row and
-   * are disclosed via degradedToSkips). File/KB/Notes blob staging is deferred
-   * (`stageFileResources` returns [] — DB-only journal). An explicit OVERWRITE/RENAME/
-   * FIELD_MERGE userStrategy still throws {@link MergeStrategyNotImplementedError};
-   * the default restore path never does. Mutually exclusive with export.
+   * Partial quiesce + FIELD_MERGE (natural-key) / SKIP (uuid-entity) merge with dangling-ref
+   * repair are wired (absent natural-key aggregates INSERT; conflicts column-merge keeping
+   * local row+PK and filling empty fields / absent members). File/KB/Notes blob staging is
+   * deferred (`stageFileResources` returns [] — DB-only journal). An explicit OVERWRITE/
+   * RENAME userStrategy still throws {@link MergeStrategyNotImplementedError}; the default
+   * restore path never does. Mutually exclusive with export.
    */
   async startRestore({ archivePath }: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
     // Reserve the active slot BEFORE any work (incl. the journal read) so the null-check and
@@ -315,11 +319,11 @@ export class BackupService extends BaseService {
         restoreStagingRoot: application.getPath('feature.backup.restore.staging'),
         userData: application.getPath('app.userdata'),
         journalPath: application.getPath('feature.backup.restore.file'),
-        // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — backfill/SKIP +
-        // junction + FTS) are wired. quiesce is PARTIAL (BACKUP_IN_PROGRESS flag +
-        // JobManager.pause + best-effort drain; full quiesce a1/#17014 is follow-up).
-        // File/KB/Notes blob staging is deferred — empty fileResources so the preboot
-        // gate promotes only the DB (lite / SKIP DB-only restore).
+        // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — FIELD_MERGE/
+        // SKIP + junction + FTS + fileId disclosure) are wired. quiesce is PARTIAL
+        // (BACKUP_IN_PROGRESS flag + JobManager.pause + best-effort drain; full quiesce
+        // a1/#17014 is follow-up). File/KB/Notes blob staging is deferred — empty
+        // fileResources so the preboot gate promotes only the DB (DB-only restore).
         admitArchive,
         quiesceWriters: async () => {
           // PARTIAL quiesce (this PR): set BACKUP_IN_PROGRESS so IPC mutations reject

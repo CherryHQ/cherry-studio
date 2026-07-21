@@ -181,22 +181,23 @@ export class ImportOrchestrator {
       workSqlite.pragma('journal_mode = DELETE')
       const workDb = drizzle({ client: workSqlite, casing: 'snake_case' })
 
-      // (b) Merge backup rows into work. remote-fills-local-empty + additive; skippedFileIds
-      // would prune file_entry rows whose blobs were not staged. ctx carries the post-migrate
-      // backupDbPath + topo-sorted domains; userStrategy omitted → per-aggregate conflictDefault
-      // (防 UI 默认 SKIP 覆盖 PROVIDERS FIELD_MERGE 丢凭证); skippedFileEntryIds empty until
-      // file-resource staging lands (plan (e)).
+      // (b) Merge backup rows into work. FIELD_MERGE (natural-key) / SKIP (uuid-entity) +
+      // dangling-ref repair; skippedFileEntryIds would prune file_entry rows whose blobs were
+      // not staged. stagedFileEntryIds drives message.data fileEntryId soft-ref disclosure
+      // (DB-only restore passes empty → disclose all). userStrategy omitted → per-aggregate
+      // conflictDefault (防 UI 默认 SKIP 覆盖 PROVIDERS FIELD_MERGE 丢凭证).
       this.emit(options, 'merge', 0, 1, 'merging backup rows into work.sqlite')
       const ctx: MergeContext = {
         backupDbPath: archiveContext.backupDbPath,
         domains: archiveContext.domains,
-        skippedFileEntryIds: new Set<string>()
+        skippedFileEntryIds: new Set<string>(),
+        stagedFileEntryIds: new Set<string>()
       }
       const result = await this.deps.mergeBackupIntoWork(workSqlite, workDb, ctx)
       if (result.degradedToSkips.length > 0) {
-        // Merge degradations: natural-key conflicts kept local values (field-level
-        // FIELD_MERGE pending) and/or dangling refs were repaired (SET NULL / prune).
-        // Logged for diagnostics; cross-restart UI disclosure is a follow-up (B3).
+        // Merge degradations: dangling-ref repair (SET NULL / prune) and/or soft-ref
+        // disclosures (e.g. message attachment blob not staged). Logged for diagnostics;
+        // cross-restart UI disclosure is a follow-up (B3).
         logger.info('merge completed with disclosed degradations', {
           degradations: result.degradedToSkips.map((s) => `${s.table} (${s.count}): ${s.reason}`)
         })

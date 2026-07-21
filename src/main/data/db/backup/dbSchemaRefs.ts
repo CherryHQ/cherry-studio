@@ -903,5 +903,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-17T16:17:00.057Z'
+  generatedAt: '2026-07-21T18:55:31.955Z'
 } as const

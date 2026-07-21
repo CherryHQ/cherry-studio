@@ -364,6 +364,9 @@ export class PreferenceService extends BaseService {
    * @returns Promise that resolves when update completes
    */
   public async set<K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> {
+    // Gate main-process direct callers too (not only Preference_Set IPC) — a write
+    // during restore quiesce would otherwise land on live and fail the 2nd fingerprint.
+    assertNotBackupInProgress()
     const route = this.resolveKey(key)
 
     if (route.store === 'bootConfig') {
@@ -465,6 +468,7 @@ export class PreferenceService extends BaseService {
    * @returns Promise that resolves when all updates complete
    */
   public async setMultiple(updates: Partial<UnifiedPreferenceType>): Promise<void> {
+    assertNotBackupInProgress()
     try {
       // Resolve every key first: this routes each key to its backing store and
       // rejects inaccessible keys before any write, so a mixed batch with an

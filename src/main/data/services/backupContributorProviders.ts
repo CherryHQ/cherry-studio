@@ -167,13 +167,11 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // Merge user_model by its non-PK business UNIQUE pair so a provider's models
     // line up across devices without colliding on the derived `id` PK.
     uniqueMergeRules: [{ table: table('user_model'), uniqueColumns: columns(['providerId', 'modelId']) }],
-    // Credential columns: keep the local value and only fill from remote when local
-    // is null/empty/default-skeleton. Seeded providers ship apiKeys=[] and non-null
-    // authConfig skeletons, so a plain `remote-fills-local-null` would treat those as
-    // "present" and silently drop backed-up credentials. `remote-fills-local-empty`
-    // treats [], null, and empty/skeleton auth configs as missing — preserves a
-    // working local API key, brings in keys present only in the backup (loss-
-    // prevention for the API key). Restore (C/D track) implements the empty/skeleton detection.
+    // Credential columns. apiKeys: remote-fills-local-empty (seeded [] is empty).
+    // authConfig: deep-merge — seeded skeletons ship `{type:'iam-gcp',project:'',...}`
+    // with a non-empty `type`, so whole-cell remote-fills-local-empty would treat them as
+    // present and drop backup project/location/credentials. deep-merge keeps local type
+    // and fills empty credential sub-fields from backup.
     fieldMergePolicies: [
       {
         table: table('user_provider'),
@@ -183,7 +181,7 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       {
         table: table('user_provider'),
         column: column('authConfig'),
-        strategy: 'remote-fills-local-empty'
+        strategy: 'deep-merge'
       }
     ]
   },
