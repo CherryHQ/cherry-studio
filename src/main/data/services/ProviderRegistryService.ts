@@ -13,6 +13,8 @@
  * (RegistryLoader, buildRuntimeEndpointConfigs).
  */
 
+import { rmSync } from 'node:fs'
+
 import { application } from '@application'
 import type {
   ProtoModelConfig,
@@ -22,14 +24,17 @@ import type {
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@cherrystudio/provider-registry'
-import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { type RegistryFileName, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
+import { atomicWriteFile } from '@main/utils/file'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
+import type { FilePath } from '@shared/types/file'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
+import { OVERRIDE_MANIFEST, resolveRegistryPaths } from './utils/registryDataPaths'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
@@ -399,17 +404,57 @@ class ProviderRegistryService {
   /** Lazily create the shared RegistryLoader instance. */
   private getLoader(): RegistryLoader {
     if (!this.loader) {
-      this.loader = new RegistryLoader({
-        models: application.getPath('feature.provider_registry.data', 'models.json'),
-        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
-        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
-      })
+      this.loader = new RegistryLoader(resolveRegistryPaths())
     }
     return this.loader
   }
 
   clearCache(): void {
     this.loader = null
+  }
+
+  /**
+   * Current version string of a registry file as the loader sees it
+   * (override-or-bundled), or `null` if unreadable. The remote updater uses this
+   * to decide whether a downloaded catalog is newer than what's on disk.
+   */
+  getCatalogVersion(file: RegistryFileName): string | null {
+    try {
+      const loader = this.getLoader()
+      switch (file) {
+        case 'models.json':
+          return loader.getModelsVersion()
+        case 'providers.json':
+          return loader.getProvidersVersion()
+        case 'provider-models.json':
+          return loader.getProviderModelsVersion()
+      }
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Apply a remote-updated catalog as one all-or-nothing override set, then
+   * hot-reload the loader. The completion manifest is removed FIRST, so a crash
+   * mid-write leaves NO manifest and reads fall back to the bundled data rather
+   * than a half-written mix ({@link resolveRegistryPaths} is all-or-nothing).
+   * `manifestBody` is written last to mark the set complete and safe to read.
+   */
+  async applyOverride(files: Record<RegistryFileName, string>, manifestBody: string): Promise<void> {
+    const dir = 'feature.provider_registry.override' as const
+
+    // Invalidate the set before touching data files: no manifest ⇒ reads fall
+    // back to bundled until the fresh set is fully committed below.
+    rmSync(application.getPath(dir, OVERRIDE_MANIFEST), { force: true })
+    this.clearCache()
+
+    for (const [name, body] of Object.entries(files)) {
+      await atomicWriteFile(application.getPath(dir, name) as FilePath, body)
+    }
+    // Commit: manifest last marks the override complete.
+    await atomicWriteFile(application.getPath(dir, OVERRIDE_MANIFEST) as FilePath, manifestBody)
+    this.clearCache()
   }
 
   private findRegistryProvider(providerId: string) {

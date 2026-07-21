@@ -1,8 +1,8 @@
-import { application } from '@application'
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { providerService } from '@data/services/ProviderService'
+import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
 import type { AuthConfig } from '@shared/data/types/provider'
 
 import type { DbType, ISeeder } from '../../types'
@@ -82,11 +82,7 @@ export class PresetProviderSeeder implements ISeeder {
 
   private getLoader(): RegistryLoader {
     if (!this._loader) {
-      this._loader = new RegistryLoader({
-        models: application.getPath('feature.provider_registry.data', 'models.json'),
-        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
-        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
-      })
+      this._loader = new RegistryLoader(resolveRegistryPaths())
     }
     return this._loader
   }

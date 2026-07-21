@@ -170,6 +170,29 @@ regex revalidation, bounded offset scanning, and next-cursor assembly.
   in `@shared/data/types/message`; this generic utility does not know message
   roles.
 
+### `registryDataPaths.ts` — provider-registry file path resolution
+
+Resolves the three provider-registry JSON files (`models.json`, `providers.json`, `provider-models.json` — the canonical `REGISTRY_FILES` list lives in the `@cherrystudio/provider-registry` package) to their on-disk paths, preferring a remote-updated **override** copy over the bundled file. Consumed by every `RegistryLoader` construction site in the data layer — `ProviderRegistryService`, `PresetProviderSeeder`, and the v2 `ProviderModelMigrator`.
+
+**Exports:**
+
+- `OVERRIDE_MANIFEST` — filename of the completion marker (`manifest.json`) written last by `ProviderRegistryService.applyOverride`; its presence signals a complete override set.
+- `resolveRegistryPaths()` — resolves all three into a `RegistryPaths` object for `new RegistryLoader(...)`, **all-or-nothing** (see below).
+
+**Design boundaries:**
+
+- **Stateless, read-only**: `existsSync` + `application.getPath` reads only; no writes, no state (writing the override dir is `ProviderRegistryService.applyOverride`'s job).
+- **All-or-nothing**: the whole set resolves to the override copy only when the completion manifest exists, else all three resolve to bundled data. A half-written or partially-updated override (no/removed manifest) is ignored in favour of the consistent bundled set — never a per-file mix.
+- **Version-gated (up/downgrade-safe)**: the override dir persists across app version changes, so the manifest is validated on every read. It is used only when `schemaVersion` equals this build's `REGISTRY_SCHEMA_VERSION` (else a downgrade would hit a schema the loader can't parse) AND `releaseFloor >= app.getVersion()` (else an override persisted by an older app would keep shadowing the newer bundled catalog after an upgrade). On any mismatch it falls back to bundled instead of serving stale/incompatible data.
+
+**Example:**
+
+```ts
+import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
+
+const loader = new RegistryLoader(resolveRegistryPaths())
+```
+
 ## Criteria for Adding a New Utility
 
 Before adding a new utility to this directory, confirm:
