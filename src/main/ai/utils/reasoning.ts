@@ -7,6 +7,7 @@ import type OpenAI from '@cherrystudio/openai'
 import type { OpenAIReasoningEffort } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import {
   computeBudgetTokens,
   FALLBACK_TOKEN_LIMIT,
@@ -61,6 +62,16 @@ import { toInteger } from 'es-toolkit/compat'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 const logger = loggerService.withContext('reasoning')
+
+/**
+ * Check if the provider's endpoint is configured with `reasoningFormatType: 'self-hosted'`.
+ * Self-hosted providers (vLLM, SGLang, etc.) expect reasoning parameters inside
+ * `chat_template_kwargs` rather than as top-level request body fields.
+ */
+function isSelfHostedProvider(provider: Provider, model: Model): boolean {
+  const endpoint = resolveEffectiveEndpoint(provider, model).endpointType ?? 'openai-chat-completions'
+  return provider.endpointConfigs?.[endpoint]?.reasoningFormatType === 'self-hosted'
+}
 
 type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
@@ -151,6 +162,13 @@ export function getReasoningEffort(
     }
 
     // providers that use enable_thinking
+    // Self-hosted providers (vLLM, SGLang, etc.) need chat_template_kwargs format
+    if (
+      isSelfHostedProvider(provider, model) &&
+      (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))
+    ) {
+      return { chat_template_kwargs: { enable_thinking: false } }
+    }
     if (
       (isSupportEnableThinkingProvider(provider) &&
         (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))) ||
@@ -486,8 +504,17 @@ export function getReasoningEffort(
 
   // Qwen models, use enable_thinking
   if (isQwenReasoningModel(model)) {
-    const supportEnableThinking = isSupportEnableThinkingProvider(provider)
     const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
+    // Self-hosted providers (vLLM, SGLang, etc.) need chat_template_kwargs format
+    if (isSelfHostedProvider(provider, model)) {
+      return {
+        chat_template_kwargs: {
+          ...enableThinkingConfig,
+          thinking_budget: budgetTokens
+        }
+      }
+    }
+    const supportEnableThinking = isSupportEnableThinkingProvider(provider)
     if (supportEnableThinking) {
       return {
         ...enableThinkingConfig,
@@ -504,9 +531,18 @@ export function getReasoningEffort(
   }
 
   // Hunyuan models, use enable_thinking
-  if (isSupportedThinkingTokenHunyuanModel(model) && isSupportEnableThinkingProvider(provider)) {
-    return {
-      enable_thinking: true
+  if (isSupportedThinkingTokenHunyuanModel(model)) {
+    if (isSelfHostedProvider(provider, model)) {
+      return {
+        chat_template_kwargs: {
+          enable_thinking: true
+        }
+      }
+    }
+    if (isSupportEnableThinkingProvider(provider)) {
+      return {
+        enable_thinking: true
+      }
     }
   }
 
