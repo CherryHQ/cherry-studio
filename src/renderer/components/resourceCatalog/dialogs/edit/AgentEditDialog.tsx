@@ -221,7 +221,10 @@ function AgentEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
+  const [baselineAgent, setBaselineAgent] = useState(resource)
+  const baselineAgentRef = useRef(resource)
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
+  const baselineSkillIdsRef = useRef<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
@@ -248,9 +251,9 @@ function AgentEditDialogContent({
     [skillIdsFromQueryKey]
   )
   const saveIntent = useMemo(() => {
-    const baseline = buildInitialAgentFormState(resource, baselineSkillIds)
-    return diffAgentSaveIntent(buildAgentFormState(baseline, values), baseline, resource)
-  }, [baselineSkillIds, resource, values])
+    const baseline = buildInitialAgentFormState(baselineAgent, baselineSkillIds)
+    return diffAgentSaveIntent(buildAgentFormState(baseline, values), baseline, baselineAgent)
+  }, [baselineAgent, baselineSkillIds, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -281,6 +284,9 @@ function AgentEditDialogContent({
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
+    baselineAgentRef.current = resource
+    setBaselineAgent(resource)
+    baselineSkillIdsRef.current = []
     setBaselineSkillIds([])
     setBaselineSkillAgentId(null)
   }, [defaultValues, form, initialTab, open, resource])
@@ -289,6 +295,7 @@ function AgentEditDialogContent({
   // come from the authoritative projection so later toggles diff correctly.
   useEffect(() => {
     if (!open || skillsLoading || skillsRefreshing || baselineSkillAgentId === resource.id) return
+    baselineSkillIdsRef.current = skillIdsFromQuery
     setBaselineSkillIds(skillIdsFromQuery)
     form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
     setBaselineSkillAgentId(resource.id)
@@ -306,9 +313,14 @@ function AgentEditDialogContent({
   const saveFailedRef = useRef(false)
 
   const persist = async () => {
-    const pending = saveIntent
+    const currentValues = form.getValues()
+    if (!currentValues.name.trim()) return
+
+    const currentBaselineAgent = baselineAgentRef.current
+    const baseline = buildInitialAgentFormState(currentBaselineAgent, baselineSkillIdsRef.current)
+    const pending = diffAgentSaveIntent(buildAgentFormState(baseline, currentValues), baseline, currentBaselineAgent)
     if (!pending) return
-    const savedSkillIds = [...values.skillIds]
+    const savedSkillIds = [...currentValues.skillIds]
 
     form.clearErrors('root')
     saveFailedRef.current = false
@@ -323,6 +335,9 @@ function AgentEditDialogContent({
       return
     }
 
+    baselineAgentRef.current = updated
+    setBaselineAgent(updated)
+    baselineSkillIdsRef.current = savedSkillIds
     setBaselineSkillIds(savedSkillIds)
     try {
       await onSaved(updated)
@@ -331,11 +346,9 @@ function AgentEditDialogContent({
     }
   }
 
-  // Key the debounce on the form values (user input), not on saveIntent: the
-  // update mutation refreshes /agents/* → resource refetches → saveIntent's
-  // baseline moves, but the values are unchanged, so this never re-fires from our
-  // own save (prevents a save→refetch→save loop).
-  const flush = useDebouncedAutoSave({
+  // Key the debounce on user input, not saveIntent. Advancing the local baseline
+  // after a save must not schedule another save when the form values did not move.
+  const { flush, hasInFlightSave } = useDebouncedAutoSave({
     enabled: open,
     changeKey: canPersist ? JSON.stringify(values) : null,
     onSave: persist
@@ -345,7 +358,7 @@ function AgentEditDialogContent({
   // only close once it settles — so a failed final save stays visible instead of
   // being silently dropped, and we never race a second concurrent save.
   const handleOpenChange = (next: boolean) => {
-    if (next || !canPersist) {
+    if (next || (!canPersist && !hasInFlightSave())) {
       onOpenChange(next)
       return
     }

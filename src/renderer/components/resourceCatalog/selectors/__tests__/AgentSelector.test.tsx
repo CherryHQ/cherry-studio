@@ -586,13 +586,11 @@ describe('AgentSelector', () => {
     const nameInput = screen.getByLabelText('Name')
     const originalName = (nameInput as HTMLInputElement).value
 
-    // First auto-save. `onSaved` hands the selector the PATCH response ('Renamed Agent', see
-    // `updateAgentMock` in beforeEach), advancing the editing snapshot — the dialog's diff baseline.
+    // First auto-save advances the dialog-owned baseline to the PATCH response.
     fireEvent.change(nameInput, { target: { value: 'Renamed Agent' } })
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
 
-    // Regression: revert to the original value. With a stale baseline this diffs as "no change" and
-    // the revert is silently dropped; advancing the baseline makes it a real change that re-saves.
+    // Regression: reverting to the original value must diff against the latest successful save.
     fireEvent.change(nameInput, { target: { value: originalName } })
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
     expect(updateAgentMock).toHaveBeenLastCalledWith({ body: expect.objectContaining({ name: originalName }) })

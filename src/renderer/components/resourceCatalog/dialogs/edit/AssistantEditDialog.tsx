@@ -189,15 +189,17 @@ function AssistantEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
+  const [baselineAssistant, setBaselineAssistant] = useState(resource)
+  const baselineAssistantRef = useRef(resource)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
-    const baseline = initialAssistantFormState(resource)
-    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, resource)
-  }, [resource, values])
+    const baseline = initialAssistantFormState(baselineAssistant)
+    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, baselineAssistant)
+  }, [baselineAssistant, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -235,6 +237,8 @@ function AssistantEditDialogContent({
     // hold in useResourceCatalogController) must not silently discard a new,
     // coincidentally-identical edit as if it were a repeated close.
     failedSaveKeyRef.current = null
+    baselineAssistantRef.current = resource
+    setBaselineAssistant(resource)
   }, [defaultValues, form, initialTab, open, resource])
 
   const rootError = form.formState.errors.root?.message
@@ -242,7 +246,16 @@ function AssistantEditDialogContent({
   const changeKey = canPersist ? JSON.stringify(values) : null
 
   const persist = async () => {
-    const pending = saveIntent
+    const currentValues = form.getValues()
+    if (!currentValues.name.trim()) return
+
+    const currentBaselineAssistant = baselineAssistantRef.current
+    const baseline = initialAssistantFormState(currentBaselineAssistant)
+    const pending = diffAssistantSaveIntent(
+      buildAssistantFormState(baseline, currentValues),
+      baseline,
+      currentBaselineAssistant
+    )
     if (!pending) return
     const attemptedKey = changeKey
 
@@ -259,6 +272,8 @@ function AssistantEditDialogContent({
       return
     }
 
+    baselineAssistantRef.current = updated
+    setBaselineAssistant(updated)
     try {
       await onSaved(updated)
     } catch (error) {
@@ -266,11 +281,9 @@ function AssistantEditDialogContent({
     }
   }
 
-  // Key the debounce on the form values (user input), not on saveIntent: the
-  // update mutation refreshes /assistants/* → resource refetches → saveIntent's
-  // baseline moves, but the values are unchanged, so this never re-fires from our
-  // own save (prevents a save→refetch→save loop).
-  const flush = useDebouncedAutoSave({
+  // Key the debounce on user input, not saveIntent. Advancing the local baseline
+  // after a save must not schedule another save when the form values did not move.
+  const { flush, hasInFlightSave } = useDebouncedAutoSave({
     enabled: open,
     changeKey,
     onSave: persist
@@ -280,7 +293,7 @@ function AssistantEditDialogContent({
   // only close once it settles — so a failed final save stays visible instead of
   // being silently dropped, and we never race a second concurrent save.
   const handleOpenChange = (next: boolean) => {
-    if (next || !canPersist) {
+    if (next || (!canPersist && !hasInFlightSave())) {
       onOpenChange(next)
       return
     }

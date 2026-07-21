@@ -1152,6 +1152,41 @@ describe('edit dialogs', () => {
     })
   })
 
+  it('waits for an in-flight agent skill save and persists a revert before closing', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve(AGENT)
+        })
+    )
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    selectTab('Skills')
+    const skillSwitch = screen.getByRole('switch', { name: 'Skill One' })
+    fireEvent.click(skillSwitch)
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+    expect(updateAgentMock).toHaveBeenNthCalledWith(1, {
+      body: expect.objectContaining({
+        skillUpdates: [{ skillId: 'skill-1', isEnabled: true }]
+      })
+    })
+
+    fireEvent.click(skillSwitch)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    resolveFirstSave?.()
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock).toHaveBeenNthCalledWith(2, {
+      body: expect.objectContaining({
+        skillUpdates: [{ skillId: 'skill-1', isEnabled: false }]
+      })
+    })
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {
     const onAssistantOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} onSaved={vi.fn()} />)
@@ -1330,6 +1365,33 @@ describe('edit dialogs', () => {
     expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
       body: expect.objectContaining({ name: 'Second Edit' })
     })
+  })
+
+  it('waits for an in-flight assistant save and persists a revert before closing', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAssistantMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...ASSISTANT, name: 'First Edit' })
+        })
+    )
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'First Edit' } })
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.change(nameInput, { target: { value: ASSISTANT.name } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    resolveFirstSave?.()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+      body: expect.objectContaining({ name: ASSISTANT.name })
+    })
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
   it('keeps the dialog open with a visible error when the save on close fails', async () => {

@@ -520,13 +520,11 @@ describe('AssistantSelector', () => {
     const nameInput = screen.getByLabelText('Name')
     const originalName = (nameInput as HTMLInputElement).value
 
-    // First auto-save. `onSaved` hands the selector the PATCH response ('Renamed Assistant', see
-    // `updateAssistantMock` in beforeEach), advancing the editing snapshot — the dialog's diff baseline.
+    // First auto-save advances the dialog-owned baseline to the PATCH response.
     fireEvent.change(nameInput, { target: { value: 'Renamed Assistant' } })
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
 
-    // Regression: revert to the original value. With a stale baseline this diffs as "no change" and
-    // the revert is silently dropped; advancing the baseline makes it a real change that re-saves.
+    // Regression: reverting to the original value must diff against the latest successful save.
     fireEvent.change(nameInput, { target: { value: originalName } })
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
     expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: expect.objectContaining({ name: originalName }) })
