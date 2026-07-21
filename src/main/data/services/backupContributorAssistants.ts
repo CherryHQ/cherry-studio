@@ -17,9 +17,10 @@ import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaR
 import { deepFreeze } from '@main/data/db/backup/freeze'
 
 /**
- * ASSISTANTS domain. assistant.modelId → user_model (PROVIDERS) is optional
- * (onDelete set null) and is declared here because finalize #25 requires every
- * FK on a non-polymorphic owned table to be declared (assistant is not exempt).
+ * ASSISTANTS domain. assistant.modelId → user_model (PROVIDERS) and
+ * assistant.groupId → group (TAGS_GROUPS) are optional (onDelete set null) and
+ * are declared here because finalize #25 requires every FK on a non-polymorphic
+ * owned table to be declared (assistant is not exempt).
  */
 export const ASSISTANTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   domain: 'ASSISTANTS',
@@ -28,6 +29,8 @@ export const ASSISTANTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     references: [
       // assistant.modelId → user_model (PROVIDERS): optional (onDelete set null). #25-required.
       { table: table('assistant'), column: column('modelId'), referencedDomain: 'PROVIDERS', kind: 'optional' },
+      // assistant.groupId → group (TAGS_GROUPS): optional (onDelete set null). #17109 / #25-required.
+      { table: table('assistant'), column: column('groupId'), referencedDomain: 'TAGS_GROUPS', kind: 'optional' },
       // assistant_mcp_server.assistantId → assistant: same-domain owning, include member viaColumn.
       {
         table: table('assistant_mcp_server'),

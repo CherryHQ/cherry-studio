@@ -47,6 +47,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { assembleArchive } from './archive'
 import { BackupCancelledError } from './errors'
 import type { BackupStripper } from './ExcludedDomainStripper'
+import { clearExportLiveMarker, writeExportLiveMarker } from './exportTempResidue'
 import { SqliteFileStager } from './FileStager'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from './manifest'
 import { LITE_EXCLUDED, resolvePreset } from './presets'
@@ -195,6 +196,9 @@ export class ExportOrchestrator {
     let skillsDir: string | undefined
     let manifest: BackupManifest
     let snapshotDb: Database.Database | undefined
+    // Ownership stamp so boot-time export-temp GC skips this restoreId while we
+    // hold the tree (service re-init / another process sharing the temp root).
+    writeExportLiveMarker(tempDir, options.restoreId)
     try {
       dbService.createSnapshot(backupDbPath)
 
@@ -412,6 +416,7 @@ export class ExportOrchestrator {
       snapshotDb?.close()
       await unlink(backupDbPath).catch(() => {})
       await rm(stagingRoot, { recursive: true, force: true }).catch(() => {})
+      clearExportLiveMarker(tempDir, options.restoreId)
     }
 
     return { archivePath: options.outputPath, manifest }

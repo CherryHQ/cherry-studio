@@ -23,7 +23,8 @@
 // MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction + dangling-ref
 // repair + FTS) is wired; file/KB/Notes blob staging is
 // deferred (stageFileResources returns [] — DB-only journal). performRestoreRecovery at
-// startup GCs staging residue from a crashed prior restore.
+// startup GCs staging residue from a crashed prior restore; gcExportTempResidue GCs
+// unredacted export-temp DB copies from a crashed prior export.
 
 import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
@@ -65,9 +66,13 @@ import {
 } from './errors'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
+import { removeExportTempResidue } from './exportTempResidue'
 import { ImportOrchestrator } from './ImportOrchestrator'
 import { MergeEngine, MergeStrategyNotImplementedError } from './merge'
 import { presetIncludesFiles } from './presets'
+
+/** Re-export for durability unit tests (same public surface as before the GC harden). */
+export { removeExportTempResidue } from './exportTempResidue'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -78,6 +83,31 @@ const logger = loggerService.withContext('BackupService')
  * delete an active restore's tree. Residue GC only makes sense once per process boot.
  */
 let stagingResidueGcDone = false
+
+/**
+ * Boot-once guard for export-temp residue GC (same restart rationale as staging).
+ * Crashed exports leave unredacted DB copies under `feature.backup.temp`
+ * (`{restoreId}.sqlite` + `{restoreId}-stage/`, sensitiveData.included:true).
+ */
+let exportTempGcDone = false
+
+/**
+ * Live-DB byte budget for export preflight: main file + optional `-wal`.
+ * VACUUM INTO / createSnapshot materializes WAL-committed pages into the
+ * snapshot; charging only the main file under-budgets when WAL is large and
+ * can mid-export SQLITE_FULL (review-M5). No checkpoint here — preflight must
+ * not require writer quiesce; summing main+wal is the conservative bound.
+ */
+export async function liveDbBytesForPreflight(liveDbPath: string): Promise<number> {
+  const liveDbSize = (await stat(liveDbPath)).size
+  let walSize = 0
+  try {
+    walSize = (await stat(`${liveDbPath}-wal`)).size
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+  }
+  return liveDbSize + walSize
+}
 
 /** Renderer-facing export request (renderer passes preset + path; service fills the rest). */
 export interface BackupV2StartOptions {
@@ -158,6 +188,9 @@ export class BackupService extends BaseService {
     // Restore recovery — production-usable cleanup of a crashed prior restore's
     // staging residue (must not brick the install with stale staging).
     this.performRestoreRecovery()
+    // Export temp GC — crashed mid-export leaves unredacted DB copies (API keys)
+    // under feature.backup.temp; restore staging GC does not cover this tree.
+    this.gcExportTempResidue()
 
     // Lazily run the 26-invariant contributor finalize at startup (dev + packaged).
     // A violation throws ContributorFinalizeError → onInit fails → fail-fast aborts
@@ -466,11 +499,25 @@ export class BackupService extends BaseService {
   }
 
   /**
+   * GC export temp dir residues from a hard-crashed prior export. Residues are
+   * unredacted full DB copies (API keys; manifest sensitiveData.included:true) —
+   * must not linger across boots. Independent of restore journal state.
+   *
+   * INVARIANT: boot-once (`exportTempGcDone`) + refused while `activeOperation` exists.
+   */
+  private gcExportTempResidue(): void {
+    if (exportTempGcDone) return
+    if (this.activeOperation) return
+    exportTempGcDone = true
+    removeExportTempResidue(application.getPath('feature.backup.temp'))
+  }
+
+  /**
    * Verify enough free space for the export. The 1.2× safety factor matches the
    * disk budget.
    *
    * Budget per preset:
-   * - DB online copy + DB embedded in archive = 2× live DB (both presets).
+   * - DB online copy + DB embedded in archive = 2× (live main + WAL) (both presets).
    * - full: internal blobs staged to files/ AND embedded in the .cbu while
    *   assembleArchive runs (temp + archive co-exist briefly) = 2× internal blob total.
    *   Full ALSO stages knowledge/ + notes/ source trees (each ~2× under the same
@@ -488,7 +535,7 @@ export class BackupService extends BaseService {
    */
   private async preflightDisk(preset: 'full' | 'lite', outputPath: string, signal?: AbortSignal): Promise<void> {
     const liveDbPath = application.getPath('app.database.file')
-    const liveDbSize = (await stat(liveDbPath)).size
+    const liveDbSize = await liveDbBytesForPreflight(liveDbPath)
     let needed = liveDbSize * 2
     if (preset === 'full') {
       const internalBlobBytes = await this.sumInternalBlobBytes()

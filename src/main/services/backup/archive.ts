@@ -19,7 +19,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { constants, createWriteStream } from 'node:fs'
-import { copyFile, link, stat, unlink } from 'node:fs/promises'
+import { copyFile, link, open as fsOpen, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { finished } from 'node:stream/promises'
 
@@ -41,6 +41,31 @@ export interface ArchiveInputs {
   readonly skillsDir?: string
   /** Optional staged dir of Notes markdown (`<relPath>...`) → stored under `notes/`. */
   readonly notesDir?: string
+}
+
+/**
+ * fsync helpers for archive publish durability (review-M3). Object form so unit
+ * tests can spy/mock without fighting same-module local bindings.
+ */
+export const archiveDurability = {
+  async fsyncPath(target: string): Promise<void> {
+    const fh = await fsOpen(target, 'r')
+    try {
+      await fh.sync()
+    } finally {
+      await fh.close()
+    }
+  },
+
+  /**
+   * Directory-entry durability after publish. Windows cannot fsync directory
+   * handles (MoveFileEx / link metadata accepted as best-effort — same trade-off
+   * as writeRestoreJournal).
+   */
+  async fsyncParentDir(filePath: string): Promise<void> {
+    if (process.platform === 'win32') return
+    await archiveDurability.fsyncPath(dirname(filePath))
+  }
 }
 
 /**
@@ -123,11 +148,18 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
       archive.finalize().catch(reject)
     })
 
+    // Durability gate BEFORE publish: flush the tmp inode so a power loss after
+    // link/copy cannot leave a zero-byte / torn .cbu at outPath while the caller
+    // already observed success. Same POSIX fsync-before-rename pattern as
+    // writeRestoreJournal (review-M3).
+    await archiveDurability.fsyncPath(tmpPath)
+
     // Atomic no-clobber publish. Prefer hard-link (EEXIST = no-clobber, atomic, no data
     // copy). Fallback to copyFile(COPYFILE_EXCL) on filesystems that reject hard-links
     // (exFAT / some network volumes → ENOTSUP / EOPNOTSUPP / ENOSYS): COPYFILE_EXCL is
     // exclusive (EEXIST if the target exists) — not atomic-visibility, but no clobber,
     // closing the rename TOCTOU window (#16683 P1).
+    let publishedViaCopy = false
     try {
       await link(tmpPath, outPath)
     } catch (e) {
@@ -138,6 +170,7 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
       // (cross-platform no-clobber; EEXIST re-thrown as OutputPathExistsError).
       try {
         await copyFile(tmpPath, outPath, constants.COPYFILE_EXCL)
+        publishedViaCopy = true
       } catch (e2) {
         if ((e2 as NodeJS.ErrnoException).code === 'EEXIST') throw new OutputPathExistsError(outPath)
         // A partial copy (ENOSPC / interrupted) can leave a truncated outPath that
@@ -146,6 +179,11 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
         throw e2
       }
     }
+    // copyFile creates a new inode — fsync it too (hard-link shares the already-
+    // fsynced tmp inode). Then fsync the parent dir so the new directory entry
+    // itself is durable on POSIX.
+    if (publishedViaCopy) await archiveDurability.fsyncPath(outPath)
+    await archiveDurability.fsyncParentDir(outPath)
     // Commit point reached (link or copy succeeded) — outPath holds the archive. tmp
     // cleanup is best-effort: a cleanup failure must NOT turn a successful export into a
     // reported failure (the outer catch would otherwise rethrow, and a retry would then

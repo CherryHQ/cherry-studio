@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import StreamZip from 'node-stream-zip'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import * as archiveMod from '../archive'
 import { assembleArchive } from '../archive'
 import { OutputPathExistsError } from '../errors'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
@@ -160,6 +161,63 @@ describe('assembleArchive', () => {
       )
       // The prior archive is untouched.
       expect((await readFile(out)).toString('utf8')).toBe('prior-good-backup')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('fsyncs tmp before publish; fsync failure leaves no outPath (crash-before-publish)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
+    try {
+      const dbCopy = join(dir, 'backup.sqlite')
+      await writeFile(dbCopy, Buffer.from('durability'))
+      const out = join(dir, 'a.cbu')
+
+      const fsyncCalls: string[] = []
+      const fsyncSpy = vi
+        .spyOn(archiveMod.archiveDurability, 'fsyncPath')
+        .mockImplementation(async (target: string) => {
+          fsyncCalls.push(target)
+          // Simulate crash/EIO on the first fsync (tmp) — before link/copy publishes.
+          throw Object.assign(new Error('simulated fsync EIO'), { code: 'EIO' })
+        })
+
+      await expect(assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })).rejects.toMatchObject({
+        code: 'EIO'
+      })
+      expect(existsSync(out)).toBe(false)
+      expect(fsyncCalls).toHaveLength(1)
+      expect(fsyncCalls[0]).toMatch(/\.tmp$/)
+      fsyncSpy.mockRestore()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('fsyncs tmp then parent dir on successful publish', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
+    try {
+      const dbCopy = join(dir, 'backup.sqlite')
+      await writeFile(dbCopy, Buffer.from('ok'))
+      const out = join(dir, 'a.cbu')
+
+      const fsyncCalls: string[] = []
+      const realFsync = archiveMod.archiveDurability.fsyncPath.bind(archiveMod.archiveDurability)
+      const fsyncSpy = vi
+        .spyOn(archiveMod.archiveDurability, 'fsyncPath')
+        .mockImplementation(async (target: string) => {
+          fsyncCalls.push(target)
+          return realFsync(target)
+        })
+
+      await assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })
+      expect(existsSync(out)).toBe(true)
+      // tmp fsync first; parent-dir fsync after publish (win32 skips dir fsync).
+      expect(fsyncCalls[0]).toMatch(/\.tmp$/)
+      if (process.platform !== 'win32') {
+        expect(fsyncCalls).toContain(dir)
+      }
+      fsyncSpy.mockRestore()
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

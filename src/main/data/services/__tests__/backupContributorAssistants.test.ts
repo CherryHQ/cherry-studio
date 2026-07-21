@@ -14,15 +14,24 @@ describe('ASSISTANTS contributor', () => {
     ])
   })
 
-  it('declares 5 references: modelId(optional→PROVIDERS) + 2 owning assistantId + 2 junction', () => {
+  it('declares 6 references: modelId+groupId(optional) + 2 owning assistantId + 2 junction', () => {
     const refs = ASSISTANTS_CONTRIBUTOR.schema.references
-    expect(refs).toHaveLength(5)
+    expect(refs).toHaveLength(6)
     // assistant.modelId → PROVIDERS is optional (onDelete set null); #25 requires it.
     expect(refs).toContainEqual(
       expect.objectContaining({
         table: table('assistant'),
         column: 'modelId',
         referencedDomain: 'PROVIDERS',
+        kind: 'optional'
+      })
+    )
+    // assistant.groupId → TAGS_GROUPS is optional (onDelete set null); #17109 / #25.
+    expect(refs).toContainEqual(
+      expect.objectContaining({
+        table: table('assistant'),
+        column: 'groupId',
+        referencedDomain: 'TAGS_GROUPS',
         kind: 'optional'
       })
     )

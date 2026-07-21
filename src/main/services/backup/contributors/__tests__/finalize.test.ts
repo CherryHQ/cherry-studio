@@ -23,6 +23,7 @@ import {
   type PrimaryKeyFact
 } from '@main/data/db/backup/dbSchemaRefs'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
+import { ASSISTANTS_CONTRIBUTOR } from '@main/data/services/backupContributorAssistants'
 import { KNOWLEDGE_CONTRIBUTOR } from '@main/data/services/backupContributorKnowledge'
 import { describe, expect, it } from 'vitest'
 
@@ -92,7 +93,10 @@ const buildFixture = (): BackupContributor[] => [
   contributor('MCP_SERVERS', ['mcp_server']),
   contributor('TAGS_GROUPS', ['tag', 'group']),
   contributor('ASSISTANTS', ['assistant'], {
-    references: [{ table: 'assistant', column: 'modelId', referencedDomain: 'PROVIDERS', kind: 'optional' }]
+    references: [
+      { table: 'assistant', column: 'modelId', referencedDomain: 'PROVIDERS', kind: 'optional' },
+      { table: 'assistant', column: 'groupId', referencedDomain: 'TAGS_GROUPS', kind: 'optional' }
+    ]
   }),
   contributor('AGENTS', ['agent_global_skill'], {
     fileRefSourcePolicies: [
@@ -185,6 +189,13 @@ describe('finalize happy path', () => {
     // regression in the real declaration (e.g. a codegen FK change) fails here, not at
     // ContributorManager wiring time (which needs all 14 domains).
     const list = buildFixture().map((c) => (c.domain === 'KNOWLEDGE' ? KNOWLEDGE_CONTRIBUTOR : c))
+    expect(() => finalize(list, META)).not.toThrow()
+  })
+
+  it('the real ASSISTANTS_CONTRIBUTOR declaration passes finalize (assistant.groupId #17109)', () => {
+    // Fixture ASSISTANTS owns only `assistant`; swap in the real contributor so
+    // assistant.groupId → TAGS_GROUPS (#25) + junctions stay covered.
+    const list = buildFixture().map((c) => (c.domain === 'ASSISTANTS' ? ASSISTANTS_CONTRIBUTOR : c))
     expect(() => finalize(list, META)).not.toThrow()
   })
 })
@@ -482,8 +493,12 @@ describe('finalize invariants', () => {
   // reachable once the schema grows a restrict / NOT-NULL optional FK.
   it('#19 rejects an owning kind on a set-null FK', () => {
     // assistant.modelId onDelete=set null → expected optional; declaring owning → #19.
+    // Keep groupId declared so #25 stays satisfied and #19 is the first failure.
     const list = patchSchema(buildFixture(), 'ASSISTANTS', {
-      references: [{ table: 'assistant', column: 'modelId', referencedDomain: 'PROVIDERS', kind: 'owning' }]
+      references: [
+        { table: 'assistant', column: 'modelId', referencedDomain: 'PROVIDERS', kind: 'owning' },
+        { table: 'assistant', column: 'groupId', referencedDomain: 'TAGS_GROUPS', kind: 'optional' }
+      ]
     })
     expectInvariant(list, 19)
   })
@@ -720,12 +735,12 @@ describe('ReadonlyBackupRegistry queries', () => {
   })
 
   it('returns the codegen FK facts', () => {
-    // assistant has one FK: modelId → user_model (set null).
-    expect(registry.getForeignKeys('assistant')).toHaveLength(1)
+    // assistant has two FKs: modelId → user_model, groupId → group (both set null).
+    expect(registry.getForeignKeys('assistant')).toHaveLength(2)
   })
 
   it('returns the domain references', () => {
-    expect(registry.getReferencesForDomain('ASSISTANTS')).toHaveLength(1)
+    expect(registry.getReferencesForDomain('ASSISTANTS')).toHaveLength(2)
   })
 
   it('resolves a FileRefSourceType policy', () => {
@@ -734,6 +749,7 @@ describe('ReadonlyBackupRegistry queries', () => {
 
   it('returns dependencies for a domain', () => {
     expect(registry.getDependencies('ASSISTANTS')).toContain('PROVIDERS')
+    expect(registry.getDependencies('ASSISTANTS')).toContain('TAGS_GROUPS')
   })
 
   it('topologically sorts a domain subset (dependencies first)', () => {
