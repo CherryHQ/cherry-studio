@@ -283,7 +283,8 @@ class ProviderService {
       const [current] = tx
         .select({
           providerSettings: userProviderTable.providerSettings,
-          isEnabled: userProviderTable.isEnabled
+          isEnabled: userProviderTable.isEnabled,
+          presetProviderId: userProviderTable.presetProviderId
         })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
@@ -302,7 +303,16 @@ class ProviderService {
       if (logoCols) {
         updates.logoKey = logoCols.logoKey
       }
-      if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
+      // PATCH replaces endpointConfigs wholesale, and settings UIs (e.g. the
+      // "add endpoint" drawer) send new entries as `{ baseUrl }` only. Backfill
+      // adapterFamily here too — same enrichment as create — so an edit can't
+      // strip the routing signal and drop the provider back to openai-compatible.
+      if (dto.endpointConfigs !== undefined) {
+        updates.endpointConfigs = getDataService('ProviderRegistryService').resolveAdapterFamilies(
+          dto.endpointConfigs,
+          current.presetProviderId
+        )
+      }
       if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
       if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
