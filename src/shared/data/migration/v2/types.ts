@@ -5,6 +5,12 @@
 // Migration stages for UI flow
 export type MigrationStage = 'version_incompatible' | 'introduction' | 'migration' | 'completed' | 'error'
 
+export type MigrationDiagnosticLocale = 'zh-CN' | 'en-US'
+
+export function isMigrationDiagnosticLocale(value: unknown): value is MigrationDiagnosticLocale {
+  return value === 'zh-CN' || value === 'en-US'
+}
+
 // Individual migrator status
 export type MigratorStatus = 'pending' | 'running' | 'completed' | 'failed'
 
@@ -152,6 +158,7 @@ export const MigrationIpcChannels = {
 
   // Flow control
   Start: 'migration:start',
+  SetDiagnosticLocale: 'migration:set-diagnostic-locale',
   SaveDiagnosticBundle: 'migration:save-diagnostic-bundle',
   OpenDiagnosticEmail: 'migration:open-diagnostic-email',
   ShowDiagnosticBundleInFolder: 'migration:show-diagnostic-bundle-in-folder',

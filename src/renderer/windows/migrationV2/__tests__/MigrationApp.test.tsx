@@ -26,6 +26,10 @@ const migrationWindowControlsPropsMock = vi.hoisted(() => vi.fn())
 const platformState = vi.hoisted(() => ({
   isMac: false
 }))
+const i18nMock = vi.hoisted(() => ({
+  changeLanguage: vi.fn(),
+  language: 'en-US'
+}))
 const migrationHookMock = vi.hoisted(() => ({
   actions: {
     cancel: vi.fn(),
@@ -33,6 +37,7 @@ const migrationHookMock = vi.hoisted(() => ({
     openEmail: vi.fn(),
     restart: vi.fn(),
     save: vi.fn(),
+    setDiagnosticLocale: vi.fn(),
     showInFolder: vi.fn(),
     skipMigration: vi.fn(),
     start: vi.fn(),
@@ -57,16 +62,14 @@ const migrationHookMock = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    i18n: {
-      changeLanguage: vi.fn(),
-      language: 'en-US'
-    },
+    i18n: i18nMock,
     t: (key: string) => key
   })
 }))
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
+  const SelectValueChangeContext = React.createContext(undefined)
   const passthrough =
     (tag: string, testId: string) =>
     ({ children, ...props }: MockPassthroughProps) =>
@@ -104,9 +107,21 @@ vi.mock('@cherrystudio/ui', () => {
     Popover: ({ children }: MockChildrenProps) => React.createElement('div', { 'data-testid': 'popover' }, children),
     PopoverContent: passthrough('div', 'popover-content'),
     PopoverTrigger: ({ children }: MockChildrenProps) => children,
-    Select: ({ children }: MockChildrenProps) => React.createElement('div', { 'data-testid': 'select' }, children),
+    Select: ({ children, onValueChange }: MockChildrenProps & { onValueChange?: (value: string) => void }) =>
+      React.createElement(
+        SelectValueChangeContext.Provider,
+        { value: onValueChange },
+        React.createElement('div', { 'data-testid': 'select' }, children)
+      ),
     SelectContent: passthrough('div', 'select-content'),
-    SelectItem: passthrough('div', 'select-item'),
+    SelectItem: ({ children, value }: MockChildrenProps & { value: string }) => {
+      const onValueChange = React.use(SelectValueChangeContext) as ((value: string) => void) | undefined
+      return React.createElement(
+        'button',
+        { type: 'button', 'data-testid': 'select-item', onClick: () => onValueChange?.(value) },
+        children
+      )
+    },
     SelectTrigger: passthrough('button', 'select-trigger'),
     SelectValue: () => React.createElement('span', { 'data-testid': 'select-value' }),
     Tooltip: ({ children }: MockChildrenProps) => children
@@ -217,6 +232,7 @@ describe('MigrationApp', () => {
     vi.mocked(migrationHookMock.actions.openEmail).mockReset().mockResolvedValue(undefined)
     vi.mocked(migrationHookMock.actions.restart).mockClear()
     vi.mocked(migrationHookMock.actions.save).mockReset().mockResolvedValue({ status: 'canceled' })
+    vi.mocked(migrationHookMock.actions.setDiagnosticLocale).mockReset().mockResolvedValue(true)
     vi.mocked(migrationHookMock.actions.showInFolder).mockReset().mockResolvedValue(undefined)
     vi.mocked(migrationHookMock.actions.skipMigration).mockClear()
     vi.mocked(migrationHookMock.actions.start).mockReset().mockResolvedValue(true)
@@ -224,6 +240,8 @@ describe('MigrationApp', () => {
     vi.mocked(ReduxExporter).mockReset()
     vi.mocked(DexieExporter).mockReset()
     vi.mocked(LocalStorageExporter).mockReset()
+    i18nMock.language = 'en-US'
+    i18nMock.changeLanguage.mockReset().mockResolvedValue(undefined)
     migrationHookMock.progress = {
       currentMessage: 'Ready',
       migrators: [],
@@ -239,6 +257,55 @@ describe('MigrationApp', () => {
         removeAllListeners
       }
     }
+  })
+
+  it('syncs the current i18n language on mount and whenever it changes', async () => {
+    const { rerender } = render(<MigrationApp />)
+
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('en-US'))
+
+    i18nMock.language = 'zh-CN'
+    rerender(<MigrationApp />)
+
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenLastCalledWith('zh-CN'))
+  })
+
+  it('changes the selected language before syncing it to Main', async () => {
+    render(<MigrationApp />)
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+    migrationHookMock.actions.setDiagnosticLocale.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+
+    await waitFor(() => expect(i18nMock.changeLanguage).toHaveBeenCalledWith('zh-CN'))
+    await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('zh-CN'))
+    expect(i18nMock.changeLanguage.mock.invocationCallOrder[0]).toBeLessThan(
+      migrationHookMock.actions.setDiagnosticLocale.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('fails closed and logs when the current i18n language is unsupported', async () => {
+    i18nMock.language = 'zh-TW'
+
+    render(<MigrationApp />)
+
+    await waitFor(() =>
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to sync diagnostic locale', expect.any(Error))
+    )
+    expect(migrationHookMock.actions.setDiagnosticLocale).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['rejects', () => migrationHookMock.actions.setDiagnosticLocale.mockRejectedValue(new Error('sync failed'))],
+    ['returns false', () => migrationHookMock.actions.setDiagnosticLocale.mockResolvedValue(false)]
+  ])('logs when the initial locale sync %s', async (_case, configureSync) => {
+    configureSync()
+
+    render(<MigrationApp />)
+
+    await waitFor(() =>
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to sync diagnostic locale', expect.any(Error))
+    )
   })
 
   it('cleans up only its ConfirmClose listener', () => {
@@ -615,6 +682,38 @@ describe('MigrationApp', () => {
       }
     })
 
+    it('syncs the current locale before saving diagnostics', async () => {
+      i18nMock.language = 'zh-CN'
+      render(<MigrationApp />)
+      await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+      migrationHookMock.actions.setDiagnosticLocale.mockClear()
+      migrationHookMock.actions.save.mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      await waitFor(() => expect(migrationHookMock.actions.save).toHaveBeenCalledTimes(1))
+      expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('zh-CN')
+      expect(migrationHookMock.actions.setDiagnosticLocale.mock.invocationCallOrder[0]).toBeLessThan(
+        migrationHookMock.actions.save.mock.invocationCallOrder[0]
+      )
+    })
+
+    it.each([
+      ['rejects', () => migrationHookMock.actions.setDiagnosticLocale.mockRejectedValue(new Error('sync failed'))],
+      ['returns false', () => migrationHookMock.actions.setDiagnosticLocale.mockResolvedValue(false)]
+    ])('maps a locale sync that %s to the existing save failure without running save', async (_case, configureSync) => {
+      render(<MigrationApp />)
+      await waitFor(() => expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalled())
+      migrationHookMock.actions.setDiagnosticLocale.mockReset()
+      configureSync()
+      migrationHookMock.actions.save.mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      expect(await screen.findByText('migration.diagnostics.failures.snapshot_failed')).toBeInTheDocument()
+      expect(migrationHookMock.actions.save).not.toHaveBeenCalled()
+    })
+
     it('disables Save, Retry, and Close while a diagnostic save is pending and prevents duplicate saves', async () => {
       let resolveSave!: (result: { status: 'canceled' }) => void
       migrationHookMock.actions.save.mockImplementation(
@@ -665,6 +764,42 @@ describe('MigrationApp', () => {
       expect(migrationHookMock.actions.openEmail).toHaveBeenCalledTimes(1)
       expect(migrationHookMock.actions.showInFolder).toHaveBeenCalledTimes(1)
       expect(migrationHookMock.actions.copyEmail).toHaveBeenCalledTimes(1)
+    })
+
+    it('syncs the current locale before opening the support email', async () => {
+      i18nMock.language = 'zh-CN'
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      const panel = await screen.findByTestId('migration-diagnostics-saved-actions')
+      migrationHookMock.actions.setDiagnosticLocale.mockClear()
+      migrationHookMock.actions.openEmail.mockClear()
+
+      fireEvent.click(within(panel).getByRole('button', { name: 'migration.diagnostics.actions.open_email' }))
+
+      await waitFor(() => expect(migrationHookMock.actions.openEmail).toHaveBeenCalledTimes(1))
+      expect(migrationHookMock.actions.setDiagnosticLocale).toHaveBeenCalledWith('zh-CN')
+      expect(migrationHookMock.actions.setDiagnosticLocale.mock.invocationCallOrder[0]).toBeLessThan(
+        migrationHookMock.actions.openEmail.mock.invocationCallOrder[0]
+      )
+    })
+
+    it.each([
+      ['rejects', () => migrationHookMock.actions.setDiagnosticLocale.mockRejectedValue(new Error('sync failed'))],
+      ['returns false', () => migrationHookMock.actions.setDiagnosticLocale.mockResolvedValue(false)]
+    ])('uses the existing support-action failure when email locale sync %s', async (_case, configureSync) => {
+      migrationHookMock.actions.save.mockResolvedValue({ status: 'saved' })
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      const panel = await screen.findByTestId('migration-diagnostics-saved-actions')
+      migrationHookMock.actions.setDiagnosticLocale.mockReset()
+      configureSync()
+      migrationHookMock.actions.openEmail.mockClear()
+
+      fireEvent.click(within(panel).getByRole('button', { name: 'migration.diagnostics.actions.open_email' }))
+
+      expect(await screen.findByText('migration.diagnostics.actions.failed')).toBeInTheDocument()
+      expect(migrationHookMock.actions.openEmail).not.toHaveBeenCalled()
     })
 
     it('catches a rejected support action and renders only a fixed localized failure', async () => {

@@ -1,4 +1,5 @@
 import {
+  type MigrationDiagnosticLocale,
   type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress
@@ -150,6 +151,20 @@ describe('useMigrationProgress', () => {
       [MigrationIpcChannels.ShowDiagnosticBundleInFolder],
       [MigrationIpcChannels.CopySupportEmail]
     ])
+  })
+
+  it('sets the diagnostic locale through the fixed channel and exact payload', async () => {
+    const { result } = renderHook(() => useMigrationActions())
+    const locale: MigrationDiagnosticLocale = 'zh-CN'
+    invoke.mockResolvedValueOnce(false)
+    let accepted: boolean | undefined
+
+    await act(async () => {
+      accepted = await result.current.setDiagnosticLocale(locale)
+    })
+
+    expect(accepted).toBe(false)
+    expect(invoke).toHaveBeenLastCalledWith(MigrationIpcChannels.SetDiagnosticLocale, 'zh-CN')
   })
 
   it('publishes only the exact renderer diagnostic-save result union', () => {

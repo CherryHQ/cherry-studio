@@ -10,6 +10,8 @@ import {
   type MigrationRendererExportFailureReport
 } from '@shared/data/migration/v2/diagnostics'
 import {
+  isMigrationDiagnosticLocale,
+  type MigrationDiagnosticLocale,
   type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
@@ -58,6 +60,7 @@ export type MigrationIpcPaths = Pick<
 
 interface DiagnosticRegistrationState {
   epoch: number
+  locale: MigrationDiagnosticLocale | null
   lastSavedBundlePath: string | null
   versionGateCompleted: boolean
   rendererExportGeneration: number
@@ -112,6 +115,7 @@ export function registerMigrationIpcHandlers(
   invalidateActiveDiagnosticRegistration()
   const diagnosticRegistration: DiagnosticRegistrationState = {
     epoch: 0,
+    locale: null,
     lastSavedBundlePath: null,
     versionGateCompleted: false,
     rendererExportGeneration: 0,
@@ -149,12 +153,25 @@ export function registerMigrationIpcHandlers(
     return true
   })
 
+  ipcMain.handle(MigrationIpcChannels.SetDiagnosticLocale, (event, ...args: unknown[]) => {
+    assertMigrationSender(event)
+    if (
+      activeDiagnosticRegistration !== diagnosticRegistration ||
+      args.length !== 1 ||
+      !isMigrationDiagnosticLocale(args[0])
+    ) {
+      return false
+    }
+    diagnosticRegistration.locale = args[0]
+    return true
+  })
+
   ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
     assertMigrationSender(event)
     const saveEpoch = diagnosticRegistration.epoch
     return runMigrationDiagnosticSaveTransaction(async (): Promise<MigrationDiagnosticSaveResult> => {
       const outcome = await saveMigrationDiagnosticBundleWithDialog(
-        app.getLocale(),
+        diagnosticRegistration.locale ?? app.getLocale(),
         diagnosticCapabilities.saveDiagnosticBundle
       )
       if (
@@ -172,7 +189,7 @@ export function registerMigrationIpcHandlers(
   ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event) => {
     assertMigrationSender(event)
     const snapshot = await diagnosticCapabilities.snapshot()
-    const i18n = await createMigrationDiagnosticNativeI18n(app.getLocale())
+    const i18n = await createMigrationDiagnosticNativeI18n(diagnosticRegistration.locale ?? app.getLocale())
     const mailto = createMigrationDiagnosticEmailUrl(snapshot, i18n)
     if (!isSafeExternalUrl(mailto)) {
       throw new Error('Could not create a safe support email URL.')

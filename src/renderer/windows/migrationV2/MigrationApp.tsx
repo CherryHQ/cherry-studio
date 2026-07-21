@@ -22,6 +22,7 @@ import AppLogo from '@renderer/assets/images/logo.png'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
 import {
+  isMigrationDiagnosticLocale,
   type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationStage
@@ -46,7 +47,7 @@ import {
   Wrench,
   X
 } from 'lucide-react'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -260,6 +261,7 @@ const MigrationApp: React.FC = () => {
   const { t, i18n } = useTranslation()
   const { progress, lastError } = useMigrationProgress()
   const actions = useMigrationActions()
+  const setDiagnosticLocale = actions.setDiagnosticLocale
   const [isLoading, setIsLoading] = useState(false)
   // Some runMigration failures happen before progress can reliably move to error.
   const [localMigrationError, setLocalMigrationError] = useState<string | null>(null)
@@ -277,6 +279,32 @@ const MigrationApp: React.FC = () => {
   const [isRunningDiagnosticSupportAction, setIsRunningDiagnosticSupportAction] = useState(false)
   const [diagnosticSupportActionFailed, setDiagnosticSupportActionFailed] = useState(false)
   const [diagnosticSaveResult, setDiagnosticSaveResult] = useState<MigrationDiagnosticSaveResult | null>(null)
+
+  const syncDiagnosticLocale = useCallback(
+    async (language: string): Promise<void> => {
+      if (!isMigrationDiagnosticLocale(language)) {
+        throw new Error('Unsupported migration diagnostic locale')
+      }
+      if ((await setDiagnosticLocale(language)) !== true) {
+        throw new Error('Main rejected migration diagnostic locale')
+      }
+    },
+    [setDiagnosticLocale]
+  )
+
+  useEffect(() => {
+    void syncDiagnosticLocale(i18n.language).catch((error) => {
+      logger.error('Failed to sync diagnostic locale', error as Error)
+    })
+  }, [i18n.language, syncDiagnosticLocale])
+
+  const changeLanguage = async (language: string): Promise<void> => {
+    if (!isMigrationDiagnosticLocale(language)) {
+      throw new Error('Unsupported migration diagnostic locale')
+    }
+    await i18n.changeLanguage(language)
+    await syncDiagnosticLocale(language)
+  }
 
   const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
   const toggleTheme = () => {
@@ -421,6 +449,7 @@ const MigrationApp: React.FC = () => {
     setDiagnosticSaveResult(null)
     setDiagnosticSupportActionFailed(false)
     try {
+      await syncDiagnosticLocale(i18n.language)
       setDiagnosticSaveResult(await actions.save())
     } catch {
       setDiagnosticSaveResult({ status: 'failed', code: 'snapshot_failed' })
@@ -474,7 +503,12 @@ const MigrationApp: React.FC = () => {
             variant="outline"
             className="gap-2"
             disabled={isRunningDiagnosticSupportAction}
-            onClick={() => void runDiagnosticSupportAction(actions.openEmail)}>
+            onClick={() =>
+              void runDiagnosticSupportAction(async () => {
+                await syncDiagnosticLocale(i18n.language)
+                await actions.openEmail()
+              })
+            }>
             <Mail size={14} />
             {t('migration.diagnostics.actions.open_email')}
           </Button>
@@ -775,7 +809,13 @@ const MigrationApp: React.FC = () => {
             '-translate-y-1/2 absolute top-1/2 z-10 flex items-center gap-1 [-webkit-app-region:no-drag]',
             isMac ? 'right-3' : 'left-3'
           )}>
-          <Select value={i18n.language} onValueChange={(lang) => void i18n.changeLanguage(lang)}>
+          <Select
+            value={i18n.language}
+            onValueChange={(language) => {
+              void changeLanguage(language).catch((error) => {
+                logger.error('Failed to change migration language', error as Error)
+              })
+            }}>
             <SelectTrigger
               aria-label={t('migration.language.select')}
               size="sm"

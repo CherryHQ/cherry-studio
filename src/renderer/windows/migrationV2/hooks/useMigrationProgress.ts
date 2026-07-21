@@ -4,6 +4,7 @@
 
 import { loggerService } from '@logger'
 import {
+  type MigrationDiagnosticLocale,
   type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
@@ -118,6 +119,10 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.StartMigration, payload)
   }, [])
 
+  const setDiagnosticLocale = useCallback((locale: MigrationDiagnosticLocale): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SetDiagnosticLocale, locale)
+  }, [])
+
   const save = useCallback(async (): Promise<MigrationDiagnosticSaveResult> => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle)
   }, [])
@@ -153,6 +158,7 @@ export function useMigrationActions() {
   return {
     start,
     startMigration,
+    setDiagnosticLocale,
     save,
     openEmail,
     showInFolder,

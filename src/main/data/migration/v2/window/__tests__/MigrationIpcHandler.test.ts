@@ -187,6 +187,7 @@ describe('MigrationIpcHandler', () => {
   it('uses the fixed strict-diagnostics channel names', () => {
     expect(MigrationIpcChannels).toMatchObject({
       Start: 'migration:start',
+      SetDiagnosticLocale: 'migration:set-diagnostic-locale',
       SaveDiagnosticBundle: 'migration:save-diagnostic-bundle',
       OpenDiagnosticEmail: 'migration:open-diagnostic-email',
       ShowDiagnosticBundleInFolder: 'migration:show-diagnostic-bundle-in-folder',
@@ -222,6 +223,72 @@ describe('MigrationIpcHandler', () => {
   })
 
   describe('strict diagnostics support actions', () => {
+    it('uses the registered zh-CN locale for both the save dialog and support email, then switches both to en-US', async () => {
+      electronMocks.app.getLocale.mockReturnValue('en-US')
+
+      await expect(invoke(MigrationIpcChannels.SetDiagnosticLocale, 'zh-CN')).resolves.toBe(true)
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.OpenDiagnosticEmail)
+
+      expect(vi.mocked(dialog.showSaveDialog).mock.calls[0]?.[0]).toMatchObject({ title: '保存迁移诊断包' })
+      expect(new URL(isSafeExternalUrlMock.mock.calls[0]?.[0] as string).searchParams.get('subject')).toContain(
+        'Cherry Studio 迁移诊断'
+      )
+
+      await expect(invoke(MigrationIpcChannels.SetDiagnosticLocale, 'en-US')).resolves.toBe(true)
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.OpenDiagnosticEmail)
+
+      expect(vi.mocked(dialog.showSaveDialog).mock.calls[1]?.[0]).toMatchObject({
+        title: 'Save migration diagnostic bundle'
+      })
+      expect(new URL(isSafeExternalUrlMock.mock.calls[1]?.[0] as string).searchParams.get('subject')).toContain(
+        'Cherry Studio migration diagnostics'
+      )
+    })
+
+    it('rejects invalid diagnostic locale payloads without replacing the last valid locale', async () => {
+      await expect(invoke(MigrationIpcChannels.SetDiagnosticLocale, 'zh-CN')).resolves.toBe(true)
+
+      for (const args of [['zh-TW'], ['arbitrary'], [{ locale: 'en-US' }], ['en-US', 'extra']] as const) {
+        await expect(invoke(MigrationIpcChannels.SetDiagnosticLocale, ...args)).resolves.toBe(false)
+      }
+
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      expect(vi.mocked(dialog.showSaveDialog).mock.calls[0]?.[0]).toMatchObject({ title: '保存迁移诊断包' })
+    })
+
+    it('clears the registered diagnostic locale when handlers are registered again', async () => {
+      await invoke(MigrationIpcChannels.SetDiagnosticLocale, 'zh-CN')
+      unregisterMigrationIpcHandlers()
+      registerMigrationIpcHandlers(migrationIpcPaths, {
+        start: diagnosticsStartMock,
+        reportRendererExportFailure: diagnosticsReportRendererExportFailureMock,
+        saveDiagnosticBundle: diagnosticsSaveBundleMock,
+        snapshot: diagnosticsSnapshotMock,
+        completeVersionGate: diagnosticsCompleteVersionGateMock
+      })
+      handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+
+      expect(vi.mocked(dialog.showSaveDialog).mock.calls[0]?.[0]).toMatchObject({
+        title: 'Save migration diagnostic bundle'
+      })
+    })
+
+    it('falls back to the app locale before the renderer registers its diagnostic locale', async () => {
+      electronMocks.app.getLocale.mockReturnValue('zh-CN')
+
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await invoke(MigrationIpcChannels.OpenDiagnosticEmail)
+
+      expect(vi.mocked(dialog.showSaveDialog).mock.calls[0]?.[0]).toMatchObject({ title: '保存迁移诊断包' })
+      expect(new URL(isSafeExternalUrlMock.mock.calls[0]?.[0] as string).searchParams.get('subject')).toContain(
+        'Cherry Studio 迁移诊断'
+      )
+    })
+
     it.each(['dialog_failed', 'snapshot_failed', 'bundle_save_failed', 'save_in_progress'] as const)(
       'returns the stable %s save failure code',
       async (code) => {
@@ -486,7 +553,7 @@ describe('MigrationIpcHandler', () => {
       )
     })
 
-    it('opens a fixed, safely encoded zh-CN support mailto from Main locale only', async () => {
+    it('opens a fixed, safely encoded zh-CN support mailto from the app-locale fallback', async () => {
       electronMocks.app.getLocale.mockReturnValueOnce('zh-CN')
 
       await invoke(MigrationIpcChannels.OpenDiagnosticEmail, 'attacker@example.com', 'renderer-controlled copy')
@@ -527,6 +594,7 @@ describe('MigrationIpcHandler', () => {
   describe('sensitive sender identity', () => {
     const sensitiveChannels = [
       MigrationIpcChannels.Start,
+      MigrationIpcChannels.SetDiagnosticLocale,
       MigrationIpcChannels.SaveDiagnosticBundle,
       MigrationIpcChannels.OpenDiagnosticEmail,
       MigrationIpcChannels.ShowDiagnosticBundleInFolder,
@@ -554,8 +622,9 @@ describe('MigrationIpcHandler', () => {
       await expect(invokeFrom(source, channel)).rejects.toThrow(/migration window/i)
     })
 
-    it('accepts all six sensitive channels only from the migration window top frame', async () => {
+    it('accepts all sensitive channels only from the migration window top frame', async () => {
       await expect(invoke(MigrationIpcChannels.Start)).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.SetDiagnosticLocale, 'zh-CN')).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({ status: 'saved' })
       await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail)).resolves.toBe(true)
       await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).resolves.toBe(true)
@@ -1412,6 +1481,7 @@ describe('MigrationIpcHandler', () => {
       unregisterMigrationIpcHandlers({ preserveWriteDeferral: true })
 
       expect(ipcMain.removeHandler).toHaveBeenCalledWith(MigrationIpcChannels.Start)
+      expect(ipcMain.removeHandler).toHaveBeenCalledWith(MigrationIpcChannels.SetDiagnosticLocale)
       expect(windowSetQuitRequesterMock).not.toHaveBeenCalled()
       expect(windowSetWriteWaiterMock).not.toHaveBeenCalled()
     })
