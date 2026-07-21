@@ -284,7 +284,7 @@ export class MergeEngine {
       this.stmtCache.clear()
       const ordered = this.registry.topoSort(ctx.domains)
       const degradedToSkips: DegradedSkip[] = []
-      const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx, degradedToSkips)
+      const decisions = this.scanAggregates(workSqlite, ordered, backupDb, ctx)
       const identityMap: IdentityMap = { sourceMap: new Map(), targetMap: new Map() }
       // Snapshot app_state keys BEFORE the tx — the merge tx must not add/drop keys. PREFERENCES
       // may UPDATE values (forward-compat), but the key-set is invariant. app_state is ALWAYS_STRIP
@@ -335,8 +335,7 @@ export class MergeEngine {
     workSqlite: Database.Database,
     ordered: readonly BackupDomain[],
     backupDb: Database.Database,
-    ctx: MergeContext,
-    _degradedToSkips: DegradedSkip[]
+    ctx: MergeContext
   ): AggregateDecision[] {
     // Explicit OVERWRITE/RENAME still unsupported — fail loud. FIELD_MERGE (and omit /
     // SKIP) are implemented.
