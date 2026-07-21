@@ -145,7 +145,26 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
   stream(initialMessages: UIMessage[], signal: AbortSignal): ReadableStream<UIMessageChunk> {
     const params = this.params
-    const { readable, writable } = new TransformStream<UIMessageChunk>()
+    let outputController!: TransformStreamDefaultController<UIMessageChunk>
+    let terminalOutcome: 'running' | 'success' | 'abort' = 'running'
+    let committingFinish = false
+    const claimTerminalOutcome = (outcome: 'success' | 'abort'): boolean => {
+      if (terminalOutcome !== 'running') return false
+      terminalOutcome = outcome
+      return true
+    }
+    const { readable, writable } = new TransformStream<UIMessageChunk, UIMessageChunk>({
+      start(controller) {
+        outputController = controller
+      },
+      transform(chunk, controller) {
+        // The final finish becomes success only at the actual enqueue boundary.
+        // Until then an abort may terminate a backpressured write without
+        // publishing a success marker.
+        if (committingFinish && chunk.type === 'finish' && !claimTerminalOutcome('success')) return
+        controller.enqueue(chunk)
+      }
+    })
     const writer = writable.getWriter()
     this.currentWriter = writer
     const hooks = this.composedHooks()
@@ -176,6 +195,35 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       } catch (hookErr) {
         logger.error('hooks.onError threw; aborting run', hookErr as Error)
         return 'abort'
+      }
+    }
+
+    const commitFinish = async (finish: Extract<UIMessageChunk, { type: 'finish' }>): Promise<boolean> => {
+      const abortBeforeFinish = () => {
+        if (!claimTerminalOutcome('abort')) return
+        try {
+          // Closes the readable side cleanly and rejects the pending writable
+          // operation, so a backpressured finish cannot be delivered later.
+          outputController.terminate()
+        } catch {
+          // A peer may already have cancelled the readable side.
+        }
+      }
+
+      signal.addEventListener('abort', abortBeforeFinish, { once: true })
+      try {
+        if (signal.aborted) abortBeforeFinish()
+        if (terminalOutcome === 'abort') return false
+
+        committingFinish = true
+        await writer.write(finish)
+        return terminalOutcome === 'success'
+      } catch (error) {
+        if (terminalOutcome === 'abort') return false
+        throw error
+      } finally {
+        committingFinish = false
+        signal.removeEventListener('abort', abortBeforeFinish)
       }
     }
 
@@ -219,7 +267,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       try {
         while (true) {
           const { done, value } = await reader.read()
-          if (done || signal.aborted) break
+          if (done) break
 
           // AI SDK calls `onError` for invalid tool input, local tool execution
           // errors, and terminal stream errors. Consume all three projections
@@ -234,6 +282,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             await reader.cancel(capturedError.error).catch(() => {})
             throw capturedError.error
           }
+          if (signal.aborted) break
           // Hold the success-looking finish marker until the loop result has
           // been classified. A cap-triggered or terminal-tool stop must reach
           // persistence as an error instead of briefly completing as success.
@@ -264,7 +313,15 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         stopWhen: params.options?.stopWhen
       })
       if (terminalError) throw terminalError
-      if (pendingFinish) await writer.write(pendingFinish)
+      if (pendingFinish) {
+        if (!(await commitFinish(pendingFinish))) {
+          await safeCall('onAbort', hooks.onAbort)
+          return
+        }
+      } else if (signal.aborted || !claimTerminalOutcome('success')) {
+        await safeCall('onAbort', hooks.onAbort)
+        return
+      }
 
       // onFinish is success-only by current design: it fires only when the
       // stream drains cleanly, never on the error/abort path below. Errors

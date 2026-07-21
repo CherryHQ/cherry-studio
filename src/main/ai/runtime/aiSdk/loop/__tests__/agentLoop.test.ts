@@ -216,6 +216,46 @@ describe('Agent', () => {
     expect(cancelUiStream).toHaveBeenCalledWith(apiError)
   })
 
+  it('preserves an arrived provider error when the signal aborts after the error chunk is queued', async () => {
+    const providerError = new APICallError({
+      message: 'Upstream unavailable',
+      url: 'https://api.example.com/chat/completions',
+      requestBodyValues: {},
+      statusCode: 503,
+      responseHeaders: {},
+      responseBody: '',
+      isRetryable: true
+    })
+    const controller = new AbortController()
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: (options: { onError: (error: unknown) => string }) =>
+          new ReadableStream({
+            start(streamController) {
+              const errorText = options.onError(providerError)
+              streamController.enqueue({ type: 'error', errorText })
+              controller.abort(new Error('cancelled'))
+            }
+          })
+      })
+    })
+
+    const onAbort = vi.fn()
+    const onError = vi.fn()
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      hookParts: [{ onAbort, onError }]
+    })
+
+    await expect(agent.stream([], controller.signal).getReader().read()).rejects.toBe(providerError)
+    expect(onError).toHaveBeenCalledWith({ error: providerError })
+    expect(onAbort).not.toHaveBeenCalled()
+  })
+
   it('turns a terminal tool output into an error instead of forwarding a success finish', async () => {
     const output = markTrustedLocalToolTerminalFailure({
       error: 'Unsafe remote url',
@@ -699,6 +739,51 @@ describe('Agent', () => {
     // Abort is not an error: onError must not fire on the abort path.
     expect(onAbort).toHaveBeenCalledOnce()
     expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('lets abort beat a final finish suspended by downstream backpressure', async () => {
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'finish', finishReason: 'stop' })
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve([])
+      })
+    })
+
+    const controller = new AbortController()
+    const onAbort = vi.fn()
+    const onError = vi.fn()
+    const onFinish = vi.fn()
+    const writeSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'write')
+    try {
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        hookParts: [{ onAbort, onError, onFinish }]
+      })
+      const stream = agent.stream([], controller.signal)
+
+      // Do not read yet: the TransformStream's readable high-water mark is
+      // zero, so the final finish write remains suspended by backpressure.
+      await vi.waitFor(() =>
+        expect(writeSpy.mock.calls.some(([chunk]) => (chunk as { type?: string }).type === 'finish')).toBe(true)
+      )
+      controller.abort(new Error('cancelled'))
+
+      await expect(stream.getReader().read()).resolves.toEqual({ value: undefined, done: true })
+      await vi.waitFor(() => expect(onAbort).toHaveBeenCalledOnce())
+      expect(onFinish).not.toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
+    } finally {
+      writeSpy.mockRestore()
+    }
   })
 
   it('closes cleanly when abort rejects SDK metadata after the UI stream drains', async () => {
