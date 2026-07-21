@@ -638,6 +638,22 @@ describe('runV2MigrationGate', () => {
       expect(initializeMock).not.toHaveBeenCalled()
     })
 
+    it('falls back to Quit when the diagnostic presentation rejects', async () => {
+      stubInaccessible()
+      presentMigrationDiagnosticFailureMock.mockRejectedValue(new Error('native diagnostics unavailable'))
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(appRelaunchMock).not.toHaveBeenCalled()
+      expect(initializeMock).not.toHaveBeenCalled()
+    })
+
     it('pins the default dir and falls through to the normal flow on Use Default (response 1)', async () => {
       stubInaccessible()
       presentMigrationDiagnosticFailureMock.mockResolvedValue(1)
@@ -727,6 +743,23 @@ describe('runV2MigrationGate', () => {
         cancelId: 0
       })
       expect(failure.message).toContain('ENOSPC: no space left on device')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(initializeMock).not.toHaveBeenCalled()
+    })
+
+    it('still quits when the diagnostic presentation rejects', async () => {
+      resolveMigrationPathsMock.mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+      presentMigrationDiagnosticFailureMock.mockRejectedValue(new Error('native diagnostics unavailable'))
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })

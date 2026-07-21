@@ -58,13 +58,18 @@ interface NativeMigrationFailure {
 }
 
 async function presentNativeMigrationFailure(failure: NativeMigrationFailure): Promise<number> {
-  await app.whenReady()
-  const { failureCode, errorSummary, ...dialogFailure } = failure
-  return presentMigrationDiagnosticFailure({
-    locale: app.getLocale(),
-    context: { source: 'native', stage: 'preboot', failureCode, errorSummary },
-    failure: dialogFailure
-  })
+  try {
+    await app.whenReady()
+    const { failureCode, errorSummary, ...dialogFailure } = failure
+    return await presentMigrationDiagnosticFailure({
+      locale: app.getLocale(),
+      context: { source: 'native', stage: 'preboot', failureCode, errorSummary },
+      failure: dialogFailure
+    })
+  } catch (error) {
+    logger.error('Failed to present native migration diagnostic failure', error as Error)
+    return failure.cancelId
+  }
 }
 
 /**
