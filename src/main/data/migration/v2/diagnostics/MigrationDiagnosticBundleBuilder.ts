@@ -8,6 +8,7 @@ import {
   type MigrationDatabaseDiagnosticResult,
   migrationDatabaseDiagnosticResultSchema
 } from './migrationDatabaseDiagnosticsSchemas'
+import { createMigrationDiagnosticBundleReadme } from './migrationDiagnosticBundleI18n'
 import {
   MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES,
   MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES,
@@ -19,27 +20,6 @@ import type { MigrationDiagnosticsSnapshot } from './MigrationDiagnosticsCoordin
 import { migrationDiagnosticsCheckpointSchema } from './migrationDiagnosticsSchemas'
 
 export { MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES, MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES }
-
-const BUNDLE_README = `Cherry Studio migration diagnostics
-
-This ZIP contains migration-diagnostics.json and this README.txt. The JSON contains only bounded migration failure facts and read-only database diagnostics.
-
-It excludes database files and sidecars, application logs, exported business data, raw errors, stacks, SQL, credentials, paths, record identifiers, tokens, and user content.
-
-Database diagnostics may be marked unavailable when the isolated child process cannot complete. This does not replace or change the original migration failure.
-
-When requesting support, manually attach this ZIP. Cherry Studio does not automatically upload it.
-
-Cherry Studio 迁移诊断
-
-此 ZIP 包含 migration-diagnostics.json 和本 README.txt。JSON 仅包含经过范围限制的迁移失败事实和只读数据库诊断结果。
-
-它不包含数据库文件及其附属文件、应用日志、导出的业务数据、原始错误、堆栈、SQL、凭据、路径、记录标识符、令牌或用户内容。
-
-数据库诊断可能被标记为“不可用”，表示隔离子进程无法完成诊断。这不会替换或改变原始迁移失败。
-
-请求支持时，请手动附加此 ZIP。Cherry Studio 不会自动上传此文件。
-`
 
 const DATABASE_DIAGNOSTICS_UNAVAILABLE = Object.freeze({
   file: Object.freeze({ status: 'unreadable' as const, sqliteHeader: 'unavailable' as const }),
@@ -102,7 +82,10 @@ function createDocument(
   })
 }
 
-function serializeEntries(document: MigrationDiagnosticBundleDocument): {
+function serializeEntries(
+  document: MigrationDiagnosticBundleDocument,
+  readme: string
+): {
   readonly entries: readonly MigrationDiagnosticArchiveEntry[]
   readonly uncompressedBytes: number
 } {
@@ -111,7 +94,7 @@ function serializeEntries(document: MigrationDiagnosticBundleDocument): {
       name: 'migration-diagnostics.json' as const,
       buffer: Buffer.from(`${JSON.stringify(document, null, 2)}\n`, 'utf8')
     },
-    { name: 'README.txt' as const, buffer: Buffer.from(BUNDLE_README, 'utf8') }
+    { name: 'README.txt' as const, buffer: Buffer.from(readme, 'utf8') }
   ]
   const uncompressedBytes = entries.reduce((total, entry) => total + entry.buffer.byteLength, 0)
   if (uncompressedBytes > MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES) throw new Error('bundle_too_large')
@@ -191,7 +174,7 @@ export class MigrationDiagnosticBundleBuilder {
     let serialized: ReturnType<typeof serializeEntries>
     try {
       const document = createDocument(snapshot, database, this.clock().toISOString())
-      serialized = serializeEntries(document)
+      serialized = serializeEntries(document, await createMigrationDiagnosticBundleReadme())
     } catch {
       return failed()
     }

@@ -1,0 +1,12 @@
+{
+  "en-US": {
+    "translation": {
+      "readme": "Cherry Studio migration diagnostics\n\nThis ZIP contains migration-diagnostics.json and this README.txt. The JSON contains only bounded migration failure facts and read-only database diagnostics.\n\nIt excludes database files and sidecars, application logs, exported business data, raw errors, stacks, SQL, credentials, paths, record identifiers, tokens, and user content.\n\nDatabase diagnostics may be marked unavailable when the isolated child process cannot complete. This does not replace or change the original migration failure.\n\nWhen requesting support, manually attach this ZIP. Cherry Studio does not automatically upload it."
+    }
+  },
+  "zh-CN": {
+    "translation": {
+      "readme": "Cherry Studio 迁移诊断\n\n此 ZIP 包含 migration-diagnostics.json 和本 README.txt。JSON 仅包含经过范围限制的迁移失败事实和只读数据库诊断结果。\n\n它不包含数据库文件及其附属文件、应用日志、导出的业务数据、原始错误、堆栈、SQL、凭据、路径、记录标识符、令牌或用户内容。\n\n数据库诊断可能被标记为“不可用”，表示隔离子进程无法完成诊断。这不会替换或改变原始迁移失败。\n\n请求支持时，请手动附加此 ZIP。Cherry Studio 不会自动上传此文件。"
+    }
+  }
+}
