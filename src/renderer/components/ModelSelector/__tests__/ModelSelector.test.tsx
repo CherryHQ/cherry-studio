@@ -1052,13 +1052,13 @@ describe('ModelSelector', () => {
     expect(providerName).toHaveAttribute('title', 'OpenAI')
   })
 
-  it('renders fallback model avatars with a border', () => {
+  it('renders fallback model avatars without a decorative border', () => {
     const item = makeModelItem('openai::gpt-4' as UniqueModelId)
     mockUseModelSelectorData.mockReturnValue(makeData({ listItems: [item], modelItems: [item] }))
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByTestId('avatar')).toHaveClass('border', 'border-border')
+    expect(screen.getByTestId('avatar')).not.toHaveClass('border', 'border-border')
   })
 
   it('passes the selector portal container to model detail hover cards', () => {

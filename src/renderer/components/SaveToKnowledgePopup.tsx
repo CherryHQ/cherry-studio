@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   Flex,
-  HelpTooltip,
+  InfoTooltip,
   Label
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -476,7 +476,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
                     {option.count}
                   </CustomTag>
                   <span>{option.label}</span>
-                  <HelpTooltip content={option.description} />
+                  <InfoTooltip content={option.description} />
                 </Flex>
                 {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
               </button>

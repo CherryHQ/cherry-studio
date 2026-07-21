@@ -39,7 +39,7 @@ const logger = loggerService.withContext('ModelSelector')
 
 const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
-const ROW_TAG_SIZE = 9
+const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
@@ -178,9 +178,9 @@ function ModelRow({
   const providerName = getProviderDisplayName(item.provider)
 
   const leading = icon ? (
-    <icon.Avatar size={24} className="border border-border" />
+    <icon.Avatar size={20} />
   ) : (
-    <Avatar size="sm" className="border border-border">
+    <Avatar size="sm">
       <AvatarFallback>{first(item.model.name) || 'M'}</AvatarFallback>
     </Avatar>
   )
@@ -198,7 +198,7 @@ function ModelRow({
 
   const trailing =
     rowTags.length > 0 ? (
-      <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+      <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
         {rowTags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
