@@ -122,7 +122,7 @@ describe('FileGrid placeholder gradients', () => {
   it('paints image placeholders with primitive gradient utilities and no raw hex', () => {
     const { container } = render(<FileGrid {...fileGridProps([imageFile])} />)
 
-    const gradientTarget = container.querySelector<HTMLElement>('.bg-linear-to-br')
+    const gradientTarget = container.querySelector<HTMLElement>('[class~="bg-linear-to-br/srgb"]')
 
     expect(gradientTarget).not.toBeNull()
     expect(gradientTarget?.className).toMatch(/from-[a-z]+-\d+/)
@@ -132,11 +132,11 @@ describe('FileGrid placeholder gradients', () => {
 
   it('assigns a stable gradient per file name', () => {
     const first = render(<FileGrid {...fileGridProps([imageFile])} />)
-    const firstGradient = first.container.querySelector<HTMLElement>('.bg-linear-to-br')?.className
+    const firstGradient = first.container.querySelector<HTMLElement>('[class~="bg-linear-to-br/srgb"]')?.className
     cleanup()
 
     const second = render(<FileGrid {...fileGridProps([imageFile])} />)
-    const secondGradient = second.container.querySelector<HTMLElement>('.bg-linear-to-br')?.className
+    const secondGradient = second.container.querySelector<HTMLElement>('[class~="bg-linear-to-br/srgb"]')?.className
 
     expect(firstGradient).toBeTruthy()
     expect(secondGradient).toBe(firstGradient)

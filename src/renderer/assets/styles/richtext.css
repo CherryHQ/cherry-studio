@@ -1,7 +1,7 @@
 .tiptap {
   --rich-text-border-soft: color-mix(in srgb, var(--border) 60%, transparent);
-  --rich-text-system-gray-2: #aeaeb2;
-  --rich-text-system-gray-3: #c7c7cc;
+  --rich-text-divider-color: var(--border);
+  --rich-text-table-heading-background: var(--muted);
   /* 预留5px给scrollbar */
   padding: var(--editor-padding, 12px 55px 12px 60px);
   outline: none;
@@ -10,11 +10,6 @@
   word-break: break-word;
   font-size: var(--editor-font-size, 16px);
   line-height: var(--editor-line-height, normal);
-}
-
-.dark .tiptap {
-  --rich-text-system-gray-2: #414853;
-  --rich-text-system-gray-3: #32363f;
 }
 
 .tiptap:focus {
@@ -134,7 +129,7 @@
 
 .tiptap hr {
   border: none;
-  border-top: 1px solid var(--rich-text-system-gray-2);
+  border-top: 1px solid var(--rich-text-divider-color);
   margin: 2rem 0;
 }
 
@@ -242,7 +237,7 @@
 
 .tiptap th,
 .tiptap th * {
-  background-color: var(--rich-text-system-gray-3);
+  background-color: var(--rich-text-table-heading-background);
   font-weight: bold;
   text-align: left;
 }

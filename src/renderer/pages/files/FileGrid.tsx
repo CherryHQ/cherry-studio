@@ -12,19 +12,20 @@ import { InlineRename } from './InlineRename'
 // Decorative placeholder gradients for image thumbnails, keyed by a hash of the
 // file name. This reviewed gallery palette intentionally uses primitive utility
 // classes rather than assigning ordinary component state to feedback semantics.
+// Explicit sRGB interpolation preserves the former CSS linear-gradient rendering.
 const GALLERY_GRADIENT_CLASSES = [
-  'bg-linear-to-br from-orange-200 to-rose-400',
-  'bg-linear-to-br from-blue-300 to-cyan-200',
-  'bg-linear-to-br from-pink-200 to-indigo-300',
-  'bg-linear-to-br from-rose-200 to-fuchsia-200',
-  'bg-linear-to-br from-teal-200 to-pink-200',
-  'bg-linear-to-br from-amber-200 to-orange-300',
-  'bg-linear-to-br from-green-300 to-sky-300',
-  'bg-linear-to-br from-amber-300 to-purple-400',
-  'bg-linear-to-br from-violet-200 to-sky-300',
-  'bg-linear-to-br from-amber-300 to-orange-400',
-  'bg-linear-to-br from-slate-200 to-slate-100',
-  'bg-linear-to-br from-emerald-400 to-blue-600'
+  'bg-linear-to-br/srgb from-orange-200 to-rose-400',
+  'bg-linear-to-br/srgb from-blue-300 to-cyan-200',
+  'bg-linear-to-br/srgb from-pink-200 to-indigo-300',
+  'bg-linear-to-br/srgb from-rose-200 to-fuchsia-200',
+  'bg-linear-to-br/srgb from-teal-200 to-pink-200',
+  'bg-linear-to-br/srgb from-amber-200 to-orange-300',
+  'bg-linear-to-br/srgb from-green-300 to-sky-300',
+  'bg-linear-to-br/srgb from-amber-300 to-purple-400',
+  'bg-linear-to-br/srgb from-violet-200 to-sky-300',
+  'bg-linear-to-br/srgb from-amber-300 to-orange-400',
+  'bg-linear-to-br/srgb from-slate-200 to-slate-100',
+  'bg-linear-to-br/srgb from-emerald-400 to-blue-600'
 ]
 
 const GRID_GAP_PX = 8

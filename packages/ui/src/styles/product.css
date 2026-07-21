@@ -41,9 +41,9 @@
   --reference: #cfe1ff;
   --reference-foreground: #000;
   --reference-subtle: #f1f7ff;
-  --highlight-foreground: initial;
-  --highlight: rgba(255, 255, 0, 0.5);
-  --highlight-accent: rgba(255, 150, 50, 0.5);
+  --highlight-foreground: var(--foreground);
+  --highlight: var(--cs-amber-50);
+  --highlight-accent: var(--cs-amber-100);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(0, 0, 0, 0.045);
@@ -65,9 +65,9 @@
   --reference: #404040;
   --reference-foreground: #fff;
   --reference-subtle: #0b0e12;
-  --highlight-foreground: rgb(0, 0, 0);
-  --highlight: rgba(255, 255, 0, 0.9);
-  --highlight-accent: rgba(255, 150, 50, 0.9);
+  --highlight-foreground: var(--foreground);
+  --highlight: var(--cs-amber-900);
+  --highlight-accent: var(--cs-amber-800);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(255, 255, 255, 0.08);

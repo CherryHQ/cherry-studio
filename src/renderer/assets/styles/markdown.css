@@ -1,6 +1,6 @@
 .markdown {
-  --markdown-background-soft: color-mix(in srgb, var(--background) 96%, var(--foreground) 4%);
-  --markdown-background-muted: color-mix(in srgb, var(--background) 92%, var(--foreground) 8%);
+  --markdown-content-background: var(--muted);
+  --markdown-hover-background: var(--accent);
   color: var(--markdown-foreground, var(--foreground));
   line-height: 1.6;
   user-select: text;
@@ -126,7 +126,7 @@
 
 .markdown p code,
 .markdown li code {
-  background: var(--markdown-background-muted);
+  background: var(--markdown-content-background);
   padding: 3px 5px;
   margin: 0 2px;
   border-radius: 5px;
@@ -143,7 +143,7 @@
   border-radius: 8px;
   overflow-x: auto;
   font-family: var(--code-font-family);
-  background-color: var(--markdown-background-muted);
+  background-color: var(--markdown-content-background);
 }
 
 [data-streamdown='code-block-header'] span,
@@ -178,7 +178,7 @@
 .markdown blockquote {
   margin: 1.5em 0;
   padding: 1em 1.5em;
-  background-color: var(--markdown-background-soft);
+  background-color: var(--markdown-content-background);
   border-left: 4px solid var(--primary);
   border-radius: 0 8px 8px 0;
   font-style: italic;
@@ -214,13 +214,13 @@
 }
 
 .markdown th {
-  background-color: var(--markdown-background-muted);
+  background-color: var(--markdown-content-background);
   font-weight: 600;
   text-align: left;
 }
 
 .markdown tr:hover {
-  background-color: var(--markdown-background-soft);
+  background-color: var(--markdown-hover-background);
 }
 
 .markdown img {

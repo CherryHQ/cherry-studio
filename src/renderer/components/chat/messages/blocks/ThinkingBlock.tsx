@@ -7,6 +7,9 @@ import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
 import { useScrollAnchor } from './useScrollAnchor'
 
+const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const THINKING_SECONDARY_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+
 interface Props {
   /** Stable ID for heading prefix and block identity tracking */
   id: string
@@ -39,10 +42,11 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
 
   return (
     <div
-      className="relative text-muted-foreground [&_.markdown>p:only-child]:mb-0!"
+      className="relative [&_.markdown>p:only-child]:mb-0!"
       style={
         {
-          '--markdown-foreground': 'var(--muted-foreground)',
+          '--markdown-foreground': THINKING_MUTED_COLOR,
+          color: THINKING_MUTED_COLOR,
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize
         } as CSSProperties
@@ -94,7 +98,8 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
             showTitlePreview && previewText ? (
               <span
                 aria-hidden="true"
-                className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] text-muted-foreground leading-5">
+                className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] leading-5"
+                style={{ color: THINKING_MUTED_COLOR }}>
                 {previewText}
               </span>
             ) : null
@@ -104,7 +109,8 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
       <div
         id={contentId}
         hidden={!isExpanded}
-        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-muted-foreground leading-5">
+        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5"
+        style={{ color: THINKING_SECONDARY_COLOR }}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </div>
     </div>
