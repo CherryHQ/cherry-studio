@@ -136,6 +136,7 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     value={model}
     onSelect={onSelect}
     filter={filter}
+    contentWidth="var(--radix-popover-trigger-width)"
     trigger={
       <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
     }
