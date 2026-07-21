@@ -1,6 +1,12 @@
 # 更新配置系统设计文档
 
-## 背景
+> **兼容性说明**：当前客户端已经不再读取 `app-upgrade-config.json`。该文件和自动化工作流仅为已经发布、仍依赖旧配置的客户端保留，请勿直接删除。
+
+当前客户端统一通过 `https://releases.cherry-ai.com` 检查更新。客户端只负责选择 `latest`、`rc` 或 `beta` 清单，并发送 `App-Version`、`OS`、`Client-Id` 和 `X-Region`；客户端是默认请求方，因此不发送 `X-Release-Channel`。具体版本、国内外镜像、灰度范围和中转版本由发布服务决定。
+
+测试通道表示用户愿意接受的最低稳定程度，而不是把用户永久固定在某种后缀：Beta 通道会从该用户可见的 Beta、RC、正式版中选择最高版本，RC 通道会从 RC、正式版中选择最高版本，稳定通道只接收正式版。服务端会按最终版本返回对应的真实清单，因此 Beta 用户可以自然升级到 RC 和正式版。
+
+## 旧客户端背景
 
 当前 AppUpdater 直接请求 GitHub API 获取 beta 和 rc 的更新信息。为了支持国内用户，需要根据 IP 地理位置，分别从 GitHub/GitCode 获取一个固定的 JSON 配置文件，该文件包含所有渠道的更新地址。
 
@@ -319,83 +325,28 @@ function findCompatibleVersion(
 - **原因**: 2.5.0 >= 2.0.0（满足 2.8.0 的 minCompatibleVersion），但不满足 3.0.0 的要求
 - **操作**: 提示用户升级到 2.8.0，这是升级到 v3.x 的必要中间版本
 
-## 代码改动计划
+## 当前客户端实现
 
-### 主要修改
+客户端不再在 TypeScript 中保存或切换更新服务地址，也不会调用 electron-updater 的运行时地址切换接口。
 
-1. **新增方法**
-   - `_fetchUpdateConfig(ipCountry: string): Promise<UpdateConfig | null>` - 根据 IP 获取配置文件
-   - `_findCompatibleChannel(currentVersion: string, channel: UpgradeChannel, config: UpdateConfig): ChannelConfig | null` - 查找兼容的渠道配置
+- 正式包使用 `electron-builder.yml` 的 `publish.url`。打包时 electron-builder 会把它写入随应用发布的 `app-update.yml`。
+- 开发模式设置了 `forceDevUpdateConfig = true`，由 electron-updater 读取项目根目录的 `dev-app-update.yml`。
+- 正式包默认连接 `https://releases.cherry-ai.com`；开发模式默认连接本地 Docker 的 `http://127.0.0.1:3378`。两者都由配置文件管理，不要重新增加运行时地址常量。
 
-2. **修改方法**
-   - `_getReleaseVersionFromGithub()` → 移除或重构为 `_getChannelFeedUrl()`
-   - `_setFeedUrl()` - 使用新的配置系统替代现有逻辑
+每次检查更新前，`AppUpdater` 只执行以下工作：
 
-3. **新增类型定义**
-   - `UpdateConfig`
-   - `VersionConfig`
-   - `ChannelConfig`
+1. 根据测试计划选择 `latest`、`rc` 或 `beta` 清单。
+2. 根据 IP 判断 `X-Region` 为 `cn` 或 `global`。
+3. 设置 `App-Version`、`OS`、`Client-Id`、`App-Name` 和区域请求头。
+4. 设置 electron-updater 的 channel，然后调用 `checkForUpdates()`。
 
-### 镜像源选择逻辑
+具体目标版本、国内外镜像、灰度分组和必经版本都由发布服务决定。客户端不读取旧的 `app-upgrade-config.json`，也不自行拼接 GitHub 或 GitCode 下载地址。
 
-客户端根据 IP 地理位置自动选择最优镜像源：
+## 当前容错策略
 
-```typescript
-private async _setFeedUrl() {
-  const currentVersion = app.getVersion()
-  const testPlan = configManager.getTestPlan()
-  const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
-
-  // 根据 IP 国家确定镜像源
-  const ipCountry = await getIpCountry()
-  const mirror = ipCountry.toLowerCase() === 'cn' ? 'gitcode' : 'github'
-
-  // 获取更新配置
-  const config = await this._fetchUpdateConfig(mirror)
-
-  if (config) {
-    const channelConfig = this._findCompatibleChannel(currentVersion, requestedChannel, config)
-    if (channelConfig) {
-      // 从配置中选择对应镜像源的 URL
-      const feedUrl = channelConfig.feedUrls[mirror]
-      this._setChannel(requestedChannel, feedUrl)
-      return
-    }
-  }
-
-  // Fallback 逻辑
-  const defaultFeedUrl = mirror === 'gitcode'
-    ? FeedUrl.PRODUCTION
-    : FeedUrl.GITHUB_LATEST
-  this._setChannel(UpgradeChannel.LATEST, defaultFeedUrl)
-}
-
-private async _fetchUpdateConfig(mirror: 'github' | 'gitcode'): Promise<UpdateConfig | null> {
-  const configUrl = mirror === 'gitcode'
-    ? UpdateConfigUrl.GITCODE
-    : UpdateConfigUrl.GITHUB
-
-  try {
-    const response = await net.fetch(configUrl, {
-      headers: {
-        'User-Agent': generateUserAgent(),
-        'Accept': 'application/json',
-        'X-Client-Id': configManager.getClientId()
-      }
-    })
-    return await response.json() as UpdateConfig
-  } catch (error) {
-    logger.error('Failed to fetch update config:', error)
-    return null
-  }
-}
-```
-
-## 降级和容错策略
-
-1. **配置文件获取失败**: 记录错误日志，返回当前版本，不提供更新
-2. **没有匹配的版本**: 提示用户当前版本不支持自动升级
-3. **网络异常**: 缓存上次成功获取的配置（可选）
+1. IP 查询失败时由 IP 服务自身的默认结果决定区域，更新地址不变。
+2. 更新服务没有可用版本时，按 electron-updater 的“没有更新”流程处理。
+3. 网络异常时记录错误并结束本次检查，下次检查仍使用配置文件中的同一服务地址。
 
 ## GitHub Release 要求
 

@@ -1,6 +1,12 @@
 # Update Configuration System Design Document
 
-## Background
+> **Compatibility note**: Current clients no longer read `app-upgrade-config.json`. The file and its automation remain only for already-released clients that still depend on the legacy configuration and must not be removed without a separate migration plan.
+
+Current clients check for updates through `https://releases.cherry-ai.com`. The client selects only the `latest`, `rc`, or `beta` manifest and sends `App-Version`, `OS`, `Client-Id`, and `X-Region`. Client requests are the default, so the app omits `X-Release-Channel`. The release service determines the concrete version, regional mirror, rollout audience, and required upgrade gateway.
+
+A test channel expresses the least stable build the user accepts; it does not permanently pin the user to a prerelease suffix. Beta requests select the highest version visible to that user across Beta, RC, and stable policies. RC requests select the highest visible RC or stable version. Stable requests receive stable releases only. The service redirects to the manifest that matches the selected release, allowing Beta users to advance naturally to RC and stable releases.
+
+## Legacy Client Background
 
 Currently, AppUpdater directly queries the GitHub API to retrieve beta and rc update information. To support users in China, we need to fetch a static JSON configuration file from GitHub/GitCode based on IP geolocation, which contains update URLs for all channels.
 
@@ -319,83 +325,28 @@ Assuming v2.8.0 and v3.0.0 configurations have been added:
 - **Reason**: 2.5.0 >= 2.0.0 (satisfies 2.8.0's minCompatibleVersion), but doesn't satisfy 3.0.0's requirement
 - **Action**: Prompt user to upgrade to 2.8.0, which is the required intermediate version for v3.x upgrade
 
-## Code Changes
+## Current Client Implementation
 
-### Main Modifications
+The client no longer stores or switches the update service URL in TypeScript, and it does not call electron-updater's runtime feed-switching API.
 
-1. **New Methods**
-   - `_fetchUpdateConfig(ipCountry: string): Promise<UpdateConfig | null>` - Fetch configuration file based on IP
-   - `_findCompatibleChannel(currentVersion: string, channel: UpgradeChannel, config: UpdateConfig): ChannelConfig | null` - Find compatible channel configuration
+- Packaged builds use `publish.url` from `electron-builder.yml`. electron-builder writes it to the packaged `app-update.yml`.
+- Development mode sets `forceDevUpdateConfig = true`, so electron-updater reads `dev-app-update.yml` from the project root.
+- Packaged builds default to `https://releases.cherry-ai.com`, while development mode defaults to the local Docker service at `http://127.0.0.1:3378`. Both URLs stay in configuration files; do not add another runtime URL constant.
 
-2. **Modified Methods**
-   - `_getReleaseVersionFromGithub()` → Remove or refactor to `_getChannelFeedUrl()`
-   - `_setFeedUrl()` - Use new configuration system to replace existing logic
+Before each update check, `AppUpdater` only:
 
-3. **New Type Definitions**
-   - `UpdateConfig`
-   - `VersionConfig`
-   - `ChannelConfig`
+1. Selects the `latest`, `rc`, or `beta` manifest from the test-plan setting.
+2. Resolves `X-Region` to `cn` or `global` from the IP country.
+3. Sets the `App-Version`, `OS`, `Client-Id`, `App-Name`, and region headers.
+4. Sets electron-updater's channel and calls `checkForUpdates()`.
 
-### Mirror Selection Logic
+The release service chooses the concrete version, regional mirror, rollout group, and required upgrade gateway. The client does not read the legacy `app-upgrade-config.json` or construct GitHub/GitCode download URLs itself.
 
-The client automatically selects the optimal mirror based on IP geolocation:
+## Current Error Handling
 
-```typescript
-private async _setFeedUrl() {
-  const currentVersion = app.getVersion()
-  const testPlan = configManager.getTestPlan()
-  const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
-
-  // Determine mirror based on IP country
-  const ipCountry = await getIpCountry()
-  const mirror = ipCountry.toLowerCase() === 'cn' ? 'gitcode' : 'github'
-
-  // Fetch update config
-  const config = await this._fetchUpdateConfig(mirror)
-
-  if (config) {
-    const channelConfig = this._findCompatibleChannel(currentVersion, requestedChannel, config)
-    if (channelConfig) {
-      // Select feed URL from the corresponding mirror
-      const feedUrl = channelConfig.feedUrls[mirror]
-      this._setChannel(requestedChannel, feedUrl)
-      return
-    }
-  }
-
-  // Fallback logic
-  const defaultFeedUrl = mirror === 'gitcode'
-    ? FeedUrl.PRODUCTION
-    : FeedUrl.GITHUB_LATEST
-  this._setChannel(UpgradeChannel.LATEST, defaultFeedUrl)
-}
-
-private async _fetchUpdateConfig(mirror: 'github' | 'gitcode'): Promise<UpdateConfig | null> {
-  const configUrl = mirror === 'gitcode'
-    ? UpdateConfigUrl.GITCODE
-    : UpdateConfigUrl.GITHUB
-
-  try {
-    const response = await net.fetch(configUrl, {
-      headers: {
-        'User-Agent': generateUserAgent(),
-        'Accept': 'application/json',
-        'X-Client-Id': configManager.getClientId()
-      }
-    })
-    return await response.json() as UpdateConfig
-  } catch (error) {
-    logger.error('Failed to fetch update config:', error)
-    return null
-  }
-}
-```
-
-## Fallback and Error Handling Strategy
-
-1. **Configuration file fetch failure**: Log error, return current version, don't offer updates
-2. **No matching version**: Notify user that current version doesn't support automatic upgrade
-3. **Network exception**: Cache last successfully fetched configuration (optional)
+1. If IP lookup fails, the IP service's fallback result determines the region; the update service URL does not change.
+2. If the release service has no available version, electron-updater follows its normal “update not available” path.
+3. A network error is logged and ends the current check; the next check uses the same URL from the configuration file.
 
 ## GitHub Release Requirements
 
