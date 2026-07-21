@@ -4,5 +4,5 @@ export default defineCreator({
   id: 'microsoft',
   name: 'Microsoft',
   families: ['phi'],
-  idPrefixes: ['phi', 'mai-']
+  idPrefixes: ['phi', 'mai']
 })

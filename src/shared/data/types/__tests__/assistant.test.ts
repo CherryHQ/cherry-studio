@@ -32,19 +32,19 @@ describe('AssistantSchema', () => {
     description: '',
     settings: DEFAULT_ASSISTANT_SETTINGS,
     modelId: null,
+    groupId: null,
     orderKey: 'a0',
     mcpServerIds: [],
     knowledgeBaseIds: [],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    tags: [],
     modelName: null
   }
 
-  it('requires service-populated embedded fields instead of defaulting them in Zod', () => {
-    const { tags, modelName, ...missingEmbeds } = baseAssistant
+  it('requires the service-populated model name instead of defaulting it in Zod', () => {
+    const { modelName, ...missingEmbed } = baseAssistant
 
-    expect(AssistantSchema.safeParse(missingEmbeds).success).toBe(false)
-    expect(AssistantSchema.parse(baseAssistant)).toMatchObject({ tags, modelName })
+    expect(AssistantSchema.safeParse(missingEmbed).success).toBe(false)
+    expect(AssistantSchema.parse(baseAssistant)).toMatchObject({ modelName })
   })
 })

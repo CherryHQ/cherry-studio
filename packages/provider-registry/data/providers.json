@@ -391,6 +391,15 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openrouter",
+          "baseUrl": "https://openrouter.ai/api/v1/",
+          "modelsApiUrls": {
+            "default": "https://openrouter.ai/api/v1/models",
+            "embedding": "https://openrouter.ai/api/v1/embeddings/models",
+            "image": "https://openrouter.ai/api/v1/images/models"
+          }
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openrouter",
           "baseUrl": "https://openrouter.ai/api/v1/"
         }
       },
@@ -1463,5 +1472,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "5ce59900a797d975"
+  "version": "bb6e9936637563cd"
 }

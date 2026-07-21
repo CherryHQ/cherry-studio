@@ -125,6 +125,8 @@ const DATE_SNAPSHOT_PATTERN =
 // `claude-sonnet-4-5`. The `v` is optional: `openai.gpt-oss-120b-1:0` spells its revision bare, and eating
 // only the `:0` would leave a phantom `…-120b-1` id. Colon-less ids (`whisper-v3`) are never touched.
 const BEDROCK_VENDOR = 'anthropic|amazon|meta|google|mistralai|cohere|openai|ai21|microsoft|nvidia'
+const BEDROCK_DOTTED_VENDOR = `${BEDROCK_VENDOR}|deepseek|minimax|mistral|moonshot|moonshotai|qwen|writer|xai|zai`
+const BEDROCK_VENDOR_DOTTED = new RegExp(`^(?:[a-z]+\\.)*(?:${BEDROCK_DOTTED_VENDOR})\\.`)
 const BEDROCK_VENDOR_DASH = new RegExp(`^(?:${BEDROCK_VENDOR})-{1,2}`)
 const BEDROCK_REVISION_PATTERN = /(?:[-_]v?\d+)?:\d+$/i
 
@@ -166,10 +168,11 @@ export function stripHostReprefix(modelId: string, isKnownId: (id: string) => bo
 /**
  * Strip a Bedrock cross-vendor ARN's leading vendor prefix: region(s)+vendor dotted segments
  * (`us.anthropic.claude-…` → `claude-…`) then a vendor dash prefix (`meta-llama-…` → `llama-…`).
- * All-alpha dotted words only, so a version like `qwen3.7` is never touched.
+ * The final dotted segment must be a known Bedrock vendor, so native dotted model ids such as
+ * `flux.2-pro` and versions such as `qwen3.7` are never touched.
  */
 export function stripBedrockVendorPrefix(modelId: string): string {
-  return modelId.replace(/^(?:[a-z]+\.)+/, '').replace(BEDROCK_VENDOR_DASH, '')
+  return modelId.replace(BEDROCK_VENDOR_DOTTED, '').replace(BEDROCK_VENDOR_DASH, '')
 }
 
 /** Strip a Bedrock ARN model revision: `claude-…-v1:0` / `…:0` → bare id (keeps `whisper-v3`, no colon). */

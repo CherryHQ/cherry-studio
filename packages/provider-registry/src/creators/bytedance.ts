@@ -4,7 +4,7 @@ export default defineCreator({
   id: 'bytedance',
   name: 'ByteDance (Doubao)',
   families: ['doubao', 'seed'],
-  idPrefixes: ['doubao', 'skylark'],
+  idPrefixes: ['doubao', 'seedream', 'skylark'],
   // Doubao is proprietary with no clean public listing (only resellers on models.dev; sparse on OR),
   // and the Volcengine Ark API has no /models endpoint — so the current chat/vision line is hand-listed.
   // Metadata for the ids OpenRouter does carry is still enriched at generation time.
