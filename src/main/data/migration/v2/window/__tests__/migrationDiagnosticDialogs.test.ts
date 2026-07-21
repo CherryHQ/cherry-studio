@@ -28,6 +28,7 @@ describe('migrationDiagnosticDialogs', () => {
     const result = await presentMigrationDiagnosticFailure({
       locale: 'en-US',
       code: 'database_initialize_failed',
+      detail: 'Development recovery guidance',
       saveBundle,
       runSaveTransaction: runSaveTransactionImmediately
     })
@@ -35,6 +36,7 @@ describe('migrationDiagnosticDialogs', () => {
     expect(result).toBe('retry')
     expect(showMessageBoxMock).toHaveBeenCalledTimes(2)
     expect(showMessageBoxMock.mock.calls[0]?.[0].buttons).toEqual(['Save diagnostic bundle', 'Retry', 'Exit'])
+    expect(showMessageBoxMock.mock.calls[0]?.[0].detail).toBe('Development recovery guidance')
     expect(showMessageBoxMock.mock.calls[1]?.[0].buttons).toEqual(['Save diagnostic bundle', 'Retry', 'Exit'])
     expect(saveBundle).not.toHaveBeenCalled()
   })

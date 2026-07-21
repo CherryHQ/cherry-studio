@@ -1,0 +1,84 @@
+{
+  "en-US": {
+    "translation": {
+      "action": {
+        "exit": "Exit",
+        "retry": "Retry",
+        "retryMigration": "Retry migration",
+        "save": "Save diagnostic bundle",
+        "savePrevious": "Save previous diagnostic bundle",
+        "useDefault": "Use default directory"
+      },
+      "failure": {
+        "code": "Diagnostic code: {{code}}",
+        "data_location_pin_failed": "Cherry Studio could not save the selected data location.",
+        "database_initialize_failed": "Cherry Studio could not initialize the migration database.",
+        "legacy_data_location_unavailable": "The previous custom data directory is not currently accessible.",
+        "migration_status_probe_failed": "Cherry Studio could not check the migration status.",
+        "migration_window_failed": "Cherry Studio could not open the migration window.",
+        "path_resolution_failed": "Cherry Studio could not resolve the migration data location.",
+        "renderer_process_gone": "The migration window stopped unexpectedly.",
+        "renderer_unresponsive": "The migration window stopped responding.",
+        "title": "Migration diagnostics",
+        "version_check_failed": "Cherry Studio could not verify the required upgrade path.",
+        "version_window_failed": "Cherry Studio could not open the upgrade guidance window."
+      },
+      "recovery": {
+        "message": "Cherry Studio found diagnostics from an unfinished migration. You can save them before retrying.",
+        "title": "Previous migration interrupted"
+      },
+      "save": {
+        "failedMessage": "The diagnostic bundle could not be saved. No data was uploaded or sent.",
+        "failedTitle": "Could not save diagnostic bundle",
+        "savedMessage": "The diagnostic bundle was saved. Attach it when contacting the Cherry Studio developers.",
+        "savedTitle": "Diagnostic bundle saved",
+        "title": "Save migration diagnostic bundle"
+      },
+      "support": {
+        "emailBody": "Please describe the migration issue and manually attach the saved diagnostic ZIP.",
+        "emailSubject": "Cherry Studio migration diagnostics"
+      }
+    }
+  },
+  "zh-CN": {
+    "translation": {
+      "action": {
+        "exit": "退出",
+        "retry": "重试",
+        "retryMigration": "重试迁移",
+        "save": "保存诊断包",
+        "savePrevious": "保存上次诊断包",
+        "useDefault": "使用默认目录"
+      },
+      "failure": {
+        "code": "诊断代码：{{code}}",
+        "data_location_pin_failed": "无法保存选定的数据目录。",
+        "database_initialize_failed": "无法初始化迁移数据库。",
+        "legacy_data_location_unavailable": "之前的自定义数据目录当前不可访问。",
+        "migration_status_probe_failed": "无法检查迁移状态。",
+        "migration_window_failed": "无法打开迁移窗口。",
+        "path_resolution_failed": "无法确定迁移数据目录。",
+        "renderer_process_gone": "迁移窗口意外停止运行。",
+        "renderer_unresponsive": "迁移窗口已停止响应。",
+        "title": "迁移诊断",
+        "version_check_failed": "无法验证必需的升级路径。",
+        "version_window_failed": "无法打开升级指引窗口。"
+      },
+      "recovery": {
+        "message": "检测到未完成迁移的诊断信息。您可以在重试前先保存诊断包。",
+        "title": "上次迁移已中断"
+      },
+      "save": {
+        "failedMessage": "诊断包保存失败。未上传或发送任何数据。",
+        "failedTitle": "无法保存诊断包",
+        "savedMessage": "诊断包已保存。联系 Cherry Studio 开发者时请手动附上该文件。",
+        "savedTitle": "诊断包已保存",
+        "title": "保存迁移诊断包"
+      },
+      "support": {
+        "emailBody": "请描述迁移问题，并手动附上已保存的诊断 ZIP 文件。",
+        "emailSubject": "Cherry Studio 迁移诊断"
+      }
+    }
+  }
+}

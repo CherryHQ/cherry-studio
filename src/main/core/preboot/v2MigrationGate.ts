@@ -32,7 +32,7 @@ import {
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import type { MigrationRendererExportFailureReport } from '@shared/data/migration/v2/diagnostics'
-import { app, dialog } from 'electron'
+import { app } from 'electron'
 import semver from 'semver'
 
 const logger = loggerService.withContext('V2MigrationGate')
@@ -40,7 +40,6 @@ const logger = loggerService.withContext('V2MigrationGate')
 const MEMORY_ONLY_DATABASE_DIAGNOSTICS = Object.freeze({
   file: Object.freeze({
     status: 'unreadable' as const,
-    sizeBucket: '0' as const,
     sqliteHeader: 'unavailable' as const
   }),
   sqlite: Object.freeze({ status: 'unavailable' as const, reason: 'not_attempted' as const })
@@ -216,13 +215,14 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
 
   const presentFailure = async (
     code: MigrationDiagnosticNativeFailureCode,
-    options: { readonly allowUseDefault?: boolean } = {}
+    options: { readonly allowUseDefault?: boolean; readonly detail?: string } = {}
   ): Promise<MigrationDiagnosticNativeDecision> => {
     await app.whenReady()
     return presentMigrationDiagnosticFailure({
       locale: app.getLocale(),
       code,
       ...(options.allowUseDefault ? { allowUseDefault: true } : {}),
+      ...(options.detail === undefined ? {} : { detail: options.detail }),
       saveBundle: saveDiagnosticBundle,
       runSaveTransaction: runMigrationDiagnosticSaveTransaction
     })
@@ -448,11 +448,13 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   updateLocation({ scope: 'gate', phase: 'resolve_paths' })
 
   if (inaccessibleLegacyPath) {
+    finishPrebootFailure('legacy_data_location_unavailable', 'resolve_paths')
     const decision = await presentFailure('legacy_data_location_unavailable', { allowUseDefault: true })
     if (decision !== 'use_default') {
-      finishPrebootFailure('legacy_data_location_unavailable', 'resolve_paths')
       return applyNativeDecision(decision)
     }
+    beginAttempt('manual_retry')
+    updateLocation({ scope: 'gate', phase: 'resolve_paths' })
     try {
       pinUserDataPath(paths.userData)
     } catch {
@@ -470,37 +472,27 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     finishPrebootFailure(classifyPrebootFailure(error, 'database_initialize_failed'), 'initialize')
 
     if (isDev) {
-      await app.whenReady()
-      if (isSchemaOutOfSyncError(error)) {
-        dialog.showErrorBox(
-          'Database Schema Out of Sync (Dev)',
-          `During v2 development (before release), the database schema can change at any time. ` +
-            `Your local database no longer matches the bundled migration SQL, so startup migration cannot continue.\n\n` +
-            `To fix this, delete the local database, then restart:\n\n` +
-            `  ${paths.databaseFile}\n\n` +
-            `Or run:\n  rm -f "${paths.databaseFile}"\n\n` +
-            `Then start the app again (pnpm dev).\n\n` +
-            `Original error: ${(error as Error).message}`
-        )
-      } else {
-        dialog.showErrorBox(
-          'Migration Failed (Dev) - Application Cannot Start',
-          `Startup migration failed while applying schema changes:\n\n` +
-            `  ${(error as Error).message}\n\n` +
-            `In development this is usually one of:\n\n` +
-            `  1. Your local database predates a schema change (incompatible legacy data). ` +
-            `If this is throwaway dev data, reset it and restart:\n` +
-            `       rm -f "${paths.databaseFile}"\n\n` +
-            `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
-            `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
-            `with real data.\n\n` +
-            `The application will now exit.`
-        )
-      }
+      const detail = isSchemaOutOfSyncError(error)
+        ? `During v2 development (before release), the database schema can change at any time. ` +
+          `Your local database no longer matches the bundled migration SQL, so startup migration cannot continue.\n\n` +
+          `To fix this, delete the local database, then restart:\n\n` +
+          `  ${paths.databaseFile}\n\n` +
+          `Or run:\n  rm -f "${paths.databaseFile}"\n\n` +
+          `Then start the app again (pnpm dev).\n\n` +
+          `Original error: ${(error as Error).message}`
+        : `Startup migration failed while applying schema changes:\n\n` +
+          `  ${(error as Error).message}\n\n` +
+          `In development this is usually one of:\n\n` +
+          `  1. Your local database predates a schema change (incompatible legacy data). ` +
+          `If this is throwaway dev data, reset it and restart:\n` +
+          `       rm -f "${paths.databaseFile}"\n\n` +
+          `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
+          `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
+          `with real data.`
+      const decision = await presentFailure('database_initialize_failed', { detail })
       if (engineInitialized) migrationEngine.close()
       engineInitialized = false
-      application.quit()
-      return 'handled'
+      return applyNativeDecision(decision)
     }
 
     const decision = await presentFailure('database_initialize_failed')

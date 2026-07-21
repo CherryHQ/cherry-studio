@@ -151,6 +151,7 @@ describe('BaseMigrator failure-only write diagnosis', () => {
         evidence: {
           kind: 'failed_write',
           operationRole: 'insert',
+          truncated: false,
           values: [
             {
               role: 'text_value',

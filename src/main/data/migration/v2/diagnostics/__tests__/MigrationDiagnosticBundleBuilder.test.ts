@@ -49,6 +49,7 @@ function failedSnapshot(): MigrationDiagnosticsSnapshot {
         evidence: {
           kind: 'failed_write',
           operationRole: 'insert',
+          truncated: false,
           values: [
             {
               role: 'json_value',

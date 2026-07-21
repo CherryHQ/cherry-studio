@@ -20,19 +20,15 @@ import { migrationDiagnosticsCheckpointSchema } from './migrationDiagnosticsSche
 
 export { MIGRATION_DIAGNOSTIC_BUNDLE_ENTRIES, MIGRATION_DIAGNOSTIC_BUNDLE_LIMIT_BYTES }
 
-const BUNDLE_README = `Cherry Studio migration diagnostics / Cherry Studio 迁移诊断
+const BUNDLE_README = `Cherry Studio migration diagnostics
 
 This ZIP contains migration-diagnostics.json and this README.txt. The JSON contains only bounded migration failure facts and read-only database diagnostics.
-此 ZIP 包含 migration-diagnostics.json 与 README.txt。JSON 仅包含有界迁移失败事实和只读数据库诊断。
 
 It excludes database files and sidecars, application logs, exported business data, raw errors, stacks, SQL, credentials, paths, record identifiers, tokens, and user content.
-它不包含数据库及边车文件、应用日志、导出业务数据、原始错误、堆栈、SQL、凭据、路径、记录标识、令牌或用户内容。
 
 Database diagnostics may be marked unavailable when the isolated child process cannot complete. This does not replace or change the original migration failure.
-如果隔离子进程无法完成，数据库诊断可能标记为不可用；这不会替换或改变原始迁移失败。
 
 When requesting support, manually attach this ZIP. Cherry Studio does not automatically upload it.
-请求支持时，请手动附上此 ZIP；Cherry Studio 不会自动上传。
 `
 
 const DATABASE_DIAGNOSTICS_UNAVAILABLE = Object.freeze({

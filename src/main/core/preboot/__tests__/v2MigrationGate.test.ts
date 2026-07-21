@@ -578,7 +578,7 @@ describe('runV2MigrationGate', () => {
   })
 
   describe('handled path — schema out of sync', () => {
-    it('shows the actionable schema reset guidance only in development', async () => {
+    it('shows actionable schema reset guidance in the save-capable native presenter during development', async () => {
       initializeMock.mockImplementation(() => {
         throw schemaOutOfSyncError()
       })
@@ -591,13 +591,16 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(presentDiagnosticFailureMock).not.toHaveBeenCalled()
-      expect(showErrorBoxMock).toHaveBeenCalledWith(
-        'Database Schema Out of Sync (Dev)',
-        expect.stringContaining('/mock/userData/cherrystudio.sqlite')
+      expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'database_initialize_failed',
+          detail: expect.stringContaining('/mock/userData/cherrystudio.sqlite'),
+          saveBundle: expect.any(Function)
+        })
       )
-      expect(showErrorBoxMock.mock.calls[0]?.[1]).toContain('rm -f')
-      expect(showErrorBoxMock.mock.calls[0]?.[1]).toContain('table `agent` already exists')
+      expect(presentDiagnosticFailureMock.mock.calls[0]?.[0].detail).toContain('rm -f')
+      expect(presentDiagnosticFailureMock.mock.calls[0]?.[0].detail).toContain('table `agent` already exists')
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
@@ -620,7 +623,7 @@ describe('runV2MigrationGate', () => {
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
-    it('shows both likely causes and the database path for ambiguous development failures', async () => {
+    it('shows both likely causes and the database path in the save-capable development presenter', async () => {
       initializeMock.mockImplementation(() => {
         throw new Error('DB unavailable')
       })
@@ -633,13 +636,16 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(presentDiagnosticFailureMock).not.toHaveBeenCalled()
-      expect(showErrorBoxMock).toHaveBeenCalledWith(
-        'Migration Failed (Dev) - Application Cannot Start',
-        expect.stringContaining('DB unavailable')
+      expect(presentDiagnosticFailureMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'database_initialize_failed',
+          detail: expect.stringContaining('DB unavailable'),
+          saveBundle: expect.any(Function)
+        })
       )
-      expect(showErrorBoxMock.mock.calls[0]?.[1]).toContain('/mock/userData/cherrystudio.sqlite')
-      expect(showErrorBoxMock.mock.calls[0]?.[1]).toContain('Do NOT just delete the DB')
+      expect(presentDiagnosticFailureMock.mock.calls[0]?.[0].detail).toContain('/mock/userData/cherrystudio.sqlite')
+      expect(presentDiagnosticFailureMock.mock.calls[0]?.[0].detail).toContain('Do NOT just delete the DB')
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
   })
@@ -994,6 +1000,16 @@ describe('runV2MigrationGate', () => {
       expect(appRelaunchMock).not.toHaveBeenCalled()
       expect(appQuitMock).not.toHaveBeenCalled()
       expect(result).toBe('skipped')
+      expect(diagnosticsFinishAttemptMock).toHaveBeenNthCalledWith(1, {
+        status: 'failed',
+        failure: {
+          kind: 'preboot_failed',
+          scope: 'gate',
+          phase: 'resolve_paths',
+          errorCode: 'legacy_data_location_unavailable'
+        }
+      })
+      expect(diagnosticsBeginAttemptMock).toHaveBeenNthCalledWith(2, 'manual_retry')
     })
 
     it('quits with a fatal error when pinning the default dir fails on Use Default (response 1)', async () => {
@@ -1215,7 +1231,7 @@ describe('runV2MigrationGate', () => {
       diagnosticBundleSaveMock.mockImplementation(
         async (input: { collectDatabaseDiagnostics: () => Promise<unknown> }) => {
           expect(await input.collectDatabaseDiagnostics()).toEqual({
-            file: { status: 'unreadable', sizeBucket: '0', sqliteHeader: 'unavailable' },
+            file: { status: 'unreadable', sqliteHeader: 'unavailable' },
             sqlite: { status: 'unavailable', reason: 'not_attempted' }
           })
           return { status: 'saved', publication: 'published' }

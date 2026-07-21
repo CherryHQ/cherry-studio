@@ -9,6 +9,7 @@ describe('measureFailedWriteValuesBestEffort', () => {
     expect(measureFailedWriteValuesBestEffort(values, 'insert')).toEqual({
       kind: 'failed_write',
       operationRole: 'insert',
+      truncated: false,
       values: [
         {
           role: 'text_value',
@@ -29,6 +30,7 @@ describe('measureFailedWriteValuesBestEffort', () => {
     expect(result).toEqual({
       kind: 'failed_write',
       operationRole: 'upsert',
+      truncated: false,
       values: [
         {
           role: 'json_value',
@@ -50,6 +52,7 @@ describe('measureFailedWriteValuesBestEffort', () => {
     ).toEqual({
       kind: 'failed_write',
       operationRole: 'status_write',
+      truncated: false,
       values: [
         {
           role: 'blob_value',
@@ -76,7 +79,7 @@ describe('measureFailedWriteValuesBestEffort', () => {
     }
   )
 
-  it('returns at most three fixed measurements', () => {
+  it('returns at most three fixed measurements and marks a longer candidate set as truncated', () => {
     const result = measureFailedWriteValuesBestEffort(
       () => [
         { role: 'text_value', kind: 'string', value: 'a' },
@@ -88,6 +91,7 @@ describe('measureFailedWriteValuesBestEffort', () => {
     )
 
     expect(result?.values).toHaveLength(3)
+    expect(result?.truncated).toBe(true)
   })
 
   it.each([

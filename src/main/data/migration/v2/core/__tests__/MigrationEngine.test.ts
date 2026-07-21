@@ -357,6 +357,40 @@ describe('MigrationEngine', () => {
     expect(JSON.stringify(diagnostics.finishAttempt.mock.calls)).not.toContain(canary)
   })
 
+  it('preserves the real MCP all-required-source-id failure evidence', async () => {
+    vi.mocked(createMigrationContext).mockResolvedValueOnce({
+      sources: {
+        reduxState: {
+          get: vi.fn(() => [
+            { name: 'missing-id-one', isActive: true },
+            { name: 'missing-id-two', isActive: false }
+          ])
+        }
+      }
+    } as never)
+    engine.registerMigrators([new McpServerMigrator()])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining('MCP Server prepare failed') })
+    expect(diagnostics.finishAttempt).toHaveBeenCalledWith({
+      status: 'failed',
+      failure: {
+        kind: 'source_prepare_failed',
+        scope: 'migrator',
+        phase: 'prepare',
+        migratorId: 'mcp_server',
+        errorCode: 'source_required_records_rejected',
+        evidence: {
+          kind: 'all_required_rows_rejected',
+          sourceRole: 'mcp_server',
+          fieldRole: 'source_id',
+          rejectedCountBucket: '2-10'
+        }
+      }
+    })
+  })
+
   it('preserves a real validate SQLITE_CORRUPT classification when markFailed also throws', async () => {
     const canary = 'PRIVATE_VALIDATE_CANARY_/Users/alice/messages'
     const original = Object.assign(new Error(canary), { code: 'SQLITE_CORRUPT' })

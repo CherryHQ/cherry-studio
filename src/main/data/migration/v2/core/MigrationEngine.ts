@@ -588,7 +588,6 @@ export class MigrationEngine {
     if (evidence?.kind === 'all_required_rows_rejected') {
       return {
         kind: 'source_prepare_failed',
-        ...location,
         scope: 'migrator',
         phase: 'prepare',
         migratorId: migratorId as MigrationDiagnosticMigratorId,

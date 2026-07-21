@@ -293,6 +293,7 @@ const migrationFailedWriteEvidenceSchema = z
   .object({
     kind: z.literal('failed_write'),
     operationRole: z.enum(['insert', 'update', 'upsert', 'import', 'status_write', 'temporary_index_write']),
+    truncated: z.boolean(),
     values: z.array(migrationFailedWriteValueMeasurementSchema).max(3)
   })
   .strict()

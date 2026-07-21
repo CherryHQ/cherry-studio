@@ -69,6 +69,7 @@ const failures = [
     evidence: {
       kind: 'failed_write',
       operationRole: 'insert',
+      truncated: false,
       values: [{ role: 'text_value', kind: 'string', byteLength: 262_145, byteLengthBucket: '262145+' }]
     }
   },
@@ -181,7 +182,7 @@ describe('migrationDiagnosticFailureSchema', () => {
       'renderer_export_failed',
       { kind: 'all_required_rows_rejected', sourceRole: 'mcp_server', fieldRole: 'source_id', rejectedCountBucket: '1' }
     ],
-    ['source_prepare_failed', { kind: 'failed_write', operationRole: 'insert', values: [] }],
+    ['source_prepare_failed', { kind: 'failed_write', operationRole: 'insert', truncated: false, values: [] }],
     ['migration_write_failed', { kind: 'invariant', invariantRole: 'foreign_key' }],
     ['migration_invariant_failed', { kind: 'validation', checkRole: 'status' }],
     ['migration_validation_failed', { kind: 'interruption', lastLocation: location, recoverySource: 'checkpoint' }],
@@ -252,6 +253,7 @@ describe('migrationDiagnosticFailureSchema', () => {
         evidence: {
           kind: 'failed_write',
           operationRole: 'insert',
+          truncated: false,
           values: [{ role: 'blob_value', kind: 'blob', byteLength: 10, byteLengthBucket: '262145+' }]
         }
       }).success

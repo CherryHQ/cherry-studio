@@ -39,6 +39,7 @@ export interface MigrationDiagnosticFailureDialogState {
   readonly locale: string
   readonly code: MigrationDiagnosticNativeFailureCode
   readonly allowUseDefault?: boolean
+  readonly detail?: string
   readonly saveBundle: SaveBundle
   readonly runSaveTransaction: MigrationDiagnosticSaveTransaction
 }
@@ -194,6 +195,7 @@ export async function presentMigrationDiagnosticFailure(
         type: 'error',
         title: i18n.t('failure.title'),
         message: i18n.t(FAILURE_MESSAGE_KEYS[state.code]),
+        ...(state.detail === undefined ? {} : { detail: state.detail }),
         buttons: decisionOptions.map((option) => option.label),
         defaultId: 0,
         cancelId: decisionOptions.length - 1

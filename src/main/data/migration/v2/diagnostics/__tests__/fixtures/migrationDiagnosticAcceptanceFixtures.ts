@@ -234,7 +234,7 @@ function oversized(
       phase: 'execute',
       migratorId,
       errorCode: 'sqlite_too_big',
-      evidence: { kind: 'failed_write', operationRole, values: [value] }
+      evidence: { kind: 'failed_write', operationRole, truncated: false, values: [value] }
     },
     async () => availableDatabase(),
     { status: 'available', quickCheck: 'ok' }

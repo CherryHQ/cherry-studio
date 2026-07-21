@@ -63,7 +63,9 @@ export function measureFailedWriteValuesBestEffort(
       const value = selected[index]
       if (value !== undefined) measurements.push(measure(value))
     }
-    return measurements.length === 0 ? undefined : { kind: 'failed_write', operationRole, values: measurements }
+    return measurements.length === 0
+      ? undefined
+      : { kind: 'failed_write', operationRole, truncated: selected.length > MAX_MEASUREMENTS, values: measurements }
   } catch {
     return undefined
   }
