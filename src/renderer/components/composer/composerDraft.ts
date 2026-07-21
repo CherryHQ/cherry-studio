@@ -204,6 +204,59 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   return { text, tokens }
 }
 
+type ComposerLineRange = {
+  start: number
+  contentEnd: number
+}
+
+function getComposerLineRanges(text: string): ComposerLineRange[] {
+  const lines: ComposerLineRange[] = []
+  let start = 0
+
+  for (let index = 0; index <= text.length; index += 1) {
+    if (index < text.length && text[index] !== '\n') continue
+
+    const contentEnd = index > start && text[index - 1] === '\r' ? index - 1 : index
+    lines.push({ start, contentEnd })
+    start = index + 1
+  }
+
+  return lines
+}
+
+/**
+ * Removes token-free blank lines only at the document boundaries. Whitespace
+ * inside the first and last meaningful lines, plus all internal blank lines,
+ * remains untouched.
+ */
+export function trimComposerDraftBoundaryBlankLines(draft: ComposerSerializedDraft): ComposerSerializedDraft {
+  const lines = getComposerLineRanges(draft.text)
+  const tokenOffsets = draft.tokens.map((token) => Math.min(draft.text.length, Math.max(0, token.textOffset)))
+  const meaningfulLineIndexes = lines.flatMap((line, index) => {
+    const hasText = draft.text.slice(line.start, line.contentEnd).trim().length > 0
+    const hasToken = tokenOffsets.some((offset) => offset >= line.start && offset <= line.contentEnd)
+    return hasText || hasToken ? [index] : []
+  })
+
+  const firstMeaningfulLineIndex = meaningfulLineIndexes[0]
+  if (firstMeaningfulLineIndex === undefined) {
+    return draft.text.length === 0 ? draft : { ...draft, text: '', tokens: [] }
+  }
+
+  const lastMeaningfulLineIndex = meaningfulLineIndexes.at(-1) ?? firstMeaningfulLineIndex
+  const start = lines[firstMeaningfulLineIndex].start
+  const end = lines[lastMeaningfulLineIndex].contentEnd
+  if (start === 0 && end === draft.text.length) return draft
+
+  const text = draft.text.slice(start, end)
+  const tokens = draft.tokens.map((token) => ({
+    ...token,
+    textOffset: Math.min(text.length, Math.max(0, token.textOffset - start))
+  }))
+
+  return { text, tokens }
+}
+
 export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): ComposerMessageSnapshot | undefined {
   const visibleTokens = draft.tokens.filter(
     (token): token is PersistedComposerSerializedToken => token.kind !== 'promptVariable'
