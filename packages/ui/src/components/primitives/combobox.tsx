@@ -530,7 +530,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         )}
         align={popoverAlign}
         portalContainer={portalContainer}
-        style={triggerWidth ? { width: triggerWidth } : undefined}
+        style={{ width: triggerWidth ?? 'var(--radix-popover-trigger-width)' }}
         onFocusOutside={onFocusOutside}
         onOpenAutoFocus={(event) => {
           if (!triggerSearchEnabled) {

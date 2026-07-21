@@ -58,6 +58,18 @@ describe('Combobox', () => {
     expect(trigger).not.toHaveClass('bg-muted/50', 'focus-visible:ring-3')
   })
 
+  it('matches the dropdown width to the trigger by default', async () => {
+    render(<Combobox options={options} searchPlacement="trigger" placeholder="Pick one" emptyText="No results" />)
+
+    fireEvent.click(screen.getByRole('combobox'))
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="popover-content"]')).toHaveStyle({
+        width: 'var(--radix-popover-trigger-width)'
+      })
+    })
+  })
+
   it('maps the selected value to the trigger placeholder when opened', async () => {
     render(
       <Combobox
