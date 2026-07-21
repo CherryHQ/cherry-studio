@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Checkbox, HorizontalScrollContainer, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
@@ -768,7 +768,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     return (
-      <>
+      <HorizontalScrollContainer className="w-full" dependencies={availableTags} gap="6px">
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}
@@ -777,10 +777,10 @@ export function ModelSelector(props: ModelSelectorProps) {
             showLabel
             inactive={!tagSelection[tag]}
             onClick={() => toggleTag(tag)}
-            className="h-5 items-center transition-colors"
+            className="h-5 shrink-0 items-center transition-colors"
           />
         ))}
-      </>
+      </HorizontalScrollContainer>
     )
   }, [availableTags, showTagFilter, tagSelection, toggleTag])
 
