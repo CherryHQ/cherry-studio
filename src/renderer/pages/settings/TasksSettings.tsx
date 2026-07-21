@@ -1001,7 +1001,12 @@ const TasksSettings: FC = () => {
   const [loading, setLoading] = useState(true)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
-  const taskUpdateStatesRef = useRef(new Map<string, { tail: Promise<void>; lastUpdateSucceeded: boolean }>())
+  const taskUpdateTailsRef = useRef<Map<string, Promise<boolean>> | null>(null)
+
+  const getTaskUpdateTails = useCallback(() => {
+    taskUpdateTailsRef.current ??= new Map()
+    return taskUpdateTailsRef.current
+  }, [])
 
   const channels: ChannelInfo[] = useMemo(
     () =>
@@ -1082,34 +1087,38 @@ const TasksSettings: FC = () => {
       const task = tasks.find((t) => t.id === taskId)
       if (!task) return Promise.resolve()
 
-      let state = taskUpdateStatesRef.current.get(taskId)
-      if (!state) {
-        state = { tail: Promise.resolve(), lastUpdateSucceeded: true }
-        taskUpdateStatesRef.current.set(taskId, state)
-      }
-
-      const current = state.tail.then(async () => {
-        const updated = await updateTask(task.agentId, taskId, updates)
-        state.lastUpdateSucceeded = updated !== undefined
-        if (updated) {
+      const tails = getTaskUpdateTails()
+      const previous = tails.get(taskId) ?? Promise.resolve(true)
+      const current = previous
+        .catch(() => false)
+        .then(async () => {
+          const updated = await updateTask(task.agentId, taskId, updates)
+          if (!updated) return false
           setTasks((currentTasks) =>
             currentTasks.map((currentTask) => (currentTask.id === taskId ? updated : currentTask))
           )
-        }
+          return true
+        })
+        .catch(() => false)
+
+      tails.set(taskId, current)
+      void current.then(() => {
+        if (tails.get(taskId) === current) tails.delete(taskId)
       })
-      state.tail = current
-      return current
+      return current.then(() => undefined)
     },
-    [updateTask, tasks]
+    [getTaskUpdateTails, updateTask, tasks]
   )
 
   const waitForTaskUpdates = useCallback(async (taskId: string): Promise<boolean> => {
-    const state = taskUpdateStatesRef.current.get(taskId)
-    if (!state) return true
+    const tails = taskUpdateTailsRef.current
+    if (!tails) return true
     while (true) {
-      const tail = state.tail
-      await tail
-      if (state.tail === tail) return state.lastUpdateSucceeded
+      const tail = tails.get(taskId)
+      if (!tail) return true
+      const succeeded = await tail
+      const latest = tails.get(taskId)
+      if (!latest || latest === tail) return succeeded
     }
   }, [])
 
@@ -1139,16 +1148,12 @@ const TasksSettings: FC = () => {
 
   const handleToggleStatus = useCallback(
     async (taskId: string, newStatus: string) => {
-      if (!(await waitForTaskUpdates(taskId))) return
-      const task = tasks.find((t) => t.id === taskId)
-      if (!task) return
       // newStatus is the renderer's existing 'active' | 'paused' contract — keep
       // it so consumers don't need to think in terms of `enabled`, then translate
       // at the IPC boundary.
-      await updateTask(task.agentId, taskId, { enabled: newStatus === 'active' })
-      void loadData()
+      await handleUpdate(taskId, { enabled: newStatus === 'active' })
     },
-    [updateTask, tasks, loadData, waitForTaskUpdates]
+    [handleUpdate]
   )
 
   if (loading) {

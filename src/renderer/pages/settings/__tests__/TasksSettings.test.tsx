@@ -671,6 +671,31 @@ describe('TasksSettings task logs', () => {
     expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
   })
 
+  it('runs the task after a failed save has already settled', async () => {
+    const save = createDeferred<typeof taskDataMock.task | undefined>()
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      }
+    ]
+    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
+
+    render(<TasksSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+    await act(async () => save.resolve(undefined))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+  })
+
   it('waits for saves appended while the run action is already waiting', async () => {
     const firstSave = createDeferred<typeof taskDataMock.task>()
     const secondSave = createDeferred<typeof taskDataMock.task>()
@@ -757,6 +782,45 @@ describe('TasksSettings task logs', () => {
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { enabled: false })
     )
+  })
+
+  it('waits for an in-flight status toggle before running the task', async () => {
+    const toggle = createDeferred<typeof taskDataMock.task>()
+    taskMutationMocks.updateTask.mockReturnValueOnce(toggle.promise)
+
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.tasks.logs.viewSession')
+    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+
+    await act(async () => {})
+    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
+
+    await act(async () => toggle.resolve({ ...taskDataMock.task, enabled: false, status: 'paused' }))
+
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+  })
+
+  it('does not run the task when an in-flight status toggle fails', async () => {
+    const toggle = createDeferred<typeof taskDataMock.task | undefined>()
+    taskMutationMocks.updateTask.mockReturnValueOnce(toggle.promise)
+
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.tasks.logs.viewSession')
+    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+
+    await act(async () => toggle.resolve(undefined))
+
+    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
   })
 
   it('renders completed task status badge with raw blue tokens matching the status dot', async () => {
