@@ -2297,6 +2297,7 @@
     "swap": "Swap",
     "topics": "Conversations",
     "translate_text": "Translate text",
+    "undo": "Undo",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
     "unsubscribe": "Unsubscribe",
@@ -3433,6 +3434,11 @@
         "insert_variable": "Insert variable",
         "label": "System prompt",
         "placeholder": "Enter instructions for the assistant, such as response style, role, or background context",
+        "polish": "Polish prompt",
+        "polish_failed_description": "Check or change the default model, then try again.",
+        "polish_failed_title": "Failed to polish prompt",
+        "polish_variables_changed_description": "The polished result changed or removed prompt variables. Try again.",
+        "polish_variables_changed_title": "Could not apply polished prompt",
         "title": "Prompt",
         "tokens_label": "Tokens: ",
         "variables_description": "Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.",
@@ -4917,6 +4923,7 @@
     "install": "Install",
     "install_plugins_from_browser": "Browse available skills to get started",
     "installing": "Installing...",
+    "manage_skills": "Manage skills",
     "name": "Name",
     "no_description": "No description available",
     "no_installed_plugins": "No skills installed yet",
@@ -6893,6 +6900,7 @@
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
       "empty": "No models found",
+      "empty_hint": "Click the Get model list button above to add models.",
       "enabled_models": "Enabled",
       "expand_all": "Expand all",
       "filter": {
@@ -7390,9 +7398,6 @@
         "usage_title": "Usage",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
-      },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
       "reorder_failed": "Failed to reorder providers",
@@ -7468,6 +7473,7 @@
         "autoEmpty": "No enabled MCP servers",
         "description": "View current MCP server status",
         "disabled": "MCP is disabled for this assistant",
+        "open_config": "Configure MCP servers",
         "unknownServer": "Unknown MCP server"
       },
       "multiple": "Multiple Select",
