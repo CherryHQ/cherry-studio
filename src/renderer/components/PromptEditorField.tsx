@@ -24,7 +24,7 @@ const promptEditorThemeSpec = {
   },
   '.cm-content': {
     caretColor: 'var(--color-foreground)',
-    padding: 'var(--cs-size-3xs)'
+    padding: 'calc(var(--spacing) * 3)'
   },
   '.cm-cursor, .cm-dropCursor': {
     borderLeftColor: 'var(--color-foreground)'
