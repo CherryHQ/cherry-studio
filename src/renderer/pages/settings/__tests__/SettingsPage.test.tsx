@@ -17,7 +17,11 @@ vi.mock('@cherrystudio/ui', () => ({
       {label}
     </button>
   ),
-  MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  MenuList: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <div data-testid="menu-list" className={className}>
+      {children}
+    </div>
+  ),
   PageHeader: ({ className, title }: { className?: string; title: string }) => (
     <header className={className}>{title}</header>
   )
@@ -90,6 +94,7 @@ describe('SettingsPage', () => {
     expect(container.querySelector('[data-ui="settings.navigation"]')).toBeInTheDocument()
     expect(container.querySelector('[data-ui="settings.content"]')).toBeInTheDocument()
     expect(screen.getByText('title.settings').closest('header')).toHaveClass('mb-1')
+    expect(screen.getByTestId('menu-list').className).toContain('[&_svg.lucide]:[stroke-width:1.6]')
     expect(screen.getByText('偏好')).toBeInTheDocument()
 
     const defaultModelItem = screen.getByRole('button', { name: '默认模型' })
