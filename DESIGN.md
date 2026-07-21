@@ -14,7 +14,7 @@
 
 ## 1. Visual Theme & Atmosphere
 
-> **Source of truth:** foundation values live in `packages/ui/src/styles/tokens/`, controlled host-written inputs live in `packages/ui/src/styles/theme-input.css`, the official Shadcn contract lives in `packages/ui/src/styles/shadcn.css`, and Cherry Studio product semantics live in `packages/ui/src/styles/product.css`. `contract.css` composes those layers in order; Tailwind-facing aliases are generated in `theme.css`. Component, page, and App Shell implementation variables stay in their owning stylesheets and are not public theme roles. For actual values and stability, inspect the source plus `scripts/theme-contract.ts`.
+> **Source of truth:** foundation values live in `packages/ui/src/styles/tokens/`, controlled host-written inputs live in `packages/ui/src/styles/theme-input.css`, the official Shadcn contract lives in `packages/ui/src/styles/shadcn.css`, and Cherry Studio product semantics live in `packages/ui/src/styles/product.css`. `contract.css` composes those layers in order; Tailwind-facing aliases are generated in `theme.css`. Component, page, and App Shell implementation variables stay in their owning stylesheets and are not public theme roles. For actual values and stability, inspect the source plus `packages/ui/scripts/theme-contract.ts`.
 
 Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the exported primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
 
@@ -37,7 +37,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 
 ## 2. Color Palette & Roles
 
-> Token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,semantic,status}.css`. This section names what each token is for; refer to the source files for resolved values.
+> Internal token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,status-legacy,providers}.css`; public semantic mappings live in `packages/ui/src/styles/shadcn.css` and `packages/ui/src/styles/product.css`. This section names what each token is for; refer to those source files for resolved values.
 
 ### Palette Philosophy — Neutrals via Alpha, Colors via Steps
 
