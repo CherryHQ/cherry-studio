@@ -3,18 +3,24 @@ import { isFreeModel } from '@shared/utils/model'
 import type { ComponentType } from 'react'
 
 import type { CustomTagProps } from '../CustomTag'
+import { AudioTag } from './AudioTag'
 import { EmbeddingTag } from './EmbeddingTag'
 import { FreeTag } from './FreeTag'
 import { ReasoningTag } from './ReasoningTag'
 import { RerankerTag } from './RerankerTag'
 import { ToolsCallingTag } from './ToolsCallingTag'
+import { VideoTag } from './VideoTag'
 import { VisionTag } from './VisionTag'
 import { WebSearchTag } from './WebSearchTag'
 
 export type ModelDisplayTagSource = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities'>
 
 export const MODEL_DISPLAY_CAPABILITY_TAGS = [
+  // Input modalities
   MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  MODEL_CAPABILITY.AUDIO_RECOGNITION,
+  MODEL_CAPABILITY.VIDEO_RECOGNITION,
+  // Capabilities
   MODEL_CAPABILITY.WEB_SEARCH,
   MODEL_CAPABILITY.REASONING,
   MODEL_CAPABILITY.FUNCTION_CALL,
@@ -75,6 +81,8 @@ type ModelTagComponentProps = Omit<ModelTagProps, 'tag'>
 
 const MODEL_TAG_COMPONENTS = {
   'image-recognition': VisionTag,
+  'audio-recognition': AudioTag,
+  'video-recognition': VideoTag,
   'web-search': WebSearchTag,
   reasoning: ReasoningTag,
   'function-call': ToolsCallingTag,

@@ -37,4 +37,28 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
     expect(screen.queryByText('models.type.free')).not.toBeInTheDocument()
     expect(container.querySelectorAll('svg')).toHaveLength(3)
   })
+
+  it('renders image, audio, and video input-modality tags', () => {
+    const { container } = render(
+      <ModelTagsWithLabel
+        model={
+          {
+            id: 'openai::omni',
+            providerId: 'openai',
+            name: 'Omni',
+            capabilities: [
+              MODEL_CAPABILITY.IMAGE_RECOGNITION,
+              MODEL_CAPABILITY.AUDIO_RECOGNITION,
+              MODEL_CAPABILITY.VIDEO_RECOGNITION
+            ],
+            endpointTypes: []
+          } satisfies ModelTagsWithLabelModel
+        }
+        showTooltip={false}
+      />
+    )
+
+    // vision + audio + video input tags → three icons.
+    expect(container.querySelectorAll('svg')).toHaveLength(3)
+  })
 })
