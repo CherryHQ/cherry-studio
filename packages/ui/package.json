@@ -13,23 +13,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts,.tsx --fix",
-    "type-check": "tsc --noEmit -p tsconfig.json --composite false",
+    "type:check": "tsc --noEmit -p tsconfig.json --composite false",
     "theme:build": "tsx scripts/build-theme-css.ts",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
-    "icons:generate": "tsx scripts/generate-icons.ts --type=icons",
-    "providers:pipeline": "tsx scripts/pipeline.ts --dir=providers",
-    "providers:vectorize": "tsx scripts/vectorize-logo.ts --dir=providers",
-    "providers:validate": "tsx scripts/validate-svgs.ts --dir=providers",
-    "providers:normalize": "tsx scripts/normalize-viewbox.ts --dir=providers",
-    "providers:generate": "tsx scripts/generate-icons.ts --type=providers",
-    "providers:generate:avatars": "tsx scripts/generate-avatars.ts --type=providers",
-    "models:pipeline": "tsx scripts/pipeline.ts --dir=models",
-    "models:vectorize": "tsx scripts/vectorize-logo.ts --dir=models",
-    "models:validate": "tsx scripts/validate-svgs.ts --dir=models",
-    "models:normalize": "tsx scripts/normalize-viewbox.ts --dir=models",
-    "models:generate": "tsx scripts/generate-icons.ts --type=models",
-    "models:generate:avatars": "tsx scripts/generate-avatars.ts --type=models"
+    "build:storybook": "storybook build",
+    "icons:generate": "tsx scripts/icons-generate.ts",
+    "posticons:generate": "pnpm --workspace-root exec eslint packages/ui/src/components/icons --ext .ts,.tsx --fix && pnpm --workspace-root format"
   },
   "keywords": [
     "ui",
@@ -185,9 +174,7 @@
       "require": "./dist/icons/index.js",
       "default": "./dist/icons/index.js"
     },
-    "./styles": "./dist/styles/tokens.css",
     "./styles/tokens.css": "./dist/styles/tokens.css",
-    "./styles/theme.css": "./dist/styles/theme.css",
-    "./styles/index.css": "./dist/styles/tokens.css"
+    "./styles/theme.css": "./dist/styles/theme.css"
   }
 }

@@ -5,4 +5,5 @@ export {
   type AssistantEditDialogResource
 } from './AssistantEditDialog'
 export { default as PromptEditDialog } from './PromptEditDialog'
+export { openResourceEditDialog, ResourceEditDialogEventHost } from './ResourceEditDialogEventHost'
 export { ResourceEditDialogHost, type ResourceEditDialogTarget } from './ResourceEditDialogHost'

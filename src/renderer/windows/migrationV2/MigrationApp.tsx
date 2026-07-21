@@ -72,8 +72,8 @@ type BadgeTone = 'primary' | 'success' | 'warning' | 'destructive' | 'neutral'
 
 const badgeToneClass: Record<BadgeTone, string> = {
   primary: 'border-primary-mute bg-primary/10 text-primary',
-  success: 'border-success-bg-hover bg-success-bg text-success',
-  warning: 'border-warning-bg-hover bg-warning-bg text-warning',
+  success: 'border-success bg-success-bg text-success',
+  warning: 'border-warning bg-warning-bg text-warning',
   destructive: 'border-error-border bg-error-bg text-error-text',
   neutral: 'border-border bg-muted/40 text-foreground-secondary'
 }
@@ -774,10 +774,7 @@ const MigrationApp: React.FC = () => {
             </Button>
 
             {warnings.length > 0 && (
-              <Accordion
-                type="single"
-                collapsible
-                className="rounded-xl border border-warning-bg-hover bg-warning-bg px-4">
+              <Accordion type="single" collapsible className="rounded-xl border border-warning bg-warning-bg px-4">
                 <AccordionItem value="migration-warnings" className="border-0 first:border-t-0">
                   <AccordionTrigger className="py-3 font-medium text-sm text-warning hover:no-underline">
                     {t('migration.completed.warning_heading', { count: warnings.length })}

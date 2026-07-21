@@ -107,6 +107,17 @@ const bashDoneItem = {
   }
 } as ToolRenderItem
 
+const skillDoneItem = {
+  ...readDoneItem,
+  id: 'tool-skill',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-skill',
+    toolCallId: 'tool-skill',
+    tool: { id: 'tool-skill', name: 'Skill', type: 'builtin' }
+  }
+} as ToolRenderItem
+
 const webSearchDoneItem = {
   ...readDoneItem,
   id: 'tool-web-search',
@@ -299,6 +310,12 @@ describe('ToolBlockGroup', () => {
     render(<ToolBlockGroup items={[bashDoneItem]} />)
 
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-square-terminal')).not.toBeNull()
+  })
+
+  it('uses the tool-case icon for a skill tool group', () => {
+    render(<ToolBlockGroup items={[skillDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-tool-case')).not.toBeNull()
   })
 
   it('uses a readable title and web icon for a web-search tool group', () => {

@@ -7,7 +7,7 @@ Stage 0 (the framework) ships alongside legacy IPC. Migration is later work — 
 For each domain, in **one atomic PR** (the four actions must land together, or the build breaks mid-way):
 
 1. Add the domain's `*RequestSchemas` + `*EventSchemas` to `src/shared/ipc/schemas/`.
-2. Move the handler logic into `src/main/ipc/handlers/<domain>.ts` (pure function if stateless; otherwise delegate to the existing service via `application.get`). The service keeps its business logic and resource lifecycle; it just stops registering IPC.
+2. Move the handler logic into `src/main/ipc/handlers/<domain>.ts` (inline pure function if small and stateless; delegate to a lifecycle service via `application.get`; delegate to a non-lifecycle module via a direct import of its curated entry). The service keeps its business logic and resource lifecycle; it just stops registering IPC.
 3. Delete the old hand-written `preload/preload.ts` method(s) for that domain.
 4. Switch renderer call sites to `ipcApi.request(...)` / `useIpcOn(...)`, then delete the old `IpcChannel` enum entries.
 
@@ -40,12 +40,13 @@ Anti-pattern to avoid: a JSDoc `{@link X}` plus a separate `expectTypeOf` test �
 
 A legacy handler often `return`s an internal status the caller never reads — e.g. WindowManager's `close`/`minimize` return a "was the window found" boolean, but the preload already typed it `Promise<void>` and every call site ignores it. Declare the route `output: z.void()` in that case. Give a non-void output **only** when a caller actually consumes the value (a query like `window.is_maximized → boolean`, `window.get_init_data → unknown`). The handler may still compute the internal value; the thin adapter just discards it. This keeps the typed surface honest about what callers can rely on.
 
-## Two Service Shapes
+## Three Capability Shapes
 
-| Service kind | Migration form |
+| Capability shape | Migration form |
 |---|---|
-| Stateless (app info, fonts) | pure function in `handlers/`, no lifecycle service |
-| Stateful (MCP / Knowledge / Window) | handler in `handlers/` delegating to `application.get('XxxService')`; logic + lifecycle stay in the service |
+| Small stateless logic (app info, fonts) | pure function in `handlers/`, no service |
+| Lifecycle service (MCP / Knowledge / Window — registered in `serviceRegistry.ts`) | handler in `handlers/` delegating to `application.get('XxxService')`; logic + lifecycle stay in the service |
+| Non-lifecycle module (file topic, `printService`, `regionService`) | handler imports the module's curated entry (topic barrel or direct-import singleton) and delegates; never fabricate a lifecycle service to obtain a DI handle |
 
 ## `BaseService.ipcHandle` / `ipcOn` Removal
 
