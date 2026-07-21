@@ -166,7 +166,7 @@ describe('check-legacy-css-vars', () => {
 
     expect(result.replacements).toBe(2)
     expect(result.content).toContain('text-(--color-text-2) bg-(--color-background-soft)')
-    expect(result.content).toContain('var(--cs-link)')
+    expect(result.content).toContain('var(--link)')
     expect(result.content).toContain('var(--app-icon)')
     expect(result.content).toContain('// var(--color-text-1)')
     expect(result.content).toContain('--foreground: var(--color-foreground);')

@@ -200,7 +200,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
   const runtimeVariablePrefix = '--cs-theme-'
   const runtimeVariables = new Set(RUNTIME_THEME_INPUT_TOKENS.map((token) => `--cs-theme-${token}`))
   const officialVariables = new Set(SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`))
-  const productVariables = new Set(CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`))
+  const productVariables = new Set(CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`))
   const foundationEntries: SourceEntry[] = [
     ['tokens/colors/primitive.css', sources.primitiveColors],
     ['tokens/colors/semantic.css', sources.semanticColors],
@@ -219,6 +219,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
         if (
           reference.startsWith(runtimeVariablePrefix) ||
           officialVariables.has(reference) ||
+          productVariables.has(reference) ||
           reference.startsWith('--color-') ||
           reference.startsWith('--app-')
         ) {
@@ -255,7 +256,8 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
 
   for (const declaration of extractDeclarations(sources.product, 'product.css')) {
     for (const reference of extractReferences(declaration.value)) {
-      const validNamespace = reference.startsWith('--cs-') || officialVariables.has(reference)
+      const validNamespace =
+        reference.startsWith('--cs-') || officialVariables.has(reference) || productVariables.has(reference)
       if (!validNamespace) {
         throw new Error(`[theme-contract] product ${declaration.name} has invalid dependency ${reference}`)
       }
@@ -267,7 +269,7 @@ function assertCatalogCoverage(sources: ThemeContractSources): void {
   const requiredNames = [
     ...RUNTIME_THEME_INPUT_TOKENS.map((token) => `--cs-theme-${token}`),
     ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
-    ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`)
+    ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`)
   ]
   const missing = requiredNames.filter((name) => !sources.variableCatalog.includes(`\`${name}\``))
 
@@ -288,7 +290,14 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
   const productVariables = new Set<string>(CHERRY_PRODUCT_VARIABLE_TOKENS)
   const shadcnVariables = new Set<string>(SHADCN_VARIABLE_TOKENS)
   const shadcnVariableNames = new Set<string>(SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`))
+  const productVariableNames = new Set<string>(CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`))
   const canonicalColors = new Set<string>([...SHADCN_COLOR_TOKENS, ...CHERRY_PRODUCT_COLOR_TOKENS])
+
+  for (const token of CHERRY_PRODUCT_VARIABLE_TOKENS) {
+    if (shadcnVariables.has(token)) {
+      throw new Error(`[theme-contract] product variable ${token} overlaps the official Shadcn contract`)
+    }
+  }
 
   for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
     if (!productVariables.has(token)) {
@@ -321,19 +330,12 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
     }
   }
 
-  const productRootDeclarations = buildDeclarationMap(
-    [
-      ['tokens/colors/semantic.css', sources.semanticColors],
-      ['tokens/colors/status.css', sources.statusColors],
-      ['product.css', sources.product]
-    ],
-    ':root'
-  )
+  const productRootDeclarations = buildDeclarationMap([['product.css', sources.product]], ':root')
   assertRequiredDeclarations(
-    'product contract in approved sources',
+    'product contract in product.css',
     productRootDeclarations,
     CHERRY_PRODUCT_VARIABLE_TOKENS,
-    '--cs-'
+    '--'
   )
 
   assertSurfacePairs('Shadcn contract', SHADCN_SURFACE_PAIRS, shadcnVariables)
@@ -367,13 +369,13 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
 
   assertRequiredDeclarations('runtime theme inputs', rootDeclarations, RUNTIME_THEME_INPUT_TOKENS, '--cs-theme-')
   assertRequiredDeclarations('Shadcn contract', rootDeclarations, SHADCN_VARIABLE_TOKENS, '--')
-  assertRequiredDeclarations('product contract', rootDeclarations, CHERRY_PRODUCT_VARIABLE_TOKENS, '--cs-')
+  assertRequiredDeclarations('product contract', rootDeclarations, CHERRY_PRODUCT_VARIABLE_TOKENS, '--')
 
   const productDeclarationNames = new Set(
     extractDeclarations(sources.product, 'product.css').map((declaration) => declaration.name)
   )
   for (const name of productDeclarationNames) {
-    if (!name.startsWith('--cs-') || !productVariables.has(name.slice('--cs-'.length))) {
+    if (!productVariableNames.has(name)) {
       throw new Error(`[theme-contract] product.css declares unregistered product variable ${name}`)
     }
   }

@@ -173,7 +173,7 @@ ul {
   .message-content-container {
   border-radius: 10px;
   padding: 10px 16px 10px 16px;
-  background-color: var(--cs-chat-user);
+  background-color: var(--chat-user);
   align-self: self-end;
 }
 
@@ -201,12 +201,12 @@ ul {
 }
 
 ::highlight(search-matches) {
-  background-color: var(--cs-highlight);
-  color: var(--cs-highlight-foreground);
+  background-color: var(--highlight);
+  color: var(--highlight-foreground);
 }
 
 ::highlight(current-match) {
-  background-color: var(--cs-highlight-accent);
+  background-color: var(--highlight-accent);
 }
 
 textarea::-webkit-resizer {

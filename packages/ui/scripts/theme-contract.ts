@@ -3,7 +3,7 @@
  *
  * Runtime inputs are host-written internal values, not public component roles.
  * Stability and Tailwind exposure are independent decisions:
- * - stable product variables are valid defaults for new product code;
+ * - stable unprefixed product variables are valid defaults for new product code;
  * - migration variables exist only to preserve historical rendering while
  *   consumers are replaced;
  * - Tailwind color variables are generated only for roles used as utilities.

@@ -279,14 +279,14 @@
 .markdown sup {
   top: -0.5em;
   border-radius: 50%;
-  background-color: var(--cs-reference);
-  color: var(--cs-reference-foreground);
+  background-color: var(--reference);
+  color: var(--reference-foreground);
   padding: 2px 5px;
   zoom: 0.8;
 }
 
 .markdown sup > span.link {
-  color: var(--cs-reference-foreground);
+  color: var(--reference-foreground);
 }
 
 .markdown sub {
@@ -311,7 +311,7 @@
   margin-bottom: 1em;
   padding-top: 1em;
 
-  background-color: var(--cs-reference-subtle);
+  background-color: var(--reference-subtle);
   border-radius: 8px;
   padding: 8px 12px;
 }

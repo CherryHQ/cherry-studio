@@ -27,7 +27,7 @@ CSS property match.
 | Foundation values | `tokens/**` | primitives and other foundation values | `styles/tokens.css` |
 | Controlled runtime inputs | `theme-input.css` | foundation values | internal `contract.css` composition |
 | Official semantics | `shadcn.css` | foundation values and registered runtime inputs | internal `contract.css` composition |
-| Product semantics | `product.css` plus approved foundation providers | official semantics and foundations | internal `contract.css` composition |
+| Product semantics | `product.css` | official semantics and internal `--cs-*` providers | internal `contract.css` composition |
 | Tailwind adapter | generated `theme.css` | official and product semantics | `styles/theme.css` |
 | Migration policy | `migrations/shadcn-v2.json` | official and product semantics | tooling only; no runtime layer |
 
@@ -41,6 +41,9 @@ contract use `styles/theme.css`.
 
 The current registered runtime input is `--cs-theme-primary`. Only host theme logic may write it, and only the
 semantic layer may consume it. It is not a stable product variable, component API, or Tailwind color.
+
+All other shared `--cs-*` variables are internal value providers. Public semantics are unprefixed: the official
+and product inventories remain separate in the machine contract, but consumers use one canonical namespace.
 
 Component, page, and Electron-shell custom properties are a separate ownership category:
 
@@ -104,9 +107,9 @@ Stable product variables are allowed in new code when no official Shadcn role ex
 
 | Variable | Intended property and role |
 | --- | --- |
-| `--cs-background-subtle` | Very quiet product-wide surface background |
-| `--cs-border-subtle` | Very quiet `border-color` |
-| `--cs-border-strong` | Higher-emphasis structural `border-color` |
+| `--background-subtle` | Very quiet product-wide surface background |
+| `--border-subtle` | Very quiet `border-color` |
+| `--border-strong` | Higher-emphasis structural `border-color` |
 
 ### Feedback families
 
@@ -114,38 +117,39 @@ Each family exposes a strong accent, a subtle surface pair, and a border:
 
 | Intent | Strong accent | Subtle pair | Border |
 | --- | --- | --- | --- |
-| Success | `--cs-success` | `--cs-success-subtle` / `--cs-success-subtle-foreground` | `--cs-success-border` |
-| Warning | `--cs-warning` | `--cs-warning-subtle` / `--cs-warning-subtle-foreground` | `--cs-warning-border` |
-| Info | `--cs-info` | `--cs-info-subtle` / `--cs-info-subtle-foreground` | `--cs-info-border` |
-| Error | `--cs-error` | `--cs-error-subtle` / `--cs-error-subtle-foreground` | `--cs-error-border` |
+| Success | `--success` | `--success-subtle` / `--success-subtle-foreground` | `--success-border` |
+| Warning | `--warning` | `--warning-subtle` / `--warning-subtle-foreground` | `--warning-border` |
+| Info | `--info` | `--info-subtle` / `--info-subtle-foreground` | `--info-border` |
+| Error | `--error` | `--error-subtle` / `--error-subtle-foreground` | `--error-border` |
 
-Use `--destructive` for a dangerous action. Use the `--cs-error*` family for error feedback or validation state.
+Use `--destructive` for a dangerous action. Use the `--error*` family for error feedback or validation state.
 
 ### Product domains
 
 | Domain | Variables | Intended properties |
 | --- | --- | --- |
-| Rich-text links | `--cs-link` | Link `color` inside rendered content |
-| Code blocks | `--cs-code-block` | Block code `background-color` |
-| Inline code | `--cs-inline-code`, `--cs-inline-code-foreground` | Inline code `background-color` / `color` |
-| References | `--cs-reference`, `--cs-reference-foreground`, `--cs-reference-subtle` | Reference surface, content, and quiet surface variant |
-| Search highlights | `--cs-highlight`, `--cs-highlight-foreground`, `--cs-highlight-accent` | Match surface, content, and active-match surface |
-| User message | `--cs-chat-user` | User-message surface |
-| Active sidebar row | `--cs-sidebar-active-bg`, `--cs-sidebar-active-border` | Active surface and border |
-| Sidebar glow | `--cs-sidebar-glow-bg`, `--cs-sidebar-glow-line` | Decorative glow fill and line only |
+| Rich-text links | `--link` | Link `color` inside rendered content |
+| Code blocks | `--code-block` | Block code `background-color` |
+| Inline code | `--inline-code`, `--inline-code-foreground` | Inline code `background-color` / `color` |
+| References | `--reference`, `--reference-foreground`, `--reference-subtle` | Reference surface, content, and quiet surface variant |
+| Search highlights | `--highlight`, `--highlight-foreground`, `--highlight-accent` | Match surface, content, and active-match surface |
+| User message | `--chat-user` | User-message surface |
+| Active sidebar row | `--sidebar-active-bg`, `--sidebar-active-border` | Active surface and border |
+| Sidebar glow | `--sidebar-glow-bg`, `--sidebar-glow-line` | Decorative glow fill and line only |
 
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
-utilities; custom-CSS domains such as rich text intentionally use `var(--cs-*)` directly.
+utilities; custom-CSS domains such as rich text use the matching unprefixed variable directly.
 
 Unpaired product backgrounds retain the consuming component's existing semantic foreground. Add a shared
 foreground only after concrete consumers establish a repeated contrast invariant.
 
 ## 6. Historical migration names
 
-Historical names are recorded only in `migrations/shadcn-v2.json`. They are not declared by `product.css`, are not
-part of `CHERRY_PRODUCT_VARIABLE_TOKENS`, and do not produce Tailwind utilities. An `exact` registry rule may point
-to an official or stable product variable. A `review`, `contextual`, or `preserve` rule may intentionally have no
-target when the old value belongs to a component, feature, host, or one-off visual implementation.
+Migration policy is recorded only in `migrations/shadcn-v2.json`. A migration source may still exist in an
+excluded internal provider such as `tokens/**`, but it is not a public role, is not part of
+`CHERRY_PRODUCT_VARIABLE_TOKENS`, and does not gain Tailwind exposure through that registry entry. An `exact` rule
+may point to an official or stable product variable. A `review`, `contextual`, or `preserve` rule may intentionally
+have no target when the old value belongs to a component, feature, host, or one-off visual implementation.
 
 Do not recreate a shared runtime variable merely to give migration tooling a destination. Promote a historical
 role only after semantic review establishes a repeated product invariant, an intended CSS property, concrete
@@ -165,12 +169,12 @@ Preferred custom CSS usage:
 
 ```css
 .rich-text a {
-  color: var(--cs-link);
+  color: var(--link);
 }
 
 .reference {
-  color: var(--cs-reference-foreground);
-  background-color: var(--cs-reference);
+  color: var(--reference-foreground);
+  background-color: var(--reference);
 }
 ```
 
@@ -201,6 +205,7 @@ When generating or refactoring UI code:
 
 - use official Shadcn utilities first;
 - use only `stable` product variables from this catalog;
+- never consume internal `--cs-*` providers or host-written `--cs-theme-*` inputs from component code;
 - never recreate a historical migration name as runtime compatibility API;
 - never infer semantics from a resolved color value or token spelling alone;
 - never add light/dark palette branches when an existing semantic variable already resolves the mode;

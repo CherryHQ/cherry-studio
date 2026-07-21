@@ -4,8 +4,9 @@
 > migrated; runtime compatibility bridges have been removed.
 
 This document defines the new variable system for Cherry Studio. It is intentionally focused on the Shadcn
-semantic contract and its migration boundary. Historical names now exist only in the migration registry and
-enforcement tooling; they are no longer part of the runtime variable graph.
+semantic contract and its migration boundary. Historical public usage is recorded in the migration registry and
+enforcement tooling. A matching `--cs-*` spelling may remain in the runtime graph only as an internal value
+provider; it is not a compatibility alias or component-facing role.
 
 The executable selection guide and complete public/historical inventory are maintained in
 [variable-catalog.md](./variable-catalog.md).
@@ -20,17 +21,17 @@ The repository currently contains multiple variable families with different resp
 | Family | Current role | Target role |
 | --- | --- | --- |
 | `--cs-{palette}-{step}` | Primitive palette | Internal value provider; unchanged in this PR |
-| existing semantic `--cs-*` | Partially standardized and historically mixed semantics | Classified as approved product token or migration source |
+| existing semantic `--cs-*` | Partially standardized and historically mixed semantics | Internal value provider or migration source |
 | controlled `--cs-theme-*` | Runtime customization mixed into the semantic layer | Host-written input only; never a component-facing role |
-| approved product `--cs-*` | Consumer-backed Cherry Studio semantics | Stable product API only |
+| unprefixed product semantics | Consumer-backed Cherry Studio extensions | Stable product API in the shared public namespace |
 | generated `--color-*` | Tailwind theme variables and some accidental public API | Tailwind adapter output only |
 | retired renderer semantic `--app-*` aliases | Removed from runtime | Exact migration sources; forbidden from returning |
 | genuine host/component/page variables | Locally owned implementation details | Remain scoped to the owning stylesheet; never generated globally |
 | historical renderer legacy names | Removed from runtime | Exact migration sources; forbidden in product code |
 | official Shadcn variables | Complete shared contract | Canonical ecosystem-compatible API |
 
-The new system does not create another independent palette. It creates two explicit semantic APIs over the
-values already shipped by Cherry Studio:
+The new system does not create another independent palette. It creates one public semantic namespace with
+separate Shadcn and Cherry Studio ownership inventories over the values already shipped by Cherry Studio:
 
 ```text
 foundation values
@@ -41,12 +42,9 @@ controlled runtime inputs
   (--cs-theme-primary, ...)
               │
               ▼
-official Shadcn semantics
-  (--background, --primary, ...)
-              │
-              ▼
-Cherry Studio product semantics
-  (--cs-success, --cs-{domain}-*, ...)
+public semantic contract
+  (Shadcn: --background, --primary, ...)
+  (Cherry: --success, --chat-user, ...)
               │
               ▼
 Tailwind @theme inline adapter
@@ -63,8 +61,8 @@ and semantic layers in dependency order; it is not a public consumer entry. Runt
 contract can resolve, but they are not public roles for component consumption.
 
 Deprecated aliases do not participate in this flow. The registry maps them directly to official or product
-semantics, while the codemod and migration checker prevent their reintroduction. Official and product semantic variables
-must never point to `--color-*`, `--app-*`, or legacy variables.
+semantics, while the codemod and migration checker prevent their reintroduction. Official and product semantic
+variables must never point to `--color-*`, `--app-*`, or legacy variables.
 
 ## 2. Scope of the v2 contract
 
@@ -72,7 +70,7 @@ This contract includes:
 
 1. the complete Shadcn color contract for light and dark modes;
 2. a controlled runtime-input boundary between the host theme service and semantic outputs;
-3. a `--cs-*` namespace for approved Cherry Studio product semantics;
+3. unprefixed Cherry Studio product semantics in the same public namespace as the Shadcn contract;
 4. a canonical `--radius` input and Tailwind radius mappings;
 5. an explicit Tailwind CSS v4 `@theme inline` adapter;
 6. a machine-readable registry and syntax-aware exact-migration codemod;
@@ -94,12 +92,13 @@ DTCG may become a future source format. It is not a prerequisite for having a co
 
 ### 3.1 Existing value layer
 
-Existing `--cs-*` variables remain an authored value source during migration. They may contain primitive values,
-approved product semantics, or historical light/dark mappings.
+Existing `--cs-*` variables remain authored internal value sources. They may contain primitive values, semantic
+providers, compatibility values, or historical light/dark mappings. The reserved `--cs-theme-*` subset is the
+host-written input layer; every other shared `--cs-*` variable is internal and must not be consumed by components.
 
-The prefix alone does not make an existing variable public. New code may consume only an approved product token
-listed by the generated contract. Primitive and unclassified `--cs-*` variables remain internal migration
-sources.
+Public product semantics are unprefixed and listed by the generated contract. This makes the consumer boundary
+visible in the name: canonical unprefixed semantics are public, while shared `--cs-*` values are implementation
+details.
 
 `product.css` is the authored Cherry Studio product layer. Every entry is stable public API. Historical renderer
 values without a durable shared meaning stay with their component, feature, or host owner; they are not promoted
@@ -148,28 +147,28 @@ Rules:
 
 ### 3.4 Cherry Studio product semantic layer
 
-Product concepts that Shadcn does not define use the `--cs-*` namespace:
+Product concepts that Shadcn does not define extend the same unprefixed public semantic namespace:
 
 ```text
---cs-background-subtle
---cs-success
---cs-success-subtle
---cs-success-subtle-foreground
---cs-chat-user
+--background-subtle
+--success
+--success-subtle
+--success-subtle-foreground
+--chat-user
 ```
 
 Naming grammar:
 
 ```text
---cs-{domain?}-{role}-{variant?}-{state?}
+--{domain?}-{role}-{variant?}-{state?}
 ```
 
 Rules:
 
-- use a flat role only for product-wide semantics such as `--cs-success`;
-- include a domain for application concepts such as `--cs-chat-user`;
+- use a flat role only for product-wide semantics such as `--success`;
+- include a domain for application concepts such as `--chat-user`;
 - add a paired foreground only when current consumers require a shared contrast contract;
-- place state last, for example `--cs-chat-user-hover`;
+- place state last, for example `--chat-user-hover`;
 - reference official Shadcn variables when a product role should follow TweakCN themes;
 - do not encode palette names or add a token for a single use site;
 - new product variables require addition to the explicit generated allowlist.
@@ -181,8 +180,8 @@ does not change API stability.
 Example:
 
 ```css
---cs-product-selection: var(--primary);
---cs-product-selection-foreground: var(--primary-foreground);
+--editor-selection: var(--primary);
+--editor-selection-foreground: var(--primary-foreground);
 ```
 
 This is a pattern example rather than a variable added by this PR. TweakCN can change `--primary` without knowing
@@ -199,7 +198,7 @@ Tailwind theme variables are generated adapter output:
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-success: var(--cs-success);
+  --color-success: var(--success);
 }
 ```
 
@@ -220,7 +219,7 @@ text-success-subtle-foreground
 ```
 
 `--color-*` is not a design source or an authored CSS API. Runtime code must neither write nor consume it;
-authored CSS references the official variable or stable product `--cs-*` role directly. Existing non-semantic
+authored CSS references the official or stable product variable directly. Existing non-semantic
 palette utilities remain available during primitive cleanup, but new shared UI should prefer semantic utilities.
 
 Historical semantic and status utilities are exposed only by the frozen
@@ -230,11 +229,11 @@ and must not be used as the registration path for new component APIs.
 
 ### 3.6 Internal ownership boundaries
 
-Shared application concepts use a Cherry Studio domain rather than a second public ownership prefix:
+Shared application concepts use a product domain in the common public namespace rather than an ownership prefix:
 
 ```css
---cs-sidebar-glow-bg
---cs-sidebar-glow-line
+--sidebar-glow-bg
+--sidebar-glow-line
 ```
 
 There are also legitimate internal variables that do not belong in this shared list:
@@ -317,27 +316,27 @@ Only product-wide intent that Shadcn does not express belongs in the shared exte
 with:
 
 ```text
---cs-background-subtle
---cs-border-subtle
---cs-border-strong
+--background-subtle
+--border-subtle
+--border-strong
 ```
 
 The feedback intents are:
 
 ```text
---cs-success
---cs-warning
---cs-info
---cs-error
+--success
+--warning
+--info
+--error
 ```
 
 Each intent has the same consumer-backed shape:
 
 ```text
---cs-{intent}
---cs-{intent}-subtle
---cs-{intent}-subtle-foreground
---cs-{intent}-border
+--{intent}
+--{intent}-subtle
+--{intent}-subtle-foreground
+--{intent}-border
 ```
 
 The base intent is an accent color for icons, text, or markers rather than a shared filled surface. The subtle
@@ -442,7 +441,7 @@ Examples:
 | `--cs-foreground-muted` | muted content or disabled component state | `contextual` |
 | duplicated `--app-{shadcn-role}` | matching official Shadcn variable | `exact` |
 | historical chat and navbar roots | no universal target | `review` |
-| consumer-backed sidebar glow variables | approved `--cs-sidebar-glow-*` concept | `exact` |
+| consumer-backed sidebar glow variables | approved `--sidebar-glow-*` concept | `exact` |
 
 The repository codemod reads this registry and parses CSS plus TS/TSX syntax before changing source files. It is
 idempotent, reports every non-`preserve` migration source, and changes only approved `exact` rules. Generated and
@@ -456,7 +455,7 @@ migration policy and the syntax-aware tooling do not maintain separate hard-code
 
 ## 8. Governance
 
-Adding or changing an official Shadcn variable or approved `--cs-*` product variable is a shared API change.
+Adding or changing an official Shadcn variable or an unprefixed product variable is a shared API change.
 Adding a runtime input is a host/semantic boundary change. Local component, page, and App Shell variables are
 owned by their local stylesheet and do not enter this process unless they are being promoted to the shared API.
 
@@ -479,6 +478,7 @@ The generated contract must validate that:
 
 - all required Shadcn variables exist;
 - every public product variable belongs to the stable allowlist;
+- official and product variable names do not overlap;
 - foundation, runtime-input, Shadcn, product, and adapter dependencies remain one-way;
 - no variable has duplicate ownership across authored layers;
 - every light and dark reference resolves and the variable graph has no cycles;

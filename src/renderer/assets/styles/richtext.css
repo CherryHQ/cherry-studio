@@ -90,7 +90,7 @@
 }
 
 .tiptap a {
-  color: var(--cs-link);
+  color: var(--link);
   text-decoration: none;
   cursor: pointer;
 }
@@ -106,16 +106,16 @@
 }
 
 .tiptap code {
-  background-color: var(--cs-inline-code);
+  background-color: var(--inline-code);
   border-radius: 0.4rem;
-  color: var(--cs-inline-code-foreground);
+  color: var(--inline-code-foreground);
   font-size: 0.85rem;
   padding: 0.25em 0.3em;
   font-family: var(--code-font-family);
 }
 
 .tiptap pre {
-  background: var(--cs-code-block);
+  background: var(--code-block);
   border-radius: 0.5rem;
   color: var(--foreground);
   font-family: var(--code-font-family);

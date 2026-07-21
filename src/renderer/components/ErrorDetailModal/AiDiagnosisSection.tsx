@@ -125,9 +125,7 @@ const AiDiagnosisSectionWithStatus = memo(
         )}
         {status === 'error' && (
           <>
-            <div
-              className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
-              style={{ color: 'var(--cs-error)' }}>
+            <div className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--error)' }}>
               {diagError}
             </div>
             <button

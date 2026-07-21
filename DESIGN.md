@@ -3,30 +3,30 @@
 > **Token architecture:** The normative v2 contract for variable layers, Shadcn/Tailwind mappings, compatibility,
 > and migration metadata is
 > [`packages/ui/docs/design-token-system.md`](./packages/ui/docs/design-token-system.md). Official Shadcn semantics
-> remain unprefixed; approved Cherry Studio product semantics use the `--cs-*` namespace. The operational variable
+> and approved Cherry Studio product semantics share one unprefixed public namespace. The operational variable
 > inventory and selection rules are in
 > [`packages/ui/docs/variable-catalog.md`](./packages/ui/docs/variable-catalog.md).
 
 > **Usage notation:** Tailwind examples use semantic utilities such as `bg-background` and `text-foreground`.
-> Authored CSS examples use the runtime contract directly: official Shadcn variables are unprefixed (for example
-> `var(--background)`), and approved Cherry Studio product variables use `var(--cs-*)`. `--color-*` belongs to
-> the generated Tailwind adapter and is not an authored CSS API.
+> Authored CSS examples use the unprefixed public runtime contract directly, whether the role is official Shadcn
+> (`var(--background)`) or a Cherry Studio product extension (`var(--success)`). Shared `--cs-*` variables are
+> internal providers, while `--color-*` belongs to the generated Tailwind adapter and is not an authored CSS API.
 
 ## 1. Visual Theme & Atmosphere
 
-> **Source of truth:** foundation values live in `packages/ui/src/styles/tokens/`, controlled host-written inputs live in `packages/ui/src/styles/theme-input.css`, the official Shadcn contract lives in `packages/ui/src/styles/shadcn.css`, and Cherry Studio product semantics live in `packages/ui/src/styles/product.css` plus explicitly classified foundation providers. `contract.css` composes those layers in order; Tailwind-facing aliases are generated in `theme.css`. Component, page, and App Shell implementation variables stay in their owning stylesheets and are not public theme roles. For actual values and stability, inspect the source plus `scripts/theme-contract.ts`.
+> **Source of truth:** foundation values live in `packages/ui/src/styles/tokens/`, controlled host-written inputs live in `packages/ui/src/styles/theme-input.css`, the official Shadcn contract lives in `packages/ui/src/styles/shadcn.css`, and Cherry Studio product semantics live in `packages/ui/src/styles/product.css`. `contract.css` composes those layers in order; Tailwind-facing aliases are generated in `theme.css`. Component, page, and App Shell implementation variables stay in their owning stylesheets and are not public theme roles. For actual values and stability, inspect the source plus `scripts/theme-contract.ts`.
 
 Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the exported primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
 
 The typography system is single-track: `var(--font-family-body)` and `var(--font-family-heading)` currently resolve to the same primary UI font token. Code-rendering components own their mono font stack locally. This single-family approach reflects a product with a unified voice — coherent in conversation, precise in code.
 
-What makes Cherry Studio distinctive is its commitment to a calm UI foundation. Primary actions use `var(--primary)` as the strongest action color in the chrome, while neutral strong fills are used by shared buttons where that component defines the action hierarchy. New UI should avoid introducing a page-local chromatic brand hue. Other chromatic departures are reserved for semantic feedback: `var(--destructive)` for dangerous actions, `var(--cs-success)` for positive states, `var(--cs-warning)` for caution, `var(--cs-info)` for informational surfaces. This creates an interface that feels like a high-quality writing tool — think iA Writer meets VS Code — where the user's content is usually the most colorful thing on screen.
+What makes Cherry Studio distinctive is its commitment to a calm UI foundation. Primary actions use `var(--primary)` as the strongest action color in the chrome, while neutral strong fills are used by shared buttons where that component defines the action hierarchy. New UI should avoid introducing a page-local chromatic brand hue. Other chromatic departures are reserved for semantic feedback: `var(--destructive)` for dangerous actions, `var(--success)` for positive states, `var(--warning)` for caution, `var(--info)` for informational surfaces. This creates an interface that feels like a high-quality writing tool — think iA Writer meets VS Code — where the user's content is usually the most colorful thing on screen.
 
 **Key Characteristics:**
 - Calm UI foundation: chrome stays mostly neutral; `var(--primary)` is reserved for true primary actions and selected states, while semantic accents carry feedback
 - Dual-mode system: fully specified light and dark tokens with true inversion (not just darkening)
 - Primary action color resolves through `var(--primary)`; do not introduce a separate page-local brand hue
-- Full semantic color set: `var(--destructive)` (red), `var(--cs-success)` (green), `var(--cs-warning)` (amber), `var(--cs-info)` (blue)
+- Full semantic color set: `var(--destructive)` (red), `var(--success)` (green), `var(--warning)` (amber), `var(--info)` (blue)
 - Stable feedback accents plus subtle surface/foreground pairs and borders for success, warning, info, and error
 - Border-radius scale derives from the canonical `--radius` input; use `rounded-none` for square corners and `rounded-full` for pills
 - Subtle borders via `var(--border)` (semi-transparent neutral) for structure, not decoration
@@ -44,11 +44,11 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 The color system follows one consistent rule:
 
 - **Neutral tokens** (text, borders, secondary fills, hover backgrounds, ghost states) are composed as **black/white + an alpha channel**. Light mode layers `oklch(0 0 0 / x)` on top of the surface; dark mode layers `oklch(1 0 0 / x)` instead. This makes neutrals automatically harmonise with whatever surface they sit on (cards, glass, sidebars) and means light/dark inversion only flips the base ink, not every step of a gray scale.
-- **Chromatic tokens** (`--primary`, `--destructive`, `--cs-success`, `--cs-warning`, `--cs-info`, and primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background.
+- **Chromatic tokens** (`--primary`, `--destructive`, `--success`, `--warning`, `--info`, and primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background.
 
 When you reach for a value:
-1. If the role is "tint of the surface" (text, divider, soft fill, hover), use the official neutral role (`--foreground`, `--muted-foreground`, `--border`, `--secondary`, `--accent`) or an approved `--cs-*` product role. A one-off visual treatment stays private to its owner. Do not invent shared `oklch(0 0 0 / 0.x)` aliases.
-2. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`, `--destructive`, or the corresponding `--cs-{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
+1. If the role is "tint of the surface" (text, divider, soft fill, hover), use an approved public neutral role (`--foreground`, `--muted-foreground`, `--border`, `--secondary`, `--accent`, `--background-subtle`, `--border-subtle`, `--border-strong`). A one-off visual treatment stays private to its owner. Do not invent shared `oklch(0 0 0 / 0.x)` aliases.
+2. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`, `--destructive`, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
 
 ### Primary
 - **Primary**: `var(--primary)` — public semantic output for true page actions, selected states, links, and component accents. It is currently fed by the registered runtime primary input, but components depend on this semantic role rather than that host input. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
@@ -66,7 +66,7 @@ exact migration treatment private to the owning component.
 
 ### Surface & Background
 - **Background**: `var(--background)` — primary page background
-- **Background Subtle**: `var(--cs-background-subtle)` — slightly tinted background variant
+- **Background Subtle**: `var(--background-subtle)` — slightly tinted background variant
 - **Card**: `var(--card)` — elevated card surfaces
 - **Popover**: `var(--popover)` — floating panel surfaces (dropdowns, menus, tooltips)
 - **Muted**: `var(--muted)` — subdued backgrounds, disabled states
@@ -84,31 +84,31 @@ exact migration treatment private to the owning component.
 
 ### Borders & Rings
 - **Border**: `var(--border)` — component borders, dividers
-- **Border Subtle**: `var(--cs-border-subtle)` — very quiet outlines on cards, nested panels, and non-interactive containers
-- **Border Strong**: `var(--cs-border-strong)` — higher-emphasis structural borders
+- **Border Subtle**: `var(--border-subtle)` — very quiet outlines on cards, nested panels, and non-interactive containers
+- **Border Strong**: `var(--border-strong)` — higher-emphasis structural borders
 - **Input**: `var(--input)` — input field borders
 - **Ring**: `var(--ring)` — focus ring
 
 ### Border Token Rules
 - Use semantic border utilities (`border-border`, `border-border-subtle`, `border-border-strong`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
 - Plain `border`, `border-t`, `border-r`, `border-b`, and `border-l` are acceptable only when the global theme base provides the color fallback; reusable components should still name a semantic border color when the role is known.
-- For 0.5px hairline dividers, use an explicit token-backed property such as `[border-bottom:0.5px_solid_var(--border)]` or `[border-right:0.5px_solid_var(--cs-border-subtle)]`.
+- For 0.5px hairline dividers, use an explicit token-backed property such as `[border-bottom:0.5px_solid_var(--border)]` or `[border-right:0.5px_solid_var(--border-subtle)]`.
 - Legacy opacity-modified border classes (`border-border/10` through `border-border/80`, plus hover/focus/active variants) are compatibility-mapped in `@cherrystudio/ui/styles/theme.css` so old surfaces do not fall back to `currentColor`.
 - Do not introduce new opacity-modified semantic border classes such as `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15`. Use the semantic border utilities above so the visual role is explicit.
 
 ### Semantic Status — Single-token aliases
-- **Destructive**: `var(--destructive)` — dangerous user actions; use the `--cs-error*` family for error feedback
+- **Destructive**: `var(--destructive)` — dangerous user actions; use the `--error*` family for error feedback
 - **Destructive Hover**: use the shared component variant's `hover:bg-destructive-hover` state; do not consume its compatibility adapter variable in authored CSS
 - **Destructive Foreground**: `var(--destructive-foreground)`
-- **Success**: `var(--cs-success)` — positive states, confirmations
-- **Warning**: `var(--cs-warning)` — caution states, pending actions
-- **Info**: `var(--cs-info)` — informational states, neutral highlights
+- **Success**: `var(--success)` — positive states, confirmations
+- **Warning**: `var(--warning)` — caution states, pending actions
+- **Info**: `var(--info)` — informational states, neutral highlights
 
 ### Semantic Status — Stable surface contract
 Use the stable subtle surface pair plus its border for alerts, toast bodies, tags, and validation feedback. The
-base `--cs-{intent}` token is an accent for icons, text, or markers rather than a shared filled surface. All four
-runtime families expose `--cs-{intent}`, `--cs-{intent}-subtle`, `--cs-{intent}-subtle-foreground`, and
-`--cs-{intent}-border`; Tailwind exposes the corresponding utility names without the `cs-` prefix.
+base `--{intent}` token is an accent for icons, text, or markers rather than a shared filled surface. All four
+runtime families expose `--{intent}`, `--{intent}-subtle`, `--{intent}-subtle-foreground`, and
+`--{intent}-border`; Tailwind exposes matching semantic utility names.
 
 The older `*-base`, `*-text`, `*-bg`, hover, and active outputs are compatibility providers. Do not introduce them
 in new component APIs.
@@ -118,10 +118,10 @@ Do not use a page-local chromatic brand color for new UI chrome. `--cs-brand-*` 
 
 ### Links
 Application links use the official primary role. Rendered rich-text content may use the stable product-specific
-`var(--cs-link)` role because its link treatment is intentionally independent of application chrome.
+`var(--link)` role because its link treatment is intentionally independent of application chrome.
 
 ### Floating Scrims
-No dedicated public glass or overlay product role is exported today. `--color-*` is reserved for generated Tailwind mappings; a future shared runtime role would require an approved `--cs-*` contract. Use the shared primitive defaults first:
+No dedicated public glass or overlay product role is exported today. `--color-*` is reserved for generated Tailwind mappings; a future shared runtime role would require an approved unprefixed semantic contract. Use the shared primitive defaults first:
 - Dialog overlay: use the shared `Dialog` overlay (`bg-black/50`) and customize only through `overlayClassName` when needed.
 - Floating panels: use `bg-popover`, `border-border`, and the appropriate shadow utility (`shadow-md` to `shadow-xl`) rather than a page-local glass token.
 - If a reusable translucent surface is needed, add/export a real token first and document it here in the same change.
@@ -767,9 +767,9 @@ Use icon-library defaults unless a component has a documented reason to override
 - Keep `var(--shadow-xs)` only on button variants that already carry the base shadow (`default`, `destructive`)
 - Use `*-hover` tokens or neutral hover classes according to the Button variant definition
 - Use `var(--accent)` fill for outline and ghost button hover states
-- Use `var(--cs-success)`, `var(--cs-warning)`, `var(--cs-info)`, and `var(--cs-error)` for status feedback, toasts, and badges; reserve `var(--destructive)` for dangerous actions
+- Use `var(--success)`, `var(--warning)`, `var(--info)`, and `var(--error)` for status feedback, toasts, and badges; reserve `var(--destructive)` for dangerous actions
 - Use stable feedback pairs such as `bg-error-subtle text-error-subtle-foreground border-error-border` for richer status surfaces
-- Use `var(--border)`, `var(--cs-border-subtle)`, and `var(--cs-border-strong)` for neutral structure instead of opacity-modified border utilities
+- Use `var(--border)`, `var(--border-subtle)`, and `var(--border-strong)` for neutral structure instead of opacity-modified border utilities
 - Use the body / heading font aliases at `var(--font-weight-regular)`/`var(--font-weight-medium)` for body and labels, `var(--font-weight-bold)` for page-level emphasis
 - Separate spatial zones (sidebar, main, popover) through surface color layering: `var(--sidebar)` vs `var(--background)` vs `var(--popover)`
 - Use heading size and line-height tokens directly for new headings
@@ -783,7 +783,7 @@ Use icon-library defaults unless a component has a documented reason to override
 - Don't use `var(--radius-xs)` or `var(--radius-sm)` for buttons or cards — `var(--radius-md)`/`var(--radius-lg)` are the button radii in the shared primitive
 - Don't use font weights below `var(--font-weight-regular)` for functional UI text — thin/light/extralight weights are display-only
 - Don't apply `var(--destructive)` to non-dangerous actions or error feedback — it is reserved for dangerous user actions such as delete and reset
-- Don't use `var(--cs-success)` / `var(--cs-warning)` / `var(--cs-info)` for decorative purposes — they carry semantic meaning
+- Don't use `var(--success)` / `var(--warning)` / `var(--info)` for decorative purposes — they carry semantic meaning
 - Don't introduce a page-local chromatic brand color — use semantic tokens; for ordinary charts use `--chart-1` through `--chart-5`, and use primitives only for a reviewed palette beyond five series
 - Don't darken the sidebar to match the main background — its distinct surface via `var(--sidebar)` and dedicated palette creates spatial separation
 - Don't use `var(--popover)` background for cards or vice versa — each elevation level has its specific token
@@ -820,15 +820,15 @@ Use icon-library defaults unless a component has a documented reason to override
 | Secondary / muted text | `var(--muted-foreground)` | Helper, placeholder, low-emphasis readable content |
 | Primary accent | `var(--primary)` | Page-level primary actions, selected states, links, component accents |
 | Destructive action | `var(--destructive)` | Hover: shared variant state; Text: `var(--destructive-foreground)` |
-| Success / Warning / Info | `var(--cs-success)` / `var(--cs-warning)` / `var(--cs-info)` | Single-token semantic accents |
+| Success / Warning / Info | `var(--success)` / `var(--warning)` / `var(--info)` | Single-token semantic accents |
 | Borders | `var(--border)` | Neutral hairline |
-| Quiet / strong borders | `var(--cs-border-subtle)` / `var(--cs-border-strong)` | Nested panels / higher-emphasis structure |
+| Quiet / strong borders | `var(--border-subtle)` / `var(--border-strong)` | Nested panels / higher-emphasis structure |
 | Card surface | `var(--card)` (text: `--card-foreground`) | Layer above background |
 | Popover / floating | `var(--popover)` (text: `--popover-foreground`) | Layer above card |
 | Overlay / floating chrome | shared Dialog overlay, `bg-popover`, `border-border`, shadow utilities | Modal scrims, popovers, transient panels |
 | Sidebar surface | `var(--sidebar)` | Distinct spatial zone with full sub-palette |
 | Hover backgrounds | `hover:bg-accent` (outline/ghost), shared variant state for secondary/destructive | Choose by variant |
-| Status surfaces | `--cs-{error,success,warning,info}-subtle` with paired foreground and border | Stable feedback contract |
+| Status surfaces | `--{error,success,warning,info}-subtle` with paired foreground and border | Stable feedback contract |
 | Charts | `var(--chart-1)` through `var(--chart-5)` | Default categorical palette |
 | Shadow | `var(--shadow-xs)` for hover, `var(--shadow-md)` for floating | 7-level scale |
 
@@ -851,7 +851,7 @@ Use icon-library defaults unless a component has a documented reason to override
 5. Body / heading font aliases handle UI typography; code-rendering components own mono font stacks.
 6. Keep weights at `var(--font-weight-regular)` / `var(--font-weight-medium)` for UI and `var(--font-weight-bold)` for page-level emphasis.
 7. `var(--radius-md)` for the base Button and inputs, `var(--radius-lg)` where a Button variant explicitly rounds itself, larger (14px+) for cards, `rounded-full` for pills.
-8. Semantic accents: `var(--destructive)` for danger, `var(--cs-success)` for positive, `var(--cs-warning)` for caution, `var(--cs-info)` for informational.
+8. Semantic accents: `var(--destructive)` for danger, `var(--success)` for positive, `var(--warning)` for caution, `var(--info)` for informational.
 9. For richer status surfaces use the stable paired contract (e.g. `bg-error-subtle text-error-subtle-foreground border-error-border`).
 10. Charts: use `var(--chart-1)` through `var(--chart-5)` for the default categorical palette.
 11. Overlay/floating surfaces: use the shared Dialog overlay or `bg-popover` + semantic border + shadow utilities. Add real exported tokens before introducing reusable glass/scrim aliases.

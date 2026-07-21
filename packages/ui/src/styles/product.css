@@ -1,56 +1,80 @@
 /**
  * Cherry Studio product semantics.
  *
- * These variables cover stable, repeated product behavior that is outside the
- * official Shadcn contract. Feature-local and historical migration values do
- * not belong in this public runtime contract.
+ * Product semantics share the unprefixed public namespace with the official
+ * Shadcn contract. Internal Cherry Studio value providers remain under
+ * `--cs-*`, while feature-local and historical migration values stay outside
+ * this public runtime contract.
  */
 
 :root {
+  /* Shared product semantics */
+  --background-subtle: var(--cs-background-subtle);
+  --border-subtle: var(--cs-border-subtle);
+  --border-strong: var(--cs-border-strong);
+
+  /* Feedback */
+  --success: var(--cs-success);
+  --success-subtle: var(--cs-success-subtle);
+  --success-subtle-foreground: var(--cs-success-subtle-foreground);
+  --success-border: var(--cs-success-border);
+  --warning: var(--cs-warning);
+  --warning-subtle: var(--cs-warning-subtle);
+  --warning-subtle-foreground: var(--cs-warning-subtle-foreground);
+  --warning-border: var(--cs-warning-border);
+  --info: var(--cs-info);
+  --info-subtle: var(--cs-info-subtle);
+  --info-subtle-foreground: var(--cs-info-subtle-foreground);
+  --info-border: var(--cs-info-border);
+  --error: var(--cs-error);
+  --error-subtle: var(--cs-error-subtle);
+  --error-subtle-foreground: var(--cs-error-subtle-foreground);
+  --error-border: var(--cs-error-border);
+
   /* Stable product domain: rich text and code */
-  --cs-link: #1677ff;
-  --cs-code-block: #e3e3e3;
-  --cs-inline-code: rgba(0, 0, 0, 0.06);
-  --cs-inline-code-foreground: rgb(218, 97, 92);
+  --link: #1677ff;
+  --code-block: #e3e3e3;
+  --inline-code: rgba(0, 0, 0, 0.06);
+  --inline-code-foreground: rgb(218, 97, 92);
 
   /* Stable product domain: references and search highlights */
-  --cs-reference: #cfe1ff;
-  --cs-reference-foreground: #000;
-  --cs-reference-subtle: #f1f7ff;
-  --cs-highlight-foreground: initial;
-  --cs-highlight: rgba(255, 255, 0, 0.5);
-  --cs-highlight-accent: rgba(255, 150, 50, 0.5);
+  --reference: #cfe1ff;
+  --reference-foreground: #000;
+  --reference-subtle: #f1f7ff;
+  --highlight-foreground: initial;
+  --highlight: rgba(255, 255, 0, 0.5);
+  --highlight-accent: rgba(255, 150, 50, 0.5);
 
   /* Stable product domain: user-message surface */
-  --cs-chat-user: rgba(0, 0, 0, 0.045);
+  --chat-user: rgba(0, 0, 0, 0.045);
 
   /* Stable product domain: application shell effects */
-  --cs-sidebar-active-bg: rgba(16, 185, 129, 0.08);
-  --cs-sidebar-active-border: rgba(16, 185, 129, 0.15);
-  --cs-sidebar-glow-bg: rgba(16, 185, 129, 0.25);
-  --cs-sidebar-glow-line: rgba(16, 185, 129, 0.5);
+  --sidebar-active-bg: rgba(16, 185, 129, 0.08);
+  --sidebar-active-border: rgba(16, 185, 129, 0.15);
+  --sidebar-glow-bg: rgba(16, 185, 129, 0.25);
+  --sidebar-glow-line: rgba(16, 185, 129, 0.5);
 }
 
 .dark {
   /* Stable product domain: rich text and code */
-  --cs-link: #338cff;
-  --cs-code-block: #323232;
-  --cs-inline-code: #323232;
+  --link: #338cff;
+  --code-block: #323232;
+  --inline-code: #323232;
 
   /* Stable product domain: references and search highlights */
-  --cs-reference: #404040;
-  --cs-reference-foreground: #fff;
-  --cs-reference-subtle: #0b0e12;
-  --cs-highlight-foreground: rgb(0, 0, 0);
-  --cs-highlight: rgba(255, 255, 0, 0.9);
-  --cs-highlight-accent: rgba(255, 150, 50, 0.9);
+  --reference: #404040;
+  --reference-foreground: #fff;
+  --reference-subtle: #0b0e12;
+  --highlight-foreground: rgb(0, 0, 0);
+  --highlight: rgba(255, 255, 0, 0.9);
+  --highlight-accent: rgba(255, 150, 50, 0.9);
 
   /* Stable product domain: user-message surface */
-  --cs-chat-user: rgba(255, 255, 255, 0.08);
+  --chat-user: rgba(255, 255, 255, 0.08);
 
   /* Stable product domain: application shell effects */
-  --cs-sidebar-active-bg: rgba(114, 255, 121, 0.05);
-  --cs-sidebar-active-border: rgba(114, 255, 121, 0.08);
-  --cs-sidebar-glow-bg: rgba(114, 255, 121, 0.15);
-  --cs-sidebar-glow-line: rgba(114, 255, 121, 0.35);
+  --sidebar-active-bg: rgba(114, 255, 121, 0.05);
+  --sidebar-active-border: rgba(114, 255, 121, 0.08);
+  --sidebar-glow-bg: rgba(114, 255, 121, 0.15);
+  --sidebar-glow-line: rgba(114, 255, 121, 0.35);
 }

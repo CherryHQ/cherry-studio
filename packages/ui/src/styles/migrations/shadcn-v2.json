@@ -71,9 +71,59 @@
     },
     { "source": "--cs-sidebar-border", "target": "--sidebar-border", "strategy": "exact" },
     { "source": "--cs-sidebar-ring", "target": "--sidebar-ring", "strategy": "exact" },
+    { "source": "--cs-background-subtle", "target": "--background-subtle", "strategy": "exact" },
+    { "source": "--cs-border-subtle", "target": "--border-subtle", "strategy": "exact" },
+    { "source": "--cs-border-strong", "target": "--border-strong", "strategy": "exact" },
+    { "source": "--cs-success", "target": "--success", "strategy": "exact" },
+    { "source": "--cs-success-subtle", "target": "--success-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-success-subtle-foreground",
+      "target": "--success-subtle-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-success-border", "target": "--success-border", "strategy": "exact" },
+    { "source": "--cs-warning", "target": "--warning", "strategy": "exact" },
+    { "source": "--cs-warning-subtle", "target": "--warning-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-warning-subtle-foreground",
+      "target": "--warning-subtle-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-warning-border", "target": "--warning-border", "strategy": "exact" },
+    { "source": "--cs-info", "target": "--info", "strategy": "exact" },
+    { "source": "--cs-info-subtle", "target": "--info-subtle", "strategy": "exact" },
+    { "source": "--cs-info-subtle-foreground", "target": "--info-subtle-foreground", "strategy": "exact" },
+    { "source": "--cs-info-border", "target": "--info-border", "strategy": "exact" },
+    { "source": "--cs-error", "target": "--error", "strategy": "exact" },
+    { "source": "--cs-error-subtle", "target": "--error-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-error-subtle-foreground",
+      "target": "--error-subtle-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-error-border", "target": "--error-border", "strategy": "exact" },
+    { "source": "--cs-link", "target": "--link", "strategy": "exact" },
+    { "source": "--cs-code-block", "target": "--code-block", "strategy": "exact" },
+    { "source": "--cs-inline-code", "target": "--inline-code", "strategy": "exact" },
+    {
+      "source": "--cs-inline-code-foreground",
+      "target": "--inline-code-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-reference", "target": "--reference", "strategy": "exact" },
+    { "source": "--cs-reference-foreground", "target": "--reference-foreground", "strategy": "exact" },
+    { "source": "--cs-reference-subtle", "target": "--reference-subtle", "strategy": "exact" },
+    { "source": "--cs-highlight", "target": "--highlight", "strategy": "exact" },
+    { "source": "--cs-highlight-foreground", "target": "--highlight-foreground", "strategy": "exact" },
+    { "source": "--cs-highlight-accent", "target": "--highlight-accent", "strategy": "exact" },
+    { "source": "--cs-chat-user", "target": "--chat-user", "strategy": "exact" },
+    { "source": "--cs-sidebar-active-bg", "target": "--sidebar-active-bg", "strategy": "exact" },
+    { "source": "--cs-sidebar-active-border", "target": "--sidebar-active-border", "strategy": "exact" },
+    { "source": "--cs-sidebar-glow-bg", "target": "--sidebar-glow-bg", "strategy": "exact" },
+    { "source": "--cs-sidebar-glow-line", "target": "--sidebar-glow-line", "strategy": "exact" },
     {
       "source": "--cs-border-hover",
-      "target": "--cs-border-strong",
+      "target": "--border-strong",
       "strategy": "contextual",
       "contexts": ["border-color"],
       "reason": "Hover-state usage must remain a component state instead of becoming a static strong border."
@@ -85,20 +135,20 @@
       "contexts": ["color", "fill", "stroke"],
       "reason": "The old token mixes tertiary content with disabled component state."
     },
-    { "source": "--cs-error-base", "target": "--cs-error", "strategy": "exact" },
-    { "source": "--cs-error-text", "target": "--cs-error-subtle-foreground", "strategy": "exact" },
-    { "source": "--cs-error-bg", "target": "--cs-error-subtle", "strategy": "exact" },
-    { "source": "--cs-success-base", "target": "--cs-success", "strategy": "exact" },
-    { "source": "--cs-success-bg", "target": "--cs-success-subtle", "strategy": "exact" },
+    { "source": "--cs-error-base", "target": "--error", "strategy": "exact" },
+    { "source": "--cs-error-text", "target": "--error-subtle-foreground", "strategy": "exact" },
+    { "source": "--cs-error-bg", "target": "--error-subtle", "strategy": "exact" },
+    { "source": "--cs-success-base", "target": "--success", "strategy": "exact" },
+    { "source": "--cs-success-bg", "target": "--success-subtle", "strategy": "exact" },
     {
       "source": "--cs-warning-base",
-      "target": "--cs-warning",
+      "target": "--warning",
       "strategy": "contextual",
       "reason": "The legacy light-mode base uses amber-400 while the product warning token uses amber-500."
     },
-    { "source": "--cs-warning-bg", "target": "--cs-warning-subtle", "strategy": "exact" },
-    { "source": "--cs-info-base", "target": "--cs-info", "strategy": "exact" },
-    { "source": "--cs-info-bg", "target": "--cs-info-subtle", "strategy": "exact" },
+    { "source": "--cs-warning-bg", "target": "--warning-subtle", "strategy": "exact" },
+    { "source": "--cs-info-base", "target": "--info", "strategy": "exact" },
+    { "source": "--cs-info-bg", "target": "--info-subtle", "strategy": "exact" },
     { "source": "--color-text-1", "target": "--foreground", "strategy": "exact" },
     { "source": "--color-text-2", "target": null, "strategy": "review" },
     { "source": "--color-text-3", "target": null, "strategy": "review" },
@@ -115,8 +165,8 @@
     },
     { "source": "--color-border-soft", "target": null, "strategy": "review" },
     { "source": "--color-border-mute", "target": null, "strategy": "review" },
-    { "source": "--color-error", "target": "--cs-error", "strategy": "exact" },
-    { "source": "--color-link", "target": "--cs-link", "strategy": "exact" },
+    { "source": "--color-error", "target": "--error", "strategy": "exact" },
+    { "source": "--color-link", "target": "--link", "strategy": "exact" },
     {
       "source": "--color-primary-bg",
       "target": null,
@@ -127,15 +177,15 @@
     { "source": "--color-fill-2", "target": null, "strategy": "review" },
     { "source": "--color-bg-base", "target": "--background", "strategy": "exact" },
     { "source": "--color-bg-1", "target": null, "strategy": "review" },
-    { "source": "--color-code-background", "target": "--cs-code-block", "strategy": "exact" },
+    { "source": "--color-code-background", "target": "--code-block", "strategy": "exact" },
     {
       "source": "--color-inline-code-background",
-      "target": "--cs-inline-code",
+      "target": "--inline-code",
       "strategy": "exact"
     },
     {
       "source": "--color-inline-code-text",
-      "target": "--cs-inline-code-foreground",
+      "target": "--inline-code-foreground",
       "strategy": "exact"
     },
     { "source": "--color-hover", "target": null, "strategy": "review" },
@@ -146,28 +196,28 @@
       "target": null,
       "strategy": "review"
     },
-    { "source": "--color-reference", "target": "--cs-reference", "strategy": "exact" },
+    { "source": "--color-reference", "target": "--reference", "strategy": "exact" },
     {
       "source": "--color-reference-text",
-      "target": "--cs-reference-foreground",
+      "target": "--reference-foreground",
       "strategy": "exact"
     },
     {
       "source": "--color-reference-background",
-      "target": "--cs-reference-subtle",
+      "target": "--reference-subtle",
       "strategy": "exact"
     },
     { "source": "--color-list-item", "target": null, "strategy": "review" },
     { "source": "--color-list-item-hover", "target": null, "strategy": "review" },
-    { "source": "--color-highlight", "target": "--cs-highlight-foreground", "strategy": "exact" },
+    { "source": "--color-highlight", "target": "--highlight-foreground", "strategy": "exact" },
     {
       "source": "--color-background-highlight",
-      "target": "--cs-highlight",
+      "target": "--highlight",
       "strategy": "exact"
     },
     {
       "source": "--color-background-highlight-accent",
-      "target": "--cs-highlight-accent",
+      "target": "--highlight-accent",
       "strategy": "exact"
     },
     {
@@ -178,7 +228,7 @@
     { "source": "--navbar-background", "target": null, "strategy": "review" },
     { "source": "--modal-background", "target": null, "strategy": "review" },
     { "source": "--chat-background", "target": null, "strategy": "review" },
-    { "source": "--chat-background-user", "target": "--cs-chat-user", "strategy": "exact" },
+    { "source": "--chat-background-user", "target": "--chat-user", "strategy": "exact" },
     {
       "source": "--chat-background-assistant",
       "target": null,
@@ -202,23 +252,23 @@
       "strategy": "contextual",
       "reason": "The historical alias represented the user-selected color; Shadcn primary may map to a distinct semantic role."
     },
-    { "source": "--color-status-success", "target": "--cs-success", "strategy": "exact" },
-    { "source": "--color-status-error", "target": "--cs-error", "strategy": "exact" },
-    { "source": "--color-status-warning", "target": "--cs-warning", "strategy": "exact" },
+    { "source": "--color-status-success", "target": "--success", "strategy": "exact" },
+    { "source": "--color-status-error", "target": "--error", "strategy": "exact" },
+    { "source": "--color-status-warning", "target": "--warning", "strategy": "exact" },
     { "source": "--app-icon", "target": null, "strategy": "review" },
     { "source": "--app-sidebar", "target": "--sidebar", "strategy": "exact" },
     { "source": "--app-sidebar-accent", "target": "--sidebar-accent", "strategy": "exact" },
     { "source": "--app-sidebar-foreground", "target": "--sidebar-foreground", "strategy": "exact" },
-    { "source": "--app-sidebar-active-bg", "target": "--cs-sidebar-active-bg", "strategy": "exact" },
+    { "source": "--app-sidebar-active-bg", "target": "--sidebar-active-bg", "strategy": "exact" },
     {
       "source": "--app-sidebar-active-border",
-      "target": "--cs-sidebar-active-border",
+      "target": "--sidebar-active-border",
       "strategy": "exact"
     },
-    { "source": "--app-sidebar-glow-bg", "target": "--cs-sidebar-glow-bg", "strategy": "exact" },
+    { "source": "--app-sidebar-glow-bg", "target": "--sidebar-glow-bg", "strategy": "exact" },
     {
       "source": "--app-sidebar-glow-line",
-      "target": "--cs-sidebar-glow-line",
+      "target": "--sidebar-glow-line",
       "strategy": "exact"
     },
     { "source": "--app-sidebar-primary", "target": "--sidebar-primary", "strategy": "exact" },

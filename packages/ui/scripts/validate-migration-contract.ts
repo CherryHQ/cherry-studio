@@ -125,7 +125,7 @@ export function validateMigrationContractSources(sources: MigrationContractSourc
   const registry = parseMigrationRegistry(sources.migrationRegistry)
   const canonicalNames = new Set<string>([
     ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
-    ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--cs-${token}`)
+    ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`)
   ])
 
   if (registry.version !== 1 || registry.contract !== 'shadcn-v2') {

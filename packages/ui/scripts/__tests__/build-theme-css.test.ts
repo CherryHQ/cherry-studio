@@ -45,8 +45,8 @@ describe('buildThemeContractCss', () => {
     expect(css).toContain('--color-muted-foreground: var(--muted-foreground);')
     expect(css).toContain('--color-chart-5: var(--chart-5);')
     expect(css).toContain('--color-sidebar-ring: var(--sidebar-ring);')
-    expect(css).toContain('--color-success-subtle: var(--cs-success-subtle);')
-    expect(css).toContain('--color-error-border: var(--cs-error-border);')
+    expect(css).toContain('--color-success-subtle: var(--success-subtle);')
+    expect(css).toContain('--color-error-border: var(--error-border);')
     expect(css).toContain('--color-ring: var(--ring);')
     expect(css).not.toContain('--color-primary: var(--cs-theme-primary);')
     expect(css).not.toContain('--color-ring: var(--cs-ring);')
@@ -71,7 +71,7 @@ describe('buildThemeContractCss', () => {
     }
 
     for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
-      expect(css).toContain(`--color-${token}: var(--cs-${token});`)
+      expect(css).toContain(`--color-${token}: var(--${token});`)
     }
 
     for (const token of COMPATIBILITY_SEMANTIC_COLOR_TOKENS) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { CHERRY_PRODUCT_VARIABLE_TOKENS } from '../theme-contract'
 import { loadMigrationContractSources, validateMigrationContractSources } from '../validate-migration-contract'
 
 describe('validateMigrationContractSources', () => {
@@ -9,6 +10,21 @@ describe('validateMigrationContractSources', () => {
     expect(sources.legacyAliases).toBe('')
     expect(sources.rendererTheme).not.toContain('--app-')
     expect(() => validateMigrationContractSources(sources)).not.toThrow()
+  })
+
+  it('migrates the former prefixed product API to the unprefixed public contract', async () => {
+    const sources = await loadMigrationContractSources()
+    const registry = JSON.parse(sources.migrationRegistry) as {
+      rules: Array<{ source: string; target: string | null; strategy: string }>
+    }
+
+    for (const token of CHERRY_PRODUCT_VARIABLE_TOKENS) {
+      expect(registry.rules).toContainEqual({
+        source: `--cs-${token}`,
+        target: `--${token}`,
+        strategy: 'exact'
+      })
+    }
   })
 
   it('rejects a recreated legacy compatibility layer', async () => {

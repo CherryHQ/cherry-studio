@@ -38,6 +38,16 @@ describe('validateThemeContractSources', () => {
     expect(() => validateThemeContractSources(sources)).toThrow(/foundation --cs-primary cannot depend/)
   })
 
+  it('rejects a product dependency from the foundation layer', async () => {
+    const sources = await loadSources()
+    sources.semanticColors = sources.semanticColors.replace(
+      '--cs-primary: var(--cs-brand-500);',
+      '--cs-primary: var(--success);'
+    )
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/foundation --cs-primary cannot depend/)
+  })
+
   it('rejects an unregistered runtime input', async () => {
     const sources = await loadSources()
     sources.themeInput += '\n:root {\n  --cs-theme-speculative: hotpink;\n}\n'
@@ -67,12 +77,12 @@ describe('validateThemeContractSources', () => {
     expect(() => validateThemeContractSources(sources)).toThrow(/Shadcn contract in shadcn.css is missing/)
   })
 
-  it('requires product variables to be owned by approved product sources', async () => {
+  it('requires product variables to be owned by product.css', async () => {
     const sources = await loadSources()
-    sources.product = sources.product.replace('  --cs-chat-user: rgba(0, 0, 0, 0.045);\n', '')
-    sources.primitiveColors += '\n:root {\n  --cs-chat-user: rgba(0, 0, 0, 0.045);\n}\n'
+    sources.product = sources.product.replace('  --chat-user: rgba(0, 0, 0, 0.045);\n', '')
+    sources.primitiveColors += '\n:root {\n  --chat-user: rgba(0, 0, 0, 0.045);\n}\n'
 
-    expect(() => validateThemeContractSources(sources)).toThrow(/product contract in approved sources is missing/)
+    expect(() => validateThemeContractSources(sources)).toThrow(/product contract in product.css is missing/)
   })
 
   it('rejects unregistered variables in shadcn.css', async () => {
@@ -85,8 +95,8 @@ describe('validateThemeContractSources', () => {
   it('rejects variable cycles in a supported mode', async () => {
     const sources = await loadSources()
     sources.product = sources.product
-      .replace('--cs-inline-code: rgba(0, 0, 0, 0.06);', '--cs-inline-code: var(--cs-inline-code-foreground);')
-      .replace('--cs-inline-code-foreground: rgb(218, 97, 92);', '--cs-inline-code-foreground: var(--cs-inline-code);')
+      .replace('--inline-code: rgba(0, 0, 0, 0.06);', '--inline-code: var(--inline-code-foreground);')
+      .replace('--inline-code-foreground: rgb(218, 97, 92);', '--inline-code-foreground: var(--inline-code);')
 
     expect(() => validateThemeContractSources(sources)).toThrow(/light variable cycle/)
   })

@@ -123,15 +123,16 @@ consumer entry point.
 
 The normative v2 architecture, Shadcn contract, and migration boundary are defined in
 [Design Token System](./docs/design-token-system.md). Official Shadcn variables remain unprefixed; approved
-Cherry Studio product variables use `--cs-*`. Use the [Variable Catalog](./docs/variable-catalog.md) to select a
-stable role and distinguish runtime API from tooling-only historical names.
+Cherry Studio product variables extend the same unprefixed public namespace. Use the
+[Variable Catalog](./docs/variable-catalog.md) to select a stable role and distinguish runtime API from internal
+providers and tooling-only historical names.
 
 To avoid mixing value sources, semantic variables, theme mappings, and runtime overrides, use these rules:
 
 1. `--background`, `--primary`, `--muted-foreground`, and the other variables in `shadcn.css` are the official Shadcn contract
-2. Approved Cherry Studio product semantics use `--cs-*`, such as `--cs-success` and `--cs-background-subtle`
+2. Approved Cherry Studio product semantics are also unprefixed, such as `--success` and `--background-subtle`
 3. Historical migration names are tooling-only and must not be recreated as runtime product variables
-4. Primitive and unclassified historical `--cs-*` variables remain internal value providers, not automatic public API
+4. Shared `--cs-*` variables are internal value providers; `--cs-theme-*` is the reserved host-written input subset
 5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; only the adapter owner declares `--color-*` inside `@theme`, while component, page, and other runtime CSS must neither declare nor consume it
 6. `--cs-theme-*` is a controlled host-written input, not a component-facing semantic role or Tailwind utility
 7. Component-, page-, and Electron-shell variables stay in their owning stylesheet and are not added to the shared contract merely because they are CSS custom properties
