@@ -533,8 +533,13 @@ function finalizeAggregate(agg: AggregateBoundary, c: BackupContributor): Aggreg
   const conflictDefault = agg.conflictDefault ?? (identityClass === 'uuid-entity' ? 'SKIP' : 'FIELD_MERGE')
   // members: explicit if provided, else derived from in-domain OWNING references
   // whose generated FK targets the root (finalize invariant #14 derivation rule).
+  // A table that is itself an aggregate root in this domain is NEVER derived as a
+  // member — a cross-aggregate owning ref (agent_session.workspaceId →
+  // agent_workspace, §5.4) links two independent aggregates; deriving it as a
+  // member would import the row twice (once as its own root, once as a cascade).
+  const domainRoots = new Set(c.schema.aggregates.map((a) => a.root))
   const derivedMembers = c.schema.references
-    .filter((r) => r.kind === 'owning' && r.table !== agg.root)
+    .filter((r) => r.kind === 'owning' && r.table !== agg.root && !domainRoots.has(r.table))
     .filter((r) => {
       const fk = DB_FOREIGN_KEYS[r.table].find((f) => f.columns.some((col) => col === r.column))
       return fk?.targetTable === agg.root
