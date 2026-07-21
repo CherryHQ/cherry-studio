@@ -54,7 +54,7 @@ const SettingsPage: FC = () => {
         <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
           <PageHeader title={t('title.settings')} className="mb-1" />
           <Scrollbar className="min-h-0 flex-1 select-none">
-            <MenuList className={settingsSubmenuListClassName}>
+            <MenuList className={cn(settingsSubmenuListClassName, '[&_svg.lucide]:[stroke-width:1.6]')}>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
