@@ -2,40 +2,40 @@ import dayjs from 'dayjs'
 import { t } from 'i18next'
 
 /**
- * 导出表格数据为 Excel 文件
- * @param data 表格的二维数组
- * @returns 是否导出成功
+ * Export table data to an Excel file.
+ * @param data Two-dimensional array containing the table data.
+ * @returns Whether the export succeeded.
  */
 export async function exportTableToExcel(data: string[][]): Promise<boolean> {
   if (data.length === 0) {
     return false
   }
 
-  // 按需加载 xlsx（约 0.6 MB），避免进入窗口首屏静态图
+  // Load xlsx on demand (~0.6 MB) to keep it out of the window's initial bundle.
   const XLSX = await import('@e965/xlsx')
 
-  // 创建工作表
+  // Create the worksheet.
   const worksheet = XLSX.utils.aoa_to_sheet(data)
 
-  // 设置列宽自适应
+  // Size columns based on their longest value.
   const colWidths = data[0].map((_, colIndex) => {
     const maxLength = Math.max(...data.map((row) => (row[colIndex] || '').toString().length))
     return { wch: Math.min(Math.max(maxLength + 2, 10), 50) }
   })
   worksheet['!cols'] = colWidths
 
-  // 创建工作簿
+  // Create the workbook.
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1')
 
-  // 生成文件内容 (Uint8Array)
+  // Generate the file contents as a Uint8Array.
   const buffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
   const uint8Array = new Uint8Array(buffer)
 
-  // 生成默认文件名
+  // Generate the default filename.
   const fileName = `table_${dayjs().format('YYYY-MM-DD_HHmmss')}.xlsx`
 
-  // 打开“另存为”对话框，允许用户修改默认文件名
+  // Open the Save As dialog so the user can change the default filename.
   const savedPath = await window.api.file.save(fileName, uint8Array, {
     filters: [{ name: t('common.export.excel'), extensions: ['xlsx'] }]
   })
