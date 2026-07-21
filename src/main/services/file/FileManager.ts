@@ -39,12 +39,11 @@
  * orchestration.
  *
  * **Current status**: the IpcApi adapter in `src/main/ipc/handlers/file.ts`
- * dispatches metadata, open, and show-in-folder routes. Entry arms call
- * FileManager; path arms call helpers under `utils/*`. ArtifactPane's scoped
- * `file.read_snapshot` and `file.write_if_unchanged` routes accept only an
- * absolute path and call `utils/*` directly. The legacy `File_PermanentDelete`
- * handler still uses the same dispatcher here until its remaining preload
- * consumers migrate:
+ * dispatches read, metadata, open, and show-in-folder routes. Entry arms call
+ * FileManager; path arms call helpers under `utils/*`. ArtifactPane's
+ * `file.write_if_unchanged` route remains path-only. The legacy
+ * `File_PermanentDelete` handler still uses the same dispatcher here until its
+ * remaining preload consumers migrate:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.open(entryId)`)

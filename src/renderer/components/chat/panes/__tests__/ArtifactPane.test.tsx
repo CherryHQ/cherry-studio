@@ -242,7 +242,7 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
 function binaryReadResult(content: Uint8Array) {
   return {
     content,
-    contentHash: '0123456789abcdef',
+    mime: 'text/plain',
     version: { mtime: 1, size: content.byteLength }
   }
 }
@@ -1671,7 +1671,7 @@ describe('ArtifactPane', () => {
     mocks.fsReadText.mockResolvedValue('# small')
     mocks.ipcRequest
       .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
-      .mockResolvedValueOnce({ contentHash: 'fedcba9876543210', version: { mtime: 2, size: 1 } })
+      .mockResolvedValueOnce({ mtime: 2, size: 1 })
     mocks.useRealCodeEditor = true
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
@@ -1704,7 +1704,7 @@ describe('ArtifactPane', () => {
     mocks.fsReadText.mockResolvedValue('first\r\nsecond\r\n')
     mocks.ipcRequest
       .mockResolvedValueOnce(binaryReadResult(source))
-      .mockResolvedValueOnce({ contentHash: 'fedcba9876543210', version: { mtime: 2, size: source.byteLength } })
+      .mockResolvedValueOnce({ mtime: 2, size: source.byteLength })
     mocks.useRealCodeEditor = true
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
@@ -1730,12 +1730,10 @@ describe('ArtifactPane', () => {
     if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
     const writeInput = writeCall[1] as {
       data: Uint8Array
-      expectedContentHash: string
       expectedVersion: { mtime: number; size: number }
       path: string
     }
     expect(writeInput.path).toBe('/tmp/workspace/notes.txt')
-    expect(writeInput.expectedContentHash).toBe('0123456789abcdef')
     expect(writeInput.expectedVersion).toEqual({ mtime: 1, size: source.byteLength })
     const written = writeInput.data
     expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])

@@ -2,10 +2,10 @@ import { application } from '@application'
 import {
   dispatchHandle,
   getMetadataByPath,
-  readSnapshotByPath,
+  readByPath,
   safeOpen,
   showInFolder as showPathInFolder,
-  writeSnapshotIfUnchangedByPath
+  writeIfUnchangedByPath
 } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
@@ -20,10 +20,17 @@ import type { CreateInternalEntryIpcParams, FilePath } from '@shared/types/file'
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
-  'file.read_snapshot': async ({ path }) => readSnapshotByPath(path as FilePath),
-  'file.write_if_unchanged': async ({ path, data, expectedVersion, expectedContentHash }) => {
+  'file.read': async ({ handle, options }) => {
+    const fileManager = application.get('FileManager')
+    return dispatchHandle(
+      handle as FileHandle,
+      (entryId) => fileManager.read(entryId, options),
+      (path) => readByPath(path, options)
+    )
+  },
+  'file.write_if_unchanged': async ({ path, data, expectedVersion }) => {
     try {
-      return await writeSnapshotIfUnchangedByPath(path as FilePath, data, expectedVersion, expectedContentHash)
+      return await writeIfUnchangedByPath(path as FilePath, data, expectedVersion)
     } catch (error) {
       if (error instanceof PathStaleVersionError) {
         throw new IpcError(fileErrorCodes.STALE_VERSION, error.message, {

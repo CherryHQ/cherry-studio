@@ -225,6 +225,11 @@
           "title": "磁盘上的文件已发生变化"
         },
         "discard": "放弃修改",
+        "leave": {
+          "description": "如果继续，当前文件中尚未保存的修改将会丢失。",
+          "discard_and_continue": "放弃并继续",
+          "title": "放弃未保存的修改？"
+        },
         "refresh_failed": "无法重新加载最新文件内容。",
         "save_failed": "无法保存此文件。自动保存已暂停，请重试或放弃修改。",
         "unsaved": "未保存",
@@ -4322,6 +4327,11 @@
     "export_to_pdf_success": "已导出为 PDF",
     "export_to_word_failed": "导出为 Word 失败",
     "folder": "文件夹",
+    "leave": {
+      "description": "离开当前笔记将丢失尚未保存的编辑。是否继续？",
+      "discard_and_continue": "放弃并继续",
+      "title": "放弃未保存的笔记修改？"
+    },
     "load_failed": "笔记加载失败",
     "load_failed_description": "无法读取该文件。为保护笔记内容，已禁用编辑。",
     "metadata_sync_failed": "文件已更新，但笔记状态同步失败，请重试该操作。",
@@ -4345,10 +4355,7 @@
     "save_blocked_load_failed": "笔记加载失败，已阻止保存",
     "save_failed": "保存笔记失败",
     "save_failure": {
-      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。",
-      "discard_and_continue": "放弃并继续",
-      "leave_description": "该笔记无法保存。离开将永久放弃当前编辑内容。",
-      "leave_title": "放弃未保存的笔记修改？"
+      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。"
     },
     "search": {
       "both": "名称+内容",

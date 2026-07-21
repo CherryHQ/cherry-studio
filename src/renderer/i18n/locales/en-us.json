@@ -225,6 +225,11 @@
           "title": "File changed on disk"
         },
         "discard": "Discard changes",
+        "leave": {
+          "description": "If you continue, your unsaved changes to this file will be lost.",
+          "discard_and_continue": "Discard and continue",
+          "title": "Discard unsaved changes?"
+        },
         "refresh_failed": "Unable to reload the latest file content.",
         "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
         "unsaved": "Unsaved",
@@ -4322,6 +4327,11 @@
     "export_to_pdf_success": "Exported to PDF",
     "export_to_word_failed": "Failed to export to Word",
     "folder": "folder",
+    "leave": {
+      "description": "Leaving this note will discard your unsaved edits. Do you want to continue?",
+      "discard_and_continue": "Discard and continue",
+      "title": "Discard unsaved note edits?"
+    },
     "load_failed": "Failed to load note",
     "load_failed_description": "The file could not be read. Editing is disabled to protect the note content.",
     "metadata_sync_failed": "File updated, but note state sync failed. Please retry the operation.",
@@ -4345,10 +4355,7 @@
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
     "save_failure": {
-      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused.",
-      "discard_and_continue": "Discard and continue",
-      "leave_description": "The note could not be saved. Leaving will permanently discard the current edits.",
-      "leave_title": "Discard unsaved note edits?"
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused."
     },
     "search": {
       "both": "Name+Content",

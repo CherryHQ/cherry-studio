@@ -5,6 +5,7 @@ import { decodeFileText, encodeFileText, UnsupportedFileTextError } from '@rende
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { FilePath, FileVersion } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { debounce } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
@@ -26,7 +27,6 @@ const keyOf = (path: FilePath) => `file-edit-session/${path}`
 /** A disk snapshot decoded for editing — the SWR-cached value for a path. */
 interface FileEditSnapshot {
   content: string
-  contentHash: string
   version: FileVersion
   lineEnding: FileTextLineEnding
   hasBom: boolean
@@ -74,9 +74,8 @@ export interface FileEditSession {
   reload: () => Promise<void>
   /**
    * Write the pending edit immediately (e.g. before a file operation).
-   * Rejects if the draft could not be persisted (I/O failure) so callers must
-   * not proceed with operations that would lose it. A conflicted session
-   * resolves without writing — the conflict dialog owns that draft's fate.
+   * Rejects if the draft could not be persisted (I/O failure or conflict) so
+   * callers must not proceed with operations that would lose it.
    */
   flush: () => Promise<void>
   /**
@@ -88,11 +87,14 @@ export interface FileEditSession {
   notifyExternalChange: (eventMtimeMs?: number) => void
 }
 
-async function readSnapshot(path: FilePath): Promise<FileEditSnapshot> {
-  const { content, contentHash, version } = await ipcApi.request('file.read_snapshot', { path })
+async function readFile(path: FilePath): Promise<FileEditSnapshot> {
+  const { content, version } = await ipcApi.request('file.read', {
+    handle: createFilePathHandle(path),
+    options: { encoding: 'binary' }
+  })
   if (content.byteLength > FILE_EDIT_MAX_SIZE_BYTES) throw new UnsupportedFileTextError('size')
   const decoded = decodeFileText(content)
-  return { content: decoded.content, contentHash, version, lineEnding: decoded.lineEnding, hasBom: decoded.hasBom }
+  return { content: decoded.content, version, lineEnding: decoded.lineEnding, hasBom: decoded.hasBom }
 }
 
 /**
@@ -122,15 +124,11 @@ const isAmbiguousMtime = (mtime: number) => mtime % 1000 === 0
  */
 export function useFileEditSession(path: FilePath | undefined): FileEditSession {
   const { mutate } = useSWRConfig()
-  const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(
-    path ? keyOf(path) : null,
-    () => readSnapshot(path!),
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      errorRetryCount: 0
-    }
-  )
+  const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(path ? keyOf(path) : null, () => readFile(path!), {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    errorRetryCount: 0
+  })
 
   const [draft, setDraftState] = useState('')
   const [savedContent, setSavedContentState] = useState('')
@@ -165,13 +163,12 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
         const baseline = model.snapshot
         try {
           const encoded = encodeFileText(writeDraft, baseline.lineEnding, baseline.hasBom)
-          const { contentHash, version } = await ipcApi.request('file.write_if_unchanged', {
+          const version = await ipcApi.request('file.write_if_unchanged', {
             path: model.path,
             data: encoded,
-            expectedVersion: baseline.version,
-            expectedContentHash: baseline.contentHash
+            expectedVersion: baseline.version
           })
-          model.snapshot = { ...baseline, content: writeDraft, contentHash, version }
+          model.snapshot = { ...baseline, content: writeDraft, version }
           model.lastWriteError = null
           syncFromModel(model)
           // Keep the SWR cache in step so a later reopen sees the saved bytes.
@@ -188,7 +185,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
           // Stale write — verify against disk before declaring a conflict
           // (VS Code's validateWriteFile content-equality escape).
           try {
-            const disk = await readSnapshot(model.path)
+            const disk = await readFile(model.path)
             if (disk.content === writeDraft) {
               // Disk already holds exactly what we tried to write.
               model.snapshot = disk
@@ -237,12 +234,20 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
   )
 
   // Adopt SWR data: first load creates the model; a later revalidation only
-  // applies when idle, deduped by hash and guarded by mtime monotonicity.
+  // applies when idle, deduped by content/version and guarded by mtime monotonicity.
   useEffect(() => {
     if (!data || !path) return
     const model = modelRef.current
     if (model?.path === path) {
-      if (data.contentHash === model.snapshot.contentHash) return
+      if (
+        data.content === model.snapshot.content &&
+        data.lineEnding === model.snapshot.lineEnding &&
+        data.hasBom === model.snapshot.hasBom &&
+        data.version.mtime === model.snapshot.version.mtime &&
+        data.version.size === model.snapshot.version.size
+      ) {
+        return
+      }
       if (model.draft !== model.snapshot.content) return // never clobber a dirty model
       if (data.version.mtime < model.snapshot.version.mtime) return // stale read
       model.snapshot = data
@@ -311,7 +316,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     if (!model) return
     debouncedWrite.cancel()
     await model.chain
-    const disk = await readSnapshot(model.path)
+    const disk = await readFile(model.path)
     if (modelRef.current !== model) return
     model.snapshot = disk
     model.draft = disk.content
@@ -327,11 +332,10 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     if (!model) return
     requestWrite(model)
     await model.chain
-    // The chain resolving is not proof of persistence — an I/O failure leaves
-    // the draft dirty. Reject so callers abort the operation that prompted the
-    // flush instead of silently losing the edit. (A conflicted session resolves:
-    // its draft's fate belongs to the conflict dialog, not the file operation.)
-    if (!model.conflict && model.draft !== model.snapshot.content) {
+    // The chain resolving is not proof of persistence — an I/O failure or
+    // conflict leaves the draft dirty. Reject so callers abort the operation
+    // that prompted the flush instead of silently losing the edit.
+    if (model.draft !== model.snapshot.content) {
       throw model.lastWriteError ?? new Error('Pending edit could not be saved')
     }
   }, [debouncedWrite, requestWrite])
@@ -352,11 +356,11 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
       }
       void (async () => {
         try {
-          const disk = await readSnapshot(model.path)
+          const disk = await readFile(model.path)
           if (modelRef.current !== model) return
           if (model.draft !== model.snapshot.content) return // became dirty meanwhile
           if (disk.version.mtime < model.snapshot.version.mtime) return // stale read (monotonic guard)
-          if (disk.contentHash === model.snapshot.contentHash) {
+          if (disk.content === model.snapshot.content) {
             // Content unchanged — just advance the version baseline quietly.
             model.snapshot = disk
             return

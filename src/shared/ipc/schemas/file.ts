@@ -39,28 +39,25 @@ const fileVersionSchema = z.strictObject({
   size: z.number().int().nonnegative()
 })
 
-const fileContentHashSchema = z.string().regex(/^[0-9a-f]{16}$/i)
-
 const uint8ArraySchema = z.custom<Uint8Array>((value) => value instanceof Uint8Array, {
   message: 'Expected Uint8Array'
 })
 
-const fileSnapshotSchema = z.strictObject({
-  content: uint8ArraySchema,
-  contentHash: fileContentHashSchema,
-  version: fileVersionSchema
+const binaryReadInputSchema = z.strictObject({
+  handle: FileHandleSchema,
+  options: z.strictObject({ encoding: z.literal('binary') })
 })
 
-const fileSnapshotVersionSchema = z.strictObject({
-  contentHash: fileContentHashSchema,
+const binaryReadResultSchema = z.strictObject({
+  content: uint8ArraySchema,
+  mime: z.string().min(1),
   version: fileVersionSchema
 })
 
 const writeIfUnchangedInputSchema = z.strictObject({
   path: AbsolutePathSchema,
   data: uint8ArraySchema,
-  expectedVersion: fileVersionSchema,
-  expectedContentHash: fileContentHashSchema
+  expectedVersion: fileVersionSchema
 })
 
 // TODO(file-ipc): Unify these schemas with the branded transport types in
@@ -93,11 +90,8 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
  * live FS metadata and mutations / system actions that must run in main.
  */
 export const fileRequestSchemas = {
-  'file.read_snapshot': defineRoute({
-    input: z.strictObject({ path: AbsolutePathSchema }),
-    output: fileSnapshotSchema
-  }),
-  'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: fileSnapshotVersionSchema }),
+  'file.read': defineRoute({ input: binaryReadInputSchema, output: binaryReadResultSchema }),
+  'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: fileVersionSchema }),
   'file.batch_get_metadata': defineRoute({
     input: batchGetMetadataInputSchema,
     output: z.record(z.string(), PhysicalFileMetadataSchema.nullable())

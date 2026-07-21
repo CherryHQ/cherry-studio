@@ -59,7 +59,6 @@ export {
   ensureDir,
   exists,
   hash,
-  hashBytes,
   isSameFile,
   mkdir,
   move,

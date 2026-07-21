@@ -15,19 +15,17 @@ import type { FilePath } from '@shared/types/file'
 import { FILE_EDIT_MAX_SIZE_BYTES, useFileEditSession } from '../useFileEditSession'
 
 const path = '/ws/notes.txt' as FilePath
-const INITIAL_HASH = '0123456789abcdef'
-const SAVED_HASH = 'fedcba9876543210'
 
 function utf8(content: string): Uint8Array {
   return new TextEncoder().encode(content)
 }
 
-function readResult(content: Uint8Array, contentHash = INITIAL_HASH, mtime = 1) {
-  return { content, contentHash, version: { mtime, size: content.byteLength } }
+function readResult(content: Uint8Array, mtime = 1) {
+  return { content, mime: 'text/plain', version: { mtime, size: content.byteLength } }
 }
 
-function writeResult(mtime: number, size: number, contentHash = SAVED_HASH) {
-  return { contentHash, version: { mtime, size } }
+function writeResult(mtime: number, size: number) {
+  return { mtime, size }
 }
 
 function writeCalls() {
@@ -56,7 +54,10 @@ describe('useFileEditSession', () => {
     const { result } = renderSession()
 
     await waitFor(() => expect(result.current.status).toBe('ready'))
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.read_snapshot', { path })
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
+      handle: { kind: 'path', path },
+      options: { encoding: 'binary' }
+    })
     expect(result.current.draft).toBe('hello\n')
     expect(result.current.savedContent).toBe('hello\n')
     expect(result.current.isDirty).toBe(false)
@@ -86,8 +87,7 @@ describe('useFileEditSession', () => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.write_if_unchanged', {
         path,
         data: utf8('changed\n'),
-        expectedVersion: { mtime: 1, size: 6 },
-        expectedContentHash: INITIAL_HASH
+        expectedVersion: { mtime: 1, size: 6 }
       })
       expect(result.current.isDirty).toBe(false)
     } finally {
@@ -111,13 +111,12 @@ describe('useFileEditSession', () => {
       })
 
       act(() => result.current.setDraft('second'))
-      ipcMocks.request.mockResolvedValueOnce(writeResult(3, 6, '1111111111111111'))
+      ipcMocks.request.mockResolvedValueOnce(writeResult(3, 6))
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800)
       })
 
       expect(writeCalls()[1]?.[1]).toMatchObject({
-        expectedContentHash: SAVED_HASH,
         expectedVersion: { mtime: 2, size: 5 }
       })
     } finally {
@@ -152,7 +151,7 @@ describe('useFileEditSession', () => {
       expect(writeCalls()).toHaveLength(1)
 
       // Settle #1; the coalesced follow-up write fires with #1's returned version.
-      ipcMocks.request.mockResolvedValueOnce(writeResult(3, 16, '1111111111111111'))
+      ipcMocks.request.mockResolvedValueOnce(writeResult(3, 16))
       await act(async () => {
         resolveWrite(writeResult(2, 5))
         await vi.advanceTimersByTimeAsync(0)
@@ -162,7 +161,6 @@ describe('useFileEditSession', () => {
       expect(calls).toHaveLength(2)
       expect(calls[1]?.[1]).toMatchObject({
         data: utf8('first and second'),
-        expectedContentHash: SAVED_HASH,
         expectedVersion: { mtime: 2, size: 5 }
       })
       expect(result.current.conflict).toBe(false)
@@ -185,7 +183,7 @@ describe('useFileEditSession', () => {
       ipcMocks.request
         .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
         // Verification read: disk holds something else entirely.
-        .mockResolvedValueOnce(readResult(utf8('external\n'), '2222222222222222', 9))
+        .mockResolvedValueOnce(readResult(utf8('external\n'), 9))
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800)
       })
@@ -218,7 +216,7 @@ describe('useFileEditSession', () => {
       ipcMocks.request
         .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
         // Verification read: disk already holds exactly what we tried to write.
-        .mockResolvedValueOnce(readResult(utf8('changed'), '3333333333333333', 5))
+        .mockResolvedValueOnce(readResult(utf8('changed'), 5))
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800)
       })
@@ -244,7 +242,7 @@ describe('useFileEditSession', () => {
       ipcMocks.request
         .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
         // Verification read: same content as our baseline, only the version moved.
-        .mockResolvedValueOnce(readResult(utf8('hello\n'), '4444444444444444', 7))
+        .mockResolvedValueOnce(readResult(utf8('hello\n'), 7))
         // Retried write succeeds against the rebased version.
         .mockResolvedValueOnce(writeResult(8, 7))
       await act(async () => {
@@ -256,7 +254,6 @@ describe('useFileEditSession', () => {
       const calls = writeCalls()
       expect(calls).toHaveLength(2)
       expect(calls[1]?.[1]).toMatchObject({
-        expectedContentHash: '4444444444444444',
         expectedVersion: { mtime: 7, size: 6 }
       })
     } finally {
@@ -358,6 +355,32 @@ describe('useFileEditSession', () => {
     }
   })
 
+  it('flush rejects when a conflict leaves the draft unpersisted', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderSession()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      act(() => result.current.setDraft('local'))
+      ipcMocks.request
+        .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+        .mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+
+      await act(async () => {
+        await expect(result.current.flush()).rejects.toThrow('Pending edit could not be saved')
+      })
+
+      expect(result.current.conflict).toBe(true)
+      expect(result.current.isDirty).toBe(true)
+      expect(result.current.draft).toBe('local')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reload discards local edits and clears the conflict', async () => {
     vi.useFakeTimers()
     try {
@@ -370,13 +393,13 @@ describe('useFileEditSession', () => {
       act(() => result.current.setDraft('local'))
       ipcMocks.request
         .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
-        .mockResolvedValueOnce(readResult(utf8('external\n'), '2222222222222222', 9))
+        .mockResolvedValueOnce(readResult(utf8('external\n'), 9))
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800)
       })
       expect(result.current.conflict).toBe(true)
 
-      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('external\n'), '2222222222222222', 9))
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('external\n'), 9))
       await act(async () => {
         await result.current.reload()
       })
@@ -386,7 +409,7 @@ describe('useFileEditSession', () => {
 
       // Autosave resumes after reload.
       act(() => result.current.setDraft('after reload'))
-      ipcMocks.request.mockResolvedValueOnce(writeResult(10, 12, '5555555555555555'))
+      ipcMocks.request.mockResolvedValueOnce(writeResult(10, 12))
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800)
       })
@@ -489,7 +512,7 @@ describe('useFileEditSession', () => {
       const { result } = renderSession()
       await waitFor(() => expect(result.current.status).toBe('ready'))
 
-      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('external\n'), '3333333333333333', 5001))
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('external\n'), 5001))
       act(() => result.current.notifyExternalChange(5001.2))
       await waitFor(() => expect(result.current.draft).toBe('external\n'))
       expect(result.current.conflict).toBe(false)
@@ -513,13 +536,16 @@ describe('useFileEditSession', () => {
 
         // Event mtime matches (2000) but is ambiguous → a verification read runs.
         ipcMocks.request.mockClear()
-        ipcMocks.request.mockResolvedValueOnce(readResult(utf8('a'), SAVED_HASH, 2000))
+        ipcMocks.request.mockResolvedValueOnce(readResult(utf8('a'), 2000))
         await act(async () => {
           result.current.notifyExternalChange(2000)
           await vi.advanceTimersByTimeAsync(0)
         })
 
-        expect(ipcMocks.request).toHaveBeenCalledWith('file.read_snapshot', { path })
+        expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
+          handle: { kind: 'path', path },
+          options: { encoding: 'binary' }
+        })
         expect(result.current.savedContent).toBe('a')
         expect(result.current.conflict).toBe(false)
       } finally {
@@ -545,7 +571,7 @@ describe('useFileEditSession', () => {
         // Event with an unknown mtime triggers a read that comes back OLDER
         // than our baseline (a stale raceread) — the monotonic guard drops it.
         ipcMocks.request.mockClear()
-        ipcMocks.request.mockResolvedValueOnce(readResult(utf8('ancient'), '6666666666666666', 5))
+        ipcMocks.request.mockResolvedValueOnce(readResult(utf8('ancient'), 5))
         await act(async () => {
           result.current.notifyExternalChange(50.5)
           await vi.advanceTimersByTimeAsync(0)

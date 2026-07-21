@@ -118,7 +118,7 @@ const NotesPage: FC = () => {
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [showConflict, setShowConflict] = useState(false)
-  const [showFailedSaveLeave, setShowFailedSaveLeave] = useState(false)
+  const [showDiscardChanges, setShowDiscardChanges] = useState(false)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
@@ -128,15 +128,15 @@ const NotesPage: FC = () => {
 
   const requestFileTransition = useCallback(
     (transition: () => void) => {
-      if (fileSession.isDirty && fileSession.saveError) {
+      if (fileSession.isDirty) {
         pendingFileTransitionRef.current = transition
-        setShowFailedSaveLeave(true)
+        setShowDiscardChanges(true)
         return false
       }
       transition()
       return true
     },
-    [fileSession.isDirty, fileSession.saveError]
+    [fileSession.isDirty]
   )
 
   const handleDiscardAndContinue = useCallback(() => {
@@ -146,8 +146,8 @@ const NotesPage: FC = () => {
     transition?.()
   }, [discardFileDraft])
 
-  const handleFailedSaveLeaveOpenChange = useCallback((open: boolean) => {
-    setShowFailedSaveLeave(open)
+  const handleDiscardChangesOpenChange = useCallback((open: boolean) => {
+    setShowDiscardChanges(open)
     if (!open) pendingFileTransitionRef.current = null
   }, [])
 
@@ -559,7 +559,7 @@ const NotesPage: FC = () => {
     [getTargetFolderPath, refreshTree, setActiveFilePath, setFolderExpandedByPath, t]
   )
 
-  // 创建笔记前先处理当前无法保存的草稿；用户取消时不创建空文件。
+  // 创建笔记会离开当前编辑会话；用户取消时不创建空文件。
   const handleCreateNote = useCallback(
     async (name: string, targetFolderId?: string) => {
       requestFileTransition(() => void createNote(name, targetFolderId))
@@ -599,6 +599,7 @@ const NotesPage: FC = () => {
   const handleSelectNode = useCallback(
     async (node: NotesTreeNode) => {
       if (node.type === 'file') {
+        if (node.externalPath === activeFilePath) return
         // Switching the active path re-reads the file through the session.
         requestFileTransition(() => {
           setActiveFilePath(node.externalPath)
@@ -609,7 +610,7 @@ const NotesPage: FC = () => {
         handleToggleExpanded(node.id)
       }
     },
-    [handleToggleExpanded, requestFileTransition, setActiveFilePath]
+    [activeFilePath, handleToggleExpanded, requestFileTransition, setActiveFilePath]
   )
 
   // 删除节点
@@ -1105,13 +1106,14 @@ const NotesPage: FC = () => {
         }}
       />
       <ConfirmDialog
-        open={showFailedSaveLeave}
-        onOpenChange={handleFailedSaveLeaveOpenChange}
-        title={t('notes.save_failure.leave_title')}
-        description={t('notes.save_failure.leave_description')}
-        confirmText={t('notes.save_failure.discard_and_continue')}
+        open={showDiscardChanges}
+        onOpenChange={handleDiscardChangesOpenChange}
+        title={t('notes.leave.title')}
+        description={t('notes.leave.description')}
+        confirmText={t('notes.leave.discard_and_continue')}
         cancelText={t('common.cancel')}
         destructive
+        confirmLoading={fileSession.isSaving}
         onConfirm={handleDiscardAndContinue}
       />
     </div>

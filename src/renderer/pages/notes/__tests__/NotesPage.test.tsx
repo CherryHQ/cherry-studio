@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
   return {
     sessionStatus: 'ready' as string,
     sessionIsDirty: false,
+    sessionIsSaving: false,
     sessionSaveError: undefined as Error | undefined,
     sessionDraft: 'saved content',
     currentContent: 'saved content',
@@ -109,13 +110,28 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverTrigger: ({ children }: any) => React.createElement('div', { 'data-testid': 'popover-trigger' }, children),
     RowFlex: passthrough('div'),
     Tooltip: ({ children }: any) => children,
-    ConfirmDialog: ({ open, title, confirmText, onConfirm }: any) =>
+    ConfirmDialog: ({
+      open,
+      title,
+      description,
+      confirmText,
+      confirmLoading,
+      cancelText,
+      onConfirm,
+      onOpenChange
+    }: any) =>
       open
         ? React.createElement(
             'div',
             { role: 'dialog' },
             React.createElement('div', null, title),
-            React.createElement('button', { type: 'button', onClick: () => onConfirm?.() }, confirmText)
+            React.createElement('div', null, description),
+            React.createElement('button', { type: 'button', onClick: () => onOpenChange?.(false) }, cancelText),
+            React.createElement(
+              'button',
+              { type: 'button', disabled: confirmLoading, onClick: () => onConfirm?.() },
+              confirmText
+            )
           )
         : null
   }
@@ -202,7 +218,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
     draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
     isDirty: mocks.sessionIsDirty,
-    isSaving: false,
+    isSaving: mocks.sessionIsSaving,
     conflict: false,
     saveError: mocks.sessionSaveError,
     unsupportedReason: mocks.sessionStatus === 'unsupported' ? 'size' : undefined,
@@ -275,19 +291,24 @@ vi.mock('../NotesSettings', () => ({
 
 vi.mock('../NotesSidebar', () => ({
   default: ({ onSelectNode }: { onSelectNode: (node: typeof mocks.noteNode) => void }) => (
-    <button
-      type="button"
-      onClick={() =>
-        onSelectNode({
-          ...mocks.noteNode,
-          id: '/notes/other.md',
-          name: 'other',
-          treePath: '/other',
-          externalPath: '/notes/other.md'
-        })
-      }>
-      select other note
-    </button>
+    <>
+      <button type="button" onClick={() => onSelectNode(mocks.noteNode)}>
+        select current note
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onSelectNode({
+            ...mocks.noteNode,
+            id: '/notes/other.md',
+            name: 'other',
+            treePath: '/other',
+            externalPath: '/notes/other.md'
+          })
+        }>
+        select other note
+      </button>
+    </>
   )
 }))
 
@@ -298,6 +319,7 @@ describe('NotesPage print payloads', () => {
     vi.clearAllMocks()
     mocks.sessionStatus = 'ready'
     mocks.sessionIsDirty = false
+    mocks.sessionIsSaving = false
     mocks.sessionSaveError = undefined
     mocks.sessionDraft = 'saved content'
     mocks.currentContent = 'saved content'
@@ -471,24 +493,83 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('notes.load_failed'))
   })
 
-  it('keeps a failed draft until the user confirms discarding it before leaving', async () => {
+  it('prompts before leaving a dirty note and keeps the draft when cancelled', async () => {
     mocks.sessionIsDirty = true
-    mocks.sessionSaveError = new Error('permission denied')
     mocks.sessionDraft = 'unsaved draft'
     mocks.showWorkspace = true
 
     render(<NotesPage />)
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('notes.save_failure.description'))
+    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'unsaved draft')
     fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
 
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
-    expect(screen.getByRole('dialog')).toHaveTextContent('notes.save_failure.leave_title')
+    expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.title')
+    expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.description')
 
-    fireEvent.click(screen.getByRole('button', { name: 'notes.save_failure.discard_and_continue' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+    expect(mocks.flushSession).not.toHaveBeenCalled()
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
+  })
+
+  it('does not prompt or discard when reselecting the current dirty note', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionDraft = 'unsaved draft'
+    mocks.showWorkspace = true
+
+    render(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'select current note' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+    expect(mocks.flushSession).not.toHaveBeenCalled()
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/note.md')
+  })
+
+  it('waits for an in-flight note save before allowing discard and navigation', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionIsSaving = true
+    mocks.sessionDraft = 'unsaved draft'
+    mocks.showWorkspace = true
+    const { rerender } = render(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
+
+    expect(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' })).toBeDisabled()
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+
+    mocks.sessionIsSaving = false
+    rerender(<NotesPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
 
     expect(mocks.discardSession).toHaveBeenCalledOnce()
     expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+  })
+
+  it('discards a dirty note before continuing the pending navigation', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionDraft = 'unsaved draft'
+    mocks.showWorkspace = true
+
+    render(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'select other note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'notes.leave.discard_and_continue' }))
+
+    expect(mocks.discardSession).toHaveBeenCalledOnce()
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+    expect(mocks.discardSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.setActiveFilePath.mock.invocationCallOrder[0]
+    )
+    expect(mocks.flushSession).not.toHaveBeenCalled()
   })
 })

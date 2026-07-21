@@ -526,25 +526,15 @@ export function ArtifactPaneView({
     return t('agent.session.file_manager.files')
   }, [t])
 
-  // Autosave normally leaves nothing to guard when navigating — except a draft
-  // whose autosave is failing (disk full, permissions…): moving away would
-  // detach the session and drop the edit, so block the navigation instead.
-  const blockLeavingUnsavedDraft = useCallback(() => {
-    if (!fileSession?.isDirty || !fileSession.saveError) return false
-    toast.error(t('agent.preview_pane.edit.save_failed'))
-    return true
-  }, [fileSession?.isDirty, fileSession?.saveError, t])
-
   const handleSelectedChange = useCallback(
     (id: string | null) => {
-      if (blockLeavingUnsavedDraft()) return
       if (!id) {
         onSelectedFileChange(null)
         return
       }
       if (isSelectableFileNode(model.nodeById, id)) onSelectedFileChange(id)
     },
-    [blockLeavingUnsavedDraft, model.nodeById, onSelectedFileChange]
+    [model.nodeById, onSelectedFileChange]
   )
 
   const isPdfSelection = previewFilePath ? isPdfFile(previewFilePath) : false
@@ -633,13 +623,12 @@ export function ArtifactPaneView({
   ])
 
   const handleClosePreview = useCallback(() => {
-    if (blockLeavingUnsavedDraft()) return
     if (onPreviewClose) {
       onPreviewClose()
       return
     }
     onSelectedFileChange(null)
-  }, [blockLeavingUnsavedDraft, onPreviewClose, onSelectedFileChange])
+  }, [onPreviewClose, onSelectedFileChange])
 
   const handleOverlayKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {

@@ -64,6 +64,7 @@ const agentPageMocks = vi.hoisted(() => ({
     setActiveSessionId: (id: string | null) => void
   } | null,
   pendingSession: null as any,
+  fileNavigationRequest: vi.fn((transition: () => void) => transition()),
   setLastUsedAgentId: vi.fn(),
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
@@ -397,7 +398,8 @@ vi.mock('../AgentChat', () => ({
     sessionPaneOpen,
     onSessionPaneOpenChange,
     onPaneCollapse,
-    onPaneAutoCollapseChange
+    onPaneAutoCollapseChange,
+    onFileNavigationRequestChange
   }: {
     centerSurface?: { content?: ReactNode } | null
     activeSession?: { id: string } | null
@@ -423,8 +425,11 @@ vi.mock('../AgentChat', () => ({
     onSessionPaneOpenChange?: (open: boolean) => void
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
+    onFileNavigationRequestChange?: (request: ((transition: () => void) => void) | null) => void
   }) => (
-    <section data-testid="agent-chat">
+    <section
+      data-testid="agent-chat"
+      ref={(node) => onFileNavigationRequestChange?.(node ? agentPageMocks.fileNavigationRequest : null)}>
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
       <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
       <output data-testid="missing-agent-selection">{String(Boolean(missingAgentSelection))}</output>
@@ -689,6 +694,7 @@ import AgentPage from '../AgentPage'
 describe('AgentPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    agentPageMocks.fileNavigationRequest.mockImplementation((transition) => transition())
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.classicLayoutSessions = []
@@ -2034,6 +2040,32 @@ describe('AgentPage', () => {
     act(() => {
       sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
     })
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
+  })
+
+  it('waits for file-navigation confirmation before applying a global-search session jump', async () => {
+    let pendingTransition: (() => void) | undefined
+    agentPageMocks.fileNavigationRequest.mockImplementation((transition) => {
+      pendingTransition = transition
+    })
+    render(<AgentPage />)
+
+    const sessionMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
+    })
+
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-initial')
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+
+    act(() => pendingTransition?.())
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')

@@ -29,6 +29,7 @@ const {
   fileSessionFlushMock: vi.fn().mockResolvedValue(undefined),
   fileSessionState: {
     isDirty: false,
+    isSaving: false,
     saveError: undefined as Error | undefined
   },
   fileTreeModelState: {
@@ -63,6 +64,7 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   ConfirmDialog: ({
     cancelText,
+    confirmLoading,
     confirmText,
     description,
     onConfirm,
@@ -71,6 +73,7 @@ vi.mock('@cherrystudio/ui', () => ({
     title
   }: {
     cancelText: string
+    confirmLoading?: boolean
     confirmText: string
     description: string
     onConfirm: () => void
@@ -85,7 +88,7 @@ vi.mock('@cherrystudio/ui', () => ({
         <button type="button" onClick={() => onOpenChange(false)}>
           {cancelText}
         </button>
-        <button type="button" onClick={onConfirm}>
+        <button type="button" disabled={confirmLoading} onClick={onConfirm}>
           {confirmText}
         </button>
       </div>
@@ -165,22 +168,32 @@ vi.mock('@renderer/utils/filePath', () => ({
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ArtifactFilePreview: () => <div data-testid="artifact-preview" />,
   ArtifactPaneView: ({
+    editMode,
+    onEditModeChange,
     onPreviewClose,
     onSelectedFileChange,
     previewFileSelection,
     selectedFile
   }: {
+    editMode?: 'preview' | 'edit'
+    onEditModeChange?: (mode: 'preview' | 'edit') => void
     onPreviewClose?: () => void
     onSelectedFileChange: (file: string | null) => void
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     selectedFile: string | null
   }) => (
-    <div data-testid="artifact-pane" data-selected-file={selectedFile ?? ''}>
+    <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
       <button type="button" onClick={() => onSelectedFileChange('README.md')}>
         select README.md
       </button>
       <button type="button" onClick={() => onSelectedFileChange('src/deep.ts')}>
         select src/deep.ts
+      </button>
+      <button type="button" onClick={() => onEditModeChange?.('edit')}>
+        edit
+      </button>
+      <button type="button" onClick={() => onEditModeChange?.('preview')}>
+        preview
       </button>
       {previewFileSelection && (
         <div data-testid="artifact-file-preview-overlay">
@@ -209,7 +222,9 @@ vi.mock('@renderer/hooks/useFileEditSession', () => {
     get isDirty() {
       return fileSessionState.isDirty
     },
-    isSaving: false,
+    get isSaving() {
+      return fileSessionState.isSaving
+    },
     conflict: false,
     get saveError() {
       return fileSessionState.saveError
@@ -360,6 +375,7 @@ describe('AgentRightPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     fileSessionState.isDirty = false
+    fileSessionState.isSaving = false
     fileSessionState.saveError = undefined
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
@@ -772,7 +788,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
   })
 
-  it('switches files directly without a leave prompt (autosave persists edits)', () => {
+  it('switches files directly when the current file is clean', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([
       ['README.md', { kind: 'file' }],
@@ -799,7 +815,35 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
   })
 
-  it('blocks every controlled file switch after a save failure', () => {
+  it('registers the dirty-navigation guard for navigation owned outside the pane', () => {
+    const onFileNavigationRequestChange = vi.fn()
+    const renderPane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}
+        onFileNavigationRequestChange={onFileNavigationRequestChange}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+    fileSessionState.isDirty = true
+    rerender(renderPane())
+    const requestNavigation = onFileNavigationRequestChange.mock.calls
+      .map(([request]) => request)
+      .filter(Boolean)
+      .at(-1) as ((transition: () => void) => void) | undefined
+    const transition = vi.fn()
+
+    act(() => requestNavigation?.(transition))
+
+    expect(transition).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+  })
+
+  it('keeps the current dirty file when navigation is cancelled', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([
       ['README.md', { kind: 'file' }],
@@ -818,17 +862,127 @@ describe('AgentRightPane', () => {
     const { rerender } = render(renderPane())
 
     fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
     fileSessionState.isDirty = true
-    fileSessionState.saveError = new Error('disk full')
     rerender(renderPane())
 
     fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
 
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'edit')
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
   })
 
-  it('closes the preview directly without a leave prompt', () => {
+  it('discards the dirty draft before confirming navigation', () => {
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([
+      ['README.md', { kind: 'file' }],
+      ['src/deep.ts', { kind: 'file' }]
+    ])
+    const renderPane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(renderPane())
+    fileSessionDiscardMock.mockImplementationOnce(() => {
+      expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+
+    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
+    expect(fileSessionFlushMock).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
+  })
+
+  it('keeps the dirty file bound to its original workspace until the workspace transition is confirmed', () => {
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    const renderPane = (workspacePath: string) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath={workspacePath}
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane('/workspace-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(renderPane('/workspace-b'))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-a' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+
+    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
+    expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-b' })
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('waits for an in-flight save before allowing discard and navigation', () => {
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([
+      ['README.md', { kind: 'file' }],
+      ['src/deep.ts', { kind: 'file' }]
+    ])
+    const renderPane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    fileSessionState.isSaving = true
+    rerender(renderPane())
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+
+    const confirm = screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' })
+    expect(confirm).toBeDisabled()
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
+
+    fileSessionState.isSaving = false
+    rerender(renderPane())
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+
+    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+  })
+
+  it('closes a clean preview directly without a leave prompt', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
     const renderPane = () => (

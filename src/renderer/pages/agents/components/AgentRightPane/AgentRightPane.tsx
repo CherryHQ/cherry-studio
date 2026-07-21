@@ -1,4 +1,4 @@
-import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { Badge, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -35,9 +35,8 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
-import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -121,9 +120,11 @@ interface AgentRightPaneFileState {
   selectedFile: string | null
   fileTreeExpandedIds: ReadonlySet<string>
   fileTreeSearchKeyword: string
+  workspacePath?: string
 }
 
 type AgentFileEditorMode = 'preview' | 'edit'
+export type AgentFileNavigationRequest = (transition: () => void) => void
 
 interface AgentRightPaneActions {
   canOpenAgentToolFlow: boolean
@@ -157,6 +158,7 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   resourcePane?: ResourcePaneConfig | null
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
+  onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
   revealRequest?: ResourceListRevealRequest
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -166,6 +168,7 @@ const AgentRightPaneMetaContext = createContext<AgentRightPaneMeta | null>(null)
 const AgentRightPaneRuntimeContext = createContext<AgentRightPaneRuntime | null>(null)
 const AgentRightPaneFileStateContext = createContext<AgentRightPaneFileState | null>(null)
 const AgentRightPaneActionsContext = createContext<AgentRightPaneActions | null>(null)
+const AgentFileNavigationContext = createContext<AgentFileNavigationRequest | null>(null)
 
 function useAgentRightPaneMeta(): AgentRightPaneMeta {
   const value = use(AgentRightPaneMetaContext)
@@ -191,6 +194,16 @@ export function useAgentRightPaneActions(): AgentRightPaneActions {
   return value
 }
 
+export function useAgentFileNavigation(): AgentFileNavigationRequest {
+  const value = useOptionalAgentFileNavigation()
+  if (!value) throw new Error('useAgentFileNavigation must be used within <AgentRightPane.Scope>')
+  return value
+}
+
+export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | null {
+  return use(AgentFileNavigationContext)
+}
+
 interface AgentRightPaneActionsProviderProps {
   children: ReactNode
   conversationState: AgentConversationState
@@ -203,6 +216,7 @@ interface AgentRightPaneActionsProviderProps {
   setFileEditMode: (mode: AgentFileEditorMode) => void
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
   setFileTreeSearchKeyword: (keyword: string) => void
+  workspaceCurrent: boolean
 }
 
 function AgentRightPaneActionsProvider({
@@ -216,11 +230,12 @@ function AgentRightPaneActionsProvider({
   selectFile,
   setFileEditMode,
   setFileTreeExpandedIds,
-  setFileTreeSearchKeyword
+  setFileTreeSearchKeyword,
+  workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
   const panelActions = useRightPanelActions()
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
-  const canOpenArtifactFile = Boolean(workspacePath) && panelActions.canOpen('files')
+  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
@@ -284,6 +299,7 @@ function AgentRightPaneStateProvider({
   resourcePane = null,
   defaultOpen = false,
   onOpenChange,
+  onFileNavigationRequestChange,
   revealRequest
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
@@ -297,44 +313,78 @@ function AgentRightPaneStateProvider({
   const [editMode, setEditMode] = useState<AgentFileEditorMode>('preview')
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
-  const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
-  const previousWorkspaceKeyRef = useRef(workspaceKey)
+  const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const pendingFileTransitionRef = useRef<(() => void) | null>(null)
+  const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
+  // External route/session changes can update props before this subtree gets a
+  // chance to confirm. Keep the file tree and editor on one committed workspace
+  // until the transition is accepted so a new tree can never write an old path.
+  const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
   const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
   const fileSession = useFileEditSession(editPath)
+  const discardFileDraft = fileSession.discard
 
   useEffect(() => {
     setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tab: null }))
   }, [sessionId])
 
-  const blockFailedSaveTransition = useCallback(() => {
-    if (!fileSession.isDirty || !fileSession.saveError) return false
-    toast.error(t('agent.preview_pane.edit.save_failed'))
-    return true
-  }, [fileSession.isDirty, fileSession.saveError, t])
+  const requestFileTransition = useCallback(
+    (transition: () => void) => {
+      if (!fileSession.isDirty) {
+        transition()
+        return
+      }
+      pendingFileTransitionRef.current = transition
+      setShowDirtyLeaveConfirmation(true)
+    },
+    [fileSession.isDirty]
+  )
+
+  useLayoutEffect(() => {
+    onFileNavigationRequestChange?.(requestFileTransition)
+    return () => onFileNavigationRequestChange?.(null)
+  }, [onFileNavigationRequestChange, requestFileTransition])
+
+  const handleDirtyLeaveConfirmationChange = useCallback((open: boolean) => {
+    setShowDirtyLeaveConfirmation(open)
+    if (!open) pendingFileTransitionRef.current = null
+  }, [])
+
+  const handleDiscardAndContinue = useCallback(() => {
+    const transition = pendingFileTransitionRef.current
+    pendingFileTransitionRef.current = null
+    discardFileDraft()
+    transition?.()
+    setShowDirtyLeaveConfirmation(false)
+  }, [discardFileDraft])
 
   // Every selection entry point (tree, artifact link, close, watcher cleanup)
-  // lands here, so a failed save cannot be bypassed by a controlled caller.
+  // lands here, so leaving a dirty edit path always requires confirmation.
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null) => {
       if (isSameFileSelection(previewFileSelection, selection)) return
-      if (blockFailedSaveTransition()) return
-      setEditMode('preview')
-      setPreviewFileSelection(selection)
-      setSelectedFile(selection && selection.workspacePath === workspacePath ? selection.filePath : null)
+      requestFileTransition(() => {
+        setEditMode('preview')
+        setPreviewFileSelection(selection)
+        setSelectedFile(selection && selection.workspacePath === fileWorkspace.path ? selection.filePath : null)
+      })
     },
-    [blockFailedSaveTransition, previewFileSelection, workspacePath]
+    [fileWorkspace.path, previewFileSelection, requestFileTransition]
   )
 
   const requestFileEditMode = useCallback(
     (mode: AgentFileEditorMode) => {
       if (mode === editMode) return
-      if (mode === 'preview' && blockFailedSaveTransition()) return
+      if (mode === 'preview') {
+        requestFileTransition(() => setEditMode(mode))
+        return
+      }
       setEditMode(mode)
     },
-    [blockFailedSaveTransition, editMode]
+    [editMode, requestFileTransition]
   )
 
   const replaceFlowTab = useCallback(
@@ -351,21 +401,29 @@ function AgentRightPaneStateProvider({
 
   const selectFile = useCallback(
     (file: string | null) => {
-      requestFileSelection(file && workspacePath ? { workspacePath, filePath: file } : null)
+      requestFileSelection(file && fileWorkspace.path ? { workspacePath: fileWorkspace.path, filePath: file } : null)
     },
-    [requestFileSelection, workspacePath]
+    [fileWorkspace.path, requestFileSelection]
   )
 
   useLayoutEffect(() => {
-    if (previousWorkspaceKeyRef.current === workspaceKey) return
-    if (blockFailedSaveTransition()) return
-    previousWorkspaceKeyRef.current = workspaceKey
-    setEditMode('preview')
-    setSelectedFile(null)
-    setPreviewFileSelection(null)
-    setFileTreeExpandedIds(new Set())
-    setFileTreeSearchKeyword('')
-  }, [blockFailedSaveTransition, workspaceKey])
+    if (fileWorkspace.key === workspaceKey) return
+    const commitWorkspace = () => {
+      setFileWorkspace({ key: workspaceKey, path: workspacePath })
+      setEditMode('preview')
+      setSelectedFile(null)
+      setPreviewFileSelection(null)
+      setFileTreeExpandedIds(new Set())
+      setFileTreeSearchKeyword('')
+    }
+    if (!fileSession.isDirty) {
+      pendingFileTransitionRef.current = null
+      setShowDirtyLeaveConfirmation(false)
+      commitWorkspace()
+      return
+    }
+    requestFileTransition(commitWorkspace)
+  }, [fileSession.isDirty, fileWorkspace.key, requestFileTransition, workspaceKey, workspacePath])
 
   const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
 
@@ -376,9 +434,18 @@ function AgentRightPaneStateProvider({
       previewFileSelection,
       selectedFile,
       fileTreeExpandedIds,
-      fileTreeSearchKeyword
+      fileTreeSearchKeyword,
+      workspacePath: fileWorkspace.path
     }),
-    [editMode, fileSession, fileTreeExpandedIds, fileTreeSearchKeyword, previewFileSelection, selectedFile]
+    [
+      editMode,
+      fileSession,
+      fileTreeExpandedIds,
+      fileTreeSearchKeyword,
+      fileWorkspace.path,
+      previewFileSelection,
+      selectedFile
+    ]
   )
   const meta = useMemo<AgentRightPaneMeta>(
     () => ({
@@ -408,36 +475,50 @@ function AgentRightPaneStateProvider({
   )
 
   return (
-    <ResourcePaneProvider value={resourcePane}>
-      <AgentRightPaneMetaContext value={meta}>
-        <AgentRightPaneFileStateContext value={fileState}>
-          <AgentRightPaneRuntimeContext value={runtime}>
-            <RightPanelProvider
-              capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
-              scope={scope}
-              defaultPanelId={RESOURCE_PANE_TAB}
-              defaultOpen={defaultOpen}
-              onOpenChange={onOpenChange}
-              present={present}>
-              <ResourcePaneLocateOpener revealRequest={revealRequest} />
-              <AgentRightPaneActionsProvider
-                conversationState={conversationState}
-                sessionId={sessionId}
-                workspacePath={workspacePath}
-                replaceFlowTab={replaceFlowTab}
-                closeFilePreview={closeFilePreview}
-                requestFileSelection={requestFileSelection}
-                selectFile={selectFile}
-                setFileEditMode={requestFileEditMode}
-                setFileTreeExpandedIds={setFileTreeExpandedIds}
-                setFileTreeSearchKeyword={setFileTreeSearchKeyword}>
-                {children}
-              </AgentRightPaneActionsProvider>
-            </RightPanelProvider>
-          </AgentRightPaneRuntimeContext>
-        </AgentRightPaneFileStateContext>
-      </AgentRightPaneMetaContext>
-    </ResourcePaneProvider>
+    <AgentFileNavigationContext value={requestFileTransition}>
+      <ResourcePaneProvider value={resourcePane}>
+        <AgentRightPaneMetaContext value={meta}>
+          <AgentRightPaneFileStateContext value={fileState}>
+            <AgentRightPaneRuntimeContext value={runtime}>
+              <RightPanelProvider
+                capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
+                scope={scope}
+                defaultPanelId={RESOURCE_PANE_TAB}
+                defaultOpen={defaultOpen}
+                onOpenChange={onOpenChange}
+                present={present}>
+                <ResourcePaneLocateOpener revealRequest={revealRequest} />
+                <AgentRightPaneActionsProvider
+                  conversationState={conversationState}
+                  sessionId={sessionId}
+                  workspacePath={workspacePath}
+                  replaceFlowTab={replaceFlowTab}
+                  closeFilePreview={closeFilePreview}
+                  requestFileSelection={requestFileSelection}
+                  selectFile={selectFile}
+                  setFileEditMode={requestFileEditMode}
+                  setFileTreeExpandedIds={setFileTreeExpandedIds}
+                  setFileTreeSearchKeyword={setFileTreeSearchKeyword}
+                  workspaceCurrent={fileWorkspace.key === workspaceKey}>
+                  {children}
+                </AgentRightPaneActionsProvider>
+                <ConfirmDialog
+                  open={showDirtyLeaveConfirmation}
+                  onOpenChange={handleDirtyLeaveConfirmationChange}
+                  title={t('agent.preview_pane.edit.leave.title')}
+                  description={t('agent.preview_pane.edit.leave.description')}
+                  confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
+                  cancelText={t('common.cancel')}
+                  destructive
+                  confirmLoading={fileSession.isSaving}
+                  onConfirm={handleDiscardAndContinue}
+                />
+              </RightPanelProvider>
+            </AgentRightPaneRuntimeContext>
+          </AgentRightPaneFileStateContext>
+        </AgentRightPaneMetaContext>
+      </ResourcePaneProvider>
+    </AgentFileNavigationContext>
   )
 }
 
@@ -452,7 +533,7 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
   const panelState = useRightPanelState()
   const lastSelectableFileRef = useRef<string | null>(null)
   const model = useArtifactFileTreeModel({
-    workspacePath: meta.workspacePath,
+    workspacePath: state.workspacePath,
     treeOpen: meta.conversationState === 'ready' && active,
     expandedIds: state.fileTreeExpandedIds,
     searchKeyword: state.fileTreeSearchKeyword,
@@ -475,7 +556,7 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
     if (lastSelectableFileRef.current !== state.selectedFile) return
     if (
       state.previewFileSelection &&
-      state.previewFileSelection.workspacePath === meta.workspacePath &&
+      state.previewFileSelection.workspacePath === state.workspacePath &&
       state.previewFileSelection.filePath === state.selectedFile
     ) {
       actions.closeFilePreview()
@@ -483,10 +564,10 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
     }
     lastSelectableFileRef.current = null
     actions.setSelectedFile(null)
-  }, [actions, meta.workspacePath, model.hasLoaded, model.nodeById, state.previewFileSelection, state.selectedFile])
+  }, [actions, model.hasLoaded, model.nodeById, state.previewFileSelection, state.selectedFile, state.workspacePath])
   return (
     <ArtifactPaneView
-      workspacePath={meta.workspacePath}
+      workspacePath={state.workspacePath}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
       pdfLayoutPending={panelState.pdfLayoutPending}

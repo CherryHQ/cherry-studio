@@ -71,7 +71,7 @@ File Module (src/main/services/file/)
 │
 │
 ├── utils/                ← file-module path/API helpers (not raw FS primitives)
-│     ├── content.ts            — path read + scoped ArtifactPane snapshot / conditional write
+│     ├── content.ts            — consistent path read + path conditional write
 │     ├── pathResolver.ts       — FileEntry → physical FilePath resolution + external canonicalization
 │     └── metadata.ts           — path-arm PhysicalFileMetadata projection for File IPC dispatch
 │
@@ -268,7 +268,7 @@ Other services in the main process can call FileManager, `src/main/services/file
 > **Current wiring status.** New renderer-facing File IPC lives in IpcApi
 > routes declared in `src/shared/ipc/schemas/file.ts` and handled by
 > `src/main/ipc/handlers/file.ts`. The routes currently registered are:
-> `file.read_snapshot`, `file.write_if_unchanged`, `file.batch_get_metadata`,
+> `file.read`, `file.write_if_unchanged`, `file.batch_get_metadata`,
 > `file.batch_get_physical_paths`,
 > `file.batch_get_dangling_states`, `file.batch_create_internal_entries`,
 > `file.batch_trash`, `file.batch_restore`, `file.batch_permanent_delete`,
@@ -278,10 +278,12 @@ Other services in the main process can call FileManager, `src/main/services/file
 > new renderer code. The tables below describe the logical File IPC surface;
 > the IpcApi schema registry is the source of truth for routes wired today.
 
-The scoped `file.read_snapshot` and `file.write_if_unchanged` routes accept an
-absolute path instead of a generic `FileHandle`; they exist only for the Agent
-artifact preview editor. `file.write_if_unchanged` maps
-`PathStaleVersionError` to the renderer-visible `FILE_STALE_VERSION` code. Its error data is
+`file.read` accepts a generic `FileHandle`; its currently wired binary option
+returns the standard `{ content, mime, version }` `ReadResult<Uint8Array>`.
+`file.write_if_unchanged` is the path-only conditional-write route used by the
+artifact editor. It accepts only `path`, `data`, and `expectedVersion`, returns
+the new `FileVersion`, and maps `PathStaleVersionError` to the renderer-visible
+`FILE_STALE_VERSION` code. Its error data is
 `{ expected: FileVersion, current: FileVersion }`; the target file remains
 untouched and the caller decides how to present or resolve the conflict.
 
@@ -1063,7 +1065,7 @@ src/main/services/file/               -- file module
   danglingCache.ts                    -- singleton: external entry presence state
                                          exports: check / onFsEvent / addEntry / removeEntry
   utils/
-    content.ts                        -- path read + scoped snapshot / conditional write
+    content.ts                        -- consistent path read + path conditional write
     pathResolver.ts                   -- FileEntry path resolution + external canonicalization
     metadata.ts                       -- path-arm PhysicalFileMetadata projection
   watcher/
