@@ -300,7 +300,7 @@ describe('orderKey', () => {
       })
     })
 
-    it('throws an INVALID_ANCHOR DataApiError when the anchor id does not exist (before)', async () => {
+    it('throws a NOT_FOUND DataApiError when the anchor id does not exist (before)', async () => {
       seedFx(['a'])
       expect(
         captureTxThrow(() =>
@@ -309,12 +309,13 @@ describe('orderKey', () => {
           })
         )
       ).toMatchObject({
-        code: ErrorCode.INVALID_ANCHOR,
-        message: expect.stringMatching(/nope/)
+        code: ErrorCode.NOT_FOUND,
+        message: expect.stringMatching(/nope/),
+        details: { resource: 'fx_order_key_test', id: 'nope' }
       })
     })
 
-    it('throws an INVALID_ANCHOR DataApiError when the anchor id does not exist (after)', async () => {
+    it('throws a NOT_FOUND DataApiError when the anchor id does not exist (after)', async () => {
       seedFx(['a'])
       expect(
         captureTxThrow(() =>
@@ -323,11 +324,12 @@ describe('orderKey', () => {
           })
         )
       ).toMatchObject({
-        code: ErrorCode.INVALID_ANCHOR
+        code: ErrorCode.NOT_FOUND,
+        details: { id: 'nope' }
       })
     })
 
-    it("throws an INVALID_ANCHOR DataApiError when the 'before' anchor equals the move id", async () => {
+    it("throws a VALIDATION_ERROR DataApiError when the 'before' anchor equals the move id", async () => {
       seedFx(['a'])
       expect(
         captureTxThrow(() =>
@@ -336,12 +338,12 @@ describe('orderKey', () => {
           })
         )
       ).toMatchObject({
-        code: ErrorCode.INVALID_ANCHOR,
+        code: ErrorCode.VALIDATION_ERROR,
         message: expect.stringMatching(/cannot equal the move's own id/)
       })
     })
 
-    it("throws an INVALID_ANCHOR DataApiError when the 'after' anchor equals the move id", async () => {
+    it("throws a VALIDATION_ERROR DataApiError when the 'after' anchor equals the move id", async () => {
       seedFx(['a'])
       expect(
         captureTxThrow(() =>
@@ -350,7 +352,7 @@ describe('orderKey', () => {
           })
         )
       ).toMatchObject({
-        code: ErrorCode.INVALID_ANCHOR,
+        code: ErrorCode.VALIDATION_ERROR,
         message: expect.stringMatching(/cannot equal the move's own id/)
       })
     })
@@ -395,7 +397,7 @@ describe('orderKey', () => {
       expect(s2After).toEqual(s2Before)
     })
 
-    it('throws INVALID_ANCHOR when anchor id is in a different scope than the target', async () => {
+    it('throws NOT_FOUND DataApiError when anchor id is in a different scope than the target', async () => {
       insertWithOrderKey(
         dbh.db,
         fxTable,
@@ -418,7 +420,8 @@ describe('orderKey', () => {
           })
         )
       ).toMatchObject({
-        code: ErrorCode.INVALID_ANCHOR
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'fx_order_key_test', id: 'x' }
       })
     })
 

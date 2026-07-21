@@ -55,9 +55,6 @@ export enum ErrorCode {
   /** 422 - Request body fails validation rules */
   VALIDATION_ERROR = 'VALIDATION_ERROR',
 
-  /** 422 - Move/reorder anchor is missing, self-referencing, or outside the required target scope */
-  INVALID_ANCHOR = 'INVALID_ANCHOR',
-
   /** 422 - Move target owner does not exist or is not live */
   INVALID_TARGET_OWNER = 'INVALID_TARGET_OWNER',
 
@@ -140,7 +137,6 @@ export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   [ErrorCode.METHOD_NOT_ALLOWED]: 405,
   [ErrorCode.CONFLICT]: 409,
   [ErrorCode.VALIDATION_ERROR]: 422,
-  [ErrorCode.INVALID_ANCHOR]: 422,
   [ErrorCode.INVALID_TARGET_OWNER]: 422,
   [ErrorCode.RATE_LIMIT_EXCEEDED]: 429,
 
@@ -168,7 +164,6 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.METHOD_NOT_ALLOWED]: 'Method not allowed: HTTP method not supported for this endpoint',
   [ErrorCode.CONFLICT]: 'Conflict: Resource already exists or conflicts with existing data',
   [ErrorCode.VALIDATION_ERROR]: 'Validation error: Request data does not meet requirements',
-  [ErrorCode.INVALID_ANCHOR]: 'Invalid anchor: Move or reorder anchor is not valid',
   [ErrorCode.INVALID_TARGET_OWNER]: 'Invalid target owner: Move target owner is not available',
   [ErrorCode.RATE_LIMIT_EXCEEDED]: 'Rate limit exceeded: Too many requests',
   [ErrorCode.PERMISSION_DENIED]: 'Permission denied: Insufficient permissions for this operation',

@@ -419,7 +419,7 @@ export class TopicService {
           const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
           if (anchorId === id) {
             const message = 'move: anchor topic must differ from the moved topic'
-            throw DataApiErrorFactory.create(ErrorCode.INVALID_ANCHOR, message)
+            throw DataApiErrorFactory.validation({ order: [message] }, message)
           }
 
           const [anchor] = tx
@@ -430,11 +430,11 @@ export class TopicService {
             .all()
           if (!anchor) {
             const message = 'move: anchor topic must exist'
-            throw DataApiErrorFactory.create(ErrorCode.INVALID_ANCHOR, message)
+            throw DataApiErrorFactory.validation({ order: [message] }, message)
           }
           if (anchor.assistantId !== dto.assistantId) {
             const message = 'move: anchor topic must belong to the target assistant'
-            throw DataApiErrorFactory.create(ErrorCode.INVALID_ANCHOR, message)
+            throw DataApiErrorFactory.validation({ order: [message] }, message)
           }
 
           tx.update(topicTable).set({ assistantId: dto.assistantId }).where(eq(topicTable.id, id)).run()

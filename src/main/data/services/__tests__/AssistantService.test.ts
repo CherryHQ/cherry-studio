@@ -796,7 +796,7 @@ describe('AssistantDataService', () => {
       expect(result.items.map((a) => a.id)).toEqual(['ast-1', 'ast-3', 'ast-2'])
     })
 
-    it('should reject a soft-deleted target as NOT_FOUND and anchor as INVALID_ANCHOR', async () => {
+    it('should reject soft-deleted targets and anchors as NOT_FOUND', async () => {
       await seedAssistantRow([
         { id: 'ast-1', name: 'A', orderKey: 'a0' },
         { id: 'ast-2', name: 'B', orderKey: 'a1', deletedAt: Date.now() }
@@ -819,7 +819,8 @@ describe('AssistantDataService', () => {
         anchorErr = e
       }
       expect(anchorErr).toMatchObject({
-        code: ErrorCode.INVALID_ANCHOR
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Assistant', id: 'ast-2' }
       })
     })
   })

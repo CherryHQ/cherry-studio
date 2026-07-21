@@ -124,8 +124,7 @@ Response: `204 No Content`.
 | Code | HTTP | When |
 |---|---|---|
 | `VALIDATION_ERROR` | 422 | Body does not match the three-way union |
-| `NOT_FOUND` | 404 | `:id` does not exist |
-| `INVALID_ANCHOR` | 422 | `before`/`after` anchor is missing, outside the reorder scope, or self-referencing |
+| `NOT_FOUND` | 404 | `:id` or `before`/`after` anchor id does not exist |
 
 ### `POST /{resource}/order:reset` — auxiliary (opt-in per resource)
 

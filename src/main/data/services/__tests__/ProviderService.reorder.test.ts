@@ -155,7 +155,7 @@ describe('ProviderService reorder', () => {
       err = e
     }
     expect(err).toMatchObject({
-      code: ErrorCode.INVALID_ANCHOR
+      code: ErrorCode.VALIDATION_ERROR
     })
   })
 
