@@ -16,6 +16,7 @@ import os from 'node:os'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { RUNTIME_CONTEXT_PROMPT_PRESET } from '@shared/ai/prompts'
 
 const logger = loggerService.withContext('utils:prompt')
 
@@ -113,3 +114,6 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   return userSystemPrompt
 }
+
+export const buildRuntimeContextPrompt = (modelName?: string, template?: string): Promise<string> =>
+  replacePromptVariables(template?.trim() ? template : RUNTIME_CONTEXT_PROMPT_PRESET, modelName)

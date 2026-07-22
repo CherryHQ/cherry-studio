@@ -52,6 +52,8 @@ describe('initialAssistantFormState', () => {
       modelId: 'openai::gpt-5',
       temperature: 0.7,
       enableTemperature: true,
+      enableRuntimeContext: false,
+      runtimeContextPrompt: '',
       mcpMode: 'manual',
       knowledgeBaseIds: ['kb-1'],
       mcpServerIds: ['mcp-1']
@@ -172,6 +174,17 @@ describe('diffAssistantUpdate', () => {
 
     const result = diffAssistantUpdate(form, baseline, assistant)
     expect(result?.dto.settings?.customParameters).toEqual([{ name: 'seed', type: 'number', value: 42 }])
+  })
+
+  it('persists runtime context through assistant settings', () => {
+    const assistant = createAssistant()
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, enableRuntimeContext: true, runtimeContextPrompt: 'Custom runtime context' }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(result?.dto.settings?.enableRuntimeContext).toBe(true)
+    expect(result?.dto.settings?.runtimeContextPrompt).toBe('Custom runtime context')
   })
 })
 

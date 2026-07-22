@@ -81,6 +81,7 @@ interface PromptEditorFieldProps {
   placeholder?: string
   error?: string
   actions?: ReactNode
+  editorActions?: ReactNode
   labelAddon?: ReactNode
   previewValue?: string
   resetPreviewKey?: unknown
@@ -98,6 +99,7 @@ export function PromptEditorField({
   placeholder,
   error,
   actions,
+  editorActions,
   labelAddon,
   previewValue,
   resetPreviewKey,
@@ -167,12 +169,20 @@ export function PromptEditorField({
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
+            'relative overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
             fill && 'flex min-h-0 flex-1 flex-col',
             hasError
               ? 'border-destructive/50 focus-within:border-destructive/60'
               : 'border-border focus-within:border-border-hover'
           )}>
+          {editorActions ? (
+            <div
+              data-slot="prompt-editor-actions"
+              className="absolute top-2 right-2 z-10 flex items-center gap-1"
+              onMouseDown={(event) => event.stopPropagation()}>
+              {editorActions}
+            </div>
+          ) : null}
           {effectiveShowPreview ? (
             <div
               className={cn('markdown overflow-auto p-3 text-foreground text-xs', fill && 'min-h-0 flex-1')}

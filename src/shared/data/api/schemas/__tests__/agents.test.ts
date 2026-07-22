@@ -70,4 +70,15 @@ describe('AgentEntitySchema', () => {
       { skillId: 'skill-b', isEnabled: true }
     ])
   })
+
+  it('accepts the runtime context setting in agent configuration', () => {
+    expect(
+      UpdateAgentSchema.parse({
+        configuration: { runtime_context_enabled: true, runtime_context_prompt: 'Custom runtime context' }
+      }).configuration
+    ).toEqual({
+      runtime_context_enabled: true,
+      runtime_context_prompt: 'Custom runtime context'
+    })
+  })
 })

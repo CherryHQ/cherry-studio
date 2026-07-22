@@ -3415,6 +3415,13 @@
         "insert_variable": "Inserir variável",
         "label": "Prompt do sistema",
         "placeholder": "Introduza instruções para o assistente, como estilo de resposta, função ou contexto",
+        "runtime_context": {
+          "configure": "[to be translated]:Configure runtime context prompt",
+          "description": "[to be translated]:Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "[to be translated]:Runtime context",
+          "prompt_label": "[to be translated]:Runtime context prompt",
+          "reset": "[to be translated]:Restore preset"
+        },
         "title": "Prompt",
         "tokens_label": "Tokens:",
         "variables_description": "Insira essas variáveis de sistema no prompt do sistema; antes de cada resposta do assistente, elas são preenchidas com as informações atuais.",

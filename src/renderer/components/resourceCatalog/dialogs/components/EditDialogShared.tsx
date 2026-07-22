@@ -18,6 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
   Scrollbar,
+  Switch,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -29,8 +30,9 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
+import { RUNTIME_CONTEXT_PROMPT_PRESET } from '@shared/ai/prompts'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, Database, HelpCircle, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -236,6 +238,80 @@ export function FieldLabelWithHelp({
             <HelpIconButton ariaLabel={`${label} ${t('common.help')}`} />
           </NormalTooltip>
         ) : null)}
+    </div>
+  )
+}
+
+export function PromptRuntimeContextToggle({
+  checked,
+  prompt,
+  onCheckedChange,
+  onPromptChange,
+  portalContainer
+}: {
+  checked: boolean
+  prompt: string
+  onCheckedChange: (checked: boolean) => void
+  onPromptChange: (prompt: string) => void
+  portalContainer: HTMLElement | null
+}) {
+  const { t } = useTranslation()
+  const label = t('library.config.prompt.runtime_context.label')
+  const configureLabel = t('library.config.prompt.runtime_context.configure')
+  const description = t('library.config.prompt.runtime_context.description')
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="whitespace-nowrap text-foreground-secondary text-xs">{label}</span>
+      <Popover>
+        <NormalTooltip content={configureLabel} delayDuration={300}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={configureLabel}
+              className="size-5 min-h-0 text-foreground-muted hover:text-foreground focus-visible:ring-0">
+              <SlidersHorizontal className="size-3.5" />
+            </Button>
+          </PopoverTrigger>
+        </NormalTooltip>
+        <PopoverContent
+          portalContainer={portalContainer}
+          align="start"
+          sideOffset={4}
+          aria-label={configureLabel}
+          className="w-96 p-3">
+          <div className="flex flex-col gap-3">
+            <div className="space-y-1">
+              <div className="font-medium text-foreground text-xs">{label}</div>
+              <div className="text-foreground-secondary text-xs leading-relaxed">{description}</div>
+            </div>
+            <div className="relative">
+              <NormalTooltip content={t('library.config.prompt.runtime_context.reset')}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('library.config.prompt.runtime_context.reset')}
+                  disabled={!prompt}
+                  onClick={() => onPromptChange('')}
+                  className="absolute top-2 right-2 z-10 text-foreground-muted hover:text-foreground">
+                  <RotateCcw className="size-3.5" />
+                </Button>
+              </NormalTooltip>
+              <Textarea.Input
+                value={prompt || RUNTIME_CONTEXT_PROMPT_PRESET}
+                rows={9}
+                aria-label={t('library.config.prompt.runtime_context.prompt_label')}
+                onValueChange={onPromptChange}
+                className="min-h-48 font-mono text-xs leading-relaxed"
+              />
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+      <Switch size="sm" checked={checked} onCheckedChange={onCheckedChange} aria-label={label} className="shrink-0" />
     </div>
   )
 }

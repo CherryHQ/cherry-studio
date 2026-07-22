@@ -52,6 +52,7 @@ import {
   type EditDialogTab,
   FieldLabelWithHelp,
   type ModelLabels,
+  PromptRuntimeContextToggle,
   PromptVariablesPopover,
   TextInputField,
   useDebouncedAutoSave
@@ -76,6 +77,8 @@ type AgentEditFormValues = {
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
+  runtimeContextEnabled: boolean
+  runtimeContextPrompt: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
 }
@@ -125,6 +128,8 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
+    runtimeContextEnabled: form.runtimeContextEnabled,
+    runtimeContextPrompt: form.runtimeContextPrompt,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval
   }
@@ -153,6 +158,8 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     disabledTools: values.disabledTools,
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
+    runtimeContextEnabled: values.runtimeContextEnabled,
+    runtimeContextPrompt: values.runtimeContextPrompt,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval
   }
@@ -166,6 +173,8 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
+  form.setValue('runtimeContextEnabled', next.runtimeContextEnabled, { shouldDirty: true })
+  form.setValue('runtimeContextPrompt', next.runtimeContextPrompt, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
 }
@@ -609,46 +618,65 @@ function AgentPromptField({
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const name = useWatch({ control: form.control, name: 'name' })
-
-  return (
+  const runtimeContextPrompt = useWatch({ control: form.control, name: 'runtimeContextPrompt' })
+  const runtimeContextControl = (
     <FormField
       control={form.control}
-      name="instructions"
-      render={({ field }) => {
-        const handlePromptActionChange = (instructions: string) => {
-          field.onChange(instructions)
-          setResetPreviewKey((key) => key + 1)
-        }
-
-        return (
-          <PromptEditorField
-            label={
-              <FieldLabelWithHelp
-                label={t('library.config.agent.field.instructions.label')}
-                helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
-                formLabel={false}
-              />
-            }
-            value={field.value}
-            onChange={field.onChange}
-            placeholder={t('library.config.agent.field.instructions.placeholder')}
-            resetPreviewKey={resetPreviewKey}
-            fill
-            actions={
-              <PromptPolishActions
-                value={field.value}
-                fallbackSource={name}
-                emptyValueSystemPrompt={AGENT_PROMPT}
-                existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
-                onChange={handlePromptActionChange}
-              />
-            }
-            minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
-            maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
-          />
-        )
-      }}
+      name="runtimeContextEnabled"
+      render={({ field }) => (
+        <PromptRuntimeContextToggle
+          checked={field.value}
+          prompt={runtimeContextPrompt}
+          onCheckedChange={field.onChange}
+          onPromptChange={(value) => form.setValue('runtimeContextPrompt', value, { shouldDirty: true })}
+          portalContainer={portalContainer}
+        />
+      )}
     />
+  )
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <FormField
+        control={form.control}
+        name="instructions"
+        render={({ field }) => {
+          const handlePromptActionChange = (instructions: string) => {
+            field.onChange(instructions)
+            setResetPreviewKey((key) => key + 1)
+          }
+
+          return (
+            <PromptEditorField
+              label={
+                <FieldLabelWithHelp
+                  label={t('library.config.agent.field.instructions.label')}
+                  helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+                  formLabel={false}
+                />
+              }
+              value={field.value}
+              onChange={field.onChange}
+              placeholder={t('library.config.agent.field.instructions.placeholder')}
+              resetPreviewKey={resetPreviewKey}
+              fill
+              labelAddon={runtimeContextControl}
+              editorActions={
+                <PromptPolishActions
+                  value={field.value}
+                  fallbackSource={name}
+                  emptyValueSystemPrompt={AGENT_PROMPT}
+                  existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+                  onChange={handlePromptActionChange}
+                />
+              }
+              minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
+              maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+            />
+          )
+        }}
+      />
+    </div>
   )
 }
 

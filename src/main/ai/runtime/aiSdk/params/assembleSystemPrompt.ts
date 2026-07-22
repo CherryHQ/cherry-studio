@@ -2,7 +2,7 @@
  * TODO：distinguish static and dynamic system prompt and xml-based user prompt
  */
 
-import { replacePromptVariables } from '@main/utils/prompt'
+import { buildRuntimeContextPrompt, replacePromptVariables } from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
@@ -29,6 +29,10 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
   if (assistant?.prompt) {
     const resolved = await replacePromptVariables(assistant.prompt, model.name)
     if (resolved) sections.push(resolved)
+  }
+
+  if (assistant?.settings?.enableRuntimeContext) {
+    sections.push(await buildRuntimeContextPrompt(model.name, assistant.settings.runtimeContextPrompt))
   }
 
   if (tools && TOOL_SEARCH_TOOL_NAME in tools) {

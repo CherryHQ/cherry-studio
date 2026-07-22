@@ -3415,6 +3415,13 @@
         "insert_variable": "Insérer une variable",
         "label": "Invite système",
         "placeholder": "Saisissez les consignes pour l'assistant, comme le style de réponse, le rôle ou le contexte",
+        "runtime_context": {
+          "configure": "[to be translated]:Configure runtime context prompt",
+          "description": "[to be translated]:Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "[to be translated]:Runtime context",
+          "prompt_label": "[to be translated]:Runtime context prompt",
+          "reset": "[to be translated]:Restore preset"
+        },
         "title": "Invite",
         "tokens_label": "Jetons :",
         "variables_description": "Insérez ces variables système dans le prompt système ; avant chaque réponse de l'assistant, elles sont remplies avec les informations actuelles.",

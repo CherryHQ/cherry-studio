@@ -192,6 +192,8 @@ async function deriveConnectionConfigFromSnapshot(
     instructions: agent.instructions ?? null,
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
+    runtimeContextEnabled: agent.configuration?.runtime_context_enabled ?? null,
+    runtimeContextPrompt: agent.configuration?.runtime_context_prompt ?? null,
     skills: [...skills].sort(),
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),

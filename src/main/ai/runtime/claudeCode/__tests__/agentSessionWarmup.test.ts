@@ -677,6 +677,26 @@ describe('deriveConnectionConfig', () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { runtime_context_enabled: true }
+    })
+    const runtimeContextChanged = await deriveSignature()
+    expect(runtimeContextChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { runtime_context_prompt: 'Custom runtime context' }
+    })
+    const runtimeContextPromptChanged = await deriveSignature()
+    expect(runtimeContextPromptChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
       disabledTools: ['WebSearch'],
       mcps: [],
       configuration: {}

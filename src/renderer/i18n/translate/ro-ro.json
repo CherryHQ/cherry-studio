@@ -3415,6 +3415,13 @@
         "insert_variable": "Inserează variabilă",
         "label": "Prompt de sistem",
         "placeholder": "Introduceți instrucțiuni pentru asistent, cum ar fi stilul răspunsului, rolul sau contextul",
+        "runtime_context": {
+          "configure": "[to be translated]:Configure runtime context prompt",
+          "description": "[to be translated]:Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "[to be translated]:Runtime context",
+          "prompt_label": "[to be translated]:Runtime context prompt",
+          "reset": "[to be translated]:Restore preset"
+        },
         "title": "Prompt",
         "tokens_label": "Tokeni:",
         "variables_description": "Inserează aceste variabile de sistem în promptul de sistem; înainte de fiecare răspuns al asistentului, ele sunt completate cu informațiile curente.",

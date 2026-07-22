@@ -54,6 +54,10 @@ export const AssistantSettingsSchema = z.object({
   enableWebSearch: z.boolean(),
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),
+  /** Append current time and environment details to the system prompt. */
+  enableRuntimeContext: z.boolean(),
+  /** Optional per-assistant override for the runtime context prompt preset. */
+  runtimeContextPrompt: z.string().optional(),
 
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:
@@ -87,6 +91,8 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableMaxToolCalls: true,
   enableWebSearch: false,
   enableGenerateImage: false,
+  enableRuntimeContext: false,
+  runtimeContextPrompt: '',
   customParameters: []
 }
 

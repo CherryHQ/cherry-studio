@@ -56,6 +56,7 @@ import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, type PathStatus } from '@main/utils/file'
+import { buildRuntimeContextPrompt } from '@main/utils/prompt'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -982,17 +983,25 @@ export async function buildSystemPrompt(
   const channelSecurityBlock = isChannelLinked ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
+  const runtimeContextBlock = agentConfig?.runtime_context_enabled
+    ? `\n\n${await buildRuntimeContextPrompt(
+        agent.modelName ?? agent.model ?? undefined,
+        agentConfig.runtime_context_prompt
+      )}`
+    : ''
 
   // Assistant mode
   if (isAssistant) {
     try {
       const context = buildAssistantContext()
-      return instructions ? `${instructions}\n\n${context}${channelSecurityBlock}` : `${context}${channelSecurityBlock}`
+      return instructions
+        ? `${instructions}\n\n${context}${runtimeContextBlock}${channelSecurityBlock}`
+        : `${context}${runtimeContextBlock}${channelSecurityBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a context read failure drops the entire
       // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${instructions}${channelSecurityBlock}`
+      return `${instructions}${runtimeContextBlock}${channelSecurityBlock}`
     }
   }
 
@@ -1002,7 +1011,7 @@ export async function buildSystemPrompt(
 
   const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig, Boolean(instructions?.trim()))
   const userInstructions = instructions ? `\n\n${instructions}` : ''
-  return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  return `${soulPrompt}${userInstructions}${runtimeContextBlock}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }
 
 export function buildMcpServers(

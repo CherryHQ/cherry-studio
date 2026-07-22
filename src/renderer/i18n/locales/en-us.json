@@ -3416,6 +3416,13 @@
         "polish_failed_title": "Failed to polish prompt",
         "polish_variables_changed_description": "The polished result changed or removed prompt variables. Try again.",
         "polish_variables_changed_title": "Could not apply polished prompt",
+        "runtime_context": {
+          "configure": "Configure runtime context prompt",
+          "description": "Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "Runtime context",
+          "prompt_label": "Runtime context prompt",
+          "reset": "Restore preset"
+        },
         "title": "Prompt",
         "tokens_label": "Tokens: ",
         "variables_description": "Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.",
