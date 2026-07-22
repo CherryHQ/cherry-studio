@@ -15,13 +15,14 @@
  * The user MUST `return` the final value. Hard timeout: 60s.
  */
 
+import { CHERRY_TOOL_EXEC_TOOL_NAME } from '@shared/ai/tools/cherryClientToolName'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolRegistry } from '../registry'
 import { runExec } from './exec/runtime'
 
-export const TOOL_EXEC_TOOL_NAME = 'tool_exec'
+export const TOOL_EXEC_TOOL_NAME = CHERRY_TOOL_EXEC_TOOL_NAME
 
 export function createToolExecTool(registry: ToolRegistry): Tool {
   return tool({

@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
+import { CHERRY_TOOL_EXEC_TOOL_NAME } from '@shared/ai/tools/cherryClientToolName'
 
 import { isApprovalGated } from '../../isApprovalGated'
 import type { ToolRegistry } from '../../registry'
@@ -68,7 +69,7 @@ export function runExec(code: string, ctx: ExecRuntimeContext): Promise<ExecResu
           {
             result: undefined,
             logs: logs.length > 0 ? logs : undefined,
-            error: `tool_exec timed out after ${EXECUTION_TIMEOUT_MS}ms`,
+            error: `${CHERRY_TOOL_EXEC_TOOL_NAME} timed out after ${EXECUTION_TIMEOUT_MS}ms`,
             isError: true
           },
           false
@@ -88,7 +89,7 @@ export function runExec(code: string, ctx: ExecRuntimeContext): Promise<ExecResu
       worker.removeAllListeners()
       for (const ac of activeChildAborts) {
         try {
-          ac.abort(new Error('tool_exec finished'))
+          ac.abort(new Error(`${CHERRY_TOOL_EXEC_TOOL_NAME} finished`))
         } catch {
           // ignore — abort can throw on already-aborted controllers
         }
@@ -138,7 +139,7 @@ export function runExec(code: string, ctx: ExecRuntimeContext): Promise<ExecResu
         worker.postMessage({
           type: 'toolError',
           requestId: message.requestId,
-          error: `Tool ${message.name} requires user approval; call it directly instead of via tool_exec.`
+          error: `Tool ${message.name} requires user approval; call it directly instead of via ${CHERRY_TOOL_EXEC_TOOL_NAME}.`
         })
         return
       }

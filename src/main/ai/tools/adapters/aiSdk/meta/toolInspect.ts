@@ -5,13 +5,21 @@
  * first lets the model confirm parameters without a guess-and-retry round-trip.
  */
 
+import { WEB_SEARCH_TOOL_NAME as SHARED_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  CHERRY_TOOL_INSPECT_TOOL_NAME,
+  CHERRY_TOOL_INVOKE_TOOL_NAME,
+  CHERRY_TOOL_SEARCH_TOOL_NAME,
+  toCherryClientToolName
+} from '@shared/ai/tools/cherryClientToolName'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolRegistry } from '../registry'
 import { buildToolStub } from './schemaStub'
 
-export const TOOL_INSPECT_TOOL_NAME = 'tool_inspect'
+export const TOOL_INSPECT_TOOL_NAME = CHERRY_TOOL_INSPECT_TOOL_NAME
+const EXAMPLE_WEB_SEARCH_TOOL_NAME = toCherryClientToolName(SHARED_WEB_SEARCH_TOOL_NAME)
 
 /**
  * @param allowedNames per-request tool name set (see `createToolInvokeTool`). Scopes inspection to
@@ -27,11 +35,11 @@ export function createToolInspectTool(
   return tool({
     description:
       'Get a single tool signature as a JSDoc stub — its description and parameter shapes. ' +
-      'Use it before `tool_invoke` to confirm parameter names and shapes and avoid a guess-and-retry.',
+      `Use it before \`${CHERRY_TOOL_INVOKE_TOOL_NAME}\` to confirm parameter names and shapes and avoid a guess-and-retry.`,
     inputSchema: z.object({
-      name: z.string().describe('Tool name as returned by tool_search')
+      name: z.string().describe(`Tool name as returned by ${CHERRY_TOOL_SEARCH_TOOL_NAME}`)
     }),
-    inputExamples: [{ input: { name: 'web_search' } }],
+    inputExamples: [{ input: { name: EXAMPLE_WEB_SEARCH_TOOL_NAME } }],
     execute: async ({ name }) => {
       if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)
       const entry = registry.getByName(name)

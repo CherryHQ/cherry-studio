@@ -68,7 +68,7 @@ async function callInvoke(tool: Tool, args: { name: string; params?: unknown }) 
 
 describe('tool_invoke meta-tool', () => {
   it('TOOL_INVOKE_TOOL_NAME is the agreed wire-name', () => {
-    expect(TOOL_INVOKE_TOOL_NAME).toBe('tool_invoke')
+    expect(TOOL_INVOKE_TOOL_NAME).toBe('cherry_tool_invoke')
   })
 
   it('forwards params to the inner tool execute', async () => {

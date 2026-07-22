@@ -7,6 +7,8 @@ vi.mock('@main/utils/prompt', () => ({
   replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))
 }))
 
+import { TOOL_INVOKE_TOOL_NAME } from '../../../../tools/adapters/aiSdk/meta/toolInvoke'
+import { TOOL_SEARCH_TOOL_NAME } from '../../../../tools/adapters/aiSdk/meta/toolSearch'
 import { assembleSystemPrompt } from '../assembleSystemPrompt'
 
 function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
@@ -71,12 +73,12 @@ describe('assembleSystemPrompt', () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'base' }),
       model,
-      tools: { tool_search: {} } as unknown as ToolSet
+      tools: { [TOOL_SEARCH_TOOL_NAME]: {} } as unknown as ToolSet
     })
     expect(out).toContain('base')
     expect(out).toContain('<deferred-tools>')
     expect(out).toContain('</deferred-tools>')
-    expect(out).toContain('tool_invoke')
+    expect(out).toContain(TOOL_INVOKE_TOOL_NAME)
     // tool_exec is intentionally NOT advertised to the model (privilege-escalation surface).
     expect(out).not.toContain('tool_exec')
   })
@@ -85,7 +87,7 @@ describe('assembleSystemPrompt', () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'base' }),
       model,
-      tools: { tool_search: {} } as unknown as ToolSet,
+      tools: { [TOOL_SEARCH_TOOL_NAME]: {} } as unknown as ToolSet,
       deferredEntries: [
         { name: 'mcp__gh__a', namespace: 'mcp:gh' },
         { name: 'mcp__gh__b', namespace: 'mcp:gh' },

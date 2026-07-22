@@ -33,7 +33,7 @@ async function callInspect(tool: Tool, args: { name: string }) {
 
 describe('tool_inspect meta-tool', () => {
   it('TOOL_INSPECT_TOOL_NAME is the agreed wire-name', () => {
-    expect(TOOL_INSPECT_TOOL_NAME).toBe('tool_inspect')
+    expect(TOOL_INSPECT_TOOL_NAME).toBe('cherry_tool_inspect')
   })
 
   it('returns a JSDoc stub for the tool', async () => {

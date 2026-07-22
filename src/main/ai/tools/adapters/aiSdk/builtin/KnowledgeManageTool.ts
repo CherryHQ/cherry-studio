@@ -18,7 +18,12 @@
  * refuses it too (it never runs an approval-gated tool blind) — an unreachable tool either way.
  */
 
-import { KB_MANAGE_TOOL_NAME, kbManageOutputSchema, kbManageStrictInputSchema } from '@shared/ai/builtinTools'
+import {
+  KB_MANAGE_TOOL_NAME as SHARED_KB_MANAGE_TOOL_NAME,
+  kbManageOutputSchema,
+  kbManageStrictInputSchema
+} from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -31,7 +36,7 @@ import {
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
-export { KB_MANAGE_TOOL_NAME }
+export const KB_MANAGE_TOOL_NAME = toCherryClientToolName(SHARED_KB_MANAGE_TOOL_NAME)
 
 // Mirror the read tools: an out-of-scope base / missing field / service error returns `{ error }`, so the output is a union.
 const knowledgeManageResultSchema = z.union([kbManageOutputSchema, knowledgeLookupErrorSchema])

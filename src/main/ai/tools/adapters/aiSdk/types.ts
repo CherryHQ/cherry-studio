@@ -36,9 +36,9 @@ export type ToolDefer = 'never' | 'always' | 'auto'
 export interface ToolEntry {
   /**
    * Unique wire-name the LLM emits.
-   *   builtin: 'web_search', 'web_fetch', 'kb_search'
+   *   builtin: 'cherry_web_search', 'cherry_web_fetch', 'cherry_kb_search'
    *   mcp:     'mcp__{camelCase(serverName)}__{camelCase(toolName)}' (see `buildFunctionCallToolName`)
-   *   meta:    'tool_search', 'tool_inspect', 'tool_invoke', 'tool_exec'
+   *   meta:    'cherry_tool_search', 'cherry_tool_inspect', 'cherry_tool_invoke', 'cherry_tool_exec'
    *
    * Double underscore is the segment separator so single `_` stays unambiguous.
    */

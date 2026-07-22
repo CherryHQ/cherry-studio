@@ -1,6 +1,7 @@
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { isMcpContentBlock } from '@shared/utils/mcp'
@@ -16,6 +17,7 @@ export const APPROVAL_RESPONDED = 'approval-responded'
 export const CLAUDE_AGENT_TRANSPORT = 'claude-agent'
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
+const CHERRY_GENERATE_IMAGE_TOOL_NAME = toCherryClientToolName(GENERATE_IMAGE_TOOL_NAME)
 
 type ToolType = 'mcp' | 'builtin' | 'provider'
 
@@ -150,7 +152,7 @@ function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: To
   if (isMetaToolName(toolName)) return 'builtin'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
-  if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'
+  if (toolName === GENERATE_IMAGE_TOOL_NAME || toolName === CHERRY_GENERATE_IMAGE_TOOL_NAME) return 'builtin'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
   if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'

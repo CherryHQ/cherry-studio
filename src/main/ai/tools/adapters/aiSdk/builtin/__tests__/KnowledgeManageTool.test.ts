@@ -188,7 +188,7 @@ describe('kb_manage', () => {
     )) as { error: string }
 
     expect(result.error).toContain('kb-gone')
-    expect(result.error).toContain('kb_list')
+    expect(result.error).toContain('knowledge-list tool')
   })
 
   describe('toModelOutput', () => {

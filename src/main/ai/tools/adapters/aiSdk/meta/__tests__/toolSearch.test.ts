@@ -35,7 +35,7 @@ async function callExecute(tool: Tool, args: { query?: string; namespace?: strin
 
 describe('tool_search meta-tool', () => {
   it('TOOL_SEARCH_TOOL_NAME is the agreed wire-name', () => {
-    expect(TOOL_SEARCH_TOOL_NAME).toBe('tool_search')
+    expect(TOOL_SEARCH_TOOL_NAME).toBe('cherry_tool_search')
   })
 
   it('groups deferred entries by namespace, drops non-deferred', async () => {

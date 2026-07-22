@@ -133,7 +133,7 @@ export const kbSearchInputSchema = z.object({
     .array(z.string().trim().min(1))
     .min(1)
     .describe(
-      'IDs of the knowledge bases to search, picked from the result of kb_list. ' +
+      'IDs of the knowledge bases to search, picked from the result of the knowledge-list tool. ' +
         'At least one is required; pass multiple to fan out across related bases.'
     )
 })
@@ -165,12 +165,12 @@ export const kbReadInputSchema = z.object({
     .string()
     .trim()
     .min(1)
-    .describe('ID of the knowledge base to read from — a base id from kb_list or a kb_search hit.'),
+    .describe('ID of the knowledge base to read from — a base id from a knowledge-list or knowledge-search result.'),
   conceptId: z
     .string()
     .trim()
     .min(1)
-    .describe('Concept ID of the document to read — the `conceptId` field of a kb_search hit (its relative path).'),
+    .describe('Concept ID of the document to read — the `conceptId` field of a knowledge-search result.'),
   charStart: z
     .number()
     .int()
@@ -195,7 +195,7 @@ export const kbReadInputSchema = z.object({
       'Pass a JavaScript regular expression to switch to grep mode: instead of the document text, return each ' +
         'matching line with its character offsets and a snippet (anchors `^`/`$` bind to each line; a match ' +
         'cannot span lines). Use this for an exact lookup — a number, code symbol, term, quote. Omit to read the ' +
-        'document text; use kb_search for semantic/meaning-based lookup across documents.'
+        'document text; use the knowledge-search tool for semantic/meaning-based lookup across documents.'
     ),
   ignoreCase: z.boolean().optional().describe('Grep mode only: case-insensitive matching. Defaults to true.'),
   maxMatches: z
@@ -285,7 +285,11 @@ export const KB_MANAGE_ADD_TYPES = ['file', 'url', 'note'] as const
 // MCP / Claude Code bridge (cherryBuiltinTools): the agent parses raw args with this schema and may
 // omit any field, so they are `.optional()`.
 export const kbManageInputSchema = z.object({
-  baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
+  baseId: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('ID of the knowledge base to modify — a base id from the knowledge-list tool.'),
   action: z
     .enum(KB_MANAGE_ACTIONS)
     .describe(
@@ -319,9 +323,7 @@ export const kbManageInputSchema = z.object({
   conceptIds: z
     .array(z.string().trim().min(1))
     .optional()
-    .describe(
-      'For action="delete"/"refresh": Concept IDs (the `conceptId` field of a kb_search hit or a kb_list result) to operate on.'
-    )
+    .describe('For action="delete"/"refresh": Concept IDs from a knowledge-search result or knowledge-list outline.')
 })
 
 // AI-SDK path (KnowledgeManageTool) runs with `strict: true` — same `.nullable()` treatment as
@@ -329,7 +331,11 @@ export const kbManageInputSchema = z.object({
 // away to nothing, which a strict OpenAI-compatible provider rejects). `manageKnowledge` treats
 // null (like undefined) as "field not set for this action/type".
 export const kbManageStrictInputSchema = z.object({
-  baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
+  baseId: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('ID of the knowledge base to modify — a base id from the knowledge-list tool.'),
   action: z
     .enum(KB_MANAGE_ACTIONS)
     .describe(
@@ -372,7 +378,7 @@ export const kbManageStrictInputSchema = z.object({
     .array(z.string().trim().min(1))
     .nullable()
     .describe(
-      'For action="delete"/"refresh": Concept IDs (the `conceptId` field of a kb_search hit or a kb_list result) ' +
+      'For action="delete"/"refresh": Concept IDs from a knowledge-search result or knowledge-list outline ' +
         'to operate on. Else null.'
     )
 })
@@ -390,7 +396,7 @@ export const kbManageOutputSchema = z.object({
 
 export type KbManageOutput = z.infer<typeof kbManageOutputSchema>
 
-// ── web_search ───────────────────────────────────────────────────
+// ── web search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web_search'
 export const WEB_FETCH_TOOL_NAME = 'web_fetch'
@@ -422,7 +428,9 @@ export const webFetchInputSchema = z.object({
     .array(z.string().trim().url('URL must be valid'))
     .min(1)
     .max(20, 'Fetch at most 20 URLs per call')
-    .describe('Absolute web page URLs to fetch and summarize. Use web_search first when you do not know the URL.')
+    .describe(
+      'Absolute web page URLs to fetch and summarize. Use the web search tool first when you do not know the URL.'
+    )
 })
 
 export const webFetchOutputSchema = webSearchOutputSchema

@@ -398,7 +398,7 @@ describe('kb_list', () => {
       const result = (await callExecute({ baseId: 'kb-gone' }, { knowledgeBaseIds: ['kb-gone'] })) as { error: string }
 
       expect(result.error).toContain('kb-gone')
-      expect(result.error).toContain('kb_list')
+      expect(result.error).toContain('knowledge-list tool')
     })
   })
 

@@ -26,8 +26,8 @@ vi.mock('react-i18next', () => ({
 const createMetaToolResponse = (overrides: Partial<NormalToolResponse> = {}): NormalToolResponse => ({
   id: 'meta-call-1',
   tool: {
-    id: 'tool_search',
-    name: 'tool_search',
+    id: 'cherry_tool_search',
+    name: 'cherry_tool_search',
     type: 'builtin'
   },
   arguments: { query: 'browser', namespace: 'mcp:test' },
@@ -45,7 +45,7 @@ describe('MessageMetaTool', () => {
     render(<MessageMetaTool toolResponse={createMetaToolResponse()} />)
 
     const copyButton = screen.getByRole('button', { name: 'common.copy' })
-    const triggerButton = screen.getByRole('button', { name: /tool_search/ })
+    const triggerButton = screen.getByRole('button', { name: /cherry_tool_search/ })
 
     expect(copyButton.tagName).toBe('BUTTON')
     expect(triggerButton).not.toContainElement(copyButton)

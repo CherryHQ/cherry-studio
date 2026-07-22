@@ -15,7 +15,13 @@
  * identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
-import { KB_READ_TOOL_NAME, kbGrepOutputSchema, kbReadInputSchema, kbReadOutputSchema } from '@shared/ai/builtinTools'
+import {
+  KB_READ_TOOL_NAME as SHARED_KB_READ_TOOL_NAME,
+  kbGrepOutputSchema,
+  kbReadInputSchema,
+  kbReadOutputSchema
+} from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -28,7 +34,7 @@ import {
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
-export { KB_READ_TOOL_NAME }
+export const KB_READ_TOOL_NAME = toCherryClientToolName(SHARED_KB_READ_TOOL_NAME)
 
 // Two modes: read the document text or grep it for `pattern`. An out-of-scope base / unknown concept
 // / invalid pattern / service error returns `{ error }`, so the output is a three-way union.

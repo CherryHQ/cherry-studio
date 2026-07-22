@@ -160,7 +160,7 @@ describe('kb_read', () => {
     }
 
     expect(result.error).toContain('kb-gone')
-    expect(result.error).toContain('kb_list')
+    expect(result.error).toContain('knowledge-list tool')
     expect(result.error).not.toContain('conceptId')
   })
 

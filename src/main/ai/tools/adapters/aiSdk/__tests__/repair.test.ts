@@ -1,5 +1,6 @@
 import type { LanguageModelV3ToolCall } from '@ai-sdk/provider'
-import { KB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import { KB_SEARCH_TOOL_NAME as SHARED_KB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { InvalidToolInputError, NoSuchToolError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +9,8 @@ const { generateText } = vi.hoisted(() => ({ generateText: vi.fn() }))
 vi.mock('@cherrystudio/ai-core', () => ({ generateText }))
 
 import { createAiRepair } from '../repair'
+
+const KB_SEARCH_TOOL_NAME = toCherryClientToolName(SHARED_KB_SEARCH_TOOL_NAME)
 
 const repair = createAiRepair({
   providerId: 'openai',

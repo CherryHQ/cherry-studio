@@ -1,19 +1,26 @@
 /**
  * Web fetch tool — agentic.
  *
- * The model supplies known page URLs (often from a prior `web_search`) and
+ * The model supplies known page URLs (often from a prior web search) and
  * gets back their readable content. The lookup itself lives in the shared
  * `webLookup` core so the Claude Code MCP bridge runs identical logic; this
  * file is just the AI-SDK `tool()` wrapper.
  */
 
-import { WEB_FETCH_TOOL_NAME, webFetchInputSchema, webFetchOutputSchema } from '@shared/ai/builtinTools'
+import {
+  WEB_FETCH_TOOL_NAME as SHARED_WEB_FETCH_TOOL_NAME,
+  webFetchInputSchema,
+  webFetchOutputSchema
+} from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
 import { fetchWeb, WEB_FETCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
+
+export const WEB_FETCH_TOOL_NAME = toCherryClientToolName(SHARED_WEB_FETCH_TOOL_NAME)
 
 const webFetchResultSchema = z.union([webFetchOutputSchema, webLookupErrorSchema])
 

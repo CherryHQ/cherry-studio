@@ -5,12 +5,19 @@
  * inlined by the chat path, never routed here.
  */
 
-import { READ_FILE_TOOL_NAME, readFileInputSchema, readFileResultSchema } from '@shared/ai/builtinTools'
+import {
+  READ_FILE_TOOL_NAME as SHARED_READ_FILE_TOOL_NAME,
+  readFileInputSchema,
+  readFileResultSchema
+} from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 
 import { READ_FILE_DESCRIPTION, readFile, readFileModelOutput } from '../../../fileLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
+
+export const READ_FILE_TOOL_NAME = toCherryClientToolName(SHARED_READ_FILE_TOOL_NAME)
 
 const readFileTool = tool({
   description: READ_FILE_DESCRIPTION,

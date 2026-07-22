@@ -9,7 +9,12 @@
  * bridge runs identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
-import { KB_SEARCH_TOOL_NAME, kbSearchInputSchema, kbSearchOutputSchema } from '@shared/ai/builtinTools'
+import {
+  KB_SEARCH_TOOL_NAME as SHARED_KB_SEARCH_TOOL_NAME,
+  kbSearchInputSchema,
+  kbSearchOutputSchema
+} from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -22,7 +27,7 @@ import {
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
-export { KB_SEARCH_TOOL_NAME }
+export const KB_SEARCH_TOOL_NAME = toCherryClientToolName(SHARED_KB_SEARCH_TOOL_NAME)
 
 // Mirror the web tool: an all-bases-failed lookup returns `{ error }`, so the output is a union.
 const knowledgeSearchResultSchema = z.union([kbSearchOutputSchema, knowledgeLookupErrorSchema])

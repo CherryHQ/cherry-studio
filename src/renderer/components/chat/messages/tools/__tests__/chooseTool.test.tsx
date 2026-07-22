@@ -6,7 +6,15 @@ import { describe, expect, it, vi } from 'vitest'
 // Stub the leaf cards so we can assert ONLY which branch chooseTool routes to.
 vi.mock('../meta/MessageMetaTool', () => ({
   default: () => <div data-testid="meta-card" />,
-  isMetaToolName: (name: string) => name === 'tool_search' || name === 'tool_inspect' || name === 'tool_invoke'
+  isMetaToolName: (name: string) =>
+    [
+      'tool_search',
+      'tool_inspect',
+      'tool_invoke',
+      'cherry_tool_search',
+      'cherry_tool_inspect',
+      'cherry_tool_invoke'
+    ].includes(name)
 }))
 vi.mock('../knowledge/MessageKnowledgeSearch', () => ({
   MessageKnowledgeSearchToolTitle: () => <div data-testid="kb-card" />
@@ -36,8 +44,10 @@ function testIdOf(node: React.ReactNode): string | null {
 }
 
 describe('chooseTool', () => {
-  it('routes the kb_search / web_search wire names to their title cards', () => {
+  it('routes current and legacy knowledge/web search names to their title cards', () => {
     expect(testIdOf(chooseTool(resp('kb_search')))).toBe('kb-card')
+    expect(testIdOf(chooseTool(resp('cherry_kb_search')))).toBe('kb-card')
+    expect(testIdOf(chooseTool(resp('cherry_web_search')))).toBe('web-card')
     expect(testIdOf(chooseTool(resp('web_search')))).toBe('web-card')
   })
 
@@ -46,16 +56,17 @@ describe('chooseTool', () => {
   })
 
   it('routes chat and agent generate_image responses to the image card', () => {
+    expect(testIdOf(chooseTool(resp('cherry_generate_image')))).toBe('image-card')
     expect(testIdOf(chooseTool(resp('generate_image')))).toBe('image-card')
     expect(testIdOf(chooseTool(resp('generate_image', 'mcp')))).toBe('image-card')
     expect(testIdOf(chooseTool(resp('mcp__cherry-tools__generate_image')))).toBe('image-card')
   })
 
-  it('keeps an AI SDK dynamic generate_image part on the builtin image-card path', () => {
+  it('keeps an AI SDK dynamic cherry_generate_image part on the builtin image-card path', () => {
     const part = {
       type: 'dynamic-tool',
       toolCallId: 'image-call',
-      toolName: 'generate_image',
+      toolName: 'cherry_generate_image',
       state: 'output-available',
       input: { prompt: 'a cat' },
       output: [{ id: 'file-1', name: 'cat.png' }]
@@ -64,5 +75,22 @@ describe('chooseTool', () => {
     const response = buildToolResponseFromPart(part)
     expect(response?.tool.type).toBe('builtin')
     expect(testIdOf(chooseTool(response as NormalToolResponse))).toBe('image-card')
+  })
+
+  it('renders every remaining Cherry client function through the standard card', () => {
+    for (const name of [
+      'cherry_kb_list',
+      'cherry_kb_read',
+      'cherry_kb_manage',
+      'cherry_read_file',
+      'cherry_web_fetch'
+    ]) {
+      expect(testIdOf(chooseTool(resp(name)))).toBe('agent-card')
+    }
+  })
+
+  it('recognizes current and persisted meta-tool names', () => {
+    expect(testIdOf(chooseTool(resp('cherry_tool_search')))).toBe('meta-card')
+    expect(testIdOf(chooseTool(resp('tool_search')))).toBe('meta-card')
   })
 })

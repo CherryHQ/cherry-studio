@@ -76,28 +76,28 @@ Use this when:
 - The question references topics likely covered in stored documents
 - Specific factual lookup that isn't general knowledge
 
-Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
+Workflow: call the knowledge-list tool first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
 
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
 Two modes, selected by \`baseId\`:
-- Omit \`baseId\` to list the available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
-- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
+- Omit \`baseId\` to list the available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Call this first when the user asks about their materials and you don't already know which base is relevant, then call the knowledge-search tool with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use the knowledge-search tool.
+- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to the knowledge-read tool. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
 
 export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
 
-Pass the \`conceptId\` and \`baseId\` from a kb_search hit (or a kb_list outline). Two modes, selected by \`pattern\`:
-- Omit \`pattern\` to read the document text: kb_search returns short matching chunks, kb_read returns the whole document (or a slice) so you can quote it accurately and read the surrounding context. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to that \`charEnd\` to page on.
-- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use kb_search.`
+Pass the \`conceptId\` and \`baseId\` from a knowledge-search result (or a knowledge-list outline). Two modes, selected by \`pattern\`:
+- Omit \`pattern\` to read the document text: the knowledge-search tool returns short matching chunks, while this tool returns the whole document (or a slice) so you can quote it accurately and read the surrounding context. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to that \`charEnd\` to page on.
+- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use the knowledge-search tool.`
 
 export const KNOWLEDGE_MANAGE_DESCRIPTION = `Modify a knowledge base: add a new source, or delete / re-index existing documents. Destructive — every call modifies the base and is gated behind user approval.
 
 Set \`action\`:
 - "add": import one new source. Set \`type\` and its field — "file" (\`path\`: an absolute local file path), "url" (\`url\`), or "note" (\`content\`, optional \`title\`). The source is copied in and indexed.
-- "delete": permanently remove documents. Set \`conceptIds\` to the Concept IDs (the \`conceptId\` field of a kb_search hit or a kb_list outline) to remove.
+- "delete": permanently remove documents. Set \`conceptIds\` to the Concept IDs from a knowledge-search result or knowledge-list outline.
 - "refresh": re-index documents (re-read the source, rebuild chunks/embeddings). Set \`conceptIds\`.
 
-Only confirm a destructive change the user asked for. For delete/refresh, get \`conceptIds\` from kb_search or a kb_list outline first; ids that don't resolve come back in \`notFound\`.`
+Only confirm a destructive change the user asked for. For delete/refresh, get \`conceptIds\` from the knowledge-search tool or a knowledge-list outline first; ids that don't resolve come back in \`notFound\`.`
 
 /**
  * A failed search must be distinguishable from "ran fine, found nothing": both
@@ -214,7 +214,7 @@ export function knowledgeSearchModelOutput(
     return {
       type: 'text',
       value:
-        'No matches in the requested knowledge bases. If you are not sure which bases to search, call kb_list first to inspect available bases and their sample sources, then retry kb_search with refined baseIds or query.'
+        'No matches in the requested knowledge bases. If you are not sure which bases to search, call the knowledge-list tool first to inspect available bases and their sample sources, then retry this tool with refined baseIds or query.'
     }
   }
   return { type: 'json', value: output }
@@ -340,7 +340,7 @@ function conceptLookupError(
     // (`'resource' in` narrows the distributed details union: `error.code` does not re-parameterize the
     // DataApiError generic, so `details` here is the union of all per-code shapes.)
     if (error.details && 'resource' in error.details && error.details.resource === KNOWLEDGE_BASE_NOT_FOUND_RESOURCE) {
-      return { error: `Knowledge base "${baseId}" not found. Call kb_list to see the available bases.` }
+      return { error: `Knowledge base "${baseId}" not found. Call the knowledge-list tool to see the available bases.` }
     }
     // The conceptId resolved to a real, visible document whose content is momentarily missing (being
     // re-indexed). Verifying the id won't help — steer the model to retry rather than re-pick.
@@ -358,7 +358,7 @@ function conceptLookupError(
     return {
       error:
         `No document with conceptId "${conceptId}" in knowledge base "${baseId}". ` +
-        'Verify the conceptId against a kb_search result (its conceptId field) and the baseId.'
+        'Verify the conceptId against a knowledge-search result (its conceptId field) and the baseId.'
     }
   }
   const message = error instanceof Error ? error.message : String(error)
@@ -396,7 +396,7 @@ function readTree(
     }
   } catch (error) {
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-      return { error: `Knowledge base "${baseId}" not found. Call kb_list to see the available bases.` }
+      return { error: `Knowledge base "${baseId}" not found. Call the knowledge-list tool to see the available bases.` }
     }
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('KnowledgeService.getOrganizationTree failed', { baseId, error: message })
@@ -464,7 +464,7 @@ export async function manageKnowledge(
       case 'delete': {
         const conceptIds = input.conceptIds ?? []
         if (conceptIds.length === 0) {
-          return { error: 'kb_manage delete requires `conceptIds` — one or more Concept IDs to remove.' }
+          return { error: 'The delete action requires `conceptIds` — one or more Concept IDs to remove.' }
         }
         const { applied, notFound } = await service.deleteConcepts(input.baseId, conceptIds)
         return { action: 'delete', deleted: applied, notFound }
@@ -472,17 +472,19 @@ export async function manageKnowledge(
       case 'refresh': {
         const conceptIds = input.conceptIds ?? []
         if (conceptIds.length === 0) {
-          return { error: 'kb_manage refresh requires `conceptIds` — one or more Concept IDs to re-index.' }
+          return { error: 'The refresh action requires `conceptIds` — one or more Concept IDs to re-index.' }
         }
         const { applied, notFound } = await service.refreshConcepts(input.baseId, conceptIds)
         return { action: 'refresh', refreshed: applied, notFound }
       }
       default:
-        return { error: 'kb_manage requires `action` to be "add", "delete", or "refresh".' }
+        return { error: '`action` must be "add", "delete", or "refresh".' }
     }
   } catch (error) {
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-      return { error: `Knowledge base "${input.baseId}" not found. Call kb_list to see the available bases.` }
+      return {
+        error: `Knowledge base "${input.baseId}" not found. Call the knowledge-list tool to see the available bases.`
+      }
     }
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('KnowledgeService kb_manage operation failed', {
@@ -517,26 +519,26 @@ function buildAddInput(input: ManageKnowledgeInput): AddInputResult {
   switch (input.type) {
     case 'file': {
       if (!input.path) {
-        return { ok: false, error: 'kb_manage add with type "file" requires `path` — an absolute local file path.' }
+        return { ok: false, error: 'The add action with type "file" requires `path` — an absolute local file path.' }
       }
       const source = basename(input.path)
       return validateAddInput({ type: 'file', data: { source, path: input.path } }, source)
     }
     case 'url': {
       if (!input.url) {
-        return { ok: false, error: 'kb_manage add with type "url" requires `url`.' }
+        return { ok: false, error: 'The add action with type "url" requires `url`.' }
       }
       return validateAddInput({ type: 'url', data: { source: input.url, url: input.url } }, input.url)
     }
     case 'note': {
       if (!input.content) {
-        return { ok: false, error: 'kb_manage add with type "note" requires `content`.' }
+        return { ok: false, error: 'The add action with type "note" requires `content`.' }
       }
       const source = deriveNoteSource(input.content, input.title)
       return validateAddInput({ type: 'note', data: { source, content: input.content } }, source)
     }
     default:
-      return { ok: false, error: 'kb_manage add requires `type` to be "file", "url", or "note".' }
+      return { ok: false, error: 'The add action requires `type` to be "file", "url", or "note".' }
   }
 }
 

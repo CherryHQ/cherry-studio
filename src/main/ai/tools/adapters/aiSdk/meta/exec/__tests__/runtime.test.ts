@@ -83,7 +83,7 @@ describe('runExec / handleToolCall', () => {
 
     expect(out.isError).toBe(true)
     expect(out.error).toMatch(/requires user approval/)
-    expect(out.error).toMatch(/call it directly instead of via tool_exec/)
+    expect(out.error).toMatch(/call it directly instead of via cherry_tool_exec/)
     expect(execute).not.toHaveBeenCalled()
   })
 
@@ -232,7 +232,7 @@ describe('runExec / handleToolCall', () => {
       const out = await promise
 
       expect(out.isError).toBe(true)
-      expect(out.error).toMatch(/tool_exec timed out after 60000ms/)
+      expect(out.error).toMatch(/cherry_tool_exec timed out after 60000ms/)
     } finally {
       vi.useRealTimers()
     }

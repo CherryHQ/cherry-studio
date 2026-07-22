@@ -8,7 +8,8 @@
  * wrapper.
  */
 
-import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { GENERATE_IMAGE_TOOL_NAME as SHARED_GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { dynamicTool } from 'ai'
 
 import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '../../../generateImageTool'
@@ -22,7 +23,7 @@ import {
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
-export { GENERATE_IMAGE_TOOL_NAME }
+export const GENERATE_IMAGE_TOOL_NAME = toCherryClientToolName(SHARED_GENERATE_IMAGE_TOOL_NAME)
 
 function buildGenerateImageTool(configuredModel?: ConfiguredPaintingModel) {
   const inputSchema = buildGenerateImageToolSchema(configuredModel?.support)

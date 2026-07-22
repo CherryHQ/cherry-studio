@@ -1,4 +1,6 @@
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { generateText, stepCountIs, tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
@@ -87,6 +89,38 @@ describe('Perplexity Agent request boundary', () => {
       input: z.array(z.strictObject({ type: z.literal('message'), role: z.literal('user'), content: z.literal('Q') }))
     }).parse(req.body)
     expect(req.body).toMatchSnapshot()
+  })
+
+  it('passes the namespaced Cherry client function names through unchanged', async () => {
+    const req = await captureWithFetch((fetch) =>
+      new PerplexityAgentLanguageModel('anthropic/claude-sonnet-5', config(fetch)).doGenerate({
+        prompt: prompt('Latest AI model news'),
+        tools: [
+          {
+            type: 'function',
+            name: toCherryClientToolName(WEB_SEARCH_TOOL_NAME),
+            description: 'Search the web',
+            inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }
+          },
+          {
+            type: 'function',
+            name: toCherryClientToolName(WEB_FETCH_TOOL_NAME),
+            description: 'Fetch a page',
+            inputSchema: { type: 'object', properties: { urls: { type: 'array', items: { type: 'string' } } } }
+          }
+        ]
+      })
+    )
+
+    expect(req.body).toMatchObject({
+      tools: [
+        { type: 'function', name: 'cherry_web_search' },
+        { type: 'function', name: 'cherry_web_fetch' }
+      ]
+    })
+    expect((req.body as { tools: Array<{ name?: string }> }).tools).not.toContainEqual(
+      expect.objectContaining({ type: 'function', name: 'web_search' })
+    )
   })
 
   it('serializes server tools together with AI SDK function tools', async () => {

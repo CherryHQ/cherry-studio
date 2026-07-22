@@ -160,7 +160,7 @@ describe('kb_search', () => {
         output: []
       })
       expect(result.type).toBe('text')
-      expect(result.value).toMatch(/kb_list/)
+      expect(result.value).toContain('knowledge-list tool')
     })
 
     it('passes the array through as json when results are present', () => {

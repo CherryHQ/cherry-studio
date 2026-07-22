@@ -8,19 +8,21 @@
  */
 
 import {
-  WEB_FETCH_TOOL_NAME,
-  WEB_SEARCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME as SHARED_WEB_SEARCH_TOOL_NAME,
   webSearchInputSchema,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
 import { searchWeb, WEB_SEARCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
+import { WEB_FETCH_TOOL_NAME } from './WebFetchTool'
 
-export { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME }
+export { WEB_FETCH_TOOL_NAME }
+export const WEB_SEARCH_TOOL_NAME = toCherryClientToolName(SHARED_WEB_SEARCH_TOOL_NAME)
 
 const webSearchResultSchema = z.union([webSearchOutputSchema, webLookupErrorSchema])
 

@@ -1,5 +1,15 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  GENERATE_IMAGE_TOOL_NAME,
+  KB_LIST_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  READ_FILE_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 
 import { AgentExecutionTimeline } from './agent'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
@@ -11,9 +21,24 @@ import { MessageWebSearchToolTitle } from './webSearch/MessageWebSearch'
 const builtinToolsPrefix = 'builtin_'
 const agentMcpToolsPrefix = 'mcp__'
 const agentGenerateImageToolName = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
+const cherryGenerateImageToolName = toCherryClientToolName(GENERATE_IMAGE_TOOL_NAME)
+const cherryKbSearchToolName = toCherryClientToolName(KB_SEARCH_TOOL_NAME)
+const cherryWebSearchToolName = toCherryClientToolName(WEB_SEARCH_TOOL_NAME)
 const agentTools = new Set<string>(Object.values(AgentToolsType))
-/** cherry-tools that carry short wire names (no `mcp__` prefix) and lack a bespoke card. */
-const CHERRY_AGENT_TOOL_NAMES = new Set(['web_fetch', 'kb_list', 'memory'])
+/** Cherry tools without a bespoke card, including persisted legacy AI SDK names. */
+const CHERRY_AGENT_TOOL_NAMES = new Set([
+  'memory',
+  WEB_FETCH_TOOL_NAME,
+  KB_LIST_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME,
+  READ_FILE_TOOL_NAME,
+  toCherryClientToolName(WEB_FETCH_TOOL_NAME),
+  toCherryClientToolName(KB_LIST_TOOL_NAME),
+  toCherryClientToolName(KB_READ_TOOL_NAME),
+  toCherryClientToolName(KB_MANAGE_TOOL_NAME),
+  toCherryClientToolName(READ_FILE_TOOL_NAME)
+])
 
 const isAgentTool = (toolName: string) => {
   if (agentTools.has(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
@@ -29,18 +54,20 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     return <MessageMetaTool toolResponse={toolResponse} />
   }
 
-  // In-process cherry-tools (web/knowledge/memory) carry short wire names, not the `mcp__` prefix.
-  if (toolName === 'kb_search') {
+  if (toolName === KB_SEARCH_TOOL_NAME || toolName === cherryKbSearchToolName) {
     return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
   }
-  if (toolName === 'web_search') {
+  if (toolName === WEB_SEARCH_TOOL_NAME || toolName === cherryWebSearchToolName) {
     return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
   }
-  if (toolName === GENERATE_IMAGE_TOOL_NAME || toolName === agentGenerateImageToolName) {
+  if (
+    toolName === GENERATE_IMAGE_TOOL_NAME ||
+    toolName === cherryGenerateImageToolName ||
+    toolName === agentGenerateImageToolName
+  ) {
     return <MessageGenerateImageToolTitle toolResponse={toolResponse} />
   }
-  // web_fetch / kb_list / memory have no bespoke card yet — render them through the standard
-  // agent tool-call card rather than dropping them.
+  // Cherry tools without bespoke cards use the standard agent tool-call card.
   if (CHERRY_AGENT_TOOL_NAMES.has(toolName)) {
     return <AgentExecutionTimeline toolResponse={toolResponse} />
   }

@@ -4,14 +4,13 @@ vi.mock('@application', () => ({
   application: { get: () => ({ search: () => [] }) }
 }))
 
-import { READ_FILE_TOOL_NAME } from '@shared/ai/builtinTools'
-
 import { ToolRegistry } from '../../registry'
 import { KB_LIST_TOOL_NAME } from '../KnowledgeListTool'
 import { KB_MANAGE_TOOL_NAME } from '../KnowledgeManageTool'
 import { KB_READ_TOOL_NAME } from '../KnowledgeReadTool'
 import { KB_SEARCH_TOOL_NAME } from '../KnowledgeSearchTool'
 import { GENERATE_IMAGE_TOOL_NAME } from '../PaintingTool'
+import { READ_FILE_TOOL_NAME } from '../ReadFileTool'
 import { registerBuiltinTools } from '../registerBuiltinTools'
 import { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '../WebSearchTool'
 
@@ -27,6 +26,7 @@ describe('registerBuiltinTools', () => {
     expect(reg.has(GENERATE_IMAGE_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_FETCH_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_SEARCH_TOOL_NAME)).toBe(true)
+    expect(reg.getAll().every(({ name }) => name.startsWith('cherry_'))).toBe(true)
   })
 
   it('gates read_file on file attachments', () => {

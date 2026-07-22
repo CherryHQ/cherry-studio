@@ -122,7 +122,7 @@ export function readFileModelOutput(output: ReadFileResult): ToolResultOutput {
   }
   const more =
     output.nextOffset != null
-      ? `\n\n[Showing ${output.text.length} of ${output.totalChars} chars. Call read_file again with offset=${output.nextOffset} for more.]`
+      ? `\n\n[Showing ${output.text.length} of ${output.totalChars} chars. Call this tool again with offset=${output.nextOffset} for more.]`
       : ''
   return { type: 'text', value: output.text + more }
 }

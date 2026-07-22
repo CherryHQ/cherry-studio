@@ -21,6 +21,12 @@
  * target name so telemetry can rebuild the call tree.
  */
 
+import { WEB_SEARCH_TOOL_NAME as SHARED_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  CHERRY_TOOL_INVOKE_TOOL_NAME,
+  CHERRY_TOOL_SEARCH_TOOL_NAME,
+  toCherryClientToolName
+} from '@shared/ai/tools/cherryClientToolName'
 import { asSchema, type Tool, tool } from 'ai'
 import * as z from 'zod'
 
@@ -29,7 +35,8 @@ import type { ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
 import { buildToolStub } from './schemaStub'
 
-export const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
+export const TOOL_INVOKE_TOOL_NAME = CHERRY_TOOL_INVOKE_TOOL_NAME
+const EXAMPLE_WEB_SEARCH_TOOL_NAME = toCherryClientToolName(SHARED_WEB_SEARCH_TOOL_NAME)
 
 /**
  * @param allowedNames per-request tool name set (the request's active inline ∪ deferred names).
@@ -51,14 +58,16 @@ export function createToolInvokeTool(
   const parsedParamsByCallId = new Map<string, Record<string, unknown>>()
   return tool({
     description:
-      'Call a single tool discovered via `tool_search` by name, passing arguments under `params`. ' +
+      `Call a single tool discovered via \`${CHERRY_TOOL_SEARCH_TOOL_NAME}\` by name, passing arguments under \`params\`. ` +
       "If the tool hasn't been inspected, or the arguments don't match its schema, the call returns the " +
       'tool signature — read it and call again with corrected params. Inspect first to skip that round-trip.',
     inputSchema: z.object({
-      name: z.string().describe('Tool name as returned by tool_search'),
+      name: z.string().describe(`Tool name as returned by ${CHERRY_TOOL_SEARCH_TOOL_NAME}`),
       params: z.record(z.string(), z.unknown()).optional().describe('Tool input arguments')
     }),
-    inputExamples: [{ input: { name: 'web_search', params: { query: 'cherry studio latest release' } } }],
+    inputExamples: [
+      { input: { name: EXAMPLE_WEB_SEARCH_TOOL_NAME, params: { query: 'cherry studio latest release' } } }
+    ],
     execute: async ({ name, params }, options) => {
       if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)
       const entry = registry.getByName(name)
@@ -78,7 +87,9 @@ export function createToolInvokeTool(
           experimental_context: options.experimental_context
         })
       ) {
-        throw new Error(`Tool "${name}" requires user approval; call it directly instead of via tool_invoke.`)
+        throw new Error(
+          `Tool "${name}" requires user approval; call it directly instead of via ${TOOL_INVOKE_TOOL_NAME}.`
+        )
       }
 
       // Guard A: hand back the signature before running a tool whose schema the model hasn't seen,
@@ -89,7 +100,7 @@ export function createToolInvokeTool(
         inspectedNames.add(name)
         const stub = await buildToolStub(entry)
         throw new Error(
-          `Tool "${name}" hasn't been inspected yet — its signature is below. Call tool_invoke again with params matching it:\n\n${stub}`
+          `Tool "${name}" hasn't been inspected yet — its signature is below. Call ${TOOL_INVOKE_TOOL_NAME} again with params matching it:\n\n${stub}`
         )
       }
 

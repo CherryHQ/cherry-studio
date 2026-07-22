@@ -7,13 +7,18 @@
  * request's ToolSet would be redundant in search results.
  */
 
+import {
+  CHERRY_TOOL_INSPECT_TOOL_NAME,
+  CHERRY_TOOL_INVOKE_TOOL_NAME,
+  CHERRY_TOOL_SEARCH_TOOL_NAME
+} from '@shared/ai/tools/cherryClientToolName'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolRegistry } from '../registry'
 import { serializeToolSchema } from './schemaStub'
 
-export const TOOL_SEARCH_TOOL_NAME = 'tool_search'
+export const TOOL_SEARCH_TOOL_NAME = CHERRY_TOOL_SEARCH_TOOL_NAME
 
 export function createToolSearchTool(
   registry: ToolRegistry,
@@ -24,7 +29,7 @@ export function createToolSearchTool(
     description:
       'Discover available tools by namespace. This is tool discovery (NOT web search). Tools are ' +
       'grouped by domain (web, kb, mcp:gmail, ...). Omit `query` to browse all. Inspect a name ' +
-      'returned here with `tool_inspect`, then call it with `tool_invoke`.',
+      `returned here with \`${CHERRY_TOOL_INSPECT_TOOL_NAME}\`, then call it with \`${CHERRY_TOOL_INVOKE_TOOL_NAME}\`.`,
     inputSchema: z.object({
       query: z
         .string()

@@ -16,11 +16,12 @@
  */
 
 import {
-  KB_LIST_TOOL_NAME,
+  KB_LIST_TOOL_NAME as SHARED_KB_LIST_TOOL_NAME,
   kbListOutputSchema,
   kbListStrictInputSchema,
   kbTreeOutputSchema
 } from '@shared/ai/builtinTools'
+import { toCherryClientToolName } from '@shared/ai/tools/cherryClientToolName'
 import { tool } from 'ai'
 import * as z from 'zod'
 
@@ -33,7 +34,7 @@ import {
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
-export { KB_LIST_TOOL_NAME }
+export const KB_LIST_TOOL_NAME = toCherryClientToolName(SHARED_KB_LIST_TOOL_NAME)
 
 // Two modes: list the bases (array) or outline one base (tree object). An infra failure returns
 // `{ error }`, so the output is a three-way union.

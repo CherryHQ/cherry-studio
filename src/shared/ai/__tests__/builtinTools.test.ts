@@ -18,7 +18,7 @@ import {
 } from '../builtinTools'
 
 describe('builtin tool contracts', () => {
-  it('uses model-facing builtin tool names', () => {
+  it('keeps the shared builtin names used by the MCP bridge', () => {
     expect(KB_LIST_TOOL_NAME).toBe('kb_list')
     expect(KB_SEARCH_TOOL_NAME).toBe('kb_search')
     expect(WEB_SEARCH_TOOL_NAME).toBe('web_search')
@@ -26,18 +26,18 @@ describe('builtin tool contracts', () => {
     expect(REPORT_ARTIFACTS_TOOL_NAME).toBe('report_artifacts')
   })
 
-  it('references the public knowledge list tool name from search input metadata', () => {
+  it('references knowledge listing generically because AI SDK and MCP expose different names', () => {
     const description = kbSearchInputSchema.shape.baseIds.description
 
-    expect(description).toContain(KB_LIST_TOOL_NAME)
-    expect(description).not.toContain('kb__list')
+    expect(description).toContain('knowledge-list tool')
+    expect(description).not.toContain(KB_LIST_TOOL_NAME)
   })
 
-  it('references the public web search tool name from fetch input metadata', () => {
+  it('references web search generically because AI SDK and MCP expose different names', () => {
     const description = webFetchInputSchema.shape.urls.description
 
-    expect(description).toContain(WEB_SEARCH_TOOL_NAME)
-    expect(description).not.toContain('web__search')
+    expect(description).toContain('web search tool')
+    expect(description).not.toContain('web_search')
   })
 
   it('keeps kb_list strict-path fields in `required` so strict providers accept the schema', () => {

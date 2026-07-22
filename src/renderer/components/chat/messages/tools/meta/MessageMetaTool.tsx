@@ -9,7 +9,7 @@ import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
 import { getEffectiveStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
-import type { MetaToolName } from './metaToolNames'
+import { getMetaToolKind, type MetaToolName } from './metaToolNames'
 
 export { isMetaToolName, META_TOOL_NAMES, type MetaToolName } from './metaToolNames'
 
@@ -95,32 +95,34 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
 function useTitleLabel(toolResponse: NormalToolResponse): string {
   const { tool, arguments: args } = toolResponse
   const name = tool.name as MetaToolName
+  const kind = getMetaToolKind(name)
   const argRecord = isRecord(args) ? args : undefined
 
-  switch (name) {
+  switch (kind) {
     case 'tool_search': {
       const q = typeof argRecord?.query === 'string' ? argRecord.query : undefined
       const ns = typeof argRecord?.namespace === 'string' ? argRecord.namespace : undefined
       const parts = [q && `"${q}"`, ns && `ns=${ns}`].filter(Boolean)
-      return `tool_search${parts.length > 0 ? ` · ${parts.join(' · ')}` : ''}`
+      return `${name}${parts.length > 0 ? ` · ${parts.join(' · ')}` : ''}`
     }
     case 'tool_inspect': {
       const targetName = typeof argRecord?.name === 'string' ? argRecord.name : '?'
-      return `tool_inspect · ${targetName}`
+      return `${name} · ${targetName}`
     }
     case 'tool_invoke': {
       const targetName = typeof argRecord?.name === 'string' ? argRecord.name : '?'
-      return `tool_invoke · ${targetName}`
+      return `${name} · ${targetName}`
     }
     case 'tool_exec':
-      return 'tool_exec'
+      return name
   }
 }
 
 // ── Body dispatcher ────────────────────────────────────────────────
 
 const Body: FC<{ toolResponse: NormalToolResponse; toolName: MetaToolName }> = ({ toolResponse, toolName }) => {
-  switch (toolName) {
+  const kind = getMetaToolKind(toolName)
+  switch (kind) {
     case 'tool_search':
       return <ToolSearchBody toolResponse={toolResponse} />
     case 'tool_inspect':
@@ -205,7 +207,7 @@ const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
   if (!innerName) {
     return (
       <BodyContainer>
-        <Empty>tool_invoke called without a tool name.</Empty>
+        <Empty>{toolResponse.tool.name} called without a tool name.</Empty>
       </BodyContainer>
     )
   }
