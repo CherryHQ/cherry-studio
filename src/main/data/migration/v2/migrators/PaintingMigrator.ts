@@ -1,6 +1,7 @@
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { inArray, sql } from 'drizzle-orm'
@@ -111,6 +112,44 @@ export class PaintingMigrator extends BaseMigrator {
       for (const entries of groupedRecords.values()) {
         normalizedRows.push(...entries.map((e) => e.row))
       }
+
+      // ─── Reconcile modelId against user_model ───
+      // ProviderModelMigrator (order 1.75) has already populated user_model.
+      // If a painting's modelId has no matching user_model row, the composer
+      // would show a disabled send button with no way to fix it.
+      // Null the modelId so the painting falls back to model selection.
+      if (normalizedRows.length > 0) {
+        // `user_model.id` is `providerId::modelId`. A painting's `modelId` can
+        // carry a provider prefix that differs from the painting's own
+        // `providerId` (e.g. legacy `aihubmix` painting referencing
+        // `gemini::imagen`). The renderer resolves the model against the
+        // painting's provider, so a cross-provider reference is just as
+        // dangling as a missing one — validate both `id` and `providerId`.
+        const existingModelProviders = new Map<string, string>()
+        for (const r of ctx.db
+          .select({ id: userModelTable.id, providerId: userModelTable.providerId })
+          .from(userModelTable)
+          .all()) {
+          existingModelProviders.set(r.id, r.providerId)
+        }
+        for (const row of normalizedRows) {
+          if (row.modelId) {
+            const modelProviderId = existingModelProviders.get(row.modelId)
+            if (modelProviderId === undefined) {
+              this.warnings.push(
+                `Cleared dangling modelId '${row.modelId}' for painting '${row.id}' — no matching user_model row exists`
+              )
+              row.modelId = null
+            } else if (modelProviderId !== row.providerId) {
+              this.warnings.push(
+                `Cleared dangling modelId '${row.modelId}' for painting '${row.id}' — user_model row belongs to provider '${modelProviderId}', not painting provider '${row.providerId}'`
+              )
+              row.modelId = null
+            }
+          }
+        }
+      }
+
       this.preparedPaintings = assignOrderKeysInSequence(normalizedRows)
 
       logger.info('Prepared painting migration records', {
