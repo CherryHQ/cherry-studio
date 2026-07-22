@@ -853,7 +853,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
-    this.refreshContextUsage(entry, connection)
+    // Opening an agent page primes a live connection for slash commands. Context usage can fall back
+    // to a billable model request, so only refresh it after an actual turn or compaction.
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) {
@@ -884,7 +885,6 @@ export class AgentSessionRuntimeService extends BaseService {
     switch (event.type) {
       case 'resume-token':
         entry.lastResumeToken = event.token
-        this.refreshContextUsage(entry)
         break
       case 'chunk': {
         // Mid-roll: A1a is closed and A2's stream isn't open yet — buffer the post-steer chunks so

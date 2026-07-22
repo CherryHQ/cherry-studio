@@ -1375,7 +1375,7 @@ describe('AgentSessionRuntimeService', () => {
     await expect(reader.read()).resolves.toMatchObject({ done: true })
   })
 
-  it('publishes runtime context usage through persist cache', async () => {
+  it('publishes runtime context usage after turn completion', async () => {
     const events = createAsyncQueue<any>()
     const usage = {
       categories: [],
@@ -1415,14 +1415,16 @@ describe('AgentSessionRuntimeService', () => {
     const reader = stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    expect(connection.getContextUsage).not.toHaveBeenCalled()
 
-    await vi.waitFor(() =>
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
-    )
+    events.push({ type: 'resume-token', token: 'resume-1' })
+    await vi.waitFor(() => expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-1' }))
+    expect(connection.getContextUsage).not.toHaveBeenCalled()
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
-    await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(1))
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
   })
 
   describe('primeConnection — eager command load on session open', () => {
@@ -1433,6 +1435,7 @@ describe('AgentSessionRuntimeService', () => {
         send: vi.fn(),
         close: vi.fn(),
         reconcile: vi.fn().mockResolvedValue('current'),
+        getContextUsage: vi.fn(),
         getSupportedCommands: vi.fn().mockResolvedValue(commands)
       }
       const connect = vi.fn().mockResolvedValue(connection)
@@ -1458,6 +1461,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
       )
+      expect(connection.getContextUsage).not.toHaveBeenCalled()
       // No turn was admitted — the entry sits idle and the stream manager was never asked to start one.
       expect(service.inspect('session-1')?.status).toBe('idle')
       expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
