@@ -1,25 +1,60 @@
 import { Badge, Button, Input, Tabs, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { ListMinus, ListPlus, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import {
+  ArrowUpDown,
+  AudioLines,
+  Boxes,
+  Image,
+  ListMinus,
+  ListPlus,
+  type LucideIcon,
+  Mic,
+  RefreshCw,
+  Search,
+  Speech,
+  Trash2,
+  Type,
+  Video,
+  X
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
-import type { ModelListCapabilityFilter } from './modelListDerivedState'
-import { applyModelFilters, groupModels, MODEL_LIST_CAPABILITY_FILTERS } from './modelListDerivedState'
+import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
+import {
+  applyModelFilters,
+  getCapabilityModelCounts,
+  groupModels,
+  MODEL_LIST_CAPABILITY_FILTERS
+} from './modelListDerivedState'
 import ModelSyncPreviewPanel from './ModelSyncPreviewPanel'
 
 type ModelManageFilter = ModelListCapabilityFilter | 'stale'
-const CAPABILITY_FILTER_LABEL_KEYS: Record<Exclude<ModelListCapabilityFilter, 'all'>, string> = {
-  reasoning: 'models.type.reasoning',
-  vision: 'models.type.vision',
-  websearch: 'models.type.websearch',
-  free: 'models.type.free',
+type ModelTypeFilter = Exclude<ModelListCapabilityFilter, 'all'>
+
+const CAPABILITY_FILTER_LABEL_KEYS: Record<ModelTypeFilter, string> = {
+  text: 'models.type.text',
+  image: 'models.type.image',
   embedding: 'models.type.embedding',
+  audio: 'models.type.audio',
+  video: 'models.type.video',
   rerank: 'models.type.rerank',
-  function_calling: 'models.type.function_calling'
+  speech: 'models.type.speech',
+  transcription: 'models.type.transcription'
+}
+
+const CAPABILITY_FILTER_ICONS: Record<ModelTypeFilter, LucideIcon> = {
+  text: Type,
+  image: Image,
+  embedding: Boxes,
+  audio: AudioLines,
+  video: Video,
+  rerank: ArrowUpDown,
+  speech: Speech,
+  transcription: Mic
 }
 
 interface ModelListSyncDrawerProps {
@@ -89,6 +124,11 @@ export default function ModelListSyncDrawer({
   const filteredGroups = useMemo(
     () => groupModels(filteredModels, Boolean(searchText.trim())),
     [filteredModels, searchText]
+  )
+  // Per-type counts over the search-filtered set (so the tabs track the search).
+  const typeCounts = useMemo<ModelListCapabilityCounts>(
+    () => getCapabilityModelCounts(applyModelFilters(allModels, searchText, 'all')),
+    [allModels, searchText]
   )
   const isAllFilteredInProvider =
     filteredModels.length > 0 && filteredModels.every((model) => localModelIds.has(model.id))
@@ -224,15 +264,26 @@ export default function ModelListSyncDrawer({
           }}
           className={modelSyncClasses.manageTabs}>
           <TabsList className={modelSyncClasses.manageTabsList}>
-            {filterOptions.map((filter) => (
-              <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
-                {filter === 'all'
+            {filterOptions.map((filter) => {
+              const Icon = filter === 'all' || filter === 'stale' ? null : CAPABILITY_FILTER_ICONS[filter]
+              const label =
+                filter === 'all'
                   ? t('models.all')
                   : filter === 'stale'
                     ? t('settings.models.manage.stale_filter')
-                    : t(CAPABILITY_FILTER_LABEL_KEYS[filter])}
-              </TabsTrigger>
-            ))}
+                    : t(CAPABILITY_FILTER_LABEL_KEYS[filter])
+              const count =
+                filter === 'all' ? typeCounts.all : filter === 'stale' ? staleModelCount : typeCounts[filter]
+              return (
+                <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
+                  {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
+                  <span className="truncate">{label}</span>
+                  <span className={modelSyncClasses.manageTabCount} aria-hidden>
+                    {count}
+                  </span>
+                </TabsTrigger>
+              )
+            })}
           </TabsList>
         </Tabs>
       </div>

@@ -4256,10 +4256,13 @@
       "embedding": "嵌入",
       "free": "免费",
       "function_calling": "工具",
+      "image": "图片",
       "reasoning": "推理",
       "rerank": "重排",
       "select": "模型类型",
+      "speech": "语音",
       "text": "文本",
+      "transcription": "转录",
       "video": "视频",
       "vision": "视觉",
       "websearch": "联网"
