@@ -5,9 +5,14 @@ const logger = loggerService.withContext('ProtocolService:providersImport')
 
 export function parseProvidersImportData(data: string) {
   try {
-    const result = JSON.parse(
-      Buffer.from(data, 'base64').toString('utf-8').replaceAll("'", '"').replaceAll('(', '').replaceAll(')', '')
-    )
+    const decoded = Buffer.from(data, 'base64').toString('utf-8')
+    let result: unknown
+
+    try {
+      result = JSON.parse(decoded)
+    } catch {
+      result = JSON.parse(decoded.replaceAll("'", '"').replaceAll('(', '').replaceAll(')', ''))
+    }
 
     return JSON.stringify(result)
   } catch (error) {

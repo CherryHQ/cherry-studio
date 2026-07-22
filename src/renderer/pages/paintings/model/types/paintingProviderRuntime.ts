@@ -28,7 +28,10 @@ const OPENAI_COMPAT_DEFAULT_BASE_URLS: Readonly<Record<string, string>> = {
 }
 
 export function isPaintingNewApiProvider(provider: Pick<Provider, 'id' | 'presetProviderId'>) {
-  return OPENAI_COMPAT_IMAGE_PROVIDER_IDS.has(provider.id) || provider.presetProviderId === 'new-api'
+  return (
+    OPENAI_COMPAT_IMAGE_PROVIDER_IDS.has(provider.id) ||
+    (provider.presetProviderId != null && OPENAI_COMPAT_IMAGE_PROVIDER_IDS.has(provider.presetProviderId))
+  )
 }
 
 function baseUrlFromEndpointConfigs(provider: Provider): string {

@@ -176,7 +176,7 @@ describe('PromptEditorField', () => {
     expect(tokenStyle('strong').fontWeight).toBe('var(--font-weight-bold)')
     expect(tokenStyle('link').color).toBe('var(--color-primary)')
     expect(tokenStyle('[').color).toBe('var(--color-foreground-secondary)')
-    expect(getComputedStyle(view.contentDOM).padding).toBe('var(--cs-size-3xs)')
+    expect(getComputedStyle(view.contentDOM).padding).toBe('calc(var(--spacing) * 3)')
 
     view.destroy()
     parent.remove()

@@ -11,6 +11,15 @@ export default defineProvider({
     },
     'openai-chat-completions': {
       adapterFamily: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1/',
+      modelsApiUrls: {
+        default: 'https://openrouter.ai/api/v1/models',
+        embedding: 'https://openrouter.ai/api/v1/embeddings/models',
+        image: 'https://openrouter.ai/api/v1/images/models'
+      }
+    },
+    'openai-image-generation': {
+      adapterFamily: 'openrouter',
       baseUrl: 'https://openrouter.ai/api/v1/'
     }
   },
