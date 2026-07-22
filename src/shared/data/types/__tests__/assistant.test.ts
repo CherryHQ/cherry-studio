@@ -48,8 +48,8 @@ describe('AssistantSchema', () => {
     expect(AssistantSchema.parse(baseAssistant)).toMatchObject({ modelName })
   })
 
-  it('keeps runtime context disabled by default', () => {
-    expect(DEFAULT_ASSISTANT_SETTINGS.enableRuntimeContext).toBe(false)
+  it('enables runtime context for newly created assistants by default', () => {
+    expect(DEFAULT_ASSISTANT_SETTINGS.enableRuntimeContext).toBe(true)
     expect(DEFAULT_ASSISTANT_SETTINGS.runtimeContextPrompt).toBe('')
   })
 })

@@ -13,7 +13,8 @@ describe('createClaudeCodeQueryOptions', () => {
         warmQueryKey: 'session-1',
         toolPolicySnapshot: {},
         warmQueryInitializeTimeoutMs: 100,
-        mcpToolMetadata: {}
+        mcpToolMetadata: {},
+        runtimeContext: { template: 'Current time: {{time}}', modelName: 'Claude Sonnet' }
       } as any
     })
 
@@ -24,5 +25,6 @@ describe('createClaudeCodeQueryOptions', () => {
     expect(opts).not.toHaveProperty('toolPolicySnapshot')
     expect(opts).not.toHaveProperty('warmQueryInitializeTimeoutMs')
     expect(opts).not.toHaveProperty('mcpToolMetadata')
+    expect(opts).not.toHaveProperty('runtimeContext')
   })
 })

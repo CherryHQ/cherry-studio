@@ -65,7 +65,6 @@ import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
-import { buildRuntimeContextPrompt } from '@main/utils/prompt'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -373,6 +372,8 @@ export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
+  /** Display name of the exact connection-scoped model selected by the request builder. */
+  runtimeContextModelName?: string
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
@@ -558,6 +559,14 @@ export async function buildClaudeCodeSessionSettings(
     steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
+    ...(agentConfig?.runtime_context_enabled
+      ? {
+          runtimeContext: {
+            template: agentConfig.runtime_context_prompt,
+            modelName: options?.runtimeContextModelName ?? agent.modelName ?? agent.model ?? undefined
+          }
+        }
+      : {}),
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
@@ -1439,13 +1448,6 @@ export async function buildSystemPrompt(
     'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
   ].join('\n')
   const workspaceContextBlock = `\n\n${workspaceBlock}`
-  const runtimeContextBlock = agentConfig?.runtime_context_enabled
-    ? `\n\n${await buildRuntimeContextPrompt(
-        agent.modelName ?? agent.model ?? undefined,
-        agentConfig.runtime_context_prompt
-      )}`
-    : ''
-
   // Assistant mode
   if (isAssistant) {
     const memoriesPrompt = await promptBuilder.buildMemoriesSection(agentDataPath)
@@ -1454,13 +1456,13 @@ export async function buildSystemPrompt(
     try {
       const context = buildAssistantContext()
       return instructions
-        ? `${memoriesBlock}${instructions}\n\n${context}${workspaceContextBlock}${runtimeContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
-        : `${memoriesBlock}${context}${workspaceContextBlock}${runtimeContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
+        ? `${memoriesBlock}${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
+        : `${memoriesBlock}${context}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a context read failure drops the entire
       // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${memoriesBlock}${instructions}${workspaceContextBlock}${runtimeContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
+      return `${memoriesBlock}${instructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${runtimeGuardBlock}`
     }
   }
 
@@ -1478,7 +1480,7 @@ export async function buildSystemPrompt(
   return {
     type: 'preset',
     preset: 'claude_code',
-    append: `${soulPrompt}${userInstructions}${workspaceContextBlock}${runtimeContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+    append: `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
   }
 }
 
