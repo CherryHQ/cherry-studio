@@ -612,12 +612,12 @@ const AgentPage = () => {
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentCreateOpen(false)
       try {
-        // Reuse the agent's latest empty placeholder regardless of workspace — the picker resolves a
-        // fresh workspace below only when it has to create one.
+        // A newly created agent starts without a user workspace. Reuse only a matching system
+        // placeholder; otherwise create a fresh system-backed session below.
         const reuseCandidates = getSessionReuseCandidates()
         const reusableSessions = await findReusableEmptySessions(
           reuseCandidates,
-          (candidate) => candidate.agentId === agentId
+          (candidate) => candidate.agentId === agentId && isSystemWorkspaceSession(candidate)
         )
         const reusableSession = reusableSessions[0]
         const duplicateEmptySystemSessionIds =
@@ -630,7 +630,7 @@ const AgentPage = () => {
 
         let session = reusableSession
         if (!session) {
-          const workspaceSource = await resolveCreateWorkspaceSource({ agentId })
+          const workspaceSource = await resolveCreateWorkspaceSource({ agentId, workspaceMode: 'system' })
           session = await dataApiService.post('/agent-sessions', {
             body: {
               agentId,
