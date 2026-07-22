@@ -25,7 +25,7 @@ type SessionListOptionsMenuProps = {
   onChange: (mode: AgentSessionDisplayMode) => void
   onManageAgents?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
-  sectionId?: string
+  sectionIds?: readonly string[]
 }
 
 export function SessionListOptionsMenu({
@@ -35,7 +35,7 @@ export function SessionListOptionsMenu({
   onChange,
   onManageAgents,
   onOpenHistoryRecords,
-  sectionId
+  sectionIds
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -68,14 +68,14 @@ export function SessionListOptionsMenu({
               }}
             />
           ))}
-          {sectionId && (
+          {sectionIds && sectionIds.length > 0 && (
             <>
               <MenuDivider />
               <ResourceList.SectionToggleMenuItem
                 size="sm"
                 expandIcon={<ChevronsUpDown size={16} />}
                 collapseIcon={<ChevronsDownUp size={16} />}
-                sectionId={sectionId}
+                sectionIds={sectionIds}
                 expandLabel={t('agent.session.group.expand_all')}
                 collapseLabel={t('agent.session.group.collapse_all')}
                 onClick={() => {
