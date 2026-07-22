@@ -123,13 +123,15 @@ describe('GeminiMessageConverter.toUIMessages', () => {
     )
     const output = (msgs[0].parts[0] as { output?: unknown }).output
     expect(output).toContain(JSON.stringify({ status: 'done' }))
-    expect(output).toContain('[media 1 (image/png)')
-    expect(output).toContain('[media 2 (image/jpeg)')
+    expect(output).toContain('[tool-result attachment call_id="c1" media=1] (image/png)')
+    expect(output).toContain('[tool-result attachment call_id="c1" media=2] (image/jpeg)')
     expect(output).not.toContain('AAAA')
     expect(msgs[1]).toMatchObject({
       role: 'user',
       parts: [
+        { type: 'text', text: expect.stringContaining('call_id="c1"') },
         { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' },
+        { type: 'text', text: expect.stringContaining('call_id="c1"') },
         { type: 'file', mediaType: 'image/jpeg', url: 'https://img.example/x.jpg' }
       ]
     })
@@ -205,6 +207,50 @@ describe('GeminiMessageConverter.toUIMessages', () => {
       input: { city: 'Paris' },
       output: JSON.stringify({ temp: 'rainy' })
     })
+  })
+
+  it('keeps call ids attached to relocated media when Gemini 3 responses arrive out of order', () => {
+    const msgs = converter.toUIMessages(
+      request({
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              { functionCall: { id: 'c1', name: 'generate_image', args: { prompt: 'first' } } },
+              { functionCall: { id: 'c2', name: 'generate_image', args: { prompt: 'second' } } }
+            ]
+          },
+          {
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  id: 'c2',
+                  name: 'generate_image',
+                  parts: [{ inlineData: { mimeType: 'image/png', data: 'BBBB' } }]
+                }
+              },
+              {
+                functionResponse: {
+                  id: 'c1',
+                  name: 'generate_image',
+                  parts: [{ inlineData: { mimeType: 'image/png', data: 'AAAA' } }]
+                }
+              }
+            ]
+          }
+        ]
+      })
+    )
+
+    expect((msgs[0].parts[0] as { output?: string }).output).toContain('call_id="c1"')
+    expect((msgs[0].parts[1] as { output?: string }).output).toContain('call_id="c2"')
+    expect(msgs[1].parts).toEqual([
+      { type: 'text', text: expect.stringContaining('call_id="c2"') },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,BBBB' },
+      { type: 'text', text: expect.stringContaining('call_id="c1"') },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }
+    ])
   })
 
   it('emits an input-available tool part when the call has no response yet', () => {

@@ -29,10 +29,14 @@ type ResponseCreateParams = OpenAI.Responses.ResponseCreateParams
 type EasyInputMessage = OpenAI.Responses.EasyInputMessage
 type FunctionCallOutput = OpenAI.Responses.ResponseInputItem.FunctionCallOutput
 
-/** A function_call_output split into the model-visible string output and relocated files. */
+/** A function_call_output split into the model-visible string output and relocated user parts. */
 interface FunctionOutputConversion {
   output: string
-  files: FileUIPart[]
+  relocatedParts: Array<TextUIPart | FileUIPart>
+}
+
+function functionOutputAttachmentAnchor(callId: string, kind: string, index: number): string {
+  return `[tool-result attachment call_id=${JSON.stringify(callId)} ${kind}=${index}]`
 }
 
 /**
@@ -46,14 +50,16 @@ interface FunctionOutputConversion {
  * pointing at it. Only provider-bound `file_id`-only items (not resolvable
  * cross-vendor) are downgraded to a placeholder alone.
  */
-function functionOutputToConversion(output: FunctionCallOutput['output']): FunctionOutputConversion {
-  if (typeof output === 'string') return { output, files: [] }
+function functionOutputToConversion(callId: string, output: FunctionCallOutput['output']): FunctionOutputConversion {
+  if (typeof output === 'string') return { output, relocatedParts: [] }
   const lines: string[] = []
-  const files: FileUIPart[] = []
+  const relocatedParts: Array<TextUIPart | FileUIPart> = []
+  let attachmentIndex = 0
   const attach = (kind: string, file: FileUIPart) => {
-    files.push(file)
+    const anchor = functionOutputAttachmentAnchor(callId, kind, ++attachmentIndex)
     const name = file.filename ? `, ${file.filename}` : ''
-    lines.push(`[${kind} ${files.length} (${file.mediaType}${name}): attached in the following user message]`)
+    lines.push(`${anchor} (${file.mediaType}${name}): attached in the following user message`)
+    relocatedParts.push({ type: 'text', text: anchor }, file)
   }
   for (const item of output) {
     if (item.type === 'input_text') {
@@ -71,7 +77,7 @@ function functionOutputToConversion(output: FunctionCallOutput['output']): Funct
       lines.push(`[unsupported ${item.type} tool output item omitted]`)
     }
   }
-  return { output: lines.join('\n'), files }
+  return { output: lines.join('\n'), relocatedParts }
 }
 
 /**
@@ -122,7 +128,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         }
         functionCalls.set(funcCall.call_id, { name: funcCall.name, input })
       } else if ('type' in item && item.type === 'function_call_output') {
-        functionOutputs.set(item.call_id, functionOutputToConversion(item.output))
+        functionOutputs.set(item.call_id, functionOutputToConversion(item.call_id, item.output))
       }
     }
 
@@ -149,9 +155,9 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
       // function_call_output: the string output is folded into its function_call
       // above; relocated tool-output media surface here as a user message.
       if ('type' in item && item.type === 'function_call_output') {
-        const files = functionOutputs.get(item.call_id)?.files
-        if (files?.length) {
-          messages.push({ id: nextUIMessageId(), role: 'user', parts: [...files] })
+        const relocatedParts = functionOutputs.get(item.call_id)?.relocatedParts
+        if (relocatedParts?.length) {
+          messages.push({ id: nextUIMessageId(), role: 'user', parts: [...relocatedParts] })
         }
       }
     }

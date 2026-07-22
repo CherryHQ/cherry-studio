@@ -52,10 +52,14 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
   return undefined
 }
 
-/** A tool_result split into the model-visible string output and relocated images. */
+/** A tool_result split into the model-visible string output and relocated user parts. */
 interface ToolResultConversion {
   output: string
-  images: FileUIPart[]
+  relocatedParts: Array<TextUIPart | FileUIPart>
+}
+
+function toolResultImageAnchor(toolCallId: string, index: number): string {
+  return `[tool-result attachment call_id=${JSON.stringify(toolCallId)} image=${index}]`
 }
 
 /**
@@ -68,22 +72,27 @@ interface ToolResultConversion {
  * carried the tool_result (every protocol accepts user images), and the output
  * keeps a placeholder pointing at it.
  */
-function toolResultToOutput(content: NonNullable<ToolResultBlockParam['content']>): ToolResultConversion {
-  if (typeof content === 'string') return { output: content, images: [] }
+function toolResultToOutput(
+  toolCallId: string,
+  content: NonNullable<ToolResultBlockParam['content']>
+): ToolResultConversion {
+  if (typeof content === 'string') return { output: content, relocatedParts: [] }
   const lines: string[] = []
-  const images: FileUIPart[] = []
+  const relocatedParts: Array<TextUIPart | FileUIPart> = []
+  let imageIndex = 0
   for (const block of content) {
     if (block.type === 'text') {
       lines.push(block.text)
     } else if (block.type === 'image') {
       const file = imageBlockToFilePart(block.source)
       if (file) {
-        images.push(file)
-        lines.push(`[image ${images.length} (${file.mediaType}): attached in the following user message]`)
+        const anchor = toolResultImageAnchor(toolCallId, ++imageIndex)
+        lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
+        relocatedParts.push({ type: 'text', text: anchor }, file)
       }
     }
   }
-  return { output: lines.join('\n'), images }
+  return { output: lines.join('\n'), relocatedParts }
 }
 
 /**
@@ -144,7 +153,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
         } else if (block.type === 'tool_result') {
           toolResults.set(
             block.tool_use_id,
-            block.content ? toolResultToOutput(block.content) : { output: '', images: [] }
+            block.content ? toolResultToOutput(block.tool_use_id, block.content) : { output: '', relocatedParts: [] }
           )
         }
       }
@@ -193,10 +202,10 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           parts.push(part)
         } else if (block.type === 'tool_result') {
           // The string output is absorbed into the matching tool_use part above;
-          // relocated tool-result images surface here as user-message file parts.
-          const images = toolResults.get(block.tool_use_id)?.images
-          if (images?.length) {
-            parts.push(...images)
+          // relocated images surface here with call-id anchors for parallel results.
+          const relocatedParts = toolResults.get(block.tool_use_id)?.relocatedParts
+          if (relocatedParts?.length) {
+            parts.push(...relocatedParts)
           }
         }
       }
