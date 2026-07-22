@@ -23,7 +23,7 @@ type TopicListOptionsMenuProps = {
   onChange: (mode: TopicDisplayMode) => void
   onManageAssistants?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
-  sectionId?: string
+  sectionIds?: readonly string[]
 }
 
 export function TopicListOptionsMenu({
@@ -33,7 +33,7 @@ export function TopicListOptionsMenu({
   onChange,
   onManageAssistants,
   onOpenHistoryRecords,
-  sectionId
+  sectionIds
 }: TopicListOptionsMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -64,14 +64,14 @@ export function TopicListOptionsMenu({
               }}
             />
           ))}
-          {sectionId && (
+          {sectionIds && sectionIds.length > 0 && (
             <>
               <MenuDivider />
               <ResourceList.SectionToggleMenuItem
                 size="sm"
                 expandIcon={<ChevronsUpDown size={16} />}
                 collapseIcon={<ChevronsDownUp size={16} />}
-                sectionId={sectionId}
+                sectionIds={sectionIds}
                 expandLabel={t('chat.topics.group.expand_all')}
                 collapseLabel={t('chat.topics.group.collapse_all')}
                 onClick={() => {
