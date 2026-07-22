@@ -2060,6 +2060,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
+          reasoningEffort: 'default',
           userMessageParts: [
             expect.objectContaining({
               type: 'text',
@@ -2133,6 +2134,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
+          reasoningEffort: 'default',
           userMessageParts: expect.arrayContaining([
             expect.objectContaining({
               type: 'text',
@@ -2272,6 +2274,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
+          reasoningEffort: 'default',
           userMessageParts: expect.arrayContaining([
             expect.objectContaining({
               type: 'text',
@@ -2355,6 +2358,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
+          reasoningEffort: 'default',
           userMessageParts: [
             {
               type: 'text',

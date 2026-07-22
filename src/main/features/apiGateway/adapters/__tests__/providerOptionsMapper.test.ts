@@ -1,12 +1,50 @@
+import { REASONING_FORMAT_PROFILES, type ReasoningWireProfile } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type EndpointType, type Model, type RuntimeReasoning } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   mapAnthropicThinkingToProviderOptions,
   mapGeminiThinkingToProviderOptions,
   mapReasoningEffortToProviderOptions
 } from '../converters/providerOptionsMapper'
+
+const mocks = vi.hoisted(() => ({
+  resolveReasoningProfile: vi.fn()
+}))
+
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: { resolveReasoningProfile: mocks.resolveReasoningProfile }
+}))
+
+const anthropicBudgetWire: ReasoningWireProfile = {
+  off: {
+    operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }]
+  },
+  effort: {
+    operations: [
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+      { target: 'thinking.budgetTokens', value: { source: 'budget' } },
+      { target: 'sendReasoning', value: { source: 'literal', value: true } }
+    ],
+    budget: { missing: { type: 'fallback', value: 13_312 }, clampToMaxTokens: true }
+  }
+}
+
+beforeEach(() => {
+  mocks.resolveReasoningProfile.mockImplementation((_provider, _model, endpointType: EndpointType) => {
+    switch (endpointType) {
+      case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
+        return { format: 'anthropic', wire: anthropicBudgetWire }
+      case ENDPOINT_TYPE.OPENAI_RESPONSES:
+        return { format: 'openai-responses', wire: REASONING_FORMAT_PROFILES['openai-responses'].wire }
+      case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
+        return { format: 'openai-chat', wire: REASONING_FORMAT_PROFILES['openai-chat'].wire }
+      default:
+        throw new Error(`Unexpected endpoint type: ${endpointType}`)
+    }
+  })
+})
 
 function provider(adapterFamily: string, endpointType: EndpointType): Provider {
   return {
@@ -104,7 +142,7 @@ describe('cross-dialect descriptor translation', () => {
       anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 }, sendReasoning: true }
     })
     expect(mapReasoningEffortToProviderOptions(target, anthropicBudgetModel, 'high')).toEqual({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 9000 }, sendReasoning: true }
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 8192 }, sendReasoning: true }
     })
   })
 
