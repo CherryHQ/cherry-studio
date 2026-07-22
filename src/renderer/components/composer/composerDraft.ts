@@ -305,6 +305,7 @@ function createComposerTextPart(text: string, composer?: ComposerMessageSnapshot
  * Builds the user message parts from a serialized draft. Returns only the text
  * part (carrying the composer snapshot). File parts are created at send time
  * from `ComposerAttachment`s via `buildFilePartsForAttachments`, not here.
+ * The draft must already be normalized with `trimComposerDraftBoundaryBlankLines`.
  */
 export function createComposerUserMessageParts(draft: ComposerSerializedDraft): CherryMessagePart[] {
   return [createComposerTextPart(draft.text, createComposerMessageSnapshot(draft))]

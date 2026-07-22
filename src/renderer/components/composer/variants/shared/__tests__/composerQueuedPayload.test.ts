@@ -45,6 +45,12 @@ describe('buildComposerQueuedPayload', () => {
     expect(result?.userMessageParts).toEqual([{ type: 'text', text: '' }])
   })
 
+  it('normalizes whitespace-only attachment payload text to empty', () => {
+    const result = buildComposerQueuedPayload(draft('   ', ['file:a']), { files: [file('a')], fileTokenId })
+
+    expect(result?.text).toBe('')
+  })
+
   it('returns null for a file-only draft whose file token has not reached the editor draft yet', () => {
     const result = buildComposerQueuedPayload(draft('', []), { files: [file('a')], fileTokenId })
 

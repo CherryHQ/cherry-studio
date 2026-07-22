@@ -31,8 +31,8 @@ export function buildComposerQueuedPayload(
   { files, fileTokenId, requireText = false, extra }: BuildComposerQueuedPayloadOptions
 ): ComposerQueuedMessagePayload | null {
   const normalizedDraft = trimComposerDraftBoundaryBlankLines(draft)
-  const text = normalizedDraft.text
-  const hasText = text.trim().length > 0
+  const hasText = normalizedDraft.text.trim().length > 0
+  const text = hasText ? normalizedDraft.text : ''
   const tokenIds = getComposerTokenIds(normalizedDraft.tokens)
   const attachedFiles = files.filter((file) => tokenIds.has(fileTokenId(file)))
   if (hasUnsyncedComposerAttachments(files, attachedFiles)) return null
