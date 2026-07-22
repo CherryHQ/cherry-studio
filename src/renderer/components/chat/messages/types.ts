@@ -326,7 +326,7 @@ export interface MessageListActions {
     options?: { successMessage?: string }
   ) => void | Promise<void>
   copyImage?: (blob: Blob, options?: { successMessage?: string }) => void | Promise<void>
-  exportTableAsExcel?: (markdown: string) => boolean | Promise<boolean>
+  exportTableAsExcel?: (data: string[][]) => boolean | Promise<boolean>
   notifyInfo?: (message: string) => void
   notifySuccess?: (message: string) => void
   notifyWarning?: (message: string) => void

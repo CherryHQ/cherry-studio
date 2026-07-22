@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,12 +9,34 @@ import type { FileContextMenuActions } from '../FileContextMenu'
 import type { FileItem } from '../fileDisplay'
 import { FileGrid } from '../FileGrid'
 
+type VirtualizerOptionsMock = {
+  count: number
+  estimateSize: () => number
+  getItemKey?: (index: number) => string | number
+}
+
+const virtualizerMocks = vi.hoisted(() => ({
+  measureElement: vi.fn(),
+  useVirtualizer: vi.fn((options: VirtualizerOptionsMock) => ({
+    getTotalSize: () => options.count * options.estimateSize(),
+    getVirtualItems: () =>
+      options.count > 0
+        ? [{ index: 0, key: options.getItemKey?.(0) ?? 0, size: options.estimateSize(), start: 0 }]
+        : [],
+    measureElement: virtualizerMocks.measureElement
+  }))
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: virtualizerMocks.useVirtualizer
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
 // An image file without a preview URL renders the decorative placeholder
-// gradient (no ImagePreviewTrigger), which is the surface under test here.
+// gradient, which is the surface under test here.
 const imageFile: FileItem = {
   id: 'image-1',
   name: 'photo.png',
@@ -35,15 +57,17 @@ const menuActions: FileContextMenuActions = {
   onShowInFolder: vi.fn()
 }
 
-function fileGridProps(files: FileItem[]): ComponentProps<typeof FileGrid> {
+function fileGridProps(files: FileItem[], width = 400): ComponentProps<typeof FileGrid> {
+  const scrollElement = document.createElement('div')
+  Object.defineProperty(scrollElement, 'clientWidth', { configurable: true, value: width })
   return {
     files,
-    selectedIds: new Set(),
-    onSelect: vi.fn(),
     onOpen: vi.fn(),
     onDelete: vi.fn(),
     isTrash: false,
     menuActions,
+    scrollRef: { current: scrollElement },
+    onLayoutChange: vi.fn(),
     renamingId: null,
     onRenameConfirm: vi.fn(),
     onRenameCancel: vi.fn()
@@ -56,6 +80,45 @@ afterEach(() => {
 })
 
 describe('FileGrid placeholder gradients', () => {
+  it('virtualizes responsive grid rows instead of mounting every file', async () => {
+    const files = Array.from({ length: 12 }, (_, index) => ({
+      ...imageFile,
+      id: `image-${index}`,
+      name: `photo-${index}.png`
+    }))
+
+    render(<FileGrid {...fileGridProps(files)} />)
+
+    await waitFor(() => {
+      expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
+        expect.objectContaining({ count: 4, overscan: 4 })
+      )
+    })
+    const options = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
+    expect(options?.getItemKey?.(0)).toBe('image-0')
+    expect(screen.getByText('photo-0.png')).toBeInTheDocument()
+    expect(screen.getByText('photo-2.png')).toBeInTheDocument()
+    expect(screen.queryByText('photo-3.png')).not.toBeInTheDocument()
+  })
+
+  it('notifies the parent when responsive columns reduce the virtual content height', async () => {
+    const files = Array.from({ length: 12 }, (_, index) => ({
+      ...imageFile,
+      id: `image-${index}`,
+      name: `photo-${index}.png`
+    }))
+    const onLayoutChange = vi.fn()
+    const props = { ...fileGridProps(files, 400), onLayoutChange }
+
+    render(<FileGrid {...props} />)
+
+    await waitFor(() => {
+      expect(virtualizerMocks.useVirtualizer.mock.calls.some(([options]) => options.count === 12)).toBe(true)
+      expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 4 }))
+      expect(onLayoutChange.mock.calls.length).toBeGreaterThanOrEqual(2)
+    })
+  })
+
   it('paints image placeholders with design-token gradients and no raw hex', () => {
     const { container } = render(<FileGrid {...fileGridProps([imageFile])} />)
 
@@ -79,5 +142,28 @@ describe('FileGrid placeholder gradients', () => {
 
     expect(firstGradient).toBeTruthy()
     expect(secondGradient).toBe(firstGradient)
+  })
+})
+
+describe('FileGrid image preview', () => {
+  const imageWithPreview: FileItem = { ...imageFile, previewUrl: 'safe-file:///tmp/photo.png' }
+
+  it('renders the thumbnail and opens the file on a single click', () => {
+    const props = fileGridProps([imageWithPreview])
+    render(<FileGrid {...props} />)
+
+    const thumbnail = screen.getByAltText('photo.png')
+    expect(thumbnail).toHaveAttribute('src', 'safe-file:///tmp/photo.png')
+
+    fireEvent.click(thumbnail)
+    expect(props.onOpen).toHaveBeenCalledWith(imageWithPreview)
+  })
+
+  it('does not open a missing image on click', () => {
+    const props = fileGridProps([{ ...imageFile, isMissing: true }])
+    render(<FileGrid {...props} />)
+
+    fireEvent.click(screen.getByText('photo.png'))
+    expect(props.onOpen).not.toHaveBeenCalled()
   })
 })

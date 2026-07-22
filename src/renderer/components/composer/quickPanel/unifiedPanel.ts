@@ -447,12 +447,19 @@ export function createUnifiedQuickPanelOpenOptions(
       getRootPanelOptions
     }
   )
+  // Bottom-pinned chrome (e.g. the "customize toolbar" action) belongs to the bare root panel. When
+  // the panel is opened as a category view — seeded with a search text by a toolbar shortcut — those
+  // fixedToBottom items would bypass the category filter and still render, so drop them here.
+  const isCategoryView = (options.initialSearchText ?? '').length > 0
+  const additionalItems = isCategoryView
+    ? options.additionalItems?.filter((item) => !item.fixedToBottom)
+    : options.additionalItems
   const nextSortOrder = { value: 0 }
   const list = [
     ...tagUnifiedPanelSectionItems(options.leadingItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(commandItems, 'commands', nextSortOrder),
-    ...tagUnifiedPanelSectionItems(options.additionalItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(additionalItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(trailingCommandItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(options.resourceItems, 'resources', nextSortOrder)
   ]

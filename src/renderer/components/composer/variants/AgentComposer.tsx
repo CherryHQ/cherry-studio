@@ -19,14 +19,22 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
-import type { ComposerSuggestionSource } from '@renderer/components/composer/quickPanel'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
-import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
+import {
+  type QuickPanelInputAdapter,
+  type QuickPanelListItem,
+  useOptionalQuickPanel
+} from '@renderer/components/QuickPanel'
+import {
+  openResourceEditDialog,
+  ResourceEditDialogEventHost,
+  type ResourceEditDialogTarget
+} from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
@@ -60,7 +68,19 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Bot, Cable, ChevronDown, CircleSlash, Folder, Sparkles, Terminal, TriangleAlert, X, Zap } from 'lucide-react'
+import {
+  Bot,
+  Cable,
+  ChevronDown,
+  CircleSlash,
+  Folder,
+  Settings2,
+  Sparkles,
+  Terminal,
+  ToolCase,
+  TriangleAlert,
+  X
+} from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -79,7 +99,7 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { AgentLabel } from './agent/AgentLabel'
-import { useAgentResourceSearchProvider } from './agent/useAgentResourceSearchProvider'
+import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   agentComposerTokenId,
   agentFileToComposerToken,
@@ -113,8 +133,8 @@ const ResourceEditDialogHost = React.lazy(() =>
 )
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
+const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
 const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
-const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
 const FILE_IPC_BATCH_SIZE = 500
 
 type AccessibleAttachment = {
@@ -223,7 +243,7 @@ const createSkillQuickPanelItems = (
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
-    icon: <Zap size={16} />,
+    icon: <ToolCase size={16} />,
     suffix: options.skillLabel,
     // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
     filterText: skill.name,
@@ -258,6 +278,7 @@ type Props = {
   canChangeModel?: boolean
   isStreaming: boolean
   sendDisabled?: boolean
+  compactWhenSingleLine?: boolean
 }
 
 type AgentComposerRootProps = Props & {
@@ -281,6 +302,7 @@ const AgentComposerRoot = ({
   canChangeModel = true,
   isStreaming,
   sendDisabled = false,
+  compactWhenSingleLine = false,
   renderControls,
   forceNarrowLayout = false
 }: AgentComposerRootProps) => {
@@ -355,6 +377,7 @@ const AgentComposerRoot = ({
         canChangeModel={canChangeModel}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
+        compactWhenSingleLine={compactWhenSingleLine}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
       />
@@ -381,6 +404,7 @@ interface InnerProps {
   canChangeModel: boolean
   isStreaming: boolean
   sendDisabled: boolean
+  compactWhenSingleLine: boolean
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
 }
@@ -739,7 +763,10 @@ type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'>
   renderWorkspaceControl?: (args: { side: 'top' | 'bottom'; iconOnly?: boolean }) => React.ReactNode
 }
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
-type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
+type AgentComposerControlSlots = Pick<
+  ComposerSurfaceProps,
+  'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
+>
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
 type AgentComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
@@ -801,7 +828,18 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
           }
         />
       )
-    }
+    },
+    renderCompactControls: (inputAdapter, unifiedPanelControl) => (
+      <>
+        {props.topBarPortalAvailable
+          ? renderAgentComposerContextControls(props, inputAdapter, {
+              side: 'bottom',
+              iconOnly: props.topBarPortalIconOnly
+            })
+          : null}
+        {props.renderQuickPanelShortcuts?.({ inputAdapter, unifiedPanelControl })}
+      </>
+    )
   }
 }
 
@@ -857,6 +895,7 @@ const AgentComposerInner = ({
   canChangeModel,
   isStreaming,
   sendDisabled,
+  compactWhenSingleLine,
   renderControls,
   forceNarrowLayout = false
 }: InnerProps) => {
@@ -866,7 +905,7 @@ const AgentComposerInner = ({
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
   const { files, isExpanded } = useComposerToolState()
-  const { setFiles, setIsExpanded } = useComposerToolDispatch()
+  const { setFiles, setIsExpanded, toolsRegistry } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -903,7 +942,7 @@ const AgentComposerInner = ({
   const draftTokensRef = useRef(draftTokens)
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
   const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
-  const enableMentionModelTrigger = accessiblePaths.length > 0
+  const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
 
@@ -976,7 +1015,7 @@ const AgentComposerInner = ({
     },
     [actionsRef, draftCacheKey, filesRef, setFiles, setText]
   )
-  const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
   })
   const handleTextChange = useCallback(
@@ -1040,16 +1079,75 @@ const AgentComposerInner = ({
     [selectedSkills]
   )
 
-  const rootPanelTrailingItems = useMemo(
+  // Skills live in their own submenu (opened as the `agent-skills` launcher), with a pinned footer
+  // that opens the agent's skills config. The customize-toolbar action stays in the root panel.
+  const skillManageFooterItem = useMemo<QuickPanelListItem>(
+    () => ({
+      id: 'agent-skills:manage',
+      label: t('plugins.manage_skills'),
+      icon: <Settings2 size={16} />,
+      fixedToBottom: true,
+      action: () => openResourceEditDialog({ kind: 'agent', id: agentId, initialTab: 'tools.skills' })
+    }),
+    [agentId, t]
+  )
+
+  const skillPanelItems = useMemo<QuickPanelListItem[]>(
     () => [
       ...createSkillQuickPanelItems(availableSkills, {
         skillLabel: t('plugins.skills'),
         onInsertSkill: insertSkillToken
       }),
-      customizePanelItem
+      skillManageFooterItem
     ],
-    [availableSkills, customizePanelItem, insertSkillToken, t]
+    [availableSkills, insertSkillToken, skillManageFooterItem, t]
   )
+
+  const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
+    const skillLabel = t('plugins.skills')
+    return {
+      id: AGENT_SKILLS_LAUNCHER_ID,
+      kind: 'panel',
+      sources: ['root-panel'],
+      rootPanelPlacement: 'trailing',
+      order: 60,
+      label: skillLabel,
+      icon: <ToolCase />,
+      searchAliases: [skillLabel],
+      panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
+      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+        void refreshAvailableSkills().catch((error) => {
+          logger.warn('Failed to refresh available skills when opening the skills panel', { error })
+        })
+        quickPanel.open({
+          title: skillLabel,
+          list: skillPanelItems,
+          symbol: AGENT_SKILLS_LAUNCHER_ID,
+          parentPanel,
+          queryAnchor,
+          triggerInfo: triggerInfo ?? { type: 'button' }
+        })
+      }
+    }
+  }, [refreshAvailableSkills, skillPanelItems, t])
+
+  useEffect(
+    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
+    [skillsLauncher, toolsRegistry]
+  )
+
+  // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
+  // it with the current (possibly stale) closure, so an externally installed/removed skill would
+  // otherwise only appear on the next open (mirrors the MCP status panel).
+  const quickPanel = useOptionalQuickPanel()
+  const skillsPanelVisible = quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID
+  const updateQuickPanelList = quickPanel?.updateList
+  useEffect(() => {
+    if (!skillsPanelVisible || !updateQuickPanelList) return
+    updateQuickPanelList(skillPanelItems)
+  }, [skillsPanelVisible, skillPanelItems, updateQuickPanelList])
+
+  const rootPanelTrailingItems = useMemo(() => [customizePanelItem], [customizePanelItem])
 
   const handleRootPanelOpen = useCallback(() => {
     void refreshAvailableSkills().catch((error) => {
@@ -1292,11 +1390,11 @@ const AgentComposerInner = ({
     ]
   )
 
-  const resourceProvider = useAgentResourceSearchProvider({
+  const resourceMentionSources = useAgentResourceMentionSource({
     accessiblePaths,
     files,
     setFiles,
-    enabled: enableMentionModelTrigger
+    enabled: enableResourceMention
   })
 
   const renderWorkspaceControl = ({ side, iconOnly = false }: { side: 'top' | 'bottom'; iconOnly?: boolean }) => (
@@ -1333,8 +1431,9 @@ const AgentComposerInner = ({
       {
         id: 'skills',
         label: skillLabel,
-        icon: <Zap size={18} aria-hidden />,
-        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: skillLabel })
+        icon: <ToolCase size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) =>
+          unifiedPanelControl?.open({ launcherId: AGENT_SKILLS_LAUNCHER_ID, searchText: skillLabel })
       },
       {
         id: 'slash-commands',
@@ -1409,6 +1508,7 @@ const AgentComposerInner = ({
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
       {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
+      <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           text={text}
@@ -1461,16 +1561,17 @@ const AgentComposerInner = ({
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           onActionsChange={handleSurfaceActionsChange}
+          isInputHistoryActive={isInputHistoryActive}
           onInputHistoryNavigate={handleInputHistoryNavigate}
           getToolLaunchers={() => getLaunchers()}
           toolLaunchersVersion={toolLaunchersVersion}
-          suggestionSources={EMPTY_SUGGESTION_SOURCES}
-          resourceProvider={resourceProvider}
+          suggestionSources={resourceMentionSources}
           rootPanelLeadingItems={rootPanelNewSessionItems}
           rootPanelAdditionalItems={rootPanelTrailingItems}
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}
+          compactWhenSingleLine={compactWhenSingleLine}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>

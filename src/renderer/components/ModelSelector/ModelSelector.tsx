@@ -178,9 +178,9 @@ function ModelRow({
   const providerName = getProviderDisplayName(item.provider)
 
   const leading = icon ? (
-    <icon.Avatar size={24} />
+    <icon.Avatar size={24} className="border border-border" />
   ) : (
-    <Avatar size="sm">
+    <Avatar size="sm" className="border border-border">
       <AvatarFallback>{first(item.model.name) || 'M'}</AvatarFallback>
     </Avatar>
   )

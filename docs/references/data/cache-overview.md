@@ -72,6 +72,8 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 └───────────────────────────────────────────────────────────────┘
 ```
 
+Both channels are sender-gated by `validateSender` (untrusted `Cache_Sync` messages are dropped, `Cache_GetAllShared` rejects) — see [IpcApi Overview §Security](../ipc/ipc-overview.md#security--two-gates).
+
 ## Process Responsibilities
 
 | Concern                         | Main                                             | Renderer                                             |

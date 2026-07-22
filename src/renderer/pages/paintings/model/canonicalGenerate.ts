@@ -64,6 +64,13 @@ export async function canonicalGenerate<T extends PaintingData>(
   // the generic MISSING_REQUIRED_FIELDS / PROMPT_REQUIRED throws below.
   options.preValidate?.(painting)
 
+  const inputFiles = painting.inputFiles ?? []
+  const mode = options.mode ?? (inputFiles.length > 0 ? 'edit' : 'generate')
+  const maxInputImages = options.support?.modes?.[mode]?.maxInputImages
+  if (maxInputImages !== undefined && inputFiles.length > maxInputImages) {
+    throw createPaintingGenerateError('INPUT_IMAGE_LIMIT_EXCEEDED')
+  }
+
   await checkProviderEnabled(provider)
   const modelId = painting.model
   if (!modelId) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
@@ -106,7 +113,6 @@ export async function canonicalGenerate<T extends PaintingData>(
   // 4. Pre-fetch attached image bytes (encoded as `data:` URLs for the IPC),
   //    carried separately from `paramValues` — they're encoded files, not form
   //    params. The vendor image-model adapter picks the right edit endpoint.
-  const inputFiles = painting.inputFiles ?? []
   const inputImages =
     inputFiles.length > 0
       ? await Promise.all(
