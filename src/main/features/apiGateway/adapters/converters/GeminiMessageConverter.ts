@@ -39,10 +39,17 @@ interface GeminiFunctionCall {
   args?: Record<string, unknown>
 }
 
+/** Multimodal payload of a function response (Gemini 3+) — one field set per part. */
+interface GeminiFunctionResponsePart {
+  inlineData?: GeminiBlob
+  fileData?: GeminiFileData
+}
+
 interface GeminiFunctionResponse {
   id?: string
   name?: string
   response?: Record<string, unknown>
+  parts?: GeminiFunctionResponsePart[]
 }
 
 /** A single content part — exactly one payload field is set per Gemini's spec. */
@@ -114,17 +121,65 @@ function contentToText(content: GeminiContent | string | undefined): string {
     .join('\n')
 }
 
-/** Flatten a Gemini `functionResponse.response` into the plain-string tool output. */
-function functionResponseToOutput(response: GeminiFunctionResponse['response']): string {
-  if (response === undefined) return ''
-  if (typeof response === 'string') return response
-  return JSON.stringify(response)
+/** The multimodal `functionResponse.parts` (Gemini 3+) as `file` UI parts. */
+function functionResponseMediaToFileParts(functionResponse: GeminiFunctionResponse): FileUIPart[] {
+  const files: FileUIPart[] = []
+  for (const part of functionResponse.parts ?? []) {
+    if (part.inlineData?.data) {
+      const mediaType = part.inlineData.mimeType || 'application/octet-stream'
+      files.push({ type: 'file', mediaType, url: `data:${mediaType};base64,${part.inlineData.data}` })
+    } else if (part.fileData?.fileUri) {
+      files.push({
+        type: 'file',
+        mediaType: part.fileData.mimeType || 'application/octet-stream',
+        url: part.fileData.fileUri
+      })
+    }
+  }
+  return files
+}
+
+interface FunctionResponseConversion {
+  output: string
+  relocatedParts: Array<TextUIPart | FileUIPart>
+}
+
+function functionResponseMediaAnchor(association: string, index: number): string {
+  return `[tool-result attachment ${association} media=${index}]`
+}
+
+/**
+ * Flatten a Gemini `functionResponse` into the plain-string tool output.
+ *
+ * Multimodal `parts` cannot ride inside the tool output: `convertToModelMessages`
+ * only supports string/JSON tool outputs there, and OpenAI-style protocols have
+ * no media tool content downstream — inlining base64 blows up the prompt (#17078).
+ * Instead each media part becomes a `file` part relocated into the user message
+ * that carried the functionResponse, and the output keeps a placeholder.
+ */
+function functionResponseToConversion(
+  functionResponse: GeminiFunctionResponse,
+  association: string
+): FunctionResponseConversion {
+  const response = functionResponse.response
+  const base = response === undefined ? '' : typeof response === 'string' ? response : JSON.stringify(response)
+  const media = functionResponseMediaToFileParts(functionResponse)
+  if (media.length === 0) return { output: base, relocatedParts: [] }
+
+  const lines: string[] = []
+  const relocatedParts: Array<TextUIPart | FileUIPart> = []
+  for (const [index, file] of media.entries()) {
+    const anchor = functionResponseMediaAnchor(association, index + 1)
+    lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
+    relocatedParts.push({ type: 'text', text: anchor }, file)
+  }
+  return { output: [base, ...lines].filter(Boolean).join('\n'), relocatedParts }
 }
 
 /** Function responses grouped for pairing: by explicit id, and per-name FIFO queues for id-less payloads. */
 interface CollectedToolResponses {
-  byId: Map<string, string>
-  queuesByName: Map<string, string[]>
+  byId: Map<string, FunctionResponseConversion>
+  queuesByName: Map<string, FunctionResponseConversion[]>
 }
 
 /**
@@ -135,8 +190,8 @@ interface CollectedToolResponses {
  * Returns `undefined` when no matching response exists yet (call awaiting result).
  */
 function takeToolOutput(call: GeminiFunctionCall, responses: CollectedToolResponses): string | undefined {
-  if (call.id !== undefined) return responses.byId.get(call.id)
-  if (call.name !== undefined) return responses.queuesByName.get(call.name)?.shift()
+  if (call.id !== undefined) return responses.byId.get(call.id)?.output
+  if (call.name !== undefined) return responses.queuesByName.get(call.name)?.shift()?.output
   return undefined
 }
 
@@ -200,18 +255,28 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
     // name in document order so same-name parallel calls consume them FIFO instead
     // of colliding on a single name key (later response overwriting the earlier).
     const toolResponses: CollectedToolResponses = { byId: new Map(), queuesByName: new Map() }
+    const responseConversions = new WeakMap<GeminiFunctionResponse, FunctionResponseConversion>()
+    const responseSequenceByName = new Map<string, number>()
     for (const content of contents) {
       if (!Array.isArray(content.parts)) continue
       for (const part of content.parts) {
         const functionResponse = part.functionResponse
         if (!functionResponse) continue
-        const output = functionResponseToOutput(functionResponse.response)
+        const name = functionResponse.name ?? 'unknown'
+        const responseIndex = (responseSequenceByName.get(name) ?? 0) + 1
+        responseSequenceByName.set(name, responseIndex)
+        const association =
+          functionResponse.id !== undefined
+            ? `call_id=${JSON.stringify(functionResponse.id)}`
+            : `call_name=${JSON.stringify(name)} response_index=${responseIndex}`
+        const conversion = functionResponseToConversion(functionResponse, association)
+        responseConversions.set(functionResponse, conversion)
         if (functionResponse.id !== undefined) {
-          toolResponses.byId.set(functionResponse.id, output)
+          toolResponses.byId.set(functionResponse.id, conversion)
         } else if (functionResponse.name !== undefined) {
           const queue = toolResponses.queuesByName.get(functionResponse.name)
-          if (queue) queue.push(output)
-          else toolResponses.queuesByName.set(functionResponse.name, [output])
+          if (queue) queue.push(conversion)
+          else toolResponses.queuesByName.set(functionResponse.name, [conversion])
         }
       }
     }
@@ -270,8 +335,11 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
               ? { ...base, state: 'output-available', input: part.functionCall.args ?? {}, output }
               : { ...base, state: 'input-available', input: part.functionCall.args ?? {} }
           parts.push(toolPart)
+        } else if (part.functionResponse) {
+          // The string output is absorbed into the matching functionCall part above;
+          // relocated media surface here with a stable call/response anchor.
+          parts.push(...(responseConversions.get(part.functionResponse)?.relocatedParts ?? []))
         }
-        // functionResponse parts are absorbed into the matching functionCall part above.
       }
 
       if (parts.length > 0) {
