@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +12,7 @@ describe('ColorPicker', () => {
     expect(() => render(<ColorPicker value="#zzz" />)).not.toThrow()
   })
 
-  it('does not fire onChange on mount when controlled (shouldNotify gate)', () => {
+  it('does not fire onChange on mount when controlled', () => {
     const onChange = vi.fn()
     render(<ColorPicker value="#3366ff" onChange={onChange} />)
     expect(onChange).not.toHaveBeenCalled()
@@ -32,7 +32,7 @@ describe('ColorPicker', () => {
         <ColorPickerSelection />
       </ColorPicker>
     )
-    const selection = screen.getByRole('slider', { name: 'Color saturation and lightness' })
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
     const initialSaturation = selection.getAttribute('aria-valuenow')
 
     // ArrowLeft nudges saturation down; the parent keeps value unchanged (rejection)
@@ -49,8 +49,9 @@ describe('ColorPicker', () => {
         <ColorPickerSelection />
       </ColorPicker>
     )
-    const selection = screen.getByRole('slider', { name: 'Color saturation and lightness' })
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
     const initialSaturation = selection.getAttribute('aria-valuenow')
+    const initialValueText = selection.getAttribute('aria-valuetext')
 
     // Debounced parent: onChange fires but the value prop stays put for now
     fireEvent.keyDown(selection, { key: 'ArrowLeft', shiftKey: true })
@@ -63,7 +64,7 @@ describe('ColorPicker', () => {
         <ColorPickerSelection />
       </ColorPicker>
     )
-    expect(selection.getAttribute('aria-valuenow')).not.toBe(initialSaturation)
+    expect(selection.getAttribute('aria-valuetext')).not.toBe(initialValueText)
     expect(onChange).toHaveBeenCalledTimes(1)
   })
 
@@ -77,11 +78,68 @@ describe('ColorPicker', () => {
       )
     }
     render(<Harness />)
-    const selection = screen.getByRole('slider', { name: 'Color saturation and lightness' })
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
     const initialSaturation = Number(selection.getAttribute('aria-valuenow'))
 
     fireEvent.keyDown(selection, { key: 'ArrowLeft', shiftKey: true })
 
     expect(Number(selection.getAttribute('aria-valuenow'))).toBeLessThan(initialSaturation)
+  })
+
+  it('maps the visible HSV plane to the emitted color', async () => {
+    const onChange = vi.fn()
+    render(
+      <ColorPicker defaultValue="#ff0000" onChange={onChange}>
+        <ColorPickerSelection />
+      </ColorPicker>
+    )
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
+    vi.spyOn(selection, 'getBoundingClientRect').mockReturnValue({
+      bottom: 100,
+      height: 100,
+      left: 0,
+      right: 100,
+      top: 0,
+      width: 100,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    })
+
+    fireEvent(
+      selection,
+      new MouseEvent('pointerdown', {
+        bubbles: true,
+        clientX: 50,
+        clientY: 0
+      })
+    )
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenLastCalledWith([255, 128, 128, 1])
+    })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retain a notification after a boundary no-op', () => {
+    const initialOnChange = vi.fn()
+    const nextOnChange = vi.fn()
+    const { rerender } = render(
+      <ColorPicker value="#000000" onChange={initialOnChange}>
+        <ColorPickerSelection />
+      </ColorPicker>
+    )
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
+
+    fireEvent.keyDown(selection, { key: 'ArrowLeft' })
+    expect(initialOnChange).not.toHaveBeenCalled()
+
+    rerender(
+      <ColorPicker value="#000000" onChange={nextOnChange}>
+        <ColorPickerSelection />
+      </ColorPicker>
+    )
+
+    expect(nextOnChange).not.toHaveBeenCalled()
   })
 })

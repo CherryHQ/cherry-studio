@@ -1,6 +1,7 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
 import { cva } from 'class-variance-authority'
+import { LoaderCircle } from 'lucide-react'
 import * as React from 'react'
 import { useId } from 'react'
 
@@ -57,6 +58,7 @@ interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.R
   classNames?: {
     root?: string
     thumb?: string
+    thumbSvg?: string
   }
 }
 
@@ -68,8 +70,17 @@ function Switch({ loading = false, size = 'md', className, classNames, ...props 
       {...props}>
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className={cn('bg-background', switchThumbVariants({ size }), classNames?.thumb)}
-      />
+        className={cn('bg-background', switchThumbVariants({ size }), classNames?.thumb)}>
+        <LoaderCircle
+          aria-hidden="true"
+          strokeWidth={1.6}
+          className={cn(
+            'size-full p-0.5 text-primary transition-opacity',
+            loading ? 'animate-spin opacity-100' : 'opacity-0',
+            classNames?.thumbSvg
+          )}
+        />
+      </SwitchPrimitive.Thumb>
     </SwitchPrimitive.Root>
   )
 }

@@ -1,6 +1,5 @@
 // Vendored from Kibo UI (https://www.kibo-ui.com/components/color-picker), adapted to
-// @cherrystudio/ui import paths. Upstream's controlled-value sync assigned RGB channels
-// to HSL state; fixed here with a proper HSL conversion.
+// @cherrystudio/ui import paths.
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { Input } from '@cherrystudio/ui/components/primitives/input'
 import {
@@ -28,17 +27,21 @@ import {
   useState
 } from 'react'
 
-type ColorPickerContextValue = {
+type ColorChannels = {
   hue: number
   saturation: number
-  lightness: number
+  brightness: number
   alpha: number
+}
+
+type ColorPickerContextValue = ColorChannels & {
   mode: string
   setHue: (hue: number) => void
   setSaturation: (saturation: number) => void
-  setLightness: (lightness: number) => void
+  setBrightness: (brightness: number) => void
   setAlpha: (alpha: number) => void
   setMode: (mode: string) => void
+  updateColor: (channels: Partial<ColorChannels>) => void
 }
 
 const ColorPickerContext = createContext<ColorPickerContextValue | undefined>(undefined)
@@ -81,51 +84,51 @@ const rgbaKey = (color: ReturnType<typeof Color>): string => {
   return `${Math.round(r)},${Math.round(g)},${Math.round(b)}/${Math.round(color.alpha() * 100)}`
 }
 
+const colorToChannels = (color: ReturnType<typeof Color>): ColorChannels => {
+  const [hue, saturation, brightness] = color.hsv().array()
+  return { hue, saturation, brightness, alpha: color.alpha() * 100 }
+}
+
+const channelsToColor = ({ hue, saturation, brightness, alpha }: ColorChannels): ReturnType<typeof Color> =>
+  Color.hsv(hue, saturation, brightness).alpha(alpha / 100)
+
 export const ColorPicker = ({ value, defaultValue = '#000000', onChange, className, ...props }: ColorPickerProps) => {
-  // Seed from the controlled value when present, otherwise the default. Read each
-  // channel directly (no `||` fallback): a legitimate zero channel — a grayscale
-  // saturation of 0, a black lightness of 0, a transparent alpha of 0 — must survive.
-  // Computed inside the lazy useState initializers so the Color() parses run once at
-  // mount rather than on every render (controlled updates go through the value effect).
   const makeSeed = () => safeColor(value, safeColor(defaultValue, Color('#000000')))
 
-  const [hue, setHue] = useState(() => makeSeed().hue())
-  const [saturation, setSaturation] = useState(() => makeSeed().saturationl())
-  const [lightness, setLightness] = useState(() => makeSeed().lightness())
-  const [alpha, setAlpha] = useState(() => makeSeed().alpha() * 100)
+  const [channels, setChannels] = useState(() => colorToChannels(makeSeed()))
+  const channelsRef = useRef(channels)
   const [mode, setMode] = useState('hex')
 
-  // True when the next state commit originated from a user interaction (the
-  // wrapped setters below), false when it came from an external `value` sync.
-  // Suppresses the round-trip onChange that would otherwise fire whenever the
-  // parent re-feeds its own value back in (mount, controlled prop changes).
-  const shouldNotify = useRef(false)
+  const updateColor = useCallback(
+    (partial: Partial<ColorChannels>) => {
+      const current = channelsRef.current
+      const next = { ...current, ...partial }
+      if (
+        current.hue === next.hue &&
+        current.saturation === next.saturation &&
+        current.brightness === next.brightness &&
+        current.alpha === next.alpha
+      ) {
+        return
+      }
 
-  // Notify parent only when the change originated from a setter wrapper. React
-  // batches multiple setX calls inside one event handler (e.g. ColorPickerSelection's
-  // sat+light pair) into a single re-render, so this fires exactly once per
-  // user interaction tick. Declared before the resync effect: on a rejected
-  // change the resync reverts state in the same commit, and onChange must have
-  // fired from the interaction state before that happens.
-  useEffect(() => {
-    if (!shouldNotify.current) return
-    shouldNotify.current = false
-    if (onChange) {
-      const color = Color.hsl(hue, saturation, lightness).alpha(alpha / 100)
-      const rgba = color.rgb().array()
+      const currentColor = channelsToColor(current)
+      const nextColor = channelsToColor(next)
+      channelsRef.current = next
+      setChannels(next)
 
-      // Round the 0–255 RGB channels here so the tuple is a clean integer-RGB +
-      // 0–1 alpha contract; consumers no longer have to clamp/round themselves.
-      onChange([Math.round(rgba[0]), Math.round(rgba[1]), Math.round(rgba[2]), alpha / 100])
-    }
-  }, [hue, saturation, lightness, alpha, onChange])
+      if (onChange && rgbaKey(currentColor) !== rgbaKey(nextColor)) {
+        const [red, green, blue] = nextColor.rgb().array()
+        onChange([Math.round(red), Math.round(green), Math.round(blue), next.alpha / 100])
+      }
+    },
+    [onChange]
+  )
 
-  // Controlled mode: resync internal HSL state whenever it stops representing
+  // Controlled mode: resync internal HSV state whenever it stops representing
   // `value` — that covers external value changes AND rejected/debounced changes,
-  // where onChange fired but the parent kept (or has not yet committed) the old
-  // value, so a value-identity effect would never run. Comparing at the rounded
-  // rgba level (instead of resyncing on every echo) keeps hue/saturation intact
-  // through HSL-degenerate colors like black/white/greys.
+  // where onChange fired but the parent kept the old value. Comparing at the
+  // rounded rgba level preserves hue/saturation through degenerate colors.
   useEffect(() => {
     if (value === undefined) return
     let next: ReturnType<typeof Color>
@@ -134,50 +137,30 @@ export const ColorPicker = ({ value, defaultValue = '#000000', onChange, classNa
     } catch {
       return
     }
-    const internal = Color.hsl(hue, saturation, lightness).alpha(alpha / 100)
+    const internal = channelsToColor(channels)
     if (rgbaKey(internal) === rgbaKey(next)) return
-    shouldNotify.current = false
-    const [h, s, l] = next.hsl().array()
+    const nextChannels = colorToChannels(next)
+    channelsRef.current = nextChannels
+    setChannels(nextChannels)
+  }, [value, channels])
 
-    setHue(h)
-    setSaturation(s)
-    setLightness(l)
-    setAlpha(next.alpha() * 100)
-  }, [value, hue, saturation, lightness, alpha])
+  const setHue = useCallback((hue: number) => updateColor({ hue }), [updateColor])
+  const setSaturation = useCallback((saturation: number) => updateColor({ saturation }), [updateColor])
+  const setBrightness = useCallback((brightness: number) => updateColor({ brightness }), [updateColor])
+  const setAlpha = useCallback((alpha: number) => updateColor({ alpha }), [updateColor])
 
-  const notifyHue = useCallback((h: number) => {
-    shouldNotify.current = true
-    setHue(h)
-  }, [])
-  const notifySaturation = useCallback((s: number) => {
-    shouldNotify.current = true
-    setSaturation(s)
-  }, [])
-  const notifyLightness = useCallback((l: number) => {
-    shouldNotify.current = true
-    setLightness(l)
-  }, [])
-  const notifyAlpha = useCallback((a: number) => {
-    shouldNotify.current = true
-    setAlpha(a)
-  }, [])
-
-  // Memoize so the memo()'d ColorPickerSelection isn't re-rendered by a fresh context
-  // identity every render (notify* are useCallback-stable, setMode is a stable setter).
   const contextValue = useMemo(
     () => ({
-      hue,
-      saturation,
-      lightness,
-      alpha,
+      ...channels,
       mode,
-      setHue: notifyHue,
-      setSaturation: notifySaturation,
-      setLightness: notifyLightness,
-      setAlpha: notifyAlpha,
-      setMode
+      setHue,
+      setSaturation,
+      setBrightness,
+      setAlpha,
+      setMode,
+      updateColor
     }),
-    [hue, saturation, lightness, alpha, mode, notifyHue, notifySaturation, notifyLightness, notifyAlpha]
+    [channels, mode, setHue, setSaturation, setBrightness, setAlpha, updateColor]
   )
 
   return (
@@ -189,138 +172,131 @@ export const ColorPicker = ({ value, defaultValue = '#000000', onChange, classNa
 
 export type ColorPickerSelectionProps = HTMLAttributes<HTMLDivElement>
 
-export const ColorPickerSelection = memo(({ className, ...props }: ColorPickerSelectionProps) => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const { hue, saturation, lightness, setSaturation, setLightness } = useColorPicker()
+export const ColorPickerSelection = memo(
+  ({ className, 'aria-label': ariaLabel, ...props }: ColorPickerSelectionProps) => {
+    const containerRef = useRef<HTMLDivElement>(null)
+    const [isDragging, setIsDragging] = useState(false)
+    const { hue, saturation, brightness, updateColor } = useColorPicker()
 
-  // Derive the marker position from the current saturation/lightness so it tracks
-  // the seeded/controlled color, not just pointer drags. This inverts the
-  // pointer->color mapping in commitFromEvent and round-trips exactly.
-  const positionX = saturation / 100
-  const topLightnessAtX = positionX < 0.01 ? 100 : 50 + 50 * (1 - positionX)
-  const positionY = Math.max(0, Math.min(1, 1 - lightness / topLightnessAtX))
+    const positionX = saturation / 100
+    const positionY = 1 - brightness / 100
 
-  const backgroundGradient = useMemo(() => {
-    return `linear-gradient(0deg, rgba(0,0,0,1), rgba(0,0,0,0)),
+    const backgroundGradient = useMemo(() => {
+      return `linear-gradient(0deg, rgba(0,0,0,1), rgba(0,0,0,0)),
             linear-gradient(90deg, rgba(255,255,255,1), rgba(255,255,255,0)),
             hsl(${hue}, 100%, 50%)`
-  }, [hue])
+    }, [hue])
 
-  // Map a normalized (x, y) plane position to saturation/lightness. Shared by pointer
-  // drags and keyboard arrow steps so both paths round-trip identically.
-  const commitFromPosition = useCallback(
-    (x: number, y: number) => {
-      const cx = Math.max(0, Math.min(1, x))
-      const cy = Math.max(0, Math.min(1, y))
-      setSaturation(cx * 100)
-      const topLightness = cx < 0.01 ? 100 : 50 + 50 * (1 - cx)
-      setLightness(topLightness * (1 - cy))
-    },
-    [setSaturation, setLightness]
-  )
+    const commitFromPosition = useCallback(
+      (x: number, y: number) => {
+        const cx = Math.max(0, Math.min(1, x))
+        const cy = Math.max(0, Math.min(1, y))
+        updateColor({ saturation: cx * 100, brightness: (1 - cy) * 100 })
+      },
+      [updateColor]
+    )
 
-  const commitFromEvent = useCallback(
-    (event: PointerEvent) => {
-      if (!containerRef.current) {
-        return
-      }
-      const rect = containerRef.current.getBoundingClientRect()
-      commitFromPosition((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height)
-    },
-    [commitFromPosition]
-  )
-
-  // Keyboard a11y: arrow keys nudge the marker (Shift = larger step); left/right tune
-  // saturation, up/down tune lightness — making the 2D plane reachable without a pointer.
-  const handleKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      const step = event.shiftKey ? 0.1 : 0.01
-      let nextX = positionX
-      let nextY = positionY
-      switch (event.key) {
-        case 'ArrowLeft':
-          nextX -= step
-          break
-        case 'ArrowRight':
-          nextX += step
-          break
-        case 'ArrowUp':
-          nextY -= step
-          break
-        case 'ArrowDown':
-          nextY += step
-          break
-        default:
+    const commitFromEvent = useCallback(
+      (event: PointerEvent) => {
+        if (!containerRef.current) {
           return
+        }
+        const rect = containerRef.current.getBoundingClientRect()
+        commitFromPosition((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height)
+      },
+      [commitFromPosition]
+    )
+
+    // Arrow keys move the 2D plane marker; Shift uses a larger step.
+    const handleKeyDown = useCallback(
+      (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        const step = event.shiftKey ? 0.1 : 0.01
+        let nextX = positionX
+        let nextY = positionY
+        switch (event.key) {
+          case 'ArrowLeft':
+            nextX -= step
+            break
+          case 'ArrowRight':
+            nextX += step
+            break
+          case 'ArrowUp':
+            nextY -= step
+            break
+          case 'ArrowDown':
+            nextY += step
+            break
+          default:
+            return
+        }
+        event.preventDefault()
+        commitFromPosition(nextX, nextY)
+      },
+      [positionX, positionY, commitFromPosition]
+    )
+
+    const handlePointerMove = useCallback(
+      (event: PointerEvent) => {
+        if (!isDragging) {
+          return
+        }
+        commitFromEvent(event)
+      },
+      [isDragging, commitFromEvent]
+    )
+
+    useEffect(() => {
+      const handlePointerUp = () => setIsDragging(false)
+
+      if (isDragging) {
+        window.addEventListener('pointermove', handlePointerMove)
+        window.addEventListener('pointerup', handlePointerUp)
+        window.addEventListener('pointercancel', handlePointerUp)
       }
-      event.preventDefault()
-      commitFromPosition(nextX, nextY)
-    },
-    [positionX, positionY, commitFromPosition]
-  )
 
-  const handlePointerMove = useCallback(
-    (event: PointerEvent) => {
-      if (!isDragging) {
-        return
+      return () => {
+        window.removeEventListener('pointermove', handlePointerMove)
+        window.removeEventListener('pointerup', handlePointerUp)
+        window.removeEventListener('pointercancel', handlePointerUp)
       }
-      commitFromEvent(event)
-    },
-    [isDragging, commitFromEvent]
-  )
+    }, [isDragging, handlePointerMove])
 
-  useEffect(() => {
-    const handlePointerUp = () => setIsDragging(false)
-
-    if (isDragging) {
-      window.addEventListener('pointermove', handlePointerMove)
-      window.addEventListener('pointerup', handlePointerUp)
-      window.addEventListener('pointercancel', handlePointerUp)
-    }
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerUp)
-    }
-  }, [isDragging, handlePointerMove])
-
-  return (
-    <div
-      className={cn(
-        'relative size-full cursor-crosshair touch-none rounded outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        className
-      )}
-      tabIndex={0}
-      role="slider"
-      aria-label="Color saturation and lightness"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(saturation)}
-      aria-valuetext={`Saturation ${Math.round(saturation)}%, lightness ${Math.round(lightness)}%`}
-      onKeyDown={handleKeyDown}
-      onPointerDown={(e) => {
-        e.preventDefault()
-        setIsDragging(true)
-        commitFromEvent(e.nativeEvent)
-      }}
-      ref={containerRef}
-      style={{
-        background: backgroundGradient
-      }}
-      {...props}>
+    return (
       <div
-        className="-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute h-4 w-4 rounded-full border-2 border-white"
-        style={{
-          left: `${positionX * 100}%`,
-          top: `${positionY * 100}%`,
-          boxShadow: '0 0 0 1px rgba(0,0,0,0.5)'
+        className={cn(
+          'relative size-full cursor-crosshair touch-none rounded outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35',
+          className
+        )}
+        tabIndex={0}
+        role="slider"
+        aria-label={ariaLabel ?? 'Color saturation and brightness'}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(saturation)}
+        aria-valuetext={`Saturation ${Math.round(saturation)}%, brightness ${Math.round(brightness)}%`}
+        onKeyDown={handleKeyDown}
+        onPointerDown={(e) => {
+          e.preventDefault()
+          setIsDragging(true)
+          commitFromEvent(e.nativeEvent)
         }}
-      />
-    </div>
-  )
-})
+        ref={containerRef}
+        style={{
+          background: backgroundGradient
+        }}
+        {...props}>
+        <div
+          className="-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute h-4 w-4 rounded-full border-2 border-white"
+          style={{
+            left: `${positionX * 100}%`,
+            top: `${positionY * 100}%`,
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.5)'
+          }}
+        />
+      </div>
+    )
+  }
+)
 
 ColorPickerSelection.displayName = 'ColorPickerSelection'
 
@@ -391,7 +367,7 @@ export const ColorPickerAlpha = ({ className, 'aria-label': ariaLabel, ...props 
 export type ColorPickerEyeDropperProps = ComponentProps<typeof Button>
 
 export const ColorPickerEyeDropper = ({ className, ...props }: ColorPickerEyeDropperProps) => {
-  const { setHue, setSaturation, setLightness, setAlpha } = useColorPicker()
+  const { updateColor } = useColorPicker()
 
   // EyeDropper is a Chromium-only experimental API. Renders nothing on browsers
   // that don't expose it (the button would otherwise be a silent no-op).
@@ -404,12 +380,9 @@ export const ColorPickerEyeDropper = ({ className, ...props }: ColorPickerEyeDro
       const eyeDropper = new EyeDropper()
       const result = await eyeDropper.open()
       const color = Color(result.sRGBHex)
-      const [h, s, l] = color.hsl().array()
+      const [hue, saturation, brightness] = color.hsv().array()
 
-      setHue(h)
-      setSaturation(s)
-      setLightness(l)
-      setAlpha(100)
+      updateColor({ hue, saturation, brightness, alpha: 100 })
     } catch {
       // EyeDropper throws when the user cancels — nothing to do
     }
@@ -475,8 +448,8 @@ const HSL_CHANNEL_LABELS = ['Hue value', 'Saturation value', 'Lightness value']
 export type ColorPickerFormatProps = HTMLAttributes<HTMLDivElement>
 
 export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProps) => {
-  const { hue, saturation, lightness, alpha, mode } = useColorPicker()
-  const color = Color.hsl(hue, saturation, lightness).alpha(alpha / 100)
+  const { hue, saturation, brightness, alpha, mode } = useColorPicker()
+  const color = Color.hsv(hue, saturation, brightness).alpha(alpha / 100)
 
   if (mode === 'hex') {
     const hex = color.hex()

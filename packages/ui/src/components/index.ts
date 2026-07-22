@@ -150,8 +150,6 @@ export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/
 export { PageHeader, type PageHeaderProps } from './composites/page-header'
 // ReorderableList
 export { ReorderableList, type ReorderableListProps, type SortableDragHandleProps } from './composites/reorderable-list'
-// SettingsPageHeader
-export { SettingsPageHeader, type SettingsPageHeaderProps } from './composites/settings-page-header'
 // Sortable
 export {
   CompositeInput,
