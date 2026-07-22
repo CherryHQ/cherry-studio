@@ -939,6 +939,30 @@ describe('QuickPanelView', () => {
     )
   })
 
+  it('keeps the panel open when an item action requests it', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'toggle', label: 'Toggle binding', icon: 'mcp', keepOpenOnAction: true, action }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Toggle binding')
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Enter').event)
+    })
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+  })
+
   it('anchors bottom-fixed items outside the virtual list and keeps them last in keyboard navigation', async () => {
     const customizeAction = vi.fn()
     const captureDispatch = vi.fn()
