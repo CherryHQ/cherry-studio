@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { ColorPicker, ColorPickerHue, ColorPickerSelection } from '../index'
+import { ColorPicker, ColorPickerAlpha, ColorPickerHue, ColorPickerSelection } from '../index'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -159,5 +159,15 @@ describe('ColorPicker', () => {
     )
 
     expect(screen.getByRole('slider', { name: 'Localized hue' })).toBeTruthy()
+  })
+
+  it('labels the interactive alpha slider thumb', () => {
+    render(
+      <ColorPicker>
+        <ColorPickerAlpha aria-label="Localized alpha" />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('slider', { name: 'Localized alpha' })).toBeTruthy()
   })
 })
