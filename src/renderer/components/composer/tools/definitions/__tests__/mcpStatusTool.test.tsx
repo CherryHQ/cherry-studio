@@ -113,7 +113,7 @@ function openLatestRegisteredPanel() {
   return mocks.open.mock.calls.at(-1)?.[0].list as Array<{
     action?: (options: unknown) => void
     disabled?: boolean
-    suffix?: { props: { checked?: boolean; disabled?: boolean; loading?: boolean } }
+    suffix?: { props: { 'aria-label'?: string; children?: { props?: { className?: string } }; role?: string } }
   }>
 }
 
@@ -179,10 +179,8 @@ describe('mcpStatusTool', () => {
       disabled: true,
       isSelected: false
     })
-    expect(items[0].suffix).toEqual(expect.objectContaining({ props: expect.objectContaining({ checked: true }) }))
-    expect(items[1].suffix).toEqual(
-      expect.objectContaining({ props: expect.objectContaining({ checked: false, disabled: true }) })
-    )
+    expect(items[0].suffix).toBeDefined()
+    expect(items[1].suffix).toBeUndefined()
 
     items[0].action?.({} as any)
     expect(onToggleBinding).toHaveBeenCalledWith('active', false)
@@ -422,14 +420,18 @@ describe('mcpStatusTool', () => {
     await waitFor(() => {
       const pendingItems = openLatestRegisteredPanel()
       expect(pendingItems[0]).toMatchObject({ disabled: true })
-      expect(pendingItems[0].suffix?.props).toMatchObject({ checked: false, disabled: true, loading: true })
+      expect(pendingItems[0].suffix?.props).toMatchObject({
+        'aria-label': 'Loading...',
+        role: 'status'
+      })
+      expect(pendingItems[0].suffix?.props.children?.props?.className).toBe('animate-spin')
     })
 
     await act(async () => resolveUpdate({}))
     await waitFor(() => {
       const settledItems = openLatestRegisteredPanel()
       expect(settledItems[0]).toMatchObject({ disabled: false })
-      expect(settledItems[0].suffix?.props).toMatchObject({ checked: false, disabled: false, loading: false })
+      expect(settledItems[0].suffix).toBeUndefined()
     })
   })
 
@@ -458,7 +460,7 @@ describe('mcpStatusTool', () => {
 
     const settledItems = openLatestRegisteredPanel()
     expect(settledItems[0]).toMatchObject({ disabled: false })
-    expect(settledItems[0].suffix?.props).toMatchObject({ checked: false, loading: false })
+    expect(settledItems[0].suffix).toBeUndefined()
   })
 
   it('resolves the MCP config target from the conversation scope', () => {

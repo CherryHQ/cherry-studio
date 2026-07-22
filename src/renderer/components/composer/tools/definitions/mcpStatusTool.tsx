@@ -1,4 +1,3 @@
-import { Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
@@ -19,7 +18,7 @@ import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
-import { Cable, Settings2 } from 'lucide-react'
+import { Cable, Check, Loader2, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const MCP_STATUS_LAUNCHER_ID = 'mcp-status'
@@ -122,19 +121,16 @@ function buildBindingServerItems(
       disabled: !canToggle,
       isSelected: isBound,
       keepOpenOnAction: true,
-      suffix: (
-        <Switch
-          size="xs"
-          checked={isBound}
-          disabled={!canToggle}
-          loading={isSaving}
-          aria-busy={isSaving || undefined}
-          aria-label={t('agent.settings.tooling.mcp.toggle', { name: server.name })}
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-          onCheckedChange={handleToggle}
-        />
-      )
+      suffix: isSaving ? (
+        <span role="status" aria-label={t('common.loading', 'Loading...')}>
+          <Loader2 className="animate-spin" aria-hidden />
+        </span>
+      ) : isBound ? (
+        <>
+          <span className="sr-only">{t('common.selected', 'Selected')}</span>
+          <Check aria-hidden />
+        </>
+      ) : undefined
     } satisfies QuickPanelListItem
   })
 }
