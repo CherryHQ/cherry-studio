@@ -76,13 +76,21 @@ export async function findCommandInShellEnv(
 
         if (code === 0 && output.trim()) {
           const paths = output.trim().split(/\r?\n/)
-          // Only accept .exe files on Windows - .cmd/.bat files cannot be executed
-          // with spawn({ shell: false }) which is used by MCP SDK's StdioClientTransport
+          // Prefer .exe files, but also accept .cmd/.bat files.
+          // Node.js spawn() on Windows automatically detects .cmd/.bat files and
+          // uses cmd.exe /c to execute them (see Node.js child_process source: uv_spawn).
+          // Previously only .exe was accepted, which caused npx (typically npx.cmd on
+          // Windows) to be missed, triggering a bun fallback that could resolve to
+          // wrong packages (e.g., Perplexity MCP server showing calculator tools). (#12623)
           const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
+          const cmdPath = paths.find((p) => /\.(cmd|bat)$/i.test(p))
           if (exePath) {
             safeResolve(exePath)
+          } else if (cmdPath) {
+            logger.debug(`Command '${command}' resolved to ${cmdPath} (.cmd/.bat)`)
+            safeResolve(cmdPath)
           } else {
-            logger.debug(`Command '${command}' found but not as .exe (${paths[0]}), treating as not found`)
+            logger.debug(`Command '${command}' found but no .exe/.cmd/.bat (${paths[0]}), treating as not found`)
             safeResolve(null)
           }
         } else {
