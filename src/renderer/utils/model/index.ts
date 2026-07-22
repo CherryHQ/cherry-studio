@@ -28,9 +28,7 @@ export { isGenerateImageModel, isVisionModel } from './vision'
 export { isOpenAIWebSearchModel, isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'
 export {
   getModelSupportedReasoningEffortOptions,
-  isDoubaoThinkingAutoModel,
   isFixedReasoningModel,
-  isQwenReasoningModel,
   isReasoningModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,

@@ -196,25 +196,9 @@ export const isOpenAILLMModel = (model: Model): boolean => {
   return !getLowerBaseModelName(getRawModelId(model)).includes('gpt-4o-image')
 }
 
-const vendorCheck =
-  (pattern: RegExp) =>
-  (model: Model): boolean =>
-    pattern.test(getLowerBaseModelName(getRawModelId(model), '/'))
-
 /** Check if model is a Qwen family model (all variants, including qwq/qvq). */
-export const isQwenModel = vendorCheck(VENDOR_PATTERNS.qwen)
-
-/** Check if model is a Doubao (ByteDance) model. */
-export const isDoubaoModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.doubao.test(getLowerBaseModelName(getRawModelId(model), '/')) || model.providerId === 'doubao'
-
-/** Check if model is a Hunyuan (Tencent) model. */
-export const isHunyuanModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.hunyuan.test(getLowerBaseModelName(getRawModelId(model), '/')) || model.providerId === 'hunyuan'
-
-/** Check if model is a Kimi / Moonshot model. */
-export const isKimiModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.kimi.test(getLowerBaseModelName(getRawModelId(model), '/')) || model.providerId === 'moonshot'
+export const isQwenModel = (model: Model): boolean =>
+  VENDOR_PATTERNS.qwen.test(getLowerBaseModelName(getRawModelId(model), '/'))
 
 /** Check if model is a DeepSeek model. */
 export const isDeepSeekModel = (model?: Model): boolean => {
@@ -222,26 +206,6 @@ export const isDeepSeekModel = (model?: Model): boolean => {
   if (VENDOR_PATTERNS.deepseek.test(getLowerBaseModelName(getRawModelId(model), '/'))) return true
   if (model.providerId === 'deepseek') return true
   return model.name ? VENDOR_PATTERNS.deepseek.test(model.name.toLowerCase()) : false
-}
-
-/** Check if model is a MiniMax model. */
-export const isMiniMaxModel = vendorCheck(VENDOR_PATTERNS.minimax)
-
-/** Check if model is a MiMo (Xiaomi) model. */
-export const isMiMoModel = vendorCheck(VENDOR_PATTERNS.mimo)
-
-/**
- * OpenAI reasoning model = OpenAI vendor + REASONING capability.
- * The registry populates REASONING via the registry membership
- * heuristics (o-series, GPT-5 non-chat, gpt-oss), so the capability is the
- * right source of truth here — no need to re-check IDs at runtime.
- */
-export const isOpenAIReasoningModel = (model: Model): boolean => isOpenAIModel(model) && isReasoningModel(model)
-
-/** Check if model only supports chat completion (no responses API) */
-export const isOpenAIChatCompletionOnlyModel = (m: Model) => {
-  const id = getLowerBaseModelName(getRawModelId(m))
-  return isOpenAIWebSearchChatCompletionOnlyModel(m) || id.includes('o1-mini') || id.includes('o1-preview')
 }
 
 /** Check if model supports web search in chat completion mode only */
@@ -255,16 +219,6 @@ export const isOpenAIDeepResearchModel = (model: Model): boolean => {
   if (model.providerId !== 'openai' && model.providerId !== 'openai-chat') return false
   return /deep[-_]?research/.test(getLowerBaseModelName(getRawModelId(model), '/'))
 }
-
-/**
- * OpenAI reasoning-effort support = OpenAI vendor + selectable efforts populated.
- */
-export const isSupportedReasoningEffortOpenAIModel = (model: Model): boolean =>
-  isOpenAIModel(model) && isSupportedReasoningEffortModel(model)
-
-/** Check if model is OpenAI open-weight model */
-export const isOpenAIOpenWeightModel = (model: Model): boolean =>
-  getLowerBaseModelName(getRawModelId(model)).includes('gpt-oss')
 
 /** GPT-5 family (gpt-5, gpt-5.1, gpt-5.2, etc.) */
 export const isGPT5FamilyModel = (model: Model): boolean =>
@@ -280,24 +234,8 @@ export const isGPT51SeriesModel = (model: Model): boolean =>
 export const isGPT52SeriesModel = (model: Model): boolean =>
   getLowerBaseModelName(getRawModelId(model)).includes('gpt-5.2')
 
-export const isGPT51CodexMaxModel = (model: Model): boolean =>
-  getLowerBaseModelName(getRawModelId(model)).includes('gpt-5.1-codex-max')
-
-export const isGPT5ProModel = (model: Model): boolean =>
-  getLowerBaseModelName(getRawModelId(model)).includes('gpt-5-pro')
-
 /** GPT-5 family models support verbosity */
 export const isSupportVerbosityModel = isGPT5FamilyModel
-
-/** Check if model supports "none" reasoning effort */
-export const isSupportNoneReasoningEffortModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  const isCodex = id.includes('codex')
-  const isOldCodex = isCodex && (isGPT51SeriesModel(model) || isGPT52SeriesModel(model))
-  return (
-    isGPT5FamilyModel(model) && !isGPT5SeriesModel(model) && !id.includes('chat') && !id.includes('pro') && !isOldCodex
-  )
-}
 
 /** Check if model supports flex service tier */
 export const isSupportFlexServiceTierModel = (model: Model): boolean => {
@@ -341,53 +279,10 @@ export const isClaude47SeriesModel = (model: Model): boolean => {
   return /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
-/** Check if model is a Gemma 4 model hosted on Gemini API (supports thinking mode but no hard-off). */
-export const isHostedGemma4ThinkingModel = (model: Model): boolean => {
-  if (model.providerId !== 'gemini') return false
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return id.startsWith('gemma-4-')
-}
-
 /** Check if model is Claude 4.5 reasoning */
 export const isClaude45ReasoningModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
   return /claude-(sonnet|opus|haiku)-4(-|.)5(?:-[\w-]+)?$/i.test(id)
-}
-
-/** Check if model is Gemini 3 thinking token model (excluding image) */
-export const isGemini3ThinkingTokenModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return isGemini3Model(model) && !id.includes('image')
-}
-
-/**
- * Gemini thinking-token support = Gemini vendor + `thinkingTokenLimits`.
- * `THINKING_TOKEN_MAP` covers the 2.5/3.x flash / pro / flash-lite families
- * (including the `*-latest` aliases) that the registry membership heuristics
- * recognise, so the capability is populated on exactly the same SKUs the
- * legacy regex used to gate on.
- */
-export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean =>
-  (isGeminiModel(model) || isHostedGemma4ThinkingModel(model)) && isSupportedThinkingTokenModel(model)
-
-/**
- * Grok reasoning-effort support = Grok vendor + selectable efforts populated. The
- * OpenRouter-specific `grok-4-fast` path is preserved here as an ID-based
- * branch because it depends on `providerId`, not a capability — OpenRouter
- * exposes an `-effort` knob on that SKU that the native xAI route doesn't.
- */
-export const isSupportedReasoningEffortGrokModel = (model: Model): boolean => {
-  if (isGrokModel(model) && isSupportedReasoningEffortModel(model)) return true
-  if (model.providerId === 'openrouter') {
-    return getLowerBaseModelName(getRawModelId(model)).includes('grok-4-fast')
-  }
-  return false
-}
-
-/** Check if model is Grok 4 Fast reasoning */
-export const isGrok4FastReasoningModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return id.includes('grok-4-fast') && !id.includes('non-reasoning')
 }
 
 /** Check if model is Qwen MT (machine translation) */
@@ -398,19 +293,11 @@ export const isQwen35to39Model = (model: Model): boolean =>
   /^qwen3\.[5-9]/.test(getLowerBaseModelName(getRawModelId(model), '/'))
 
 /**
- * Qwen reasoning model = Qwen vendor + REASONING capability. The registry
- * populates REASONING via the registry membership heuristics (QwQ / QVQ /
- * qwen3* thinking / qwen3-max / qwen-plus / etc.), so the capability is the right
- * source of truth.
- */
-export const isQwenReasoningModel = (model: Model): boolean => isQwenModel(model) && isReasoningModel(model)
-
-/**
  * Qwen thinking-token knob support. Semantically distinct from
- * `isQwenReasoningModel`: some Qwen SKUs (`qwen3-*-thinking`, `qwen3-vl-*-thinking`)
- * ship with "always-on" thinking that has no user-controllable knob — they
- * reason but the UI should not expose the slider. This check returns `true`
- * only for SKUs where the thinking-token toggle is meaningful.
+ * generic reasoning support: some Qwen SKUs (`qwen3-*-thinking`,
+ * `qwen3-vl-*-thinking`) ship with "always-on" thinking that has no
+ * user-controllable knob. This check returns `true` only for SKUs where the
+ * thinking-token toggle is meaningful.
  *
  * Kept as ID inference because "always-on" vs "controllable" is a per-SKU
  * behaviour hint the registry does not currently encode as a capability flag.
@@ -422,86 +309,6 @@ export const isSupportedThinkingTokenQwenModel = (model: Model): boolean => {
     return false
   }
   return isSupportedThinkingTokenModel(model)
-}
-
-/**
- * Qwen variants that ship "always on" thinking with no disable toggle.
- * Kept as ID inference because this is a per-SKU behaviour hint that the
- * registry does not currently model separately from the thinking-token
- * capability itself.
- */
-export const isQwenAlwaysThinkModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return (id.startsWith('qwen3') && id.includes('thinking')) || (id.includes('qwen3-vl') && id.includes('thinking'))
-}
-
-/** Check if Doubao model supports thinking auto mode (specific SKU subset). */
-export const isDoubaoThinkingAutoModel = (model: Model): boolean =>
-  DOUBAO_THINKING_AUTO_MODEL_REGEX.test(getLowerBaseModelName(getRawModelId(model)))
-
-/** Doubao seed variant released after 251015 (version-specific regex). */
-export const isDoubaoSeedAfter251015 = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return /doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]0/i.test(id)
-}
-
-/** Doubao seed 1.8 variant (version-specific regex). */
-export const isDoubaoSeed18Model = (model: Model): boolean =>
-  /doubao-seed-1[.-]8(?:-[\w-]+)?/i.test(getLowerBaseModelName(getRawModelId(model)))
-
-/**
- * Doubao thinking-token support = Doubao vendor + `thinkingTokenLimits`.
- * THINKING_TOKEN_MAP mirrors the doubao membership pattern for SKU coverage.
- */
-export const isSupportedThinkingTokenDoubaoModel = (model: Model): boolean =>
-  isDoubaoModel(model) && isSupportedThinkingTokenModel(model)
-
-/**
- * Hunyuan thinking-token support = Hunyuan vendor + `thinkingTokenLimits`.
- * Only `hunyuan-a13b` currently ships the knob.
- */
-export const isSupportedThinkingTokenHunyuanModel = (model: Model): boolean =>
-  isHunyuanModel(model) && isSupportedThinkingTokenModel(model)
-
-/**
- * Zhipu / GLM thinking-token support = Zhipu vendor + `thinkingTokenLimits`.
- * Covers GLM-5 and GLM-4.5 / 4.6 / 4.7 via THINKING_TOKEN_MAP.
- */
-export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean =>
-  isZhipuModel(model) && isSupportedThinkingTokenModel(model)
-
-/**
- * MiMo thinking-token support = MiMo vendor + `thinkingTokenLimits`.
- * Covers `mimo-v2-flash / pro / omni` via THINKING_TOKEN_MAP.
- */
-export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean =>
-  isMiMoModel(model) && isSupportedThinkingTokenModel(model)
-
-/**
- * Kimi thinking-token support = Kimi vendor + `thinkingTokenLimits`.
- * Only `kimi-k2.5` currently ships the knob.
- */
-export const isSupportedThinkingTokenKimiModel = (model: Model): boolean =>
-  isKimiModel(model) && isSupportedThinkingTokenModel(model)
-
-const isDeepSeekV4PlusId = (id: string): boolean =>
-  /deepseek-v(?:[4-9]\d*|[1-9]\d{1,})(?:\.\d+)?(?:-[\w]+)*(?=$|[:/])/i.test(id)
-
-export const isDeepSeekV4PlusModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  const name = getLowerBaseModelName(model.name ?? '')
-  return isDeepSeekV4PlusId(id) || isDeepSeekV4PlusId(name)
-}
-
-/** DeepSeek model that does runtime hybrid inference (thinking / non-thinking at same endpoint). */
-export const isDeepSeekHybridInferenceModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return (
-    /(\w+-)?deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(id) ||
-    id.includes('deepseek-chat-v3.1') ||
-    id.includes('deepseek-chat') ||
-    isDeepSeekV4PlusModel(model)
-  )
 }
 
 /** Check if model supports OpenRouter built-in web search */
@@ -599,9 +406,6 @@ export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model
 
 export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 
-export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
-  /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-lite)?(?!-251015)(?:-\d+)?$/i
-
 // ---------------------------------------------------------------------------
 // Internal helper: extract raw model ID from Model
 // ---------------------------------------------------------------------------
@@ -610,24 +414,9 @@ function getRawModelId(model: Model): string {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// Section 3 — Family-specific reasoning / variant checks
-//
-// All of these are pure ID-based inference (no runtime state), safe to call
-// from both main and renderer. They complement the capability-schema-driven
-// runtime checks in Section 1 for legacy code paths that never populated
-// the schema fields.
-// ════════════════════════════════════════════════════════════════════════════
-
 // ---------------------------------------------------------------------------
 // Family reasoning checks
 // ---------------------------------------------------------------------------
-
-// All "<vendor>ReasoningModel" checks compose the ID-based vendor check
-// with the schema-driven capability check. The registry populates the
-// REASONING capability at model-creation time via the registry membership heuristics,
-// so these functions read truth from the schema rather than duplicating
-// regex patterns here.
 
 /**
  * GPT-5 series reasoning variants are identified by series membership plus
@@ -635,57 +424,6 @@ function getRawModelId(model: Model): string {
  * check by `isGPT5SeriesModel` already, so no extra ID filter is needed.
  */
 export const isGPT5SeriesReasoningModel = (model: Model): boolean => isGPT5SeriesModel(model) && isReasoningModel(model)
-
-// ---------------------------------------------------------------------------
-// Specific Gemini / GPT / Kimi variants
-// ---------------------------------------------------------------------------
-
-/** Gemini 3 Flash (excludes image variant). `gemini-flash-latest` alias currently points here. */
-export const isGemini3FlashModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  if (id === 'gemini-flash-latest') return true
-  return /gemini-3-flash(?!-image)(?:-[\w-]+)*$/i.test(id)
-}
-
-/** Gemini 3 Pro (excludes image variant). */
-export const isGemini3ProModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return /gemini-3-pro(?!-image)(?:-[\w-]+)*$/i.test(id)
-}
-
-/** Gemini 3.1 Flash Lite preview. */
-export const isGemini31FlashLiteModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return /gemini-3\.1-flash-lite(?:-[\w-]+)*$/i.test(id)
-}
-
-/** Gemini 3.1 Pro (excludes image variant). `gemini-pro-latest` alias currently points here. */
-export const isGemini31ProModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  if (id === 'gemini-pro-latest') return true
-  return /gemini-3.1-pro(?!-image)(?:-[\w-]+)*$/i.test(id)
-}
-
-/** GPT-5.2 pro variant. */
-export const isGPT52ProModel = (model: Model): boolean =>
-  getLowerBaseModelName(getRawModelId(model)).includes('gpt-5.2-pro')
-
-/** Kimi K2.5 — the variant that has its own parameter constraints (fixed temperature / top_p). */
-export const isKimi25OrNewerModel = (model: Model): boolean =>
-  /kimi-k(?:2\.[5-9]\d*|[3-9]\d*)/.test(getLowerBaseModelName(getRawModelId(model)))
-
-/** Gemma family (including Ollama `gemma4:*` tag). Falls back to `model.group`. */
-export const isGemmaModel = (model: Model): boolean => {
-  if (VENDOR_PATTERNS.gemma.test(getLowerBaseModelName(getRawModelId(model)))) return true
-  return (model as Model & { group?: string }).group === 'Gemma'
-}
-
-/** Moonshot / Kimi family (alias for isKimiModel; kept for legacy callers). */
-export const isMoonshotModel = isKimiModel
-
-/** Zhipu GLM family (id match or providerId). */
-export const isZhipuModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.zhipu.test(getLowerBaseModelName(getRawModelId(model))) || model.providerId === 'zhipu'
 
 // ---------------------------------------------------------------------------
 // Web search variants
@@ -701,39 +439,3 @@ export const isZhipuModel = (model: Model): boolean =>
  * `gpt-4o-image`, `gpt-4.1-nano`, `gpt-5-chat`).
  */
 export const isOpenAIWebSearchModel = (model: Model): boolean => isOpenAIModel(model) && isWebSearchModel(model)
-
-/**
- * Hunyuan model with web-search capability. Same layered composition:
- * vendor gate + capability check (registry-populated).
- */
-export const isHunyuanSearchModel = (model: Model): boolean => isHunyuanModel(model) && isWebSearchModel(model)
-
-// ---------------------------------------------------------------------------
-// Capability limits
-// ---------------------------------------------------------------------------
-
-const NOT_SUPPORT_TEXT_DELTA_REGEX = /qwen-mt-(?:turbo|plus)/
-
-/** Models that emit full text turns instead of text-delta chunks. */
-export const isNotSupportTextDeltaModel = (model: Model): boolean =>
-  NOT_SUPPORT_TEXT_DELTA_REGEX.test(getLowerBaseModelName(getRawModelId(model)))
-
-/**
- * Models that reject a system message. Prefers the schema-populated
- * `parameterSupport.systemMessage` when available; falls back to the
- * family rule (Qwen MT + Gemma) for models that predate the schema field.
- */
-export const isNotSupportSystemMessageModel = (model: Model): boolean => {
-  if (model.parameterSupport?.systemMessage === false) return true
-  return isQwenMTModel(model) || isGemmaModel(model)
-}
-
-// ---------------------------------------------------------------------------
-// Collection checks
-// ---------------------------------------------------------------------------
-
-/** All models in the list are vision-capable. */
-export const isVisionModels = (models: readonly Model[]): boolean => models.every(isVisionModel)
-
-/** All models in the list are image-generation-capable. */
-export const isGenerateImageModels = (models: readonly Model[]): boolean => models.every(isGenerateImageModel)
