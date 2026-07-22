@@ -52,7 +52,14 @@ describe('Perplexity Agent response boundary', () => {
               type: 'message',
               role: 'assistant',
               content: [
-                { type: 'output_text', text: 'Answer', annotations: [{ type: 'url_citation', url: 'https://c.com' }] }
+                {
+                  type: 'output_text',
+                  text: 'Answer',
+                  annotations: [
+                    { type: 'citation', url: 'https://c.com' },
+                    { type: 'url_citation', url: 'https://u.com', title: 'U' }
+                  ]
+                }
               ]
             },
             { type: 'search_results', results: [{ url: 'https://s.com', title: 'S' }, { url: 'https://c.com' }] }
@@ -66,7 +73,11 @@ describe('Perplexity Agent response boundary', () => {
     expect(result.content.find((c) => c.type === 'text')).toMatchObject({ text: 'Answer' })
     const sources = result.content.filter((c) => c.type === 'source')
     // c.com appears in both an annotation and a search result — deduped to one.
-    expect(sources.map((s) => (s as { url: string }).url).sort()).toEqual(['https://c.com', 'https://s.com'])
+    expect(sources.map((s) => (s as { url: string }).url).sort()).toEqual([
+      'https://c.com',
+      'https://s.com',
+      'https://u.com'
+    ])
     expect(result.finishReason.unified).toBe('stop')
     expect(result.usage.outputTokens.total).toBe(2)
   })
@@ -86,6 +97,19 @@ describe('Perplexity Agent response boundary', () => {
           { type: 'response.output_text.delta', item_id: 'm1', delta: 'Hel' },
           { type: 'response.output_text.delta', item_id: 'm1', delta: 'lo' },
           { type: 'response.output_text.done', item_id: 'm1', text: 'Hello' },
+          {
+            type: 'response.output_item.done',
+            item: {
+              type: 'message',
+              content: [
+                {
+                  type: 'output_text',
+                  text: 'Hello',
+                  annotations: [{ type: 'citation', url: 'https://citation.example', title: 'Citation' }]
+                }
+              ]
+            }
+          },
           {
             type: 'response.completed',
             response: { id: 'r1', status: 'completed', usage: { input_tokens: 3, output_tokens: 2 } }
@@ -109,6 +133,9 @@ describe('Perplexity Agent response boundary', () => {
       'Found\n'
     ])
     expect(parts).toContainEqual(expect.objectContaining({ type: 'source', url: 'https://s.com', title: 'S' }))
+    expect(parts).toContainEqual(
+      expect.objectContaining({ type: 'source', url: 'https://citation.example', title: 'Citation' })
+    )
     expect(
       parts
         .filter((p) => p.type === 'text-delta')
@@ -118,6 +145,85 @@ describe('Perplexity Agent response boundary', () => {
 
     const finish = parts.find((p) => p.type === 'finish')
     expect(finish).toMatchObject({ finishReason: { unified: 'stop' }, usage: { inputTokens: { total: 3 } } })
+  })
+
+  it('non-streaming: maps function_call output to an AI SDK tool call', async () => {
+    const model = new PerplexityAgentLanguageModel(
+      'openai/gpt-5.6-sol',
+      config(
+        jsonFetch({
+          id: 'r1',
+          status: 'completed',
+          model: 'openai/gpt-5.6-sol',
+          output: [
+            {
+              type: 'function_call',
+              id: 'fc-1',
+              status: 'completed',
+              name: 'lookup_order',
+              call_id: 'call-1',
+              arguments: '{"orderId":"ORD-1"}',
+              thought_signature: 'sig-1'
+            }
+          ]
+        })
+      )
+    )
+
+    const result = await model.doGenerate(options)
+
+    expect(result.content).toContainEqual({
+      type: 'tool-call',
+      toolCallId: 'call-1',
+      toolName: 'lookup_order',
+      input: '{"orderId":"ORD-1"}',
+      providerMetadata: { perplexity: { itemId: 'fc-1', thoughtSignature: 'sig-1' } }
+    })
+    expect(result.finishReason).toEqual({ unified: 'tool-calls', raw: 'completed' })
+  })
+
+  it('streaming: maps output-item lifecycle to AI SDK tool input and tool-call parts', async () => {
+    const functionCall = {
+      type: 'function_call',
+      id: 'fc-1',
+      status: 'completed',
+      name: 'lookup_order',
+      call_id: 'call-1',
+      arguments: '{"orderId":"ORD-1"}',
+      thought_signature: 'sig-1'
+    }
+    const model = new PerplexityAgentLanguageModel(
+      'openai/gpt-5.6-sol',
+      config(
+        sseFetch([
+          { type: 'response.created', response: { id: 'r1', model: 'openai/gpt-5.6-sol' } },
+          { type: 'response.output_item.added', output_index: 0, item: functionCall },
+          { type: 'response.output_item.done', output_index: 0, item: functionCall },
+          {
+            type: 'response.completed',
+            response: { id: 'r1', status: 'completed', output: [functionCall], usage: { input_tokens: 3 } }
+          }
+        ])
+      )
+    )
+
+    const { stream } = await model.doStream(options)
+    const parts = await collect(stream)
+
+    expect(parts).toContainEqual({ type: 'tool-input-start', id: 'call-1', toolName: 'lookup_order' })
+    expect(parts).toContainEqual({ type: 'tool-input-delta', id: 'call-1', delta: '{"orderId":"ORD-1"}' })
+    expect(parts).toContainEqual({ type: 'tool-input-end', id: 'call-1' })
+    expect(parts).toContainEqual({
+      type: 'tool-call',
+      toolCallId: 'call-1',
+      toolName: 'lookup_order',
+      input: '{"orderId":"ORD-1"}',
+      providerMetadata: { perplexity: { itemId: 'fc-1', thoughtSignature: 'sig-1' } }
+    })
+    expect(parts.filter((part) => part.type === 'tool-call')).toHaveLength(1)
+    expect(parts.find((part) => part.type === 'finish')).toMatchObject({
+      finishReason: { unified: 'tool-calls', raw: 'function_call' }
+    })
   })
 
   it('non-streaming: failed status throws an AI SDK APICallError', async () => {

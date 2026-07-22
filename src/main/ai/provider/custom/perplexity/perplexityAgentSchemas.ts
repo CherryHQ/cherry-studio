@@ -6,8 +6,8 @@
  * tolerant of everything else — unknown output-item / event types fall through
  * to a permissive catch-all so a server-side addition never breaks a request.
  *
- * Scope: text + citations/search results + reasoning. Function-calling, sandbox
- * and native MCP items are accepted (and ignored) but not surfaced.
+ * Scope: text + citations/search results + reasoning + function calling. Sandbox
+ * and native MCP items remain accepted by the catch-all but are not surfaced.
  */
 import * as z from 'zod'
 
@@ -36,10 +36,41 @@ export const perplexityAgentUsageSchema = z.object({
 })
 export type PerplexityAgentUsage = z.infer<typeof perplexityAgentUsageSchema>
 
+// ── function tools + multi-turn input ──
+
+export const perplexityFunctionToolSchema = z.object({
+  type: z.literal('function'),
+  name: z.string(),
+  description: z.string().optional(),
+  parameters: z.record(z.string(), z.unknown()).optional(),
+  strict: z.boolean().optional()
+})
+export type PerplexityFunctionTool = z.infer<typeof perplexityFunctionToolSchema>
+
+export const perplexityFunctionCallInputSchema = z.object({
+  type: z.literal('function_call'),
+  call_id: z.string(),
+  name: z.string(),
+  arguments: z.string(),
+  thought_signature: z.string().optional()
+})
+export type PerplexityFunctionCallInput = z.infer<typeof perplexityFunctionCallInputSchema>
+
+export const perplexityFunctionCallOutputInputSchema = z.object({
+  type: z.literal('function_call_output'),
+  call_id: z.string(),
+  name: z.string().optional(),
+  output: z.string(),
+  thought_signature: z.string().optional()
+})
+export type PerplexityFunctionCallOutputInput = z.infer<typeof perplexityFunctionCallOutputInputSchema>
+
 // ── output items ──
 
 const urlCitationSchema = z.object({
-  type: z.literal('url_citation'),
+  // Agent API responses use both `url_citation` (Responses shape) and `citation`
+  // (Perplexity's quickstart sample) for message-annotation citations.
+  type: z.enum(['url_citation', 'citation']),
   url: z.string(),
   title: z.string().nullish(),
   start_index: z.number().nullish(),
@@ -79,7 +110,18 @@ const fetchUrlResultsItemSchema = z.object({
   contents: z.array(perplexityResultEntrySchema).nullish()
 })
 
-/** Catch-all — any item type we don't consume (function_call, sandbox_results, mcp_*, …). */
+export const perplexityFunctionCallItemSchema = z.object({
+  type: z.literal('function_call'),
+  id: z.string().nullish(),
+  status: z.string().nullish(),
+  name: z.string(),
+  call_id: z.string(),
+  arguments: z.string(),
+  thought_signature: z.string().nullish()
+})
+export type PerplexityFunctionCallItem = z.infer<typeof perplexityFunctionCallItemSchema>
+
+/** Catch-all — any item type we don't consume (sandbox_results, mcp_*, …). */
 const unknownItemSchema = z.looseObject({ type: z.string() })
 
 export const perplexityOutputItemSchema = z.union([
@@ -87,6 +129,7 @@ export const perplexityOutputItemSchema = z.union([
   searchResultsItemSchema,
   peopleSearchResultsItemSchema,
   fetchUrlResultsItemSchema,
+  perplexityFunctionCallItemSchema,
   unknownItemSchema
 ])
 export type PerplexityOutputItem = z.infer<typeof perplexityOutputItemSchema>
@@ -222,8 +265,8 @@ export const perplexityAgentProviderOptionsSchema = z.object({
   /** Max research-loop iterations (1–100). */
   maxSteps: z.number().int().optional(),
   /** Reasoning effort for the underlying model. */
-  reasoningEffort: z.enum(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
-  /** `web_search` tool: `true`/config enables (default ON), `false` disables. */
+  reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
+  /** `web_search` tool: `true`/config enables (default OFF), `false` disables. */
   webSearch: z.union([z.boolean(), perplexityWebSearchConfigSchema]).optional(),
   /** `fetch_url` tool: `true`/config enables (default OFF). */
   fetchUrl: z.union([z.boolean(), perplexityFetchUrlConfigSchema]).optional(),

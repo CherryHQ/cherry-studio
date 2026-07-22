@@ -37,6 +37,7 @@ export {
 
 // Extension 核心类和类型
 export {
+  type NativeInputModality,
   type ProviderCreatorFunction,
   ProviderExtension,
   type ProviderExtensionConfig,

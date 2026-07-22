@@ -6,6 +6,9 @@ import type { ProviderVariant, ToolFactoryMap } from '../types'
 
 export type ProviderCreatorFunction<TSettings = any> = (settings?: TSettings) => ProviderV3 | Promise<ProviderV3>
 
+/** Native user-message attachment types accepted by a provider protocol. */
+export type NativeInputModality = 'image' | 'pdf' | 'audio' | 'video'
+
 /**
  * Provider 模块类型
  * 动态导入的模块应该包含至少一个创建函数
@@ -38,6 +41,12 @@ interface ProviderExtensionConfigBase<
 
   /** 是否支持图像生成 */
   supportsImageGeneration?: boolean
+
+  /**
+   * Native user-message attachment types accepted by this provider protocol.
+   * When omitted, callers retain their model-capability compatibility defaults.
+   */
+  nativeInputModalities?: readonly NativeInputModality[]
 
   /**
    * Provider 变体配置

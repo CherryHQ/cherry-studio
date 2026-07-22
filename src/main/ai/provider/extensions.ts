@@ -121,6 +121,7 @@ export const BedrockExtension = ProviderExtension.create({
 export const PerplexityExtension = ProviderExtension.create({
   name: 'perplexity',
   supportsImageGeneration: false,
+  nativeInputModalities: ['image', 'pdf'],
   create: createPerplexityProvider,
   toolFactories: {
     webSearch:

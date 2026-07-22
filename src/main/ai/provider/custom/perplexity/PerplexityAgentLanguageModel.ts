@@ -4,11 +4,11 @@
  * A bespoke `LanguageModelV3` for Perplexity's OpenAI-Responses-shaped research
  * endpoint. Maps: `output_text` → text, `url_citation` annotations + web/finance/
  * people search + fetch-url results → AI SDK `source` parts, and `reasoning.*`
- * events → reasoning parts. Built-in web search is on unless disabled via
- * `providerOptions.perplexity.webSearch = false`.
+ * events → reasoning parts. Built-in web search is enabled explicitly via
+ * `providerOptions.perplexity.webSearch`.
  *
- * Scope: text + citations/search + reasoning. Function-calling / sandbox / MCP
- * items are accepted from the wire but not surfaced.
+ * Scope: text + citations/search + reasoning + client-executed function tools.
+ * Sandbox and native MCP output items are accepted from the wire but not surfaced.
  */
 import {
   APICallError,
@@ -42,6 +42,9 @@ import {
   type PerplexityAgentProviderOptions,
   perplexityAgentProviderOptionsSchema,
   perplexityAgentResponseSchema,
+  type PerplexityFunctionCallItem,
+  perplexityFunctionCallItemSchema,
+  perplexityFunctionToolSchema,
   type PerplexityOutputItem,
   type PerplexityResultEntry
 } from './perplexityAgentSchemas'
@@ -60,6 +63,7 @@ export interface PerplexityAgentConfig {
 
 type AgentUsage = ReturnType<typeof perplexityAgentUsageSchema.parse>
 type Source = { url: string; title?: string }
+type ToolMetadata = { itemId: string | null; thoughtSignature: string | null }
 
 // ── helpers ──
 
@@ -129,7 +133,7 @@ function extractSources(item: PerplexityOutputItem): Source[] {
       for (const part of content ?? []) {
         if (part.type === 'output_text') {
           for (const annotation of part.annotations ?? []) {
-            if (annotation.type === 'url_citation' && annotation.url) {
+            if ((annotation.type === 'url_citation' || annotation.type === 'citation') && annotation.url) {
               out.push({ url: annotation.url, title: annotation.title ?? undefined })
             }
           }
@@ -150,6 +154,21 @@ function messageText(item: PerplexityOutputItem): string {
     .join('')
 }
 
+function asFunctionCall(item: PerplexityOutputItem): PerplexityFunctionCallItem | undefined {
+  if (item.type !== 'function_call') return undefined
+  const parsed = perplexityFunctionCallItemSchema.safeParse(item)
+  return parsed.success ? parsed.data : undefined
+}
+
+function buildToolProviderMetadata(item: PerplexityFunctionCallItem) {
+  return {
+    [PERPLEXITY_PROVIDER]: {
+      itemId: item.id ?? null,
+      thoughtSignature: item.thought_signature ?? null
+    } satisfies ToolMetadata
+  }
+}
+
 // ── model ──
 
 export class PerplexityAgentLanguageModel implements LanguageModelV3 {
@@ -162,11 +181,16 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
     private readonly config: PerplexityAgentConfig
   ) {}
 
-  private buildTools(opts: PerplexityAgentProviderOptions): Array<Record<string, unknown>> | undefined {
+  private buildTools(
+    opts: PerplexityAgentProviderOptions,
+    callTools: LanguageModelV3CallOptions['tools'],
+    toolChoice: LanguageModelV3CallOptions['toolChoice'],
+    warnings: SharedV3Warning[]
+  ): Array<Record<string, unknown>> | undefined {
     const tools: Array<Record<string, unknown>> = []
 
-    // web_search: on unless explicitly disabled (`webSearch: false`).
-    if (opts.webSearch !== false) {
+    // web_search: opt-in so the app's disabled toggle cannot silently leave it enabled.
+    if (opts.webSearch) {
       const cfg = typeof opts.webSearch === 'object' ? opts.webSearch : undefined
       const webSearch: Record<string, unknown> = { type: 'web_search' }
       if (cfg?.maxResults != null) webSearch.max_results = cfg.maxResults
@@ -193,6 +217,31 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
       tools.push(fetchUrl)
     }
 
+    for (const tool of callTools ?? []) {
+      if (tool.type === 'function') {
+        tools.push(
+          perplexityFunctionToolSchema.parse({
+            type: 'function',
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.inputSchema,
+            strict: tool.strict
+          })
+        )
+      } else {
+        warnings.push({ type: 'unsupported', feature: `provider-defined tool ${tool.id}` })
+      }
+    }
+
+    if (toolChoice?.type === 'none') return undefined
+    if (toolChoice?.type === 'required') {
+      warnings.push({ type: 'unsupported', feature: 'required tool choice' })
+    } else if (toolChoice?.type === 'tool') {
+      warnings.push({ type: 'unsupported', feature: 'forced tool choice' })
+      const selected = tools.find((tool) => tool.type === 'function' && tool.name === toolChoice.toolName)
+      return selected ? [selected] : undefined
+    }
+
     return tools.length > 0 ? tools : undefined
   }
 
@@ -207,7 +256,9 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
       presencePenalty,
       stopSequences,
       seed,
-      responseFormat
+      responseFormat,
+      tools,
+      toolChoice
     } = options
     const warnings: SharedV3Warning[] = []
     if (topK != null) warnings.push({ type: 'unsupported', feature: 'topK' })
@@ -244,7 +295,7 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
       max_steps: opts.maxSteps,
       temperature,
       top_p: topP,
-      reasoning: opts.reasoningEffort ? { effort: opts.reasoningEffort } : undefined,
+      reasoning: opts.reasoningEffort && opts.reasoningEffort !== 'none' ? { effort: opts.reasoningEffort } : undefined,
       response_format:
         responseFormat?.type === 'json' && responseFormat.schema
           ? {
@@ -252,7 +303,7 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
               json_schema: { name: responseFormat.name ?? 'response', schema: responseFormat.schema, strict: true }
             }
           : undefined,
-      tools: this.buildTools(opts),
+      tools: this.buildTools(opts, tools, toolChoice, warnings),
       preset: opts.preset,
       models: opts.models,
       previous_response_id: opts.previousResponseId,
@@ -298,7 +349,20 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
     const content: LanguageModelV3Content[] = []
     const seenUrls = new Set<string>()
     let text = ''
+    let hasFunctionCall = false
     for (const item of response.output ?? []) {
+      const functionCall = asFunctionCall(item)
+      if (functionCall) {
+        hasFunctionCall = true
+        content.push({
+          type: 'tool-call',
+          toolCallId: functionCall.call_id,
+          toolName: functionCall.name,
+          input: functionCall.arguments,
+          providerMetadata: buildToolProviderMetadata(functionCall)
+        })
+        continue
+      }
       text += messageText(item)
       for (const source of extractSources(item)) {
         if (seenUrls.has(source.url)) continue
@@ -307,10 +371,13 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
       }
     }
     if (text.length > 0) content.unshift({ type: 'text', text })
+    const finishReason: LanguageModelV3FinishReason = hasFunctionCall
+      ? { unified: 'tool-calls', raw: response.status ?? undefined }
+      : mapStatusToFinishReason(response.status)
 
     return {
       content,
-      finishReason: mapStatusToFinishReason(response.status),
+      finishReason,
       usage: convertAgentUsage(response.usage),
       request: { body: args },
       response: {
@@ -352,6 +419,8 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
     let responseId: string | undefined
     const seenUrls = new Set<string>()
     const openTextIds = new Set<string>()
+    const pendingToolCalls = new Map<string, PerplexityFunctionCallItem>()
+    const emittedToolCallIds = new Set<string>()
     let reasoningOpen = false
 
     return {
@@ -388,6 +457,29 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
               }
               controller.enqueue({ type: 'reasoning-delta', id: REASONING_ID, delta: `${thought}\n` })
             }
+            const startFunctionCall = (item: PerplexityFunctionCallItem) => {
+              if (pendingToolCalls.has(item.call_id) || emittedToolCallIds.has(item.call_id)) return
+              pendingToolCalls.set(item.call_id, item)
+              controller.enqueue({ type: 'tool-input-start', id: item.call_id, toolName: item.name })
+            }
+            const emitFunctionCall = (item: PerplexityFunctionCallItem) => {
+              if (emittedToolCallIds.has(item.call_id)) return
+              startFunctionCall(item)
+              if (item.arguments) {
+                controller.enqueue({ type: 'tool-input-delta', id: item.call_id, delta: item.arguments })
+              }
+              controller.enqueue({ type: 'tool-input-end', id: item.call_id })
+              controller.enqueue({
+                type: 'tool-call',
+                toolCallId: item.call_id,
+                toolName: item.name,
+                input: item.arguments,
+                providerMetadata: buildToolProviderMetadata(item)
+              })
+              pendingToolCalls.delete(item.call_id)
+              emittedToolCallIds.add(item.call_id)
+              finishReason = { unified: 'tool-calls', raw: 'function_call' }
+            }
 
             const event = chunk.value as PerplexityAgentEvent & Record<string, unknown>
             switch (event.type) {
@@ -420,7 +512,14 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
               case 'response.output_item.added':
               case 'response.output_item.done': {
                 const item = (event as { item?: PerplexityOutputItem }).item
-                if (item) emitSources(extractSources(item))
+                if (!item) break
+                const functionCall = asFunctionCall(item)
+                if (functionCall) {
+                  if (event.type === 'response.output_item.added') startFunctionCall(functionCall)
+                  else emitFunctionCall(functionCall)
+                } else {
+                  emitSources(extractSources(item))
+                }
                 break
               }
               case 'response.reasoning.started':
@@ -465,8 +564,14 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
                 ).response
                 if (envelope?.id) responseId = envelope.id
                 usage = envelope?.usage ?? usage
-                finishReason = mapStatusToFinishReason(envelope?.status ?? 'completed')
-                for (const item of envelope?.output ?? []) emitSources(extractSources(item))
+                for (const item of envelope?.output ?? []) {
+                  const functionCall = asFunctionCall(item)
+                  if (functionCall) emitFunctionCall(functionCall)
+                  else emitSources(extractSources(item))
+                }
+                if (emittedToolCallIds.size === 0) {
+                  finishReason = mapStatusToFinishReason(envelope?.status ?? 'completed')
+                }
                 break
               }
               case 'response.failed': {
@@ -493,6 +598,20 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
           },
           flush(controller) {
             for (const id of openTextIds) controller.enqueue({ type: 'text-end', id })
+            for (const item of pendingToolCalls.values()) {
+              if (item.arguments)
+                controller.enqueue({ type: 'tool-input-delta', id: item.call_id, delta: item.arguments })
+              controller.enqueue({ type: 'tool-input-end', id: item.call_id })
+              controller.enqueue({
+                type: 'tool-call',
+                toolCallId: item.call_id,
+                toolName: item.name,
+                input: item.arguments,
+                providerMetadata: buildToolProviderMetadata(item)
+              })
+              emittedToolCallIds.add(item.call_id)
+            }
+            if (emittedToolCallIds.size > 0) finishReason = { unified: 'tool-calls', raw: 'function_call' }
             if (reasoningOpen) controller.enqueue({ type: 'reasoning-end', id: REASONING_ID })
             controller.enqueue({
               type: 'finish',
