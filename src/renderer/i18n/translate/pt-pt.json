@@ -3564,6 +3564,13 @@
         "insert_variable": "Inserir variável",
         "label": "Prompt do sistema",
         "placeholder": "Introduza instruções para o assistente, como estilo de resposta, função ou contexto",
+        "runtime_context": {
+          "configure": "[to be translated]:Configure runtime context prompt",
+          "description": "[to be translated]:Append current date, time, device, language, model, and user details to the system prompt.",
+          "label": "[to be translated]:Runtime context",
+          "prompt_label": "[to be translated]:Runtime context prompt",
+          "reset": "[to be translated]:Restore preset"
+        },
         "polish": "Prompt polaco",
         "polish_failed_description": "Verifique ou altere o modelo padrão e tente novamente.",
         "polish_failed_title": "Falha ao aprimorar o prompt",

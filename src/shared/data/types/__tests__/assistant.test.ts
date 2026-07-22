@@ -47,4 +47,9 @@ describe('AssistantSchema', () => {
     expect(AssistantSchema.safeParse(missingEmbed).success).toBe(false)
     expect(AssistantSchema.parse(baseAssistant)).toMatchObject({ modelName })
   })
+
+  it('keeps runtime context disabled by default', () => {
+    expect(DEFAULT_ASSISTANT_SETTINGS.enableRuntimeContext).toBe(false)
+    expect(DEFAULT_ASSISTANT_SETTINGS.runtimeContextPrompt).toBe('')
+  })
 })
