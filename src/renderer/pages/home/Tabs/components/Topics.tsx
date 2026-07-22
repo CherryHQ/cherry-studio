@@ -1,7 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -282,9 +281,9 @@ export function Topics({
     updateTopic: patchTopic,
     deleteTopic: deleteTopicById,
     deleteTopicsByAssistantId,
+    moveTopic,
     refreshTopics
   } = useTopicMutations()
-  const invalidateCache = useInvalidateCache()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [storedPanePosition, setStoredPanePosition] = usePreference('topic.tab.position')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
@@ -1245,57 +1244,21 @@ export function Topics({
       setOptimisticMove({ payload: normalizedPayload, targetAssistantId })
 
       const assistantChanged = targetAssistantId !== currentAssistantId
-      // Invalidate the topic list plus, on an assistant change, `/topics/:id` — the open
-      // conversation's source query (`refreshTopics`' list-only invalidation misses it, leaving
-      // the composer/model/capabilities bound to the old assistant). Deferred until after both
-      // writes so the optimistic overlay is cleared once, at the final position, without flashing
-      // the row back to its old order mid-flight.
-      const refreshKeys = assistantChanged ? ['/topics', `/topics/${payload.activeId}`] : '/topics'
 
       try {
-        if (assistantChanged) {
-          await dataApiService.patch(`/topics/${payload.activeId}`, {
-            body: { assistantId: targetAssistantId }
-          })
-          // Follow the open conversation to its new assistant — but only if the moved topic is
-          // *still* the active one. `activeTopicIdRef` tracks the live selection, so a mid-PATCH
-          // switch to another topic isn't clobbered back; the closure `activeTopic` id must match
-          // too, so the object we spread is genuinely the moved topic (not a stale snapshot).
-          if (activeTopicIdRef.current === payload.activeId && activeTopic?.id === payload.activeId) {
-            setActiveTopic({ ...activeTopic, assistantId: targetAssistantId ?? undefined })
-          }
-        }
-
-        await dataApiService.patch(`/topics/${payload.activeId}/order`, {
-          body: anchor
+        // `moveTopic` owns the cache orchestration: the open conversation follows to the new
+        // assistant immediately (via `/topics/:id`), and the combined revalidation is deferred
+        // until after both writes so the optimistic overlay clears once, at the final position.
+        await moveTopic(payload.activeId, {
+          assistantId: assistantChanged ? targetAssistantId : undefined,
+          anchor
         })
-        await invalidateCache(refreshKeys)
       } catch (err) {
         setOptimisticMove(null)
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
-        if (assistantChanged) {
-          try {
-            await invalidateCache(refreshKeys)
-          } catch (refreshErr) {
-            logger.error('Failed to refresh topics after partial assistant move', {
-              refreshErr,
-              topicId: payload.activeId
-            })
-          }
-        }
       }
     },
-    [
-      activeTopic,
-      assistantById,
-      invalidateCache,
-      isAssistantDisplayMode,
-      orderedAssistants,
-      refreshAssistants,
-      setActiveTopic,
-      t,
-      topics
-    ]
+    [assistantById, isAssistantDisplayMode, moveTopic, orderedAssistants, refreshAssistants, t, topics]
   )
   const canSetPanePosition = isAssistantDisplayMode || isRightPanel
 
