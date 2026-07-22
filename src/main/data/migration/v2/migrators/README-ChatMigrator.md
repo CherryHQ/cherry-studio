@@ -82,6 +82,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
 | Redux: `prompt` | `prompt` | Merged from Redux |
 | (computed) | `activeNodeId` | Smart selection: original active → foldSelected → last migrated |
+| (computed) | `lastActivityAt` | Maximum of Topic `createdAt` and migrated message `activityAt` values |
 | (none) | `sortOrder` | 0 (new field) |
 | Redux: `pinned` | `isPinned` | Merged from Redux, renamed |
 | (none) | `pinnedOrder` | 0 (new field) |
@@ -101,6 +102,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | `blocks` + `mentions` + citations | `data` | Complex transformation |
 | (extracted) | `searchableText` | Extracted from text blocks |
 | `status` | `status` | Normalized to success/error/paused |
+| `role` + timestamps | `activityAt` | User `createdAt`; assistant `max(createdAt, updatedAt)`; otherwise `NULL` |
 | (computed) | `siblingsGroupId` | From multi-model detection |
 | `assistantId` | `assistantId` | Direct copy |
 | `modelId` | `modelId` | Direct copy |
