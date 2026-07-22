@@ -347,8 +347,7 @@ export const ColorPickerAlpha = ({ className, 'aria-label': ariaLabel, ...props 
       max={100}
       onValueChange={([alpha]) => setAlpha(alpha)}
       step={1}
-      value={[alpha]}
-      aria-label={ariaLabel ?? 'Alpha'}>
+      value={[alpha]}>
       <SliderPrimitive.Track className="relative my-0.5 h-3 w-full grow overflow-hidden rounded-full">
         <div
           className="pointer-events-none absolute inset-0 bg-center bg-repeat-x dark:hidden"
@@ -361,7 +360,10 @@ export const ColorPickerAlpha = ({ className, 'aria-label': ariaLabel, ...props 
         <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent to-black/50 dark:to-white/50" />
         <SliderPrimitive.Range className="absolute h-full rounded-full bg-transparent" />
       </SliderPrimitive.Track>
-      <SliderPrimitive.Thumb className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
+      <SliderPrimitive.Thumb
+        aria-label={ariaLabel ?? 'Alpha'}
+        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+      />
     </SliderPrimitive.Root>
   )
 }
