@@ -48,6 +48,66 @@ describe('composer draft serialization', () => {
     })
   })
 
+  it('preserves trailing blank lines owned by multiline token prompt text', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\nvalue\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 1,
+          promptText: 'value\n\n'
+        }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: 'value\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 0,
+          promptText: 'value\n\n'
+        }
+      ]
+    })
+  })
+
+  it('still trims trailing blank lines outside token prompt text', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\nvalue\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 1,
+          promptText: 'value'
+        }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: 'value',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 0,
+          promptText: 'value'
+        }
+      ]
+    })
+  })
+
   it('collapses a draft containing only token-free blank lines to empty text', () => {
     expect(trimComposerDraftBoundaryBlankLines({ text: ' \t\n\n ', tokens: [] })).toEqual({ text: '', tokens: [] })
   })

@@ -231,10 +231,14 @@ function getComposerLineRanges(text: string): ComposerLineRange[] {
  */
 export function trimComposerDraftBoundaryBlankLines(draft: ComposerSerializedDraft): ComposerSerializedDraft {
   const lines = getComposerLineRanges(draft.text)
-  const tokenOffsets = draft.tokens.map((token) => Math.min(draft.text.length, Math.max(0, token.textOffset)))
+  const tokenRanges = draft.tokens.map((token) => {
+    const start = Math.min(draft.text.length, Math.max(0, token.textOffset))
+    const end = Math.min(draft.text.length, start + (token.promptText?.length ?? 0))
+    return { start, end }
+  })
   const meaningfulLineIndexes = lines.flatMap((line, index) => {
     const hasText = draft.text.slice(line.start, line.contentEnd).trim().length > 0
-    const hasToken = tokenOffsets.some((offset) => offset >= line.start && offset <= line.contentEnd)
+    const hasToken = tokenRanges.some((token) => token.start <= line.contentEnd && token.end >= line.start)
     return hasText || hasToken ? [index] : []
   })
 
