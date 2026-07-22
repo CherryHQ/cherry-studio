@@ -432,6 +432,12 @@ describe('ComposerToken', () => {
     expect(imagePreview).not.toHaveClass('h-full', 'w-full', 'object-cover')
     expect(imagePreview.parentElement).toHaveClass('flex', 'max-h-48', 'max-w-60', 'overflow-hidden', 'bg-muted')
     expect(imagePreview.parentElement).not.toHaveClass('inline-flex')
+
+    fireEvent.error(imagePreview)
+    expect(screen.queryByAltText('avatar-preview.png')).not.toBeInTheDocument()
+    expect(popoverContent).toHaveTextContent('avatar-preview.png')
+    expect(popoverContent).toHaveTextContent('PNG')
+    expect(popoverContent).toHaveTextContent('2 KB')
   })
 
   it('renders input raster images as chips with a thumbnail in the icon slot', () => {
@@ -576,6 +582,11 @@ describe('ComposerToken', () => {
       'bg-transparent',
       'text-current',
       'dark:text-black'
+    )
+    expect(token?.querySelector('[data-composer-token-remove]')?.parentElement).toHaveClass(
+      'size-full',
+      'items-center',
+      'justify-center'
     )
     expect(token?.querySelector('[data-composer-token-remove] svg')).toHaveClass('size-3', 'text-current')
     expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')

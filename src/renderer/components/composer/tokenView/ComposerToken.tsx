@@ -121,12 +121,14 @@ function InlineTokenIconSlot({
   icon,
   removeLabel,
   onRemove,
+  slotClassName,
   removeButtonClassName,
   removeIconClassName
 }: {
   icon: ReactNode
   removeLabel?: string
   onRemove?: () => void
+  slotClassName?: string
   removeButtonClassName?: string
   removeIconClassName?: string
 }) {
@@ -137,7 +139,7 @@ function InlineTokenIconSlot({
   // Icon and button cross-fade via opacity (not display) to keep the slot from
   // collapsing and to keep the button keyboard-focusable.
   return (
-    <span className="relative inline-flex shrink-0">
+    <span className={cn('relative inline-flex shrink-0', slotClassName)}>
       <span className="inline-flex shrink-0 transition-opacity group-focus-within/composer-token:opacity-0 group-hover/composer-token:opacity-0">
         {icon}
       </span>
@@ -337,6 +339,8 @@ function FileTokenPreviewCard({
 }) {
   const sizeLabel = typeof file?.size === 'number' ? formatFileSize(file.size) : undefined
   const hasActions = Boolean(secondaryAction)
+  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string>()
+  const previewUrl = presentation.previewUrl === failedPreviewUrl ? undefined : presentation.previewUrl
 
   if (file?.composerFileKind === COMPOSER_FILE_KIND.PASTED_TEXT) {
     return (
@@ -348,10 +352,15 @@ function FileTokenPreviewCard({
     )
   }
 
-  if (presentation.previewUrl) {
+  if (previewUrl) {
     return (
       <div className="flex max-h-48 max-w-60 overflow-hidden bg-muted text-left" data-file-token-image-preview="">
-        <img src={presentation.previewUrl} alt={label} className="block max-h-48 max-w-60 object-contain" />
+        <img
+          src={previewUrl}
+          alt={label}
+          className="block max-h-48 max-w-60 object-contain"
+          onError={() => setFailedPreviewUrl(previewUrl)}
+        />
       </div>
     )
   }
@@ -633,6 +642,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
           icon={tokenIcon}
           removeLabel={removeLabel}
           onRemove={onRemove}
+          slotClassName="size-full items-center justify-center"
           removeButtonClassName="size-full rounded-[5px] bg-neutral-100 text-foreground dark:bg-neutral-800"
           removeIconClassName="size-3"
         />
