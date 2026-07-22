@@ -1149,9 +1149,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 
   if (!completedLayout) return null
 
-  const completedHistoryEntries = collapseHistory
-    ? completedLayout.historyEntries.filter((entry) => !isReasoningMessagePart(entry.part))
-    : completedLayout.historyEntries
+  const completedHistoryEntries = completedLayout.historyEntries
 
   const renderCompletedHistory = (isExpanded: boolean) =>
     isExpanded

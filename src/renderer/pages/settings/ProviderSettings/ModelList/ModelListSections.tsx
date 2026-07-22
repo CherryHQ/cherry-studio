@@ -1,7 +1,9 @@
+import { EmptyState } from '@cherrystudio/ui'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { Box } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -110,13 +112,21 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-6">
-        <LoadingIcon color="var(--muted-foreground)" />
+        <LoadingIcon color="var(--color-muted-foreground)" />
       </div>
     )
   }
 
   if (hasNoModels) {
-    return null
+    return (
+      <EmptyState
+        compact
+        icon={Box}
+        title={t('settings.models.empty')}
+        description={t('settings.models.empty_hint')}
+        className="min-h-40"
+      />
+    )
   }
 
   if (!hasVisibleModels) {

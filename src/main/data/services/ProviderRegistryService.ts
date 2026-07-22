@@ -21,7 +21,12 @@ import type {
   ReasoningEffort as ReasoningEffortType
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@cherrystudio/provider-registry'
+import {
+  buildRuntimeEndpointConfigs,
+  ENDPOINT_TYPE,
+  inferAdapterFamily,
+  REASONING_EFFORT
+} from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -416,6 +421,30 @@ class ProviderRegistryService {
     return this.getLoader()
       .loadProviders()
       .find((provider) => provider.id === providerId)
+  }
+
+  resolveAdapterFamilies(
+    endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
+    presetProviderId?: string | null
+  ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    if (!endpointConfigs || Object.keys(endpointConfigs).length === 0) return null
+
+    const presetProvider = presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined
+    const presetConfigs = presetProvider
+      ? (buildRuntimeEndpointConfigs(presetProvider.endpointConfigs) as Partial<
+          Record<EndpointType, EndpointConfig>
+        > | null)
+      : null
+
+    const result: Partial<Record<EndpointType, EndpointConfig>> = {}
+    for (const [key, config] of Object.entries(endpointConfigs)) {
+      if (!config) continue
+      const ep = key as EndpointType
+      result[ep] = config.adapterFamily
+        ? config
+        : { ...config, adapterFamily: presetConfigs?.[ep]?.adapterFamily ?? inferAdapterFamily(ep) }
+    }
+    return result
   }
 
   /**

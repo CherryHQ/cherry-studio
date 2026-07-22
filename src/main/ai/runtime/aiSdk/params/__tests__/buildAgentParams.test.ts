@@ -11,14 +11,14 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
+      if (name === 'PreferenceService') return { get: () => null }
       throw new Error(`unexpected service: ${name}`)
     }
   }
 }))
 
-const { applyCallOverrides, composeStopWhen, resolveKnowledgeBaseIds, resolveTools } = await import(
-  '../buildAgentParams'
-)
+const { applyCallOverrides, composeStopWhen, resolveKnowledgeBaseIds, resolveToolCallLimit, resolveTools } =
+  await import('../buildAgentParams')
 
 /**
  * Covers the first-class per-request override merge that replaced the old
@@ -111,6 +111,21 @@ describe('composeStopWhen', () => {
     // The injected fallback caps the tool loop at the SDK default of 20 steps.
     expect(await conditions[0]({ steps: new Array(20) } as never)).toBe(true)
     expect(await conditions[0]({ steps: new Array(19) } as never)).toBe(false)
+  })
+})
+
+describe('resolveToolCallLimit', () => {
+  it('uses the configured assistant limit', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 7 } }))).toBe(7)
+  })
+
+  it('retains the effective default cap for assistant-less and disabled-limit requests', () => {
+    expect(resolveToolCallLimit(undefined)).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(20)
+  })
+
+  it('falls back when the configured limit is outside the supported range', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 101 } }))).toBe(20)
   })
 })
 

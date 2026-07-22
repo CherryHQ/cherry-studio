@@ -1470,16 +1470,16 @@
         "unsupported_model": "Modelul actual nu acceptă raționament ajustabil"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Personalizați bara de instrumente",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Reordonarea a fost anulată pentru {{name}}.",
+          "dropped": "{{name}} a căzut.",
+          "instructions": "Pentru a reordona, apăsați Spațiu sau Enter pentru a ridica un instrument, folosiți tastele săgeți pentru a-l muta, apoi Spațiu sau Enter pentru a-l lăsa, sau Escape pentru a anula.",
+          "over": "{{name}} s-a mutat peste {{over}}.",
+          "picked_up": "Am ridicat {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Trage pentru a reordona {{name}}",
+        "restore_default": "Restabilește implicitul"
       },
       "tools": {
         "collapse": "Restrânge",
@@ -1755,7 +1755,7 @@
     "thinking_tokens": "~{{tokens}} jetoane",
     "topics": {
       "auto_rename": "Redenumire automată",
-      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
+      "auto_rename_failed": "Nu s-a reușit generarea automată a numelui conversației",
       "clear": {
         "title": "Șterge mesajele"
       },
@@ -2453,6 +2453,80 @@
       "reasoning_truncated": "Lanțul de gândire nu poate fi fragmentat și a fost trunchiat."
     },
     "user": "Utilizator"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Acest fișier HTML nu are conținut.",
+        "title": "Fișier gol"
+      },
+      "mode": {
+        "label": "Mod de vizualizare HTML",
+        "preview": "Previzualizare",
+        "source": "Sursă"
+      },
+      "read_error": {
+        "title": "Nu s-a putut citi acest fișier"
+      },
+      "too_large": {
+        "description": "Fișierele HTML mai mari de {{limit}} MiB nu pot fi previzualizate.",
+        "title": "Fișierul este prea mare"
+      }
+    },
+    "invalid_path": {
+      "description": "Previzualizarea fișierului necesită o cale locală absolută validă.",
+      "title": "Nu se poate previzualiza acest fișier"
+    },
+    "load_error": {
+      "description": "Conținutul previzualizării nu a putut fi încărcat.",
+      "title": "Previzualizarea a eșuat"
+    },
+    "loading": "Încărcare previzualizare...",
+    "markdown": {
+      "empty": {
+        "description": "Acest fișier Markdown nu are conținut.",
+        "title": "Fișier gol"
+      },
+      "mode": {
+        "label": "Mod de vizualizare Markdown",
+        "preview": "Previzualizare",
+        "source": "Sursă"
+      },
+      "read_error": {
+        "title": "Nu s-a putut citi acest fișier"
+      },
+      "too_large": {
+        "description": "Fișierele Markdown mai mari de {{limit}} MiB nu pot fi previzualizate.",
+        "title": "Fișierul este prea mare"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Deschide cu aplicația implicită",
+        "description": "Fișierele PDF mai mari de {{limit}} MiB nu pot fi previzualizate.",
+        "open_error": "Nu s-a putut deschide acest fișier",
+        "title": "Fișierul este prea mare"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Acest fișier text nu are conținut.",
+        "title": "Fișier gol"
+      },
+      "read_error": {
+        "title": "Nu s-a putut citi acest fișier"
+      },
+      "too_large": {
+        "description": "Fișierele text mai mari de {{limit}} MiB nu pot fi previzualizate.",
+        "title": "Fișierul este prea mare"
+      }
+    },
+    "unsupported": {
+      "action": "Deschide cu aplicația implicită",
+      "description": "Acest tip de fișier nu poate fi previzualizat încă.",
+      "open_error": "Nu s-a putut deschide acest fișier",
+      "title": "Previzualizare indisponibilă"
+    }
   },
   "files": {
     "actions": "Acțiuni",
@@ -3497,8 +3571,10 @@
       "title": "Bibliotecă"
     },
     "skill_add": {
+      "add": "Adăugare abilitate",
       "local_import": "Import local",
-      "online_search": "Căutare online"
+      "online_search": "Căutare online",
+      "system_search": "Căutare sistem"
     },
     "skill_detail": {
       "created_at": "Creat",
@@ -3526,6 +3602,19 @@
       "updated": "Sortează după actualizare"
     },
     "subtitle": "Gestionați-vă asistenții, agenții și abilitățile",
+    "system_skill": {
+      "conflict": "Conflict de nume",
+      "description": "Importă abilitățile deja instalate pe acest sistem.",
+      "empty_description": "Nu au fost găsite abilități importabile în alte instrumente de codare de pe acest dispozitiv.",
+      "empty_title": "Nu există abilități disponibile pentru import",
+      "enable_success": "Activat {{name}}",
+      "enabled": "Activat",
+      "import": "Importare",
+      "import_success": "Importat {{name}}",
+      "imported": "Importat",
+      "search_placeholder": "Căutare competențe sistem...",
+      "title": "Abilități de sistem"
+    },
     "tag_picker": {
       "no_tags": "Nicio etichetă încă",
       "placeholder": "Nume nou pentru etichetă..."
@@ -4699,6 +4788,7 @@
     "req_error_text": "Serverul este ocupat sau promptul conține termeni \"protejați prin drepturi de autor\" sau \"sensibili\". Te rugăm să încerci din nou.",
     "req_error_token": "Te rugăm să verifici validitatea tokenului",
     "required_field": "Câmp obligatoriu",
+    "revealing": "Dezvăluirea imaginii generate",
     "safety_tolerance": "Toleranță la siguranță",
     "safety_tolerance_tip": "Mai mare = filtru mai permisiv; 0 este cel mai strict, 6 este cel mai permisiv",
     "seed": "Seed",
@@ -7736,6 +7826,8 @@
   },
   "tab": {
     "close": "Închide fila",
+    "close_others": "Închide celelalte file",
+    "close_to_right": "Închide filele din dreapta",
     "move_to_first": "Mută la început",
     "new": "Filă nouă",
     "open_in_new_window": "Deschide în fereastră nouă",

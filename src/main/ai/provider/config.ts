@@ -18,7 +18,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
-import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
+import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider, matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'es-toolkit/compat'
 
@@ -167,11 +167,7 @@ export async function providerToAiSdkConfig(
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
     // generic builder, dropping project/location/googleCredentials and the publisher baseURL.
     { match: (_, id) => id === 'google-vertex' || id === 'google-vertex-anthropic', build: buildVertexConfig },
-    // Match on the provider id, not the resolved aiSdkProviderId: the resolver upgrades the
-    // default chat endpoint to the `cherryin-chat` variant, so `id === 'cherryin'` is never true
-    // for the common path and the request would fall through to the generic builder, dropping the
-    // relay-resolved anthropic/gemini baseURLs and the `/v1` segment. (Mirrors `cherryai`/`copilot`.)
-    { match: (p) => p.id === SystemProviderIds.cherryin, build: buildCherryinConfig },
+    { match: (p) => matchesPreset(p, SystemProviderIds.cherryin), build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
   ]
@@ -486,15 +482,9 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
 }
 
 function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
-  let anthropicBaseURL: string | undefined
-  let geminiBaseURL: string | undefined
-  try {
-    const cherryinProvider = providerService.getByProviderId(SystemProviderIds.cherryin)
-    anthropicBaseURL = formatApiHost(cherryinProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
-    geminiBaseURL = formatApiHost(getBaseUrl(cherryinProvider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
-  } catch {
-    // CherryIn provider may not exist
-  }
+  const provider = ctx.actualProvider
+  const anthropicBaseURL = formatApiHost(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
+  const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
 
   const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
 

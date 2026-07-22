@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 
 import { type EmojiData, loadEmojiData } from './emojiData'
 import type { EmojiPickerProps } from './EmojiPicker'
+import { detectEmojiSupportLevel, detectUnsupportedZwjEmojiIds } from './emojiSupport'
 import { useRecentEmojis } from './useRecentEmojis'
 
 const logger = loggerService.withContext('EmojiPicker')
@@ -88,7 +89,21 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as LanguageVarious
   const [emojiData, setEmojiData] = useState<EmojiData | undefined>()
+  const [emojiVersion, setEmojiVersion] = useState<string | undefined>()
+  const [hiddenEmojis, setHiddenEmojis] = useState<string[]>([])
   const { recent, pushRecent } = useRecentEmojis()
+
+  useEffect(() => {
+    let cancelled = false
+
+    void detectEmojiSupportLevel().then((version) => {
+      if (!cancelled) setEmojiVersion(String(version))
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -107,6 +122,23 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
       cancelled = true
     }
   }, [locale])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!emojiData) {
+      setHiddenEmojis([])
+      return
+    }
+
+    void detectUnsupportedZwjEmojiIds(emojiData).then((emojiIds) => {
+      if (!cancelled) setHiddenEmojis(emojiIds)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [emojiData])
 
   const categories = useMemo(
     () =>
@@ -131,7 +163,9 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
         className="cherry-emoji-picker-react"
         emojiData={emojiData}
         emojiStyle={EmojiStyle.NATIVE}
+        emojiVersion={emojiVersion}
         height="100%"
+        hiddenEmojis={hiddenEmojis}
         previewConfig={{ showPreview: false }}
         searchClearButtonLabel={t('common.clear')}
         searchDisabled={false}

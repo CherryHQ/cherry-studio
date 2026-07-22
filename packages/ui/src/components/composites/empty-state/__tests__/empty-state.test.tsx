@@ -54,6 +54,12 @@ describe('EmptyState', () => {
     expect(screen.getByText('No tools')).toBeInTheDocument()
   })
 
+  it('uses the box icon for the no-model preset', () => {
+    const { container } = render(<EmptyState preset="no-model" title="No models" />)
+
+    expect(container.querySelector('svg')).toHaveClass('lucide-box')
+  })
+
   it('applies compact styling', () => {
     const { container } = render(<EmptyState compact title="Compact" />)
     const wrapper = container.firstElementChild as HTMLElement

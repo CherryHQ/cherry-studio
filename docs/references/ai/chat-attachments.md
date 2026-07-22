@@ -25,6 +25,7 @@ Decided per file part in `prepareChatMessages`
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
 | text / code | — | decoded text, inline (capped) |
+| extensionless | — | decoded text when content is text; otherwise unsupported note |
 | audio | model is audio-capable | native audio part (inline) |
 | audio | otherwise | short note ("can't process audio") |
 | video | model is video-capable | native video part (inline) |
@@ -89,8 +90,9 @@ the feature, keeping processor/handler internals in that domain. Both
 content version (30 min), so the eager every-turn pass over history doesn't
 re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 `FileManager.read` (PDF via `pdf-parse`, office via
-`officeparser`/`word-extractor`, text via `decodeTextWithAutoEncoding`) and
-dispatches on the `FileEntry` canonical `ext`.
+`officeparser`/`word-extractor`, known text extensions via
+`decodeTextWithAutoEncoding`, and extensionless text via
+`decodeTextBufferIfText`) and dispatches on the `FileEntry` canonical `ext`.
 
 ## Capability resolution
 

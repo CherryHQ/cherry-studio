@@ -1059,12 +1059,18 @@
     "edit": {
       "title": "编辑助手"
     },
+    "groups": {
+      "delete": "删除分组",
+      "deleteConfirm": "确定要删除这个分组吗？",
+      "group_by": "按分组显示",
+      "ungroup": "取消分组显示",
+      "ungrouped": "未分组"
+    },
     "icon": {
       "type": "助手图标"
     },
     "list": {
-      "showByList": "列表展示",
-      "showByTags": "标签展示"
+      "showByList": "列表展示"
     },
     "pin": {
       "title": "置顶助手"
@@ -1248,20 +1254,6 @@
         "label": "工具调用方式",
         "prompt": "提示词"
       }
-    },
-    "tags": {
-      "add": "添加标签",
-      "delete": "删除标签",
-      "deleteConfirm": "确定要删除这个标签吗？",
-      "group_by": "按照标签分组",
-      "manage": "标签管理",
-      "modify": "修改标签",
-      "none": "暂无标签",
-      "settings": {
-        "title": "标签设置"
-      },
-      "ungroup": "关闭标签分组",
-      "untagged": "未分组"
     },
     "title": "助手",
     "unpin": {
@@ -2279,6 +2271,7 @@
     "swap": "交换",
     "topics": "对话",
     "translate_text": "翻译文本",
+    "undo": "撤销",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "退订",
@@ -2433,13 +2426,19 @@
     "text": "文本",
     "toolInput": "工具输入",
     "toolName": "工具名",
+    "tool_call_limit_reached": "助手在生成最终回复前已达到工具调用上限。请重试，或缩小任务范围。",
     "truncated": "数据已截断，原始大小",
     "truncatedBadge": "已截断",
     "unknown": "未知错误",
     "usage": "用量",
     "user_message_not_found": "无法找到原始用户消息",
     "value": "值",
-    "values": "值"
+    "values": "值",
+    "web_lookup_network_error": "联网访问失败，请检查网络连接后重试。",
+    "web_search_api_host_invalid": "联网搜索不可用，因为已配置服务提供商的 API 地址无效。请在“设置 → 联网搜索”中填写有效的 HTTP(S) 地址后重试。",
+    "web_search_api_host_missing": "联网搜索不可用，因为已配置的服务提供商缺少 API 地址。请前往“设置 → 联网搜索”补充后重试。",
+    "web_search_api_key_missing": "联网搜索不可用，因为已配置的服务提供商缺少 API 密钥。请前往“设置 → 联网搜索”补充后重试。",
+    "web_search_provider_unavailable": "联网搜索不可用，因为尚未配置兼容的服务提供商。请前往“设置 → 联网搜索”完成配置后重试。"
   },
   "export": {
     "assistant": "助手",
@@ -3118,7 +3117,7 @@
       "duplicate": "复制",
       "edit": "编辑",
       "enable": "启用",
-      "manage_tags": "管理标签",
+      "manage_groups": "管理分组",
       "uninstall": "卸载"
     },
     "assistant_catalog": {
@@ -3317,6 +3316,9 @@
             "hint": "启用后限制采样范围"
           }
         },
+        "group": "分组",
+        "group_empty": "没有可选的分组",
+        "group_placeholder": "选择分组",
         "json_invalid": "JSON 格式错误",
         "max_tokens": "最大 Token 数",
         "max_tool_calls": "最大工具调用次数",
@@ -3415,6 +3417,11 @@
         "insert_variable": "插入变量",
         "label": "系统提示词",
         "placeholder": "输入对助手的要求，例如回答风格、角色设定或背景说明",
+        "polish": "润色提示词",
+        "polish_failed_description": "请检查或调整默认模型后重试。",
+        "polish_failed_title": "润色提示词失败",
+        "polish_variables_changed_description": "润色结果修改或遗漏了提示词变量，请重试。",
+        "polish_variables_changed_title": "无法应用润色结果",
         "title": "提示词",
         "tokens_label": "Tokens: ",
         "variables_description": "可在系统提示词中插入这些系统变量；每次助手回复前，系统会按当时的信息自动填写。",
@@ -3517,6 +3524,10 @@
       "title": "暂无资源"
     },
     "export_assistant_failed": "导出助手失败",
+    "group_picker": {
+      "no_groups": "暂无分组"
+    },
+    "group_sync_failed": "分组同步失败",
     "import_dialog": {
       "clipboard": {
         "button": "解析并导入",
@@ -3564,7 +3575,6 @@
     },
     "sidebar": {
       "all_resources": "所有资源",
-      "all_tags": "全部标签",
       "no_tags": "暂无标签",
       "subtitle": "管理你的 AI 资源",
       "tags": "标签",
@@ -3629,11 +3639,11 @@
     },
     "title": "资源库",
     "toolbar": {
-      "add_tag_placeholder": "标签名...",
-      "all_tags": "全部标签",
+      "add_group_placeholder": "分组名...",
+      "all_groups": "全部分组",
+      "group_button": "分组",
       "new_resource": "新建资源",
-      "search_placeholder": "搜索资源名称、描述...",
-      "tag_button": "标签"
+      "search_placeholder": "搜索资源名称、描述..."
     },
     "type": {
       "agent": "智能体",
@@ -4205,6 +4215,9 @@
       "selected": "已选标签"
     },
     "function_calling": "函数调用",
+    "group": {
+      "ungrouped": "未分组"
+    },
     "invalid_model": "无效模型",
     "json_parse_error": "JSON 格式无效",
     "multi_select": {
@@ -4713,6 +4726,7 @@
     "inference_steps": "推理步数",
     "inference_steps_tip": "要执行的推理步数 ({{min}}-{{max}})。步数越多，质量越高但耗时越长",
     "input_image": "输入图片",
+    "input_image_limit_exceeded": "参考图片数量超过所选模型限制，请删除部分图片后重试",
     "input_parameters": "输入参数",
     "invalid_image_url": "无效的图片URL格式",
     "learn_more": "了解更多",
@@ -4737,6 +4751,7 @@
     "number_images": "生成数量",
     "number_images_tip": "一次生成的图片数量 ({{min}}-{{max}})",
     "operation_failed": "操作失败，请稍后重试",
+    "output_compression": "输出压缩率",
     "paint_course": "教程",
     "per_image": "每张图片",
     "per_images": "每张图片",
@@ -4885,6 +4900,7 @@
     "install": "安装",
     "install_plugins_from_browser": "浏览可用技能以开始使用",
     "installing": "安装中...",
+    "manage_skills": "管理技能",
     "name": "名称",
     "no_description": "无描述",
     "no_installed_plugins": "尚未安装任何技能",
@@ -5508,6 +5524,7 @@
       "create_new": "新建助手",
       "empty_text": "暂无助手",
       "filter": "筛选助手",
+      "group_filter": "按分组筛选",
       "multi_hint": "（与多模型互斥）",
       "multi_label": "多助手同时回答",
       "search_placeholder": "搜索助手…"
@@ -5627,16 +5644,17 @@
         "path_changed_without_copy": "路径已更改成功",
         "restart_notice": "应用可能会重启多次以应用更改",
         "select": "修改目录",
-        "select_error": "更改数据目录失败",
+        "select_error": "所选目录可能正被另一个 Cherry Studio 实例使用。请关闭其他实例后重试；若确认没有实例运行，请删除该目录中遗留的 SingletonLock 和 SingletonSocket 文件。",
         "select_error_in_app_path": "新路径与应用安装路径相同，请选择其他路径",
+        "select_error_protected_path": "所选路径受操作系统或 Cherry Studio 保护，请选择其他文件夹",
         "select_error_root_path": "新路径不能是根路径",
         "select_error_same_path": "新路径与旧路径相同，请选择其他路径",
         "select_error_write_permission": "新路径没有写入权限",
         "select_not_empty_dir": "新路径不为空",
-        "select_not_empty_dir_content": "新路径不为空，将覆盖新路径中的数据，有数据丢失和复制失败的风险，是否继续？",
         "select_success": "数据目录已更改，应用将重启以应用更改",
         "select_title": "更改应用数据目录",
-        "stop_quit_app_reason": "应用目前在迁移数据，不能退出"
+        "stop_quit_app_reason": "应用目前在迁移数据，不能退出",
+        "switch_existing_notice": "将直接使用这个非空目录，不会覆盖其中的现有文件。"
       },
       "app_logs": {
         "button": "打开日志",
@@ -6860,6 +6878,7 @@
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",
       "empty": "没有模型",
+      "empty_hint": "点击上方的获取模型列表按钮添加模型",
       "enabled_models": "已启用",
       "expand_all": "全部展开",
       "filter": {
@@ -7357,9 +7376,6 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
-      "openai": {
-        "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"
-      },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
       "reorder_failed": "调整服务商顺序失败",
@@ -7435,6 +7451,7 @@
         "autoEmpty": "暂无已启用的 MCP 服务器",
         "description": "查看当前 MCP 服务器状态",
         "disabled": "当前助手已禁用 MCP",
+        "open_config": "配置 MCP 服务器",
         "unknownServer": "未知 MCP 服务器"
       },
       "multiple": "多选",
