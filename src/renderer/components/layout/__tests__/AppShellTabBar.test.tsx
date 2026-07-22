@@ -26,6 +26,11 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Badge: ({ children, variant, ...props }: { children: ReactNode; variant?: string }) => (
+    <span {...props} data-variant={variant}>
+      {children}
+    </span>
+  ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -150,6 +155,7 @@ const firePointerDoubleClick = (element: Element, pointerType: 'mouse' | 'touch'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.unstubAllEnvs()
   mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
 })
@@ -184,6 +190,15 @@ describe('AppShellTabBar', () => {
 
     return closeTab
   }
+
+  it('shows the configured development instance label', () => {
+    vi.stubEnv('RENDERER_VITE_DEV_INSTANCE_LABEL', 'fix/mcp-oauth-silent-prewarm')
+
+    renderTabBar()
+
+    expect(screen.getByTestId('dev-instance-label')).toHaveTextContent('fix/mcp-oauth-silent-prewarm')
+  })
+
   it('opens launchpad from the plus button', async () => {
     const user = userEvent.setup()
     const openTab = vi.fn()
