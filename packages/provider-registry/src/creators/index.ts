@@ -39,7 +39,6 @@ import nomic from './nomic'
 import nousresearch from './nousresearch'
 import nvidia from './nvidia'
 import openai from './openai'
-import perplexity from './perplexity'
 import recraft from './recraft'
 import reka from './reka'
 import runway from './runway'
@@ -99,7 +98,6 @@ export const CREATORS: Creator[] = [
   nousresearch,
   nvidia,
   openai,
-  perplexity,
   recraft,
   reka,
   runway,
