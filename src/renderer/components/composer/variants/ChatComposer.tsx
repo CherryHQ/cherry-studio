@@ -1003,6 +1003,7 @@ const ChatComposerInner = ({
               label: t('chat.conversation.new'),
               icon: <NewConversationIcon size={18} aria-hidden />,
               disabled: newTopicDisabled,
+              customizePlacement: 'leading' as const,
               requiresPanel: false,
               onSelect: () => addNewTopic()
             }

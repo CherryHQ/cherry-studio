@@ -1247,6 +1247,11 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([
       expect.objectContaining({ id: 'composer:new-conversation' })
     ])
+
+    act(() => {
+      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+    })
+    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('chat.conversation.new')
   })
 
   it('disables the classic-layout empty topic slash action while the assistant is loading', () => {

@@ -1437,6 +1437,7 @@ const AgentComposerInner = ({
               id: AGENT_NEW_SESSION_TOOL_ID,
               label: newSessionLabel,
               icon: <NewConversationIcon size={18} aria-hidden />,
+              customizePlacement: 'leading' as const,
               requiresPanel: false,
               onSelect: () => handleCreateEmptySession()
             }

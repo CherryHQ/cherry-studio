@@ -251,6 +251,33 @@ describe('ComposerToolbarShortcuts', () => {
     expect(mocks.reorderableProps.items).toContainEqual(expect.objectContaining({ id: 'new-conversation' }))
   })
 
+  it('places leading custom tools first by default while keeping them reorderable', () => {
+    mocks.launchers = [thinkingLauncher]
+    const { props } = renderShortcuts({
+      customizeOpen: true,
+      pinnedIds: [],
+      customTools: [
+        {
+          id: 'new-conversation',
+          label: 'new-conversation-label',
+          icon: <span />,
+          customizePlacement: 'leading',
+          requiresPanel: false,
+          onSelect: vi.fn()
+        }
+      ]
+    })
+
+    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['new-conversation', 'thinking'])
+
+    act(() => {
+      mocks.reorderableProps.onReorder([...mocks.reorderableProps.items].reverse())
+    })
+
+    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['thinking', 'new-conversation'])
+    expect(props.onPinnedIdsChange).not.toHaveBeenCalled()
+  })
+
   it('positions the customize popover above an empty shortcut bar without covering the plus trigger', () => {
     renderShortcuts({ customizeOpen: true, pinnedIds: [] })
 

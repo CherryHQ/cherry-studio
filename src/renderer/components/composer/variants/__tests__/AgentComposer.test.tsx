@@ -1003,6 +1003,11 @@ describe('AgentComposer', () => {
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.hideRootPanelLeadingItemsOnButtonOpen).toBe(false)
     expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([expect.objectContaining({ id: 'composer:new-session' })])
+
+    act(() => {
+      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+    })
+    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('agent.session.new')
   })
 
   it('keeps the new session action at the far left and the tool menu at the far right of the left toolbar', () => {
