@@ -18,8 +18,10 @@
  * - data-compaction-anchor (timeline anchor for completed runtime compaction)
  * - data-agent-task-event (Claude Agent SDK task lifecycle event)
  * - data-code (code blocks)
+ * - data-prepare-progress (hidden turn "prepare response" timeline / live progress)
  */
 
+import type { PrepareProgressPartData } from '@shared/ai/agentPrepareTimeline'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
@@ -109,6 +111,7 @@ export type CherryDataPartTypes = {
   'compaction-anchor': CompactionAnchorPartData
   'agent-task-event': AgentTaskEventPartData
   code: CodePartData
+  'prepare-progress': PrepareProgressPartData
 }
 
 // ============================================================================
