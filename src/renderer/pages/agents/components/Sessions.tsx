@@ -1757,11 +1757,11 @@ const Sessions = ({
                   onManageAgents={manageAgentsMenuItem?.onSelect}
                   onManageSkills={manageSkillsMenuItem?.onSelect}
                   onOpenHistoryRecords={onOpenHistoryRecords}
-                  sectionId={
+                  sectionIds={
                     displayMode === 'agent'
-                      ? SESSION_AGENT_SECTION_ID
+                      ? [SESSION_AGENT_SECTION_ID]
                       : displayMode === 'workdir'
-                        ? SESSION_WORKDIR_SECTION_ID
+                        ? [SESSION_WORKDIR_SECTION_ID]
                         : undefined
                   }
                 />

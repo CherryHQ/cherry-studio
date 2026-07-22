@@ -2182,6 +2182,29 @@ describe('Topics', () => {
     ])
   })
 
+  it('collapses assistant groups across multiple group sections when any group is expanded', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: ['topic:assistant:assistant-1']
+    })
+
+    renderTopicList()
+
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+
+    expect(getTopicGroupExpansionCache().assistant).toEqual([
+      'topic:assistant:assistant-1',
+      'topic:assistant:assistant-2'
+    ])
+  })
+
   it('re-selects the active topic from an assistant group while history records are active', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     setTopicGroupExpansionCache({
