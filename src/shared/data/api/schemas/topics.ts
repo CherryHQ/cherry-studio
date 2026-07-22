@@ -53,6 +53,7 @@ export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
 export const TopicOwnerScopeSchema = z.union([AssistantIdSchema, z.literal('unlinked')])
 export type TopicOwnerScope = z.infer<typeof TopicOwnerScopeSchema>
 
+/** Fixed sort profiles: timestamps descend and `orderKey` ascends, so callers do not supply `sortOrder`. */
 export const TopicSortBySchema = z.enum(['createdAt', 'lastActivityAt', 'orderKey'])
 export type TopicSortBy = z.infer<typeof TopicSortBySchema>
 

@@ -148,6 +148,7 @@ export type AgentSessionOwnerScope = z.infer<typeof AgentSessionOwnerScopeSchema
 export const AgentSessionWorkspaceScopeSchema = z.string().min(1)
 export type AgentSessionWorkspaceScope = z.infer<typeof AgentSessionWorkspaceScopeSchema>
 
+/** Fixed sort profiles: timestamps descend and `orderKey` ascends, so callers do not supply `sortOrder`. */
 export const AgentSessionSortBySchema = z.enum(['createdAt', 'lastActivityAt', 'orderKey'])
 export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
 
