@@ -1,3 +1,4 @@
+import { application } from '@application'
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
@@ -9,6 +10,19 @@ import type { AppProviderId } from '../types'
 export interface CherryWebSearchConfig {
   maxResults: number
   excludeDomains: string[]
+}
+
+/**
+ * True when the user has configured a default external web search provider
+ * (Bing, Exa, Tavily, etc.) via global preferences. When true, provider-native
+ * search tools (Google grounding, OpenAI web_search, Anthropic web_search, …)
+ * must be suppressed so the agentic `web__search` tool is the only path —
+ * otherwise models see both and produce duplicate citations or fail with
+ * "Server not found: default_api" through relays.
+ */
+export function hasExternalSearchProvider(): boolean {
+  const preferenceService = application.get('PreferenceService')
+  return Boolean(preferenceService.get('chat.web_search.default_search_keywords_provider'))
 }
 
 export function getWebSearchParams(model: Model): Record<string, any> {
