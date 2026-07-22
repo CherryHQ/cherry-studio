@@ -15,14 +15,18 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   'mcp.server.remove': async ({ serverId }) => {
     await application.get('McpRuntimeService').removeServer(serverId)
   },
-  'mcp.server.restart': async ({ serverId }) => {
-    await application.get('McpRuntimeService').restartServer(serverId)
+  'mcp.server.restart': async ({ serverId, interactive }) => {
+    await application.get('McpRuntimeService').restartServer(serverId, {
+      authMode: interactive ? 'interactive' : 'silent'
+    })
   },
   'mcp.server.stop': async ({ serverId }) => {
     await application.get('McpRuntimeService').stopServer(serverId)
   },
-  'mcp.server.refresh_tools': async ({ serverId }) => {
-    await application.get('McpCatalogService').refreshTools(serverId)
+  'mcp.server.refresh_tools': async ({ serverId, interactive }) => {
+    await application.get('McpCatalogService').refreshTools(serverId, {
+      authMode: interactive ? 'interactive' : 'silent'
+    })
   },
   'mcp.server.list_prompts': async ({ serverId }) => application.get('McpRuntimeService').listPrompts(serverId),
   'mcp.server.list_resources': async ({ serverId }) => application.get('McpRuntimeService').listResources(serverId),

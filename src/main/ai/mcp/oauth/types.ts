@@ -42,6 +42,8 @@ export interface OAuthCallbackServerOptions {
   events: EventEmitter
 }
 
+export type McpOAuthMode = 'silent' | 'interactive'
+
 /**
  * Options for creating an OAuth client provider
  */
@@ -58,4 +60,6 @@ export interface OAuthProviderOptions {
   clientName?: string
   /** Client URI to use for OAuth registration */
   clientUri?: string
+  /** Whether a new OAuth grant may open the user's browser */
+  authMode?: McpOAuthMode
 }

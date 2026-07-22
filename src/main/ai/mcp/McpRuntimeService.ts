@@ -52,7 +52,8 @@ import * as z from 'zod'
 
 import type { McpPackageService } from './McpPackageService'
 import { CallBackServer } from './oauth/callback'
-import { McpOAuthClientProvider } from './oauth/provider'
+import { McpAuthorizationRequiredError, McpOAuthClientProvider } from './oauth/provider'
+import type { McpOAuthMode } from './oauth/types'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
 
@@ -62,6 +63,7 @@ type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 type CallToolArgs = { serverId: string; name: string; args: any; callId?: string }
 type RuntimeCallToolArgs = { server: McpServer; name: string; args: any; callId?: string }
 type McpRuntimeState = McpRuntimeStatus['state']
+type McpConnectionOptions = { authMode?: McpOAuthMode }
 
 // IPC payload validation for the renderer-facing handlers. The inner `args` are the tool/prompt
 // arguments forwarded to the MCP server (server-trusted by protocol), so only the wrapper fields
@@ -313,14 +315,15 @@ export class McpRuntimeService extends BaseService {
 
   public async withClient<T>(
     serverId: string,
-    operation: (client: Client, server: McpServer) => Promise<T>
+    operation: (client: Client, server: McpServer) => Promise<T>,
+    options: McpConnectionOptions = {}
   ): Promise<T> {
     const server = this.getServerById(serverId)
-    const client = await this.getOrCreateClient(server)
+    const client = await this.getOrCreateClient(server, options.authMode)
     return operation(client, server)
   }
 
-  private async getOrCreateClient(server: McpServer): Promise<Client> {
+  private async getOrCreateClient(server: McpServer, authMode: McpOAuthMode = 'silent'): Promise<Client> {
     if (this.stopping || this.isStopped || this.isDestroyed) {
       throw new Error('MCP runtime is stopping')
     }
@@ -337,7 +340,17 @@ export class McpRuntimeService extends BaseService {
     if (pendingClient) {
       this.setServerStatus(server.id, 'connecting')
       getServerLogger(server).silly(`Waiting for pending client initialization`)
-      return pendingClient
+      try {
+        return await pendingClient
+      } catch (error) {
+        // An explicit settings action may arrive while a silent prewarm is in flight.
+        // Once that silent attempt settles, retry with the stronger user intent instead
+        // of making the user repeat the action.
+        if (authMode === 'interactive' && error instanceof McpAuthorizationRequiredError) {
+          return this.getOrCreateClient(server, authMode)
+        }
+        throw error
+      }
     }
 
     // Check if we already have a client for this server configuration
@@ -386,7 +399,8 @@ export class McpRuntimeService extends BaseService {
           serverUrlHash: crypto
             .createHash('md5')
             .update(server.baseUrl || '')
-            .digest('hex')
+            .digest('hex'),
+          authMode
         })
 
         const initTransport = async (
@@ -709,6 +723,10 @@ export class McpRuntimeService extends BaseService {
                 error instanceof Error &&
                 (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
               ) {
+                if (authMode === 'silent') {
+                  lastError = new McpAuthorizationRequiredError()
+                  break
+                }
                 logger.debug(`Authentication required for server: ${server.name}`)
                 await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport, candidateType)
                 connected = true
@@ -999,7 +1017,7 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  async restartServer(serverId: string) {
+  async restartServer(serverId: string, options: McpConnectionOptions = {}) {
     const server = this.getServerById(serverId)
     getServerLogger(server).debug(`Restarting server`)
     this.emitServerLog(server, {
@@ -1016,8 +1034,8 @@ export class McpRuntimeService extends BaseService {
     this.clearServerCache(server)
     application.get('McpCatalogService').clearSharedToolsCache(server.id)
     try {
-      await this.getOrCreateClient(server)
-      await application.get('McpCatalogService').refreshTools(server.id)
+      await this.getOrCreateClient(server, options.authMode)
+      await application.get('McpCatalogService').refreshTools(server.id, options)
     } catch (error) {
       this.setServerStatus(server.id, 'error', error)
       throw error

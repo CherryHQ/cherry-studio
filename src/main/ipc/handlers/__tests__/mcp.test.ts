@@ -38,7 +38,15 @@ describe('mcpHandlers', () => {
 
   it('refresh_tools delegates to the separate McpCatalogService', async () => {
     await mcpHandlers['mcp.server.refresh_tools']({ serverId: 's' }, ctx)
-    expect(catalog.refreshTools).toHaveBeenCalledWith('s')
+    expect(catalog.refreshTools).toHaveBeenCalledWith('s', { authMode: 'silent' })
+  })
+
+  it('forwards interactive authorization intent for settings actions', async () => {
+    await mcpHandlers['mcp.server.refresh_tools']({ serverId: 's', interactive: true }, ctx)
+    await mcpHandlers['mcp.server.restart']({ serverId: 's', interactive: true }, ctx)
+
+    expect(catalog.refreshTools).toHaveBeenCalledWith('s', { authMode: 'interactive' })
+    expect(runtime.restartServer).toHaveBeenCalledWith('s', { authMode: 'interactive' })
   })
 
   it('list_prompts returns the prompt list from McpRuntimeService', async () => {

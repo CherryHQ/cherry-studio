@@ -84,10 +84,12 @@ The sync is idempotent; a stale entry is overwritten on the next sync.
   above. A dead or slow server therefore cannot block agent/chat startup
   (issue #16242).
 - **`refreshTools(serverId)`** (and the private `listToolsForServer`) is the live
-  path that connects, lists, and writes the cache. It is driven entirely by
-  background warmers: `prewarmActiveServerTools` (at `onReady`), the
-  `onToolListChanged` refresh, the renderer's on-demand `refreshTools` (via
-  `useAgentTools`), the server-enable toggle, and `restartServer`.
+  path that connects, lists, and writes the cache. Background warmers include
+  `prewarmActiveServerTools` (at `onReady`), the `onToolListChanged` refresh,
+  and the renderer's on-demand `refreshTools` (via `useAgentTools`). Existing
+  settings actions such as the server-enable toggle and `restartServer` also
+  refresh this cache. Background callers use silent OAuth; settings callers may
+  opt in to interactive OAuth. See [MCP OAuth Interaction](./mcp-oauth-interaction.md).
 
 `listTools` also fires a single non-blocking `refreshTools` the first time it sees
 a never-warmed server (cache `undefined`, distinct from a warmed-but-empty `[]`),
