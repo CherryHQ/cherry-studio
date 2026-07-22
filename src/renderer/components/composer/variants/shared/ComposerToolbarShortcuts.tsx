@@ -18,6 +18,9 @@ export interface ComposerToolbarCustomTool {
   id: string
   label: string
   icon: ReactNode
+  disabled?: boolean
+  /** Defaults to true for category shortcuts that need the unified panel. */
+  requiresPanel?: boolean
   onSelect: (args: { inputAdapter?: QuickPanelInputAdapter; unifiedPanelControl?: ComposerUnifiedPanelControl }) => void
 }
 
@@ -140,18 +143,19 @@ export const ComposerToolbarShortcuts = ({
           : () => dispatchLauncher(launcher, { source: 'popover', inputAdapter })
       }
     })
-    const customCandidates = (customTools ?? []).map(
-      (tool): ShortcutCandidate => ({
+    const customCandidates = (customTools ?? []).map((tool): ShortcutCandidate => {
+      const requiresPanel = tool.requiresPanel ?? true
+      return {
         id: tool.id,
         label: tool.label,
         icon: tool.icon,
         active: false,
-        disabled: panelUnavailable,
-        haspopup: 'menu',
+        disabled: Boolean(tool.disabled) || (requiresPanel && panelUnavailable),
+        haspopup: requiresPanel ? 'menu' : undefined,
         toggle: false,
         select: () => tool.onSelect({ inputAdapter, unifiedPanelControl })
-      })
-    )
+      }
+    })
     return [...launcherCandidates, ...customCandidates]
   }, [
     customTools,
@@ -257,7 +261,7 @@ export const ComposerToolbarShortcuts = ({
   return (
     <Popover open={customizeOpen} onOpenChange={onCustomizeOpenChange}>
       <PopoverAnchor asChild>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex min-h-8 shrink-0 items-center gap-1.5">
           {visiblePinnedRows.map(({ candidate }) => {
             const shortcut = candidate!
             const tooltip =
@@ -292,6 +296,8 @@ export const ComposerToolbarShortcuts = ({
           focus-outside so that restore doesn't instantly dismiss. Pointer-down outside
           still closes the popover. */}
       <PopoverContent
+        side="top"
+        sideOffset={8}
         align="start"
         className="w-64 p-1.5"
         aria-labelledby={customizeTitleId}

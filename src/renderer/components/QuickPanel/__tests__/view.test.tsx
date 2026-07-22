@@ -42,6 +42,9 @@ vi.mock('@renderer/components/VirtualList', async () => {
       size?: number
       ref?: React.Ref<{ scrollToIndex: (index: number) => void; scrollToOffset: (offset: number) => void }>
     }) => {
+      // Mirror the real virtualizer's initial empty measurement: it needs a remount
+      // before it can render a list that hydrates after the panel opens.
+      const canRenderItemsRef = React.useRef(list.length > 0)
       React.useImperativeHandle(ref, () => ({
         scrollToIndex: virtualListMocks.scrollToIndex,
         scrollToOffset: virtualListMocks.scrollToOffset
@@ -49,7 +52,7 @@ vi.mock('@renderer/components/VirtualList', async () => {
 
       return (
         <div data-size={size} data-testid="quick-panel-virtual-list">
-          {list.map((item, index) => (
+          {(canRenderItemsRef.current ? list : []).map((item, index) => (
             <React.Fragment key={item.id ?? index}>{children(item, index)}</React.Fragment>
           ))}
         </div>

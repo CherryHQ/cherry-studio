@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -79,7 +79,6 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
-  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
@@ -96,6 +95,7 @@ import { useLatest } from './shared/useLatest'
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
+const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
 const CHAT_TOOLBAR_CUSTOM_TOOLS: readonly ComposerToolbarCustomTool[] = [
   {
     id: ComposerPanelSymbol.McpStatus,
@@ -981,7 +981,7 @@ const ChatComposerInner = ({
 
     return [
       {
-        id: 'composer:new-conversation',
+        id: CHAT_NEW_CONVERSATION_TOOL_ID,
         label,
         icon: <NewConversationIcon size={16} />,
         disabled: newTopicDisabled,
@@ -993,6 +993,25 @@ const ChatComposerInner = ({
       }
     ]
   }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
+  const newTopicPinned = pinnedToolIds.includes(CHAT_NEW_CONVERSATION_TOOL_ID)
+  const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
+    () => [
+      ...(hasNewTopicAction
+        ? [
+            {
+              id: CHAT_NEW_CONVERSATION_TOOL_ID,
+              label: t('chat.conversation.new'),
+              icon: <NewConversationIcon size={18} aria-hidden />,
+              disabled: newTopicDisabled,
+              requiresPanel: false,
+              onSelect: () => addNewTopic()
+            }
+          ]
+        : []),
+      ...CHAT_TOOLBAR_CUSTOM_TOOLS
+    ],
+    [addNewTopic, hasNewTopicAction, newTopicDisabled, t]
+  )
 
   const rootPanelCustomizeItems = useMemo(() => [customizePanelItem], [customizePanelItem])
 
@@ -1299,7 +1318,7 @@ const ChatComposerInner = ({
         onPinnedIdsChange={setPinnedToolIds}
         onResetPinnedIds={resetPinnedToolIds}
         isDefault={pinnedToolsAtDefault}
-        customTools={CHAT_TOOLBAR_CUSTOM_TOOLS}
+        customTools={toolbarCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         inputAdapter={inputAdapter}
@@ -1312,26 +1331,12 @@ const ChatComposerInner = ({
       pinnedToolsAtDefault,
       resetPinnedToolIds,
       setCustomizeToolbarOpen,
-      setPinnedToolIds
+      setPinnedToolIds,
+      toolbarCustomTools
     ]
   )
 
   if (isMultiSelectMode) return null
-
-  const newTopicControl = hasNewTopicAction ? (
-    <Tooltip content={t('chat.conversation.new')} placement="top">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
-        disabled={newTopicDisabled}
-        aria-label={t('chat.conversation.new')}
-        onClick={() => addNewTopic()}>
-        <NewConversationIcon size={20} aria-hidden />
-      </Button>
-    </Tooltip>
-  ) : undefined
 
   const controlSlots = renderControls({
     assistantId: selectedAssistantId,
@@ -1349,7 +1354,6 @@ const ChatComposerInner = ({
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     topBarPortalAvailable,
     topBarPortalIconOnly,
-    leadingControl: newTopicControl,
     renderPersistentToolShortcuts,
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
@@ -1455,7 +1459,7 @@ const ChatComposerInner = ({
           toolLaunchersVersion={toolLaunchersVersion}
           rootPanelLeadingItems={rootPanelLeadingItems}
           rootPanelAdditionalItems={rootPanelCustomizeItems}
-          hideRootPanelLeadingItemsOnButtonOpen
+          hideRootPanelLeadingItemsOnButtonOpen={newTopicPinned}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           {...controlSlots}
         />

@@ -54,7 +54,7 @@ const mocks = vi.hoisted(() => ({
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
-  pinnedToolIds: ['thinking', 'web-search'] as string[],
+  pinnedToolIds: ['composer:new-conversation', 'thinking', 'web-search'] as string[],
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
@@ -686,7 +686,7 @@ describe('ChatComposer', () => {
     mocks.dispatchLauncher.mockReset()
     mocks.unifiedPanelOpen.mockReset()
     mocks.unifiedPanelAvailable = true
-    mocks.pinnedToolIds = ['thinking', 'web-search']
+    mocks.pinnedToolIds = ['composer:new-conversation', 'thinking', 'web-search']
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
@@ -1191,11 +1191,9 @@ describe('ChatComposer', () => {
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(newTopicButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     const newConversationIcon = newTopicButton.querySelector('.new-conversation-icon')
-    expect(newTopicButton).toHaveClass('[&_.new-conversation-icon]:!size-5')
-    expect(newConversationIcon).toHaveAttribute('width', '20')
-    expect(newConversationIcon).toHaveAttribute('height', '20')
+    expect(newConversationIcon).toHaveAttribute('width', '18')
+    expect(newConversationIcon).toHaveAttribute('height', '18')
     expect(newConversationIcon).toHaveAttribute('viewBox', '0 0 24 24')
     expect(newConversationIcon).toHaveAttribute('stroke', 'currentColor')
     expect(newConversationIcon).toHaveAttribute('stroke-width', '2')
@@ -1225,6 +1223,30 @@ describe('ChatComposer', () => {
 
     expect(onCreateEmptyTopic).toHaveBeenCalledTimes(2)
     expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
+
+    act(() => {
+      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+    })
+    const newTopicSwitch = screen.getByRole('switch', { name: 'chat.conversation.new' })
+    expect(newTopicSwitch).toBeChecked()
+    expect(newTopicSwitch).toBeEnabled()
+  })
+
+  it('returns the new conversation action to the plus panel when it is unpinned', () => {
+    mocks.pinnedToolIds = ['thinking', 'web-search']
+    const onCreateEmptyTopic = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
+
+    expect(
+      within(screen.getByTestId('composer-left-controls')).queryByRole('button', {
+        name: 'chat.conversation.new'
+      })
+    ).not.toBeInTheDocument()
+    expect(mocks.surfaceProps?.hideRootPanelLeadingItemsOnButtonOpen).toBe(false)
+    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([
+      expect.objectContaining({ id: 'composer:new-conversation' })
+    ])
   })
 
   it('disables the classic-layout empty topic slash action while the assistant is loading', () => {

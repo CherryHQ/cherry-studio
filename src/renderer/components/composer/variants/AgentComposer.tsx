@@ -112,7 +112,6 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
-  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
@@ -135,6 +134,7 @@ const ResourceEditDialogHost = React.lazy(() =>
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
+const AGENT_NEW_SESSION_TOOL_ID = 'composer:new-session'
 const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
 const FILE_IPC_BATCH_SIZE = 500
 
@@ -927,10 +927,7 @@ const AgentComposerInner = ({
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
-  const pinnedLauncherIds = useMemo(
-    () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
-    [pinnedToolIds]
-  )
+  const pinnedLauncherIds = pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id))
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
@@ -1200,7 +1197,7 @@ const AgentComposerInner = ({
 
     return [
       {
-        id: 'composer:new-session',
+        id: AGENT_NEW_SESSION_TOOL_ID,
         label,
         icon: <NewConversationIcon size={16} />,
         filterText: label,
@@ -1211,6 +1208,7 @@ const AgentComposerInner = ({
       }
     ]
   }, [handleCreateEmptySession, hasNewSessionAction, t])
+  const newSessionPinned = pinnedToolIds.includes(AGENT_NEW_SESSION_TOOL_ID)
 
   const toolsSession = sessionData
   const reasoningContext = useMemo(
@@ -1428,24 +1426,22 @@ const AgentComposerInner = ({
     />
   )
 
-  const newSessionControl = hasNewSessionAction ? (
-    <Tooltip content={t('agent.session.new')} placement="top">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
-        aria-label={t('agent.session.new')}
-        onClick={handleCreateEmptySession}>
-        <NewConversationIcon size={20} aria-hidden />
-      </Button>
-    </Tooltip>
-  ) : undefined
-
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
+    const newSessionLabel = t('agent.session.new')
     const skillLabel = t('plugins.skills')
     const slashCommandsLabel = t('chat.input.slash_commands.title')
     return [
+      ...(hasNewSessionAction
+        ? [
+            {
+              id: AGENT_NEW_SESSION_TOOL_ID,
+              label: newSessionLabel,
+              icon: <NewConversationIcon size={18} aria-hidden />,
+              requiresPanel: false,
+              onSelect: () => handleCreateEmptySession()
+            }
+          ]
+        : []),
       {
         id: 'skills',
         label: skillLabel,
@@ -1467,7 +1463,7 @@ const AgentComposerInner = ({
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
     ]
-  }, [t])
+  }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const renderQuickPanelShortcuts = useCallback(
     ({
@@ -1513,7 +1509,6 @@ const AgentComposerInner = ({
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
-    leadingControl: newSessionControl,
     renderQuickPanelShortcuts,
     onAgentChange: handleAgentChange,
     renderWorkspaceControl
@@ -1588,7 +1583,7 @@ const AgentComposerInner = ({
           suggestionSources={resourceMentionSources}
           rootPanelLeadingItems={rootPanelNewSessionItems}
           rootPanelAdditionalItems={rootPanelTrailingItems}
-          hideRootPanelLeadingItemsOnButtonOpen
+          hideRootPanelLeadingItemsOnButtonOpen={newSessionPinned}
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}

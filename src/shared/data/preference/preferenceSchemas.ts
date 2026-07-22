@@ -511,7 +511,7 @@ export interface PreferenceSchemas {
 export const DefaultPreferences: PreferenceSchemas = {
   default: {
     'agent.icon_type': 'emoji',
-    'agent.input.toolbar.pinned_tools': ['thinking', 'skills'],
+    'agent.input.toolbar.pinned_tools': ['composer:new-session', 'thinking', 'skills'],
     'agent.session.display_mode': 'agent',
     'agent.session.position': 'left',
     'app.developer_mode.enabled': false,
@@ -562,7 +562,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.default_model_id': null,
     'chat.input.send_message_shortcut': 'Enter',
     'chat.input.show_estimated_tokens': false,
-    'chat.input.toolbar.pinned_tools': ['thinking', 'web-search'],
+    'chat.input.toolbar.pinned_tools': ['composer:new-conversation', 'thinking', 'web-search'],
     'chat.input.translate.auto_translate_with_space': false,
     'chat.input.translate.show_confirm': true,
     'chat.input.translate.target_language': 'en-us',

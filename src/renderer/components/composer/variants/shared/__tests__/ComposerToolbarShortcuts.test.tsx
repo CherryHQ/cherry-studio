@@ -34,10 +34,16 @@ vi.mock('@cherrystudio/ui', () => {
     Popover: ({ children, open }: any) =>
       React.createElement('div', { 'data-testid': 'popover', 'data-open': String(open) }, children),
     PopoverAnchor: ({ children }: { children: ReactNode }) => children,
-    PopoverContent: ({ children, className, 'aria-labelledby': ariaLabelledby }: any) =>
+    PopoverContent: ({ children, className, side, sideOffset, 'aria-labelledby': ariaLabelledby }: any) =>
       React.createElement(
         'div',
-        { 'data-testid': 'popover-content', className, 'aria-labelledby': ariaLabelledby },
+        {
+          'data-testid': 'popover-content',
+          'data-side': side,
+          'data-side-offset': sideOffset,
+          className,
+          'aria-labelledby': ariaLabelledby
+        },
         children
       ),
     ReorderableList: (props: any) => {
@@ -210,6 +216,47 @@ describe('ComposerToolbarShortcuts', () => {
 
     fireEvent.click(unpinnedSwitch)
     expect(props.onPinnedIdsChange).toHaveBeenCalledWith(['thinking', 'ghost', 'web-search', 'knowledge-base'])
+  })
+
+  it('treats non-panel custom actions like ordinary configurable toolbar tools', () => {
+    const onSelect = vi.fn()
+    const { props } = renderShortcuts({
+      customizeOpen: true,
+      pinnedIds: ['new-conversation'],
+      customTools: [
+        {
+          id: 'new-conversation',
+          label: 'new-conversation-label',
+          icon: <span />,
+          requiresPanel: false,
+          onSelect
+        }
+      ],
+      unifiedPanelControl: { available: false, open: vi.fn() }
+    })
+
+    const toolbarButton = screen.getByRole('button', { name: 'new-conversation-label' })
+    expect(toolbarButton).toBeEnabled()
+    expect(toolbarButton).not.toHaveAttribute('aria-haspopup')
+    fireEvent.click(toolbarButton)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+
+    const configurableSwitch = within(screen.getByTestId('popover-content')).getByRole('checkbox', {
+      name: 'new-conversation-label'
+    })
+    expect(configurableSwitch).toBeChecked()
+    expect(configurableSwitch).toBeEnabled()
+    fireEvent.click(configurableSwitch)
+    expect(props.onPinnedIdsChange).toHaveBeenCalledWith([])
+    expect(mocks.reorderableProps.items).toContainEqual(expect.objectContaining({ id: 'new-conversation' }))
+  })
+
+  it('positions the customize popover above an empty shortcut bar without covering the plus trigger', () => {
+    renderShortcuts({ customizeOpen: true, pinnedIds: [] })
+
+    expect(screen.getByTestId('popover').firstElementChild).toHaveClass('min-h-8')
+    expect(screen.getByTestId('popover-content')).toHaveAttribute('data-side', 'top')
+    expect(screen.getByTestId('popover-content')).toHaveAttribute('data-side-offset', '8')
   })
 
   it('renders an always-visible, labelled drag handle for every resolved row', () => {
