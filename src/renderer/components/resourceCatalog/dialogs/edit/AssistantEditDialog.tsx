@@ -274,18 +274,19 @@ function AssistantEditDialogContent({
 
   // Key the debounce on user input, not saveIntent. Advancing the local baseline
   // after a save must not schedule another save when the form values did not move.
-  const { flush, hasInFlightSave } = useDebouncedAutoSave({
+  const { flushAll, hasInFlightSave } = useDebouncedAutoSave({
     enabled: open,
     changeKey: canPersist ? JSON.stringify(values) : null,
     onSave: persist
   })
 
-  // On close with a pending edit, flush through the same serialized save queue and
-  // only close once it settles — so a failed final save stays visible instead of
-  // being silently dropped, and we never race a second concurrent save.
+  // On close with a pending edit, run the serialized save queue until it is
+  // genuinely quiescent before closing — so a failed final save stays visible
+  // instead of being silently dropped, and an edit made while the close waits
+  // is persisted rather than lost when unmount clears its debounce timer.
   const attemptClose = async (): Promise<boolean> => {
     if (canPersist || hasInFlightSave()) {
-      await flush()
+      await flushAll()
       if (saveFailedRef.current) return false
     }
     onOpenChange(false)
