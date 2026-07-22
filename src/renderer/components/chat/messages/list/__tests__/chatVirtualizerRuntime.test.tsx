@@ -1,7 +1,7 @@
 import { act, render } from '@testing-library/react'
 import { type ReactNode, type Ref } from 'react'
 import type { VListHandle } from 'virtua'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   type ChatVirtualizerRuntime,
@@ -95,6 +95,48 @@ function RuntimeDomProbe({
   )
 }
 
+function SelectionRuntimeProbe({
+  items,
+  onRuntime,
+  testId
+}: {
+  items: string[]
+  onRuntime(runtime: ChatVirtualizerRuntime<string>): void
+  testId: string
+}) {
+  const runtime = useChatVirtualizerRuntime({
+    items,
+    getItemKey: getStringItemKey,
+    renderItem: (item): ReactNode => <span>{item}</span>,
+    hasMoreTop: false,
+    topReachOverscanItems: 4,
+    bottomPadding: 12
+  })
+  onRuntime(runtime)
+  return (
+    <div
+      data-message-virtual-list-scroller
+      data-testid={testId}
+      ref={(element) => {
+        runtime.scrollerRef.current = element
+      }}>
+      {runtime.wrappedItems.map(runtime.wrappedRenderItem)}
+    </div>
+  )
+}
+
+function selectContents(element: HTMLElement): void {
+  const selection = document.getSelection()
+  if (!selection) throw new Error('Selection API is unavailable')
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  act(() => {
+    selection.removeAllRanges()
+    selection.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+}
+
 function createHandle(overrides?: Partial<VListHandle>): VListHandle {
   return {
     get cache() {
@@ -177,6 +219,10 @@ function installQueuedAnimationFrame(): { restore(): void; tick(frames?: number)
 }
 
 describe('useChatVirtualizerRuntime', () => {
+  afterEach(() => {
+    document.getSelection()?.removeAllRanges()
+  })
+
   it('keeps requested live item keys mounted and resolves their index after prepends', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     const view = render(
@@ -198,6 +244,59 @@ describe('useChatVirtualizerRuntime', () => {
     )
 
     expect(runtime?.keepMounted).toEqual([2])
+  })
+
+  it('keeps selection-survival indexes local to their owning virtual list', () => {
+    let leftRuntime: ChatVirtualizerRuntime<string> | undefined
+    let rightRuntime: ChatVirtualizerRuntime<string> | undefined
+    const view = render(
+      <>
+        <SelectionRuntimeProbe
+          items={['left-a', 'left-b', 'left-c', 'left-d']}
+          onRuntime={(runtime) => (leftRuntime = runtime)}
+          testId="left-list"
+        />
+        <SelectionRuntimeProbe
+          items={['right-a']}
+          onRuntime={(runtime) => (rightRuntime = runtime)}
+          testId="right-list"
+        />
+      </>
+    )
+
+    selectContents(view.getByText('left-d'))
+
+    expect(leftRuntime?.keepMounted).toEqual([3])
+    expect(rightRuntime?.keepMounted).toEqual([])
+
+    selectContents(view.getByText('right-a'))
+
+    expect(leftRuntime?.keepMounted).toEqual([])
+    expect(rightRuntime?.keepMounted).toEqual([0])
+  })
+
+  it('drops a stale selection-survival index when the virtual list shrinks', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    const view = render(
+      <SelectionRuntimeProbe
+        items={['message-a', 'message-b', 'message-c', 'message-d']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        testId="message-list"
+      />
+    )
+
+    selectContents(view.getByText('message-d'))
+    expect(runtime?.keepMounted).toEqual([3])
+
+    view.rerender(
+      <SelectionRuntimeProbe
+        items={['message-a']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        testId="message-list"
+      />
+    )
+
+    expect(runtime?.keepMounted).toEqual([])
   })
 
   it('keeps scroll handlers stable across parent rerenders', () => {

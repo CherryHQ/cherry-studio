@@ -34,6 +34,7 @@ import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
@@ -105,8 +106,8 @@ const IMAGE_CAPTURE_START_DELAY_MS = 160
 const EMPTY_COLLAPSED_TOPIC_STATE: readonly string[] = []
 const DEFAULT_TOPIC_GROUP_VISIBLE_COUNT = 5
 const LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT = 50
-const TOPIC_ASSISTANT_TAG_SECTION_PREFIX = 'topic:section:assistant-tag:'
-const TOPIC_ASSISTANT_UNTAGGED_SECTION_ID = `${TOPIC_ASSISTANT_TAG_SECTION_PREFIX}untagged`
+const TOPIC_ASSISTANT_GROUP_SECTION_PREFIX = 'topic:section:assistant-group:'
+const TOPIC_ASSISTANT_UNGROUPED_SECTION_ID = `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}ungrouped`
 const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
   docx: 'data.export.menus.docx',
   image: 'data.export.menus.image',
@@ -195,13 +196,13 @@ function AssistantGroupMoreMenu({
   deleteAssistantDisabled,
   deleteTopicsDisabled,
   disabled,
-  isTagGrouping,
+  isGroupGrouping,
   pinned,
   onDeleteAssistant,
   onDeleteAllTopics,
   onEdit,
   onSetAssistantIconType,
-  onToggleTagGrouping,
+  onToggleGrouping,
   onTogglePin
 }: {
   assistantId: string
@@ -209,13 +210,13 @@ function AssistantGroupMoreMenu({
   deleteAssistantDisabled?: boolean
   deleteTopicsDisabled?: boolean
   disabled?: boolean
-  isTagGrouping: boolean
+  isGroupGrouping: boolean
   pinned: boolean
   onDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
-  onToggleTagGrouping: () => void | Promise<void>
+  onToggleGrouping: () => void | Promise<void>
   onTogglePin: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
@@ -225,12 +226,12 @@ function AssistantGroupMoreMenu({
     deleteAssistantDisabled,
     deleteTopicsDisabled,
     disabled,
-    isTagGrouping,
+    isGroupGrouping,
     onDeleteAssistant,
     onDeleteAllTopics,
     onEdit,
     onSetAssistantIconType,
-    onToggleTagGrouping,
+    onToggleGrouping,
     onTogglePin,
     pinned,
     t
@@ -280,6 +281,7 @@ export function Topics({
     updateTopic: patchTopic,
     deleteTopic: deleteTopicById,
     deleteTopicsByAssistantId,
+    moveTopic,
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
@@ -290,7 +292,8 @@ export function Topics({
   const resolvedPanePosition = panePosition ?? storedPanePosition
   const setResolvedPanePosition =
     panePosition === undefined ? (onSetPanePosition ?? setStoredPanePosition) : onSetPanePosition
-  const isTagGrouping = assistantSortType === 'tags'
+  // Keep the legacy preference token (`tags`) while grouping by canonical Group rows.
+  const isGroupGrouping = assistantSortType === 'tags'
   const [topicExpansionTime, setTopicExpansionTime] = usePersistCache('ui.topic.expansion.time')
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
@@ -339,6 +342,11 @@ export function Topics({
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi()
+  const {
+    groups: assistantGroups,
+    isLoading: isAssistantGroupsLoading,
+    error: assistantGroupsError
+  } = useGroups('assistant')
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const defaultAssistant = useMemo(() => ({ name: t('chat.default.name'), emoji: DEFAULT_ASSISTANT_EMOJI }), [t])
@@ -481,9 +489,36 @@ export function Topics({
     () => new Map(orderedAssistants.map((assistant) => [assistant.id, assistant])),
     [orderedAssistants]
   )
+  const assistantGroupById = useMemo(
+    () => new Map(assistantGroups.map((group) => [group.id, group] as const)),
+    [assistantGroups]
+  )
+  const groupRankById = useMemo(
+    () => new Map(assistantGroups.map((group, index) => [group.id, index] as const)),
+    [assistantGroups]
+  )
+  const assistantsForDisplayOrder = useMemo(() => {
+    if (!isGroupGrouping) return orderedAssistants
+
+    return orderedAssistants
+      .map((assistant, index) => ({ assistant, index }))
+      .sort((a, b) => {
+        const aPinned = assistantPinnedIdSet.has(a.assistant.id)
+        const bPinned = assistantPinnedIdSet.has(b.assistant.id)
+        if (aPinned !== bPinned) return aPinned ? -1 : 1
+        if (aPinned) return a.index - b.index
+
+        const aGroupRank = a.assistant.groupId ? groupRankById.get(a.assistant.groupId) : undefined
+        const bGroupRank = b.assistant.groupId ? groupRankById.get(b.assistant.groupId) : undefined
+        const aRank = aGroupRank === undefined ? 0 : aGroupRank + 1
+        const bRank = bGroupRank === undefined ? 0 : bGroupRank + 1
+        return aRank - bRank || a.index - b.index
+      })
+      .map(({ assistant }) => assistant)
+  }, [assistantPinnedIdSet, groupRankById, isGroupGrouping, orderedAssistants])
   const assistantRankById = useMemo(
-    () => new Map(orderedAssistants.map((assistant, index) => [assistant.id, index])),
-    [orderedAssistants]
+    () => new Map(assistantsForDisplayOrder.map((assistant, index) => [assistant.id, index])),
+    [assistantsForDisplayOrder]
   )
 
   const { isFulfilled: isActiveTopicStreamFulfilled, markSeen: markActiveTopicStreamSeen } = useTopicStreamStatus(
@@ -685,18 +720,18 @@ export function Topics({
         return { id: TOPIC_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       }
 
-      if (isTagGrouping) {
+      if (isGroupGrouping) {
         const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
-        const tag = assistant?.tags?.[0]?.name?.trim()
+        const group = assistant?.groupId ? assistantGroupById.get(assistant.groupId) : undefined
 
-        return tag
-          ? { id: `${TOPIC_ASSISTANT_TAG_SECTION_PREFIX}${encodeURIComponent(tag)}`, label: tag }
-          : { id: TOPIC_ASSISTANT_UNTAGGED_SECTION_ID, label: t('assistants.tags.untagged') }
+        return group
+          ? { id: `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}${group.id}`, label: group.name }
+          : { id: TOPIC_ASSISTANT_UNGROUPED_SECTION_ID, label: t('assistants.groups.ungrouped') }
       }
 
       return { id: TOPIC_ASSISTANT_SECTION_ID, label: t('chat.topics.display.assistant') }
     }
-  }, [assistantById, isAssistantDisplayMode, isTagGrouping, t])
+  }, [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping, t])
 
   const baseGroupedTopics = useMemo(
     () =>
@@ -761,12 +796,15 @@ export function Topics({
     },
     [displayMode, isRightPanel]
   )
-  const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
+  const listError =
+    error ||
+    (isAssistantDisplayMode ? (assistantsError ?? (isGroupGrouping ? assistantGroupsError : undefined)) : undefined)
   const listLoading =
     isLoadingAll ||
     !isFullyLoaded ||
     isTopicPinsLoading ||
-    (isAssistantDisplayMode && (isAssistantsLoading || isAssistantPinsLoading))
+    (isAssistantDisplayMode &&
+      (isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading) || isAssistantPinsLoading))
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
@@ -923,13 +961,13 @@ export function Topics({
                   !topics.some((topic) => topic.assistantId === assistantGroupId)
                 }
                 disabled={isAssistantPinActionDisabled}
-                isTagGrouping={isTagGrouping}
+                isGroupGrouping={isGroupGrouping}
                 onDeleteAssistant={handleDeleteAssistant}
                 pinned={assistantPinnedIdSet.has(assistantGroupId)}
                 onDeleteAllTopics={handleDeleteAssistantTopics}
                 onEdit={openAssistantEditor}
                 onSetAssistantIconType={setAssistantIconType}
-                onToggleTagGrouping={() => setAssistantSortType(isTagGrouping ? 'list' : 'tags')}
+                onToggleGrouping={() => setAssistantSortType(isGroupGrouping ? 'list' : 'tags')}
                 onTogglePin={handleToggleAssistantPin}
               />
             </Tooltip>
@@ -962,7 +1000,7 @@ export function Topics({
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
       isAssistantPinActionDisabled,
-      isTagGrouping,
+      isGroupGrouping,
       onNewTopic,
       openAssistantEditor,
       setAssistantIconType,
@@ -988,12 +1026,12 @@ export function Topics({
           deletingAssistantId !== null ||
           !topics.some((topic) => topic.assistantId === assistantId),
         disabled: isAssistantPinActionDisabled,
-        isTagGrouping,
+        isGroupGrouping,
         onDeleteAssistant: handleDeleteAssistant,
         onDeleteAllTopics: handleDeleteAssistantTopics,
         onEdit: openAssistantEditor,
         onSetAssistantIconType: setAssistantIconType,
-        onToggleTagGrouping: () => setAssistantSortType(isTagGrouping ? 'list' : 'tags'),
+        onToggleGrouping: () => setAssistantSortType(isGroupGrouping ? 'list' : 'tags'),
         onTogglePin: handleToggleAssistantPin,
         pinned: assistantPinnedIdSet.has(assistantId),
         t
@@ -1015,7 +1053,7 @@ export function Topics({
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
       isAssistantPinActionDisabled,
-      isTagGrouping,
+      isGroupGrouping,
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
@@ -1134,14 +1172,15 @@ export function Topics({
       const activeAssistantId = getAssistantIdFromTopicGroupId(activeGroupId)
       const overAssistantId = getAssistantIdFromTopicGroupId(overGroupId)
 
-      return (
-        !!activeAssistantId &&
-        !!overAssistantId &&
-        assistantById.has(activeAssistantId) &&
-        assistantById.has(overAssistantId)
-      )
+      if (!activeAssistantId || !overAssistantId) return false
+
+      const activeAssistant = assistantById.get(activeAssistantId)
+      const overAssistant = assistantById.get(overAssistantId)
+      if (!activeAssistant || !overAssistant) return false
+
+      return !isGroupGrouping || (activeAssistant.groupId ?? null) === (overAssistant.groupId ?? null)
     },
-    [assistantById, isAssistantDisplayMode]
+    [assistantById, isAssistantDisplayMode, isGroupGrouping]
   )
 
   const handleTopicReorder = useCallback(
@@ -1204,33 +1243,22 @@ export function Topics({
       const currentAssistantId = topic.assistantId ?? null
       setOptimisticMove({ payload: normalizedPayload, targetAssistantId })
 
-      try {
-        if (targetAssistantId !== currentAssistantId) {
-          await dataApiService.patch(`/topics/${payload.activeId}`, {
-            body: { assistantId: targetAssistantId }
-          })
-        }
+      const assistantChanged = targetAssistantId !== currentAssistantId
 
-        await dataApiService.patch(`/topics/${payload.activeId}/order`, {
-          body: anchor
+      try {
+        // `moveTopic` owns the cache orchestration: the open conversation follows to the new
+        // assistant immediately (via `/topics/:id`), and the combined revalidation is deferred
+        // until after both writes so the optimistic overlay clears once, at the final position.
+        await moveTopic(payload.activeId, {
+          assistantId: assistantChanged ? targetAssistantId : undefined,
+          anchor
         })
-        await refreshTopics()
       } catch (err) {
         setOptimisticMove(null)
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
-        if (targetAssistantId !== currentAssistantId) {
-          try {
-            await refreshTopics()
-          } catch (refreshErr) {
-            logger.error('Failed to refresh topics after partial assistant move', {
-              refreshErr,
-              topicId: payload.activeId
-            })
-          }
-        }
       }
     },
-    [assistantById, isAssistantDisplayMode, orderedAssistants, refreshAssistants, refreshTopics, t, topics]
+    [assistantById, isAssistantDisplayMode, moveTopic, orderedAssistants, refreshAssistants, t, topics]
   )
   const canSetPanePosition = isAssistantDisplayMode || isRightPanel
 

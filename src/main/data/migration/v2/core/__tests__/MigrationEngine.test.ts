@@ -1,4 +1,6 @@
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
+import { groupTable } from '@data/db/schemas/group'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
@@ -257,7 +259,7 @@ describe('MigrationEngine', () => {
     expect(db).not.toHaveProperty('delete')
   })
 
-  it('includes the provider/mini-app logo ref tables in the clear set (retry safety)', async () => {
+  it('includes supporting migration tables in the clear set (retry safety)', async () => {
     // Migration runs with foreign_keys OFF, so clearing owner / file_entry rows does
     // NOT cascade to the logo ref rows — they must be cleared explicitly, else a
     // retry collides with the unique (source_id) index and can never recover.
@@ -280,5 +282,8 @@ describe('MigrationEngine', () => {
 
     expect(deletedTables).toContain(providerLogoFileRefTable)
     expect(deletedTables).toContain(miniAppLogoFileRefTable)
+    expect(deletedTables).toContain(groupTable)
+    expect(deletedTables).toContain(entityTagTable)
+    expect(deletedTables).toContain(tagTable)
   })
 })

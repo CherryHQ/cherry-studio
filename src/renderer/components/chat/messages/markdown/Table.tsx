@@ -4,8 +4,9 @@ import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
-import React, { memo, useCallback } from 'react'
+import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { extractTableDataFromElement } from 'streamdown'
 import type { Node } from 'unist'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
@@ -26,6 +27,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const mdCtx = useMarkdownBlockContext()
   const actions = useOptionalMessageListActions()
+  const tableRef = useRef<HTMLTableElement>(null)
   const canCopyTable = !!actions?.copyRichContent
   const canExportExcel = !!actions?.exportTableAsExcel
 
@@ -53,14 +55,21 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
   }, [actions, blockId, node?.position, setCopied, t, mdCtx?.content])
 
   const handleExportExcel = useCallback(async () => {
-    const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position, mdCtx?.content)
-    if (!tableMarkdown) {
+    if (!tableRef.current) {
+      actions?.notifyError?.(t('message.error.table.invalid'))
+      return
+    }
+
+    const { headers, rows } = extractTableDataFromElement(tableRef.current)
+    const data = headers.length > 0 ? [headers, ...rows] : rows
+
+    if (data.length === 0) {
       actions?.notifyError?.(t('message.error.table.invalid'))
       return
     }
 
     try {
-      const result = await actions?.exportTableAsExcel?.(tableMarkdown)
+      const result = await actions?.exportTableAsExcel?.(data)
       if (result) {
         actions?.notifySuccess?.(t('message.success.excel.export'))
       }
@@ -68,13 +77,14 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       logger.error('Failed to export table to Excel', { error })
       actions?.notifyError?.(t('message.error.excel.export'))
     }
-  }, [actions, blockId, node?.position, t, mdCtx?.content])
+  }, [actions, t])
 
   return (
     <div className="table-wrapper relative my-2 w-full min-w-0 max-w-full hover:[&_.table-toolbar]:opacity-100">
       <div className="table-scroll-viewport w-full min-w-0 max-w-full overflow-x-auto">
         {/* min-w-160 (640px): keep wide tables on one page within the ~800px reading column; the viewport scrolls only when narrower. */}
         <table
+          ref={tableRef}
           className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-160 [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-muted [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-muted [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:hover]:bg-accent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
           style={{
             border: '0.5px solid var(--color-border)',

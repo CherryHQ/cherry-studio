@@ -1043,7 +1043,7 @@ describe('ComposerSurface', () => {
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
     expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
     expect(cancelButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
-    expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
+    expect(cancelButton).not.toHaveClass('text-info')
 
     fireEvent.click(cancelButton)
 

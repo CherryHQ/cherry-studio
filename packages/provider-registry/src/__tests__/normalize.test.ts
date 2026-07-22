@@ -90,6 +90,8 @@ describe('stripBedrockVendorPrefix', () => {
     expect(stripBedrockVendorPrefix('us.anthropic.claude-sonnet-4-5')).toBe('claude-sonnet-4-5')
     expect(stripBedrockVendorPrefix('global.meta.llama4-scout')).toBe('llama4-scout')
     expect(stripBedrockVendorPrefix('anthropic.claude-3-5-haiku')).toBe('claude-3-5-haiku')
+    expect(stripBedrockVendorPrefix('qwen.qwen3-coder-480b-a35b')).toBe('qwen3-coder-480b-a35b')
+    expect(stripBedrockVendorPrefix('writer.palmyra-x4')).toBe('palmyra-x4')
   })
 
   it('strips a vendor dash prefix', () => {
@@ -97,7 +99,8 @@ describe('stripBedrockVendorPrefix', () => {
     expect(stripBedrockVendorPrefix('cohere-command-r')).toBe('command-r')
   })
 
-  it('leaves a version like qwen3.7 untouched (dotted word is not all-alpha)', () => {
+  it('leaves native dotted model ids untouched', () => {
+    expect(stripBedrockVendorPrefix('flux.2-pro')).toBe('flux.2-pro')
     expect(stripBedrockVendorPrefix('qwen3.7')).toBe('qwen3.7')
   })
 })

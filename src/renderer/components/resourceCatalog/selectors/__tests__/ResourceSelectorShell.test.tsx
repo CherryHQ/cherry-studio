@@ -664,12 +664,12 @@ describe('ResourceSelectorShell', () => {
 
   describe('edit button', () => {
     it('places edit and pin together in the row action area', () => {
-      const taggedItems: Item[] = [{ ...ITEMS[0], tag: 'Cherry' }, ...ITEMS.slice(1)]
+      const groupedItems: Item[] = [{ ...ITEMS[0], groupId: 'group-cherry', groupName: 'Cherry' }, ...ITEMS.slice(1)]
 
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
-          items={taggedItems}
+          items={groupedItems}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
           onEditItem={vi.fn()}
@@ -684,7 +684,7 @@ describe('ResourceSelectorShell', () => {
       const alphaOption = getRow('Alpha')
       const row = alphaOption.closest('[data-model-selector-row]') as HTMLElement
       const nameArea = row.querySelector('[data-resource-selector-name="1"]') as HTMLElement
-      const tagArea = row.querySelector('[data-resource-selector-tags="1"]')
+      const groupArea = row.querySelector('[data-resource-selector-group="1"]')
       const editButton = within(row).getByRole('button', { name: 'Edit' })
 
       expect(row).toHaveClass('pr-0.5')
@@ -694,7 +694,7 @@ describe('ResourceSelectorShell', () => {
       expect(within(alphaOption).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
       expect(within(alphaOption).queryByRole('button', { name: 'Pin' })).not.toBeInTheDocument()
       expect(within(row).getByRole('button', { name: 'Pin' })).toHaveClass('size-4', 'hover:bg-transparent')
-      expect(tagArea).toHaveClass('max-w-[48%]')
+      expect(groupArea).toHaveClass('max-w-[48%]')
       expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(ITEMS.length)
     })
 
@@ -920,16 +920,19 @@ describe('ResourceSelectorShell', () => {
       expect(screen.queryByRole('option', { name: /Beta/ })).not.toBeInTheDocument()
     })
 
-    it('uses a single active tag filter at a time', () => {
+    it('uses a single active group filter at a time', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={[
-            { ...ITEMS[0], tag: 'Cherry' },
-            { ...ITEMS[1], tag: 'DEV' },
-            { ...ITEMS[2], tag: 'Cherry' }
+            { ...ITEMS[0], groupId: 'group-cherry', groupName: 'Cherry' },
+            { ...ITEMS[1], groupId: 'group-dev', groupName: 'DEV' },
+            { ...ITEMS[2], groupId: 'group-cherry', groupName: 'Cherry' }
           ]}
-          tags={['Cherry', 'DEV']}
+          groups={[
+            { id: 'group-cherry', name: 'Cherry' },
+            { id: 'group-dev', name: 'DEV' }
+          ]}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
           labels={LABELS}
@@ -948,6 +951,42 @@ describe('ResourceSelectorShell', () => {
       expect(screen.queryByRole('option', { name: /Beta/ })).toBeInTheDocument()
       expect(screen.queryByRole('option', { name: /Alpha/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('option', { name: /Gamma/ })).not.toBeInTheDocument()
+    })
+
+    it('stops filtering when the selected group is removed', () => {
+      const groupedItems = [
+        { ...ITEMS[0], groupId: 'group-cherry', groupName: 'Cherry' },
+        { ...ITEMS[1], groupId: 'group-dev', groupName: 'DEV' },
+        { ...ITEMS[2], groupId: 'group-cherry', groupName: 'Cherry' }
+      ]
+      const commonProps = {
+        trigger: <button type="button">Open</button>,
+        pinnedIds: [],
+        onTogglePin: vi.fn(),
+        labels: LABELS,
+        value: null,
+        onChange: vi.fn()
+      }
+      const { rerender } = render(
+        <ResourceSelectorShell
+          {...commonProps}
+          items={groupedItems}
+          groups={[
+            { id: 'group-cherry', name: 'Cherry' },
+            { id: 'group-dev', name: 'DEV' }
+          ]}
+        />
+      )
+      openPopover()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cherry' }))
+      expect(screen.queryByRole('option', { name: /Beta/ })).not.toBeInTheDocument()
+
+      rerender(<ResourceSelectorShell {...commonProps} items={groupedItems} groups={[]} />)
+
+      expect(screen.queryByRole('option', { name: /Alpha/ })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Beta/ })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Gamma/ })).toBeInTheDocument()
     })
   })
 })
