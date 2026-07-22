@@ -7,6 +7,7 @@
  */
 
 :root {
-  /* Current compatibility input written by useUserTheme. */
+  /* Current compatibility inputs written by useUserTheme. */
   --cs-theme-primary: var(--cs-primary);
+  --cs-theme-primary-foreground: var(--cs-primary-foreground);
 }

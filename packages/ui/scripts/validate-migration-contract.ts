@@ -21,7 +21,7 @@ const REQUIRED_EXCLUDES = [
   'packages/ui/src/styles/shadcn.css',
   'packages/ui/src/styles/product.css',
   'packages/ui/src/styles/tokens/**',
-  'packages/ui/src/styles/migrations/**',
+  'packages/ui/scripts/migrations/**',
   'src/renderer/assets/styles/legacy-vars.css',
   'src/renderer/assets/styles/tailwind.css',
   'src/main/ai/mcp/servers/browser/tabbarHtml.ts',
@@ -256,7 +256,7 @@ export async function loadMigrationContractSources(
 ): Promise<MigrationContractSources> {
   const [migrationRegistry, legacyAliases, rendererTheme, rendererStyleEntries, rendererTypeScriptEntries] =
     await Promise.all([
-      fs.readFile(path.join(repositoryRoot, 'packages/ui/src/styles/migrations/shadcn-v2.json'), 'utf8'),
+      fs.readFile(path.join(repositoryRoot, 'packages/ui/scripts/migrations/shadcn-v2.json'), 'utf8'),
       fs
         .readFile(path.join(repositoryRoot, 'src/renderer/assets/styles/legacy-vars.css'), 'utf8')
         .catch((error: NodeJS.ErrnoException) => {

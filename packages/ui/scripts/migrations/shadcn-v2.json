@@ -9,7 +9,7 @@
     "packages/ui/src/styles/shadcn.css",
     "packages/ui/src/styles/product.css",
     "packages/ui/src/styles/tokens/**",
-    "packages/ui/src/styles/migrations/**",
+    "packages/ui/scripts/migrations/**",
     "src/renderer/assets/styles/legacy-vars.css",
     "src/renderer/assets/styles/tailwind.css",
     "src/main/ai/mcp/servers/browser/tabbarHtml.ts",
@@ -49,12 +49,7 @@
     },
     { "source": "--cs-border", "target": "--border", "strategy": "exact" },
     { "source": "--cs-input", "target": "--input", "strategy": "exact" },
-    {
-      "source": "--cs-ring",
-      "target": "--ring",
-      "strategy": "contextual",
-      "reason": "The canonical ring derives from the runtime primary input."
-    },
+    { "source": "--cs-ring", "target": "--ring", "strategy": "exact" },
     { "source": "--cs-sidebar", "target": "--sidebar", "strategy": "exact" },
     { "source": "--cs-sidebar-foreground", "target": "--sidebar-foreground", "strategy": "exact" },
     { "source": "--cs-sidebar-primary", "target": "--sidebar-primary", "strategy": "exact" },
@@ -117,10 +112,30 @@
     { "source": "--cs-highlight-foreground", "target": "--highlight-foreground", "strategy": "exact" },
     { "source": "--cs-highlight-accent", "target": "--highlight-accent", "strategy": "exact" },
     { "source": "--cs-chat-user", "target": "--chat-user", "strategy": "exact" },
-    { "source": "--cs-sidebar-active-bg", "target": "--sidebar-active-bg", "strategy": "exact" },
-    { "source": "--cs-sidebar-active-border", "target": "--sidebar-active-border", "strategy": "exact" },
-    { "source": "--cs-sidebar-glow-bg", "target": "--sidebar-glow-bg", "strategy": "exact" },
-    { "source": "--cs-sidebar-glow-line", "target": "--sidebar-glow-line", "strategy": "exact" },
+    {
+      "source": "--cs-sidebar-active-bg",
+      "target": null,
+      "strategy": "review",
+      "reason": "The active-row effect is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--cs-sidebar-active-border",
+      "target": null,
+      "strategy": "review",
+      "reason": "The active-row effect is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--cs-sidebar-glow-bg",
+      "target": null,
+      "strategy": "review",
+      "reason": "The decorative glow is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--cs-sidebar-glow-line",
+      "target": null,
+      "strategy": "review",
+      "reason": "The decorative glow is owned by the Renderer Sidebar rather than the shared product contract."
+    },
     {
       "source": "--cs-border-hover",
       "target": "--border-strong",
@@ -259,17 +274,29 @@
     { "source": "--app-sidebar", "target": "--sidebar", "strategy": "exact" },
     { "source": "--app-sidebar-accent", "target": "--sidebar-accent", "strategy": "exact" },
     { "source": "--app-sidebar-foreground", "target": "--sidebar-foreground", "strategy": "exact" },
-    { "source": "--app-sidebar-active-bg", "target": "--sidebar-active-bg", "strategy": "exact" },
+    {
+      "source": "--app-sidebar-active-bg",
+      "target": null,
+      "strategy": "review",
+      "reason": "The active-row effect is owned by the Renderer Sidebar rather than the shared product contract."
+    },
     {
       "source": "--app-sidebar-active-border",
-      "target": "--sidebar-active-border",
-      "strategy": "exact"
+      "target": null,
+      "strategy": "review",
+      "reason": "The active-row effect is owned by the Renderer Sidebar rather than the shared product contract."
     },
-    { "source": "--app-sidebar-glow-bg", "target": "--sidebar-glow-bg", "strategy": "exact" },
+    {
+      "source": "--app-sidebar-glow-bg",
+      "target": null,
+      "strategy": "review",
+      "reason": "The decorative glow is owned by the Renderer Sidebar rather than the shared product contract."
+    },
     {
       "source": "--app-sidebar-glow-line",
-      "target": "--sidebar-glow-line",
-      "strategy": "exact"
+      "target": null,
+      "strategy": "review",
+      "reason": "The decorative glow is owned by the Renderer Sidebar rather than the shared product contract."
     },
     { "source": "--app-sidebar-primary", "target": "--sidebar-primary", "strategy": "exact" },
     {

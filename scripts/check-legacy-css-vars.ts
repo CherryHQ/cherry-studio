@@ -5,7 +5,7 @@ import postcss, { type AtRule, type ChildNode, type Declaration, type Rule } fro
 import ts from 'typescript'
 
 const REPO_ROOT = path.resolve(__dirname, '..')
-const MIGRATION_REGISTRY_PATH = path.join(REPO_ROOT, 'packages/ui/src/styles/migrations/shadcn-v2.json')
+const MIGRATION_REGISTRY_PATH = path.join(REPO_ROOT, 'packages/ui/scripts/migrations/shadcn-v2.json')
 const CHECK_EXTENSIONS = new Set(['.css', '.ts', '.tsx'])
 const IGNORED_DIR_NAMES = new Set(['.context', '.git', 'build', 'coverage', 'dist', 'node_modules', 'out'])
 

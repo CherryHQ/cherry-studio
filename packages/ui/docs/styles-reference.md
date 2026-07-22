@@ -25,7 +25,10 @@ Runtime styles and design tokens live under `src/styles`:
 - [tokens/radius.css](../src/styles/tokens/radius.css)
 - [tokens/spacing.css](../src/styles/tokens/spacing.css)
 - [tokens/typography.css](../src/styles/tokens/typography.css)
-- [migrations/shadcn-v2.json](../src/styles/migrations/shadcn-v2.json)
+
+Development-only migration policy lives outside the runtime styles copied into the package:
+
+- [migrations/shadcn-v2.json](../scripts/migrations/shadcn-v2.json)
 
 ## Usage Notes
 

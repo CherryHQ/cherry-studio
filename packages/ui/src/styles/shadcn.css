@@ -17,7 +17,7 @@
   --popover: var(--cs-popover);
   --popover-foreground: var(--cs-popover-foreground);
   --primary: var(--cs-theme-primary);
-  --primary-foreground: var(--cs-primary-foreground);
+  --primary-foreground: var(--cs-theme-primary-foreground);
   --secondary: var(--cs-secondary);
   --secondary-foreground: var(--cs-secondary-foreground);
   --muted: var(--cs-muted);
@@ -30,7 +30,7 @@
   /* Controls */
   --border: var(--cs-border);
   --input: var(--cs-input);
-  --ring: color-mix(in srgb, var(--primary) 40%, transparent);
+  --ring: var(--cs-ring);
 
   /* Charts */
   --chart-1: oklch(0.646 0.222 41.116);

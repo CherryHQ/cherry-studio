@@ -39,7 +39,7 @@ foundation values
               │
               ▼
 controlled runtime inputs
-  (--cs-theme-primary, ...)
+  (--cs-theme-primary, --cs-theme-primary-foreground)
               │
               ▼
 public semantic contract
@@ -111,6 +111,7 @@ product role.
 
 ```css
 --cs-theme-primary
+--cs-theme-primary-foreground
 ```
 
 These variables are inputs, not design semantics. The host theme service writes them; `shadcn.css` decides which
@@ -119,8 +120,9 @@ official role consumes them. Components must not consume them directly, and the 
 authored foundation fallback, and have a real runtime producer plus a semantic consumer.
 
 This boundary deliberately avoids asserting that a user-selected color is permanently identical to Shadcn
-`primary`. The current mapping preserves rendering; a future consumer-backed theme model may route the same input
-to a different semantic role without changing component APIs.
+`primary`. The host writes the primary surface and its derived contrast-safe foreground as one runtime theme
+operation. A future consumer-backed theme model may route the same inputs to different semantic roles without
+changing component APIs.
 
 ### 3.3 Official Shadcn semantic layer
 
@@ -232,8 +234,8 @@ and must not be used as the registration path for new component APIs.
 Shared application concepts use a product domain in the common public namespace rather than an ownership prefix:
 
 ```css
---sidebar-glow-bg
---sidebar-glow-line
+--chat-user
+--code-block
 ```
 
 There are also legitimate internal variables that do not belong in this shared list:
@@ -299,12 +301,12 @@ The contract preserves current design decisions by using the existing semantic l
 | `foreground` | `--cs-foreground` |
 | `card` / `card-foreground` | `--cs-card` / `--cs-card-foreground` |
 | `popover` / `popover-foreground` | `--cs-popover` / `--cs-popover-foreground` |
-| `primary` / `primary-foreground` | runtime primary input / `--cs-primary-foreground` |
+| `primary` / `primary-foreground` | paired runtime primary inputs |
 | `secondary` / `secondary-foreground` | `--cs-secondary` / `--cs-secondary-foreground` |
 | `muted` / `muted-foreground` | `--cs-muted` / `--cs-muted-foreground` |
 | `accent` / `accent-foreground` | `--cs-accent` / `--cs-accent-foreground` |
 | `destructive` / `destructive-foreground` | `--cs-destructive` / `--cs-destructive-foreground` |
-| `border` / `input` / `ring` | `--cs-border` / `--cs-input` / a derivation of `--primary` |
+| `border` / `input` / `ring` | `--cs-border` / `--cs-input` / independent mode-aware `--cs-ring` |
 | sidebar group | matching existing `--cs-sidebar-*` values |
 
 Charts are additive because the shared layer currently has no complete chart contract. They use an explicit,
@@ -397,16 +399,19 @@ decisions and must not block the color contract.
 
 Initial supported modes are `:root` and `.dark`.
 
-The current runtime primary input is declared in `theme-input.css` and remains supported:
+The current runtime primary inputs are declared in `theme-input.css` and remain supported:
 
 ```css
 --cs-theme-primary
+--cs-theme-primary-foreground
 ```
 
-It currently feeds `--primary`; `--ring` derives from `--primary`. This preserves user-selected primary colors
-without allowing runtime code to mutate official semantics, `--color-primary`, or component variables directly.
-The current connection is a compatibility mapping, not a promise that runtime selection and Shadcn primary are
-the same concept forever.
+`useUserTheme` writes the selected primary and derives its foreground by choosing the black or white value with
+the stronger WCAG contrast ratio. `--ring` resolves independently through the mode-aware `--cs-ring` provider, so
+an extreme user primary such as white in light mode or black in dark mode cannot also make the focus indicator
+disappear. Runtime code still does not mutate official semantics, `--color-primary`, or component variables
+directly. The current connection is a compatibility mapping, not a promise that runtime selection and Shadcn
+primary are the same concept forever.
 
 Rules:
 
@@ -441,7 +446,7 @@ Examples:
 | `--cs-foreground-muted` | muted content or disabled component state | `contextual` |
 | duplicated `--app-{shadcn-role}` | matching official Shadcn variable | `exact` |
 | historical chat and navbar roots | no universal target | `review` |
-| consumer-backed sidebar glow variables | approved `--sidebar-glow-*` concept | `exact` |
+| renderer Sidebar active/glow effects | owner-local implementation variables | `review` |
 
 The repository codemod reads this registry and parses CSS plus TS/TSX syntax before changing source files. It is
 idempotent, reports every non-`preserve` migration source, and changes only approved `exact` rules. Generated and

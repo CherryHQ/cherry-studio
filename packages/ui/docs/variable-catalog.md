@@ -29,7 +29,7 @@ CSS property match.
 | Official semantics | `shadcn.css` | foundation values and registered runtime inputs | internal `contract.css` composition |
 | Product semantics | `product.css` | official semantics and internal `--cs-*` providers | internal `contract.css` composition |
 | Tailwind adapter | generated `theme.css` | official and product semantics | `styles/theme.css` |
-| Migration policy | `migrations/shadcn-v2.json` | official and product semantics | tooling only; no runtime layer |
+| Migration policy | `scripts/migrations/shadcn-v2.json` | official and product semantics | tooling only; no runtime layer |
 
 The shared dependency direction is one-way. A lower shared layer must never reference `--color-*`, host-local
 `--app-*`, or a legacy variable.
@@ -39,8 +39,9 @@ contract use `styles/theme.css`.
 
 ## 3. Runtime inputs and local implementation variables
 
-The current registered runtime input is `--cs-theme-primary`. Only host theme logic may write it, and only the
-semantic layer may consume it. It is not a stable product variable, component API, or Tailwind color.
+The current registered runtime inputs are `--cs-theme-primary` and `--cs-theme-primary-foreground`. Host theme
+logic writes them as a pair, deriving the foreground for contrast; only the semantic layer may consume them.
+They are not stable product variables, component APIs, or Tailwind colors.
 
 All other shared `--cs-*` variables are internal value providers. Public semantics are unprefixed: the official
 and product inventories remain separate in the machine contract, but consumers use one canonical namespace.
@@ -55,6 +56,10 @@ Component, page, and Electron-shell custom properties are a separate ownership c
 
 The migration registry's historical `--app-*` entries are retired semantic bridges, not a namespace-wide ban on
 genuine host-local variables.
+
+The Renderer Sidebar's active-row and glow custom properties are scoped by
+`src/renderer/components/Sidebar/Sidebar.css`. They remain private implementation details even though the Sidebar
+appears throughout the main App Shell; visual reach through one owner does not make them cross-package semantics.
 
 ## 4. Official Shadcn variables
 
@@ -134,8 +139,6 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 | References | `--reference`, `--reference-foreground`, `--reference-subtle` | Reference surface, content, and quiet surface variant |
 | Search highlights | `--highlight`, `--highlight-foreground`, `--highlight-accent` | Match surface, content, and active-match surface |
 | User message | `--chat-user` | User-message surface |
-| Active sidebar row | `--sidebar-active-bg`, `--sidebar-active-border` | Active surface and border |
-| Sidebar glow | `--sidebar-glow-bg`, `--sidebar-glow-line` | Decorative glow fill and line only |
 
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
 utilities; custom-CSS domains such as rich text use the matching unprefixed variable directly.
@@ -145,7 +148,7 @@ foreground only after concrete consumers establish a repeated contrast invariant
 
 ## 6. Historical migration names
 
-Migration policy is recorded only in `migrations/shadcn-v2.json`. A migration source may still exist in an
+Migration policy is recorded only in `scripts/migrations/shadcn-v2.json`. A migration source may still exist in an
 excluded internal provider such as `tokens/**`, but it is not a public role, is not part of
 `CHERRY_PRODUCT_VARIABLE_TOKENS`, and does not gain Tailwind exposure through that registry entry. An `exact` rule
 may point to an official or stable product variable. A `review`, `contextual`, or `preserve` rule may intentionally

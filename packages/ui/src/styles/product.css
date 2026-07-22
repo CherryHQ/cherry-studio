@@ -47,12 +47,6 @@
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(0, 0, 0, 0.045);
-
-  /* Stable product domain: application shell effects */
-  --sidebar-active-bg: rgba(16, 185, 129, 0.08);
-  --sidebar-active-border: rgba(16, 185, 129, 0.15);
-  --sidebar-glow-bg: rgba(16, 185, 129, 0.25);
-  --sidebar-glow-line: rgba(16, 185, 129, 0.5);
 }
 
 .dark {
@@ -71,10 +65,4 @@
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(255, 255, 255, 0.08);
-
-  /* Stable product domain: application shell effects */
-  --sidebar-active-bg: rgba(114, 255, 121, 0.05);
-  --sidebar-active-border: rgba(114, 255, 121, 0.08);
-  --sidebar-glow-bg: rgba(114, 255, 121, 0.15);
-  --sidebar-glow-line: rgba(114, 255, 121, 0.35);
 }

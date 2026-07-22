@@ -34,6 +34,25 @@ describe('validateMigrationContractSources', () => {
     }
   })
 
+  it('keeps renderer Sidebar effects out of the shared migration contract', () => {
+    const registry = JSON.parse(sources.migrationRegistry) as {
+      rules: Array<{ source: string; target: string | null; strategy: string }>
+    }
+
+    for (const source of [
+      '--cs-sidebar-active-bg',
+      '--cs-sidebar-active-border',
+      '--cs-sidebar-glow-bg',
+      '--cs-sidebar-glow-line',
+      '--app-sidebar-active-bg',
+      '--app-sidebar-active-border',
+      '--app-sidebar-glow-bg',
+      '--app-sidebar-glow-line'
+    ]) {
+      expect(registry.rules).toContainEqual(expect.objectContaining({ source, target: null, strategy: 'review' }))
+    }
+  })
+
   it('rejects a recreated legacy compatibility layer', () => {
     expect(() =>
       validateMigrationContractSources({

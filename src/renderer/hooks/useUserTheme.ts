@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { getForegroundColor } from '@renderer/utils/style'
 import Color from 'color'
 
 export default function useUserTheme() {
@@ -19,6 +20,7 @@ export default function useUserTheme() {
     const colorPrimary = Color(theme.colorPrimary)
 
     document.documentElement.style.setProperty('--cs-theme-primary', colorPrimary.toString())
+    document.documentElement.style.setProperty('--cs-theme-primary-foreground', getForegroundColor(colorPrimary.hex()))
     setOptionalCssVar('--cs-user-font-family', userFontFamily)
     setOptionalCssVar('--cs-user-code-font-family', userCodeFontFamily)
   }
