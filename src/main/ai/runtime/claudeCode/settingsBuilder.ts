@@ -984,11 +984,8 @@ export async function buildSystemPrompt(
   const langInstruction = getLanguageInstruction()
   const workspaceBlock = [
     '## Current Workspace',
-    `The current working directory for this conversation is ${JSON.stringify(cwd)}.`,
-    'Use this directory as the default base for file operations and shell commands.',
-    'When the user refers to the current directory, workspace, or project directory, or does not specify a path, resolve the target from this exact directory.',
-    "Only work outside this directory when the user explicitly requests a different location. Never infer the user's home directory or another directory as the current working directory.",
-    'The working directory is already provided here; do not run `pwd` only to rediscover it.'
+    `Current working directory: ${JSON.stringify(cwd)}`,
+    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it. Work outside it only when the user explicitly asks.'
   ].join('\n')
   const workspaceContextBlock = `\n\n${workspaceBlock}`
 

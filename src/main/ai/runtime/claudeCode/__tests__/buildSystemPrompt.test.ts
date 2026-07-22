@@ -107,8 +107,8 @@ describe('buildSystemPrompt — current workspace', () => {
 
     expect(result as string).toContain(WORKSPACE_MARKER)
     expect(result as string).toContain('"/workspace/project-a"')
-    expect(result as string).toContain('Only work outside this directory when the user explicitly requests')
-    expect(result as string).toContain('do not run `pwd` only to rediscover it')
+    expect(result as string).toContain('Work outside it only when the user explicitly asks')
+    expect(result as string).toContain('resolve unspecified or relative paths against it')
   })
 
   it('injects the current workspace for the built-in assistant path', async () => {
