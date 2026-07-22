@@ -41,6 +41,7 @@ describe('ThemeColorPicker', () => {
     render(<ThemeColorPicker value="#112233" presets={[]} onChange={vi.fn()} ariaLabel="Theme color" />)
 
     expect(screen.queryByLabelText('Theme color', { selector: 'input[type="color"]' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Theme color' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Theme color' }))
 
