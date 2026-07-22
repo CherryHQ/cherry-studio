@@ -53,6 +53,15 @@ export interface EntityReference {
   readonly referencedDomain: BackupDomain
   /** How the reference is consumed — drives topo sort + omitted-action derivation. */
   readonly kind: ReferenceKind
+  /**
+   * Required on every `kind:'junction'` ref of a **junction-phase** table (non-
+   * cascade-include member with ≥2 junction refs — today: AGENTS'
+   * agent_channel_task / agent_skill / agent_mcp_server). Drives the global
+   * junction phase source/target maps; finalize #27 enforces exactly one
+   * `source` + one `target` per such table. MUST NOT be set on member /
+   * single-ref junction tables (#27b) — they never enter the junction phase.
+   */
+  readonly junctionRole?: 'source' | 'target'
 }
 
 /** A member table of an aggregate, joined to the root via viaColumn. */

@@ -63,7 +63,7 @@ Backup devolves "which domain owns which user-data tables, references, aggregate
 
 ---
 
-## 4. Aggregate boundary + 26 invariants key points
+## 4. Aggregate boundary + 27 invariants key points
 
 ### 4.1 AggregateBoundary (§6.2 derivation formula)
 
@@ -89,7 +89,7 @@ Backup devolves "which domain owns which user-data tables, references, aggregate
 
 `AggregateMember { table, viaColumn, cascade:'include'|'optional' }`: include = processed with root as a whole; optional = only set null when root conflicts. Derivation is performed by `finalize` at startup, **not** during hook invocation.
 
-### 4.2 26 invariants key points (refined from §8.5, not a verbatim copy)
+### 4.2 27 invariants key points (refined from §8.5, not a verbatim copy)
 
 Each failure throws `ContributorFinalizeError(invariantId, payload)`, with payload containing domain/table/sourceType/owner fields.
 
@@ -111,6 +111,7 @@ Each failure throws `ContributorFinalizeError(invariantId, payload)`, with paylo
 - #15 in members, each member table belongs to this contributor, and viaColumn is a real FK column pointing to root.identityKey or to the parent member's PK (multi-layer cascade A→B→C, C.viaColumn→B, §4.1 parent derivation); junction tables are not counted.
 - #16 a renamable:true aggregate must have `operations.cloneAggregate`.
 - #26 a renamable:true aggregate's root PK must be single-column (the importer's newRootKey is a single value; cloneAggregate only replaces one PK column; a composite-PK renamable would cause rename identity corruption—change to renamable:false instead).
+- #27 **junctionRole** (scoped to junction-phase tables only — same filter as `deriveJunctionDescriptors`: non-`cascade:'include'` member + ≥2 `kind:'junction'` refs; today AGENTS `agent_channel_task` / `agent_skill` / `agent_mcp_server`): **#27a** each such table's junction refs MUST declare `junctionRole` with exactly one `source` + one `target` (`deviation: role-missing` / `role-collision`); **#27b** a junction ref on a non-junction-phase table (cascade-include member / single-ref) MUST NOT carry `junctionRole` (`deviation: role-on-non-junction`). The global junction phase resolves source/target by role — a cosmetic reorder of the two refs is a silent no-op.
 
 **FK self-consistency (requires codegen-generated `DB_FOREIGN_KEYS`)**:
 - #19 each `EntityReference.kind` is self-consistent with the generated FK onDelete (cascade/restrict → owning or junction; set null/no action → optional; set default → reject).

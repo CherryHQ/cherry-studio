@@ -1,14 +1,17 @@
-// Export-temp residue GC + live ownership marker (review-M4 follow-up).
+// Export-temp residue GC + live ownership marker (A6 / A8 ⑤).
 //
 // Crashed exports leave unredacted DB copies under `feature.backup.temp`
-// (`{restoreId}.sqlite` [+ -wal/-shm] + `{restoreId}-stage/`). Boot-time GC must
-// clear those without deleting:
-//   - arbitrary non-export files that happen to share the temp root
-//   - an in-flight export's tree (service re-init / overlapping process)
+// (`{restoreId}.sqlite` [+ -wal/-shm] + `{restoreId}-stage/` + future shapes).
+// Boot-time GC blanket-removes the dedicated temp root (same shape as
+// `gcStagingResidue`), gated by live ownership markers so an in-flight export's
+// entire tree is preserved.
 //
 // Ownership: ExportOrchestrator writes `{restoreId}.export-live` (pid stamp)
-// before createSnapshot and clears it in finally. GC skips a restoreId when the
-// marker's pid is still alive (`process.kill(pid, 0)`).
+// before createSnapshot and clears it in finally. GC skips the whole root when
+// ANY marker's pid is still alive (`process.kill(pid, 0)`).
+//
+// Safety: `application.getPath` for a directory key mkdirSync(recursive) on every
+// call, so the next export recreates the root after blanket rm — no ENOENT.
 
 import { existsSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -53,38 +56,14 @@ export function isExportTempOwned(tempRoot: string, restoreId: string): boolean 
   }
 }
 
-/**
- * Map a top-level temp entry name → restoreId for known export residue shapes.
- * Returns null for unrelated files (must not be deleted).
- */
-export function restoreIdFromExportTempEntry(name: string): string | null {
-  if (name.endsWith('.sqlite-wal')) return name.slice(0, -'.sqlite-wal'.length) || null
-  if (name.endsWith('.sqlite-shm')) return name.slice(0, -'.sqlite-shm'.length) || null
-  if (name.endsWith('.sqlite')) return name.slice(0, -'.sqlite'.length) || null
-  if (name.endsWith('-stage')) return name.slice(0, -'-stage'.length) || null
-  if (name.endsWith(EXPORT_LIVE_MARKER_SUFFIX)) {
-    return name.slice(0, -EXPORT_LIVE_MARKER_SUFFIX.length) || null
-  }
-  return null
-}
-
-function tryRemovePath(path: string, nameForLog: string): boolean {
-  if (!existsSync(path)) return false
-  try {
-    rmSync(path, { recursive: true, force: true })
-    return true
-  } catch (e) {
-    // EACCES etc. — swallow so boot is never blocked by a stuck residue.
-    logger.warn('export temp residue GC entry failed', { name: nameForLog, err: e as Error })
-    return false
-  }
+function restoreIdFromLiveMarkerEntry(name: string): string | null {
+  if (!name.endsWith(EXPORT_LIVE_MARKER_SUFFIX)) return null
+  return name.slice(0, -EXPORT_LIVE_MARKER_SUFFIX.length) || null
 }
 
 /**
- * Remove orphaned export temp entries under `tempRoot`.
- * Only clears known residue for a restoreId (`*.sqlite` + `-wal`/`-shm`,
- * `*-stage`, stale `.export-live`). Skips restoreIds with a live ownership
- * marker. Returns the number of top-level paths successfully removed.
+ * Blanket-remove the dedicated export temp root when no live export owns it.
+ * Returns 1 when the root was removed, 0 when skipped / missing / unreadable.
  */
 export function removeExportTempResidue(tempRoot: string): number {
   if (!existsSync(tempRoot)) return 0
@@ -95,36 +74,23 @@ export function removeExportTempResidue(tempRoot: string): number {
     logger.warn('export temp root unreadable during residue GC', e as Error)
     return 0
   }
-  if (entries.length === 0) return 0
 
-  const restoreIds = new Set<string>()
   for (const name of entries) {
-    const id = restoreIdFromExportTempEntry(name)
-    if (id) restoreIds.add(id)
-  }
-  if (restoreIds.size === 0) return 0
-
-  let removed = 0
-  for (const restoreId of restoreIds) {
+    const restoreId = restoreIdFromLiveMarkerEntry(name)
+    if (!restoreId) continue
     if (isExportTempOwned(tempRoot, restoreId)) {
-      logger.info('export temp GC skipped live export', { restoreId })
-      continue
-    }
-    const bundle = [
-      `${restoreId}.sqlite`,
-      `${restoreId}.sqlite-wal`,
-      `${restoreId}.sqlite-shm`,
-      `${restoreId}-stage`,
-      `${restoreId}${EXPORT_LIVE_MARKER_SUFFIX}`
-    ]
-    let bundleRemoved = 0
-    for (const name of bundle) {
-      if (tryRemovePath(join(tempRoot, name), name)) bundleRemoved += 1
-    }
-    if (bundleRemoved > 0) {
-      logger.info(`GC export temp residue: restoreId=${restoreId} removed=${bundleRemoved}`)
-      removed += bundleRemoved
+      logger.info('live export blocks blanket GC', { restoreId })
+      return 0
     }
   }
-  return removed
+
+  try {
+    rmSync(tempRoot, { recursive: true, force: true })
+  } catch (e) {
+    // EACCES etc. — swallow so boot is never blocked by a stuck residue.
+    logger.warn('export temp residue blanket GC failed', e as Error)
+    return 0
+  }
+  logger.info('GC export temp residue: blanket-removed root')
+  return 1
 }

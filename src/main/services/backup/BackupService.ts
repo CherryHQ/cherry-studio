@@ -2,7 +2,7 @@
 //
 // WHY THIS IS A LIFECYCLE SERVICE (not a lazy named export):
 // Wiring BackupService into the lifecycle container is what makes the contributor
-// registry's 26-invariant finalize run at APPLICATION STARTUP. onInit() calls
+// registry's 27-invariant finalize run at APPLICATION STARTUP. onInit() calls
 // contributorManager.getRegistry() (lazy finalize); a bad registry throws
 // ContributorFinalizeError → onInit fails → @ErrorHandling('fail-fast') aborts
 // bootstrap. That is the validation contract documented on ContributorManager
@@ -192,7 +192,7 @@ export class BackupService extends BaseService {
     // under feature.backup.temp; restore staging GC does not cover this tree.
     this.gcExportTempResidue()
 
-    // Lazily run the 26-invariant contributor finalize at startup (dev + packaged).
+    // Lazily run the 27-invariant contributor finalize at startup (dev + packaged).
     // A violation throws ContributorFinalizeError → onInit fails → fail-fast aborts
     // bootstrap (the startup-validation contract; see ContributorManager docstring).
     this.registry = contributorManager.getRegistry()

@@ -61,28 +61,28 @@ describe('AGENTS contributor', () => {
       expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'optional' })
     )
 
-    // ── agent_channel_task (junction: dual cascade) ──
+    // ── agent_channel_task (junction-phase: dual cascade) ──
     expect(find('agent_channel_task', 'channelId')).toEqual(
-      expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'junction' })
+      expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'junction', junctionRole: 'source' })
     )
     expect(find('agent_channel_task', 'taskId')).toEqual(
-      expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'junction' })
+      expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'junction', junctionRole: 'target' })
     )
 
-    // ── agent_skill (junction: dual cascade) ──
+    // ── agent_skill (junction-phase: dual cascade) ──
     expect(find('agent_skill', 'agentId')).toEqual(
-      expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'junction' })
+      expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'junction', junctionRole: 'source' })
     )
     expect(find('agent_skill', 'skillId')).toEqual(
-      expect.objectContaining({ referencedDomain: 'SKILLS', kind: 'junction' })
+      expect.objectContaining({ referencedDomain: 'SKILLS', kind: 'junction', junctionRole: 'target' })
     )
 
-    // ── agent_mcp_server (junction: dual cascade) ──
+    // ── agent_mcp_server (junction-phase: dual cascade) ──
     expect(find('agent_mcp_server', 'agentId')).toEqual(
-      expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'junction' })
+      expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'junction', junctionRole: 'source' })
     )
     expect(find('agent_mcp_server', 'mcpServerId')).toEqual(
-      expect.objectContaining({ referencedDomain: 'MCP_SERVERS', kind: 'junction' })
+      expect.objectContaining({ referencedDomain: 'MCP_SERVERS', kind: 'junction', junctionRole: 'target' })
     )
 
     // ── agent (scalar model refs → PROVIDERS, optional) ──

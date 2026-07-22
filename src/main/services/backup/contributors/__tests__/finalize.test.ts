@@ -1,11 +1,11 @@
-// Tests for finalize() — the 26 registry invariants — plus the ReadonlyBackupRegistry
+// Tests for finalize() — the 27 registry invariants — plus the ReadonlyBackupRegistry
 // query surface and ContributorManager lazy/idempotent behavior.
 //
 // Strategy: a 14-domain synthetic fixture passes finalize cleanly (happy path);
 // each invariant is then exercised by cloning the fixture and mutating the one
 // declaration that should trip it. The fixture maps 14 domains onto 14 real
 // tables (FK-free where possible) and covers all 4 FileRefSourceTypes, so it
-// satisfies #1–#26 without the real B-track contributors.
+// satisfies #1–#27 without the real B-track contributors.
 import type {
   AggregateBoundary,
   BackupContributor,
@@ -29,6 +29,7 @@ import { describe, expect, it } from 'vitest'
 
 import { ContributorFinalizeError } from '../ContributorFinalizeError'
 import { ContributorManager } from '../ContributorManager'
+import { CONTRIBUTORS } from '../CONTRIBUTORS'
 import { finalize } from '../finalize'
 import { READONLY_REGISTRY, ReadonlyBackupRegistryImpl } from '../ReadonlyBackupRegistryImpl'
 
@@ -482,6 +483,78 @@ describe('finalize invariants', () => {
         : c
     )
     expect(() => finalize(list, META)).not.toThrow()
+  })
+
+  it('#27a rejects junction-phase refs missing junctionRole (role-missing)', () => {
+    // Real CONTRIBUTORS pass #27; strip roles from agent_skill → junction-phase table
+    // with ≥2 junction refs and no roles.
+    const list = CONTRIBUTORS.map((c) => {
+      if (c.domain !== 'AGENTS') return c
+      return {
+        ...c,
+        schema: {
+          ...c.schema,
+          references: c.schema.references.map((r) =>
+            r.table === 'agent_skill' && r.kind === 'junction' ? { ...r, junctionRole: undefined } : r
+          )
+        }
+      }
+    })
+    try {
+      finalize(list, META)
+      throw new Error('expected ContributorFinalizeError to be thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ContributorFinalizeError)
+      expect((e as ContributorFinalizeError).invariant).toBe(27)
+      expect((e as ContributorFinalizeError).payload.deviation).toBe('role-missing')
+    }
+  })
+
+  it('#27a rejects junction-phase refs with colliding roles (role-collision)', () => {
+    const list = CONTRIBUTORS.map((c) => {
+      if (c.domain !== 'AGENTS') return c
+      return {
+        ...c,
+        schema: {
+          ...c.schema,
+          references: c.schema.references.map((r) =>
+            r.table === 'agent_skill' && r.kind === 'junction' ? { ...r, junctionRole: 'source' as const } : r
+          )
+        }
+      }
+    })
+    try {
+      finalize(list, META)
+      throw new Error('expected ContributorFinalizeError to be thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ContributorFinalizeError)
+      expect((e as ContributorFinalizeError).invariant).toBe(27)
+      expect((e as ContributorFinalizeError).payload.deviation).toBe('role-collision')
+    }
+  })
+
+  it('#27b rejects junctionRole on a cascade-include member junction table (role-on-non-junction)', () => {
+    // assistant_mcp_server is an include member with one junction ref — must NOT carry role.
+    const list = CONTRIBUTORS.map((c) => {
+      if (c.domain !== 'ASSISTANTS') return c
+      return {
+        ...c,
+        schema: {
+          ...c.schema,
+          references: c.schema.references.map((r) =>
+            r.table === 'assistant_mcp_server' && r.kind === 'junction' ? { ...r, junctionRole: 'target' as const } : r
+          )
+        }
+      }
+    })
+    try {
+      finalize(list, META)
+      throw new Error('expected ContributorFinalizeError to be thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ContributorFinalizeError)
+      expect((e as ContributorFinalizeError).invariant).toBe(27)
+      expect((e as ContributorFinalizeError).payload.deviation).toBe('role-on-non-junction')
+    }
   })
 
   // NOTE: #19's restrict direction shares its branch with cascade (both → owning).

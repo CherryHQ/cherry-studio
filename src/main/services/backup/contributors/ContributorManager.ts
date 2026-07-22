@@ -20,7 +20,7 @@ import { finalize } from './finalize'
 
 /**
  * Non-lifecycle singleton managing the one-shot finalize of the contributor
- * registry. Construction is cheap; the expensive 26-invariant validation runs
+ * registry. Construction is cheap; the expensive 27-invariant validation runs
  * lazily on the first getRegistry() call and is then cached.
  *
  * Contributors are injected via the constructor. The process-wide
@@ -43,7 +43,7 @@ export class ContributorManager {
     return this.cachedRegistry
   }
 
-  /** Run the 26-invariant finalize against the wired contributors (pure, in-memory). */
+  /** Run the 27-invariant finalize against the wired contributors (pure, in-memory). */
   private finalize(): ReadonlyBackupRegistry {
     return finalize(this.contributors, {
       // Stamp the real finalize instant — surfaces on the registry for diagnostics.

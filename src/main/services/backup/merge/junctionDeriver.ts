@@ -8,6 +8,9 @@
 // only, not the target table. Stage-4 output: 3 descriptors — agent_skill, agent_mcp_server,
 // agent_channel_task — all ownerDomain AGENTS, all endpoints root tables (no member-table
 // endpoint among pure junctions; member-table endpoints belong to include-member junctions).
+//
+// Source vs target is resolved by explicit `EntityReference.junctionRole` (finalize #27a),
+// NOT by declaration order — a cosmetic reorder of the two junction refs is a silent no-op.
 
 import type { EntityReference, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
@@ -34,9 +37,7 @@ const resolveEndpoint = (
 /**
  * Derive the pure-junction descriptors for the global junction phase. Pure: reads the registry
  * only, no DB access. Excludes include-member tables (already cascaded) and tables with < 2
- * junction refs. Source endpoint = same-domain leg (junction owner's domain); target =
- * cross-domain leg. For same-domain junctions (agent_channel_task: both legs AGENTS) the source
- * is the first same-domain endpoint — deterministic on registry ref declaration order.
+ * junction refs. Source/target endpoints come from explicit `junctionRole` (finalize #27).
  */
 export const deriveJunctionDescriptors = (
   registry: ReadonlyBackupRegistry,
@@ -72,14 +73,22 @@ export const deriveJunctionDescriptors = (
     const ownerDomain = registry.getTableOwner(table)
     if (ownerDomain === 'excluded' || ownerDomain === 'infrastructure') continue
 
-    const endpoints = refs.map((r) => resolveEndpoint(registry, table, r))
-    const sourceIdx = endpoints.findIndex((e) => registry.getTableOwner(e.table) === ownerDomain)
-    if (sourceIdx < 0) continue // no same-domain leg — not a junction this phase handles
-    const sourceEndpoint = endpoints[sourceIdx]
-    const targetEndpoint = endpoints.find((_, i) => i !== sourceIdx)
-    if (!targetEndpoint) continue
+    const sourceRef = refs.find((r) => r.junctionRole === 'source')
+    const targetRef = refs.find((r) => r.junctionRole === 'target')
+    if (!sourceRef || !targetRef) {
+      // finalize #27a should have caught this; reaching here is a contributor bug.
+      throw new Error(
+        `junctionDeriver: junction-phase table '${table}' missing junctionRole source/target ` +
+          `(source=${sourceRef?.column ?? '∅'} target=${targetRef?.column ?? '∅'})`
+      )
+    }
 
-    out.push({ table, ownerDomain, sourceEndpoint, targetEndpoint })
+    out.push({
+      table,
+      ownerDomain,
+      sourceEndpoint: resolveEndpoint(registry, table, sourceRef),
+      targetEndpoint: resolveEndpoint(registry, table, targetRef)
+    })
   }
   return out
 }

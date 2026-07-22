@@ -109,13 +109,15 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       // agent_channel.sessionId → agent_session (AGENTS): optional (onDelete set null). #25-required.
       { table: table('agent_channel'), column: column('sessionId'), referencedDomain: 'AGENTS', kind: 'optional' },
 
-      // ── agent_channel_task (junction: dual cascade) ────────────────────────
+      // ── agent_channel_task (junction-phase: dual cascade) ──────────────────
       // channelId → agent_channel: same-domain junction (cascade). #25-required.
+      // junctionRole explicit (finalize #27a) — reorder-safe for the global phase.
       {
         table: table('agent_channel_task'),
         column: column('channelId'),
         referencedDomain: 'AGENTS',
-        kind: 'junction'
+        kind: 'junction',
+        junctionRole: 'source'
       },
       // taskId → job_schedule (AGENTS row-scope): same-domain junction (cascade).
       // Target is the job_schedule(type='agent.task') row partition owned below.
@@ -124,24 +126,44 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         table: table('agent_channel_task'),
         column: column('taskId'),
         referencedDomain: 'AGENTS',
-        kind: 'junction'
+        kind: 'junction',
+        junctionRole: 'target'
       },
 
-      // ── agent_skill (junction: dual cascade) ───────────────────────────────
+      // ── agent_skill (junction-phase: dual cascade) ─────────────────────────
       // agentId → agent: same-domain junction (cascade). #25-required.
-      { table: table('agent_skill'), column: column('agentId'), referencedDomain: 'AGENTS', kind: 'junction' },
+      {
+        table: table('agent_skill'),
+        column: column('agentId'),
+        referencedDomain: 'AGENTS',
+        kind: 'junction',
+        junctionRole: 'source'
+      },
       // skillId → agent_global_skill (SKILLS): cross-domain junction (cascade). #25-required.
-      { table: table('agent_skill'), column: column('skillId'), referencedDomain: 'SKILLS', kind: 'junction' },
+      {
+        table: table('agent_skill'),
+        column: column('skillId'),
+        referencedDomain: 'SKILLS',
+        kind: 'junction',
+        junctionRole: 'target'
+      },
 
-      // ── agent_mcp_server (junction: dual cascade) ──────────────────────────
+      // ── agent_mcp_server (junction-phase: dual cascade) ────────────────────
       // agentId → agent: same-domain junction (cascade). #25-required.
-      { table: table('agent_mcp_server'), column: column('agentId'), referencedDomain: 'AGENTS', kind: 'junction' },
+      {
+        table: table('agent_mcp_server'),
+        column: column('agentId'),
+        referencedDomain: 'AGENTS',
+        kind: 'junction',
+        junctionRole: 'source'
+      },
       // mcpServerId → mcp_server (MCP_SERVERS): cross-domain junction (cascade). #25-required.
       {
         table: table('agent_mcp_server'),
         column: column('mcpServerId'),
         referencedDomain: 'MCP_SERVERS',
-        kind: 'junction'
+        kind: 'junction',
+        junctionRole: 'target'
       },
 
       // ── agent (scalar model refs) ──────────────────────────────────────────

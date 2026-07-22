@@ -1,5 +1,5 @@
-// ContributorManager.finalize() core — validates the 26 registry invariants
-// (the 26 finalize invariants) against the codegen facts (DB_TABLES /
+// ContributorManager.finalize() core — validates the 27 registry invariants
+// (the 27 finalize invariants) against the codegen facts (DB_TABLES /
 // DB_COLUMNS_BY_TABLE / DB_FOREIGN_KEYS) and the contributor declarations,
 // then builds the immutable registry data. Pure / in-memory — never touches
 // SQLite (full-table coverage is the coverage test's job; pure-declaration tests
@@ -89,7 +89,7 @@ const expectedKindForOnDelete = (
 }
 
 /**
- * Validate the 26 registry invariants and produce an immutable registry. Throws
+ * Validate the 27 registry invariants and produce an immutable registry. Throws
  * ContributorFinalizeError (invariant id + locator payload, #18) on the first
  * violation. Invariant #17 (deep-freeze) is the B track's responsibility — it
  * freezes each contributor constant at load via freeze.deepFreeze; finalize and
@@ -490,6 +490,75 @@ export function finalize(
       // coverage is the importer/coverage test's job, not finalize's.
       if (!fk.columns.some((col) => declaredColumns.has(col))) {
         fail({ invariant: 25, table, columns: [...fk.columns], missingFromDomain: owner })
+      }
+    }
+  }
+
+  // ── #27: junctionRole on junction-phase tables only (scheme B / A8 ⑥) ────────
+  // Junction-phase tables match deriveJunctionDescriptors' filter: not a
+  // cascade:'include' member of any aggregate, AND ≥2 kind:'junction' refs.
+  // Today that is only AGENTS' agent_channel_task / agent_skill / agent_mcp_server.
+  // The other 6 junction-ref tables are cascade-include members (or single-ref)
+  // and never enter the global junction phase — they MUST NOT carry junctionRole
+  // (#27b). #27a requires each junction-phase table declare exactly one source +
+  // one target so a cosmetic reorder cannot flip prune semantics.
+  {
+    const memberTables = new Set<DbTableName>()
+    for (const c of contributors) {
+      for (const agg of c.schema.aggregates) {
+        for (const m of agg.members ?? []) {
+          if (m.cascade === 'include') memberTables.add(m.table)
+        }
+      }
+    }
+    const junctionRefsByTable = new Map<DbTableName, { domain: BackupDomain; refs: EntityReference[] }>()
+    for (const c of contributors) {
+      for (const ref of c.schema.references) {
+        if (ref.kind !== 'junction') continue
+        let bucket = junctionRefsByTable.get(ref.table)
+        if (!bucket) {
+          bucket = { domain: c.domain, refs: [] }
+          junctionRefsByTable.set(ref.table, bucket)
+        }
+        bucket.refs.push(ref)
+      }
+    }
+    for (const [table, { domain, refs }] of junctionRefsByTable) {
+      const isJunctionPhase = !memberTables.has(table) && refs.length >= 2
+      if (isJunctionPhase) {
+        const sources = refs.filter((r) => r.junctionRole === 'source')
+        const targets = refs.filter((r) => r.junctionRole === 'target')
+        const missing = refs.filter((r) => r.junctionRole !== 'source' && r.junctionRole !== 'target')
+        if (missing.length > 0) {
+          fail({
+            invariant: 27,
+            domain,
+            table,
+            deviation: 'role-missing',
+            columns: missing.map((r) => r.column)
+          })
+        }
+        if (sources.length !== 1 || targets.length !== 1) {
+          fail({
+            invariant: 27,
+            domain,
+            table,
+            deviation: 'role-collision',
+            sources: sources.map((r) => r.column),
+            targets: targets.map((r) => r.column)
+          })
+        }
+      } else {
+        const withRole = refs.filter((r) => r.junctionRole === 'source' || r.junctionRole === 'target')
+        if (withRole.length > 0) {
+          fail({
+            invariant: 27,
+            domain,
+            table,
+            deviation: 'role-on-non-junction',
+            columns: withRole.map((r) => r.column)
+          })
+        }
       }
     }
   }
