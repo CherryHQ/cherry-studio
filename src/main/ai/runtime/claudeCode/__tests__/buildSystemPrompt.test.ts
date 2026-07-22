@@ -102,13 +102,13 @@ function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
 }
 
 describe('buildSystemPrompt — current workspace', () => {
-  it('injects the current workspace and default path policy for regular agents', async () => {
+  it('injects the current workspace and default path resolution for regular agents', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/workspace/project-a')
 
     expect(result as string).toContain(WORKSPACE_MARKER)
     expect(result as string).toContain('"/workspace/project-a"')
-    expect(result as string).toContain('Work outside it only when the user explicitly asks')
     expect(result as string).toContain('resolve unspecified or relative paths against it')
+    expect(result as string).not.toContain('Work outside it only when the user explicitly asks')
   })
 
   it('injects the current workspace for the built-in assistant path', async () => {

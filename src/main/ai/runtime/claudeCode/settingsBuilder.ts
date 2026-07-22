@@ -985,7 +985,7 @@ export async function buildSystemPrompt(
   const workspaceBlock = [
     '## Current Workspace',
     `Current working directory: ${JSON.stringify(cwd)}`,
-    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it. Work outside it only when the user explicitly asks.'
+    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
   ].join('\n')
   const workspaceContextBlock = `\n\n${workspaceBlock}`
 
