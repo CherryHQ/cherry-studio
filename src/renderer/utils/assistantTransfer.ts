@@ -1,5 +1,5 @@
 import type { ImportAssistantDto } from '@shared/data/api/schemas/assistants'
-import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { type Assistant, LEGACY_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 export interface ImportedAssistantDraft {
   dto: Omit<ImportAssistantDto, 'groupName'>
@@ -60,7 +60,7 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
       prompt,
       emoji: readString(record.emoji, '🤖'),
       description: readString(record.description),
-      settings: DEFAULT_ASSISTANT_SETTINGS
+      settings: LEGACY_ASSISTANT_SETTINGS
     },
     groupName
   }

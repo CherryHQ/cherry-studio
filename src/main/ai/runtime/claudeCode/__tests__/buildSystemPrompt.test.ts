@@ -161,28 +161,7 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
 })
 
 describe('buildSystemPrompt — runtime context', () => {
-  it('appends current environment details when enabled', async () => {
-    const result = await buildSystemPrompt(
-      makeSession(),
-      makeAgent({
-        instructions: 'Do the task.',
-        modelName: 'Claude Sonnet',
-        configuration: { runtime_context_enabled: true }
-      }),
-      '/tmp/cwd'
-    )
-
-    expect(result as string).toContain(RUNTIME_CONTEXT_MARKER)
-    expect(result as string).toContain('- Model: Claude Sonnet')
-  })
-
-  it('does not append current environment details by default', async () => {
-    const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
-
-    expect(result as string).not.toContain(RUNTIME_CONTEXT_MARKER)
-  })
-
-  it('uses the agent runtime context prompt override', async () => {
+  it('keeps runtime context out of the connection-level system prompt when enabled', async () => {
     const result = await buildSystemPrompt(
       makeSession(),
       makeAgent({
@@ -196,7 +175,14 @@ describe('buildSystemPrompt — runtime context', () => {
       '/tmp/cwd'
     )
 
-    expect(result as string).toContain('Active model: Claude Sonnet')
+    expect(result as string).not.toContain(RUNTIME_CONTEXT_MARKER)
+    expect(result as string).not.toContain('Active model: Claude Sonnet')
+  })
+
+  it('does not append current environment details by default', async () => {
+    const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
+
+    expect(result as string).not.toContain(RUNTIME_CONTEXT_MARKER)
   })
 })
 

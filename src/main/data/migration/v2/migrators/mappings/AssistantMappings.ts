@@ -21,7 +21,7 @@
 
 import type { InsertAssistantRow } from '@data/db/schemas/assistant'
 import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { AssistantSettingsSchema, LEGACY_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { ZodType } from 'zod'
 
 import { legacyChatModelToUniqueId } from '../transformers/ModelTransformers'
@@ -202,16 +202,19 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   if (source.mcpMode != null) legacySettings.mcpMode = source.mcpMode
   if (source.enableWebSearch != null) legacySettings.enableWebSearch = source.enableWebSearch
 
-  // Migrator bypasses AssistantService.create(), so it mirrors the same defaults that the
-  // service would supply: '🌟' for emoji, DEFAULT_ASSISTANT_SETTINGS for settings, and the
-  // DB-default '' for prompt / description. Keeps the migrator's output consistent with
-  // every other write path even though we're not going through the service layer.
+  // Migrator bypasses AssistantService.create(), so it starts from the same structural
+  // defaults: '🌟' for emoji, DEFAULT_ASSISTANT_SETTINGS for settings, and the DB-default
+  // '' for prompt / description. Runtime context is the exception below because migrated
+  // assistants are existing records, not newly created assistants.
   //
   // Per-field sanitiser drops legacy values that don't validate against the v2 schema
   // (e.g. v1's `maxTokens: 0` sentinel for disabled-state) so the v2 row never starts
   // life with a value that future PATCHes will reject.
   const sanitized = sanitizeLegacySettings(legacySettings)
-  const settings: InsertAssistantRow['settings'] = { ...DEFAULT_ASSISTANT_SETTINGS, ...sanitized }
+  const settings: InsertAssistantRow['settings'] = {
+    ...LEGACY_ASSISTANT_SETTINGS,
+    ...sanitized
+  }
 
   return {
     assistant: {

@@ -301,7 +301,7 @@ export function PromptRuntimeContextToggle({
                 </Button>
               </NormalTooltip>
               <Textarea.Input
-                value={prompt || RUNTIME_CONTEXT_PROMPT_PRESET}
+                value={prompt.trim() ? prompt : RUNTIME_CONTEXT_PROMPT_PRESET}
                 rows={9}
                 aria-label={t('library.config.prompt.runtime_context.prompt_label')}
                 onValueChange={onPromptChange}

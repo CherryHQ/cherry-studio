@@ -63,6 +63,14 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
   warmQueryInitializeTimeoutMs?: number
   /** Display-only metadata for Claude Code MCP tool names. Not passed to the SDK. */
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
+  /** Runtime-context inputs captured with the connection. Not passed to the SDK. */
+  runtimeContext?: ClaudeCodeRuntimeContextSnapshot
+}
+
+export type ClaudeCodeRuntimeContextSnapshot = {
+  /** Unresolved user template so volatile variables can be refreshed for each turn. */
+  template?: string
+  modelName?: string
 }
 
 export type ToolApprovalEmitterHolder = {

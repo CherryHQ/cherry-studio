@@ -22,7 +22,7 @@ import type {
   UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { type Assistant, DEFAULT_ASSISTANT_SETTINGS, LEGACY_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
@@ -406,6 +406,9 @@ export class AssistantDataService {
       const group = groupName ? groupService.findOrCreateByNameTx(tx, 'assistant', groupName) : null
       return this.createTx(tx, {
         ...assistantDto,
+        // Omitted settings identify the legacy import shape. Do not apply the
+        // defaults for a newly created assistant to an existing legacy preset.
+        settings: assistantDto.settings ?? LEGACY_ASSISTANT_SETTINGS,
         ...(group ? { groupId: group.id } : {})
       })
     })

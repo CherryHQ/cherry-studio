@@ -52,7 +52,7 @@ describe('initialAssistantFormState', () => {
       modelId: 'openai::gpt-5',
       temperature: 0.7,
       enableTemperature: true,
-      enableRuntimeContext: false,
+      enableRuntimeContext: true,
       runtimeContextPrompt: '',
       mcpMode: 'manual',
       knowledgeBaseIds: ['kb-1'],
@@ -64,6 +64,15 @@ describe('initialAssistantFormState', () => {
     const groupId = '11111111-1111-4111-8111-111111111111'
     const assistant = createAssistant({ groupId })
     expect(initialAssistantFormState(assistant).groupId).toBe(groupId)
+  })
+
+  it('keeps runtime context disabled for legacy settings without the toggle', () => {
+    const legacySettings = { ...DEFAULT_ASSISTANT_SETTINGS }
+    delete legacySettings.enableRuntimeContext
+
+    const assistant = createAssistant({ settings: legacySettings })
+
+    expect(initialAssistantFormState(assistant).enableRuntimeContext).toBe(false)
   })
 })
 

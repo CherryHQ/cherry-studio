@@ -143,9 +143,19 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('routes with the connection-scoped model override instead of the agent latest model', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Latest model'
+    })
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
-      apiModelId: `${modelId}-api`
+      apiModelId: `${modelId}-api`,
+      name: modelId === 'model-2' ? 'Pinned model' : 'Latest model'
+    }))
+    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
+      env: {},
+      runtimeContext: { modelName: options?.runtimeContextModelName }
     }))
 
     // A live turn's connection pins the model captured at turn creation; the agent may have been
@@ -157,6 +167,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
 
     expect(request?.sdkModelId).toBe('model-2-api')
+    expect(request?.settings.runtimeContext?.modelName).toBe('Pinned model')
     // The whole route follows the override — the unset plan/small defaults must pin to the captured
     // model too, not fall back to the agent's latest `provider-1::model-1`.
     expect(request?.settings.env).toMatchObject({
