@@ -1,11 +1,63 @@
+import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
+
+const bedrockBudgetWire: ReasoningWireProfile = {
+  off: {
+    operations: [{ target: 'reasoningConfig.type', value: { source: 'literal', value: 'disabled' } }]
+  },
+  auto: {
+    operations: [
+      { target: 'reasoningConfig.type', value: { source: 'literal', value: 'enabled' } },
+      { target: 'reasoningConfig.budgetTokens', value: { source: 'budget' } }
+    ],
+    budget: { missing: { type: 'fallback', value: 13_312 }, clampToMaxTokens: true }
+  },
+  effort: {
+    operations: [
+      { target: 'reasoningConfig.type', value: { source: 'literal', value: 'enabled' } },
+      { target: 'reasoningConfig.budgetTokens', value: { source: 'budget' } }
+    ],
+    budget: { missing: { type: 'fallback', value: 13_312 }, clampToMaxTokens: true }
+  }
+}
+
+const bedrockEffortWire: ReasoningWireProfile = {
+  off: {
+    operations: [{ target: 'reasoningConfig.type', value: { source: 'literal', value: 'disabled' } }]
+  },
+  auto: {
+    operations: [{ target: 'reasoningConfig.type', value: { source: 'literal', value: 'adaptive' } }]
+  },
+  effort: {
+    operations: [
+      { target: 'reasoningConfig.type', value: { source: 'literal', value: 'adaptive' } },
+      { target: 'reasoningConfig.maxReasoningEffort', value: { source: 'effort' } }
+    ]
+  }
+}
+
+const bedrockBudgetModels = new Set(['claude-haiku-4-5', 'claude-opus-4-1', 'claude-sonnet-4-5'])
+const bedrockEffortModels = new Set([
+  'claude-fable-5',
+  'claude-opus-4-5',
+  'claude-opus-4-6',
+  'claude-opus-4-7',
+  'claude-opus-4-8',
+  'claude-sonnet-4-6'
+])
 
 export default defineProvider({
   id: 'aws-bedrock',
   name: 'AWS Bedrock',
   defaultChatEndpoint: 'anthropic-messages',
   endpointConfigs: {
-    'anthropic-messages': { adapterFamily: 'bedrock' }
+    'anthropic-messages': {
+      adapterFamily: 'bedrock',
+      reasoningFormat: {
+        type: 'anthropic',
+        wire: { disabled: true }
+      }
+    }
   },
   metadata: {
     website: {
@@ -455,5 +507,19 @@ export default defineProvider({
         output: { currency: 'USD', perMillionTokens: 0.35 }
       }
     }
-  ]
+  ].map((override) => {
+    const wire = bedrockBudgetModels.has(override.modelId)
+      ? bedrockBudgetWire
+      : bedrockEffortModels.has(override.modelId)
+        ? bedrockEffortWire
+        : undefined
+    return wire
+      ? {
+          ...override,
+          reasoningContracts: {
+            'anthropic-messages': { wire }
+          }
+        }
+      : override
+  })
 })

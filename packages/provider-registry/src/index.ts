@@ -5,15 +5,12 @@
 
 // Enums — const objects (SCREAMING_CASE)
 export {
-  ANTHROPIC_REASONING_EFFORT,
   CANONICAL_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
-  GEMINI_THINKING_LEVEL,
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
-  OPENAI_REASONING_EFFORT,
   REASONING_EFFORT,
   REASONING_EFFORT_ORDER
 } from './schemas/enums'
@@ -32,18 +29,16 @@ export { buildParamsSchema } from './utils/buildParamsSchema'
 
 // Enum types (PascalCase, derived from const objects)
 export type {
-  AnthropicReasoningEffort,
   CanonicalParamKey,
   Currency,
   EndpointType,
-  GeminiThinkingLevel,
   Modality,
   ModelCapability,
-  OpenAIReasoningEffort,
   ReasoningEffort
 } from './schemas/enums'
 
 // Schema-inferred types (replaces proto types)
+export { REASONING_FORMAT_PROFILES } from './reasoningProfiles'
 export type {
   ImageGenerationMode,
   ImageGenerationSupport,
@@ -69,8 +64,23 @@ export type {
 export { REASONING_FORMAT_TYPES } from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
-  ProviderModelOverride
+  ProviderModelOverride,
+  ProviderModelReasoningContract
 } from './schemas/provider-models'
+export { ProviderModelReasoningContractSchema } from './schemas/provider-models'
+export type {
+  ReasoningFormatWireProfile,
+  ReasoningWireMode,
+  ReasoningWireOperation,
+  ReasoningWireProfile,
+  ReasoningWireTarget,
+  ReasoningWireValue
+} from './schemas/reasoningWire'
+export {
+  REASONING_WIRE_TARGETS,
+  ReasoningFormatWireProfileSchema,
+  ReasoningWireProfileSchema
+} from './schemas/reasoningWire'
 export type { DerivedReasoningFields } from './utils/reasoningControls'
 export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 
@@ -78,9 +88,9 @@ export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 export { normalizeModelId } from './utils/normalize'
 
 // Pure lookup and transformation utilities (no fs dependency)
-export type { ModelLookupResult, RuntimeEndpointConfig } from './registry-utils'
+export type { ModelLookupResult, PersistedEndpointConfig } from './registry-utils'
 export {
-  buildRuntimeEndpointConfigs,
+  buildPersistedEndpointConfigs,
   endpointImpliedCapability,
   inferAdapterFamily,
   lookupRegistryModel,
@@ -97,5 +107,6 @@ export { isVendor, matchVendor, VENDOR_PATTERNS } from './patterns/vendor-patter
 // custom-model creation); never a runtime capability source.
 export {
   inferReasoningControls,
-  inferReasoningMembership
+  inferReasoningMembership,
+  inferReasoningOwnedBy
 } from './patterns/reasoning-heuristics'

@@ -1,6 +1,5 @@
 import {
   Button,
-  Combobox,
   InputGroup,
   InputGroupInput,
   MenuItem,
@@ -13,11 +12,10 @@ import {
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
-import { isSystemProviderId } from '@renderer/types/provider'
 import { validateApiHost } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import { type EndpointConfig, REASONING_FORMAT_TYPES, type ReasoningFormatType } from '@shared/data/types/provider'
+import type { EndpointConfig } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { isEmpty, trim } from 'es-toolkit/compat'
 import { Braces, List, Plus, Trash2 } from 'lucide-react'
@@ -114,19 +112,15 @@ export function resolveEndpointTypes(
   return [primary, ...others]
 }
 
-/** Per-endpoint draft: baseUrl text plus the optional reasoning dialect override. */
 export interface EndpointDraft {
   baseUrl: string
-  reasoningFormatType?: ReasoningFormatType
 }
 
 /**
  * Merge per-endpoint drafts back into a full endpointConfigs object.
  *
- * Each drafted endpoint's `baseUrl` and `reasoningFormatType` are written or
- * stripped from the draft; other configured fields on the entry are kept.
- * An entry with no fields left is dropped — so a secondary endpoint whose
- * baseUrl is empty still survives when a reasoning dialect is set.
+ * Each drafted endpoint's `baseUrl` is written or stripped from the draft;
+ * other configured fields on the entry are kept. An empty entry is dropped.
  */
 export function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
@@ -140,11 +134,6 @@ export function mergeEndpointConfigs(
       next.baseUrl = value
     } else {
       delete next.baseUrl
-    }
-    if (draft.reasoningFormatType) {
-      next.reasoningFormatType = draft.reasoningFormatType
-    } else {
-      delete next.reasoningFormatType
     }
     if (!isEmpty(next)) {
       out[type] = next
@@ -207,8 +196,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const drafts: Record<string, EndpointDraft> = {}
     for (const type of endpointTypes) {
       drafts[type] = {
-        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? ''),
-        reasoningFormatType: provider?.endpointConfigs?.[type]?.reasoningFormatType
+        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
       }
     }
     setEndpointDrafts(drafts)
@@ -335,17 +323,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     (type) => !visibleEndpointTypes.includes(type)
   )
 
-  // System providers get their dialect from the registry; only custom
-  // providers may override the reasoning wire format per endpoint (#16598).
-  const showReasoningDialect = !isSystemProviderId(providerId)
-  const reasoningDialectOptions = [
-    { value: '', label: t('settings.provider.reasoning_dialect.default') },
-    ...REASONING_FORMAT_TYPES.map((type) => ({
-      value: type,
-      label: t(`settings.provider.reasoning_dialect.${type}`)
-    }))
-  ]
-
   const handleAddEndpoint = (type: EndpointType) => {
     setVisibleEndpointTypes((prev) => (prev.includes(type) ? prev : [...prev, type]))
     setEndpointDrafts((prev) => ({ ...prev, [type]: prev[type] ?? { baseUrl: '' } }))
@@ -388,29 +365,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 <p className="wrap-break-word text-muted-foreground/40 text-xs leading-relaxed">
                   {t('settings.provider.api_host_drawer_hint')}
                 </p>
-              )}
-              {showReasoningDialect && (
-                <div className="flex items-center gap-2">
-                  <span className="shrink-0 font-medium text-muted-foreground/60 text-xs">
-                    {t('settings.provider.reasoning_dialect.label')}
-                  </span>
-                  <Combobox
-                    searchable={false}
-                    options={reasoningDialectOptions}
-                    value={endpointDrafts[type]?.reasoningFormatType ?? ''}
-                    className="h-7 min-h-7 flex-1 py-0.5 text-xs"
-                    popoverClassName="w-(--radix-popover-trigger-width)"
-                    onChange={(next) =>
-                      setEndpointDrafts((prev) => ({
-                        ...prev,
-                        [type]: {
-                          ...(prev[type] ?? { baseUrl: '' }),
-                          reasoningFormatType: next ? (next as ReasoningFormatType) : undefined
-                        }
-                      }))
-                    }
-                  />
-                </div>
               )}
             </div>
           )

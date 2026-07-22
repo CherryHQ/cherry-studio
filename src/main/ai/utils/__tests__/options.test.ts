@@ -139,7 +139,7 @@ describe('customParameters → providerOptions plugin contract', () => {
 })
 
 describe('buildCapabilityProviderOptions', () => {
-  it('passes provider summaryText settings into OpenAI reasoning options', () => {
+  it('places resolved OpenAI reasoning emissions in the native namespace', () => {
     const assistant = {
       settings: {
         reasoning_effort: 'medium'
@@ -152,7 +152,7 @@ describe('buildCapabilityProviderOptions', () => {
       capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
-        supportedEfforts: ['low', 'medium', 'high']
+        selectableEfforts: ['low', 'medium', 'high']
       }
     } as unknown as Model
     const provider = {
@@ -178,12 +178,65 @@ describe('buildCapabilityProviderOptions', () => {
       isEnabled: true
     } as Provider
 
-    const result = buildCapabilityProviderOptions(assistant, model, provider, {
-      enableReasoning: true,
-      enableWebSearch: false,
-      enableGenerateImage: false
-    })
+    const result = buildCapabilityProviderOptions(
+      assistant,
+      model,
+      provider,
+      {
+        enableReasoning: true,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'openai',
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        reasoning: {
+          kind: 'effort',
+          selection: 'medium',
+          effort: 'medium',
+          emissions: [
+            { target: 'reasoningEffort', value: 'medium' },
+            { target: 'reasoningSummary', value: 'detailed' }
+          ]
+        }
+      }
+    )
 
     expect(result.openai.reasoningSummary).toBe('detailed')
+    expect(result.openai.store).toBe(false)
+  })
+
+  it('places compatible wire fields in the concrete provider namespace', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: { reasoning_effort: 'auto' } } as Assistant,
+      {
+        id: 'minimax::minimax-m3',
+        providerId: 'minimax',
+        name: 'MiniMax-M3',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'toggle' }],
+          selectableEfforts: ['none', 'auto']
+        }
+      } as unknown as Model,
+      { id: 'minimax', name: 'MiniMax', settings: {} } as Provider,
+      {
+        enableReasoning: true,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'openai-compatible',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'auto',
+          selection: 'auto',
+          emissions: [{ target: 'thinking.type', value: 'adaptive' }]
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ minimax: { thinking: { type: 'adaptive' } } })
+    expect(result['openai-compatible']).toBeUndefined()
   })
 })

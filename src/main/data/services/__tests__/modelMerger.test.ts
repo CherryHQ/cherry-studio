@@ -2,10 +2,9 @@ import { applyUserOverlay, type UserModelOverlay } from '@data/services/ModelSer
 import {
   applyCapabilityOverride,
   createCustomModel,
-  extractReasoningFormatTypes,
-  mergePresetModel
+  mergePresetModel,
+  resolveReasoningProfileFromRegistry
 } from '@data/services/ProviderRegistryService'
-import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 // Use string literals matching the actual enum values to avoid
@@ -15,11 +14,6 @@ const CAPABILITY = {
   IMAGE_RECOGNITION: 'image-recognition',
   REASONING: 'reasoning',
   EMBEDDING: 'embedding'
-} as const
-
-const ENDPOINT = {
-  OPENAI_CHAT: 'openai-chat-completions',
-  ANTHROPIC: 'anthropic-messages'
 } as const
 
 // ---------- applyCapabilityOverride ----------
@@ -67,37 +61,6 @@ describe('applyCapabilityOverride', () => {
     const result = applyCapabilityOverride(base, { add: [CAPABILITY.FUNCTION_CALL] as any[] })
     const count = result.filter((c) => c === CAPABILITY.FUNCTION_CALL).length
     expect(count).toBe(1)
-  })
-})
-
-// ---------- extractReasoningFormatTypes ----------
-
-describe('extractReasoningFormatTypes', () => {
-  it('returns undefined for null input', () => {
-    expect(extractReasoningFormatTypes(null)).toBeUndefined()
-  })
-
-  it('returns undefined for undefined input', () => {
-    expect(extractReasoningFormatTypes(undefined)).toBeUndefined()
-  })
-
-  it('returns undefined when no endpoint has reasoningFormatType', () => {
-    const configs: Partial<Record<string, EndpointConfig>> = {
-      [ENDPOINT.OPENAI_CHAT]: { baseUrl: 'https://api.example.com' }
-    }
-    expect(extractReasoningFormatTypes(configs)).toBeUndefined()
-  })
-
-  it('extracts reasoning format types from endpoint configs', () => {
-    const configs: Partial<Record<string, EndpointConfig>> = {
-      [ENDPOINT.OPENAI_CHAT]: { reasoningFormatType: 'openai-chat' as ReasoningFormatType },
-      [ENDPOINT.ANTHROPIC]: { reasoningFormatType: 'anthropic' as ReasoningFormatType }
-    }
-    const result = extractReasoningFormatTypes(configs)
-    expect(result).toEqual({
-      [ENDPOINT.OPENAI_CHAT]: 'openai-chat',
-      [ENDPOINT.ANTHROPIC]: 'anthropic'
-    })
   })
 })
 
@@ -221,7 +184,6 @@ describe('mergePresetModel — field completeness', () => {
     maxOutputTokens: 4096,
     maxInputTokens: 120_000,
     reasoning: {
-      type: 'builtin',
       supportedEfforts: ['low', 'medium', 'high'],
       thinkingTokenLimits: { min: 1024, max: 16384 }
     },
@@ -254,7 +216,7 @@ describe('mergePresetModel — field completeness', () => {
     expect(model.pricing!.cacheWrite?.perMillionTokens).toBe(5)
 
     expect(model.reasoning).toBeDefined()
-    expect(model.reasoning!.supportedEfforts).toEqual(['low', 'medium', 'high'])
+    expect(model.reasoning!.selectableEfforts).toEqual(['low', 'medium', 'high'])
     expect(model.reasoning!.thinkingTokenLimits).toEqual({ min: 1024, max: 16384 })
   })
 
@@ -379,41 +341,63 @@ describe('mergePresetModel — reasoning', () => {
       name: 'o1',
       capabilities: ['reasoning'],
       reasoning: {
-        type: 'builtin',
-        supportedEfforts: ['low', 'medium', 'high'],
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         thinkingTokenLimits: { min: 1024, max: 32768 }
       }
     } as any
     const model = mergePresetModel(preset, null, 'openai')
 
     expect(model.reasoning).toBeDefined()
-    // type is derived from provider's reasoningFormatType, not from preset —
-    // with no provider config it falls back to 'openai-chat' (#16598: an empty
-    // type made the descriptor unusable, failure mode D)
-    expect(model.reasoning!.type).toBe('openai-chat')
-    expect(model.reasoning!.supportedEfforts).toEqual(['low', 'medium', 'high'])
+    expect(model.reasoning).not.toHaveProperty('type')
+    expect(model.reasoning!.selectableEfforts).toEqual(['low', 'medium', 'high'])
     expect(model.reasoning!.thinkingTokenLimits).toEqual({ min: 1024, max: 32768 })
   })
 
-  it('reasoningFormatType applied from provider config', () => {
+  it('projects renderer choices through the resolved wire profile', () => {
     const preset = {
       id: 'o1',
       name: 'o1',
       capabilities: ['reasoning'],
-      reasoning: { type: 'builtin', supportedEfforts: ['low', 'medium', 'high'] }
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }] }
     } as any
-    const override = {
-      providerId: 'openai',
-      modelId: 'o1',
-      endpointTypes: ['openai-chat-completions']
-    } as any
-    const reasoningFormatTypes = { 'openai-chat-completions': 'openai-chat' } as any
-
-    const model = mergePresetModel(preset, override, 'openai', reasoningFormatTypes)
+    const model = mergePresetModel(preset, null, 'openai', { disabled: true })
 
     expect(model.reasoning).toBeDefined()
-    expect(model.reasoning!.type).toBe('openai-chat')
-    expect(model.reasoning!.supportedEfforts).toEqual(['low', 'medium', 'high'])
+    expect(model.reasoning!.selectableEfforts).toEqual([])
+  })
+
+  it('replaces intrinsic controls with endpoint-specific support', () => {
+    const preset = {
+      id: 'hybrid-model',
+      name: 'Hybrid Model',
+      capabilities: ['reasoning'],
+      reasoning: { controls: [{ kind: 'toggle' }] }
+    } as any
+    const support = {
+      controls: [{ kind: 'effort' as const, values: ['high' as const, 'max' as const] }]
+    }
+
+    const model = mergePresetModel(preset, null, 'provider', undefined, support)
+
+    expect(model.reasoning?.controls).toEqual(support.controls)
+    expect(model.reasoning?.selectableEfforts).toEqual(['high', 'max'])
+  })
+
+  it('prefers an endpoint-keyed model contract over the endpoint wire', () => {
+    const endpointWire = {
+      effort: { operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }] }
+    }
+    const contractWire = {
+      effort: { operations: [{ target: 'reasoning_effort' as const, value: { source: 'effort' as const } }] }
+    }
+
+    const resolved = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-chat-completions',
+      format: { type: 'openai-chat', wire: endpointWire },
+      contract: { wire: contractWire }
+    })
+
+    expect(resolved.wire).toBe(contractWire)
   })
 })
 

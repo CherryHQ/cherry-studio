@@ -1,4 +1,144 @@
+import type { ReasoningSupport } from '../schemas/model'
+import type { ProviderModelOverride } from '../schemas/provider-models'
+import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
+
+const qwenChatWire: ReasoningWireProfile = {
+  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+  auto: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'thinking_budget', value: { source: 'budget' } }
+    ],
+    budget: { missing: { type: 'omit-value' } }
+  },
+  effort: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'thinking_budget', value: { source: 'budget' } }
+    ],
+    budget: { missing: { type: 'omit-value' } }
+  }
+}
+
+const responsesEffortWire: ReasoningWireProfile = {
+  off: { operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }] },
+  auto: {
+    operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+    effortMap: { auto: 'medium' }
+  },
+  effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+}
+
+const qwen38Support: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'], default: 'xhigh' }],
+  defaultEffort: 'xhigh',
+  supportedEfforts: ['none', 'low', 'medium', 'xhigh'],
+  thinkingTokenLimits: { min: 0, max: 262_144 }
+}
+
+const highMaxSupport: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['none', 'high', 'max'], default: 'high' }],
+  defaultEffort: 'high',
+  supportedEfforts: ['none', 'high', 'max']
+}
+
+const kimiK3Support: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['none', 'max'], default: 'max' }],
+  defaultEffort: 'max',
+  supportedEfforts: ['none', 'max']
+}
+
+const effortChatWire: ReasoningWireProfile = {
+  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
+}
+
+const qwen38ChatWire: ReasoningWireProfile = {
+  off: { operations: [{ target: 'reasoning_effort', value: { source: 'literal', value: 'none' } }] },
+  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
+}
+
+const minimaxM3Wire: ReasoningWireProfile = {
+  off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
+  auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } }] },
+  effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } }] }
+}
+
+const qwenChatModels = [
+  'qwen-plus',
+  'qwen-flash',
+  'qwen-turbo',
+  'qwen3-14b',
+  'qwen3-32b',
+  'qwen3-235b-a22b',
+  'qwen3-5-9b',
+  'qwen3-5-27b',
+  'qwen3-5-35b-a3b',
+  'qwen3-5-122b-a10b',
+  'qwen3-5-397b-a17b',
+  'qwen3-5-flash',
+  'qwen3-5-plus',
+  'qwen3-6-27b',
+  'qwen3-6-35b-a3b',
+  'qwen3-6-flash',
+  'qwen3-6-plus',
+  'qwen3-6-max-preview',
+  'qwen3-7-plus',
+  'qwen3-7-max',
+  'qwen3-coder',
+  'qwen3-coder-next',
+  'qwen3-max',
+  'qwen3-omni-flash',
+  'qwen3-vl',
+  'qwen3-vl-plus',
+  'qwen3-vl-8b',
+  'qwen3-vl-30b-a3b',
+  'qwen3-vl-235b-a22b'
+]
+
+const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.map((modelId) => ({
+  modelId,
+  reasoningContracts: {
+    'openai-chat-completions': { wire: qwenChatWire },
+    'openai-responses': { wire: responsesEffortWire }
+  }
+}))
+
+const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
+  ...qwenReasoningOverrides,
+  {
+    apiModelId: 'qwen3.8-max-preview',
+    modelId: 'qwen3-8-max-preview',
+    name: 'Qwen3.8 Max Preview',
+    reasoningContracts: {
+      'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
+      'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
+    }
+  },
+  {
+    modelId: 'minimax-m3',
+    reasoningContracts: {
+      'openai-chat-completions': {
+        support: { controls: [{ kind: 'toggle', default: true }] },
+        wire: minimaxM3Wire
+      }
+    }
+  },
+  ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5-1', 'glm-5-2'].map((modelId) => ({
+    modelId,
+    reasoningContracts: {
+      'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
+    }
+  })),
+  {
+    apiModelId: 'kimi/kimi-k3',
+    modelId: 'kimi-k3',
+    reasoningContracts: {
+      'openai-chat-completions': { support: kimiK3Support, wire: effortChatWire }
+    }
+  }
+]
 
 export default defineProvider({
   id: 'dashscope',
@@ -12,12 +152,12 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
-      reasoningFormat: { type: 'dashscope' }
+      reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
-      reasoningFormat: { type: 'dashscope' }
+      reasoningFormat: { type: 'openai-responses' }
     }
   },
   metadata: {
@@ -29,6 +169,7 @@ export default defineProvider({
     }
   },
   overrides: [
+    ...endpointReasoningOverrides,
     {
       apiModelId: 'qwen-image',
       imageGeneration: {

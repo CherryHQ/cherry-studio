@@ -26,6 +26,7 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
+import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -51,6 +52,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isNonChatModel } from '@shared/utils/model'
 import { Bot, Cable, ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -116,6 +118,7 @@ interface ChatComposerProps {
       mentionedModels?: UniqueModelId[]
       knowledgeBaseIds?: KnowledgeBase['id'][]
       userMessageParts?: CherryMessagePart[]
+      reasoningEffort?: ReasoningEffortOption
     }
   ) => void | Promise<void>
   sendDisabled?: boolean
@@ -965,11 +968,16 @@ const ChatComposerInner = ({
             mentionedModels: mentionedModels.length
               ? mentionedModels.map((currentModel) => currentModel.id)
               : undefined,
-            knowledgeBaseIds: knowledgeBaseIds.length ? knowledgeBaseIds : undefined
+            knowledgeBaseIds: knowledgeBaseIds.length ? knowledgeBaseIds : undefined,
+            reasoningEffort: assistantId
+              ? ((cacheService.get(`assistant.reasoning_effort_cache.${assistantId}`) ??
+                  assistant?.settings.reasoning_effort ??
+                  'default') as ReasoningEffortOption)
+              : 'default'
           }
         }
       }),
-    [files, mentionedModels, selectedKnowledgeBasesInScope]
+    [assistant?.settings.reasoning_effort, assistantId, files, mentionedModels, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -982,7 +990,8 @@ const ChatComposerInner = ({
         await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
           knowledgeBaseIds: payload.knowledgeBaseIds,
-          userMessageParts: [...payload.userMessageParts, ...fileParts]
+          userMessageParts: [...payload.userMessageParts, ...fileParts],
+          reasoningEffort: payload.reasoningEffort
         })
         saveHistory(payload.text)
         return true

@@ -158,6 +158,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'gemma-?4' },
   // inception
   { pattern: '^mercury-2' },
+  // meituan
+  { pattern: '^longcat-2[.-]0$', toggle: true },
   // minimax
   { pattern: 'minimax-m\\d' },
   // mistral
@@ -214,8 +216,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'grok-build' },
   // xiaomi
   { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
-  { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)', budget: { min: 0, max: 30720 }, template: true },
-  { pattern: 'mimo-v2-(?:flash|pro|omni)', budget: { min: 0, max: 30720 }, template: true },
   { pattern: 'mimo-v2[.-]5-pro-ultraspeed' },
   // zhipu
   { pattern: 'glm-?5|glm-4[.-][567]', toggle: true },

@@ -41,7 +41,7 @@ export interface Provider extends ProviderConnection {
   modelsDevProvider?: string
   /** …or fetch the served list from the provider's own `/models` API (see `../creators/_api.ts`). */
   fetchModels?: () => Promise<{ id: string }[]>
-  /** Manual overrides — for what the runtime can't derive (bedrock arns, `disabled`, `imageGeneration`). */
+  /** Manual overrides — for exact model ids, pricing, transports, reasoning contracts, and status. */
   overrides?: Partial<ProviderModelOverride>[]
 }
 
@@ -67,9 +67,8 @@ export function openaiCompatible(
     apiFeatures?: Partial<ApiFeatures>
     presetProviderId?: string
     /**
-     * The chat endpoint's reasoning dialect, when it deviates from plain
-     * `openai-chat` (`enable-thinking` / `thinking-type` / `self-hosted` /
-     * `none` / …). Endpoint-type defaults cover the rest at resolve time.
+     * The chat endpoint's base protocol plus any endpoint-wide wire override.
+     * Exact provider-model exceptions belong in endpoint-keyed `reasoningContracts`.
      */
     reasoningFormat?: ProviderReasoningFormat
     authOptional?: ProviderConfig['authOptional']

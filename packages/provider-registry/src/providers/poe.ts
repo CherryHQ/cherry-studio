@@ -4,6 +4,7 @@ export default openaiCompatible({
   id: 'poe',
   name: 'Poe',
   baseUrl: 'https://api.poe.com/v1/',
+  reasoningFormat: { type: 'openai-chat' },
   website: {
     apiKey: 'https://poe.com/api/keys',
     docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',

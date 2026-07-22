@@ -31,22 +31,19 @@ function model(providerId: string, modelId: string, endpointType: EndpointType, 
 }
 
 const anthropicBudgetModel = model('anthropic', 'claude-3-7-sonnet', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, {
-  type: 'anthropic',
-  supportedEfforts: ['none', 'low', 'medium', 'high'],
+  selectableEfforts: ['none', 'low', 'medium', 'high'],
   controls: [{ kind: 'budget', min: 1000, max: 11_000 }, { kind: 'toggle' }],
   thinkingTokenLimits: { min: 1000, max: 11_000 }
 })
 
 const openAIModel = model('openai', 'gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, {
-  type: 'openai-responses',
-  supportedEfforts: ['none', 'low', 'medium', 'high'],
+  selectableEfforts: ['none', 'low', 'medium', 'high'],
   controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }],
   thinkingTokenLimits: { min: 1000, max: 11_000 }
 })
 
 const geminiModel = model('google', 'gemini-2.5-flash', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, {
-  type: 'gemini',
-  supportedEfforts: ['none', 'low', 'medium', 'high', 'auto'],
+  selectableEfforts: ['none', 'low', 'medium', 'high', 'auto'],
   controls: [{ kind: 'budget', min: 0, max: 24_576 }, { kind: 'toggle' }],
   thinkingTokenLimits: { min: 0, max: 24_576 }
 })
@@ -104,10 +101,10 @@ describe('cross-dialect descriptor translation', () => {
     const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 
     expect(mapReasoningEffortToProviderOptions(target, anthropicBudgetModel, 'low')).toEqual({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 } }
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 }, sendReasoning: true }
     })
     expect(mapReasoningEffortToProviderOptions(target, anthropicBudgetModel, 'high')).toEqual({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 9000 } }
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 9000 }, sendReasoning: true }
     })
   })
 
@@ -116,9 +113,9 @@ describe('cross-dialect descriptor translation', () => {
 
     expect(
       mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'enabled', budget_tokens: 6000 })
-    ).toEqual({ openai: { reasoningEffort: 'medium', reasoningSummary: undefined } })
+    ).toEqual({ openai: { reasoningEffort: 'medium' } })
     expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'disabled' })).toEqual({
-      openai: { reasoningEffort: 'none', reasoningSummary: undefined }
+      openai: { reasoningEffort: 'none' }
     })
   })
 
@@ -134,40 +131,39 @@ describe('cross-dialect descriptor translation', () => {
         type: 'enabled',
         budget_tokens: 1500
       })
-    ).toEqual({ openai: { reasoningEffort: 'high', reasoningSummary: undefined } })
+    ).toEqual({ openai: { reasoningEffort: 'high' } })
   })
 
   it('normalizes Gemini sentinels, levels, and positive budgets before target dispatch', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: -1 })).toEqual({
-      openai: { reasoningEffort: 'medium', reasoningSummary: undefined }
+      openai: { reasoningEffort: 'medium' }
     })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 0 })).toEqual({
-      openai: { reasoningEffort: 'none', reasoningSummary: undefined }
+      openai: { reasoningEffort: 'none' }
     })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingLevel: 'high' })).toEqual({
-      openai: { reasoningEffort: 'high', reasoningSummary: undefined }
+      openai: { reasoningEffort: 'high' }
     })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 6000 })).toEqual({
-      openai: { reasoningEffort: 'medium', reasoningSummary: undefined }
+      openai: { reasoningEffort: 'medium' }
     })
   })
 
   it('uses the descriptor serializer for an OpenAI-compatible target', () => {
     const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     const genericModel = model('relay', 'reasoner-v1', endpoint, {
-      type: 'openrouter',
-      supportedEfforts: ['none', 'low', 'medium', 'high'],
+      selectableEfforts: ['none', 'low', 'medium', 'high'],
       controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]
     })
     const target = provider('openai-compatible', endpoint)
 
     expect(mapReasoningEffortToProviderOptions(target, genericModel, 'medium')).toEqual({
-      'openai-compatible': { reasoning: { effort: 'medium' } }
+      'target-openai-compatible': { reasoningEffort: 'medium' }
     })
     expect(mapReasoningEffortToProviderOptions(target, genericModel, 'none')).toEqual({
-      'openai-compatible': { reasoning: { enabled: false, exclude: true } }
+      'target-openai-compatible': { reasoningEffort: 'none' }
     })
   })
 

@@ -146,7 +146,7 @@
     "@ai-sdk/react": "^3.0.147",
     "@ai-sdk/test-server": "^1.0.3",
     "@ai-sdk/togetherai": "^2.0.45",
-    "@ai-sdk/xai": "^3.0.83",
+    "@ai-sdk/xai": "^3.0.111",
     "@aiden0z/pptx-renderer": "1.2.2",
     "@anthropic-ai/sdk": "^0.81.0",
     "@aws-sdk/client-s3": "^3.998.0",

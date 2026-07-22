@@ -1,6 +1,6 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
-import { deriveThinkingOptions } from '@shared/ai/reasoningVocabulary'
+import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'

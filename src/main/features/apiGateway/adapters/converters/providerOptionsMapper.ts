@@ -10,112 +10,57 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { ReasoningEffort } from '@cherrystudio/openai/resources'
-import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
-import { getAiSdkProviderId } from '@main/ai/provider/factory'
-import {
-  getAnthropicReasoningParams,
-  getBedrockReasoningParams,
-  getGeminiReasoningParams,
-  getOllamaReasoningParams,
-  getOpenAIReasoningParams,
-  getReasoningEffort,
-  getXAIReasoningParams
-} from '@main/ai/utils/reasoning'
-import { nearestEffortForBudget } from '@shared/ai/reasoningBudget'
-import type { Assistant } from '@shared/data/types/assistant'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { buildResolvedReasoningProviderOptions } from '@main/ai/utils/options'
+import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
+import { nearestEffortForBudget } from '@shared/ai/reasoning'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 // Re-export for use by message converters.
 export type { ReasoningEffort }
 
-type GatewayReasoningEffort = ReasoningEffortOption | string
+type GatewayReasoningEffort = ReasoningEffortOption
 type GeminiThinkingConfig = { includeThoughts?: boolean; thinkingBudget?: number; thinkingLevel?: string }
 type AnthropicThinkingConfig = NonNullable<MessageCreateParams['thinking']>
 
-function isAnthropicAdapter(adapterId: string): boolean {
-  return adapterId === 'anthropic' || adapterId === 'azure-anthropic' || adapterId === 'google-vertex-anthropic'
-}
-
-function isGeminiAdapter(adapterId: string): boolean {
-  return adapterId === 'google' || adapterId === 'google-vertex'
-}
-
-function isMultiplexedGatewayAdapter(adapterId: string): boolean {
-  return adapterId === 'cherryin' || adapterId === 'newapi' || adapterId === 'aihubmix' || adapterId === 'gateway'
-}
-
-function targetsAnthropic(adapterId: string, provider: Provider, model: Model): boolean {
-  return (
-    isAnthropicAdapter(adapterId) ||
-    (isMultiplexedGatewayAdapter(adapterId) &&
-      resolveEffectiveEndpoint(provider, model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-  )
-}
-
-function targetsGemini(adapterId: string, provider: Provider, model: Model): boolean {
-  return (
-    isGeminiAdapter(adapterId) ||
-    (isMultiplexedGatewayAdapter(adapterId) &&
-      resolveEffectiveEndpoint(provider, model).endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
-  )
-}
-
-function buildMultiplexedGatewayOptions(provider: Provider, model: Model, assistant: Assistant): ProviderOptions {
-  switch (resolveEffectiveEndpoint(provider, model).endpointType) {
-    case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
-      return { anthropic: getAnthropicReasoningParams(assistant, model) } as ProviderOptions
-    case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
-      return { google: getGeminiReasoningParams(assistant, model) } as ProviderOptions
-    case ENDPOINT_TYPE.OPENAI_RESPONSES:
-      return { openai: getOpenAIReasoningParams(assistant, model) } as ProviderOptions
-    default:
-      return { 'openai-compatible': getReasoningEffort(assistant, model, provider) } as ProviderOptions
-  }
-}
-
 function buildProviderOptions(provider: Provider, model: Model, effort: GatewayReasoningEffort): ProviderOptions {
-  const assistant = { settings: { reasoning_effort: effort } } as Assistant
-  const adapterId = getAiSdkProviderId(provider, model)
-
-  switch (adapterId) {
-    case 'openai':
-    case 'openai-chat':
-    case 'azure':
-    case 'azure-responses':
-    case 'huggingface':
-      return { openai: getOpenAIReasoningParams(assistant, model) } as ProviderOptions
-    case 'anthropic':
-    case 'azure-anthropic':
-    case 'google-vertex-anthropic':
-      return { anthropic: getAnthropicReasoningParams(assistant, model) } as ProviderOptions
-    case 'google':
-    case 'google-vertex':
-      return { google: getGeminiReasoningParams(assistant, model) } as ProviderOptions
-    case 'xai':
-    case 'xai-responses':
-      return { xai: getXAIReasoningParams(assistant, model) } as ProviderOptions
-    case 'bedrock':
-      return { bedrock: getBedrockReasoningParams(assistant, model) } as ProviderOptions
-    case 'ollama':
-      return { ollama: getOllamaReasoningParams(assistant, model) } as ProviderOptions
-    case 'cherryin':
-    case 'newapi':
-    case 'aihubmix':
-    case 'gateway':
-      return buildMultiplexedGatewayOptions(provider, model, assistant)
-    default:
-      return { [adapterId]: getReasoningEffort(assistant, model, provider) } as ProviderOptions
-  }
+  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
+  const reasoning = resolveReasoningInvocation({
+    selection: effort,
+    model,
+    profile: reasoningProfile.wire,
+    assistantSummary: provider.settings?.summaryText
+  })
+  return buildResolvedReasoningProviderOptions({
+    aiSdkProviderId,
+    endpointType,
+    reasoning,
+    actualProviderId: provider.id
+  }) as ProviderOptions
 }
 
-/** Keep an Anthropic-native thinking envelope byte-for-byte equivalent. */
-function passThroughAnthropicThinking(config: AnthropicThinkingConfig): ProviderOptions {
+/** Keep Anthropic-native thinking and effort fields byte-for-byte equivalent. */
+function passThroughAnthropicReasoning(
+  config: AnthropicThinkingConfig | undefined,
+  effort: GatewayReasoningEffort | null | undefined
+): ProviderOptions | undefined {
+  if (!config && effort == null) return undefined
   return {
     anthropic: {
-      thinking:
-        config.type === 'enabled' ? { type: 'enabled', budgetTokens: config.budget_tokens } : { type: config.type }
+      ...(config
+        ? {
+            thinking:
+              config.type === 'enabled'
+                ? { type: 'enabled', budgetTokens: config.budget_tokens }
+                : { type: config.type }
+          }
+        : {}),
+      ...(effort != null ? { effort } : {})
     }
   } as ProviderOptions
 }
@@ -135,18 +80,21 @@ function passThroughGeminiThinking(thinkingConfig: GeminiThinkingConfig): Provid
 export function mapAnthropicThinkingToProviderOptions(
   provider: Provider,
   model: Model,
-  config: MessageCreateParams['thinking']
+  config: MessageCreateParams['thinking'],
+  effort?: GatewayReasoningEffort | null
 ): ProviderOptions | undefined {
+  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+    return passThroughAnthropicReasoning(config, effort)
+  }
+
+  if (effort != null) return buildProviderOptions(provider, model, effort)
   if (!config) return undefined
-
-  const adapterId = getAiSdkProviderId(provider, model)
-  if (targetsAnthropic(adapterId, provider, model)) return passThroughAnthropicThinking(config)
-
   if (config.type === 'disabled') return buildProviderOptions(provider, model, 'none')
   if (config.type !== 'enabled') return buildProviderOptions(provider, model, 'auto')
 
-  const effort = nearestEffortForBudget(config.budget_tokens, model.reasoning?.thinkingTokenLimits) ?? 'high'
-  return buildProviderOptions(provider, model, effort)
+  const budgetEffort = nearestEffortForBudget(config.budget_tokens, model.reasoning?.thinkingTokenLimits) ?? 'high'
+  return buildProviderOptions(provider, model, budgetEffort)
 }
 
 /** Map a Gemini-native thinking configuration to the resolved model's target dialect. */
@@ -155,13 +103,15 @@ export function mapGeminiThinkingToProviderOptions(
   model: Model,
   thinkingConfig: GeminiThinkingConfig
 ): ProviderOptions | undefined {
-  const adapterId = getAiSdkProviderId(provider, model)
-  if (targetsGemini(adapterId, provider, model)) return passThroughGeminiThinking(thinkingConfig)
+  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return passThroughGeminiThinking(thinkingConfig)
 
   const { includeThoughts, thinkingBudget, thinkingLevel } = thinkingConfig
   let effort: GatewayReasoningEffort | undefined
-  if (typeof thinkingLevel === 'string') effort = thinkingLevel
-  else if (thinkingBudget === -1) effort = 'auto'
+  if (thinkingLevel !== undefined) {
+    const parsed = ReasoningEffortOptionSchema.safeParse(thinkingLevel)
+    if (parsed.success) effort = parsed.data
+  } else if (thinkingBudget === -1) effort = 'auto'
   else if (thinkingBudget === 0) effort = 'none'
   else if (typeof thinkingBudget === 'number' && thinkingBudget > 0) {
     effort = nearestEffortForBudget(thinkingBudget, model.reasoning?.thinkingTokenLimits) ?? 'high'

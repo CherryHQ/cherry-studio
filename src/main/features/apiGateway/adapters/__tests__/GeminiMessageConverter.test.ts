@@ -16,7 +16,7 @@ const model = {
   name: 'gemini-2.5-flash',
   endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
   capabilities: ['reasoning'],
-  reasoning: { type: 'gemini', supportedEfforts: [] },
+  reasoning: { selectableEfforts: [] },
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false

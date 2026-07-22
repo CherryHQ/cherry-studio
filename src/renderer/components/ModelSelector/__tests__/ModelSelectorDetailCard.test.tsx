@@ -294,8 +294,7 @@ describe('ModelSelectorDetailCard', () => {
       apiModelId: 'gpt-5-codex-max',
       name: 'GPT-5 Codex Max',
       reasoning: {
-        type: 'openai-responses',
-        supportedEfforts: ['max']
+        selectableEfforts: ['max']
       }
     })
 

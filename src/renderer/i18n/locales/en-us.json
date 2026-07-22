@@ -7369,21 +7369,6 @@
         "usage_title": "Usage",
         "usage_unit": "tokens"
       },
-      "reasoning_dialect": {
-        "anthropic": "thinking (Claude)",
-        "dashscope": "enable_thinking + streaming (DashScope)",
-        "default": "Default (auto)",
-        "disable-reasoning": "disable_reasoning parameter",
-        "enable-thinking": "enable_thinking (Qwen / Hunyuan)",
-        "gemini": "thinkingConfig (Gemini)",
-        "label": "Reasoning dialect",
-        "none": "No reasoning parameters",
-        "openai-chat": "reasoning_effort (OpenAI Chat)",
-        "openai-responses": "reasoning.effort (OpenAI Responses)",
-        "openrouter": "reasoning (OpenRouter)",
-        "self-hosted": "chat_template_kwargs (vLLM / SGLang)",
-        "thinking-type": "thinking field (GLM / Doubao / Kimi)"
-      },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
       "reorder_failed": "Failed to reorder providers",

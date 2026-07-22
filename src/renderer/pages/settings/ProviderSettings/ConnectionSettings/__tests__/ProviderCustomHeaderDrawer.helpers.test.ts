@@ -47,38 +47,9 @@ describe('mergeEndpointConfigs', () => {
     expect(SECONDARY in out).toBe(false)
   })
 
-  it('keeps the primary entry (strips only baseUrl) when the dialect stays set', () => {
-    const out = mergeEndpointConfigs(
-      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormatType: 'openai-responses' } as any },
-      { [PRIMARY]: { baseUrl: '  ', reasoningFormatType: 'openai-responses' as any } }
-    )
-    expect(out[PRIMARY]).toEqual({ reasoningFormatType: 'openai-responses' })
-  })
-
   it('removes the primary entry when cleared and no other fields remain', () => {
     const out = mergeEndpointConfigs({ [PRIMARY]: { baseUrl: 'https://old' } }, { [PRIMARY]: { baseUrl: '' } })
     expect(PRIMARY in out).toBe(false)
-  })
-
-  it('writes the reasoning dialect from the draft', () => {
-    const out = mergeEndpointConfigs(
-      { [PRIMARY]: { baseUrl: 'https://old' } },
-      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormatType: 'enable-thinking' as any } }
-    )
-    expect(out[PRIMARY]).toEqual({ baseUrl: 'https://old', reasoningFormatType: 'enable-thinking' })
-  })
-
-  it('keeps a secondary entry alive on dialect alone (empty baseUrl)', () => {
-    const out = mergeEndpointConfigs({}, { [SECONDARY]: { baseUrl: '', reasoningFormatType: 'anthropic' as any } })
-    expect(out[SECONDARY]).toEqual({ reasoningFormatType: 'anthropic' })
-  })
-
-  it('strips a previously stored dialect when the draft resets it to default', () => {
-    const out = mergeEndpointConfigs(
-      { [SECONDARY]: { baseUrl: 'https://old', reasoningFormatType: 'anthropic' } as any },
-      { [SECONDARY]: { baseUrl: 'https://old' } }
-    )
-    expect(out[SECONDARY]).toEqual({ baseUrl: 'https://old' })
   })
 
   it('preserves unrelated configured fields on a drafted endpoint', () => {

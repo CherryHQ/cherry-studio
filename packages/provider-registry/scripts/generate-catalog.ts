@@ -29,11 +29,13 @@ import {
   type CherryMeta,
   finalizeMeta,
   mergeMeta,
+  mergeOpenRouterReasoningContracts,
   type ModelsDevApi,
   ModelsDevApiSchema,
   type OpenRouterApi,
   OpenRouterApiSchema,
   parseMdEntry,
+  parseOpenRouterReasoning,
   parseOrEntry
 } from './upstream'
 
@@ -343,7 +345,7 @@ function buildProviders(): ProviderEntry[] {
  * `modelsDevProvider`, one row per served model carrying that listing's PRICING. `modelId` resolves to a
  * base row or is standalone with a `name`.
  */
-function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { overrides: any[] } {
+function buildProviderModels(md: ModelsDevApi, or: OpenRouterApi, baseIds: Set<string>): { overrides: any[] } {
   const seen = new Set<string>()
   const rows: any[] = []
   const variantsKey = (o: any): string => (o.modelVariants ?? []).slice().sort().join(',')
@@ -357,8 +359,8 @@ function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { override
     rows.push(o)
   }
   // md-derived rows key on `modelId` only — upstream date snapshots that canonicalize to one id collapse to
-  // a single row. No provider declares both `overrides` and `modelsDevProvider`, so the two paths never
-  // share a (providerId, modelId) and an override never needs to shadow an md row.
+  // a single row. Providers may also declare model-id reasoning templates; the template is expanded into
+  // each matching upstream row while its upstream pricing/apiModelId remain intact.
   const addModel = (o: any): void => {
     const k = `${o.providerId} ${o.modelId} ${variantsKey(o)}`
     if (seen.has(k)) return
@@ -366,20 +368,58 @@ function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { override
     rows.push(o)
   }
   for (const p of PROVIDERS) {
-    for (const ov of p.overrides ?? []) addOverride({ providerId: p.id, ...ov })
+    const reasoningTemplates = (p.overrides ?? []).filter(
+      (override) => p.modelsDevProvider && !override.apiModelId && override.reasoningContracts
+    )
+    const matchedTemplates = new Set<(typeof reasoningTemplates)[number]>()
+    for (const override of p.overrides ?? []) {
+      if (!reasoningTemplates.includes(override)) addOverride({ providerId: p.id, ...override })
+    }
     const src = p.modelsDevProvider ? (md[p.modelsDevProvider]?.models ?? {}) : {}
     for (const [apiModelId, m] of Object.entries(src)) {
       const meta = parseMdEntry(m)
       if (!meta?.pricing) continue // no pricing → runtime resolves to base, no row needed
       const modelId = canonOf(apiModelId)
       if (!modelId) continue
-      const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing }
+      const template = reasoningTemplates.find((override) => override.modelId === modelId)
+      if (template) matchedTemplates.add(template)
+      const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing, ...template }
       if (!baseIds.has(modelId)) {
         if (!meta.name) continue
         row.name = meta.name // vendor-exclusive → standalone
       }
       addModel(row)
     }
+    for (const template of reasoningTemplates) {
+      if (!matchedTemplates.has(template)) addOverride({ providerId: p.id, ...template })
+    }
+  }
+
+  // OpenRouter publishes endpoint-specific controls. Attach them to the exact
+  // provider-model row; creator metadata remains provider-neutral.
+  for (const entry of or.data ?? []) {
+    const support = parseOpenRouterReasoning(entry)
+    if (!support) continue
+    const modelId = canonOf(entry.id)
+    if (!modelId) continue
+
+    const exact =
+      rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === entry.id) ??
+      rows.find((row) => row.providerId === 'openrouter' && row.modelId === modelId)
+    if (exact) {
+      exact.reasoningContracts = mergeOpenRouterReasoningContracts(support, exact.reasoningContracts)
+      continue
+    }
+
+    const meta = parseOrEntry(entry)
+    if (!baseIds.has(modelId) && !meta?.name) continue
+    addOverride({
+      providerId: 'openrouter',
+      modelId,
+      apiModelId: entry.id,
+      ...(!baseIds.has(modelId) ? { name: meta?.name } : {}),
+      reasoningContracts: mergeOpenRouterReasoningContracts(support, undefined)
+    })
   }
   rows.sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))
   return { overrides: rows }
@@ -430,7 +470,7 @@ void (async () => {
   fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers }))
   console.log(`WROTE ${PROVIDERS_PATH} (${providers.length} providers).`)
 
-  const pm = buildProviderModels(md, new Set(models.keys()))
+  const pm = buildProviderModels(md, or, new Set(models.keys()))
   fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize(pm))
   console.log(`WROTE ${PROVIDER_MODELS_PATH} (${pm.overrides.length} rows).`)
 

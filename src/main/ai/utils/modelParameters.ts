@@ -5,6 +5,7 @@
 
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { getThinkingBudget } from '@shared/ai/reasoning'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -22,8 +23,6 @@ import {
   isTemperatureTopPMutuallyExclusiveModel
 } from '@shared/utils/model'
 import { isAwsBedrockProvider } from '@shared/utils/provider'
-
-import { getThinkingBudget } from './reasoning'
 
 const logger = loggerService.withContext('modelParameters')
 
@@ -156,7 +155,7 @@ export function getMaxTokens(assistant: Assistant, model: Model, provider: Provi
     isAnthropicLike
   ) {
     const reasoningEffort = assistant.settings?.reasoning_effort
-    const budget = getThinkingBudget(maxTokens, reasoningEffort, model)
+    const budget = getThinkingBudget(maxTokens, reasoningEffort, model.reasoning)
     if (budget) maxTokens -= budget
   }
 

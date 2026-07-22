@@ -15,7 +15,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { isGPT5SeriesReasoningModel, isOpenAIWebSearchModel, isReasoningModel } from '@renderer/utils/model'
-import { deriveThinkingOptions } from '@shared/ai/reasoningVocabulary'
+import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { FC, SVGProps } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -149,7 +149,7 @@ const useThinkingToolController = ({
   const reasoningSubmenu = useMemo(
     () =>
       isReasoningConfigurable
-        ? cycleOptions.map((option, index) => ({
+        ? supportedOptions.map((option, index) => ({
             id: `thinking-${option}`,
             kind: 'command' as const,
             sources: ['popover'] as const,
@@ -161,7 +161,14 @@ const useThinkingToolController = ({
             action: () => onThinkingChange(option)
           }))
         : [],
-    [currentReasoningEffort, cycleOptions, isReasoningConfigurable, onThinkingChange, reasoningEffortOptionLabelMap, t]
+    [
+      currentReasoningEffort,
+      isReasoningConfigurable,
+      onThinkingChange,
+      reasoningEffortOptionLabelMap,
+      supportedOptions,
+      t
+    ]
   )
 
   useEffect(() => {

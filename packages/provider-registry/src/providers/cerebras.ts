@@ -8,7 +8,12 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'cerebras',
       baseUrl: 'https://api.cerebras.ai/v1',
-      reasoningFormat: { type: 'disable-reasoning' }
+      reasoningFormat: {
+        type: 'openai-chat',
+        wire: {
+          off: { operations: [{ target: 'disable_reasoning', value: { source: 'literal', value: true } }] }
+        }
+      }
     }
   },
   metadata: {

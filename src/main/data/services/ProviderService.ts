@@ -36,7 +36,7 @@ import type {
   ProviderSettings,
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
-import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS, EndpointConfigSchema } from '@shared/data/types/provider'
 import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -98,6 +98,16 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
   })
 }
 
+function normalizeEndpointConfigs(
+  endpointConfigs: UserProviderRow['endpointConfigs']
+): UserProviderRow['endpointConfigs'] {
+  if (!endpointConfigs) return endpointConfigs
+
+  return Object.fromEntries(
+    Object.entries(endpointConfigs).map(([endpointType, config]) => [endpointType, EndpointConfigSchema.parse(config)])
+  )
+}
+
 /**
  * Convert database row to Provider entity
  */
@@ -142,7 +152,9 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(row.providerId))),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
-    endpointConfigs: row.endpointConfigs ?? undefined,
+    // Strip legacy registry-only fields such as `reasoningFormatType`
+    // before persisted connection facts cross into runtime/renderer state.
+    endpointConfigs: normalizeEndpointConfigs(row.endpointConfigs) ?? undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,

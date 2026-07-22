@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest'
 import { canonOf } from '../../scripts/canonicalize'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderModelListSchema } from '../schemas/provider-models'
+import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
@@ -145,6 +146,15 @@ describe('catalog invariants (data/*.json)', () => {
   it('provider-models.json conforms to ProviderModelListSchema', () => {
     const r = ProviderModelListSchema.safeParse(providerModelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
+  })
+
+  it('budget wire operations require an explicit budget policy', () => {
+    const result = ReasoningWireProfileSchema.safeParse({
+      effort: {
+        operations: [{ target: 'thinking_budget', value: { source: 'budget' } }]
+      }
+    })
+    expect(result.success).toBe(false)
   })
 
   it('the validators actually reject known-bad shapes', () => {

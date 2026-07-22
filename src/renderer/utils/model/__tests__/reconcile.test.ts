@@ -33,24 +33,21 @@ const reasoningModel = (reasoning: RuntimeReasoning): Model => ({
 
 /** Claude 4.6-style native effort vocabulary. */
 const EFFORT_MAX: RuntimeReasoning = {
-  type: 'anthropic',
   controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }],
-  supportedEfforts: ['low', 'medium', 'high', 'max', 'none']
+  selectableEfforts: ['low', 'medium', 'high', 'max', 'none']
 }
 
 /** Pre-4.6 claude / qwen-style toggle + budget (UI ladder low/medium/high). */
 const TOGGLE_BUDGET: RuntimeReasoning = {
-  type: 'openai-chat',
   controls: [{ kind: 'budget', min: 1024, max: 64_000 }, { kind: 'toggle' }],
-  supportedEfforts: ['none', 'auto'],
+  selectableEfforts: ['none', 'low', 'medium', 'high'],
   thinkingTokenLimits: { min: 1024, max: 64_000 }
 }
 
 /** DeepSeek hybrid-style pure toggle (on/off only). */
 const TOGGLE_ONLY: RuntimeReasoning = {
-  type: 'thinking-type',
   controls: [{ kind: 'toggle' }],
-  supportedEfforts: ['none', 'auto']
+  selectableEfforts: ['none', 'auto']
 }
 
 describe('reconcile web search', () => {

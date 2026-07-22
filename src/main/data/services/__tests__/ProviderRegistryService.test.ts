@@ -308,7 +308,7 @@ describe('ProviderRegistryService', () => {
             name: 'OpenAI',
             metadata: {},
             endpointConfigs: {
-              'openai-chat-completions': { reasoningFormatType: 'openai-chat' }
+              'openai-chat-completions': { reasoningFormat: { type: 'openai-chat' } }
             },
             defaultChatEndpoint: 'openai-chat-completions'
           }
@@ -595,7 +595,7 @@ describe('ProviderRegistryService', () => {
       expect(result.registryOverride?.apiModelId).toBe('Qwen/Qwen-Image')
     })
 
-    it('should prefer persisted provider endpoint config over registry reasoning defaults', async () => {
+    it('should ignore a legacy persisted reasoningFormatType field', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({
         providerId: 'openai',
@@ -607,16 +607,13 @@ describe('ProviderRegistryService', () => {
             baseUrl: 'https://proxy.example/v1',
             reasoningFormatType: 'openai-responses'
           }
-        },
+        } as never,
         orderKey: generateOrderKeyBetween(null, null)
       })
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
-      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
-      expect(result.reasoningFormatTypes).toMatchObject({
-        'openai-chat-completions': 'openai-responses'
-      })
+      expect(result.reasoningProfile.format).toBe('openai-chat')
     })
   })
 })

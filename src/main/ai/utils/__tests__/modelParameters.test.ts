@@ -166,7 +166,7 @@ describe('getMaxTokens', () => {
       id: 'anthropic::claude-sonnet-4-5',
       providerId: 'anthropic',
       capabilities: [MODEL_CAPABILITY.REASONING],
-      reasoning: { type: '', supportedEfforts: [], thinkingTokenLimits: { min: 1024, max: 64_000 } }
+      reasoning: { selectableEfforts: [], thinkingTokenLimits: { min: 1024, max: 64_000 } }
     })
 
   it('subtracts the thinking budget on pre-4.6 Claude with a token-limit descriptor', () => {

@@ -16,14 +16,15 @@
 import { cacheService } from '@renderer/data/CacheService'
 import type { AssistantSettings } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
-import { deriveThinkingOptions, nearestThinkingOption } from '@shared/ai/reasoningVocabulary'
+import { deriveThinkingOptions, nearestThinkingOption } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { isFunctionCallingModel } from './tooluse'
 import { isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'
 
 export type ReasoningEffortPatch = {
-  reasoning_effort?: string
+  reasoning_effort?: ReasoningEffortOption
 }
 
 export function hasModelBuiltinWebSearch(model: Model): boolean {
@@ -36,7 +37,7 @@ export function canModelUseAssistantWebSearch(model: Model): boolean {
 
 export function reconcileReasoningEffortForModel(
   nextModel: Model,
-  currentEffort: string | undefined,
+  currentEffort: ReasoningEffortOption | undefined,
   assistantId: string
 ): ReasoningEffortPatch | null {
   const cacheKey = `assistant.reasoning_effort_cache.${assistantId}` as const
@@ -46,7 +47,7 @@ export function reconcileReasoningEffortForModel(
   // doesn't offer.
   const supportedOptions = deriveThinkingOptions(nextModel)
   if (supportedOptions && supportedOptions.some((option) => option !== 'default')) {
-    if (supportedOptions.includes(currentEffort as ThinkingOption)) {
+    if (currentEffort && supportedOptions.includes(currentEffort)) {
       return null // current value already supported — no PATCH needed
     }
     const cached = cacheService.get(cacheKey) as ThinkingOption | undefined

@@ -1,5 +1,25 @@
 import { defineProvider } from './types'
 
+const deepSeekThinkingWire = {
+  off: {
+    operations: [
+      { target: 'extra_body.thinking.type' as const, value: { source: 'literal' as const, value: 'disabled' } }
+    ]
+  },
+  auto: {
+    operations: [
+      { target: 'extra_body.thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } }
+    ]
+  },
+  effort: {
+    operations: [
+      { target: 'extra_body.thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } }
+    ]
+  }
+}
+
+const deepSeekModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3-1', 'deepseek-v3-2']
+
 export default defineProvider({
   id: 'cherryin',
   name: 'CherryIN',
@@ -11,7 +31,8 @@ export default defineProvider({
     },
     'openai-chat-completions': {
       adapterFamily: 'cherryin',
-      baseUrl: 'https://open.cherryin.net'
+      baseUrl: 'https://open.cherryin.net',
+      reasoningFormat: { type: 'openai-chat' }
     }
   },
   metadata: {
@@ -21,5 +42,11 @@ export default defineProvider({
       models: 'https://open.cherryin.ai/pricing',
       official: 'https://open.cherryin.ai'
     }
-  }
+  },
+  overrides: deepSeekModels.map((modelId) => ({
+    modelId,
+    reasoningContracts: {
+      'openai-chat-completions': { wire: deepSeekThinkingWire }
+    }
+  }))
 })

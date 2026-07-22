@@ -33,6 +33,14 @@ export default defineCreator({
       maxOutputTokens: 32768
     },
     {
+      id: 'hy3',
+      name: 'Hunyuan 3',
+      capabilities: ['reasoning', 'function-call'],
+      contextWindow: 262144,
+      maxInputTokens: 196608,
+      maxOutputTokens: 131072
+    },
+    {
       id: 'hy3-preview',
       name: 'Hunyuan 3 Preview',
       capabilities: ['reasoning', 'function-call'],

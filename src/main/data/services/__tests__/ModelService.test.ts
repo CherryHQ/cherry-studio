@@ -34,14 +34,28 @@ const { lookupModelMock } = vi.hoisted(() => ({
       providerId: string,
       modelId: string
     ) => {
-      presetModel: { id?: string; capabilities?: string[]; imageGeneration?: unknown } | null
+      presetModel: { id?: string; capabilities?: string[]; imageGeneration?: unknown; reasoning?: unknown } | null
       registryOverride: {
         capabilities?: { force?: string[]; add?: string[]; remove?: string[] }
         imageGeneration?: unknown
       } | null
+      reasoningProfile: { format: 'openai-chat'; wire: any }
     }
-  >(() => ({ presetModel: null, registryOverride: null }))
+  >(() => ({
+    presetModel: null,
+    registryOverride: null,
+    reasoningProfile: { format: 'openai-chat', wire: { disabled: true } }
+  }))
 }))
+
+const OPENAI_CHAT_REASONING_PROFILE = {
+  format: 'openai-chat' as const,
+  wire: {
+    off: { operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }] },
+    auto: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] },
+    effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+  }
+}
 
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderRegistryServiceModule>()
@@ -94,7 +108,6 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'contextWindow',
       'maxInputTokens',
       'maxOutputTokens',
-      'reasoning',
       'pricing',
       'isEnabled',
       'isHidden',
@@ -352,7 +365,8 @@ describe('ModelService.create', () => {
         contextWindow: 128_000,
         maxOutputTokens: 4096
       } as any,
-      registryOverride: null
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     }
 
     const [created] = modelService.create([{ dto, registryData }])
@@ -389,7 +403,8 @@ describe('ModelService.create', () => {
             maxInputTokens: 128_000,
             maxOutputTokens: 4_096
           } as any,
-          registryOverride: null
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       }
     ])
@@ -499,7 +514,8 @@ describe('ModelService.create', () => {
             contextWindow: 128_000,
             maxOutputTokens: 4096
           } as any,
-          registryOverride: null
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       },
       {
@@ -736,7 +752,11 @@ describe('ModelService.list — registry enrichment', () => {
   beforeEach(() => {
     // Reset to the default no-op registry hit; tests opt in per model.
     lookupModelMock.mockReset()
-    lookupModelMock.mockReturnValue({ presetModel: null, registryOverride: null })
+    lookupModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
   })
 
   it('adds image-generation (and imageGeneration metadata) when the preset declares it but the user row lacks it', async () => {
@@ -758,10 +778,11 @@ describe('ModelService.list — registry enrichment', () => {
             capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
             imageGeneration: imageGenerationMeta
           },
-          registryOverride: null
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       }
-      return { presetModel: null, registryOverride: null }
+      return { presetModel: null, registryOverride: null, reasoningProfile: OPENAI_CHAT_REASONING_PROFILE }
     })
 
     const [model] = modelService.list({ providerId: 'cherryin' })
@@ -789,10 +810,11 @@ describe('ModelService.list — registry enrichment', () => {
             capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
             imageGeneration: imageGenerationMeta
           },
-          registryOverride: null
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       }
-      return { presetModel: null, registryOverride: null }
+      return { presetModel: null, registryOverride: null, reasoningProfile: OPENAI_CHAT_REASONING_PROFILE }
     })
 
     const [model] = modelService.list({ providerId: 'cherryin' })
@@ -826,10 +848,11 @@ describe('ModelService.list — registry enrichment', () => {
             // be resurrected at read time.
             capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
           },
-          registryOverride: null
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       }
-      return { presetModel: null, registryOverride: null }
+      return { presetModel: null, registryOverride: null, reasoningProfile: OPENAI_CHAT_REASONING_PROFILE }
     })
 
     const [model] = modelService.list({ providerId: 'anthropic' })
@@ -851,7 +874,11 @@ describe('ModelService — reasoning descriptor enrichment', () => {
 
   beforeEach(() => {
     lookupModelMock.mockReset()
-    lookupModelMock.mockReturnValue({ presetModel: null, registryOverride: null })
+    lookupModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
   })
 
   it('recomputes a stale preset-backed descriptor from the current registry', async () => {
@@ -875,14 +902,15 @@ describe('ModelService — reasoning descriptor enrichment', () => {
           supportedEfforts: ['low', 'medium', 'high', 'max']
         }
       } as any,
-      registryOverride: null
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
 
     const [model] = modelService.list({ providerId: 'anthropic' })
 
-    expect(model.reasoning?.supportedEfforts).toEqual(['low', 'medium', 'high', 'max'])
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'max'])
     expect(model.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }])
-    expect(model.reasoning?.type).toBe('openai-chat')
+    expect(model.reasoning).not.toHaveProperty('type')
   })
 
   it('getByKey serves the same re-enriched descriptor as list (composer single-model path)', async () => {
@@ -910,15 +938,16 @@ describe('ModelService — reasoning descriptor enrichment', () => {
           supportedEfforts: ['low', 'medium', 'high', 'max', 'auto']
         }
       } as any,
-      registryOverride: null
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
 
     const model = modelService.getByKey('aihubmix', 'claude-sonnet-5')
 
-    expect(model.reasoning?.supportedEfforts).toContain('auto')
+    expect(model.reasoning?.selectableEfforts).toContain('auto')
   })
 
-  it('respects a user reasoning override', async () => {
+  it('ignores a legacy user reasoning override and reprojects registry data', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
     const userReasoning = { type: 'openai-chat' as const, supportedEfforts: ['low' as const] }
     await dbh.db.insert(userModelTable).values(
@@ -937,12 +966,14 @@ describe('ModelService — reasoning descriptor enrichment', () => {
         capabilities: [MODEL_CAPABILITY.REASONING],
         reasoning: { supportedEfforts: ['low', 'medium', 'high', 'max'] }
       } as any,
-      registryOverride: null
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
 
     const [model] = modelService.list({ providerId: 'anthropic' })
 
-    expect(model.reasoning).toEqual(userReasoning)
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'max'])
+    expect(model.reasoning).not.toHaveProperty('type')
   })
 
   it('infers a descriptor for a non-catalog row with the reasoning capability', async () => {
@@ -958,9 +989,9 @@ describe('ModelService — reasoning descriptor enrichment', () => {
     const [model] = modelService.list({ providerId: 'my-compat' })
 
     // qwen3-32b: toggle + budget from the registry heuristics.
-    expect(model.reasoning?.supportedEfforts).toEqual(['none', 'auto'])
+    expect(model.reasoning?.selectableEfforts).toEqual(['none', 'low', 'medium', 'high'])
     expect(model.reasoning?.thinkingTokenLimits).toEqual({ min: 1024, max: 38_912 })
-    expect(model.reasoning?.type).toBe('openai-chat')
+    expect(model.reasoning).not.toHaveProperty('type')
   })
 
   it('infers a descriptor for a non-catalog row recognized by id alone', async () => {
@@ -976,7 +1007,7 @@ describe('ModelService — reasoning descriptor enrichment', () => {
     const [model] = modelService.list({ providerId: 'my-compat' })
 
     expect(model.reasoning?.controls).toEqual([{ kind: 'toggle' }])
-    expect(model.reasoning?.supportedEfforts).toEqual(['none', 'auto'])
+    expect(model.reasoning?.selectableEfforts).toEqual(['none', 'auto'])
   })
 
   it('leaves non-reasoning custom rows untouched', async () => {
@@ -1008,24 +1039,6 @@ describe('ModelService — reasoning descriptor enrichment', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'my-compat'), eq(userModelTable.modelId, 'glm-4.6')))
     expect((row.reasoning as { controls?: unknown })?.controls).toEqual([{ kind: 'toggle' }])
-  })
-
-  it('keeps a DTO-supplied descriptor over inference at create time', async () => {
-    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
-    const dtoReasoning = { type: 'openai-chat' as const, supportedEfforts: ['low' as const] }
-
-    const [created] = modelService.create([
-      {
-        dto: {
-          providerId: 'my-compat',
-          modelId: 'glm-4.6',
-          capabilities: [MODEL_CAPABILITY.REASONING],
-          reasoning: dtoReasoning
-        }
-      }
-    ])
-
-    expect(created.reasoning).toEqual(dtoReasoning)
   })
 })
 

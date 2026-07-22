@@ -12,7 +12,8 @@
  */
 import * as z from 'zod'
 
-import type { ModelConfig } from '../src/schemas/model'
+import type { ModelConfig, ReasoningSupport } from '../src/schemas/model'
+import type { ProviderModelOverride } from '../src/schemas/provider-models'
 
 const MODALITY = new Set(['text', 'image', 'audio', 'video'])
 const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
@@ -154,14 +155,77 @@ export function parseMdEntry(raw: unknown): CherryMeta | null {
 // ── OpenRouter ───────────────────────────────────────────────────────────────
 const OrEntry = z
   .object({
+    name: z.string().optional(),
     context_length: z.number().optional(),
     architecture: z
       .object({ input_modalities: z.array(z.string()).optional(), output_modalities: z.array(z.string()).optional() })
       .optional(),
     supported_parameters: z.array(z.string()).optional(),
-    pricing: z.object({ prompt: z.string().optional(), completion: z.string().optional() }).optional()
+    pricing: z.object({ prompt: z.string().optional(), completion: z.string().optional() }).optional(),
+    reasoning: z
+      .object({
+        supported_efforts: z.array(z.string()).optional(),
+        default_effort: z.string().optional(),
+        default_enabled: z.boolean().optional(),
+        supports_max_tokens: z.boolean().optional(),
+        mandatory: z.boolean().optional()
+      })
+      .optional()
   })
   .loose()
+
+/** Endpoint-specific reasoning controls published by OpenRouter's model catalog. */
+export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null {
+  const parsed = OrEntry.safeParse(raw)
+  if (!parsed.success || !parsed.data.reasoning) return null
+
+  const descriptor = parsed.data.reasoning
+  const hasPublishedCapability =
+    descriptor.supported_efforts !== undefined ||
+    descriptor.default_effort !== undefined ||
+    descriptor.default_enabled !== undefined ||
+    descriptor.supports_max_tokens !== undefined ||
+    descriptor.mandatory !== undefined
+  if (!hasPublishedCapability) return null
+
+  const efforts = (descriptor.supported_efforts ?? []).filter((value): value is Effort => VALID_EFFORTS.has(value))
+  const selectableEfforts = descriptor.mandatory ? efforts.filter((value) => value !== 'none') : efforts
+  const controls: NonNullable<ReasoningSupport['controls']> = []
+  const defaultEffort = VALID_EFFORTS.has(descriptor.default_effort ?? '')
+    ? (descriptor.default_effort as Effort)
+    : undefined
+
+  if (selectableEfforts.length > 0) {
+    controls.push({
+      kind: 'effort',
+      values: selectableEfforts,
+      ...(defaultEffort && selectableEfforts.includes(defaultEffort) ? { default: defaultEffort } : {})
+    })
+  } else if (!descriptor.supports_max_tokens && !descriptor.mandatory && descriptor.default_enabled !== undefined) {
+    controls.push({ kind: 'toggle', default: descriptor.default_enabled })
+  }
+
+  return {
+    controls,
+    ...(selectableEfforts.length > 0 ? { supportedEfforts: selectableEfforts } : {}),
+    ...(defaultEffort && selectableEfforts.includes(defaultEffort) ? { defaultEffort } : {})
+  }
+}
+
+/** Merge generated OpenRouter support with a hand-written exact override. Hand-written fields win. */
+export function mergeOpenRouterReasoningContracts(
+  support: ReasoningSupport,
+  handwritten: ProviderModelOverride['reasoningContracts']
+): NonNullable<ProviderModelOverride['reasoningContracts']> {
+  const endpoint = 'openai-chat-completions'
+  return {
+    ...handwritten,
+    [endpoint]: {
+      support,
+      ...handwritten?.[endpoint]
+    }
+  }
+}
 
 export function parseOrEntry(raw: unknown): CherryMeta | null {
   const p = OrEntry.safeParse(raw)
@@ -186,6 +250,7 @@ export function parseOrEntry(raw: unknown): CherryMeta | null {
     inputModalities: inp.filter((x) => MODALITY.has(x)),
     outputModalities: out.filter((x) => MODALITY.has(x)),
     contextWindow: m.context_length,
+    name: m.name,
     pricing: m.pricing?.prompt
       ? { input: usd(+m.pricing.prompt * 1e6)!, output: usd(+(m.pricing.completion || 0) * 1e6)! }
       : undefined

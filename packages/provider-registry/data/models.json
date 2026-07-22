@@ -6,7 +6,7 @@
       "id": "jamba-large-1-7",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "jamba-large-1-7",
+      "name": "AI21: Jamba Large 1.7",
       "outputModalities": ["text"],
       "ownedBy": "ai21",
       "pricing": {
@@ -1528,7 +1528,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
-      "contextWindow": 131072,
+      "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-vl-30b-a3b",
       "inputModalities": ["text", "image"],
@@ -1956,7 +1956,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 131702,
+      "contextWindow": 131072,
       "family": "qwen",
       "id": "qwen3-14b",
       "inputModalities": ["text"],
@@ -2374,7 +2374,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 131072,
+      "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-vl-235b-a22b-instruct",
       "inputModalities": ["text", "image"],
@@ -2396,7 +2396,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
+      "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-coder",
       "inputModalities": ["text"],
@@ -2792,7 +2792,7 @@
       "id": "qwen3-5-9b",
       "inputModalities": ["text", "image", "video"],
       "metadata": {},
-      "name": "qwen3-5-9b",
+      "name": "Qwen: Qwen3.5-9B",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -2829,7 +2829,7 @@
       "id": "qwen3-5-flash-02-23",
       "inputModalities": ["text", "image", "video"],
       "metadata": {},
-      "name": "qwen3-5-flash-02-23",
+      "name": "Qwen: Qwen3.5-Flash",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -2866,7 +2866,7 @@
       "id": "qwen3-5-plus-02-15",
       "inputModalities": ["text", "image", "video"],
       "metadata": {},
-      "name": "qwen3-5-plus-02-15",
+      "name": "Qwen: Qwen3.5 Plus 2026-02-15",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -2899,11 +2899,11 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output"],
-      "contextWindow": 262144,
+      "contextWindow": 131072,
       "id": "qwen3-vl-32b-instruct",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "qwen3-vl-32b-instruct",
+      "name": "Qwen: Qwen3 VL 32B Instruct",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -2919,11 +2919,11 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
-      "contextWindow": 256000,
+      "contextWindow": 131072,
       "id": "qwen3-vl-8b",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "qwen3-vl-8b",
+      "name": "Qwen: Qwen3 VL 8B Thinking",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -2956,11 +2956,11 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output"],
-      "contextWindow": 256000,
+      "contextWindow": 262144,
       "id": "qwen3-vl-8b-instruct",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "qwen3-vl-8b-instruct",
+      "name": "Qwen: Qwen3 VL 8B Instruct",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -2980,7 +2980,7 @@
       "id": "qwen3-vl-30b-a3b-instruct",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "qwen3-vl-30b-a3b-instruct",
+      "name": "Qwen: Qwen3 VL 30B A3B Instruct",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -3000,7 +3000,7 @@
       "id": "qwen3-30b-a3b",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "qwen3-30b-a3b",
+      "name": "Qwen: Qwen3 30B A3B Thinking 2507",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -3037,7 +3037,7 @@
       "id": "qwen3-30b-a3b-instruct",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "qwen3-30b-a3b-instruct",
+      "name": "Qwen: Qwen3 30B A3B Instruct 2507",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -3052,11 +3052,11 @@
       }
     },
     {
-      "contextWindow": 128000,
+      "contextWindow": 32768,
       "id": "qwen-2-5-coder-32b-instruct",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "qwen-2-5-coder-32b-instruct",
+      "name": "Qwen2.5 Coder 32B Instruct",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -3072,11 +3072,11 @@
     },
     {
       "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 131072,
+      "contextWindow": 32768,
       "id": "qwen-2-5-7b-instruct",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "qwen-2-5-7b-instruct",
+      "name": "Qwen: Qwen2.5 7B Instruct",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -3092,11 +3092,11 @@
     },
     {
       "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 131072,
+      "contextWindow": 32768,
       "id": "qwen-2-5-72b-instruct",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "qwen-2-5-72b-instruct",
+      "name": "Qwen2.5 72B Instruct",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -3116,7 +3116,7 @@
       "id": "olmo-3-32b",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "olmo-3-32b",
+      "name": "AllenAI: Olmo 3 32B Think",
       "outputModalities": ["text"],
       "ownedBy": "allenai",
       "pricing": {
@@ -3264,7 +3264,7 @@
       "id": "nova-2-lite-v1",
       "inputModalities": ["text", "image", "video"],
       "metadata": {},
-      "name": "nova-2-lite-v1",
+      "name": "Amazon: Nova 2 Lite",
       "outputModalities": ["text"],
       "ownedBy": "amazon",
       "pricing": {
@@ -3284,7 +3284,7 @@
       "id": "nova-premier-v1",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "nova-premier-v1",
+      "name": "Amazon: Nova Premier 1.0",
       "outputModalities": ["text"],
       "ownedBy": "amazon",
       "pricing": {
@@ -3304,7 +3304,7 @@
       "id": "nova-lite-v1",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "nova-lite-v1",
+      "name": "Amazon: Nova Lite 1.0",
       "outputModalities": ["text"],
       "ownedBy": "amazon",
       "pricing": {
@@ -3324,7 +3324,7 @@
       "id": "nova-micro-v1",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "nova-micro-v1",
+      "name": "Amazon: Nova Micro 1.0",
       "outputModalities": ["text"],
       "ownedBy": "amazon",
       "pricing": {
@@ -3344,7 +3344,7 @@
       "id": "nova-pro-v1",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "nova-pro-v1",
+      "name": "Amazon: Nova Pro 1.0",
       "outputModalities": ["text"],
       "ownedBy": "amazon",
       "pricing": {
@@ -4207,7 +4207,7 @@
       "id": "claude-fable-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "claude-fable-latest",
+      "name": "Anthropic: Claude Fable Latest",
       "outputModalities": ["text"],
       "ownedBy": "anthropic",
       "pricing": {
@@ -4239,7 +4239,7 @@
       "id": "claude-haiku-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "claude-haiku-latest",
+      "name": "Anthropic Claude Haiku Latest",
       "outputModalities": ["text"],
       "ownedBy": "anthropic",
       "pricing": {
@@ -4271,7 +4271,7 @@
       "id": "claude-sonnet-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "claude-sonnet-latest",
+      "name": "Anthropic Claude Sonnet Latest",
       "outputModalities": ["text"],
       "ownedBy": "anthropic",
       "pricing": {
@@ -4303,7 +4303,7 @@
       "id": "claude-opus-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "claude-opus-latest",
+      "name": "Anthropic: Claude Opus Latest",
       "outputModalities": ["text"],
       "ownedBy": "anthropic",
       "pricing": {
@@ -4646,11 +4646,11 @@
     },
     {
       "capabilities": ["reasoning", "image-recognition"],
-      "contextWindow": 131072,
+      "contextWindow": 123000,
       "id": "ernie-4-5-vl-424b-a47b",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "ernie-4-5-vl-424b-a47b",
+      "name": "Baidu: ERNIE 4.5 VL 424B A47B ",
       "outputModalities": ["text"],
       "ownedBy": "baidu",
       "pricing": {
@@ -4716,7 +4716,7 @@
       "id": "ring-2-6-1t",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "ring-2-6-1t",
+      "name": "inclusionAI: Ring-2.6-1T",
       "outputModalities": ["text"],
       "ownedBy": "bailing",
       "pricing": {
@@ -4736,7 +4736,7 @@
       "id": "ling-2-6-1t",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "ling-2-6-1t",
+      "name": "inclusionAI: Ling-2.6-1T",
       "outputModalities": ["text"],
       "ownedBy": "bailing",
       "pricing": {
@@ -4756,7 +4756,7 @@
       "id": "ling-2-6-flash",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "ling-2-6-flash",
+      "name": "inclusionAI: Ling-2.6-flash",
       "outputModalities": ["text"],
       "ownedBy": "bailing",
       "pricing": {
@@ -5590,7 +5590,7 @@
       "id": "cogito-v2-1-671b",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "cogito-v2-1-671b",
+      "name": "Deep Cogito: Cogito v2.1 671B",
       "outputModalities": ["text"],
       "ownedBy": "cogito",
       "pricing": {
@@ -6566,7 +6566,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 128000,
+      "contextWindow": 32768,
       "family": "deepseek-thinking",
       "id": "deepseek-r1-distill-llama-70b",
       "inputModalities": ["text"],
@@ -6644,7 +6644,7 @@
       "id": "deepseek-chat-v3-1",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "deepseek-chat-v3-1",
+      "name": "DeepSeek: DeepSeek V3.1",
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
@@ -6672,7 +6672,7 @@
       "id": "deepseek-chat-v3",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "deepseek-chat-v3",
+      "name": "DeepSeek: DeepSeek V3 0324",
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
@@ -7389,7 +7389,7 @@
         "file-input",
         "web-search"
       ],
-      "contextWindow": 65536,
+      "contextWindow": 131072,
       "family": "gemini",
       "id": "gemini-3-pro-image",
       "imageGeneration": {
@@ -7864,7 +7864,7 @@
         "structured-output",
         "file-input"
       ],
-      "contextWindow": 1048756,
+      "contextWindow": 1048576,
       "family": "gemini-pro",
       "id": "gemini-3-1-pro-preview-customtools",
       "inputModalities": ["text", "image", "video", "audio"],
@@ -8144,7 +8144,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 202752,
+      "contextWindow": 262144,
       "family": "gemma",
       "id": "gemma-3-27b-it",
       "inputModalities": ["text", "image"],
@@ -8466,6 +8466,58 @@
         "audio-recognition",
         "video-recognition",
         "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini",
+      "id": "gemini-3-6-flash",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini 3.6 Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
         "file-input",
         "web-search"
       ],
@@ -8534,6 +8586,59 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 3
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input",
+        "web-search"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini",
+      "id": "gemini-3-5-flash-lite",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini 3.5 Flash Lite",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
         }
       },
       "reasoning": {
@@ -8711,7 +8816,7 @@
       "id": "gemini-pro-latest",
       "inputModalities": ["audio", "image", "text", "video"],
       "metadata": {},
-      "name": "gemini-pro-latest",
+      "name": "Google Gemini Pro Latest",
       "outputModalities": ["text"],
       "ownedBy": "google",
       "pricing": {
@@ -8757,7 +8862,7 @@
       "id": "gemini-2-5-pro-preview",
       "inputModalities": ["image", "text", "audio"],
       "metadata": {},
-      "name": "gemini-2-5-pro-preview",
+      "name": "Google: Gemini 2.5 Pro Preview 06-05",
       "outputModalities": ["text"],
       "ownedBy": "google",
       "pricing": {
@@ -8799,7 +8904,7 @@
       "id": "gemini-2-5-pro-preview-05-06",
       "inputModalities": ["text", "image", "audio", "video"],
       "metadata": {},
-      "name": "gemini-2-5-pro-preview-05-06",
+      "name": "Google: Gemini 2.5 Pro Preview 05-06",
       "outputModalities": ["text"],
       "ownedBy": "google",
       "pricing": {
@@ -8832,7 +8937,7 @@
       "id": "gemma-2-27b-it",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "gemma-2-27b-it",
+      "name": "Google: Gemma 2 27B",
       "outputModalities": ["text"],
       "ownedBy": "google",
       "pricing": {
@@ -9650,11 +9755,14 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 1048756,
+      "contextWindow": 1048576,
+      "description": "LongCat-2.0 is a high-performance agentic model with native tool calling, multi-step reasoning, a 1M-token context window, and a 128K-token maximum output.",
+      "family": "longcat",
       "id": "longcat-2-0",
       "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "longcat-2-0",
+      "name": "LongCat-2.0",
       "outputModalities": ["text"],
       "ownedBy": "meituan",
       "pricing": {
@@ -9666,6 +9774,14 @@
           "currency": "USD",
           "perMillionTokens": 1.2
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -9854,7 +9970,7 @@
     },
     {
       "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 131072,
+      "contextWindow": 128000,
       "id": "llama-3-2-1b-instruct",
       "inputModalities": ["text"],
       "maxOutputTokens": 4096,
@@ -9965,7 +10081,7 @@
     },
     {
       "capabilities": ["image-recognition", "structured-output", "file-input"],
-      "contextWindow": 163840,
+      "contextWindow": 1048576,
       "family": "llama",
       "id": "llama-guard-4-12b",
       "inputModalities": ["text", "image"],
@@ -10167,7 +10283,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 10000000,
+      "contextWindow": 1310720,
       "family": "llama",
       "id": "llama-4-scout",
       "inputModalities": ["text", "image"],
@@ -10283,7 +10399,7 @@
       "id": "phi-4",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "phi-4",
+      "name": "Microsoft: Phi 4",
       "outputModalities": ["text"],
       "ownedBy": "microsoft",
       "pricing": {
@@ -10560,7 +10676,7 @@
       "id": "minimax-m2-her",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "minimax-m2-her",
+      "name": "MiniMax: MiniMax M2-her",
       "outputModalities": ["text"],
       "ownedBy": "minimax",
       "pricing": {
@@ -10580,7 +10696,7 @@
       "id": "minimax-m1",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "minimax-m1",
+      "name": "MiniMax: MiniMax M1",
       "outputModalities": ["text"],
       "ownedBy": "minimax",
       "pricing": {
@@ -10600,7 +10716,7 @@
       "id": "minimax-01",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "minimax-01",
+      "name": "MiniMax: MiniMax-01",
       "outputModalities": ["text"],
       "ownedBy": "minimax",
       "pricing": {
@@ -11685,7 +11801,7 @@
       "id": "mistral-medium-3-1",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "mistral-medium-3-1",
+      "name": "Mistral: Mistral Medium 3.1",
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -11701,11 +11817,11 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "structured-output"],
-      "contextWindow": 131072,
+      "contextWindow": 256000,
       "id": "mistral-small-3-2-24b-instruct",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "mistral-small-3-2-24b-instruct",
+      "name": "Mistral: Mistral Small 3.2 24B",
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -11725,7 +11841,7 @@
       "id": "mistral-medium-3",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "mistral-medium-3",
+      "name": "Mistral: Mistral Medium 3",
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -11745,7 +11861,7 @@
       "id": "mistral-small-3-1-24b-instruct",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "mistral-small-3-1-24b-instruct",
+      "name": "Mistral: Mistral Small 3.1 24B",
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -11765,7 +11881,7 @@
       "id": "mistral-saba",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "mistral-saba",
+      "name": "Mistral: Saba",
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -11785,7 +11901,7 @@
       "id": "mistral-small-24b-instruct",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "mistral-small-24b-instruct",
+      "name": "Mistral: Mistral Small 3",
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -12232,7 +12348,7 @@
       "id": "kimi-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "kimi-latest",
+      "name": "MoonshotAI Kimi Latest",
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
       "pricing": {
@@ -12252,7 +12368,7 @@
       "id": "hermes-4-70b",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "hermes-4-70b",
+      "name": "Nous: Hermes 4 70B",
       "outputModalities": ["text"],
       "ownedBy": "nousresearch",
       "pricing": {
@@ -12272,7 +12388,7 @@
       "id": "hermes-4-405b",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "hermes-4-405b",
+      "name": "Nous: Hermes 4 405B",
       "outputModalities": ["text"],
       "ownedBy": "nousresearch",
       "pricing": {
@@ -12292,7 +12408,7 @@
       "id": "hermes-3-llama-3-1-405b",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "hermes-3-llama-3-1-405b",
+      "name": "Nous: Hermes 3 405B Instruct",
       "outputModalities": ["text"],
       "ownedBy": "nousresearch",
       "pricing": {
@@ -12668,7 +12784,7 @@
       "id": "nemotron-3-5-content-safety",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "nemotron-3-5-content-safety",
+      "name": "NVIDIA: Nemotron 3.5 Content Safety (free)",
       "outputModalities": ["text"],
       "ownedBy": "nvidia",
       "pricing": {
@@ -15202,7 +15318,7 @@
       "id": "gpt-5-6-luna-pro",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-6-luna-pro",
+      "name": "OpenAI: GPT-5.6 Luna Pro",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15238,7 +15354,7 @@
       "id": "gpt-5-6-terra-pro",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-6-terra-pro",
+      "name": "OpenAI: GPT-5.6 Terra Pro",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15274,7 +15390,7 @@
       "id": "gpt-5-6-sol-pro",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-6-sol-pro",
+      "name": "OpenAI: GPT-5.6 Sol Pro",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15303,7 +15419,7 @@
       "id": "gpt-chat-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "gpt-chat-latest",
+      "name": "OpenAI: GPT Chat Latest",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15323,7 +15439,7 @@
       "id": "gpt-mini-latest",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-mini-latest",
+      "name": "OpenAI GPT Mini Latest",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15343,7 +15459,7 @@
       "id": "gpt-latest",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-latest",
+      "name": "OpenAI GPT Latest",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15363,7 +15479,7 @@
       "id": "gpt-5-4-image-2",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-4-image-2",
+      "name": "OpenAI: GPT-5.4 Image 2",
       "outputModalities": ["image", "text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15392,7 +15508,7 @@
       "id": "gpt-audio",
       "inputModalities": ["text", "audio"],
       "metadata": {},
-      "name": "gpt-audio",
+      "name": "OpenAI: GPT Audio",
       "outputModalities": ["text", "audio"],
       "ownedBy": "openai",
       "pricing": {
@@ -15412,7 +15528,7 @@
       "id": "gpt-audio-mini",
       "inputModalities": ["text", "audio"],
       "metadata": {},
-      "name": "gpt-audio-mini",
+      "name": "OpenAI: GPT Audio Mini",
       "outputModalities": ["text", "audio"],
       "ownedBy": "openai",
       "pricing": {
@@ -15432,7 +15548,7 @@
       "id": "gpt-5-1-chat",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-1-chat",
+      "name": "OpenAI: GPT-5.1 Chat",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15452,7 +15568,7 @@
       "id": "gpt-5-image-mini",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-image-mini",
+      "name": "OpenAI: GPT-5 Image Mini",
       "outputModalities": ["image", "text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15481,7 +15597,7 @@
       "id": "gpt-5-image",
       "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "gpt-5-image",
+      "name": "OpenAI: GPT-5 Image",
       "outputModalities": ["image", "text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15510,7 +15626,7 @@
       "id": "gpt-4o-search-preview",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "gpt-4o-search-preview",
+      "name": "OpenAI: GPT-4o Search Preview",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15530,7 +15646,7 @@
       "id": "gpt-4-turbo-preview",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "gpt-4-turbo-preview",
+      "name": "OpenAI: GPT-4 Turbo Preview",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15550,7 +15666,7 @@
       "id": "gpt-3-5-turbo-instruct",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "gpt-3-5-turbo-instruct",
+      "name": "OpenAI: GPT-3.5 Turbo Instruct",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15570,7 +15686,7 @@
       "id": "gpt-3-5-turbo-16k",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "gpt-3-5-turbo-16k",
+      "name": "OpenAI: GPT-3.5 Turbo 16k",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -15784,7 +15900,7 @@
       "id": "reka-edge",
       "inputModalities": ["image", "text", "video"],
       "metadata": {},
-      "name": "reka-edge",
+      "name": "Reka Edge",
       "outputModalities": ["text"],
       "ownedBy": "reka",
       "pricing": {
@@ -15804,7 +15920,7 @@
       "id": "reka-flash-3",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "reka-flash-3",
+      "name": "Reka Flash 3",
       "outputModalities": ["text"],
       "ownedBy": "reka",
       "pricing": {
@@ -15994,7 +16110,7 @@
         "structured-output",
         "file-input"
       ],
-      "contextWindow": 256000,
+      "contextWindow": 262144,
       "family": "step",
       "id": "step-3-7-flash",
       "inputModalities": ["text", "image", "video"],
@@ -16118,7 +16234,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 256000,
+      "contextWindow": 262144,
       "family": "kat-coder",
       "id": "kat-coder-pro-v2",
       "inputModalities": ["text"],
@@ -16227,6 +16343,28 @@
         "thinkingTokenLimits": {
           "max": 30720,
           "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 262144,
+      "id": "hy3",
+      "inputModalities": ["text"],
+      "maxInputTokens": 196608,
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Hunyuan 3",
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.58
         }
       }
     },
@@ -16375,26 +16513,6 @@
       "ownedBy": "tencent"
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 262144,
-      "id": "hy3",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "hy3",
-      "outputModalities": ["text"],
-      "ownedBy": "tencent",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.19999999999999998
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.7999999999999999
-        }
-      }
-    },
-    {
       "capabilities": ["function-call", "reasoning"],
       "contextWindow": 65536,
       "family": "solar-pro",
@@ -16506,7 +16624,7 @@
       "id": "solar-pro-3",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "solar-pro-3",
+      "name": "Upstage: Solar Pro 3",
       "outputModalities": ["text"],
       "ownedBy": "upstage",
       "pricing": {
@@ -17429,7 +17547,7 @@
       "id": "grok-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "grok-latest",
+      "name": "xAI: Grok Latest",
       "outputModalities": ["text"],
       "ownedBy": "xai",
       "pricing": {
@@ -17473,18 +17591,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -17517,18 +17626,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -17569,18 +17669,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -17647,18 +17738,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -17697,18 +17779,9 @@
         "controls": [
           {
             "kind": "toggle"
-          },
-          {
-            "kind": "budget",
-            "max": 30720,
-            "min": 0
           }
         ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 30720,
-          "min": 0
-        }
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18010,7 +18083,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 200000,
+      "contextWindow": 202752,
       "family": "glm-flash",
       "id": "glm-4-7-flash",
       "inputModalities": ["text"],
@@ -18493,7 +18566,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
-      "contextWindow": 202752,
+      "contextWindow": 204800,
       "family": "glm",
       "id": "glm-5-1",
       "inputModalities": ["text"],
@@ -18674,7 +18747,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "file-input"],
-      "contextWindow": 1048576,
+      "contextWindow": 524288,
       "family": "ling",
       "id": "inkling",
       "inputModalities": ["text", "image", "audio"],
@@ -19538,10 +19611,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+            "values": ["minimal", "low", "medium", "high", "xhigh"]
           }
         ],
-        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh"]
       }
     },
     {
@@ -19751,5 +19824,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "3e89ba6d72142d1f"
+  "version": "380b5dcdba69c324"
 }

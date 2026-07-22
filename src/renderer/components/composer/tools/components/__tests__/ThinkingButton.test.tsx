@@ -84,9 +84,8 @@ const DEFAULT_TEST_SETTINGS = {
 
 /** GPT-5-style effort control — the vocabulary the button derives options from. */
 const GPT5_REASONING: RuntimeReasoning = {
-  type: 'openai-responses',
   controls: [{ kind: 'effort', values: ['minimal', 'low', 'medium', 'high'] }],
-  supportedEfforts: ['minimal', 'low', 'medium', 'high']
+  selectableEfforts: ['minimal', 'low', 'medium', 'high']
 }
 
 const createModel = (overrides: Record<string, unknown> = {}): Model =>
@@ -172,6 +171,7 @@ describe('ThinkingToolRuntime', () => {
       suffix: 'Low'
     })
     expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([
+      'thinking-default',
       'thinking-minimal',
       'thinking-low',
       'thinking-medium',
@@ -200,14 +200,13 @@ describe('ThinkingToolRuntime', () => {
     })
   })
 
-  it('derives options per controls kind: toggle+budget → off + preset ladder', async () => {
+  it('renders the toggle+budget vocabulary projected by registry enrichment', async () => {
     const { launcher } = renderRuntime({
       model: createModel({
         id: 'anthropic::claude-sonnet-4-5',
         reasoning: {
-          type: 'anthropic',
           controls: [{ kind: 'budget', min: 1024, max: 64_000 }, { kind: 'toggle' }],
-          supportedEfforts: ['none', 'auto'],
+          selectableEfforts: ['none', 'low', 'medium', 'high'],
           thinkingTokenLimits: { min: 1024, max: 64_000 }
         } satisfies RuntimeReasoning
       })
@@ -216,6 +215,7 @@ describe('ThinkingToolRuntime', () => {
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
     const [thinkingLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([
+      'thinking-default',
       'thinking-none',
       'thinking-low',
       'thinking-medium',
@@ -223,14 +223,13 @@ describe('ThinkingToolRuntime', () => {
     ])
   })
 
-  it("derives options per controls kind: native effort vocabulary rides verbatim (claude 4.6 'max')", async () => {
+  it("renders the projected native effort vocabulary verbatim (claude 4.6 'max')", async () => {
     const { launcher } = renderRuntime({
       model: createModel({
         id: 'anthropic::claude-opus-4-6',
         reasoning: {
-          type: 'anthropic',
           controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }],
-          supportedEfforts: ['low', 'medium', 'high', 'max', 'none']
+          selectableEfforts: ['low', 'medium', 'high', 'max', 'none']
         } satisfies RuntimeReasoning
       })
     })
@@ -238,6 +237,7 @@ describe('ThinkingToolRuntime', () => {
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
     const [thinkingLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([
+      'thinking-default',
       'thinking-none',
       'thinking-low',
       'thinking-medium',
@@ -274,13 +274,12 @@ describe('ThinkingToolRuntime', () => {
     })
   })
 
-  it("disables the control on a 'none'-dialect provider, whatever the model's controls say", async () => {
+  it('disables the control when registry enrichment projects no options', async () => {
     const { launcher } = renderRuntime({
       model: createModel({
         reasoning: {
-          type: 'none',
           controls: [{ kind: 'budget', min: 1024, max: 32000 }, { kind: 'toggle' }],
-          supportedEfforts: [],
+          selectableEfforts: [],
           thinkingTokenLimits: { min: 1024, max: 32000 }
         }
       })
@@ -291,13 +290,12 @@ describe('ThinkingToolRuntime', () => {
     expect(noneLauncher).toMatchObject({ disabled: true, disabledReason: 'Fixed reasoning model' })
   })
 
-  it("offers only OFF on a 'disable-reasoning' dialect provider", async () => {
+  it('offers default and OFF when OFF is the only projected override', async () => {
     const { launcher } = renderRuntime({
       model: createModel({
         reasoning: {
-          type: 'disable-reasoning',
           controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
-          supportedEfforts: ['low', 'medium', 'high']
+          selectableEfforts: ['none']
         }
       })
     })
@@ -305,7 +303,7 @@ describe('ThinkingToolRuntime', () => {
 
     const [offOnlyLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     expect(offOnlyLauncher.disabled).toBeFalsy()
-    expect(offOnlyLauncher.submenu?.map((item) => item.id)).toEqual(['thinking-none'])
+    expect(offOnlyLauncher.submenu?.map((item) => item.id)).toEqual(['thinking-default', 'thinking-none'])
   })
 
   it('keeps OpenAI web search from selecting minimal reasoning', async () => {

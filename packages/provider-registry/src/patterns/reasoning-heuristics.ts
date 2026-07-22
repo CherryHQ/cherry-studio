@@ -15,6 +15,28 @@ import type { ReasoningControl } from '../schemas/model'
 import { matchReasoningControls } from './reasoning-families'
 import { REASONING_FAMILY_RULES } from './reasoning-families.gen'
 import { matchReasoningMembership } from './reasoning-membership'
+import { matchVendor, type VendorKey } from './vendor-patterns'
+
+const VENDOR_TO_CREATOR: Record<VendorKey, string> = {
+  anthropic: 'anthropic',
+  gemini: 'google',
+  gemma: 'google',
+  grok: 'xai',
+  openai: 'openai',
+  qwen: 'alibaba',
+  doubao: 'bytedance',
+  hunyuan: 'tencent',
+  kimi: 'moonshot',
+  deepseek: 'deepseek',
+  perplexity: 'perplexity',
+  baichuan: 'baichuan',
+  mimo: 'xiaomi',
+  ling: 'bailing',
+  minimax: 'minimax',
+  step: 'stepfun',
+  zhipu: 'zhipu',
+  mistral: 'mistral'
+}
 
 /**
  * Is this id a reasoning model at all? The ingest MEMBERSHIP gate consulted
@@ -35,4 +57,12 @@ export function inferReasoningMembership(rawModelId: string): boolean {
  */
 export function inferReasoningControls(rawModelId: string): ReasoningControl[] | undefined {
   return matchReasoningControls(rawModelId, REASONING_FAMILY_RULES)
+}
+
+/** Infer canonical creator metadata once for an unmatched/custom model. */
+export function inferReasoningOwnedBy(rawModelId: string): string | undefined {
+  const lower = rawModelId.toLowerCase()
+  const base = lower.slice(lower.lastIndexOf('/') + 1)
+  const vendor = matchVendor(base)
+  return vendor ? VENDOR_TO_CREATOR[vendor] : undefined
 }

@@ -1,6 +1,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -30,6 +31,7 @@ import {
   mergeCustomProviderParameters
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
+import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
@@ -84,6 +86,17 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
+  const invocationModel = reasoningProfile.support
+    ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
+    : model
+  const reasoning = resolveReasoningInvocation({
+    selection: request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default',
+    model: invocationModel,
+    profile: reasoningProfile.wire,
+    maxTokens: request.callOverrides?.maxOutputTokens ?? assistant?.settings.maxTokens,
+    assistantSummary: provider.settings.summaryText
+  })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
 
   const requestContext: RequestContext = {
@@ -106,6 +119,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     sdkConfig,
     endpointType,
     aiSdkProviderId,
+    reasoningProfile,
+    reasoning,
     requestContext,
     mcpToolIds,
     hasFileAttachments,
@@ -255,10 +270,27 @@ export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, reques
  * and the tool-call repair function.
  */
 function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
-  const { assistant, capabilities, model, provider, sdkConfig, requestContext, request, aiSdkProviderId } = scope
+  const {
+    assistant,
+    capabilities,
+    model,
+    provider,
+    sdkConfig,
+    requestContext,
+    request,
+    aiSdkProviderId,
+    endpointType,
+    reasoning
+  } = scope
 
   let providerOptions =
-    assistant && capabilities ? buildCapabilityProviderOptions(assistant, model, provider, capabilities) : {}
+    assistant && capabilities
+      ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, {
+          aiSdkProviderId,
+          endpointType,
+          reasoning
+        })
+      : {}
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const customParams = getCustomParameters(assistant)

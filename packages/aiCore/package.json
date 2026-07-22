@@ -42,7 +42,7 @@
     "@ai-sdk/openai-compatible": "^2.0.37",
     "@ai-sdk/provider": "^3.0.8",
     "@ai-sdk/provider-utils": "^4.0.23",
-    "@ai-sdk/xai": "^3.0.83",
+    "@ai-sdk/xai": "^3.0.111",
     "@cherrystudio/ai-sdk-provider": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.10.0",
     "quick-lru": "^5.1.1",

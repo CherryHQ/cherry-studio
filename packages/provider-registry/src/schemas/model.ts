@@ -50,9 +50,9 @@ export const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
  */
 export const ReasoningControlSchema = z.discriminatedUnion('kind', [
   z.object({
-    /** Discrete effort knob. `values` is the model's NATIVE vocabulary, in UI
-     *  display order — exactly what the target API accepts verbatim
-     *  (`'none'` present ⇔ the model can be told not to think). */
+    /** Discrete effort knob. `values` is the model's intrinsic vocabulary, in
+     *  UI display order. The active endpoint profile may map those values to a
+     *  narrower wire vocabulary (`'none'` present ⇔ reasoning can be disabled). */
     kind: z.literal('effort'),
     values: z.array(ReasoningEffortSchema).min(1),
     default: ReasoningEffortSchema.optional()
@@ -91,8 +91,7 @@ export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
  *
  * A rule carries MODEL KNOBS ONLY — never a reasoning format/wire field:
  * open-weight models are served by many providers and the serialization
- * dialect follows the SERVING provider's endpoint declaration
- * (`resolveReasoningFormatType`), not the model family.
+ * dialect follows the serving endpoint, not a runtime model-id match.
  *
  * Matching: `pattern` is a case-insensitive regex SOURCE tested against the
  * lowercased, namespace-stripped id (vocabulary part) and the raw id string
@@ -117,7 +116,7 @@ export const ReasoningFamilyRuleSchema = z
   .object({
     /** Case-insensitive regex source. Must compile. */
     pattern: compilableRegexSource,
-    /** Native effort vocabulary, in UI display order. */
+    /** Intrinsic effort vocabulary, in UI display order. */
     effort: z.array(ReasoningEffortSchema).min(1).optional(),
     /**
      * Thinking on/off switch. `false` is an EXPLICIT "always-on, no switch"

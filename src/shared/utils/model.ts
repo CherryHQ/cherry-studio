@@ -116,7 +116,7 @@ export const isSupportedThinkingTokenModel = (model: Model): boolean => model.re
 
 /** Check if model supports reasoning effort configuration */
 export const isSupportedReasoningEffortModel = (model: Model): boolean =>
-  (model.reasoning?.supportedEfforts?.length ?? 0) > 0
+  (model.reasoning?.selectableEfforts?.length ?? 0) > 0
 
 /**
  * A fixed reasoning model: it reasons, but offers no tuning knobs.
@@ -128,7 +128,7 @@ export const isFixedReasoningModel = (model: Model): boolean =>
 /** Get the reasoning effort options the UI should expose for this model */
 export const getModelSupportedReasoningEffortOptions = (model: Model | undefined | null): string[] | undefined => {
   if (!model) return undefined
-  return model.reasoning?.supportedEfforts
+  return model.reasoning?.selectableEfforts
 }
 
 // ---------------------------------------------------------------------------
@@ -257,9 +257,7 @@ export const isOpenAIDeepResearchModel = (model: Model): boolean => {
 }
 
 /**
- * OpenAI reasoning-effort support = OpenAI vendor + supportedEfforts populated.
- * The bridge populates `supportedEfforts` for o-series / GPT-5 non-chat /
- * gpt-oss via `inferSupportedEfforts`, matching the legacy regex exactly.
+ * OpenAI reasoning-effort support = OpenAI vendor + selectable efforts populated.
  */
 export const isSupportedReasoningEffortOpenAIModel = (model: Model): boolean =>
   isOpenAIModel(model) && isSupportedReasoningEffortModel(model)
@@ -373,8 +371,7 @@ export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean =>
   (isGeminiModel(model) || isHostedGemma4ThinkingModel(model)) && isSupportedThinkingTokenModel(model)
 
 /**
- * Grok reasoning-effort support = Grok vendor + supportedEfforts populated.
- * Bridge-populated via `inferSupportedEfforts` for `grok-3-mini`. The
+ * Grok reasoning-effort support = Grok vendor + selectable efforts populated. The
  * OpenRouter-specific `grok-4-fast` path is preserved here as an ID-based
  * branch because it depends on `providerId`, not a capability — OpenRouter
  * exposes an `-effort` knob on that SKU that the native xAI route doesn't.

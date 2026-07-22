@@ -12,7 +12,14 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'openrouter',
       baseUrl: 'https://openrouter.ai/api/v1/',
-      reasoningFormat: { type: 'openrouter' }
+      reasoningFormat: {
+        type: 'openai-chat',
+        wire: {
+          off: { operations: [{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }] },
+          auto: { operations: [{ target: 'reasoning.effort', value: { source: 'literal', value: 'medium' } }] },
+          effort: { operations: [{ target: 'reasoning.effort', value: { source: 'effort' } }] }
+        }
+      }
     }
   },
   metadata: {

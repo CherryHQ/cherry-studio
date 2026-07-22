@@ -252,7 +252,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * Maps thinking configuration to provider-specific parameters
    */
   extractProviderOptions(provider: Provider, model: Model, params: MessageCreateParams): ProviderOptions | undefined {
-    return mapAnthropicThinkingToProviderOptions(provider, model, params.thinking)
+    return mapAnthropicThinkingToProviderOptions(provider, model, params.thinking, params.output_config?.effort)
   }
 }
 

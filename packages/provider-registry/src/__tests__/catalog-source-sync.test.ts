@@ -99,6 +99,14 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     for (const p of PROVIDERS)
       for (const ov of p.overrides ?? []) {
         if (!ov.modelId) continue
+        if (p.modelsDevProvider && !ov.apiModelId && ov.reasoningContracts) {
+          const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
+          if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/reasoning-template`)
+          else if (rows.some((row) => stable(row.reasoningContracts) !== stable(ov.reasoningContracts))) {
+            problems.push(`stale ${p.id}/${ov.modelId}/reasoning-template`)
+          }
+          continue
+        }
         const expected = { providerId: p.id, ...ov }
         const row = rowByIdentity.get(overrideIdentity(expected as Parameters<typeof overrideIdentity>[0]))
         if (!row) problems.push(`missing ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)

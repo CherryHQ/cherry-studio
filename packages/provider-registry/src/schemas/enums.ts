@@ -155,9 +155,7 @@ export const REASONING_EFFORT = {
   LOW: 'low',
   MEDIUM: 'medium',
   HIGH: 'high',
-  /** OpenAI GPT-5.x native top tier. */
   XHIGH: 'xhigh',
-  /** Anthropic 4.6+ / DeepSeek V4 native top tier. */
   MAX: 'max',
   AUTO: 'auto'
 } as const
@@ -178,34 +176,6 @@ export const REASONING_EFFORT_ORDER: readonly ReasoningEffort[] = [
   'max',
   'auto'
 ]
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Provider-specific reasoning effort enums
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const OPENAI_REASONING_EFFORT = {
-  LOW: 'low',
-  MEDIUM: 'medium',
-  HIGH: 'high',
-  XHIGH: 'xhigh'
-} as const
-export type OpenAIReasoningEffort = (typeof OPENAI_REASONING_EFFORT)[keyof typeof OPENAI_REASONING_EFFORT]
-
-export const ANTHROPIC_REASONING_EFFORT = {
-  LOW: 'low',
-  MEDIUM: 'medium',
-  HIGH: 'high',
-  MAX: 'max'
-} as const
-export type AnthropicReasoningEffort = (typeof ANTHROPIC_REASONING_EFFORT)[keyof typeof ANTHROPIC_REASONING_EFFORT]
-
-export const GEMINI_THINKING_LEVEL = {
-  MINIMAL: 'minimal',
-  LOW: 'low',
-  MEDIUM: 'medium',
-  HIGH: 'high'
-} as const
-export type GeminiThinkingLevel = (typeof GEMINI_THINKING_LEVEL)[keyof typeof GEMINI_THINKING_LEVEL]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utility

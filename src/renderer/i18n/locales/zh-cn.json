@@ -7369,21 +7369,6 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
-      "reasoning_dialect": {
-        "anthropic": "thinking(Claude)",
-        "dashscope": "enable_thinking + 流式(DashScope)",
-        "default": "默认(自动)",
-        "disable-reasoning": "disable_reasoning 参数",
-        "enable-thinking": "enable_thinking(Qwen / 混元系)",
-        "gemini": "thinkingConfig(Gemini)",
-        "label": "推理方言",
-        "none": "不支持推理参数",
-        "openai-chat": "reasoning_effort(OpenAI Chat)",
-        "openai-responses": "reasoning.effort(OpenAI Responses)",
-        "openrouter": "reasoning(OpenRouter)",
-        "self-hosted": "chat_template_kwargs(vLLM / SGLang)",
-        "thinking-type": "thinking 字段(GLM / 豆包 / Kimi 系)"
-      },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
       "reorder_failed": "调整服务商顺序失败",

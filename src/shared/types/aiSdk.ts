@@ -8,7 +8,7 @@
  */
 
 import type OpenAI from '@cherrystudio/openai'
-import type { ReasoningEffort } from '@cherrystudio/provider-registry'
+import { objectValues, REASONING_EFFORT, type ReasoningEffort } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 type NotUndefined<T> = Exclude<T, undefined>
@@ -30,6 +30,8 @@ export type ValidOpenAIVerbosity = NotUndefined<OpenAIVerbosity>
  * sentinel meaning "send no reasoning params".
  */
 export type ReasoningEffortOption = ReasoningEffort | 'default'
+
+export const ReasoningEffortOptionSchema = z.enum(['default', ...objectValues(REASONING_EFFORT)])
 
 /**
  * Summary configuration for OpenAI reasoning responses.
