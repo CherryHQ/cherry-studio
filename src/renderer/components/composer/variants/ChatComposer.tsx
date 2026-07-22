@@ -56,7 +56,7 @@ import { Bot, Cable, ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createComposerUserMessageParts } from '../composerDraft'
+import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -1045,14 +1045,15 @@ const ChatComposerInner = ({
 
   const buildEditedMessageParts = useCallback(
     async (draft: ComposerSerializedDraft) => {
-      const tokenIds = getComposerTokenIds(draft.tokens)
+      const normalizedDraft = trimComposerDraftBoundaryBlankLines(draft)
+      const tokenIds = getComposerTokenIds(normalizedDraft.tokens)
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
       if (hasUnsyncedComposerAttachments(files, payloadFiles)) return null
 
       const originalFilePartsByTokenId = editingOriginalFilePartsByTokenIdRef.current
 
       const newFiles = payloadFiles.filter((file) => !originalFilePartsByTokenId.has(chatComposerTokenId.file(file)))
-      const [textPart] = createComposerUserMessageParts(draft)
+      const [textPart] = createComposerUserMessageParts(normalizedDraft)
       const newFileParts = await buildFilePartsForAttachments(newFiles)
       const rebuiltFileParts = new Map<string, CherryMessagePart>()
 
