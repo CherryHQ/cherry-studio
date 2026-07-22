@@ -1,4 +1,4 @@
-import type { ResourceListItemBase, ResourceListViewGroup } from './ResourceListContext'
+import type { ResourceListItemBase, ResourceListStatus, ResourceListViewGroup } from './ResourceListContext'
 
 export type ResourceListRevealFocus = { itemId: string; requestId: number } | null
 
@@ -15,6 +15,7 @@ export type ResourceListGroupStateSnapshot = {
   collapsed: boolean
   hasMore: boolean
   selected: boolean
+  status: ResourceListStatus
   visibleCount: number
 }
 
@@ -45,6 +46,7 @@ const EMPTY_GROUP_STATE: ResourceListGroupStateSnapshot = Object.freeze({
   collapsed: false,
   hasMore: false,
   selected: false,
+  status: 'empty',
   visibleCount: 0
 })
 
@@ -64,6 +66,7 @@ function sameGroupState(a: ResourceListGroupStateSnapshot, b: ResourceListGroupS
     a.collapsed === b.collapsed &&
     a.hasMore === b.hasMore &&
     a.selected === b.selected &&
+    a.status === b.status &&
     a.visibleCount === b.visibleCount
   )
 }
@@ -125,6 +128,7 @@ export class ResourceListUiService {
       collapsed: record.collapsed,
       hasMore: record.hasMore,
       selected: this.state.selectedId !== null && record.itemIds.has(this.state.selectedId),
+      status: record.status,
       visibleCount: record.visibleCount
     }
     const previous = this.groupCache.get(groupId)
@@ -244,6 +248,7 @@ export class ResourceListUiService {
         collapsed: viewGroup.collapsed,
         hasMore: viewGroup.hasMore,
         itemIds,
+        status: viewGroup.status,
         visibleCount: viewGroup.visibleCount
       }
       const previousSnapshot = this.getGroupSnapshot(viewGroup.group.id)

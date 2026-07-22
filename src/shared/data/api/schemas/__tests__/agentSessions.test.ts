@@ -67,13 +67,13 @@ describe('AgentSessionMessage schemas', () => {
 })
 
 describe('AgentSession schemas', () => {
-  it('keeps compatibility list queries limited to parameters they execute', () => {
-    expect(ListAgentSessionsQuerySchema.parse({ agentId: 'agent-1', limit: '10' })).toEqual({
+  it('requires callers to select one list stream', () => {
+    expect(ListAgentSessionsQuerySchema.safeParse({ agentId: 'agent-1', limit: '10' }).success).toBe(false)
+    expect(ListAgentSessionsQuerySchema.parse({ pinned: false, agentId: 'agent-1', limit: '10' })).toEqual({
+      pinned: false,
       agentId: 'agent-1',
       limit: 10
     })
-    expect(ListAgentSessionsQuerySchema.safeParse({ q: 'needle' }).success).toBe(false)
-    expect(ListAgentSessionsQuerySchema.safeParse({ agentId: 'unlinked' }).success).toBe(false)
   })
 
   it('separates pinned and ordinary list dimensions', () => {

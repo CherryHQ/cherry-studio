@@ -120,4 +120,23 @@ describe('Chat', () => {
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeTruthy()
   })
+
+  it('renders an alternate center surface without replacing the chat shell', () => {
+    const centerSurface = { content: <div data-testid="history-center" /> }
+
+    render(<Chat activeTopic={topic} centerSurface={centerSurface} />)
+
+    expect(screen.getByTestId('conversation-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('history-center')).toBeInTheDocument()
+    expect(conversationShellProps.current?.topBar).toBeUndefined()
+  })
+
+  it('renders the fallback center in the same shell before a topic is available', () => {
+    render(<Chat centerFallback={<div data-testid="loading-center" />} />)
+
+    expect(screen.getByTestId('conversation-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('loading-center')).toBeInTheDocument()
+    expect(conversationShellProps.current?.topBar).toBeUndefined()
+    expect(conversationShellProps.current?.topRightTool).toBeUndefined()
+  })
 })

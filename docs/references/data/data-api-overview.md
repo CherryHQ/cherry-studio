@@ -47,7 +47,7 @@ DataApi must not be used as a general-purpose RPC layer. It is the **data** busi
 │ Renderer Process                                           │
 │ ┌────────────────────────────────────────────────────────┐ │
 │ │ React Components                                       │ │
-│ │ - useQuery('/topics')                                  │ │
+│ │ - useQuery('/topics', { query: { pinned: false } })    │ │
 │ │ - useMutation('/topics', 'POST')                       │ │
 │ └──────────────────────────┬─────────────────────────────┘ │
 │                            ▼                               │

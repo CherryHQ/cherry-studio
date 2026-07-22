@@ -90,14 +90,13 @@ export function useAssistantMutations() {
     refresh: ASSISTANTS_REFRESH_KEYS
   })
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/assistants/:id', {
-    refresh: ASSISTANTS_REFRESH_KEYS
-  })
-  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/assistants/:id', {
     refresh: ({ args }) => [
       ...ASSISTANTS_REFRESH_KEYS,
-      '/pins',
-      ...(args?.query?.deleteTopics === true ? (['/topics'] as ConcreteApiPaths[]) : [])
+      ...(args?.body?.name !== undefined ? (['/topics', '/topics/stats'] as const) : [])
     ]
+  })
+  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/assistants/:id', {
+    refresh: () => [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics', '/topics/stats']
   })
   const createTriggerRef = useRef(createTrigger)
   const updateTriggerRef = useRef(updateTrigger)

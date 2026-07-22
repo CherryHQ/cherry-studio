@@ -199,7 +199,7 @@ export function ChatAppShell({
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse}>
-          {pane}
+          {panePosition === 'left' ? pane : undefined}
         </PageSidebar>
 
         <div data-chat-app-shell-main-region className="relative flex min-w-0 flex-1 overflow-hidden">

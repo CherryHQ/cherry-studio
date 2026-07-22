@@ -1,31 +1,70 @@
-import { useSessions } from './agent/useSession'
-import { useTopics } from './useTopic'
+import { dataApiService } from '@renderer/data/DataApiService'
+import type { AgentSessionWorkspaceScope } from '@shared/data/api/schemas/agentSessions'
+import { useCallback } from 'react'
+
+import { useAgentSessionStats } from './agent/useSession'
+import { useTopicStats } from './useTopic'
 
 /**
- * Shared page-level data sources for the classic-layout layout.
- *
- * In classic layout the entity rail and the right-panel resource list are two separate components that
- * both need the full topic/session list (the rail to decide which entities own resources, the panel
- * to render the current entity's resources). The page owns these source objects and threads them into
- * child views so there is one load policy and no chance of the call sites drifting on options
- * (e.g. page size).
+ * Page-level resource facts and exact derived lookups shared by classic rails,
+ * conversation pages, and their right-panel lists.
  */
 
-/** Full agent-session page size — kept in one place so the rail and right panel never drift. */
-const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
-
 /**
- * The shared full-topics source for the assistant classic-layout rail + right-panel topic list.
- *
- * `enabled` lets the owning page gate the fetch when the route does not need the full topic list.
+ * Factual counts drive group visibility. Imperative lookups use scoped latest
+ * for owner navigation and domain reads for placeholder reuse.
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useTopics({ loadAll: true, enabled })
+  const statsSource = useTopicStats({ enabled })
+  const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
+    const result =
+      assistantId === undefined
+        ? await dataApiService.get('/topics/latest')
+        : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
+    return result.topic
+  }, [])
+  const loadReusableTopic = useCallback(async (assistantId: string | null) => {
+    const result = await dataApiService.get('/topics/reusable-placeholder', {
+      query: { assistantId: assistantId ?? 'unassigned' }
+    })
+    return result.topic
+  }, [])
+
+  return {
+    stats: statsSource.stats,
+    isStatsLoading: statsSource.isLoading,
+    statsError: statsSource.error,
+    refetchStats: statsSource.refetch,
+    loadLatestTopic,
+    loadReusableTopic
+  }
 }
 
-/** The shared full-sessions source for the agent classic-layout rail + right-panel session list. */
+/** Session counterpart to {@link useAssistantTopicsSource}. */
 export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
+  const statsSource = useAgentSessionStats({ enabled })
+  const loadLatestSession = useCallback(async (agentId?: string | null) => {
+    const result =
+      agentId === undefined
+        ? await dataApiService.get('/agent-sessions/latest')
+        : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
+    return result.session
+  }, [])
+  const loadReusableSessions = useCallback(async (agentId: string, workspaceId?: AgentSessionWorkspaceScope) => {
+    const result = await dataApiService.get('/agent-sessions/reusable-placeholders', {
+      query: { agentId, ...(workspaceId ? { workspaceId } : {}) }
+    })
+    return result.sessions
+  }, [])
+
+  return {
+    stats: statsSource.stats,
+    isStatsLoading: statsSource.isLoading,
+    statsError: statsSource.error,
+    refetchStats: statsSource.refetch,
+    loadLatestSession,
+    loadReusableSessions
+  }
 }
 
 export type AssistantTopicsSource = ReturnType<typeof useAssistantTopicsSource>

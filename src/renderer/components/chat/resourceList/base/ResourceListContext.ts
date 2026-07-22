@@ -1,4 +1,9 @@
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import type {
+  ResourceListGroup,
+  ResourceListGroupReorderPayload,
+  ResourceListItemReorderPayload
+} from '@renderer/utils/chat/resourceListBase'
 import { createContext, type ReactNode, use, useCallback, useSyncExternalStore } from 'react'
 
 import type {
@@ -22,10 +27,24 @@ export type ResourceListRevealRequest = {
   requestId: number
 }
 
-export type ResourceListGroup = {
-  id: string
-  label: string
-  count?: number
+export type ResourceListRemoteGroupState = {
+  /** Factual total for the current server-side filters. */
+  totalCount: number
+  /** Whether the caller can provide more server-backed rows for this group. */
+  hasMore: boolean
+  status: ResourceListStatus
+}
+
+/**
+ * Optional server-backed mode for ResourceList. The caller owns query state,
+ * loaded items and errors; ResourceList owns only presentation and interaction
+ * policy.
+ */
+export type ResourceListRemoteData = {
+  query: string
+  groupStates?: Readonly<Record<string, ResourceListRemoteGroupState | undefined>>
+  onQueryChange: (query: string) => void
+  loadMoreGroup?: (groupId: string) => Promise<void>
 }
 
 export type ResourceListSection = {
@@ -63,28 +82,13 @@ export type ResourceListDragCapabilities = {
   itemCrossGroup?: boolean
 }
 
-export type ResourceListItemReorderPayload = {
-  type: 'item'
-  activeId: string
-  overId: string
-  position: 'before' | 'after'
-  overType: 'group' | 'item'
-  sourceGroupId: string
-  targetGroupId: string
-  sourceIndex: number
-  targetIndex: number
-}
-
-export type ResourceListGroupReorderPayload = {
-  type: 'group'
-  activeGroupId: string
-  overGroupId: string
-  overType: 'group' | 'item'
-  sourceIndex: number
-  targetIndex: number
-}
-
 export type ResourceListReorderPayload = ResourceListItemReorderPayload | ResourceListGroupReorderPayload
+
+export type {
+  ResourceListGroup,
+  ResourceListGroupReorderPayload,
+  ResourceListItemReorderPayload
+} from '@renderer/utils/chat/resourceListBase'
 
 export type ResourceListVariantContext = {
   variant: 'session' | 'topic' | 'agent' | 'assistant' | 'history' | 'resource'
@@ -116,7 +120,7 @@ export type ResourceListActionMap = {
   cancelRename: () => void
   openContextMenu: (id: string) => void
   selectGroupHeaderItem: (id: string) => void
-  showMoreInGroup: (groupId: string) => void
+  showMoreInGroup: (groupId: string) => Promise<void>
   collapseGroupItems: (groupId: string) => void
   expandGroups: (groupIds: readonly string[]) => void
   collapseGroups: (groupIds: readonly string[]) => void
@@ -138,7 +142,9 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
-  onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
+  getGroupHeaderSelected?: (group: ResourceListGroup) => boolean
+  onGroupHeaderActivate?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
+  onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number
@@ -187,6 +193,7 @@ export type ResourceListViewGroup<T extends ResourceListItemBase> = {
   hasMore: boolean
   canCollapseToDefault: boolean
   collapsed: boolean
+  status: ResourceListStatus
 }
 
 export type ResourceListViewSection<T extends ResourceListItemBase> = {

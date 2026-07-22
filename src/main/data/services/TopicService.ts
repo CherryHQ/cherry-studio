@@ -32,7 +32,7 @@ import type {
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, count, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -40,12 +40,6 @@ import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
-import {
-  decodePinnedListCursor,
-  encodeEntityCursor,
-  encodeEntitySectionStart,
-  encodePinCursor
-} from './utils/pinnedListCursor'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TopicService')
@@ -586,99 +580,10 @@ export class TopicService {
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
-  /** Select the compatibility composite view or one explicit independent stream. */
-  listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<TopicListItem> {
-    if (query.pinned === undefined) return this.listCompatibilityByCursor(query)
+  /** Select one explicit independent pin or ordinary stream. */
+  listByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
     if (query.pinned) return this.listPinnedByCursor(query)
     return this.listOrdinaryByCursor(query, query.sortBy ?? 'createdAt')
-  }
-
-  /** Existing pinned-then-orderKey stream kept until the renderer migrates in PR2. */
-  private listCompatibilityByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
-    const db = application.get('DbService').getDb()
-    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor = decodePinnedListCursor(query.cursor, 'topic')
-    const search = buildSearchPredicate(query.q)
-
-    const items: Array<{ topic: Topic; pinId: string | null; pinOrderKey?: string }> = []
-
-    if (cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey
-        ? or(
-            gt(pinTable.orderKey, cursor.orderKey),
-            and(eq(pinTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
-          )
-        : undefined
-      const pinRows = db
-        .select({ topic: topicTable, pinId: pinTable.id, pinOrderKey: pinTable.orderKey })
-        .from(topicTable)
-        .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
-        .where(and(isNull(topicTable.deletedAt), pinAfter, search))
-        .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
-        .limit(limit + 1)
-        .all()
-
-      // Stale pin cursor (anchor row deleted between requests) → 0 rows for a
-      // non-empty `cursor.orderKey`. Hand back an entity-section-start cursor so
-      // the next call advances cleanly instead of restarting topics from the top.
-      if (pinRows.length === 0 && cursor.orderKey !== '') {
-        return { items: [], nextCursor: encodeEntitySectionStart() }
-      }
-
-      const hasMoreInPin = pinRows.length > limit
-      for (const row of pinRows.slice(0, limit)) {
-        items.push({ topic: rowToTopic(row.topic), pinId: row.pinId, pinOrderKey: row.pinOrderKey })
-      }
-
-      if (hasMoreInPin) {
-        const last = items[items.length - 1]
-        return {
-          items: items.map((i) => toTopicListItem(i.topic, i.pinId)),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.topic.id)
-        }
-      }
-
-      if (items.length >= limit) {
-        return {
-          items: items.map((i) => toTopicListItem(i.topic, i.pinId)),
-          nextCursor: encodeEntitySectionStart()
-        }
-      }
-    }
-
-    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
-    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
-    const remaining = limit - items.length
-    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
-
-    let topicAfter: SQL | undefined
-    if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      topicAfter = or(
-        gt(topicTable.orderKey, cursor.orderKey),
-        and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
-      )
-    }
-
-    const topicRows = db
-      .select()
-      .from(topicTable)
-      .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
-      .orderBy(asc(topicTable.orderKey), asc(topicTable.id))
-      .limit(remaining + 1)
-      .all()
-
-    const hasMoreInTopic = topicRows.length > remaining
-    for (const row of topicRows.slice(0, remaining)) {
-      items.push({ topic: rowToTopic(row), pinId: null })
-    }
-
-    let nextCursor: string | undefined
-    if (hasMoreInTopic) {
-      const last = topicRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.orderKey, last.id)
-    }
-
-    return { items: items.map((i) => toTopicListItem(i.topic, i.pinId)), nextCursor }
   }
 
   /** Pinned-only page in persisted pin order. */

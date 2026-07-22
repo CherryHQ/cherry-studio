@@ -63,44 +63,31 @@ export type TopicSearchScope = z.infer<typeof TopicSearchScopeSchema>
 /** Collection projection; pin ordering remains internal to the pin stream. */
 export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
 
-const ListTopicsPageQueryShape = {
+/**
+ * Query parameters for `GET /topics`.
+ *
+ * Two independent streams that never mix in one response or cursor:
+ * - `pinned=true` uses persisted pin order and does not accept `sortBy`.
+ * - `pinned=false` excludes pinned rows and uses the requested sort profile.
+ */
+const ListTopicsCommonQuerySchema = z.strictObject({
   /** Opaque cursor from previous page's `nextCursor`. */
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */
-  limit: z.coerce.number().int().positive().max(200).optional()
-} as const
-
-const ListTopicsFilterQueryShape = {
+  limit: z.coerce.number().int().positive().max(200).optional(),
   /** Literal substring search term (`%`, `_`, and `\\` are escaped). */
   q: z.string().optional(),
   /** Search topic name only, or topic/owning-live-Assistant name. */
   searchScope: TopicSearchScopeSchema.optional(),
   /** Concrete live Assistant id, or `unlinked`. */
   assistantId: TopicOwnerScopeSchema.optional()
-} as const
+})
 
-/**
- * Query parameters for `GET /topics`.
- *
- * During the PR1 backend transition, omitting `pinned` preserves only the
- * legacy cursor/limit/name-search contract. Explicit pinned and ordinary
- * streams expose their independently implemented filters, while only the
- * ordinary stream accepts a sort profile.
- */
-export const ListTopicsQuerySchema = z.union([
-  z.strictObject({
-    ...ListTopicsPageQueryShape,
-    q: z.string().optional(),
-    pinned: z.undefined().optional()
-  }),
-  z.strictObject({
-    ...ListTopicsPageQueryShape,
-    ...ListTopicsFilterQueryShape,
+export const ListTopicsQuerySchema = z.discriminatedUnion('pinned', [
+  ListTopicsCommonQuerySchema.extend({
     pinned: z.literal(true)
   }),
-  z.strictObject({
-    ...ListTopicsPageQueryShape,
-    ...ListTopicsFilterQueryShape,
+  ListTopicsCommonQuerySchema.extend({
     pinned: z.literal(false),
     sortBy: TopicSortBySchema.optional()
   })

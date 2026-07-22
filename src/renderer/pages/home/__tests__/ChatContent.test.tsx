@@ -451,7 +451,7 @@ describe('ChatContent', () => {
     })
   })
 
-  it('refreshes topic metadata after stream open so time-grouped sidebars can reorder', async () => {
+  it('refreshes topic metadata after stream open so active sidebars stay current', async () => {
     render(<ChatContent topic={topic} />)
 
     await act(async () => {

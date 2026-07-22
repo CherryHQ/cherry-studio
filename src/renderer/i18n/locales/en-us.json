@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Time",
+        "time": "Task",
         "title": "Display mode",
         "workdir": "Work directory"
       },
@@ -404,14 +404,10 @@
         "collapse_all": "Collapse all",
         "conversation": "Conversations",
         "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
-        "earlier": "Earlier",
         "expand_all": "Expand all",
         "no_workdir": "No work directory",
         "show_more": "Expand display",
-        "this_week": "This week",
-        "today": "Today",
-        "unknown_agent": "Unknown agent",
-        "yesterday": "Yesterday"
+        "unknown_agent": "Unknown agent"
       },
       "label_one": "Session",
       "label_other": "Sessions",
@@ -1763,7 +1759,7 @@
       "display": {
         "assistant": "Assistant",
         "tag": "Tag",
-        "time": "Time",
+        "time": "Conversation",
         "title": "Display mode"
       },
       "edit": {
@@ -1829,13 +1825,9 @@
       "group": {
         "collapse": "Collapse display",
         "collapse_all": "Collapse all",
-        "earlier": "Earlier",
         "expand_all": "Expand all",
         "show_more": "Expand display",
-        "this_week": "This week",
-        "today": "Today",
-        "unknown_assistant": "Unlinked Assistant",
-        "yesterday": "Yesterday"
+        "unknown_assistant": "Unlinked Assistant"
       },
       "list": "Conversation List",
       "manage": {
@@ -1872,6 +1864,11 @@
         },
         "label": "Conversation Prompts",
         "tips": "Conversation Prompts: Additional supplementary prompts provided for the current conversation"
+      },
+      "reorder": {
+        "error": {
+          "failed": "Failed to reorder conversations"
+        }
       },
       "search": {
         "placeholder": "Search conversations...",
@@ -2210,6 +2207,7 @@
     "invalid_value": "Invalid Value",
     "knowledge_base": "Knowledge Base",
     "language": "Language",
+    "list_options": "List options",
     "loading": "Loading...",
     "maximize": "Maximize",
     "minimize": "Minimize",
@@ -2259,11 +2257,16 @@
     "sessions": "Sessions",
     "settings": "Settings",
     "sort": {
+      "created_at": "Creation time",
+      "last_active": "Last active",
+      "manual_order": "Manual order",
       "pinyin": {
         "asc": "Sort by Pinyin (A-Z)",
         "desc": "Sort by Pinyin (Z-A)",
         "label": "Sort by Pinyin"
-      }
+      },
+      "title": "Sort order",
+      "updated_at": "Updated time"
     },
     "stop": "Stop",
     "subscribe": "Subscribe",
@@ -2720,8 +2723,6 @@
       "filter": {
         "selectAgent": "Select an agent",
         "selectAssistant": "Select an assistant",
-        "statusLabel": "Status",
-        "statusPlaceholder": "Select status",
         "unlinkedAssistant": "Unlinked assistant"
       },
       "loading": {
@@ -2733,11 +2734,6 @@
       "searchSession": "Search tasks...",
       "searchTopic": "Search conversations...",
       "shortTitle": "History",
-      "status": {
-        "completed": "Completed",
-        "failed": "Failed",
-        "running": "Running"
-      },
       "table": {
         "actions": "Actions",
         "conversation": "Conversation",

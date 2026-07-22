@@ -10,9 +10,13 @@ import {
 } from '../topics'
 
 describe('ListTopicsQuerySchema', () => {
-  it('keeps the compatibility branch limited to parameters it executes', () => {
-    expect(ListTopicsQuerySchema.parse({ q: 'needle', limit: '10' })).toEqual({ q: 'needle', limit: 10 })
-    expect(ListTopicsQuerySchema.safeParse({ assistantId: 'unlinked' }).success).toBe(false)
+  it('requires callers to select one list stream', () => {
+    expect(ListTopicsQuerySchema.safeParse({ q: 'needle', limit: '10' }).success).toBe(false)
+    expect(ListTopicsQuerySchema.parse({ pinned: false, q: 'needle', limit: '10' })).toEqual({
+      pinned: false,
+      q: 'needle',
+      limit: 10
+    })
   })
 
   it('separates pinned and ordinary stream dimensions', () => {

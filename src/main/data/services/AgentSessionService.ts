@@ -31,17 +31,11 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { and, asc, count, desc, eq, gt, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
-import {
-  decodePinnedListCursor,
-  encodeEntityCursor,
-  encodeEntitySectionStart,
-  encodePinCursor
-} from './utils/pinnedListCursor'
 
 const logger = loggerService.withContext('AgentSessionService')
 
@@ -331,106 +325,10 @@ export class AgentSessionService {
     })
   }
 
-  /** Select the compatibility composite view or one explicit independent stream. */
-  listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionListItem> {
-    if (query.pinned === undefined) return this.listCompatibilityByCursor(query)
+  /** Select one explicit independent pin or ordinary stream. */
+  listByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
     if (query.pinned) return this.listPinnedByCursor(query)
     return this.listOrdinaryByCursor(query, query.sortBy ?? 'createdAt')
-  }
-
-  /** Existing pinned-then-orderKey stream kept until the renderer migrates in PR2. */
-  private listCompatibilityByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
-    const db = application.get('DbService').getDb()
-    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
-    const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
-
-    const items: Array<{ session: AgentSessionEntity; pinId: string | null; pinOrderKey?: string }> = []
-
-    if (cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey
-        ? or(
-            gt(pinTable.orderKey, cursor.orderKey),
-            and(eq(pinTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-          )
-        : undefined
-      const pinRows = db
-        .select({
-          session: sessionsTable,
-          workspace: agentWorkspaceTable,
-          pinId: pinTable.id,
-          pinOrderKey: pinTable.orderKey
-        })
-        .from(sessionsTable)
-        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-        .where(and(agentFilter, pinAfter))
-        .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
-        .limit(limit + 1)
-        .all()
-
-      // Stale pin cursor (anchor unpinned/deleted between requests) → 0 rows for
-      // a non-empty `cursor.orderKey`. Hand back an entity-section-start cursor so
-      // the next call advances cleanly instead of restarting the pin section.
-      if (pinRows.length === 0 && cursor.orderKey !== '') {
-        return { items: [], nextCursor: encodeEntitySectionStart() }
-      }
-
-      const hasMoreInPin = pinRows.length > limit
-      for (const row of pinRows.slice(0, limit)) {
-        items.push({ session: rowToSession(row), pinId: row.pinId, pinOrderKey: row.pinOrderKey })
-      }
-
-      if (hasMoreInPin) {
-        const last = items[items.length - 1]
-        return {
-          items: items.map((i) => toAgentSessionListItem(i.session, i.pinId)),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.session.id)
-        }
-      }
-
-      if (items.length >= limit) {
-        return {
-          items: items.map((i) => toAgentSessionListItem(i.session, i.pinId)),
-          nextCursor: encodeEntitySectionStart()
-        }
-      }
-    }
-
-    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
-    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
-    const remaining = limit - items.length
-    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
-
-    let sessionAfter: SQL | undefined
-    if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      sessionAfter = or(
-        gt(sessionsTable.orderKey, cursor.orderKey),
-        and(eq(sessionsTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-      )
-    }
-
-    const sessionRows = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-      .from(sessionsTable)
-      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(and(agentFilter, notInArray(sessionsTable.id, pinnedSubquery), sessionAfter))
-      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
-      .limit(remaining + 1)
-      .all()
-
-    const hasMoreInSession = sessionRows.length > remaining
-    for (const row of sessionRows.slice(0, remaining)) {
-      items.push({ session: rowToSession(row), pinId: null })
-    }
-
-    let nextCursor: string | undefined
-    if (hasMoreInSession) {
-      const last = sessionRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
-    }
-
-    return { items: items.map((i) => toAgentSessionListItem(i.session, i.pinId)), nextCursor }
   }
 
   /** Pinned-only page in persisted pin order. */

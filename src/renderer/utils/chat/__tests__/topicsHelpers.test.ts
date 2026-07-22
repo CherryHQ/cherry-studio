@@ -10,23 +10,18 @@ import {
   buildAssistantGroupDropAnchor,
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
-  getTopicTimeBucket,
   groupTopicByPinned,
   moveAssistantGroupAfterDrop,
   moveTopicAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
+  TOPIC_ORDINARY_GROUP_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../topicsHelpers'
 
 const TOPIC_GROUP_LABELS = {
   pinned: 'Pinned',
-  time: {
-    today: 'Today',
-    yesterday: 'Yesterday',
-    'this-week': 'This week',
-    earlier: 'Earlier'
-  },
+  ordinary: 'Conversations',
   assistant: {
     unlinked: 'Unlinked Assistant'
   }
@@ -36,11 +31,12 @@ function localIso(year: number, month: number, day: number, hour = 12) {
   return new Date(year, month - 1, day, hour).toISOString()
 }
 
-function createTopic(overrides: Partial<Topic> = {}): Topic {
+function createTopic(overrides: Partial<Topic> = {}): Topic & { lastActivityAt: string } {
   return {
     id: 'topic-1',
     assistantId: 'assistant-1',
     name: 'Topic one',
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     messages: [],
@@ -65,9 +61,9 @@ describe('Topics helpers', () => {
 
     expect(buildTopicDropAnchor(basePayload)).toEqual({ before: 'b' })
     expect(buildTopicDropAnchor({ ...basePayload, position: 'after' })).toEqual({ after: 'b' })
-    expect(buildTopicDropAnchor({ ...basePayload, overId: 'topic:assistant:assistant-1', overType: 'group' })).toEqual({
-      position: 'last'
-    })
+    expect(
+      buildTopicDropAnchor({ ...basePayload, overId: 'topic:assistant:assistant-1', overType: 'group' })
+    ).toBeUndefined()
   })
 
   it('translates assistant group drops into persisted order anchors', () => {
@@ -192,57 +188,32 @@ describe('Topics helpers', () => {
     })
   })
 
-  it('classifies topic updatedAt values into reusable time buckets', () => {
-    const now = new Date(2026, 4, 15, 12)
+  it('builds pinned and ordinary creation-time groups', () => {
+    const groupTopic = createTopicDisplayGroupResolver({ mode: 'time', labels: TOPIC_GROUP_LABELS })
 
-    expect(getTopicTimeBucket(localIso(2026, 5, 15, 9), now)).toBe('today')
-    expect(getTopicTimeBucket(localIso(2026, 5, 14, 9), now)).toBe('yesterday')
-    expect(getTopicTimeBucket(localIso(2026, 5, 13, 9), now)).toBe('this-week')
-    expect(getTopicTimeBucket(localIso(2026, 5, 8, 23), now)).toBe('earlier')
-  })
-
-  it('builds time display groups with pinned topics taking precedence', () => {
-    const now = new Date(2026, 4, 15, 12)
-    const groupTopic = createTopicDisplayGroupResolver({ mode: 'time', labels: TOPIC_GROUP_LABELS, now })
-
-    expect(groupTopic(createTopic({ id: 'pinned', pinned: true, updatedAt: localIso(2026, 5, 15, 9) }))).toEqual({
+    expect(groupTopic(createTopic({ id: 'pinned', pinned: true }))).toEqual({
       id: 'topic:pinned',
       label: 'Pinned'
     })
-    expect(groupTopic(createTopic({ id: 'today', updatedAt: localIso(2026, 5, 15, 9) }))).toEqual({
-      id: 'topic:time:today',
-      label: 'Today'
-    })
-    expect(groupTopic(createTopic({ id: 'yesterday', updatedAt: localIso(2026, 5, 14, 9) }))).toEqual({
-      id: 'topic:time:yesterday',
-      label: 'Yesterday'
-    })
-    expect(groupTopic(createTopic({ id: 'week', updatedAt: localIso(2026, 5, 13, 9) }))).toEqual({
-      id: 'topic:time:this-week',
-      label: 'This week'
-    })
-    expect(groupTopic(createTopic({ id: 'earlier', updatedAt: localIso(2026, 5, 8, 23) }))).toEqual({
-      id: 'topic:time:earlier',
-      label: 'Earlier'
+    expect(groupTopic(createTopic({ id: 'regular' }))).toEqual({
+      id: TOPIC_ORDINARY_GROUP_ID,
+      label: 'Conversations'
     })
   })
 
-  it('keeps pinned topics stable and sorts time buckets by updatedAt descending', () => {
-    const now = new Date(2026, 4, 15, 12)
+  it('keeps pinned topics stable and sorts the flat stream by createdAt descending', () => {
     const topics = [
-      createTopic({ id: 'today-old', updatedAt: localIso(2026, 5, 15, 8) }),
-      createTopic({ id: 'week', updatedAt: localIso(2026, 5, 13, 9) }),
-      createTopic({ id: 'pinned-old', pinned: true, updatedAt: localIso(2026, 5, 8, 23) }),
-      createTopic({ id: 'today-new', updatedAt: localIso(2026, 5, 15, 9) }),
-      createTopic({ id: 'pinned-new', pinned: true, updatedAt: localIso(2026, 5, 15, 9) })
+      createTopic({ id: 'created-old', createdAt: localIso(2026, 5, 1), updatedAt: localIso(2026, 5, 20) }),
+      createTopic({ id: 'pinned-old', pinned: true, createdAt: localIso(2026, 4, 1) }),
+      createTopic({ id: 'created-new', createdAt: localIso(2026, 5, 10), updatedAt: localIso(2026, 4, 1) }),
+      createTopic({ id: 'pinned-new', pinned: true, createdAt: localIso(2026, 5, 20) })
     ]
 
-    expect(sortTopicsForDisplayGroups(topics, { mode: 'time', now }).map((topic) => topic.id)).toEqual([
+    expect(sortTopicsForDisplayGroups(topics, { mode: 'time', sortBy: 'createdAt' }).map((topic) => topic.id)).toEqual([
       'pinned-old',
       'pinned-new',
-      'today-new',
-      'today-old',
-      'week'
+      'created-new',
+      'created-old'
     ])
   })
 
@@ -291,7 +262,8 @@ describe('Topics helpers', () => {
           ['assistant-a', 0],
           ['assistant-b', 1]
         ]),
-        mode: 'assistant'
+        mode: 'assistant',
+        sortBy: 'orderKey'
       }).map((topic) => topic.id)
     ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'default-1', 'unknown-1'])
   })
@@ -306,8 +278,29 @@ describe('Topics helpers', () => {
     expect(
       sortTopicsForDisplayGroups(topics, {
         assistantRankById: new Map([['assistant-a', 0]]),
-        mode: 'assistant'
+        mode: 'assistant',
+        sortBy: 'orderKey'
       }).map((topic) => topic.id)
     ).toEqual(['inserted-before-that', 'inserted-before-first', 'first-created'])
+  })
+
+  it('uses the selected timestamp within each assistant without changing assistant rank', () => {
+    const topics = [
+      createTopic({ id: 'assistant-b-new', assistantId: 'assistant-b', lastActivityAt: localIso(2026, 5, 20) }),
+      createTopic({ id: 'assistant-a-old', assistantId: 'assistant-a', lastActivityAt: localIso(2026, 5, 1) }),
+      createTopic({ id: 'assistant-b-old', assistantId: 'assistant-b', lastActivityAt: localIso(2026, 5, 2) }),
+      createTopic({ id: 'assistant-a-new', assistantId: 'assistant-a', lastActivityAt: localIso(2026, 5, 21) })
+    ]
+
+    expect(
+      sortTopicsForDisplayGroups(topics, {
+        assistantRankById: new Map([
+          ['assistant-a', 0],
+          ['assistant-b', 1]
+        ]),
+        mode: 'assistant',
+        sortBy: 'lastActivityAt'
+      }).map((topic) => topic.id)
+    ).toEqual(['assistant-a-new', 'assistant-a-old', 'assistant-b-new', 'assistant-b-old'])
   })
 })

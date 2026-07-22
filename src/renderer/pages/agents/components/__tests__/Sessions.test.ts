@@ -1,7 +1,7 @@
 import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import { describe, expect, it } from 'vitest'
 
-import { buildCreateSessionSeed, findLatestCreateSessionSeed } from '../Sessions'
+import { buildSessionCreationDefaults, findLatestSessionCreationDefaults } from '../Sessions'
 
 const workspace = (path: string) => ({
   id: `workspace-${path}`,
@@ -23,9 +23,9 @@ const session = (overrides: Partial<SessionListItem> = {}) =>
     ...overrides
   }) as SessionListItem
 
-describe('buildCreateSessionSeed', () => {
+describe('buildSessionCreationDefaults', () => {
   it('copies the agent and workspace id from the source session', () => {
-    expect(buildCreateSessionSeed(session({ agentId: 'agent-2', workspaceId: 'workspace-2' }))).toEqual({
+    expect(buildSessionCreationDefaults(session({ agentId: 'agent-2', workspaceId: 'workspace-2' }))).toEqual({
       agentId: 'agent-2',
       workspace: { type: 'user', workspaceId: 'workspace-2' }
     })
@@ -33,7 +33,7 @@ describe('buildCreateSessionSeed', () => {
 
   it('falls back to the embedded workspace path when the workspace id is missing', () => {
     expect(
-      buildCreateSessionSeed(session({ workspaceId: undefined, workspace: workspace('/Users/jd/project-b') }))
+      buildSessionCreationDefaults(session({ workspaceId: undefined, workspace: workspace('/Users/jd/project-b') }))
     ).toEqual({
       agentId: 'agent-1',
       workspacePath: '/Users/jd/project-b'
@@ -41,12 +41,12 @@ describe('buildCreateSessionSeed', () => {
   })
 
   it('returns null when the source session has no agent', () => {
-    expect(buildCreateSessionSeed(session({ agentId: undefined }))).toBeNull()
+    expect(buildSessionCreationDefaults(session({ agentId: undefined }))).toBeNull()
   })
 
   it('preserves no-project mode instead of reusing a system workspace id', () => {
     expect(
-      buildCreateSessionSeed(
+      buildSessionCreationDefaults(
         session({
           workspaceId: 'system-workspace',
           workspace: {
@@ -63,10 +63,10 @@ describe('buildCreateSessionSeed', () => {
   })
 })
 
-describe('findLatestCreateSessionSeed', () => {
+describe('findLatestSessionCreationDefaults', () => {
   it('uses the latest unpinned matching session', () => {
     expect(
-      findLatestCreateSessionSeed([
+      findLatestSessionCreationDefaults([
         session({
           id: 'pinned-session',
           agentId: 'agent-pinned',
@@ -91,7 +91,7 @@ describe('findLatestCreateSessionSeed', () => {
 
   it('honors the group predicate before choosing the seed', () => {
     expect(
-      findLatestCreateSessionSeed(
+      findLatestSessionCreationDefaults(
         [
           session({
             id: 'session-a',

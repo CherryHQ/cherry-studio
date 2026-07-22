@@ -6,8 +6,7 @@ import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
-import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
-import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import ConversationShell, { type ConversationCenterSurface } from '@renderer/components/chat/shell/ConversationShell'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
@@ -32,7 +31,8 @@ const logger = loggerService.withContext('Chat')
 
 interface Props {
   activeTopic?: Topic
-  centerSurface?: ConversationCenterSlot | null
+  centerFallback?: ReactNode
+  centerSurface?: ConversationCenterSurface | null
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
@@ -255,7 +255,7 @@ const Chat: FC<Props> = (props) => {
         onStartBranchDraft={handleStartBranchDraft}
       />
     ) : (
-      <ConversationCenterState state="loading" />
+      (props.centerFallback ?? <ConversationCenterState state="loading" />)
     ))
 
   return (

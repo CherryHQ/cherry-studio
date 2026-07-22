@@ -155,45 +155,28 @@ export type AgentSessionSortBy = z.infer<typeof AgentSessionSortBySchema>
 export const AgentSessionSearchScopeSchema = z.enum(['name', 'name-or-owner'])
 export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSchema>
 
-const ListAgentSessionsPageQueryShape = {
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional()
-} as const
-
-const ListAgentSessionsFilterQueryShape = {
+/**
+ * Query for `GET /agent-sessions`.
+ *
+ * Pinned and ordinary rows are independent streams. The pinned stream uses
+ * persisted pin order; the ordinary stream excludes pins and accepts a sort
+ * profile.
+ */
+const ListAgentSessionsCommonQuerySchema = z.strictObject({
   agentId: AgentSessionOwnerScopeSchema.optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(200).optional(),
   q: z.string().optional(),
   searchScope: AgentSessionSearchScopeSchema.optional(),
   /** Concrete user workspace id, or `system`. */
   workspaceId: AgentSessionWorkspaceScopeSchema.optional()
-} as const
-
-const LegacyAgentSessionOwnerIdSchema = AgentSessionOwnerScopeSchema.refine((agentId) => agentId !== 'unlinked', {
-  message: 'The unlinked owner scope requires an explicit pinned stream'
 })
 
-/**
- * Query for `GET /agent-sessions`.
- *
- * During the PR1 backend transition, omitting `pinned` preserves only the
- * legacy cursor/limit/concrete-Agent contract. Explicit pinned and ordinary
- * streams expose their independently implemented filters, while only the
- * ordinary stream accepts a sort profile.
- */
-export const ListAgentSessionsQuerySchema = z.union([
-  z.strictObject({
-    ...ListAgentSessionsPageQueryShape,
-    agentId: LegacyAgentSessionOwnerIdSchema.optional(),
-    pinned: z.undefined().optional()
-  }),
-  z.strictObject({
-    ...ListAgentSessionsPageQueryShape,
-    ...ListAgentSessionsFilterQueryShape,
+export const ListAgentSessionsQuerySchema = z.discriminatedUnion('pinned', [
+  ListAgentSessionsCommonQuerySchema.extend({
     pinned: z.literal(true)
   }),
-  z.strictObject({
-    ...ListAgentSessionsPageQueryShape,
-    ...ListAgentSessionsFilterQueryShape,
+  ListAgentSessionsCommonQuerySchema.extend({
     pinned: z.literal(false),
     sortBy: AgentSessionSortBySchema.optional()
   })

@@ -1,3 +1,4 @@
+import { Skeleton } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
@@ -24,6 +25,7 @@ import {
 import { ResourceListLeadingSlot } from './ResourceListLeadingSlot'
 
 const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
+const GROUP_LOADING_ITEM_WIDTHS = ['w-36', 'w-28', 'w-32', 'w-24', 'w-30'] as const
 
 function stopEventPropagation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
@@ -116,7 +118,9 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupItems = viewGroup?.allItems ?? EMPTY_GROUP_HEADER_ITEMS
   const clickBehavior = meta.getGroupHeaderClickBehavior(group)
   const isCollapsible = clickBehavior !== 'none'
-  const selected = clickBehavior === 'select-first-then-toggle' && groupState.selected
+  const selected =
+    clickBehavior === 'select-first-then-toggle' &&
+    (meta.getGroupHeaderSelected ? meta.getGroupHeaderSelected(group) : groupState.selected)
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
@@ -132,10 +136,15 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     },
     [onContextMenu]
   )
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback(async () => {
     if (!isCollapsible) return
 
     if (clickBehavior === 'select-first-then-toggle' && !selected) {
+      if (meta.onGroupHeaderActivate) {
+        const handled = await meta.onGroupHeaderActivate(group)
+        if (handled !== false) return
+      }
+
       const firstItem = groupItems[0]
       if (firstItem) {
         actions.selectGroupHeaderItem(meta.getItemId(firstItem))
@@ -143,7 +152,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       }
 
       if (meta.onEmptyGroupHeaderClick) {
-        const handled = meta.onEmptyGroupHeaderClick(group)
+        const handled = await meta.onEmptyGroupHeaderClick(group)
         if (handled !== false) return
       }
     }
@@ -172,7 +181,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       <div
         title={groupHeaderTooltip}
         className={cn(
-          'flex w-full items-center gap-1.5 transition-colors duration-150',
+          'relative flex w-full items-center gap-1.5 transition-colors duration-150',
           hasLeadingSlot ? 'px-1.5' : 'px-2.5',
           RESOURCE_LIST_VISUAL_ROW_CLASS,
           RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
@@ -194,8 +203,12 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             type="button"
             aria-expanded={!collapsed}
             aria-current={selected ? 'true' : undefined}
-            className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
-            onClick={handleClick}>
+            className={cn(
+              'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none',
+              Boolean(groupHeaderAction) &&
+                'transition-[padding] group-focus-within/resource-list-group:pr-12 group-hover/resource-list-group:pr-12 group-has-data-[state=open]/resource-list-group:pr-12'
+            )}
+            onClick={() => void handleClick().catch(() => undefined)}>
             {groupHeaderIcon && (
               <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
                 {groupHeaderIcon}
@@ -204,12 +217,13 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
               {group.label}
             </span>
-            <ChevronRight
-              aria-hidden="true"
-              size={11}
-              className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
-              style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
-            />
+            <span className="-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-foreground/70 group-focus-within/resource-list-group:flex group-hover/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex">
+              <ChevronRight
+                aria-hidden="true"
+                className="size-3 transition-transform duration-150"
+                style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
+              />
+            </span>
           </button>
         ) : (
           <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
@@ -225,7 +239,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         )}
         {groupHeaderAction && (
           <div
-            className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
+            className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
             onClick={stopEventPropagation}
             onContextMenu={stopEventPropagation}
             onPointerDown={stopEventPropagation}
@@ -256,6 +270,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
   const meta = useResourceListMeta()
   const groupState = useResourceListGroupState(groupId)
   const canCollapseToDefault = groupState.canCollapseToDefault
+  const isLoading = groupState.status === 'loading'
   const label = canCollapseToDefault ? meta.groupCollapseLabel : meta.groupShowMoreLabel
 
   if (!label) return null
@@ -273,16 +288,55 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
+        aria-busy={isLoading || undefined}
+        data-error={groupState.status === 'error' || undefined}
+        disabled={isLoading}
         className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground/55 leading-4 transition-colors duration-150 hover:text-inherit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)
             return
           }
-          actions.showMoreInGroup(groupId)
+          void actions.showMoreInGroup(groupId).catch(() => undefined)
         }}>
         {label}
       </button>
+    </div>
+  )
+}
+
+type GroupLoadingProps = ComponentProps<'div'> & {
+  groupHeaderIconVisible: boolean
+  itemCount: number
+  ref?: Ref<HTMLDivElement>
+}
+
+export function GroupLoading({ className, groupHeaderIconVisible, itemCount, ref, ...props }: GroupLoadingProps) {
+  return (
+    <div
+      ref={ref}
+      aria-hidden="true"
+      data-resource-list-group-loading="true"
+      className={cn('flex flex-col', className)}
+      {...props}>
+      {GROUP_LOADING_ITEM_WIDTHS.slice(0, itemCount).map((width, index) => (
+        <div
+          key={`${width}-${index}`}
+          data-resource-list-group-loading-item="true"
+          className={cn(
+            'flex w-full items-center gap-1.5',
+            RESOURCE_LIST_ROW_HEIGHT_CLASS,
+            groupHeaderIconVisible ? 'px-1.5' : 'px-2.5'
+          )}>
+          {groupHeaderIconVisible && (
+            <ResourceListLeadingSlot variant="loading">
+              <Skeleton className="size-5 shrink-0 rounded-md" />
+            </ResourceListLeadingSlot>
+          )}
+          <Skeleton className={cn('h-3 rounded-sm', width)} />
+          <Skeleton className="ml-auto size-5 shrink-0 rounded-md opacity-60" />
+        </div>
+      ))}
     </div>
   )
 }

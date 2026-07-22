@@ -24,6 +24,7 @@ const virtualMocks = vi.hoisted(() => ({
         size: 40
       })),
     getTotalSize: () => options.count * 40,
+    getVirtualIndexes: () => Array.from({ length: options.count }, (_, index) => index),
     measureElement: vi.fn(),
     scrollElement: null,
     scrollToIndex: virtualMocks.scrollToIndex
@@ -360,7 +361,7 @@ describe('ResourceList', () => {
     })
   })
 
-  it('keeps seeded groups before item-derived groups and toggles empty select-first groups', () => {
+  it('keeps seeded groups before item-derived groups and toggles empty select-first groups', async () => {
     const Provider = ResourceList.Provider<TestItem>
     const onGroupHeaderSelectItem = vi.fn()
     const onCollapsedStateChange = vi.fn()
@@ -398,8 +399,10 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
 
+    await waitFor(() => {
+      expect(onCollapsedStateChange).toHaveBeenCalledWith(['empty-topic'])
+    })
     expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
-    expect(onCollapsedStateChange).toHaveBeenCalledWith(['empty-topic'])
   })
 
   it('ignores invalid controlled collapsed state from stale persisted cache', () => {
@@ -431,7 +434,7 @@ describe('ResourceList', () => {
     })
   })
 
-  it('lets callers handle empty select-first group clicks', () => {
+  it('lets callers handle empty select-first group clicks', async () => {
     const Provider = ResourceList.Provider<TestItem>
     const onEmptyGroupHeaderClick = vi.fn()
     const onCollapsedStateChange = vi.fn()
@@ -464,9 +467,11 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
 
-    expect(onEmptyGroupHeaderClick).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'empty-topic', label: 'Empty Topic' })
-    )
+    await waitFor(() => {
+      expect(onEmptyGroupHeaderClick).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'empty-topic', label: 'Empty Topic' })
+      )
+    })
     expect(onCollapsedStateChange).not.toHaveBeenCalled()
   })
 
@@ -1382,16 +1387,22 @@ describe('ResourceList', () => {
     const sessionButton = screen.getByRole('button', { name: 'session' })
     const sessionLabel = sessionButton.querySelector('span')
     const sessionChevron = sessionButton.querySelector<SVGSVGElement>('svg')
+    const sessionChevronSlot = sessionChevron?.parentElement
     expect(sessionLabel).not.toBeNull()
     expect(sessionChevron).not.toBeNull()
-    expect(sessionChevron!.previousElementSibling).toBe(sessionLabel)
+    expect(sessionChevronSlot?.previousElementSibling).toBe(sessionLabel)
     expect(sessionLabel!).not.toHaveClass('flex-1')
-    expect(sessionChevron!).toHaveClass(
+    expect(sessionChevronSlot).toHaveClass(
       'hidden',
-      'group-hover/resource-list-group:block',
-      'group-focus-within/resource-list-group:block',
-      'group-has-data-[state=open]/resource-list-group:block'
+      '-ml-1.5',
+      'size-6',
+      'items-center',
+      'justify-center',
+      'group-hover/resource-list-group:flex',
+      'group-focus-within/resource-list-group:flex',
+      'group-has-data-[state=open]/resource-list-group:flex'
     )
+    expect(sessionChevron!).toHaveClass('size-3')
     expect(sessionChevron!.style.transform).toBe('rotate(90deg)')
 
     fireEvent.click(sessionButton)
@@ -1529,6 +1540,56 @@ describe('ResourceList', () => {
     })
   })
 
+  it('activates an inactive group without changing expansion before toggling the active group', async () => {
+    const onGroupHeaderActivate = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function ActivationHarness() {
+      const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+      const [collapsedGroups, setCollapsedGroups] = useState<string[]>(['session'])
+
+      return (
+        <Provider
+          items={ITEMS}
+          groupBy={(item) => ({ id: item.kind, label: item.kind })}
+          groupHeaderClickBehavior="select-first-then-toggle"
+          getGroupHeaderSelected={(group) => group.id === activeGroupId}
+          onGroupHeaderActivate={(group) => {
+            onGroupHeaderActivate(group.id)
+            setActiveGroupId(group.id)
+          }}
+          collapsedState={collapsedGroups}
+          onCollapsedStateChange={setCollapsedGroups}>
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<ActivationHarness />)
+
+    const sessionGroupButton = screen.getByRole('button', { name: 'session' })
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(sessionGroupButton)
+
+    await waitFor(() => expect(onGroupHeaderActivate).toHaveBeenCalledWith('session'))
+    expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(sessionGroupButton)
+
+    expect(onGroupHeaderActivate).toHaveBeenCalledTimes(1)
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('selects the first item before expanding a collapsed controlled group header', () => {
     const onGroupHeaderSelectItem = vi.fn()
     const onCollapsedStateChange = vi.fn()
@@ -1587,16 +1648,29 @@ describe('ResourceList', () => {
 
     const groupActionButton = screen.getAllByRole('button', { name: 'Group more' })[0]
     const groupActionWrapper = groupActionButton.parentElement
+    const groupHeaderRow = groupActionWrapper?.parentElement
+    const groupHeaderButton = screen.getByRole('button', { name: 'session' })
 
     expect(groupActionButton).toHaveClass('size-6', 'min-h-6', 'min-w-6', 'rounded-md', 'p-0', '[&_svg]:size-3!')
     expect(groupActionButton).not.toHaveClass('min-h-7.5')
+    expect(groupHeaderRow).toHaveClass('relative')
+    expect(groupHeaderButton).toHaveClass(
+      'group-hover/resource-list-group:pr-12',
+      'group-focus-within/resource-list-group:pr-12',
+      'group-has-data-[state=open]/resource-list-group:pr-12'
+    )
     expect(groupActionWrapper).toHaveClass(
+      'absolute',
+      'top-1/2',
+      'right-1.5',
+      '-translate-y-1/2',
       'flex',
       'opacity-0',
       'group-hover/resource-list-group:opacity-100',
       'group-focus-within/resource-list-group:opacity-100',
       'has-data-[state=open]:opacity-100'
     )
+    expect(groupActionWrapper).not.toHaveClass('ml-auto', 'shrink-0')
     expect(groupActionWrapper).not.toHaveClass('hidden')
   })
 
@@ -1749,6 +1823,57 @@ describe('ResourceList', () => {
     expect(viewport).toHaveAttribute('data-scrolling', 'false')
   })
 
+  it('notifies once when the shared list viewport reaches the pagination threshold', () => {
+    const onEndReached = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+    const renderList = (callback: () => void) => (
+      <Provider
+        items={ITEMS}
+        groupShowMoreLabel="Show more"
+        remoteData={{
+          query: '',
+          groupStates: { all: { totalCount: 10, hasMore: true, status: 'idle' } },
+          onQueryChange: vi.fn(),
+          loadMoreGroup: vi.fn()
+        }}>
+        <ResourceList.Frame>
+          <ResourceList.Body<TestItem>
+            onEndReached={callback}
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+    const view = render(renderList(onEndReached))
+
+    const viewport = screen.getByRole('listbox')
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+    expect(onEndReached).not.toHaveBeenCalled()
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 1000 },
+      scrollTop: { configurable: true, value: 0, writable: true }
+    })
+    fireEvent.scroll(viewport)
+    viewport.scrollTop = 650
+    fireEvent.scroll(viewport)
+    fireEvent.scroll(viewport)
+    expect(onEndReached).toHaveBeenCalledTimes(1)
+
+    view.rerender(renderList(() => onEndReached()))
+    expect(onEndReached).toHaveBeenCalledTimes(1)
+
+    viewport.scrollTop = 0
+    fireEvent.scroll(viewport)
+    viewport.scrollTop = 700
+    fireEvent.scroll(viewport)
+    expect(onEndReached).toHaveBeenCalledTimes(2)
+  })
+
   it('limits each group to the default visible count and expands the group independently', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({
@@ -1835,6 +1960,145 @@ describe('ResourceList', () => {
     const collapseButton = screen.getByRole('button', { name: 'Collapse' })
     expect(collapseButton.parentElement).toHaveClass('pl-2.5')
     expect(collapseButton.parentElement).not.toHaveClass('pl-9')
+  })
+
+  it('uses controlled remote query state and loads real cursor pages from Show more', async () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const allItems = Array.from({ length: 10 }, (_, index) => ({
+      id: `remote-${index + 1}`,
+      name: `Remote ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: 10 - index
+    }))
+    const loadMoreGroup = vi.fn()
+
+    function RemoteHarness() {
+      const [items, setItems] = useState(allItems.slice(0, 5))
+      const [hasMore, setHasMore] = useState(true)
+      const [query, setQuery] = useState('does-not-match-loaded-items')
+
+      return (
+        <Provider
+          items={items}
+          groupBy={() => ({ id: 'remote', label: 'Remote' })}
+          groupSeeds={[{ id: 'remote', label: 'Remote', count: 10 }]}
+          groupShowMoreLabel="Show more"
+          groupCollapseLabel="Collapse"
+          remoteData={{
+            query,
+            groupStates: { remote: { totalCount: 10, hasMore, status: 'idle' } },
+            onQueryChange: setQuery,
+            loadMoreGroup: async (groupId) => {
+              loadMoreGroup(groupId)
+              setItems(allItems)
+              setHasMore(false)
+            }
+          }}>
+          <ResourceList.Frame>
+            <Inspector />
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<RemoteHarness />)
+
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      query: 'does-not-match-loaded-items',
+      names: ['Remote 1', 'Remote 2', 'Remote 3', 'Remote 4', 'Remote 5']
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+
+    await waitFor(() => expect(loadMoreGroup).toHaveBeenCalledWith('remote'))
+    expect(screen.getByText('Remote 10')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
+  })
+
+  it('keeps an expanded remote group at its resolved height while its first page is loading', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const loadedItems = Array.from({ length: 3 }, (_, index) => ({
+      id: `remote-${index + 1}`,
+      name: `Remote ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: 3 - index
+    }))
+    const renderList = (items: TestItem[], status: 'idle' | 'loading') => (
+      <Provider
+        items={items}
+        collapsedState={[]}
+        groupBy={() => ({ id: 'remote', label: 'Remote' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote', count: 3 }]}
+        remoteData={{
+          query: '',
+          groupStates: { remote: { totalCount: 3, hasMore: status === 'loading', status } },
+          onQueryChange: vi.fn()
+        }}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+    const view = render(renderList([], 'loading'))
+
+    const loadingGroup = document.querySelector('[data-resource-list-group-loading]')
+    expect(screen.getByRole('button', { name: 'Remote' })).toHaveAttribute('aria-expanded', 'true')
+    expect(loadingGroup).toBeInTheDocument()
+    expect(loadingGroup?.querySelectorAll('[data-resource-list-group-loading-item]')).toHaveLength(3)
+    expect(lastVirtualizerOptions().estimateSize(1)).toBe(3 * 38)
+    expect(
+      Array.from({ length: lastVirtualizerOptions().count }, (_, index) => index).reduce(
+        (total, index) => total + lastVirtualizerOptions().estimateSize(index),
+        0
+      )
+    ).toBe(4 * 38)
+
+    view.rerender(renderList(loadedItems, 'idle'))
+
+    expect(document.querySelector('[data-resource-list-group-loading]')).not.toBeInTheDocument()
+    expect(screen.getByText('Remote 3')).toBeInTheDocument()
+    expect(
+      Array.from({ length: lastVirtualizerOptions().count }, (_, index) => index).reduce(
+        (total, index) => total + lastVirtualizerOptions().estimateSize(index),
+        0
+      )
+    ).toBe(4 * 38)
+  })
+
+  it('preserves a remote query when the requested item already belongs to its result', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const onQueryChange = vi.fn()
+
+    render(
+      <Provider
+        items={[{ id: 'matching', name: 'Matching', kind: 'topic', updatedAt: 1 }]}
+        groupBy={() => ({ id: 'remote', label: 'Remote' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
+        revealRequest={{ itemId: 'matching', requestId: 1, clearQuery: true }}
+        remoteData={{
+          query: 'match',
+          groupStates: { remote: { totalCount: 1, hasMore: false, status: 'idle' } },
+          onQueryChange
+        }}>
+        <Inspector />
+      </Provider>
+    )
+
+    expect(onQueryChange).not.toHaveBeenCalled()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'match' })
   })
 
   it('toggles every group in a section from a menu item without collapsing the section', () => {

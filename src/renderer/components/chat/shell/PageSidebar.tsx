@@ -2,6 +2,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -24,19 +25,28 @@ export interface PageSidebarProps {
 
 export function PageSidebar({ children, open, width, className, style, onPaneCollapse }: PageSidebarProps) {
   const { t } = useTranslation()
+  const [hasOpened, setHasOpened] = useState(Boolean(open))
   const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useResourceListPaneResize({ onPaneCollapse })
   const resolvedWidth = width ?? paneWidth
 
+  useEffect(() => {
+    if (open) setHasOpened(true)
+  }, [open])
+
+  const shouldRender = Boolean(children && (open || hasOpened))
+
   return (
     <AnimatePresence initial={false}>
-      {open && children && (
+      {shouldRender && (
         <motion.div
           ref={paneRef}
           key="page-sidebar"
           initial={{ width: 0, opacity: 0 }}
-          animate={{ width: resolvedWidth || CHAT_SHELL_PANE_WIDTH, opacity: 1 }}
+          animate={open ? { width: resolvedWidth || CHAT_SHELL_PANE_WIDTH, opacity: 1 } : { width: 0, opacity: 0 }}
           exit={{ width: 0, opacity: 0 }}
           transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
+          aria-hidden={!open}
+          inert={!open}
           data-resource-list-pane
           data-resizing={isResizing || undefined}
           className={cn(

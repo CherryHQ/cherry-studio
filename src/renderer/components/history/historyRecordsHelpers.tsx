@@ -1,43 +1,27 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import type { AgentSessionStreamState } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import type { TFunction } from 'i18next'
 import { Bot } from 'lucide-react'
 
-import type { HistorySourceOption, HistorySourceStatus, HistoryStatusOption } from './historyRecordsTypes'
+import type { HistorySourceOption } from './historyRecordsTypes'
 
 export const ALL_SOURCE_ID = 'all'
-const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
-const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
+export const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
+export const UNLINKED_AGENT_SOURCE_ID = '__unknown_agent__'
 
-type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
-
-export function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>, assistantById?: ReadonlyMap<string, Assistant>) {
-  if (!topic.assistantId) return UNLINKED_ASSISTANT_SOURCE_ID
-  if (assistantById && !assistantById.has(topic.assistantId)) return UNLINKED_ASSISTANT_SOURCE_ID
-
-  return topic.assistantId
-}
-
-export function getSessionAgentSourceId(
-  session: Pick<AgentSessionEntity, 'agentId'>,
-  agentById?: ReadonlyMap<string, AgentEntity>
-) {
-  if (!session.agentId) return UNKNOWN_AGENT_SOURCE_ID
-  if (agentById && !agentById.has(session.agentId)) return UNKNOWN_AGENT_SOURCE_ID
-
-  return session.agentId
-}
-
-export function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): AgentHistorySessionStatus {
-  if (streamStatus?.isPending === true) return 'running'
-  if (streamStatus?.status === 'error') return 'failed'
-
-  return 'completed'
+/**
+ * Map a history source-filter selection to the server-side owner scope: the
+ * synthetic "unlinked" source ids become the literal `'unlinked'` scope,
+ * `all` means no scope, and concrete ids pass through.
+ */
+export function toServerOwnerScope(selectedSourceId: string): string | undefined {
+  if (selectedSourceId === ALL_SOURCE_ID) return undefined
+  if (selectedSourceId === UNLINKED_ASSISTANT_SOURCE_ID || selectedSourceId === UNLINKED_AGENT_SOURCE_ID) {
+    return 'unlinked'
+  }
+  return selectedSourceId
 }
 
 export function findAdjacentHistoryRecordAfterBulkDelete<T>(
@@ -61,41 +45,13 @@ export function findAdjacentHistoryRecordAfterBulkDelete<T>(
   return undefined
 }
 
-export function buildAgentStatusItems(t: TFunction): HistoryStatusOption[] {
-  return [
-    {
-      id: ALL_SOURCE_ID,
-      label: t('common.all')
-    },
-    {
-      id: 'running',
-      label: t('history.records.status.running'),
-      dotClassName: 'text-warning'
-    },
-    {
-      id: 'completed',
-      label: t('history.records.status.completed'),
-      dotClassName: 'text-success'
-    },
-    {
-      id: 'failed',
-      label: t('history.records.status.failed'),
-      dotClassName: 'text-destructive'
-    }
-  ]
-}
-
 export function buildAssistantSources(
-  topics: readonly ApiTopic[],
+  hasUnlinkedAssistant: boolean,
   assistantById: ReadonlyMap<string, Assistant>,
   assistantRankById: ReadonlyMap<string, number>,
   unlinkedAssistantLabel: string,
   t: TFunction
 ): HistorySourceOption[] {
-  const hasUnlinkedAssistant = topics.some(
-    (topic) => getTopicSourceId(topic, assistantById) === UNLINKED_ASSISTANT_SOURCE_ID
-  )
-
   return [
     {
       id: ALL_SOURCE_ID,
@@ -124,16 +80,12 @@ export function buildAssistantSources(
 }
 
 export function buildAgentSources(
-  sessions: readonly AgentSessionEntity[],
+  hasUnlinkedAgent: boolean,
   agentById: ReadonlyMap<string, AgentEntity>,
   agentRankById: ReadonlyMap<string, number>,
-  unknownAgentLabel: string,
+  unlinkedAgentLabel: string,
   t: TFunction
 ): HistorySourceOption[] {
-  const hasUnknownAgent = sessions.some(
-    (session) => getSessionAgentSourceId(session, agentById) === UNKNOWN_AGENT_SOURCE_ID
-  )
-
   return [
     {
       id: ALL_SOURCE_ID,
@@ -155,11 +107,11 @@ export function buildAgentSources(
           )
         }
       }),
-    ...(hasUnknownAgent
+    ...(hasUnlinkedAgent
       ? [
           {
-            id: UNKNOWN_AGENT_SOURCE_ID,
-            label: unknownAgentLabel,
+            id: UNLINKED_AGENT_SOURCE_ID,
+            label: unlinkedAgentLabel,
             icon: <Bot size={15} />
           }
         ]
