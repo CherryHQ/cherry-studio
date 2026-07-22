@@ -442,6 +442,38 @@ describe('Doubao Seed 2.0 Models', () => {
   })
 })
 
+describe('Doubao Seed 2.1 and Evolving Models', () => {
+  it('should identify doubao-seed-2-1-pro-260628 as vision model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-1-pro-260628',
+      name: 'doubao-seed-2-1-pro',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.1'
+    }
+    expect(isVisionModel(model)).toBe(true)
+  })
+
+  it('should identify doubao-seed-2-1-turbo-260628 as vision model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-1-turbo-260628',
+      name: 'doubao-seed-2-1-turbo',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.1'
+    }
+    expect(isVisionModel(model)).toBe(true)
+  })
+
+  it('should identify doubao-seed-evolving as vision model', () => {
+    const model: Model = {
+      id: 'doubao-seed-evolving',
+      name: 'doubao-seed-evolving',
+      provider: 'doubao',
+      group: 'Doubao-Seed-Evolving'
+    }
+    expect(isVisionModel(model)).toBe(true)
+  })
+})
+
 describe('Gemma 4 Models', () => {
   it('detects Gemma 4 GenAI format as vision', () => {
     expect(isVisionModel(createModel({ id: 'gemma-4-e2b' }))).toBe(true)

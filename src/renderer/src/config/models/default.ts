@@ -1007,6 +1007,24 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'doubao',
       name: 'Doubao-Seed-2.0-Mini',
       group: 'Doubao-Seed-2.0'
+    },
+    {
+      id: 'doubao-seed-2-1-pro-260628',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.1-Pro',
+      group: 'Doubao-Seed-2.1'
+    },
+    {
+      id: 'doubao-seed-2-1-turbo-260628',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.1-Turbo',
+      group: 'Doubao-Seed-2.1'
+    },
+    {
+      id: 'doubao-seed-evolving',
+      provider: 'doubao',
+      name: 'Doubao-Seed-Evolving',
+      group: 'Doubao-Seed-Evolving'
     }
   ],
   minimax: [
