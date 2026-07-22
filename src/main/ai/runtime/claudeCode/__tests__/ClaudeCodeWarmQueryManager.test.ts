@@ -62,8 +62,8 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
     const second = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
 
-    expect(consumed).toBe(warm)
-    expect(second).toBeUndefined()
+    expect(consumed).toEqual({ query: warm, outcome: 'hit' })
+    expect(second).toEqual({ outcome: 'miss-no-entry' })
     expect(startupMock).toHaveBeenCalledWith({
       options: { model: 'sonnet', resume: 'sdk-1' },
       initializeTimeoutMs: undefined
@@ -84,7 +84,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } as any })
 
     expect(stale.close).toHaveBeenCalledOnce()
-    expect(consumed).toBe(current)
+    expect(consumed).toEqual({ query: current, outcome: 'hit' })
   })
 
   it('uses the same signature with or without abortController', () => {
@@ -153,7 +153,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
       credentialsFingerprint: 'set-1'
     })
 
-    expect(consumed).toBe(warm)
+    expect(consumed).toEqual({ query: warm, outcome: 'hit' })
     expect(warm.close).not.toHaveBeenCalled()
   })
 
@@ -173,9 +173,20 @@ describe('ClaudeCodeWarmQueryManager', () => {
       credentialsFingerprint: 'set-2'
     })
 
-    expect(consumed).toBeUndefined()
+    expect(consumed).toEqual({ outcome: 'miss-signature' })
     await Promise.resolve()
     expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('classifies a failed warm startup as miss-no-entry', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    startupMock.mockRejectedValueOnce(new Error('boom'))
+
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await Promise.resolve()
+    const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet' } as any })
+
+    expect(consumed).toEqual({ outcome: 'miss-no-entry' })
   })
 
   it('closes unused warm queries after the idle ttl', async () => {
@@ -205,7 +216,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
 
     expect(buildWarmRequestMock).toHaveBeenCalledWith('session-1')
-    expect(consumed).toBe(warm)
+    expect(consumed).toEqual({ query: warm, outcome: 'hit' })
   })
 
   it('does not prewarm agent sessions while Claude Code trace mode is enabled', async () => {

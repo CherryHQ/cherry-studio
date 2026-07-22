@@ -3,6 +3,7 @@ import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { WarmQueryOutcome } from '@shared/ai/agentPrepareTimeline'
 
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 
@@ -170,23 +171,30 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     this.refreshIdleTimer(request.key, entry)
   }
 
-  async consume(request: WarmQueryRequest): Promise<WarmQuery | undefined> {
+  /**
+   * Try to reuse the prewarmed subprocess for `request`. The `outcome` distinguishes a genuine hit
+   * from the two miss reasons the prepare timeline records: `miss-no-entry` (nothing was prewarmed for
+   * this key) vs. `miss-signature` (a prewarm exists but its options/credentials drifted — a signal of
+   * a prewarm/consume divergence bug worth surfacing). A `hit` whose warm startup ultimately failed
+   * degrades to `miss-no-entry` (there is no reusable subprocess).
+   */
+  async consume(request: WarmQueryRequest): Promise<{ query?: WarmQuery; outcome: WarmQueryOutcome }> {
     const warmOptions = stripWarmQueryOptions(request.options)
     const signature = createClaudeCodeWarmQuerySignature(warmOptions, request.credentialsFingerprint)
     const entry = this.entries.get(request.key)
-    if (!entry) return undefined
+    if (!entry) return { outcome: 'miss-no-entry' }
 
     this.entries.delete(request.key)
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
 
     if (entry.signature !== signature) {
       this.closeEntry(entry)
-      return undefined
+      return { outcome: 'miss-signature' }
     }
 
     const warmQuery = await entry.promise
-    if (!warmQuery) return undefined
-    return warmQuery
+    if (!warmQuery) return { outcome: 'miss-no-entry' }
+    return { query: warmQuery, outcome: 'hit' }
   }
 
   close(key: string): void {

@@ -19,6 +19,7 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isExternalCliProvider, isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import type { PrepareTimelineRecorder } from '../prepareTimelineRecorder'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -245,7 +246,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Connection-scoped model override: a live turn runs on the model captured at its creation,
    *  which may differ from the agent's latest model after a mid-window edit. Defaults to the
    *  agent's current model (prewarm and turn-less connections). */
-  connectionModelId?: UniqueModelId
+  connectionModelId?: UniqueModelId,
+  /** Prepare-timeline recorder — instruments the settings-build sub-steps on the connect path.
+   *  Absent on the prewarm path (that build happens off the turn's critical path). */
+  recorder?: PrepareTimelineRecorder
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -280,7 +284,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       {
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
-        linkedChannelSnapshot
+        linkedChannelSnapshot,
+        recorder
       },
       agent
     ),

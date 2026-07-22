@@ -1227,6 +1227,55 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('streams a live prepare-progress chunk to the turn before connect resolves (prepare timeline pitfall 1)', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const connectDeferred = createDeferred<any>()
+    // The driver emits a coarse prepare phase synchronously, DURING connect, before the connection
+    // (and therefore its event queue) exists. If the host forwarded progress through the connection's
+    // own queue it could not reach the renderer until connect resolved — this proves the host-side
+    // controller path bypasses that queue.
+    const connect = vi.fn((input: any) => {
+      input.onPrepareStage?.({ phase: 'connecting-mcp', mcpServerName: 'filesystem' })
+      return connectDeferred.promise
+    })
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    // Resolves while connect is still pending — the live update arrived before prepare completed.
+    await expect(reader.read()).resolves.toMatchObject({
+      value: {
+        type: 'data-prepare-progress',
+        id: 'cs-prepare-progress',
+        data: { phase: 'connecting-mcp', mcpServerName: 'filesystem' }
+      },
+      done: false
+    })
+    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ prepareStartedAt: expect.any(Number) }))
+
+    connectDeferred.resolve(connection)
+    await reader.cancel().catch(() => undefined)
+  })
+
   it('ignores per-execution terminal events until the topic is done', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)
@@ -1850,7 +1899,10 @@ describe('AgentSessionRuntimeService', () => {
           sessionId: 'session-1',
           turnId: handle.turnId,
           modelName: 'claude-sonnet-4-5'
-        }
+        },
+        // A turn-attached connect also carries the prepare-timeline hooks.
+        prepareStartedAt: expect.any(Number),
+        onPrepareStage: expect.any(Function)
       })
     )
 
@@ -1902,7 +1954,10 @@ describe('AgentSessionRuntimeService', () => {
           sessionId: 'session-1',
           turnId: handle.turnId,
           modelName: 'claude-sonnet-4-5'
-        }
+        },
+        // A turn-attached connect also carries the prepare-timeline hooks.
+        prepareStartedAt: expect.any(Number),
+        onPrepareStage: expect.any(Function)
       })
     )
 

@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks'
 import { fileURLToPath } from 'node:url'
 
 import {
@@ -9,7 +10,8 @@ import {
   type SDKResultMessage,
   type SDKStatusMessage,
   type SDKSystemMessage,
-  type SDKUserMessage
+  type SDKUserMessage,
+  type WarmQuery
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -21,6 +23,7 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { PrepareTimelineRecorder } from '@main/ai/runtime/prepareTimelineRecorder'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -162,22 +165,50 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
    *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
+  /** Prepare-timeline recorder — spans connect → first content chunk (TTFT). Cleared once finalized. */
+  private recorder?: PrepareTimelineRecorder
+  /** True when a waiting turn will stream through this connection (`prepareStartedAt` present); a
+   *  turn-less prime finalizes its timeline at `init` since no content chunk ever arrives. */
+  private readonly isTurnAttached: boolean
+  private initSeen = false
+  private firstChunkSeen = false
 
   readonly events = this.eventQueue
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
+    this.isTurnAttached = input.prepareStartedAt !== undefined
   }
 
   async start(): Promise<this> {
+    // Prepare-timeline recorder: created at connect start so the settings build sub-steps (threaded
+    // via the request builder) and, later, spawn/init/TTFT are all measured against one clock. Its
+    // `onStage` sink is invoked SYNCHRONOUSLY (bypassing this connection's event queue, which the host
+    // only drains after connect resolves) so live progress reaches the waiting turn during prepare.
+    const connectStartedAt = performance.now()
+    this.recorder = new PrepareTimelineRecorder(
+      {
+        sessionId: this.input.sessionId,
+        agentId: this.input.agentId,
+        runtimeType: 'claude-code',
+        onStage: this.input.onPrepareStage
+      },
+      connectStartedAt
+    )
+    if (this.input.prepareStartedAt !== undefined) {
+      this.recorder.recordDispatch(connectStartedAt - this.input.prepareStartedAt)
+    }
+
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
-      this.input.modelId
+      this.input.modelId,
+      this.recorder
     )
     if (!request) {
+      this.recorder = undefined
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
     this.connectionConfig = request.connectionConfig
@@ -195,18 +226,26 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         : {}),
       abortController: this.abortController
     }
-    const warmQuery = traceEnv
-      ? undefined
-      : await application.get('ClaudeCodeWarmQueryManager').consume({
-          key: request.key,
-          options,
-          initializeTimeoutMs: request.initializeTimeoutMs,
-          credentialsFingerprint: request.credentialsFingerprint
-        })
+    this.recorder?.begin('warm-query')
+    let warmQuery: WarmQuery | undefined
+    if (traceEnv) {
+      // Trace mode never reuses a prewarmed subprocess (the per-turn trace env must be injected).
+      this.recorder?.patch({ warmQuery: 'miss-no-entry' })
+    } else {
+      const consumed = await application.get('ClaudeCodeWarmQueryManager').consume({
+        key: request.key,
+        options,
+        initializeTimeoutMs: request.initializeTimeoutMs,
+        credentialsFingerprint: request.credentialsFingerprint
+      })
+      this.recorder?.patch({ warmQuery: consumed.outcome })
+      warmQuery = consumed.query
+    }
 
     this.query = warmQuery
       ? warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+    this.recorder?.begin('spawn-to-init')
     this.adapterModelId = request.sdkModelId
     this.approvalEmitter = request.settings.approvalEmitter
     // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
@@ -234,6 +273,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
+
+    // If init already arrived before the host sent this turn, the recorder closed `spawn-to-init` and
+    // is waiting — open the TTFT stage now so it measures send/init-ready → first content chunk.
+    if (this.initSeen && this.recorder && !this.recorder.isFinalized) {
+      this.recorder.begin('init-to-first-chunk')
+    }
 
     if (this.pendingInitMessage) {
       this.adapter.handleMessage(this.pendingInitMessage)
@@ -325,9 +370,34 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
+    this.finalizeRecorderIfPending()
     this.teardownSession()
     this.query?.close()
     this.eventQueue.close()
+  }
+
+  /**
+   * Coordinate the recorder with the SDK `init` message. Closes `spawn-to-init`; opens
+   * `init-to-first-chunk` if the turn's adapter already exists (init after send), else defers that to
+   * {@link send} (init before send). A turn-less prime finalizes here — no content chunk will follow.
+   */
+  private handleRecorderInit(): void {
+    if (this.initSeen || !this.recorder) return
+    this.initSeen = true
+    if (this.adapter) {
+      this.recorder.begin('init-to-first-chunk')
+    } else {
+      this.recorder.end()
+    }
+    if (!this.isTurnAttached) {
+      this.recorder.finalize()
+      this.recorder = undefined
+    }
+  }
+
+  private finalizeRecorderIfPending(): void {
+    if (this.recorder && !this.recorder.isFinalized) this.recorder.finalize()
+    this.recorder = undefined
   }
 
   private async runQueryLoop(): Promise<void> {
@@ -335,6 +405,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       for await (const message of this.query!) {
         if (message.type === 'system' && message.subtype === 'init') {
           this.updateResumeToken(message.session_id)
+          this.handleRecorderInit()
           if (!this.adapter) {
             this.pendingInitMessage = message
             continue
@@ -408,6 +479,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
+      // The prepare window ended without a first token (the query errored) — finalize (log-only) so
+      // the timeline is still recorded, then continue the normal error handling.
+      this.finalizeRecorderIfPending()
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
@@ -433,7 +507,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       modelId,
       streamOptions: {} as never,
       sink: {
-        enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
+        enqueue: (chunk) => {
+          // The adapter's first emitted chunk IS the model's first token (TTFT). Finalize the prepare
+          // timeline here — synchronously, so the finalized `data-prepare-progress` part lands ahead of
+          // this content chunk — then let normal streaming take over.
+          if (!this.firstChunkSeen) {
+            this.firstChunkSeen = true
+            this.recorder?.finalize()
+            this.recorder = undefined
+          }
+          this.eventQueue.push({ type: 'chunk', chunk })
+        }
       },
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
       mcpToolMetadata: this.mcpToolMetadata

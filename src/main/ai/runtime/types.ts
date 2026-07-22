@@ -1,3 +1,4 @@
+import type { PrepareProgressPartData } from '@shared/ai/agentPrepareTimeline'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -28,6 +29,19 @@ export interface AgentRuntimeConnectInput {
   modelId: UniqueModelId
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
+  /**
+   * `performance.now()` captured when the host began opening a turn's stream. Its presence marks this
+   * connect as turn-attached (a waiting turn will stream through it) vs. a turn-less prime; the driver
+   * attributes the pre-connect `dispatch` stage from it. Absent for prime connects.
+   */
+  prepareStartedAt?: number
+  /**
+   * Live prepare-stage updates emitted WHILE the connection is still being built (the connection's own
+   * event queue is not drained until connect resolves, so it cannot carry live progress). The host
+   * forwards each update to the current turn's stream as a `data-prepare-progress` part. Absent ⇒ the
+   * driver still records + logs the timeline, but emits no live progress.
+   */
+  onPrepareStage?: (update: PrepareProgressPartData) => void
 }
 
 export interface AgentRuntimeUserInput {

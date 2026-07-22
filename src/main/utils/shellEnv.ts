@@ -342,6 +342,15 @@ export async function getShellEnv(): Promise<Record<string, string>> {
 }
 
 /**
+ * Whether a shell env is already cached, i.e. the next {@link getShellEnv} call resolves without
+ * spawning a login shell. Cheap synchronous read used only for prepare-timeline instrumentation
+ * (labelling the first, expensive uncached fetch); never gate behaviour on it.
+ */
+export function isShellEnvCached(): boolean {
+  return cachedEnv !== null
+}
+
+/**
  * Invalidate the shell env cache and immediately re-fetch a fresh environment.
  * This is an explicit command -- callers use this when they need to pick up
  * newly installed tools (nvm, mise, fnm, etc.) that change PATH.
