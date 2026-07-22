@@ -195,7 +195,7 @@ to the first page. A server-issued opaque token going stale must never throw and
 lock the renderer. (Full-text search uses the opposite policy — see § 6.)
 
 **Multi-band cursors are not routable through `keysetOrdering`.** A cursor that
-encodes more than a single `(key, id)` tuple — e.g. `TopicService.listByCursor`,
+encodes more than a single `(key, id)` tuple — e.g. `TopicService.listCompatibilityByCursor`,
 which pages a pinned section then an unpinned section with a first-page sentinel —
 cannot be expressed as one tuple and keeps its **own** codec. Do not force such
 endpoints through the shared helper.
@@ -294,7 +294,7 @@ lives in `src/main/data/services/utils/ftsSearch.ts`; see
   or `total` won't match the page.
 - **List cursors warn-and-fall-back; search cursors throw 422** — don't copy one
   policy into the other.
-- **Multi-band cursors keep their own codec** — `TopicService.listByCursor` is
+- **Multi-band cursors keep their own codec** — `TopicService.listCompatibilityByCursor` is
   not routable through `keysetOrdering`.
 - **Page-load order ≠ display order** — choose `reversePages` / `reverseItems`
   in `useInfiniteFlatItems` deliberately.
