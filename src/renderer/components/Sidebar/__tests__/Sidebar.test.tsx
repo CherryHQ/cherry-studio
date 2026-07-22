@@ -295,6 +295,38 @@ describe('Sidebar resize handle', () => {
     expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
+  it('keeps a resize hit zone on the floating sidebar edge', () => {
+    const setWidth = vi.fn()
+    const onResizingChange = vi.fn()
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
+        setWidth={setWidth}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        isFloating
+        onResizingChange={onResizingChange}
+      />
+    )
+
+    const panel = container.querySelector('.slide-in-from-left-2')
+    const resizeHandle = panel?.querySelector('.cursor-col-resize')
+
+    expect(resizeHandle).toBeInTheDocument()
+    expect(resizeHandle).toHaveClass('absolute', 'inset-y-0', 'right-0', 'z-50', 'w-2')
+    expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
+    expect(resizeHandle).toBeEmptyDOMElement()
+
+    fireEvent.mouseDown(resizeHandle as HTMLElement, { clientX: 174 })
+    expect(onResizingChange).toHaveBeenLastCalledWith(true)
+
+    fireEvent.mouseMove(document, { clientX: 180 })
+    expect(setWidth).toHaveBeenLastCalledWith(180)
+
+    fireEvent.mouseUp(document)
+    expect(onResizingChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('restores a hidden sidebar by dragging wider from the hot zone', () => {
     const { setWidth, onResizePreview, onHoverChange } = dragResizeFrom(
       SIDEBAR_HIDDEN_THRESHOLD - 10,
