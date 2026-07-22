@@ -144,6 +144,7 @@ export const perplexityAgentResponseSchema = z.object({
   model: z.string().nullish(),
   output: z.array(perplexityOutputItemSchema).nullish(),
   usage: perplexityAgentUsageSchema.nullish(),
+  incomplete_details: z.looseObject({ reason: z.string().nullish() }).nullish(),
   error: z.object({ message: z.string().nullish(), code: z.string().nullish(), type: z.string().nullish() }).nullish()
 })
 export type PerplexityAgentResponse = z.infer<typeof perplexityAgentResponseSchema>
@@ -181,6 +182,7 @@ const responseEnvelopeSchema = z.looseObject({
   model: z.string().nullish(),
   status: z.string().nullish(),
   usage: perplexityAgentUsageSchema.nullish(),
+  incomplete_details: z.looseObject({ reason: z.string().nullish() }).nullish(),
   output: z.array(perplexityOutputItemSchema).nullish()
 })
 
@@ -188,6 +190,7 @@ export const perplexityAgentEventSchema = z.union([
   z.object({ type: z.literal('response.created'), response: responseEnvelopeSchema.nullish() }),
   z.object({ type: z.literal('response.in_progress'), response: responseEnvelopeSchema.nullish() }),
   z.object({ type: z.literal('response.completed'), response: responseEnvelopeSchema.nullish() }),
+  z.object({ type: z.literal('response.incomplete'), response: responseEnvelopeSchema.nullish() }),
   z.object({
     type: z.literal('response.failed'),
     error: z.looseObject({ message: z.string().nullish() }).nullish()

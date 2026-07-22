@@ -168,6 +168,54 @@ describe('Perplexity Agent response boundary', () => {
     expect(finish).toMatchObject({ finishReason: { unified: 'stop' }, usage: { inputTokens: { total: 3 } } })
   })
 
+  it('non-streaming: preserves the incomplete reason as the length finish reason', async () => {
+    const model = new PerplexityAgentLanguageModel(
+      'anthropic/claude-sonnet-5',
+      config(
+        jsonFetch({
+          id: 'r1',
+          status: 'incomplete',
+          model: 'anthropic/claude-sonnet-5',
+          output: [],
+          incomplete_details: { reason: 'max_output_tokens' }
+        })
+      )
+    )
+
+    const result = await model.doGenerate(options)
+
+    expect(result.content).toEqual([])
+    expect(result.finishReason).toEqual({ unified: 'length', raw: 'max_output_tokens' })
+  })
+
+  it('streaming: handles response.incomplete and preserves max_output_tokens', async () => {
+    const model = new PerplexityAgentLanguageModel(
+      'anthropic/claude-sonnet-5',
+      config(
+        sseFetch([
+          { type: 'response.created', response: { id: 'r1', model: 'anthropic/claude-sonnet-5' } },
+          {
+            type: 'response.incomplete',
+            response: {
+              id: 'r1',
+              status: 'incomplete',
+              output: [],
+              usage: null,
+              incomplete_details: { reason: 'max_output_tokens' }
+            }
+          }
+        ])
+      )
+    )
+
+    const { stream } = await model.doStream(options)
+    const parts = await collect(stream)
+
+    expect(parts.find((part) => part.type === 'finish')).toMatchObject({
+      finishReason: { unified: 'length', raw: 'max_output_tokens' }
+    })
+  })
+
   it('non-streaming: maps function_call output to an AI SDK tool call', async () => {
     const model = new PerplexityAgentLanguageModel(
       'openai/gpt-5.6-sol',
@@ -200,7 +248,7 @@ describe('Perplexity Agent response boundary', () => {
       input: '{"orderId":"ORD-1"}',
       providerMetadata: { perplexity: { itemId: 'fc-1', thoughtSignature: 'sig-1' } }
     })
-    expect(result.finishReason).toEqual({ unified: 'tool-calls', raw: 'completed' })
+    expect(result.finishReason).toEqual({ unified: 'tool-calls', raw: undefined })
   })
 
   it('streaming: maps output-item lifecycle to AI SDK tool input and tool-call parts', async () => {

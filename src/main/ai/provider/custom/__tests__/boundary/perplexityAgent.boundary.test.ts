@@ -21,7 +21,7 @@ const prompt = (text: string): LanguageModelV3CallOptions['prompt'] => [
 ]
 
 describe('Perplexity Agent request boundary', () => {
-  it('anthropic model: defaults max_output_tokens and forwards provider options with a web-search tool', async () => {
+  it('anthropic model: defaults max_output_tokens to the model maximum and forwards provider options', async () => {
     const req = await captureWithFetch((fetch) =>
       new PerplexityAgentLanguageModel('anthropic/claude-opus-4-8', config(fetch)).doGenerate({
         prompt: prompt('Q'),
@@ -43,7 +43,7 @@ describe('Perplexity Agent request boundary', () => {
     z.strictObject({
       model: z.literal('anthropic/claude-opus-4-8'),
       input: z.array(z.strictObject({ type: z.literal('message'), role: z.literal('user'), content: z.literal('Q') })),
-      max_output_tokens: z.literal(8192),
+      max_output_tokens: z.literal(128000),
       max_steps: z.literal(3),
       reasoning: z.strictObject({ effort: z.literal('high') }),
       tools: z.array(
@@ -54,6 +54,27 @@ describe('Perplexity Agent request boundary', () => {
       )
     }).parse(req.body)
     expect(req.body).toMatchSnapshot()
+  })
+
+  it('defaults claude-sonnet-5 max_output_tokens to 128K', async () => {
+    const req = await captureWithFetch((fetch) =>
+      new PerplexityAgentLanguageModel('anthropic/claude-sonnet-5', config(fetch)).doGenerate({
+        prompt: prompt('Q')
+      })
+    )
+
+    expect(req.body).toMatchObject({ max_output_tokens: 128000 })
+  })
+
+  it('forwards an explicitly configured max_output_tokens', async () => {
+    const req = await captureWithFetch((fetch) =>
+      new PerplexityAgentLanguageModel('anthropic/claude-opus-4-8', config(fetch)).doGenerate({
+        prompt: prompt('Q'),
+        maxOutputTokens: 16384
+      })
+    )
+
+    expect(req.body).toMatchObject({ max_output_tokens: 16384 })
   })
 
   it('non-anthropic model with no options: server tools off, no max_output_tokens', async () => {

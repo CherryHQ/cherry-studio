@@ -53,8 +53,8 @@ import {
 /** Single namespace shared with the Sonar chat model — one user-facing "perplexity" provider. */
 const PERPLEXITY_PROVIDER = 'perplexity' as const
 
-/** Default max output tokens for `anthropic/*` models, which require the field. */
-const ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS = 8192
+/** Perplexity requires this field for Anthropic models; all currently exposed models support 128K. */
+const ANTHROPIC_MAX_OUTPUT_TOKENS = 128_000
 
 export interface PerplexityAgentConfig {
   baseURL: string
@@ -102,17 +102,26 @@ function convertAgentUsage(usage: AgentUsage | null | undefined): LanguageModelV
   }
 }
 
-function mapStatusToFinishReason(status: string | null | undefined): LanguageModelV3FinishReason {
-  switch (status) {
-    case 'completed':
-      return { unified: 'stop', raw: status }
-    case 'incomplete':
-      return { unified: 'length', raw: status }
-    case 'failed':
-      return { unified: 'error', raw: status }
+function mapFinishReason(
+  incompleteReason: string | null | undefined,
+  hasFunctionCall: boolean
+): LanguageModelV3FinishReason {
+  let unified: LanguageModelV3FinishReason['unified']
+  switch (incompleteReason) {
+    case undefined:
+    case null:
+      unified = hasFunctionCall ? 'tool-calls' : 'stop'
+      break
+    case 'max_output_tokens':
+      unified = 'length'
+      break
+    case 'content_filter':
+      unified = 'content-filter'
+      break
     default:
-      return { unified: 'other', raw: status ?? undefined }
+      unified = hasFunctionCall ? 'tool-calls' : 'other'
   }
+  return { unified, raw: incompleteReason ?? undefined }
 }
 
 /** Pull citation/search sources out of any output item (unknown types yield none). */
@@ -356,10 +365,8 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
     })
     warnings.push(...inputWarnings)
 
-    const isAnthropic = this.modelId.startsWith('anthropic/')
-    // ponytail: anthropic/* requires max_output_tokens; default when unset so the
-    // request doesn't 400. Bump via maxOutputTokens or the model config if it truncates.
-    const resolvedMaxOutputTokens = maxOutputTokens ?? (isAnthropic ? ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS : undefined)
+    const resolvedMaxOutputTokens =
+      maxOutputTokens ?? (this.modelId.startsWith('anthropic/') ? ANTHROPIC_MAX_OUTPUT_TOKENS : undefined)
 
     const args: Record<string, unknown> = {
       model: this.modelId,
@@ -468,9 +475,7 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
       }
     }
     if (text.length > 0) content.unshift({ type: 'text', text })
-    const finishReason: LanguageModelV3FinishReason = hasFunctionCall
-      ? { unified: 'tool-calls', raw: response.status ?? undefined }
-      : mapStatusToFinishReason(response.status)
+    const finishReason = mapFinishReason(response.incomplete_details?.reason, hasFunctionCall)
 
     return {
       content,
@@ -692,10 +697,16 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
                   reasoningOpen = false
                 }
                 break
-              case 'response.completed': {
+              case 'response.completed':
+              case 'response.incomplete': {
                 const envelope = (
                   event as {
-                    response?: { id?: string; status?: string; usage?: AgentUsage; output?: PerplexityOutputItem[] }
+                    response?: {
+                      id?: string
+                      usage?: AgentUsage
+                      incomplete_details?: { reason?: string | null } | null
+                      output?: PerplexityOutputItem[]
+                    }
                   }
                 ).response
                 if (envelope?.id) responseId = envelope.id
@@ -708,9 +719,7 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
                     emitSources(extractSources(item))
                   }
                 }
-                if (emittedToolCallIds.size === 0) {
-                  finishReason = mapStatusToFinishReason(envelope?.status ?? 'completed')
-                }
+                finishReason = mapFinishReason(envelope?.incomplete_details?.reason, emittedToolCallIds.size > 0)
                 break
               }
               case 'response.failed': {
