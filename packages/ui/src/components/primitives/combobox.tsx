@@ -16,6 +16,8 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, X } from 'lucide-react'
 import * as React from 'react'
 
+import Scrollbar from '../composites/scrollbar'
+
 // ==================== Variants ====================
 
 const comboboxTriggerVariants = cva(
@@ -549,41 +551,43 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onValueChange={handleContentSearchChange}
             />
           )}
-          <CommandList>
-            {manualFilterEnabled ? (
-              visibleOptions.length === 0 ? (
-                <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
+          <CommandList asChild>
+            <Scrollbar className="[scrollbar-gutter:auto] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden data-[scrolling=true]:[scrollbar-gutter:stable] data-[scrolling=true]:![scrollbar-width:auto] data-[scrolling=true]:[&::-webkit-scrollbar]:!block">
+              {manualFilterEnabled ? (
+                visibleOptions.length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
+                ) : (
+                  <CommandGroup>
+                    {visibleOptions.map((option) => (
+                      <CommandItem
+                        key={option.value}
+                        value={option.value || option.label}
+                        disabled={option.disabled}
+                        onSelect={() => handleSelect(option.value)}
+                        className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
+                        {renderOptionContent(option)}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )
               ) : (
-                <CommandGroup>
-                  {visibleOptions.map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      value={option.value || option.label}
-                      disabled={option.disabled}
-                      onSelect={() => handleSelect(option.value)}
-                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
-                      {renderOptionContent(option)}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )
-            ) : (
-              <>
-                <CommandEmpty>{emptyText}</CommandEmpty>
-                <CommandGroup>
-                  {options.map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      value={option.value}
-                      disabled={option.disabled}
-                      onSelect={() => handleSelect(option.value)}
-                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
-                      {renderOptionContent(option)}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
+                <>
+                  <CommandEmpty>{emptyText}</CommandEmpty>
+                  <CommandGroup>
+                    {options.map((option) => (
+                      <CommandItem
+                        key={option.value}
+                        value={option.value}
+                        disabled={option.disabled}
+                        onSelect={() => handleSelect(option.value)}
+                        className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
+                        {renderOptionContent(option)}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
+            </Scrollbar>
           </CommandList>
         </Command>
       </PopoverContent>
