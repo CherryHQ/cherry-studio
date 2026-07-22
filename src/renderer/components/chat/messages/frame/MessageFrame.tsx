@@ -9,7 +9,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getMessageEnterMotionAttributes, getMessageEnterMotionVariant } from '../../motion/messageEnterMotion'
@@ -30,7 +30,6 @@ import MessageContent from './MessageContent'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenuBar from './MessageMenuBar'
-import PrepareTimelineFooter, { selectFooterPrepareTimeline } from './PrepareTimelineFooter'
 
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
   'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100'
@@ -106,10 +105,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   )
 
   const isLastMessage = index === 0 || !!isGrouped
-
-  // The prepare-timeline footer is derived from message parts and, unlike the action bar, stays
-  // visible without hover so a slow first token stays discoverable after the fact.
-  const prepareTimeline = useMemo(() => selectFooterPrepareTimeline(messageParts), [messageParts])
 
   const activityState = messageUi.getMessageActivityState?.(message)
   const isProcessing = activityState?.isProcessing ?? false
@@ -231,7 +226,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     </div>
   ) : undefined
 
-  const assistantFooterActions = showAssistantFooterActions ? (
+  const assistantFooter = showAssistantFooterActions ? (
     <div
       className={cn(
         'MessageFooter mt-1 flex min-h-6.5 shrink-0 items-center justify-between gap-1.5 text-xs leading-none',
@@ -258,14 +253,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       <SiblingNavigator messageId={message.id} />
     </div>
   ) : undefined
-
-  const assistantFooter =
-    isAssistantMessage && (prepareTimeline || assistantFooterActions) ? (
-      <div className="flex flex-col gap-1">
-        {prepareTimeline && <PrepareTimelineFooter timeline={prepareTimeline} />}
-        {assistantFooterActions}
-      </div>
-    ) : undefined
 
   return (
     <div

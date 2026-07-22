@@ -1,4 +1,5 @@
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
+import { PREPARE_TIMELINE_FOOTER_THRESHOLD_MS, type PrepareProgressPartData } from '@shared/ai/agentPrepareTimeline'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, ReasoningUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -53,6 +54,19 @@ const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video'
 
 export function isHiddenPart(part: CherryMessagePart): boolean {
   return HIDDEN_PART_TYPES.has(part.type as string)
+}
+
+/**
+ * A `data-prepare-progress` part that has finalized a timeline slow enough to surface (> the footer
+ * threshold). Such a part is promoted from hidden transport marker to the first row of the process
+ * timeline — it's chronologically the turn's first segment. A live or fast-prepare part stays hidden
+ * (the placeholder already covers the live phase). It remains in {@link HIDDEN_PART_TYPES}; callers
+ * that promote it must special-case it *before* the {@link isHiddenPart} check.
+ */
+export function isPrepareTimelineHistoryPart(part: CherryMessagePart): boolean {
+  if ((part.type as string) !== 'data-prepare-progress') return false
+  const timeline = (part as { data?: PrepareProgressPartData }).data?.timeline
+  return !!timeline && timeline.totalMs > PREPARE_TIMELINE_FOOTER_THRESHOLD_MS
 }
 
 function isIgnorableEmptyContentPart(part: CherryMessagePart): boolean {
@@ -296,7 +310,10 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
         resultStart > 0 &&
         (isSubstantiveAnswerPart(contentEntries[resultStart - 1].part) ||
           isAssociatedResultPart(contentEntries[resultStart - 1].part) ||
-          isHiddenPart(contentEntries[resultStart - 1].part))
+          // A promoted prepare-timeline part anchors the process history — never pull it into the
+          // result region alongside the answer, or it would render outside the process group.
+          (isHiddenPart(contentEntries[resultStart - 1].part) &&
+            !isPrepareTimelineHistoryPart(contentEntries[resultStart - 1].part)))
       ) {
         resultStart--
       }

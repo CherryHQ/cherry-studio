@@ -1,46 +1,26 @@
 import { Button } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import {
-  buildPrepareDiagnostics,
-  PREPARE_TIMELINE_FOOTER_THRESHOLD_MS,
-  type PrepareProgressPartData,
-  type PrepareTimeline
-} from '@shared/ai/agentPrepareTimeline'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import { buildPrepareDiagnostics, type PrepareTimeline } from '@shared/ai/agentPrepareTimeline'
 import { ChevronDown, ChevronRight, Copy } from 'lucide-react'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-/**
- * Return the finalized prepare timeline worth surfacing in the footer — present only when a
- * `data-prepare-progress` part carries a finalized `timeline` whose total exceeds the threshold.
- * Below the threshold a fast prepare isn't worth a footer, so this returns `undefined` and the
- * caller renders nothing.
- */
-export function selectFooterPrepareTimeline(parts: readonly CherryMessagePart[]): PrepareTimeline | undefined {
-  for (const part of parts) {
-    if ((part.type as string) !== 'data-prepare-progress' || !('data' in part) || !part.data) continue
-    const { timeline } = part.data as PrepareProgressPartData
-    if (timeline && timeline.totalMs > PREPARE_TIMELINE_FOOTER_THRESHOLD_MS) return timeline
-  }
-  return undefined
-}
 
 function formatSeconds(ms: number): number {
   return Math.round(ms / 100) / 10
 }
 
-interface PrepareTimelineFooterProps {
+interface PrepareTimelineBlockProps {
   timeline: PrepareTimeline
 }
 
 /**
- * Post-hoc "response preparation took Ns" line for a slow first token. Collapsed by default; expands
- * to a per-stage table and a "copy diagnostics" button. Diagnostics carry only non-sensitive fields
+ * The prepare segment of the turn's activity timeline, rendered as the first row inside the process
+ * group ("Processed · Ns"). Collapsed to a one-line "response preparation took Ns"; expands to a
+ * per-stage table with a "copy diagnostics" button. Diagnostics carry only non-sensitive fields
  * (stage breakdown, app version, agent type, MCP server names) — never env vars, keys, or base URLs.
  */
-const PrepareTimelineFooter: React.FC<PrepareTimelineFooterProps> = ({ timeline }) => {
+const PrepareTimelineBlock: React.FC<PrepareTimelineBlockProps> = ({ timeline }) => {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
 
@@ -56,7 +36,7 @@ const PrepareTimelineFooter: React.FC<PrepareTimelineFooterProps> = ({ timeline 
   }, [timeline, t])
 
   return (
-    <div className="flex flex-col gap-1 text-foreground-muted text-xs">
+    <div className="flex w-full flex-col gap-1 text-foreground-muted text-xs" data-testid="prepare-timeline-block">
       <button
         type="button"
         className="flex w-fit select-none items-center gap-1 hover:text-foreground"
@@ -92,4 +72,4 @@ const PrepareTimelineFooter: React.FC<PrepareTimelineFooterProps> = ({ timeline 
   )
 }
 
-export default React.memo(PrepareTimelineFooter)
+export default React.memo(PrepareTimelineBlock)

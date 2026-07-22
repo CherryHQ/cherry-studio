@@ -49,6 +49,7 @@ import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
+  isPrepareTimelineHistoryPart,
   isReasoningMessagePart,
   isResultPart,
   isSubstantiveAnswerPart,
@@ -60,6 +61,7 @@ import {
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
+import PrepareTimelineBlock from './PrepareTimelineBlock'
 import { useRequestScrollFollowRecovery } from './ScrollOwnershipContext'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
 import { ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
@@ -574,10 +576,14 @@ function renderPart(
       // Agent task events are hidden inline state consumed by the agent status panes.
       return null
 
-    case 'data-prepare-progress':
-      // Prepare-timeline progress is hidden inline state: the live phase drives the placeholder label
-      // (see MessagePartsRendererContent) and the finalized breakdown drives the footer.
-      return null
+    case 'data-prepare-progress': {
+      // The live phase drives the placeholder label (see MessagePartsRendererContent). Once the
+      // timeline is finalized and slow enough to surface, it renders as the first row of the process
+      // timeline (promoted into process history by groupNestedHistoryEntries); otherwise it stays hidden.
+      if (!isPrepareTimelineHistoryPart(part)) return null
+      const timeline = (part as { data?: PrepareProgressPartData }).data?.timeline
+      return timeline ? <PrepareTimelineBlock key={partId} timeline={timeline} /> : null
+    }
 
     case 'file': {
       const filePart = part as { url?: string; mediaType?: string; filename?: string }
@@ -855,9 +861,12 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
   }
 
   for (const entry of entries) {
-    if (isHiddenPart(entry.part)) continue
+    // A promoted prepare-timeline part is checked before the hidden skip: it is chronologically the
+    // turn's first segment, so it opens the first process group at the top.
+    const isPrepare = isPrepareTimelineHistoryPart(entry.part)
+    if (isHiddenPart(entry.part) && !isPrepare) continue
 
-    if ((entry.part.type as string) === 'reasoning' || isToolUIPart(entry.part)) {
+    if (isPrepare || (entry.part.type as string) === 'reasoning' || isToolUIPart(entry.part)) {
       flushContent()
       processEntries.push(entry)
     } else {
@@ -1183,8 +1192,11 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     )
   })
 
-  const hasVisibleCompletedHistory = completedHistoryEntries.some((entry) =>
-    isPotentiallyVisibleEntry(entry, message.id)
+  const hasVisibleCompletedHistory = completedHistoryEntries.some(
+    // A promoted prepare-timeline row is worth a process group on its own, even with no tool/reasoning
+    // history — it is deliberately excluded from isPotentiallyVisibleEntry (a hidden transport marker)
+    // so it never flips the active-turn empty check, so it is admitted explicitly here.
+    (entry) => isPotentiallyVisibleEntry(entry, message.id) || isPrepareTimelineHistoryPart(entry.part)
   )
   if (!hasVisibleCompletedHistory) return <>{completedResult}</>
 
