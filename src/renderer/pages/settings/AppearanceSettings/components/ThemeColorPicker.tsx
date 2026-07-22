@@ -135,6 +135,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
         </PopoverContent>
       </Popover>
       <Input
+        aria-label={ariaLabel}
         value={draftValue}
         onChange={(event) => setDraftValue(event.target.value)}
         onBlur={handleInputBlur}
