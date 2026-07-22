@@ -8,10 +8,12 @@
  * `pdfCompatibility` feature. Image/audio/video native input rides on the model
  * capability alone (`isVision`/`isAudio`/`isVideo`) — matching how the legacy
  * path inlined media to any provider — so a multimodal model stays native even
- * on an aggregator / openai-compatible endpoint. Only PDF additionally requires
- * a first-party protocol (its native-PDF support is provider-specific).
+ * on an aggregator / openai-compatible endpoint. PDF additionally requires a
+ * first-party protocol unless the provider extension declares its native input
+ * modalities explicitly.
  */
 
+import type { NativeInputModality } from '@cherrystudio/ai-core/provider'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
@@ -40,8 +42,8 @@ export interface NativeFileSupport {
  * `pdfCompatibility`): an unknown third-party provider does not get native PDF,
  * so we never hand a file part to a compat endpoint that can't take one. It can
  * later be superseded by provider-level metadata / a toggle declaring native
- * file support — `resolveNativeFileSupport` already receives `provider`, so
- * adding that boolean needs no signature change.
+ * file support. A provider extension's `nativeInputModalities` declaration
+ * supersedes this compatibility default for its protocol.
  */
 const NATIVE_FILE_PROVIDER_IDS = new Set<AppProviderId>([
   // The resolver emits the base `openai` id only for the Responses endpoint
@@ -83,15 +85,25 @@ function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: Ap
   return true
 }
 
+function acceptsNativeInput(
+  modality: NativeInputModality,
+  declaredModalities: readonly NativeInputModality[] | undefined
+): boolean {
+  return declaredModalities?.includes(modality) ?? true
+}
+
 export function resolveNativeFileSupport(
   provider: Provider,
   model: Model,
-  aiSdkProviderId: AppProviderId
+  aiSdkProviderId: AppProviderId,
+  declaredModalities?: readonly NativeInputModality[]
 ): NativeFileSupport {
   return {
-    image: isVisionModel(model),
-    pdf: supportsNativePdf(provider, model, aiSdkProviderId),
-    audio: isAudioModel(model),
-    video: isVideoModel(model)
+    image: acceptsNativeInput('image', declaredModalities) && isVisionModel(model),
+    pdf:
+      acceptsNativeInput('pdf', declaredModalities) &&
+      (declaredModalities !== undefined || supportsNativePdf(provider, model, aiSdkProviderId)),
+    audio: acceptsNativeInput('audio', declaredModalities) && isAudioModel(model),
+    video: acceptsNativeInput('video', declaredModalities) && isVideoModel(model)
   }
 }

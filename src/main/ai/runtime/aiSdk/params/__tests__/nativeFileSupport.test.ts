@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
 import { makeProvider } from '../../../../__tests__/fixtures/provider'
+import { PerplexityExtension } from '../../../../provider/extensions'
 import { resolveNativeFileSupport } from '../nativeFileSupport'
 
 describe('resolveNativeFileSupport', () => {
@@ -53,6 +54,28 @@ describe('resolveNativeFileSupport', () => {
     expect(ns.audio).toBe(true)
     expect(ns.video).toBe(false)
     expect(ns.pdf).toBe(false) // PDF still requires a first-party provider
+  })
+
+  it('uses the Perplexity extension attachment declaration', () => {
+    const ns = resolveNativeFileSupport(
+      makeProvider({ id: 'perplexity' }),
+      makeModel({
+        id: 'perplexity::gemini-3-1-flash-lite',
+        apiModelId: 'google/gemini-3.1-flash-lite',
+        capabilities: [
+          MODEL_CAPABILITY.IMAGE_RECOGNITION,
+          MODEL_CAPABILITY.AUDIO_RECOGNITION,
+          MODEL_CAPABILITY.VIDEO_RECOGNITION
+        ]
+      }),
+      'perplexity',
+      PerplexityExtension.config.nativeInputModalities
+    )
+
+    expect(ns.image).toBe(true)
+    expect(ns.pdf).toBe(true)
+    expect(ns.audio).toBe(false)
+    expect(ns.video).toBe(false)
   })
 
   it('forces text for providers known to break on native files (qiniu)', () => {

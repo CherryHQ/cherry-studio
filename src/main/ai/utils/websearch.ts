@@ -3,6 +3,7 @@ import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 
+import type { PerplexityWebSearchConfig } from '../provider/custom/perplexity/perplexityAgentSchemas'
 import type { AppProviderId } from '../types'
 
 /** Inputs for provider-builtin web-search plugin configuration. */
@@ -120,6 +121,15 @@ export function buildProviderBuiltinWebSearchConfig(
           ]
         }
       }
+    }
+    case 'perplexity': {
+      const excluded = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      const cfg: PerplexityWebSearchConfig = { maxResults: Math.max(1, Math.min(50, webSearchConfig.maxResults)) }
+      // Perplexity denies a domain by prefixing it with `-` in search_domain_filter.
+      if (excluded.length > 0) cfg.searchDomainFilter = excluded.map((domain) => `-${domain}`)
+      // `perplexity` is an app-level extension, absent from the core-derived
+      // WebSearchPluginConfig type; the key is valid at runtime (PerplexityExtension.toolFactories).
+      return { perplexity: cfg } as WebSearchPluginConfig
     }
     case 'cherryin': {
       // cherryin proxies to a real endpoint forced via model.endpointTypes[0];

@@ -166,6 +166,9 @@ export function buildCapabilityProviderOptions(
     case 'bedrock':
       providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
       break
+    case 'perplexity':
+      providerSpecificOptions = buildPerplexityProviderOptions(assistant, capabilities)
+      break
     case SystemProviderIds.ollama:
       providerSpecificOptions = buildOllamaProviderOptions(assistant, model, capabilities)
       break
@@ -433,6 +436,27 @@ function buildGenericProviderOptions(
   }
 
   return { [providerId]: providerOptions }
+}
+
+function buildPerplexityProviderOptions(
+  assistant: Assistant,
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning'>
+): Record<string, Record<string, string>> {
+  const effort = assistant.settings?.reasoning_effort
+  if (
+    !capabilities.enableReasoning ||
+    effort == null ||
+    effort === 'default' ||
+    effort === 'none' ||
+    effort === 'auto'
+  ) {
+    return { perplexity: {} }
+  }
+
+  // Perplexity's Agent API accepts the UI's native effort names, including
+  // xhigh. Do not run them through the generic model-registry fallback, which
+  // can silently replace an unsupported UI value with the first effort.
+  return { perplexity: { reasoningEffort: effort } }
 }
 
 function buildAIGatewayOptions(

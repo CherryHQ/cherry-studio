@@ -1,6 +1,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -84,7 +85,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
-  const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
+  const nativeInputModalities = extensionRegistry.get(aiSdkProviderId)?.config.nativeInputModalities
+  const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId, nativeInputModalities)
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),

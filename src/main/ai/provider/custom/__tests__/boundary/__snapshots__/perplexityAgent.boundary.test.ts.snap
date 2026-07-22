@@ -1,0 +1,90 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Perplexity Agent request boundary > anthropic model: defaults max_output_tokens to the model maximum and forwards provider options 1`] = `
+{
+  "input": [
+    {
+      "content": "Q",
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "max_output_tokens": 128000,
+  "max_steps": 3,
+  "model": "anthropic/claude-opus-4-8",
+  "reasoning": {
+    "effort": "high",
+  },
+  "tools": [
+    {
+      "filters": {
+        "search_recency_filter": "week",
+      },
+      "type": "web_search",
+    },
+  ],
+}
+`;
+
+exports[`Perplexity Agent request boundary > non-anthropic model with no options: server tools off, no max_output_tokens 1`] = `
+{
+  "input": [
+    {
+      "content": "Q",
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "model": "openai/gpt-5.6-sol",
+}
+`;
+
+exports[`Perplexity Agent request boundary > serializes server tools together with AI SDK function tools 1`] = `
+{
+  "input": [
+    {
+      "content": "Q",
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "model": "perplexity/sonar",
+  "tools": [
+    {
+      "filters": {
+        "search_domain_filter": [
+          "-reddit.com",
+        ],
+      },
+      "max_results": 5,
+      "search_context_size": "high",
+      "type": "web_search",
+      "user_location": {
+        "country": "US",
+      },
+    },
+    {
+      "max_urls": 3,
+      "type": "fetch_url",
+    },
+    {
+      "description": "Save a result",
+      "name": "save_result",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "value",
+        ],
+        "type": "object",
+      },
+      "strict": true,
+      "type": "function",
+    },
+  ],
+}
+`;
