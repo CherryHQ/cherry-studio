@@ -1257,8 +1257,12 @@ const AgentComposerInner = ({
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>
-      buildComposerQueuedPayload(draft, { files, fileTokenId: agentComposerTokenId.file }),
-    [files]
+      buildComposerQueuedPayload(draft, {
+        files,
+        fileTokenId: agentComposerTokenId.file,
+        extra: () => ({ reasoningEffort })
+      }),
+    [files, reasoningEffort]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1268,7 +1272,14 @@ const AgentComposerInner = ({
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
         await chatSendMessage(
           { text: payload.text },
-          { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
+          {
+            body: {
+              agentId,
+              sessionId,
+              userMessageParts: [...payload.userMessageParts, ...fileParts],
+              reasoningEffort: payload.reasoningEffort
+            }
+          }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         saveHistory(payload.text)
