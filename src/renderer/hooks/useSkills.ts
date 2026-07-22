@@ -44,40 +44,28 @@ async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalida
 }
 
 /**
- * Hook to manage installed skills.
+ * Hook to read installed skills.
  *
  * Pass `agentId` to get per-agent enablement state. Without `agentId`, the
  * hook returns the global skill library with `isEnabled` forced to false.
  * Per-agent enablement is edited through the agent form and saved via
  * PATCH /agents (see `AgentEditDialog`), not through this hook.
+ * `loading` covers the initial fetch; `refreshing` reports background
+ * revalidation separately so cached rows can remain visible while consumers
+ * that initialize editable state wait for the authoritative projection.
  */
 export function useInstalledSkills(agentId?: string, options: { enabled?: boolean } = {}) {
-  const { data, isLoading, error, refetch } = useQuery('/skills', {
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
     enabled: options.enabled !== false,
     ...(agentId ? { query: { agentId } } : {})
   })
-  const invalidate = useInvalidateCache()
-
-  const uninstall = useCallback(
-    async (skillId: string) => {
-      try {
-        const result = await ipcApi.request('skill.uninstall', { skillId })
-        unwrapSkillResult(result)
-        await refreshSkillsBestEffort(invalidate)
-        return true
-      } catch (error) {
-        reportAndRethrowSkillMutationError('uninstall skill', error)
-      }
-    },
-    [invalidate]
-  )
 
   return {
     skills: data ?? [],
     loading: isLoading,
+    refreshing: isRefreshing,
     error: error?.message ?? null,
-    refresh: refetch,
-    uninstall
+    refresh: refetch
   }
 }
 

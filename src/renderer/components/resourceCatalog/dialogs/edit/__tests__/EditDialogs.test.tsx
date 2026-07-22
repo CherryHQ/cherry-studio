@@ -12,6 +12,7 @@ import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '..
 const {
   agentTools,
   fetchGenerateMock,
+  installedSkillsState,
   mcpStatusState,
   openSettingsTabMock,
   settingsNavigateMock,
@@ -48,6 +49,20 @@ const {
     { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
   ],
   fetchGenerateMock: vi.fn(),
+  installedSkillsState: {
+    current: {
+      skills: [
+        {
+          id: 'skill-1',
+          name: 'Skill One',
+          description: 'Skill description',
+          isEnabled: false
+        }
+      ],
+      loading: false,
+      refreshing: false
+    }
+  },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
   settingsNavigateMock: vi.fn(),
@@ -187,15 +202,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 
 vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
-    skills: [
-      {
-        id: 'skill-1',
-        name: 'Skill One',
-        description: 'Skill description',
-        isEnabled: false
-      }
-    ],
-    loading: false,
+    ...installedSkillsState.current,
     refresh: vi.fn()
   }),
   useSkillInstall: () => ({
@@ -481,6 +488,18 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  installedSkillsState.current = {
+    skills: [
+      {
+        id: 'skill-1',
+        name: 'Skill One',
+        description: 'Skill description',
+        isEnabled: false
+      }
+    ],
+    loading: false,
+    refreshing: false
+  }
   mcpStatusState.current = {
     'mcp-1': { state: 'connected', lastCheckedAt: 1 }
   }
@@ -1001,6 +1020,46 @@ describe('edit dialogs', () => {
     expect(await screen.findByRole('menuitem', { name: 'Search online' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Import locally' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Search system skills' })).toBeInTheDocument()
+  })
+
+  it('waits for background skill refresh before initializing the editable baseline', async () => {
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      refreshing: true
+    }
+    const onOpenChange = vi.fn()
+    const onSaved = vi.fn()
+    const { rerender } = render(
+      <AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={onSaved} initialTab="tools.skills" />
+    )
+
+    expect(screen.getByText('Skill One')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Skill One' })).toBeDisabled()
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: installedSkillsState.current.skills.map((skill) => ({ ...skill, isEnabled: true })),
+      refreshing: false
+    }
+    rerender(
+      <AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={onSaved} initialTab="tools.skills" />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled()
+    })
+    expect(updateAgentMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          skillUpdates: [{ skillId: 'skill-1', isEnabled: false }]
+        })
+      })
+    )
   })
 
   it('opens the assistant edit dialog directly on the requested initial tab', () => {

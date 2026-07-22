@@ -221,7 +221,11 @@ function AgentEditDialogContent({
   const values = form.watch()
   const patchAgentForm = useMemo(() => createAgentPatcher(form, resource), [form, resource])
   const { updateAgent } = useAgentMutationsById(resource.id)
-  const { skills, loading: skillsLoading } = useInstalledSkills(resource.id || undefined, {
+  const {
+    skills,
+    loading: skillsLoading,
+    refreshing: skillsRefreshing
+  } = useInstalledSkills(resource.id || undefined, {
     enabled: open && Boolean(resource.id)
   })
   const skillIdsFromQueryKey = useMemo(
@@ -274,12 +278,14 @@ function AgentEditDialogContent({
     setBaselineSkillAgentId(null)
   }, [defaultValues, form, initialTab, open, resource])
 
+  // Cached rows may render during revalidation, but the editable baseline must
+  // come from the authoritative projection so later toggles diff correctly.
   useEffect(() => {
-    if (!open || skillsLoading || baselineSkillAgentId === resource.id) return
+    if (!open || skillsLoading || skillsRefreshing || baselineSkillAgentId === resource.id) return
     setBaselineSkillIds(skillIdsFromQuery)
     form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
     setBaselineSkillAgentId(resource.id)
-  }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading])
+  }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading, skillsRefreshing])
 
   useEffect(() => {
     if (leafTabIds.has(activeTab)) return
@@ -385,6 +391,7 @@ function AgentEditDialogContent({
               portalContainer={dialogContentElement}
               skills={skills}
               skillsLoading={skillsLoading}
+              skillsReady={baselineSkillAgentId === resource.id}
             />
           </TabsContent>
         ) : null}
@@ -659,7 +666,8 @@ function AgentToolsFields({
   activeToolTab,
   portalContainer,
   skills,
-  skillsLoading
+  skillsLoading,
+  skillsReady
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
@@ -667,6 +675,7 @@ function AgentToolsFields({
   portalContainer: HTMLElement | null
   skills: InstalledSkill[]
   skillsLoading: boolean
+  skillsReady: boolean
 }) {
   const { t } = useTranslation()
   const disabledTools = form.watch('disabledTools')
@@ -744,7 +753,7 @@ function AgentToolsFields({
           skills={skills}
           loading={skillsLoading}
           selectedIds={skillIds}
-          disabled={!canManageSkills}
+          disabled={!canManageSkills || !skillsReady}
           onSelectedIdsChange={(ids) => form.setValue('skillIds', ids, { shouldDirty: true })}
           emptyLabel={
             canManageSkills
