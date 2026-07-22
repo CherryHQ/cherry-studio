@@ -21,8 +21,12 @@ const appEvents = new EventEmitter()
 const context = {
   source: 'native' as const,
   stage: 'preboot' as const,
-  failureCode: 'database_initialize_failed',
-  errorSummary: 'Could not initialize the migration database.'
+  errorSummary: 'Could not initialize the migration database.',
+  failure: {
+    code: 'database_initialize_failed' as const,
+    origin: 'main' as const,
+    operation: 'initialize_database' as const
+  }
 }
 
 describe('migrationDiagnosticDialogs', () => {

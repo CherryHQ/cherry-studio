@@ -19,8 +19,12 @@ describe('migrationDiagnosticEmail', () => {
     const context = {
       source: 'renderer',
       stage: 'error',
-      failureCode: 'migration_failed',
       errorSummary: 'Could not copy records.',
+      failure: {
+        code: 'migration_engine_failed',
+        origin: 'main',
+        operation: 'run_migration'
+      },
       overallProgress: 42,
       migrators: [{ id: 'messages', status: 'failed' }],
       privatePath: '/Users/private/canary',
@@ -39,11 +43,11 @@ describe('migrationDiagnosticEmail', () => {
     const { recipient, subject, body } = decodeMailto(url)
     expect(recipient).toBe(MIGRATION_DIAGNOSTIC_SUPPORT_EMAIL)
     expect(recipient).toBe('support@cherry-ai.com')
-    expect(subject).toBe('Cherry Studio migration diagnostics — migration_failed — 2.0.0 — darwin-arm64')
+    expect(subject).toBe('Cherry Studio migration diagnostics — migration_engine_failed — 2.0.0 — darwin-arm64')
     expect(body).toContain('App version: 2.0.0')
     expect(body).toContain('Platform / architecture: darwin / arm64')
     expect(body).toContain('Migration stage: error')
-    expect(body).toContain('Failure code: migration_failed')
+    expect(body).toContain('Failure code: migration_engine_failed')
     expect(body).toContain('Error summary: Could not copy records.')
     expect(body).toContain('Please add what happened immediately before the failure and whether retry reproduces it.')
     expect(body).toContain('Save the diagnostic ZIP and attach it manually to this email.')

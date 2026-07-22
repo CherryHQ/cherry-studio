@@ -78,9 +78,7 @@ async function presentNativeMigrationFailure(failure: NativeMigrationFailure): P
         context: {
           source: 'native',
           stage: 'preboot',
-          failureCode,
           errorSummary,
-          ...(diagnosticError === undefined ? {} : { error: diagnosticError }),
           failure: {
             code: failureCode,
             origin: 'main',

@@ -481,19 +481,11 @@ function isMigrationDiagnosticLocalePayload(payload: unknown): payload is Migrat
 }
 
 function createRendererDiagnosticContext(): MigrationDiagnosticContext {
-  const compatibilityFailure =
-    currentDiagnosticFailure === undefined
-      ? {}
-      : {
-          failureCode: currentDiagnosticFailure.code,
-          ...(currentDiagnosticFailure.error === undefined ? {} : { error: currentDiagnosticFailure.error }),
-          failure: currentDiagnosticFailure
-        }
   return {
     source: 'renderer',
     stage: currentProgress.stage,
     errorSummary: currentProgress.error ?? currentProgress.currentMessage,
-    ...compatibilityFailure,
+    ...(currentDiagnosticFailure === undefined ? {} : { failure: currentDiagnosticFailure }),
     ...(activeDiagnosticRun === undefined ? {} : { run: activeDiagnosticRun }),
     overallProgress: currentProgress.overallProgress,
     migrators: currentProgress.migrators.map(({ id, status }) => ({ id, status }))

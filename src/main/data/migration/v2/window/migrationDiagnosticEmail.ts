@@ -19,7 +19,7 @@ function createEmailBody(
     i18n.t('email.appVersion', { version: appMetadata.version }),
     i18n.t('email.platformArch', { platform: appMetadata.platform, arch: appMetadata.arch }),
     i18n.t('email.stage', { stage: context.stage }),
-    ...(context.failureCode === undefined ? [] : [i18n.t('email.failureCode', { code: context.failureCode })]),
+    ...(context.failure === undefined ? [] : [i18n.t('email.failureCode', { code: context.failure.code })]),
     ...(context.errorSummary === undefined ? [] : [i18n.t('email.errorSummary', { summary: context.errorSummary })]),
     '',
     i18n.t('email.prompt'),
@@ -34,7 +34,7 @@ export function createMigrationDiagnosticEmailUrl(
   appMetadata: MigrationDiagnosticEmailApplicationMetadata,
   i18n: MigrationDiagnosticNativeI18n
 ): string {
-  const failure = context.failureCode ?? context.stage
+  const failure = context.failure?.code ?? context.stage
   const subject = i18n.t('email.subject', {
     failure,
     version: appMetadata.version,

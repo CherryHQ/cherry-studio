@@ -146,8 +146,15 @@ function expectNativeDiagnosticFailure(failureCode: string, errorSummary: string
   const [presentation] = presentMigrationDiagnosticFailureMock.mock.calls[0]
   expect(presentation).toMatchObject({
     locale: 'en-US',
-    context: { source: 'native', stage: 'preboot', failureCode, errorSummary }
+    context: {
+      source: 'native',
+      stage: 'preboot',
+      errorSummary,
+      failure: { code: failureCode, origin: 'main' }
+    }
   })
+  expect(presentation.context).not.toHaveProperty('failureCode')
+  expect(presentation.context).not.toHaveProperty('error')
   return presentation.failure
 }
 
@@ -286,7 +293,7 @@ describe('runV2MigrationGate', () => {
       // Regression: the old fallback mislabeled every failure as a DB "connectivity issue".
       expect(failure.message).not.toContain('connectivity')
       expect(failure).toMatchObject({ type: 'error', buttons: ['Quit'], defaultId: 0, cancelId: 0 })
-      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[0].context.error).toEqual({
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[0].context.failure.error).toEqual({
         name: 'Error',
         message: 'DB unavailable',
         stack: 'Error: DB unavailable\n    at initialize (/app/main.js:18:5)',
@@ -441,7 +448,7 @@ describe('runV2MigrationGate', () => {
       expect(failure.title).toContain('Migration Required')
       expect(failure.message).toContain('window create failed')
       expect(failure).toMatchObject({ type: 'error', buttons: ['Quit'], defaultId: 0, cancelId: 0 })
-      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[0].context.error).toEqual({
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[0].context.failure.error).toEqual({
         name: 'Error',
         message: 'window create failed',
         stack: 'Error: window create failed\n    at create (/app/main.js:72:3)'
@@ -734,8 +741,8 @@ describe('runV2MigrationGate', () => {
         context: {
           source: 'native',
           stage: 'preboot',
-          failureCode: 'data_location_pin_failed',
-          errorSummary: 'Could not save the application data directory.'
+          errorSummary: 'Could not save the application data directory.',
+          failure: { code: 'data_location_pin_failed', origin: 'main' }
         },
         failure: {
           type: 'error',
@@ -745,6 +752,8 @@ describe('runV2MigrationGate', () => {
           cancelId: 0
         }
       })
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[1]?.[0].context).not.toHaveProperty('failureCode')
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[1]?.[0].context).not.toHaveProperty('error')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })
@@ -783,7 +792,7 @@ describe('runV2MigrationGate', () => {
         cancelId: 0
       })
       expect(failure.message).toContain('ENOSPC: no space left on device')
-      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[0].context.error).toEqual({
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[0].context.failure.error).toEqual({
         name: 'Error',
         message: 'ENOSPC: no space left on device',
         stack: 'Error: ENOSPC: no space left on device\n    at persist (/app/main.js:8:9)',

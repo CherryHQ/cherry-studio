@@ -326,12 +326,13 @@ describe('MigrationIpcHandler', () => {
         expect(document.migration).toMatchObject({
           stage: 'error',
           errorSummary: 'permission denied',
-          failureCode: 'export_file_write_failed',
           failure: {
             code: 'export_file_write_failed',
             error: { message: 'permission denied' }
           }
         })
+        expect(document.migration).not.toHaveProperty('failureCode')
+        expect(document.migration).not.toHaveProperty('error')
       } finally {
         await zip.close()
       }
@@ -540,7 +541,6 @@ describe('MigrationIpcHandler', () => {
 
       expect(diagnosticSaveDialogMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          failureCode: 'v1_too_old',
           failure: {
             code: 'v1_too_old',
             origin: 'main',
@@ -606,13 +606,7 @@ describe('MigrationIpcHandler', () => {
         expect.objectContaining({
           source: 'renderer',
           stage: 'error',
-          failureCode: 'migration_engine_failed',
           errorSummary: 'Validation failed',
-          error: {
-            name: 'Error',
-            message: 'Validation failed',
-            stack: 'Error: Validation failed\n    at validate (/app/main.js:84:5)'
-          },
           overallProgress: 65,
           migrators: [
             { id: 'settings', status: 'completed' },
@@ -706,9 +700,7 @@ describe('MigrationIpcHandler', () => {
         expect.objectContaining({
           source: 'renderer',
           stage: 'error',
-          failureCode: 'dexie_export_failed',
           errorSummary: 'Dexie export failed',
-          error,
           overallProgress: 0,
           migrators: [],
           failure: expect.objectContaining({ origin: 'renderer', operation: 'export_dexie' }),

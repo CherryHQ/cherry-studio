@@ -65,13 +65,7 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       context: {
         source: 'renderer',
         stage: 'error',
-        failureCode: 'migration_failed',
         errorSummary: 'Migration failed while copying records.',
-        error: {
-          name: 'Error',
-          message: 'Migration failed while copying records.',
-          stack: 'Error: Migration failed while copying records.\n    at migrate (/app/main.js:10:3)'
-        },
         overallProgress: 42,
         migrators: [
           { id: 'settings', status: 'completed' },
@@ -82,7 +76,11 @@ describe('MigrationDiagnosticBundleBuilder', () => {
           origin: 'main',
           operation: 'run_migration',
           targetPath: '/absolute/cherrystudio.sqlite',
-          error: { name: 'Error', message: 'Migration failed while copying records.' }
+          error: {
+            name: 'Error',
+            message: 'Migration failed while copying records.',
+            stack: 'Error: Migration failed while copying records.\n    at migrate (/app/main.js:10:3)'
+          }
         },
         run: { id: 'run-42', startedAt: '2026-07-21T12:30:00.000Z', failedAt: '2026-07-21T12:31:00.000Z' },
         runtime: {
@@ -116,13 +114,7 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       migration: {
         source: 'renderer',
         stage: 'error',
-        failureCode: 'migration_failed',
         errorSummary: 'Migration failed while copying records.',
-        error: {
-          name: 'Error',
-          message: 'Migration failed while copying records.',
-          stack: 'Error: Migration failed while copying records.\n    at migrate (/app/main.js:10:3)'
-        },
         overallProgress: 42,
         migrators: [
           { id: 'settings', status: 'completed' },
@@ -134,7 +126,11 @@ describe('MigrationDiagnosticBundleBuilder', () => {
           origin: 'main',
           operation: 'run_migration',
           targetPath: '/absolute/cherrystudio.sqlite',
-          error: { name: 'Error', message: 'Migration failed while copying records.' }
+          error: {
+            name: 'Error',
+            message: 'Migration failed while copying records.',
+            stack: 'Error: Migration failed while copying records.\n    at migrate (/app/main.js:10:3)'
+          }
         }
       },
       logCollection: {
@@ -200,13 +196,17 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       context: {
         source: 'native',
         stage: 'preboot',
-        failureCode: 'database_initialize_failed',
-        error: {
-          name: 'Error',
-          message: 'database initialization failed',
-          stack: 'Error: database initialization failed\n    at initialize (/app/main.js:20:7)',
-          code: 'SQLITE_CANTOPEN',
-          path: '/absolute/cherrystudio.sqlite'
+        failure: {
+          code: 'database_initialize_failed',
+          origin: 'main',
+          operation: 'initialize_database',
+          error: {
+            name: 'Error',
+            message: 'database initialization failed',
+            stack: 'Error: database initialization failed\n    at initialize (/app/main.js:20:7)',
+            code: 'SQLITE_CANTOPEN',
+            path: '/absolute/cherrystudio.sqlite'
+          }
         }
       }
     })
@@ -226,13 +226,17 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       migration: {
         source: 'native',
         stage: 'preboot',
-        failureCode: 'database_initialize_failed',
-        error: {
-          name: 'Error',
-          message: 'database initialization failed',
-          stack: 'Error: database initialization failed\n    at initialize (/app/main.js:20:7)',
-          code: 'SQLITE_CANTOPEN',
-          path: '/absolute/cherrystudio.sqlite'
+        failure: {
+          code: 'database_initialize_failed',
+          origin: 'main',
+          operation: 'initialize_database',
+          error: {
+            name: 'Error',
+            message: 'database initialization failed',
+            stack: 'Error: database initialization failed\n    at initialize (/app/main.js:20:7)',
+            code: 'SQLITE_CANTOPEN',
+            path: '/absolute/cherrystudio.sqlite'
+          }
         }
       },
       logCollection: {

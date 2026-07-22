@@ -4,7 +4,6 @@ import { type Readable, Transform } from 'node:stream'
 import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/file'
 import {
   MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES,
-  type MigrationDiagnosticError,
   type MigrationDiagnosticFailure,
   type MigrationDiagnosticRun,
   type MigrationDiagnosticRuntime,
@@ -32,9 +31,7 @@ interface MigrationDiagnosticApplicationMetadata {
 export interface MigrationDiagnosticContext {
   readonly source: 'renderer' | 'native'
   readonly stage: MigrationStage | 'preboot'
-  readonly failureCode?: string
   readonly errorSummary?: string
-  readonly error?: MigrationDiagnosticError
   readonly failure?: MigrationDiagnosticFailure
   readonly run?: MigrationDiagnosticRun
   readonly runtime?: MigrationDiagnosticRuntime
@@ -245,9 +242,7 @@ function diagnosticDocument(
     migration: {
       source: context.source,
       stage: context.stage,
-      ...(context.failureCode === undefined ? {} : { failureCode: context.failureCode }),
       ...(context.errorSummary === undefined ? {} : { errorSummary: context.errorSummary }),
-      ...(context.error === undefined ? {} : { error: context.error }),
       ...(context.overallProgress === undefined ? {} : { overallProgress: context.overallProgress }),
       ...(context.migrators === undefined
         ? {}
