@@ -84,9 +84,7 @@ export const CreateAgentSessionMessagesSchema = z.strictObject({
 })
 export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMessagesSchema>
 
-export const UpdateAgentSessionMessageSchema = z.strictObject({
-  data: MessageDataSchema
-})
+export const UpdateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({ data: true })
 export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMessageSchema>
 
 /**

@@ -10,8 +10,13 @@ const aiClassifyCacheKey = (message: string, language: string) => `error.classif
 
 type MessageErrorActions = Pick<MessageListActions, 'diagnoseMessageError' | 'openErrorDetail' | 'navigateErrorTarget'>
 
-export function useMessageErrorActions(): MessageErrorActions {
+interface MessageErrorActionOptions {
+  persistDiagnosis?: NonNullable<Parameters<typeof showErrorDetailPopup>[0]['onDiagnosisComplete']>
+}
+
+export function useMessageErrorActions(options: MessageErrorActionOptions = {}): MessageErrorActions {
   const navigate = useNavigate()
+  const { persistDiagnosis } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
     ({ error, language }) => {
@@ -32,15 +37,18 @@ export function useMessageErrorActions(): MessageErrorActions {
     []
   )
 
-  const openErrorDetail = useCallback<NonNullable<MessageListActions['openErrorDetail']>>((input) => {
-    showErrorDetailPopup({
-      error: input.error,
-      blockId: input.partId,
-      cachedDiagnosis: input.cachedDiagnosis,
-      diagnosisContext: input.diagnosisContext,
-      messageTopicId: input.message.topicId
-    })
-  }, [])
+  const openErrorDetail = useCallback<NonNullable<MessageListActions['openErrorDetail']>>(
+    (input) => {
+      showErrorDetailPopup({
+        error: input.error,
+        blockId: input.partId,
+        cachedDiagnosis: input.cachedDiagnosis,
+        diagnosisContext: input.diagnosisContext,
+        onDiagnosisComplete: persistDiagnosis
+      })
+    },
+    [persistDiagnosis]
+  )
 
   const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
     (target) => {

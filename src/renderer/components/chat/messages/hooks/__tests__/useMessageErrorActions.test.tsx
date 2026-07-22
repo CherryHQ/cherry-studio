@@ -65,7 +65,7 @@ describe('useMessageErrorActions', () => {
     expect(mocks.classifyErrorByAI).toHaveBeenCalledTimes(2)
   })
 
-  it('forwards the message topic so Agent diagnosis uses Agent-session storage', () => {
+  it('forwards the injected diagnosis persistence capability to the popup', () => {
     const message = {
       id: 'message-1',
       role: 'assistant',
@@ -74,7 +74,8 @@ describe('useMessageErrorActions', () => {
       status: 'error'
     } satisfies MessageListItem
     const error = { message: 'runtime failed', name: 'AgentRuntimeError', stack: '' }
-    const { result } = renderHook(() => useMessageErrorActions())
+    const persistDiagnosis = vi.fn()
+    const { result } = renderHook(() => useMessageErrorActions({ persistDiagnosis }))
 
     void result.current.openErrorDetail?.({ message, partId: 'message-1-part-0', error })
 
@@ -82,7 +83,7 @@ describe('useMessageErrorActions', () => {
       expect.objectContaining({
         blockId: 'message-1-part-0',
         error,
-        messageTopicId: 'agent-session:session-1'
+        onDiagnosisComplete: persistDiagnosis
       })
     )
   })

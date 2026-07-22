@@ -2,7 +2,7 @@
 title: "Agent failures no longer appear as blank replies"
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17264"
 date: 2026-07-22
 ---
 

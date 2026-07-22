@@ -2,16 +2,11 @@ import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  patch: vi.fn(),
   diagnoseError: vi.fn()
 }))
 
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: {
-    get: mocks.get,
-    patch: mocks.patch
-  }
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ warn: vi.fn() }) }
 }))
 
 vi.mock('@renderer/utils/errorDiagnosis', () => ({ diagnoseError: mocks.diagnoseError }))
@@ -29,12 +24,8 @@ describe('AiDiagnosisSection', () => {
     })
   })
 
-  it('persists Agent message diagnosis through the Agent-session endpoint', async () => {
-    mocks.get.mockResolvedValue({
-      data: {
-        parts: [{ type: 'data-error', data: { name: 'AgentRuntimeError', message: 'failed' } }]
-      }
-    })
+  it('delegates diagnosis persistence to the injected capability', async () => {
+    const onDiagnosisComplete = vi.fn()
 
     render(
       <AiDiagnosisSection
@@ -42,27 +33,34 @@ describe('AiDiagnosisSection', () => {
         status="loading"
         onStatusChange={vi.fn()}
         blockId="message-1-part-0"
-        messageTopicId="agent-session:session-1"
+        onDiagnosisComplete={onDiagnosisComplete}
       />
     )
 
     await waitFor(() => {
-      expect(mocks.patch).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1', {
-        body: {
-          data: {
-            parts: [
-              expect.objectContaining({
-                providerMetadata: expect.objectContaining({
-                  cherry: expect.objectContaining({
-                    diagnosis: expect.objectContaining({ summary: 'Runtime failed' })
-                  })
-                })
-              })
-            ]
-          }
-        }
-      })
+      expect(onDiagnosisComplete).toHaveBeenCalledWith(
+        'message-1-part-0',
+        expect.objectContaining({ summary: 'Runtime failed' })
+      )
     })
-    expect(mocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
+  })
+
+  it('keeps a completed diagnosis visible when persistence fails', async () => {
+    const onStatusChange = vi.fn()
+
+    render(
+      <AiDiagnosisSection
+        error={{ name: 'ProviderError', message: 'failed', stack: null }}
+        status="loading"
+        onStatusChange={onStatusChange}
+        blockId="message-1-part-0"
+        onDiagnosisComplete={() => {
+          throw new Error('write failed')
+        }}
+      />
+    )
+
+    await waitFor(() => expect(onStatusChange).toHaveBeenCalledWith('done'))
+    expect(onStatusChange).not.toHaveBeenCalledWith('error')
   })
 })
