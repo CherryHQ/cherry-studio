@@ -14,6 +14,7 @@ import {
   CreateProviderSchema,
   ListProviderApiKeysQuerySchema,
   ListProvidersQuerySchema,
+  ProviderPresetQuerySchema,
   type ProviderSchemas,
   ReplaceProviderApiKeysSchema,
   UpdateApiKeySchema,
@@ -84,10 +85,12 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     }
   },
 
-  '/providers/:providerId/preset-endpoint-configs': {
-    GET: async ({ params }) => {
+  '/providers/:providerId/preset': {
+    GET: async ({ params, query }) => {
+      const parsed = ProviderPresetQuerySchema.parse(query ?? {})
       const provider = providerService.getByProviderId(params.providerId)
-      return providerRegistryService.getPresetEndpointConfigs(provider.id, provider.presetProviderId)
+      const fields = Array.isArray(parsed.fields) ? parsed.fields : [parsed.fields]
+      return providerRegistryService.getProviderPreset(provider.id, fields, provider.presetProviderId)
     }
   },
 

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
-const useProviderPresetEndpointConfigsMock = vi.fn()
+const useProviderPresetMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const useProviderHostPreviewMock = vi.fn()
@@ -36,7 +36,7 @@ vi.mock('../../ConnectionSettings/ProviderCustomHeaderDrawer', () => ({
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args),
-  useProviderPresetEndpointConfigs: (...args: any[]) => useProviderPresetEndpointConfigsMock(...args)
+  useProviderPreset: (...args: any[]) => useProviderPresetMock(...args)
 }))
 
 vi.mock('../../hooks/providerSetting/useProviderHostPreview', () => ({
@@ -100,7 +100,7 @@ describe('ApiHost', () => {
     })
     useProviderMock.mockReturnValue({ provider })
     useProviderMutationsMock.mockReturnValue({ updateProvider: updateProviderMock })
-    useProviderPresetEndpointConfigsMock.mockReturnValue({ data: undefined })
+    useProviderPresetMock.mockReturnValue({ data: undefined })
     useProviderEndpointsMock.mockReturnValue(endpointState)
     useProviderMetaMock.mockReturnValue({
       isConnectionFieldVisible: true,

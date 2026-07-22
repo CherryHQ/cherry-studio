@@ -16,6 +16,7 @@
 import { application } from '@application'
 import type {
   ProtoModelConfig,
+  ProtoProviderConfig,
   ProtoProviderModelOverride,
   ProtoReasoningSupport,
   ReasoningEffort as ReasoningEffortType
@@ -30,6 +31,7 @@ import {
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
@@ -417,10 +419,38 @@ class ProviderRegistryService {
     this.loader = null
   }
 
-  private findRegistryProvider(providerId: string) {
+  private findRegistryProvider(providerId: string): ProtoProviderConfig | undefined {
     return this.getLoader()
       .loadProviders()
       .find((provider) => provider.id === providerId)
+  }
+
+  /**
+   * Resolve the registry preset that owns defaults for a runtime provider.
+   * Canonical registry providers resolve to themselves; custom providers fall
+   * back through their persisted `presetProviderId`.
+   */
+  private resolveProviderPreset(
+    providerId: string,
+    presetProviderId?: string | null,
+    lookupPersistedPreset = true
+  ): ProtoProviderConfig | null {
+    const direct = this.findRegistryProvider(providerId)
+    if (direct) return direct
+
+    let fallbackId = presetProviderId
+    if (!fallbackId && lookupPersistedPreset) {
+      try {
+        fallbackId = getDataService('ProviderService').getByProviderId(providerId).presetProviderId
+      } catch (error) {
+        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+          return null
+        }
+        throw error
+      }
+    }
+
+    return fallbackId ? (this.findRegistryProvider(fallbackId) ?? null) : null
   }
 
   resolveAdapterFamilies(
@@ -466,9 +496,7 @@ class ProviderRegistryService {
 
   getProviderDisplayMetadata(providerId: string, presetProviderId?: string): ProviderDisplayMetadata {
     try {
-      const provider =
-        this.findRegistryProvider(providerId) ??
-        (presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined)
+      const provider = this.resolveProviderPreset(providerId, presetProviderId, false)
 
       return {
         description: provider?.description,
@@ -484,27 +512,30 @@ class ProviderRegistryService {
   }
 
   /**
-   * The pristine registry default per-endpoint config (baseUrl, …) for a provider —
-   * the factory value the settings UI resets an edited API host back to. Read-only,
-   * on-demand (settings only); it deliberately never rides on the runtime Provider.
-   * `null` for custom providers with no registry match.
+   * Return only the requested provider-level preset fields. The effective
+   * registry preset is selected once; models retain the runtime provider ID.
    */
-  getPresetEndpointConfigs(
+  getProviderPreset(
     providerId: string,
+    fields: readonly ProviderPresetField[],
     presetProviderId?: string
-  ): Partial<Record<EndpointType, EndpointConfig>> | null {
-    try {
-      const provider =
-        this.findRegistryProvider(providerId) ??
-        (presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined)
-      if (!provider) return null
-      return buildRuntimeEndpointConfigs(provider.endpointConfigs) as Partial<
-        Record<EndpointType, EndpointConfig>
-      > | null
-    } catch (error) {
-      logger.warn('Failed to load preset endpoint configs', { providerId, presetProviderId, error })
-      return null
+  ): ProviderPreset {
+    const presetProvider = this.resolveProviderPreset(providerId, presetProviderId, false)
+    const result: ProviderPreset = {}
+
+    for (const field of new Set(fields)) {
+      if (field === 'endpointConfigs') {
+        result.endpointConfigs = presetProvider
+          ? (buildRuntimeEndpointConfigs(presetProvider.endpointConfigs) as Partial<
+              Record<EndpointType, EndpointConfig>
+            > | null)
+          : null
+      } else if (field === 'models') {
+        result.models = presetProvider ? this.listProviderPresetModels(providerId, presetProvider) : []
+      }
     }
+
+    return result
   }
 
   /**
@@ -513,14 +544,13 @@ class ProviderRegistryService {
    * Resolves `defaultChatEndpoint` and `reasoningFormatTypes` for a provider
    * by looking up its `endpointConfigs` in the shipped registry data.
    *
-   * @param providerId - The provider to look up
+   * @param provider - The resolved registry provider
    * @returns Registry-level reasoning config (may be overridden by user DB values)
    */
-  private getRegistryReasoningConfig(providerId: string): {
+  private getRegistryReasoningConfig(provider: ProtoProviderConfig | null): {
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   } {
-    const provider = this.findRegistryProvider(providerId)
     const endpointConfigs = provider
       ? (buildRuntimeEndpointConfigs(provider.endpointConfigs) as Partial<Record<EndpointType, EndpointConfig>> | null)
       : null
@@ -540,11 +570,14 @@ class ProviderRegistryService {
    * @param providerId - The provider to resolve config for
    * @returns Merged reasoning config with user overrides applied
    */
-  private getEffectiveReasoningConfig(providerId: string): {
+  private getEffectiveReasoningConfig(
+    providerId: string,
+    presetProvider: ProtoProviderConfig | null
+  ): {
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   } {
-    const registryConfig = this.getRegistryReasoningConfig(providerId)
+    const registryConfig = this.getRegistryReasoningConfig(presetProvider)
 
     try {
       const providerService = getDataService('ProviderService')
@@ -592,14 +625,16 @@ class ProviderRegistryService {
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   } {
     const loader = this.getLoader()
-    const registryOverride = loader.findOverride(providerId, modelId)
+    const presetProvider = this.resolveProviderPreset(providerId)
+    const registryProviderId = presetProvider?.id ?? providerId
+    const registryOverride = loader.findOverride(registryProviderId, modelId)
     const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
     // `getEffectiveReasoningConfig` reads the provider row from the DB; when an
     // optional cache is supplied (batch enrichment in `ModelService.list`),
     // resolve it once per provider instead of once per model.
     let reasoningConfig = reasoningConfigCache?.get(providerId)
     if (!reasoningConfig) {
-      reasoningConfig = this.getEffectiveReasoningConfig(providerId)
+      reasoningConfig = this.getEffectiveReasoningConfig(providerId, presetProvider)
       reasoningConfigCache?.set(providerId, reasoningConfig)
     }
 
@@ -625,7 +660,9 @@ class ProviderRegistryService {
    */
   resolveModels(providerId: string, modelIds: string[]): Model[] {
     const loader = this.getLoader()
-    const { defaultChatEndpoint, reasoningFormatTypes } = this.getEffectiveReasoningConfig(providerId)
+    const presetProvider = this.resolveProviderPreset(providerId)
+    const registryProviderId = presetProvider?.id ?? providerId
+    const { defaultChatEndpoint, reasoningFormatTypes } = this.getEffectiveReasoningConfig(providerId, presetProvider)
 
     const results: Model[] = []
     const seen = new Set<string>()
@@ -635,7 +672,7 @@ class ProviderRegistryService {
       seen.add(modelId)
 
       // O(1) lookup with exact match + normalized fallback
-      const registryOverride = loader.findOverride(providerId, modelId)
+      const registryOverride = loader.findOverride(registryProviderId, modelId)
       const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
 
       if (presetModel) {
@@ -666,12 +703,50 @@ class ProviderRegistryService {
     return results
   }
 
+  private listProviderPresetModels(
+    providerId: string,
+    presetProvider: ProtoProviderConfig,
+    includeDisabled = false
+  ): Model[] {
+    const loader = this.getLoader()
+    const overrides = loader.getOverridesForProvider(presetProvider.id)
+    const reasoningConfig = this.getRegistryReasoningConfig(presetProvider)
+    const results: Model[] = []
+
+    for (const override of overrides) {
+      if ((override.disabled ?? false) !== includeDisabled) continue
+
+      const presetModel = loader.findModel(override.modelId) ?? synthesizePresetFromOverride(override)
+      const model = mergePresetModel(
+        presetModel,
+        override,
+        providerId,
+        reasoningConfig.reasoningFormatTypes,
+        reasoningConfig.defaultChatEndpoint
+      )
+      const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId
+      results.push({
+        ...model,
+        id: createUniqueModelId(providerId, apiModelId),
+        providerId,
+        apiModelId,
+        presetModelId: presetModel.id
+      })
+    }
+
+    return results
+  }
+
   listProviderRegistryModels(options: ListProviderRegistryModelsOptions = {}): Model[] {
     const loader = this.getLoader()
-    const overrides = options.providerId
-      ? loader.getOverridesForProvider(options.providerId)
-      : loader.loadProviderModels()
     const includeDisabled = options.disabled ?? false
+
+    if (options.providerId) {
+      const presetProvider = this.resolveProviderPreset(options.providerId)
+      return presetProvider ? this.listProviderPresetModels(options.providerId, presetProvider, includeDisabled) : []
+    }
+
+    const overrides = loader.loadProviderModels()
     const reasoningConfigByProvider = new Map<
       string,
       {
@@ -693,7 +768,7 @@ class ProviderRegistryService {
 
       let reasoningConfig = reasoningConfigByProvider.get(override.providerId)
       if (!reasoningConfig) {
-        reasoningConfig = this.getRegistryReasoningConfig(override.providerId)
+        reasoningConfig = this.getRegistryReasoningConfig(this.findRegistryProvider(override.providerId) ?? null)
         reasoningConfigByProvider.set(override.providerId, reasoningConfig)
       }
 

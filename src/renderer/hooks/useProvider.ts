@@ -6,6 +6,7 @@ import { isSystemProviderId } from '@renderer/types/provider'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
+  ProviderPresetField,
   UpdateApiKeyDto,
   UpdateProviderDto
 } from '@shared/data/api/schemas/providers'
@@ -253,14 +254,11 @@ export function useProviderApiKeys(providerId: string) {
   return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
 }
 
-/**
- * Registry-default per-endpoint config for a provider (settings-only). Read on
- * demand to power the API-host reset; deliberately not carried on the runtime
- * Provider. Schema: GET /providers/:id/preset-endpoint-configs -> configs | null.
- */
-export function useProviderPresetEndpointConfigs(providerId: string | null | undefined) {
-  return useQuery('/providers/:providerId/preset-endpoint-configs', {
+/** Read a sparse projection of the provider's effective registry preset. */
+export function useProviderPreset(providerId: string | null | undefined, fields: readonly ProviderPresetField[]) {
+  return useQuery('/providers/:providerId/preset', {
     params: { providerId: providerId ?? '' },
+    query: { fields: [...fields] },
     enabled: !!providerId
   })
 }
