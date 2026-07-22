@@ -139,7 +139,6 @@ describe('useMigrationActions diagnostics', () => {
 
   it.each([
     ['saveDiagnostics', MigrationIpcChannels.SaveDiagnosticBundle],
-    ['openDiagnosticEmail', MigrationIpcChannels.OpenDiagnosticEmail],
     ['showDiagnosticBundleInFolder', MigrationIpcChannels.ShowDiagnosticBundleInFolder],
     ['copySupportEmail', MigrationIpcChannels.CopySupportEmail]
   ] as const)('invokes %s without a payload', async (action, channel) => {
@@ -151,5 +150,16 @@ describe('useMigrationActions diagnostics', () => {
 
     expect(invoke).toHaveBeenCalledOnce()
     expect(invoke.mock.calls[0]).toEqual([channel])
+  })
+
+  it('passes the current migration window locale when opening the diagnostic email', async () => {
+    const { result } = renderHook(() => useMigrationActions())
+
+    await act(async () => {
+      await result.current.openDiagnosticEmail('zh-CN')
+    })
+
+    expect(invoke).toHaveBeenCalledOnce()
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.OpenDiagnosticEmail, { locale: 'zh-CN' })
   })
 })

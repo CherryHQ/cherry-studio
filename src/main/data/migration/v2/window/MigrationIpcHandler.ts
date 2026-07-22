@@ -22,6 +22,7 @@ import {
   type MigrationProgress,
   type MigrationResult,
   type MigrationSummary,
+  type OpenMigrationDiagnosticEmailPayload,
   type ReportMigrationErrorPayload,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
@@ -110,9 +111,12 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
     }
   })
 
-  ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event) => {
+  ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event, payload: unknown) => {
     assertMigrationSender(event)
-    const i18n = await createMigrationDiagnosticNativeI18n(app.getLocale())
+    if (!isOpenMigrationDiagnosticEmailPayload(payload)) {
+      throw new Error('Unsupported migration diagnostic email locale.')
+    }
+    const i18n = await createMigrationDiagnosticNativeI18n(payload.locale)
     const mailto = createMigrationDiagnosticEmailUrl(
       createRendererDiagnosticContext(),
       { version: app.getVersion(), platform: process.platform, arch: process.arch },
@@ -456,6 +460,12 @@ function isMigrationExportWritePayload(payload: unknown): payload is MigrationEx
     typeof candidate.tableName === 'string' &&
     MIGRATION_DEXIE_EXPORT_TABLE_SET.has(candidate.tableName)
   )
+}
+
+function isOpenMigrationDiagnosticEmailPayload(payload: unknown): payload is OpenMigrationDiagnosticEmailPayload {
+  if (typeof payload !== 'object' || payload === null) return false
+  const { locale } = payload as Record<string, unknown>
+  return locale === 'en-US' || locale === 'zh-CN'
 }
 
 function createRendererDiagnosticContext(): MigrationDiagnosticContext {

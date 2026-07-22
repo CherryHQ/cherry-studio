@@ -8,7 +8,9 @@ import {
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationStage,
+  type MigrationWindowLocale,
   type MigratorStatus,
+  type OpenMigrationDiagnosticEmailPayload,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -134,8 +136,9 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle)
   }, [])
 
-  const openDiagnosticEmail = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDiagnosticEmail)
+  const openDiagnosticEmail = useCallback((locale: MigrationWindowLocale) => {
+    const payload: OpenMigrationDiagnosticEmailPayload = { locale }
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDiagnosticEmail, payload)
   }, [])
 
   const showDiagnosticBundleInFolder = useCallback(() => {

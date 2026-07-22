@@ -26,6 +26,9 @@ const invoke = vi.fn()
 const platformState = vi.hoisted(() => ({
   isMac: false
 }))
+const i18nState = vi.hoisted(() => ({
+  language: 'en-US'
+}))
 const exporterMocks = vi.hoisted(() => ({
   MigrationExportWriteError: class MigrationExportWriteError extends Error {
     constructor(readonly failure: MigrationDiagnosticFailure) {
@@ -65,7 +68,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: {
       changeLanguage: vi.fn(),
-      language: 'en-US'
+      language: i18nState.language
     },
     t: (key: string) => key
   })
@@ -231,6 +234,7 @@ describe('MigrationApp', () => {
       stage: 'introduction'
     }
     platformState.isMac = false
+    i18nState.language = 'en-US'
     window.history.replaceState(null, '', '/')
     ;(window as unknown as { electron: { ipcRenderer: unknown } }).electron = {
       ipcRenderer: {
@@ -861,8 +865,9 @@ describe('MigrationApp', () => {
       expect(screen.queryByText(/diagnostic-canary/)).not.toBeInTheDocument()
     })
 
-    it('offers exactly three no-payload support actions after saving', async () => {
+    it('passes the current Renderer locale when opening the email and keeps the other support actions payload-free', async () => {
       setStage('error')
+      i18nState.language = 'zh-CN'
       migrationHookMock.actions.saveDiagnostics.mockResolvedValue({
         status: 'saved',
         logs: 'included',
@@ -890,7 +895,7 @@ describe('MigrationApp', () => {
           within(supportActions).getByRole('button', { name: 'migration.diagnostics.actions.copy_email' })
         )
       })
-      expect(migrationHookMock.actions.openDiagnosticEmail.mock.calls[0]).toEqual([])
+      expect(migrationHookMock.actions.openDiagnosticEmail).toHaveBeenCalledWith('zh-CN')
       expect(migrationHookMock.actions.showDiagnosticBundleInFolder.mock.calls[0]).toEqual([])
       expect(migrationHookMock.actions.copySupportEmail.mock.calls[0]).toEqual([])
     })

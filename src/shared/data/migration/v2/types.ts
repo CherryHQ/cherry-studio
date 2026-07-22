@@ -168,6 +168,12 @@ export interface ReportMigrationErrorPayload {
   failure: MigrationDiagnosticFailure
 }
 
+export type MigrationWindowLocale = 'en-US' | 'zh-CN'
+
+export interface OpenMigrationDiagnosticEmailPayload {
+  locale: MigrationWindowLocale
+}
+
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
   // Status queries

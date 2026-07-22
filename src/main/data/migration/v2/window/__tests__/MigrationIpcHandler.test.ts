@@ -8,7 +8,6 @@ const electronMock = vi.hoisted(() => ({
   ipcRemoveHandler: vi.fn(),
   appQuit: vi.fn(),
   appGetVersion: vi.fn(() => '2.0.0-test'),
-  appGetLocale: vi.fn(() => 'en-US'),
   openExternal: vi.fn(),
   showItemInFolder: vi.fn(),
   clipboardWriteText: vi.fn()
@@ -30,15 +29,14 @@ const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
 const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
 const diagnosticSaveDialogMock = vi.hoisted(() => vi.fn())
 const diagnosticEmailUrlMock = vi.hoisted(() => vi.fn(() => 'mailto:support@cherry-ai.com?subject=diagnostics'))
-const diagnosticI18nMock = vi.hoisted(() => vi.fn(async () => ({ locale: 'en-US', t: vi.fn() })))
+const diagnosticI18nMock = vi.hoisted(() => vi.fn(async (locale: string) => ({ locale, t: vi.fn() })))
 const validateSenderMock = vi.hoisted(() => vi.fn(() => true))
 const isSafeExternalUrlMock = vi.hoisted(() => vi.fn(() => true))
 
 vi.mock('electron', () => ({
   app: {
     quit: electronMock.appQuit,
-    getVersion: electronMock.appGetVersion,
-    getLocale: electronMock.appGetLocale
+    getVersion: electronMock.appGetVersion
   },
   ipcMain: {
     handle: electronMock.ipcHandle,
@@ -138,9 +136,8 @@ describe('MigrationIpcHandler', () => {
     validateSenderMock.mockReturnValue(true)
     isSafeExternalUrlMock.mockReturnValue(true)
     electronMock.appGetVersion.mockReturnValue('2.0.0-test')
-    electronMock.appGetLocale.mockReturnValue('en-US')
     diagnosticEmailUrlMock.mockReturnValue('mailto:support@cherry-ai.com?subject=diagnostics')
-    diagnosticI18nMock.mockResolvedValue({ locale: 'en-US', t: vi.fn() })
+    diagnosticI18nMock.mockImplementation(async (locale: string) => ({ locale, t: vi.fn() }))
     engineMock.getLastDiagnosticFailure.mockReturnValue(undefined)
     engineMock.writeExportFile.mockResolvedValue({ ok: true })
     resetMigrationData()
@@ -620,7 +617,7 @@ describe('MigrationIpcHandler', () => {
       expect(shell.showItemInFolder).toHaveBeenCalledWith('/main/success.zip')
     })
 
-    it('creates the support email and copies the fixed address without accepting Renderer content', async () => {
+    it('uses the Renderer locale while keeping the support email content owned by Main', async () => {
       const error = {
         name: 'Error',
         message: 'Dexie export failed',
@@ -631,6 +628,7 @@ describe('MigrationIpcHandler', () => {
 
       expect(
         await invoke(MigrationIpcChannels.OpenDiagnosticEmail, {
+          locale: 'zh-CN',
           recipient: 'attacker@example.com',
           body: 'renderer-controlled'
         })
@@ -648,8 +646,9 @@ describe('MigrationIpcHandler', () => {
           run: expect.objectContaining({ id: RUN_ID, failedAt: expect.any(String) })
         }),
         { version: '2.0.0-test', platform: process.platform, arch: process.arch },
-        expect.objectContaining({ locale: 'en-US' })
+        expect.objectContaining({ locale: 'zh-CN' })
       )
+      expect(diagnosticI18nMock).toHaveBeenCalledWith('zh-CN')
       expect(isSafeExternalUrlMock).toHaveBeenCalledWith('mailto:support@cherry-ai.com?subject=diagnostics')
       expect(shell.openExternal).toHaveBeenCalledWith('mailto:support@cherry-ai.com?subject=diagnostics')
 
@@ -660,9 +659,17 @@ describe('MigrationIpcHandler', () => {
     it('does not open an email URL rejected by the external URL safety gate', async () => {
       isSafeExternalUrlMock.mockReturnValue(false)
 
-      await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail)).rejects.toThrow(
+      await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail, { locale: 'en-US' })).rejects.toThrow(
         'Could not create a safe support email URL'
       )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('rejects an unsupported Renderer locale before creating the email', async () => {
+      await expect(invoke(MigrationIpcChannels.OpenDiagnosticEmail, { locale: 'fr-FR' })).rejects.toThrow(
+        'Unsupported migration diagnostic email locale.'
+      )
+      expect(diagnosticI18nMock).not.toHaveBeenCalled()
       expect(shell.openExternal).not.toHaveBeenCalled()
     })
 

@@ -29,7 +29,7 @@ import {
   type MigrationFailureOperation,
   serializeMigrationDiagnosticError
 } from '@shared/data/migration/v2/diagnostics'
-import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
+import { MigrationIpcChannels, type MigrationStage, type MigrationWindowLocale } from '@shared/data/migration/v2/types'
 import {
   AlertTriangle,
   ArrowRight,
@@ -478,6 +478,8 @@ const MigrationApp: React.FC = () => {
   }, [progress, t])
 
   const stage = localMigrationError ? 'error' : progress.stage
+  const diagnosticEmailLocale: MigrationWindowLocale =
+    (i18n.resolvedLanguage ?? i18n.language) === 'zh-CN' ? 'zh-CN' : 'en-US'
 
   const showRail = stage !== 'version_incompatible'
 
@@ -523,7 +525,7 @@ const MigrationApp: React.FC = () => {
             variant="outline"
             className="gap-2"
             disabled={isRunningDiagnosticSupportAction}
-            onClick={() => void runDiagnosticSupportAction(actions.openDiagnosticEmail)}>
+            onClick={() => void runDiagnosticSupportAction(() => actions.openDiagnosticEmail(diagnosticEmailLocale))}>
             <Mail size={14} />
             {t('migration.diagnostics.actions.open_email')}
           </Button>
