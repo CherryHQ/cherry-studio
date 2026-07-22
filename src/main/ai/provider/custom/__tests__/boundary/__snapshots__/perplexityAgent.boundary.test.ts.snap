@@ -1,0 +1,74 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Perplexity Agent request boundary > anthropic model: defaults max_output_tokens and web_search, forwards provider options 1`] = `
+{
+  "input": [
+    {
+      "content": "Q",
+      "role": "user",
+    },
+  ],
+  "max_output_tokens": 8192,
+  "max_steps": 3,
+  "model": "anthropic/claude-opus-4-8",
+  "reasoning": {
+    "effort": "high",
+  },
+  "tools": [
+    {
+      "filters": {
+        "search_recency_filter": "week",
+      },
+      "type": "web_search",
+    },
+  ],
+}
+`;
+
+exports[`Perplexity Agent request boundary > non-anthropic model with no options: web_search on, no max_output_tokens 1`] = `
+{
+  "input": [
+    {
+      "content": "Q",
+      "role": "user",
+    },
+  ],
+  "model": "openai/gpt-5.6-sol",
+  "tools": [
+    {
+      "type": "web_search",
+    },
+  ],
+}
+`;
+
+exports[`Perplexity Agent request boundary > serializes full web_search config and the fetch_url tool 1`] = `
+{
+  "input": [
+    {
+      "content": "Q",
+      "role": "user",
+    },
+  ],
+  "model": "perplexity/sonar",
+  "tools": [
+    {
+      "filters": {
+        "search_domain_filter": [
+          "-reddit.com",
+        ],
+      },
+      "max_results": 5,
+      "search_context_size": "high",
+      "type": "web_search",
+      "user_location": {
+        "country": "US",
+      },
+    },
+    {
+      "max_urls": 3,
+      "type": "fetch_url",
+    },
+  ],
+}
+`;

@@ -12,7 +12,6 @@ import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSetti
 import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
-import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
@@ -37,6 +36,8 @@ import { createModelscopeProvider, type ModelscopeProviderSettings } from './cus
 import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
 import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from './custom/ovms/ovmsProvider'
+import type { PerplexityFetchUrlConfig, PerplexityWebSearchConfig } from './custom/perplexity/perplexityAgentSchemas'
+import { createPerplexityProvider, type PerplexityProviderSettings } from './custom/perplexity/perplexityProvider'
 import { createPpioProvider, type PpioProviderSettings } from './custom/ppio/ppioProvider'
 import { createSiliconProvider, type SiliconProviderSettings } from './custom/silicon/siliconProvider'
 import { createZhipuProvider, type ZhipuProviderSettings } from './custom/zhipuProvider'
@@ -112,10 +113,27 @@ export const BedrockExtension = ProviderExtension.create({
   }
 } as const satisfies ProviderExtensionConfig<AmazonBedrockProviderSettings, AmazonBedrockProvider, 'bedrock'>)
 
+/**
+ * Perplexity Agent API (`/v1/agent`). `webSearch` / `urlContext` map the app's
+ * web-search / url-context toggles onto Perplexity's server-side `web_search` /
+ * `fetch_url` tools, translated into `providerOptions.perplexity`.
+ */
 export const PerplexityExtension = ProviderExtension.create({
   name: 'perplexity',
   supportsImageGeneration: false,
-  create: createPerplexity
+  create: createPerplexityProvider,
+  toolFactories: {
+    webSearch:
+      () =>
+      (config: PerplexityWebSearchConfig = {}) => ({
+        providerOptions: { perplexity: { webSearch: config } }
+      }),
+    urlContext:
+      () =>
+      (config: PerplexityFetchUrlConfig = {}) => ({
+        providerOptions: { perplexity: { fetchUrl: config } }
+      })
+  }
 } as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ProviderV3, 'perplexity'>)
 
 export const MistralExtension = ProviderExtension.create({
