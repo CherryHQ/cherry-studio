@@ -8,6 +8,7 @@ const {
   duplicateMock,
   getByIdMock,
   getLatestActiveMock,
+  getReusablePlaceholderMock,
   listByCursorMock,
   moveMock,
   reorderBatchMock,
@@ -23,6 +24,7 @@ const {
   duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
   getLatestActiveMock: vi.fn(),
+  getReusablePlaceholderMock: vi.fn(),
   listByCursorMock: vi.fn(),
   moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock('@data/services/TopicService', () => ({
     duplicate: duplicateMock,
     getById: getByIdMock,
     getLatestActive: getLatestActiveMock,
+    getReusablePlaceholder: getReusablePlaceholderMock,
     listByCursor: listByCursorMock,
     move: moveMock,
     reorder: reorderMock,
@@ -123,6 +126,28 @@ describe('topicHandlers', () => {
       getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
+    })
+  })
+
+  describe('/topics/reusable-placeholder', () => {
+    it('forwards an exact creation owner and wraps the reusable topic', async () => {
+      const assistantId = '11111111-1111-4111-8111-111111111111'
+      const topic = { id: 'topic-empty' }
+      getReusablePlaceholderMock.mockReturnValueOnce(topic)
+
+      await expect(
+        topicHandlers['/topics/reusable-placeholder'].GET({ query: { assistantId } } as never)
+      ).resolves.toEqual({ topic })
+      expect(getReusablePlaceholderMock).toHaveBeenCalledWith({ assistantId })
+    })
+
+    it('keeps unassigned distinct from the unlinked list aggregate', async () => {
+      getReusablePlaceholderMock.mockReturnValueOnce(null)
+
+      await expect(
+        topicHandlers['/topics/reusable-placeholder'].GET({ query: { assistantId: 'unassigned' } } as never)
+      ).resolves.toEqual({ topic: null })
+      expect(getReusablePlaceholderMock).toHaveBeenCalledWith({ assistantId: 'unassigned' })
     })
   })
 

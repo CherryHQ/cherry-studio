@@ -205,6 +205,16 @@ export const LatestAgentSessionQuerySchema = z.strictObject({
 })
 export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
 
+/** Exact owner and optional workspace target for reusable empty-session lookup. */
+export const ReusableAgentSessionPlaceholdersQuerySchema = z.strictObject({
+  agentId: AgentSessionOwnerScopeSchema.refine((agentId) => agentId !== 'unlinked', {
+    message: 'Reusable placeholders require a concrete agent id'
+  }),
+  /** Concrete user workspace id, `system`, or omitted for every workspace. */
+  workspaceId: AgentSessionWorkspaceScopeSchema.optional()
+})
+export type ReusableAgentSessionPlaceholdersQuery = z.infer<typeof ReusableAgentSessionPlaceholdersQuerySchema>
+
 export const AgentSessionStatsQuerySchema = z.strictObject({
   q: z.string().optional(),
   agentId: AgentSessionOwnerScopeSchema.optional()
@@ -225,6 +235,11 @@ export interface DeleteAgentSessionsResult {
 /** Most-recently-active session in the requested owner scope, or `null`. */
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
+}
+
+/** Every reusable empty session for the exact target, newest first. */
+export interface ReusableAgentSessionPlaceholdersResponse {
+  sessions: AgentSessionEntity[]
 }
 
 export const AGENT_SESSION_DELETE_MAX_IDS = 200
@@ -284,6 +299,17 @@ export type AgentSessionSchemas = {
     GET: {
       query?: LatestAgentSessionQuery
       response: LatestAgentSessionResponse
+    }
+  }
+
+  /**
+   * Structurally empty, untitled placeholders for one live agent and optional
+   * exact workspace scope. This derived read is independent of list pagination.
+   */
+  '/agent-sessions/reusable-placeholders': {
+    GET: {
+      query: ReusableAgentSessionPlaceholdersQuery
+      response: ReusableAgentSessionPlaceholdersResponse
     }
   }
 

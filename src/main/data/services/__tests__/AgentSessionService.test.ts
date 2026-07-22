@@ -196,6 +196,94 @@ describe('AgentSessionService', () => {
     })
   })
 
+  describe('listReusablePlaceholders', () => {
+    it('proves empty sessions for one exact agent/workspace and returns every match newest first', async () => {
+      const workspace = await createWorkspace('reusable')
+      const otherWorkspace = await createWorkspace('reusable-other')
+      const systemWorkspace = dbh.db.transaction((tx) =>
+        agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'reusable-system' })
+      )
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'empty-user-old',
+          agentId: 'agent-session-test',
+          name: '  ',
+          workspaceId: workspace.id,
+          orderKey: 'z9',
+          createdAt: 10,
+          updatedAt: 10
+        },
+        {
+          id: 'empty-user-new',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: workspace.id,
+          orderKey: 'z8',
+          createdAt: 20,
+          updatedAt: 20
+        },
+        {
+          id: 'messaged-user-newer',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          createdAt: 30,
+          updatedAt: 30
+        },
+        {
+          id: 'manual-user-newer',
+          agentId: 'agent-session-test',
+          name: '',
+          isNameManuallyEdited: true,
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          createdAt: 40,
+          updatedAt: 40
+        },
+        {
+          id: 'empty-other-workspace',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: otherWorkspace.id,
+          orderKey: 'a2',
+          createdAt: 50,
+          updatedAt: 50
+        },
+        {
+          id: 'empty-system',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: systemWorkspace.id,
+          orderKey: 'a3',
+          createdAt: 60,
+          updatedAt: 60
+        }
+      ])
+      await insertSessionMessage('messaged-user-newer', 'message-existing')
+      await dbh.db.insert(pinTable).values({
+        id: 'pin-empty-user-old',
+        entityType: 'session',
+        entityId: 'empty-user-old',
+        orderKey: 'a0'
+      })
+
+      expect(
+        agentSessionService
+          .listReusablePlaceholders({ agentId: 'agent-session-test', workspaceId: workspace.id })
+          .map((session) => session.id)
+      ).toEqual(['empty-user-new', 'empty-user-old'])
+      expect(
+        agentSessionService
+          .listReusablePlaceholders({ agentId: 'agent-session-test', workspaceId: 'system' })
+          .map((session) => session.id)
+      ).toEqual(['empty-system'])
+      expect(
+        agentSessionService.listReusablePlaceholders({ agentId: 'agent-session-test' }).map((session) => session.id)
+      ).toEqual(['empty-system', 'empty-other-workspace', 'empty-user-new', 'empty-user-old'])
+    })
+  })
+
   describe('PR1 collection contracts', () => {
     it('separates pin streams and applies activity, owner, workspace, and owner-name filters in SQLite', async () => {
       const workspace = await createWorkspace('pr1-list')

@@ -25,6 +25,7 @@ import type {
   DeleteAgentSessionsResult,
   LatestAgentSessionQuery,
   ListAgentSessionsQuery,
+  ReusableAgentSessionPlaceholdersQuery,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -237,6 +238,37 @@ export class AgentSessionService {
       .limit(1)
       .all()
     return row ? rowToSession(row) : null
+  }
+
+  /**
+   * Return every reusable placeholder for one exact creation target, newest
+   * first. The message anti-join proves emptiness without a bounded renderer
+   * scan, while the optional workspace scope keeps create-or-reuse semantics
+   * exact for both user and system workspaces.
+   */
+  listReusablePlaceholders(query: ReusableAgentSessionPlaceholdersQuery): AgentSessionEntity[] {
+    const db = application.get('DbService').getDb()
+    const filters = buildSessionRecordFilters(query)
+    filters.push(eq(sessionsTable.isNameManuallyEdited, false))
+    filters.push(sql`trim(${sessionsTable.name}) = ''`)
+    filters.push(
+      sql`NOT EXISTS (
+        SELECT 1
+        FROM ${agentSessionMessageTable}
+        WHERE ${agentSessionMessageTable.sessionId} = ${sessionsTable.id}
+      )`
+    )
+
+    const rows = db
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(desc(sessionsTable.createdAt), desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .all()
+
+    return rows.map(rowToSession)
   }
 
   /** Monotonically advance activity from inside a caller-owned write transaction. */

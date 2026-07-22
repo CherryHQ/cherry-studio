@@ -200,6 +200,13 @@ which pages a pinned section then an unpinned section with a first-page sentinel
 cannot be expressed as one tuple and keeps its **own** codec. Do not force such
 endpoints through the shared helper.
 
+**Do not use a page as an existence proof.** A bounded page can answer only
+"which rows are visible in this cursor window," not "does any matching row
+exist?" or "which matching row is globally newest?" Domain decisions such as
+reusing an empty topic/session placeholder need a dedicated derived read whose
+SQL applies the complete predicate independently of pin membership, list order,
+and pagination.
+
 **Determinism under ties.** `keysetOrdering` always appends the `id` tiebreaker
 (`[<major> keyCol, <tie> idCol]`), so page-walking stays deterministic even when
 two rows share the same sort key (e.g. an `order_key` collision). This is by

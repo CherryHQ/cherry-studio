@@ -21,6 +21,7 @@ import type {
   LatestTopicQuery,
   ListTopicsQuery,
   MoveTopicDto,
+  ReusableTopicPlaceholderQuery,
   TopicListItem,
   TopicSearchScope,
   TopicSortBy,
@@ -182,6 +183,36 @@ export class TopicService {
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
       .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
+      .limit(1)
+      .all()
+
+    return row ? rowToTopic(row.topic) : null
+  }
+
+  /**
+   * Return the newest reusable placeholder for one exact creation owner.
+   * This is a domain read rather than a list-page scan: pin membership and
+   * manual list order cannot hide an older empty placeholder.
+   */
+  getReusablePlaceholder(query: ReusableTopicPlaceholderQuery): Topic | null {
+    const db = application.get('DbService').getDb()
+    const ownerFilter =
+      query.assistantId === 'unassigned' ? isNull(topicTable.assistantId) : eq(assistantTable.id, query.assistantId)
+
+    const [row] = db
+      .select({ topic: topicTable })
+      .from(topicTable)
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(
+        and(
+          isNull(topicTable.deletedAt),
+          ownerFilter,
+          isNull(topicTable.activeNodeId),
+          eq(topicTable.isNameManuallyEdited, false),
+          sql`trim(${topicTable.name}) = ''`
+        )
+      )
+      .orderBy(desc(topicTable.createdAt), desc(topicTable.updatedAt), asc(topicTable.id))
       .limit(1)
       .all()
 

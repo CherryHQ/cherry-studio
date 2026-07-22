@@ -1779,6 +1779,88 @@ describe('TopicService', () => {
     })
   })
 
+  describe('getReusablePlaceholder', () => {
+    it('selects the newest exact empty owner target independently of list position and pin state', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-reusable',
+          name: 'Reusable owner',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: 'asst-reusable-deleted',
+          name: 'Deleted owner',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          deletedAt: 999
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'owned-empty-old',
+          name: '  ',
+          assistantId: 'asst-reusable',
+          orderKey: 'z9',
+          createdAt: 10,
+          updatedAt: 10
+        },
+        {
+          id: 'owned-empty-new',
+          name: '',
+          assistantId: 'asst-reusable',
+          orderKey: 'z8',
+          createdAt: 20,
+          updatedAt: 20
+        },
+        {
+          id: 'owned-started-newer',
+          name: '',
+          assistantId: 'asst-reusable',
+          activeNodeId: 'message-1',
+          orderKey: 'a0',
+          createdAt: 30,
+          updatedAt: 30
+        },
+        {
+          id: 'owned-manual-newer',
+          name: '',
+          isNameManuallyEdited: true,
+          assistantId: 'asst-reusable',
+          orderKey: 'a1',
+          createdAt: 40,
+          updatedAt: 40
+        },
+        {
+          id: 'unassigned-empty',
+          name: '',
+          orderKey: 'a2',
+          createdAt: 50,
+          updatedAt: 50
+        },
+        {
+          id: 'deleted-owner-empty',
+          name: '',
+          assistantId: 'asst-reusable-deleted',
+          orderKey: 'a3',
+          createdAt: 60,
+          updatedAt: 60
+        }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: 'pin-owned-empty-new',
+        entityType: 'topic',
+        entityId: 'owned-empty-new',
+        orderKey: 'a0'
+      })
+
+      expect(topicService.getReusablePlaceholder({ assistantId: 'asst-reusable' })?.id).toBe('owned-empty-new')
+      expect(topicService.getReusablePlaceholder({ assistantId: 'unassigned' })?.id).toBe('unassigned-empty')
+    })
+  })
+
   describe('getLatestActive', () => {
     it('returns the globally most-recently-active non-deleted topic, independent of pin/order', async () => {
       const service = new TopicService()

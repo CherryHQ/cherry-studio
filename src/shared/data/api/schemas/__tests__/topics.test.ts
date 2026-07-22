@@ -4,6 +4,7 @@ import {
   CreateTopicSchema,
   DuplicateTopicSchema,
   ListTopicsQuerySchema,
+  ReusableTopicPlaceholderQuerySchema,
   SetActiveNodeSchema,
   UpdateTopicSchema
 } from '../topics'
@@ -18,6 +19,23 @@ describe('ListTopicsQuerySchema', () => {
     expect(ListTopicsQuerySchema.safeParse({ pinned: true, q: 'needle' }).success).toBe(true)
     expect(ListTopicsQuerySchema.safeParse({ pinned: true, sortBy: 'lastActivityAt' }).success).toBe(false)
     expect(ListTopicsQuerySchema.safeParse({ pinned: false, sortBy: 'lastActivityAt' }).success).toBe(true)
+  })
+})
+
+describe('ReusableTopicPlaceholderQuerySchema', () => {
+  it('accepts an exact live owner or the unassigned creation target', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
+    expect(ReusableTopicPlaceholderQuerySchema.parse({ assistantId })).toEqual({ assistantId })
+    expect(ReusableTopicPlaceholderQuerySchema.parse({ assistantId: 'unassigned' })).toEqual({
+      assistantId: 'unassigned'
+    })
+  })
+
+  it('rejects list-only and unlinked aggregate dimensions', () => {
+    expect(() => ReusableTopicPlaceholderQuerySchema.parse({ assistantId: 'unlinked' })).toThrow()
+    expect(() => ReusableTopicPlaceholderQuerySchema.parse({ assistantId: 'unassigned', pinned: false })).toThrow(
+      /unrecognized/i
+    )
   })
 })
 

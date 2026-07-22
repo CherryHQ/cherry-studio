@@ -18,6 +18,7 @@ import {
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
   MoveTopicSchema,
+  ReusableTopicPlaceholderQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   TopicStatsQuerySchema,
@@ -47,6 +48,13 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     GET: async ({ query }) => {
       const parsed = LatestTopicQuerySchema.parse(query ?? {})
       return { topic: topicService.getLatestActive(parsed) }
+    }
+  },
+
+  '/topics/reusable-placeholder': {
+    GET: async ({ query }) => {
+      const parsed = ReusableTopicPlaceholderQuerySchema.parse(query)
+      return { topic: topicService.getReusablePlaceholder(parsed) }
     }
   },
 

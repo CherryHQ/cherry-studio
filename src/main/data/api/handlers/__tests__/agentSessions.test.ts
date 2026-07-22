@@ -5,6 +5,7 @@ const {
   createSessionMock,
   getByIdMock,
   getLatestActiveMock,
+  listReusablePlaceholdersMock,
   statsMock,
   updateMock,
   setWorkspaceMock,
@@ -20,6 +21,7 @@ const {
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
   getLatestActiveMock: vi.fn(),
+  listReusablePlaceholdersMock: vi.fn(),
   statsMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
     create: createSessionMock,
     getById: getByIdMock,
     getLatestActive: getLatestActiveMock,
+    listReusablePlaceholders: listReusablePlaceholdersMock,
     stats: statsMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
@@ -98,6 +101,30 @@ describe('agentSessionHandlers', () => {
       getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
+    })
+  })
+
+  describe('/agent-sessions/reusable-placeholders', () => {
+    it('forwards the exact agent/workspace target and wraps every match', async () => {
+      const agentId = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
+      const sessions = [{ id: 'session-empty' }]
+      listReusablePlaceholdersMock.mockReturnValueOnce(sessions)
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/reusable-placeholders'].GET({
+          query: { agentId, workspaceId: 'system' }
+        } as never)
+      ).resolves.toEqual({ sessions })
+      expect(listReusablePlaceholdersMock).toHaveBeenCalledWith({ agentId, workspaceId: 'system' })
+    })
+
+    it('rejects aggregate owner scopes before calling the service', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/reusable-placeholders'].GET({
+          query: { agentId: 'unlinked' }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+      expect(listReusablePlaceholdersMock).not.toHaveBeenCalled()
     })
   })
 

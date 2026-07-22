@@ -9,9 +9,13 @@ import {
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
   ListAgentSessionsQuerySchema,
+  ReusableAgentSessionPlaceholdersQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
+
+const AGENT_ID = 'agent-1'
+const WORKSPACE_ID = 'workspace-1'
 
 describe('AgentSessionMessage schemas', () => {
   const baseMessage = {
@@ -147,5 +151,25 @@ describe('AgentSession schemas', () => {
 
     expect(DeleteAgentSessionsQuerySchema.safeParse({ ids: validIds }).success).toBe(true)
     expect(DeleteAgentSessionsQuerySchema.safeParse({ ids: tooManyIds }).success).toBe(false)
+  })
+})
+
+describe('ReusableAgentSessionPlaceholdersQuerySchema', () => {
+  it('requires one concrete agent and accepts an optional exact workspace scope', () => {
+    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID })).toEqual({ agentId: AGENT_ID })
+    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID, workspaceId: 'system' })).toEqual({
+      agentId: AGENT_ID,
+      workspaceId: 'system'
+    })
+    expect(ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID, workspaceId: WORKSPACE_ID })).toEqual(
+      { agentId: AGENT_ID, workspaceId: WORKSPACE_ID }
+    )
+  })
+
+  it('rejects aggregate owners and list-only dimensions', () => {
+    expect(() => ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: 'unlinked' })).toThrow()
+    expect(() => ReusableAgentSessionPlaceholdersQuerySchema.parse({ agentId: AGENT_ID, pinned: false })).toThrow(
+      /unrecognized/i
+    )
   })
 })
