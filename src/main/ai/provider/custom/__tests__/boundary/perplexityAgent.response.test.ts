@@ -154,11 +154,12 @@ describe('Perplexity Agent response boundary', () => {
     const { stream } = await model.doStream(options)
     const parts = await collect(stream)
     const errorPart = parts.find((p) => p.type === 'error') as { type: 'error'; error: unknown } | undefined
+    const error = errorPart?.error
 
     // Must be a real Error so main/ai/utils/serializeError extracts `.message`
     // instead of String(plainObject) === "[object Object]".
-    expect(errorPart?.error).toBeInstanceOf(APICallError)
-    expect((errorPart?.error as Error).message).toBe('invalid request')
+    expect(error).toBeInstanceOf(APICallError)
+    expect((error as Error | undefined)?.message).toBe('invalid request')
     expect(parts.find((p) => p.type === 'finish')).toMatchObject({ finishReason: { unified: 'error' } })
   })
 })
