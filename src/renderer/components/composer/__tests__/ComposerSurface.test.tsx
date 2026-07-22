@@ -751,6 +751,15 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
   })
 
+  it('uses block layout so trailing hard breaks contribute to the editor scroll height', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const editor = screen.getByTestId('composer-editor')
+
+    expect(editor).toHaveClass('block', 'overflow-auto')
+    expect(editor).not.toHaveClass('flex')
+  })
+
   it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
     render(<Harness />)
 

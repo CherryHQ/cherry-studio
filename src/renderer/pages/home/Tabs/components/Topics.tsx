@@ -281,6 +281,7 @@ export function Topics({
     updateTopic: patchTopic,
     deleteTopic: deleteTopicById,
     deleteTopicsByAssistantId,
+    moveTopic,
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
@@ -1104,6 +1105,16 @@ export function Topics({
           }),
     [filteredTopics, isRightPanel, topicExpansion, topicGroupBy]
   )
+  const topicAssistantSectionIds = useMemo(
+    () =>
+      isGroupGrouping
+        ? [
+            TOPIC_ASSISTANT_UNGROUPED_SECTION_ID,
+            ...assistantGroups.map((group) => `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}${group.id}`)
+          ]
+        : [TOPIC_ASSISTANT_SECTION_ID],
+    [assistantGroups, isGroupGrouping]
+  )
   const handleTopicCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
       if (isRightPanel) return
@@ -1242,33 +1253,22 @@ export function Topics({
       const currentAssistantId = topic.assistantId ?? null
       setOptimisticMove({ payload: normalizedPayload, targetAssistantId })
 
-      try {
-        if (targetAssistantId !== currentAssistantId) {
-          await dataApiService.patch(`/topics/${payload.activeId}`, {
-            body: { assistantId: targetAssistantId }
-          })
-        }
+      const assistantChanged = targetAssistantId !== currentAssistantId
 
-        await dataApiService.patch(`/topics/${payload.activeId}/order`, {
-          body: anchor
+      try {
+        // `moveTopic` owns the cache orchestration: the open conversation follows to the new
+        // assistant immediately (via `/topics/:id`), and the combined revalidation is deferred
+        // until after both writes so the optimistic overlay clears once, at the final position.
+        await moveTopic(payload.activeId, {
+          assistantId: assistantChanged ? targetAssistantId : undefined,
+          anchor
         })
-        await refreshTopics()
       } catch (err) {
         setOptimisticMove(null)
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
-        if (targetAssistantId !== currentAssistantId) {
-          try {
-            await refreshTopics()
-          } catch (refreshErr) {
-            logger.error('Failed to refresh topics after partial assistant move', {
-              refreshErr,
-              topicId: payload.activeId
-            })
-          }
-        }
       }
     },
-    [assistantById, isAssistantDisplayMode, orderedAssistants, refreshAssistants, refreshTopics, t, topics]
+    [assistantById, isAssistantDisplayMode, moveTopic, orderedAssistants, refreshAssistants, t, topics]
   )
   const canSetPanePosition = isAssistantDisplayMode || isRightPanel
 
@@ -1333,7 +1333,7 @@ export function Topics({
                       onChange={handleTopicDisplayModeChange}
                       onManageAssistants={manageAssistantsMenuItem?.onSelect}
                       onOpenHistoryRecords={onOpenHistoryRecords}
-                      sectionId={isAssistantDisplayMode ? TOPIC_ASSISTANT_SECTION_ID : undefined}
+                      sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
                     />
                   </>
                 }
@@ -1347,7 +1347,7 @@ export function Topics({
               onChange={handleTopicDisplayModeChange}
               onManageAssistants={manageAssistantsMenuItem?.onSelect}
               onOpenHistoryRecords={onOpenHistoryRecords}
-              sectionId={TOPIC_ASSISTANT_SECTION_ID}
+              sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
             />
           )}
         </ResourceList.Header>
