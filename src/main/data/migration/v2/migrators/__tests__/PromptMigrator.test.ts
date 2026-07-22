@@ -483,7 +483,7 @@ describe('PromptMigrator', () => {
       )
       expect(warningMessages(prepareResult)).toContain('Quick phrase titles normalized to the V2 prompt contract: 2')
       expect(executeResult).toMatchObject({ success: true, processedCount: 2 })
-      expect(new Set(batches[0].map((row) => row.id))).toHaveSize(2)
+      expect(new Set(batches[0].map((row) => row.id)).size).toBe(2)
       expect(batches[0].every((row) => PromptIdSchema.safeParse(row.id).success)).toBe(true)
       expect(batches[0].map((row) => row.title)).toEqual(['a'.repeat(PROMPT_TITLE_MAX), 'Second'])
     })
