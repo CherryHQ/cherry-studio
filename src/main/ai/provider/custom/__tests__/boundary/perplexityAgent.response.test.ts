@@ -45,13 +45,11 @@ async function collect(stream: ReadableStream<LanguageModelV3StreamPart>): Promi
 }
 
 describe('Perplexity Agent response boundary', () => {
-  it('accepts unknown event types without letting them mask malformed known events', () => {
-    expect(perplexityAgentEventSchema.safeParse({ type: 'response.content_part.added', future: true }).success).toBe(
-      true
-    )
-    expect(perplexityAgentEventSchema.safeParse({ type: 'response.output_text.delta', item_id: 'm1' }).success).toBe(
-      false
-    )
+  it('normalizes unknown event types', () => {
+    expect(perplexityAgentEventSchema.parse({ type: 'response.content_part.added', future: true })).toEqual({
+      type: 'unknown_chunk',
+      message: 'response.content_part.added'
+    })
   })
 
   it('non-streaming: maps output_text + annotations + search_results to text and deduped sources', async () => {

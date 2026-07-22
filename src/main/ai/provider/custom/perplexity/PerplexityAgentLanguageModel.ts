@@ -35,7 +35,6 @@ import {
 import { convertToPerplexityAgentInput } from './convertToPerplexityAgentInput'
 import type { perplexityAgentUsageSchema } from './perplexityAgentSchemas'
 import {
-  isPerplexityKnownAgentEvent,
   perplexityAgentErrorSchema,
   perplexityAgentErrorToMessage,
   type PerplexityAgentEvent,
@@ -625,8 +624,6 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
             }
 
             const event = chunk.value
-            if (!isPerplexityKnownAgentEvent(event)) return
-
             switch (event.type) {
               case 'response.created':
               case 'response.in_progress': {
