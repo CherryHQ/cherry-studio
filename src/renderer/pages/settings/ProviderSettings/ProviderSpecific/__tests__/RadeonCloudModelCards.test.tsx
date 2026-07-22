@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import RadeonCloudModelCards from '../RadeonCloudModelCards'
 
-const MODELS_URL = 'https://developer.amd.com.cn/radeon/modelapis'
+const TOKEN_FACTORY_URL = 'https://developer.amd.com.cn/radeon/tokenfactory'
 const MODEL_NAMES = [
   'Qwen3.6-35B-A3B',
   'DeepSeek-V4-Flash',
@@ -14,24 +14,39 @@ const MODEL_NAMES = [
   'Kimi K2.6'
 ]
 
+function expectCherrySource(link: HTMLElement) {
+  const href = link.getAttribute('href')
+
+  expect(href).not.toBeNull()
+
+  const url = new URL(href!)
+  expect(`${url.origin}${url.pathname}`).toBe(TOKEN_FACTORY_URL)
+  expect(Object.fromEntries(url.searchParams)).toEqual({ source: 'cherry-studio' })
+}
+
 describe('RadeonCloudModelCards', () => {
-  it('renders seven model cards that open the AMD GPU Cloud model page', () => {
+  it('links only the AMD GPU Cloud title and renders models as non-interactive rows', () => {
     render(<RadeonCloudModelCards />)
 
     expect(screen.getByTestId('radeon-cloud-model-cards')).toBeInTheDocument()
-    expect(screen.getByText('AMD GPU Cloud')).toBeInTheDocument()
     expect(screen.getByText('Official Model APIs')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'AMD GPU Cloud Model APIs' })).toHaveAttribute('href', MODELS_URL)
-    expect(screen.getAllByTestId('radeon-cloud-model-link')).toHaveLength(7)
+    expectCherrySource(screen.getByRole('link', { name: 'AMD GPU Cloud' }))
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+    expect(screen.getAllByTestId('radeon-cloud-model-row')).toHaveLength(7)
     expect(screen.getAllByTestId('radeon-cloud-model-icon')).toHaveLength(7)
-    expect(screen.getAllByText(/AMD MI Cloud/)).toHaveLength(5)
+    expect(screen.getAllByTestId('radeon-cloud-model-details')).toHaveLength(7)
+    expect(screen.getAllByText(/AMD Radeon Cloud/)).toHaveLength(7)
+    expect(screen.queryByText(/AMD MI Cloud/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/ · Radeon Cloud · /)).not.toBeInTheDocument()
     expect(screen.queryByText(/Fireworks/)).not.toBeInTheDocument()
 
     for (const modelName of MODEL_NAMES) {
-      expect(screen.getByRole('link', { name: modelName })).toHaveAttribute('href', MODELS_URL)
-      expect(screen.getByRole('link', { name: modelName })).toHaveAttribute('target', '_blank')
-      expect(screen.getByRole('link', { name: modelName })).toHaveAttribute('rel', 'noreferrer')
-      expect(screen.getByRole('link', { name: modelName })).toHaveClass('h-[68px]')
+      const modelNameElement = screen.getByText(modelName)
+      const modelDetails = modelNameElement.closest('[data-testid="radeon-cloud-model-details"]')
+
+      expect(modelDetails).toHaveClass('truncate')
+      expect(modelDetails).toHaveTextContent(`${modelName} ·`)
+      expect(screen.queryByRole('link', { name: modelName })).not.toBeInTheDocument()
     }
   })
 })

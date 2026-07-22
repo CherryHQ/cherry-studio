@@ -74,6 +74,13 @@ export default function ProviderListItem({
         <div className={providerListClasses.itemIdentity}>
           <ProviderAvatar provider={provider} size={26} className={providerListClasses.itemAvatar} />
           <span className={providerListClasses.itemLabel}>{provider.name}</span>
+          {provider.id === 'radeon-cloud' && (
+            <span
+              data-testid="radeon-cloud-free-badge"
+              className="inline-flex h-4 shrink-0 items-center rounded bg-success/10 px-1 font-medium text-[9px] text-success leading-none">
+              Free
+            </span>
+          )}
         </div>
       </div>
       {hasTrailingSlot && (
