@@ -7,20 +7,8 @@ const mockToastSuccess = vi.hoisted(() => vi.fn())
 const mockToastError = vi.hoisted(() => vi.fn())
 const mockWriteText = vi.hoisted(() => vi.fn())
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <button type="button" data-testid="copy-diagnostics" onClick={onClick}>
-      {children}
-    </button>
-  )
-}))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mockRequest } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { success: mockToastSuccess, error: mockToastError } }))
-vi.mock('lucide-react', () => ({
-  ChevronDown: () => <span data-testid="chevron-down" />,
-  ChevronRight: () => <span data-testid="chevron-right" />,
-  Copy: () => <span data-testid="copy-icon" />
-}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, number | string>) => {
@@ -46,6 +34,9 @@ const timeline: PrepareTimeline = {
   mcpServerNames: ['filesystem']
 }
 
+const expandTimeline = () => fireEvent.click(screen.getByRole('button', { expanded: false }))
+const clickCopy = () => fireEvent.click(screen.getByRole('button', { name: /Copy diagnostics/ }))
+
 describe('PrepareTimelineBlock', () => {
   afterEach(() => vi.clearAllMocks())
 
@@ -53,7 +44,7 @@ describe('PrepareTimelineBlock', () => {
     render(<PrepareTimelineBlock timeline={timeline} />)
 
     expect(screen.getByText('Response preparation took 6.2s')).toBeInTheDocument()
-    expect(screen.queryByTestId('copy-diagnostics')).toBeNull()
+    expect(screen.queryByText('Copy diagnostics')).toBeNull()
   })
 
   it('expands to a per-stage table and copies only non-sensitive diagnostics', async () => {
@@ -61,12 +52,12 @@ describe('PrepareTimelineBlock', () => {
     Object.assign(navigator, { clipboard: { writeText: mockWriteText.mockResolvedValue(undefined) } })
 
     render(<PrepareTimelineBlock timeline={timeline} />)
-    fireEvent.click(screen.getByRole('button', { expanded: false }))
+    expandTimeline()
 
     expect(screen.getByText('dispatch')).toBeInTheDocument()
     expect(screen.getByText('mcp-warm')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByTestId('copy-diagnostics'))
+    clickCopy()
     await waitFor(() => expect(mockWriteText).toHaveBeenCalledOnce())
 
     const copied = mockWriteText.mock.calls[0][0] as string
@@ -81,8 +72,8 @@ describe('PrepareTimelineBlock', () => {
     mockRequest.mockRejectedValue(new Error('ipc down'))
 
     render(<PrepareTimelineBlock timeline={timeline} />)
-    fireEvent.click(screen.getByRole('button', { expanded: false }))
-    fireEvent.click(screen.getByTestId('copy-diagnostics'))
+    expandTimeline()
+    clickCopy()
 
     await waitFor(() => expect(mockToastError).toHaveBeenCalledOnce())
     expect(mockToastSuccess).not.toHaveBeenCalled()

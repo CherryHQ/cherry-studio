@@ -1,10 +1,22 @@
-import { Button } from '@cherrystudio/ui'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow
+} from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { buildPrepareDiagnostics, type PrepareTimeline } from '@shared/ai/agentPrepareTimeline'
-import { ChevronDown, ChevronRight, Copy } from 'lucide-react'
+import { Copy } from 'lucide-react'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useScrollAnchor } from './useScrollAnchor'
 
 function formatSeconds(ms: number): number {
   return Math.round(ms / 100) / 10
@@ -22,7 +34,8 @@ interface PrepareTimelineBlockProps {
  */
 const PrepareTimelineBlock: React.FC<PrepareTimelineBlockProps> = ({ timeline }) => {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
+  const [activeKey, setActiveKey] = useState('')
+  const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const handleCopy = useCallback(async () => {
     try {
@@ -36,39 +49,41 @@ const PrepareTimelineBlock: React.FC<PrepareTimelineBlockProps> = ({ timeline })
   }, [timeline, t])
 
   return (
-    <div className="flex w-full flex-col gap-1 text-foreground-muted text-xs" data-testid="prepare-timeline-block">
-      <button
-        type="button"
-        className="flex w-fit select-none items-center gap-1 hover:text-foreground"
-        onClick={() => setExpanded((prev) => !prev)}
-        aria-expanded={expanded}>
-        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        <span>
+    <Accordion
+      ref={anchorRef}
+      type="single"
+      collapsible
+      value={activeKey}
+      onValueChange={(value) => withScrollAnchor(() => setActiveKey(value))}
+      className="w-full text-foreground-muted text-xs"
+      data-testid="prepare-timeline-block">
+      <AccordionItem value="timeline" className="border-0 first:border-t-0">
+        <AccordionTrigger className="w-fit flex-none select-none gap-1 py-0.5 font-normal text-foreground-muted text-xs hover:text-foreground [&>svg]:size-3">
           {t('message.tools.placeholder.prepare.footer.summary', { seconds: formatSeconds(timeline.totalMs) })}
-        </span>
-      </button>
-      {expanded && (
-        <div className="flex flex-col gap-2 rounded-md border border-border bg-background-soft p-2">
-          <table className="w-full border-collapse text-left">
-            <tbody>
-              {timeline.stages.map((entry, index) => (
-                <tr key={`${entry.stage}-${index}`} className="align-top">
-                  <td className="py-0.5 pr-3 font-mono">{entry.stage}</td>
-                  <td className="py-0.5 pr-3 text-right tabular-nums">{entry.ms} ms</td>
-                  <td className="py-0.5 font-mono text-[11px] text-foreground-muted">
-                    {entry.detail ? JSON.stringify(entry.detail) : ''}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Button variant="ghost" size="sm" className="w-fit gap-1" onClick={handleCopy}>
-            <Copy size={12} />
-            {t('message.tools.placeholder.prepare.footer.copy')}
-          </Button>
-        </div>
-      )}
-    </div>
+        </AccordionTrigger>
+        <AccordionContent className="pt-1 pb-0">
+          <div className="flex flex-col gap-2 rounded-md border border-border bg-background-soft p-2">
+            <Table className="text-xs">
+              <TableBody>
+                {timeline.stages.map((entry, index) => (
+                  <TableRow key={`${entry.stage}-${index}`} className="border-0 hover:bg-transparent">
+                    <TableCell className="py-0.5 pr-3 font-mono">{entry.stage}</TableCell>
+                    <TableCell className="py-0.5 pr-3 text-right tabular-nums">{entry.ms} ms</TableCell>
+                    <TableCell className="py-0.5 font-mono text-[11px] text-foreground-muted">
+                      {entry.detail ? JSON.stringify(entry.detail) : ''}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Button variant="ghost" size="sm" className="w-fit gap-1" onClick={handleCopy}>
+              <Copy size={12} />
+              {t('message.tools.placeholder.prepare.footer.copy')}
+            </Button>
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   )
 }
 

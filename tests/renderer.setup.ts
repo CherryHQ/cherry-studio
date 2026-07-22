@@ -333,6 +333,14 @@ vi.mock('@cherrystudio/ui', () => {
         children
       )
     },
+    Table: ({ children, ...props }) => React.createElement('table', props, children),
+    TableHeader: ({ children, ...props }) => React.createElement('thead', props, children),
+    TableBody: ({ children, ...props }) => React.createElement('tbody', props, children),
+    TableFooter: ({ children, ...props }) => React.createElement('tfoot', props, children),
+    TableRow: ({ children, ...props }) => React.createElement('tr', props, children),
+    TableHead: ({ children, ...props }) => React.createElement('th', props, children),
+    TableCell: ({ children, ...props }) => React.createElement('td', props, children),
+    TableCaption: ({ children, ...props }) => React.createElement('caption', props, children),
     DropdownMenu: ({ children, onOpenChange }) =>
       React.createElement(
         DropdownMenuOpenContext.Provider,
