@@ -93,19 +93,19 @@ const messageItemSchema = z.object({
   content: z.array(z.union([outputTextSchema, z.looseObject({ type: z.string() })])).nullish()
 })
 
-const searchResultsItemSchema = z.object({
+const searchResultsItemSchema = z.looseObject({
   type: z.literal('search_results'),
   queries: z.array(z.string()).nullish(),
   results: z.array(perplexityResultEntrySchema).nullish()
 })
 
-const peopleSearchResultsItemSchema = z.object({
+const peopleSearchResultsItemSchema = z.looseObject({
   type: z.literal('people_search_results'),
   queries: z.array(z.string()).nullish(),
   results: z.array(perplexityResultEntrySchema).nullish()
 })
 
-const fetchUrlResultsItemSchema = z.object({
+const fetchUrlResultsItemSchema = z.looseObject({
   type: z.literal('fetch_url_results'),
   contents: z.array(perplexityResultEntrySchema).nullish()
 })
@@ -192,8 +192,16 @@ export const perplexityAgentEventSchema = z.union([
     type: z.literal('response.failed'),
     error: z.looseObject({ message: z.string().nullish() }).nullish()
   }),
-  z.object({ type: z.literal('response.output_item.added'), item: perplexityOutputItemSchema.nullish() }),
-  z.object({ type: z.literal('response.output_item.done'), item: perplexityOutputItemSchema.nullish() }),
+  z.object({
+    type: z.literal('response.output_item.added'),
+    output_index: z.number().int().nullish(),
+    item: perplexityOutputItemSchema.nullish()
+  }),
+  z.object({
+    type: z.literal('response.output_item.done'),
+    output_index: z.number().int().nullish(),
+    item: perplexityOutputItemSchema.nullish()
+  }),
   z.object({ type: z.literal('response.output_text.delta'), item_id: z.string().nullish(), delta: z.string() }),
   z.object({ type: z.literal('response.output_text.done'), item_id: z.string().nullish(), text: z.string().nullish() }),
   z.object({ type: z.literal('response.reasoning.started'), thought: z.string().nullish() }),
@@ -266,10 +274,6 @@ export const perplexityAgentProviderOptionsSchema = z.object({
   maxSteps: z.number().int().optional(),
   /** Reasoning effort for the underlying model. */
   reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
-  /** `web_search` tool: `true`/config enables (default OFF), `false` disables. */
-  webSearch: z.union([z.boolean(), perplexityWebSearchConfigSchema]).optional(),
-  /** `fetch_url` tool: `true`/config enables (default OFF). */
-  fetchUrl: z.union([z.boolean(), perplexityFetchUrlConfigSchema]).optional(),
   languagePreference: z.string().optional(),
   previousResponseId: z.string().optional(),
   store: z.boolean().optional()

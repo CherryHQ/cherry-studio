@@ -4,10 +4,10 @@
  * A bespoke `LanguageModelV3` for Perplexity's OpenAI-Responses-shaped research
  * endpoint. Maps: `output_text` → text, `url_citation` annotations + web/finance/
  * people search + fetch-url results → AI SDK `source` parts, and `reasoning.*`
- * events → reasoning parts. Built-in web search is enabled explicitly via
- * `providerOptions.perplexity.webSearch`.
+ * events → reasoning parts. Built-in tools are exposed as AI SDK
+ * provider-defined tools and their results are preserved across client steps.
  *
- * Scope: text + citations/search + reasoning + client-executed function tools.
+ * Scope: text + citations/search + reasoning + provider/client-executed tools.
  * Sandbox and native MCP output items are accepted from the wire but not surfaced.
  */
 import {
@@ -39,14 +39,15 @@ import {
   perplexityAgentErrorToMessage,
   type PerplexityAgentEvent,
   perplexityAgentEventSchema,
-  type PerplexityAgentProviderOptions,
   perplexityAgentProviderOptionsSchema,
   perplexityAgentResponseSchema,
+  perplexityFetchUrlConfigSchema,
   type PerplexityFunctionCallItem,
   perplexityFunctionCallItemSchema,
   perplexityFunctionToolSchema,
   type PerplexityOutputItem,
-  type PerplexityResultEntry
+  type PerplexityResultEntry,
+  perplexityWebSearchConfigSchema
 } from './perplexityAgentSchemas'
 
 /** Single namespace shared with the Sonar chat model — one user-facing "perplexity" provider. */
@@ -63,7 +64,14 @@ export interface PerplexityAgentConfig {
 
 type AgentUsage = ReturnType<typeof perplexityAgentUsageSchema.parse>
 type Source = { url: string; title?: string }
-type ToolMetadata = { itemId: string | null; thoughtSignature: string | null }
+type ServerToolResultType = 'search_results' | 'people_search_results' | 'fetch_url_results'
+type ToolMetadata = {
+  itemId?: string | null
+  thoughtSignature?: string | null
+  serverToolType?: ServerToolResultType
+}
+type ServerToolDescriptor = { name: string; dynamic: boolean }
+type ServerToolNames = { webSearch: ServerToolDescriptor; fetchUrl: ServerToolDescriptor }
 
 // ── helpers ──
 
@@ -169,6 +177,63 @@ function buildToolProviderMetadata(item: PerplexityFunctionCallItem) {
   }
 }
 
+function buildServerToolProviderMetadata(serverToolType: ServerToolResultType) {
+  return { [PERPLEXITY_PROVIDER]: { serverToolType } satisfies ToolMetadata }
+}
+
+function getServerToolNames(tools: LanguageModelV3CallOptions['tools']): ServerToolNames {
+  const names: ServerToolNames = {
+    webSearch: { name: 'webSearch', dynamic: true },
+    fetchUrl: { name: 'urlContext', dynamic: true }
+  }
+  for (const tool of tools ?? []) {
+    if (tool.type !== 'provider') continue
+    if (tool.id === 'perplexity.web_search') names.webSearch = { name: tool.name, dynamic: false }
+    if (tool.id === 'perplexity.fetch_url') names.fetchUrl = { name: tool.name, dynamic: false }
+  }
+  return names
+}
+
+function toJsonObject(value: object): JSONObject {
+  return JSON.parse(JSON.stringify(value)) as JSONObject
+}
+
+function getServerToolResult(
+  item: PerplexityOutputItem,
+  toolNames: ServerToolNames
+): { serverToolType: ServerToolResultType; toolName: string; dynamic: boolean; result: JSONObject } | undefined {
+  switch (item.type) {
+    case 'search_results':
+    case 'people_search_results': {
+      return {
+        serverToolType: item.type,
+        toolName: toolNames.webSearch.name,
+        dynamic: toolNames.webSearch.dynamic,
+        result: toJsonObject(item)
+      }
+    }
+    case 'fetch_url_results': {
+      return {
+        serverToolType: item.type,
+        toolName: toolNames.fetchUrl.name,
+        dynamic: toolNames.fetchUrl.dynamic,
+        result: toJsonObject(item)
+      }
+    }
+    default:
+      return undefined
+  }
+}
+
+function getServerToolCallId(
+  responseId: string | null | undefined,
+  item: PerplexityOutputItem,
+  outputIndex: number
+): string {
+  const itemId = (item as { id?: string | null }).id
+  return itemId ?? `${responseId ?? 'response'}:${item.type}:${outputIndex}`
+}
+
 // ── model ──
 
 export class PerplexityAgentLanguageModel implements LanguageModelV3 {
@@ -182,55 +247,57 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
   ) {}
 
   private buildTools(
-    opts: PerplexityAgentProviderOptions,
     callTools: LanguageModelV3CallOptions['tools'],
     toolChoice: LanguageModelV3CallOptions['toolChoice'],
     warnings: SharedV3Warning[]
   ): Array<Record<string, unknown>> | undefined {
-    const tools: Array<Record<string, unknown>> = []
-
-    // web_search: opt-in so the app's disabled toggle cannot silently leave it enabled.
-    if (opts.webSearch) {
-      const cfg = typeof opts.webSearch === 'object' ? opts.webSearch : undefined
-      const webSearch: Record<string, unknown> = { type: 'web_search' }
-      if (cfg?.maxResults != null) webSearch.max_results = cfg.maxResults
-      if (cfg?.maxTokens != null) webSearch.max_tokens = cfg.maxTokens
-      if (cfg?.maxTokensPerPage != null) webSearch.max_tokens_per_page = cfg.maxTokensPerPage
-      if (cfg?.searchContextSize) webSearch.search_context_size = cfg.searchContextSize
-      const filters: Record<string, unknown> = {}
-      if (cfg?.searchDomainFilter) filters.search_domain_filter = cfg.searchDomainFilter
-      if (cfg?.searchRecencyFilter) filters.search_recency_filter = cfg.searchRecencyFilter
-      if (cfg?.searchAfterDateFilter) filters.search_after_date_filter = cfg.searchAfterDateFilter
-      if (cfg?.searchBeforeDateFilter) filters.search_before_date_filter = cfg.searchBeforeDateFilter
-      if (cfg?.lastUpdatedAfterFilter) filters.last_updated_after_filter = cfg.lastUpdatedAfterFilter
-      if (cfg?.lastUpdatedBeforeFilter) filters.last_updated_before_filter = cfg.lastUpdatedBeforeFilter
-      if (Object.keys(filters).length > 0) webSearch.filters = filters
-      if (cfg?.userLocation) webSearch.user_location = cfg.userLocation
-      tools.push(webSearch)
-    }
-
-    // fetch_url: opt-in.
-    if (opts.fetchUrl) {
-      const cfg = typeof opts.fetchUrl === 'object' ? opts.fetchUrl : undefined
-      const fetchUrl: Record<string, unknown> = { type: 'fetch_url' }
-      if (cfg?.maxUrls != null) fetchUrl.max_urls = cfg.maxUrls
-      tools.push(fetchUrl)
-    }
+    const tools: Array<{ name: string; value: Record<string, unknown> }> = []
 
     for (const tool of callTools ?? []) {
       if (tool.type === 'function') {
-        tools.push(
-          perplexityFunctionToolSchema.parse({
+        tools.push({
+          name: tool.name,
+          value: perplexityFunctionToolSchema.parse({
             type: 'function',
             name: tool.name,
             description: tool.description,
             parameters: tool.inputSchema,
             strict: tool.strict
           })
-        )
-      } else {
-        warnings.push({ type: 'unsupported', feature: `provider-defined tool ${tool.id}` })
+        })
+        continue
       }
+
+      if (tool.id === 'perplexity.web_search') {
+        const cfg = perplexityWebSearchConfigSchema.parse(tool.args)
+        const webSearch: Record<string, unknown> = { type: 'web_search' }
+        if (cfg.maxResults != null) webSearch.max_results = cfg.maxResults
+        if (cfg.maxTokens != null) webSearch.max_tokens = cfg.maxTokens
+        if (cfg.maxTokensPerPage != null) webSearch.max_tokens_per_page = cfg.maxTokensPerPage
+        if (cfg.searchContextSize) webSearch.search_context_size = cfg.searchContextSize
+        const filters: Record<string, unknown> = {}
+        if (cfg.searchDomainFilter) filters.search_domain_filter = cfg.searchDomainFilter
+        if (cfg.searchRecencyFilter) filters.search_recency_filter = cfg.searchRecencyFilter
+        if (cfg.searchAfterDateFilter) filters.search_after_date_filter = cfg.searchAfterDateFilter
+        if (cfg.searchBeforeDateFilter) filters.search_before_date_filter = cfg.searchBeforeDateFilter
+        if (cfg.lastUpdatedAfterFilter) filters.last_updated_after_filter = cfg.lastUpdatedAfterFilter
+        if (cfg.lastUpdatedBeforeFilter) filters.last_updated_before_filter = cfg.lastUpdatedBeforeFilter
+        if (Object.keys(filters).length > 0) webSearch.filters = filters
+        if (cfg.userLocation) webSearch.user_location = cfg.userLocation
+        tools.push({ name: tool.name, value: webSearch })
+        continue
+      }
+
+      if (tool.id === 'perplexity.fetch_url') {
+        const cfg = perplexityFetchUrlConfigSchema.parse(tool.args)
+        tools.push({
+          name: tool.name,
+          value: { type: 'fetch_url', ...(cfg.maxUrls != null ? { max_urls: cfg.maxUrls } : {}) }
+        })
+        continue
+      }
+
+      warnings.push({ type: 'unsupported', feature: `provider-defined tool ${tool.id}` })
     }
 
     if (toolChoice?.type === 'none') return undefined
@@ -238,11 +305,11 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
       warnings.push({ type: 'unsupported', feature: 'required tool choice' })
     } else if (toolChoice?.type === 'tool') {
       warnings.push({ type: 'unsupported', feature: 'forced tool choice' })
-      const selected = tools.find((tool) => tool.type === 'function' && tool.name === toolChoice.toolName)
-      return selected ? [selected] : undefined
+      const selected = tools.find((tool) => tool.name === toolChoice.toolName)
+      return selected ? [selected.value] : undefined
     }
 
-    return tools.length > 0 ? tools : undefined
+    return tools.length > 0 ? tools.map((tool) => tool.value) : undefined
   }
 
   private async getArgs(options: LanguageModelV3CallOptions) {
@@ -279,7 +346,14 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
         schema: perplexityAgentProviderOptionsSchema
       })) ?? {}
 
-    const { input, instructions, warnings: inputWarnings } = convertToPerplexityAgentInput(prompt)
+    const {
+      input,
+      instructions,
+      warnings: inputWarnings
+    } = convertToPerplexityAgentInput(prompt, {
+      previousResponseId: opts.previousResponseId,
+      store: opts.store
+    })
     warnings.push(...inputWarnings)
 
     const isAnthropic = this.modelId.startsWith('anthropic/')
@@ -303,7 +377,7 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
               json_schema: { name: responseFormat.name ?? 'response', schema: responseFormat.schema, strict: true }
             }
           : undefined,
-      tools: this.buildTools(opts, tools, toolChoice, warnings),
+      tools: this.buildTools(tools, toolChoice, warnings),
       preset: opts.preset,
       models: opts.models,
       previous_response_id: opts.previousResponseId,
@@ -348,9 +422,10 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
 
     const content: LanguageModelV3Content[] = []
     const seenUrls = new Set<string>()
+    const serverToolNames = getServerToolNames(options.tools)
     let text = ''
     let hasFunctionCall = false
-    for (const item of response.output ?? []) {
+    for (const [outputIndex, item] of (response.output ?? []).entries()) {
       const functionCall = asFunctionCall(item)
       if (functionCall) {
         hasFunctionCall = true
@@ -362,6 +437,28 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
           providerMetadata: buildToolProviderMetadata(functionCall)
         })
         continue
+      }
+      const serverToolResult = getServerToolResult(item, serverToolNames)
+      if (serverToolResult) {
+        const toolCallId = getServerToolCallId(response.id, item, outputIndex)
+        const providerMetadata = buildServerToolProviderMetadata(serverToolResult.serverToolType)
+        content.push({
+          type: 'tool-call',
+          toolCallId,
+          toolName: serverToolResult.toolName,
+          input: '{}',
+          providerExecuted: true,
+          ...(serverToolResult.dynamic ? { dynamic: true } : {}),
+          providerMetadata
+        })
+        content.push({
+          type: 'tool-result',
+          toolCallId,
+          toolName: serverToolResult.toolName,
+          result: serverToolResult.result,
+          ...(serverToolResult.dynamic ? { dynamic: true } : {}),
+          providerMetadata
+        })
       }
       text += messageText(item)
       for (const source of extractSources(item)) {
@@ -417,10 +514,12 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
     let finishReason: LanguageModelV3FinishReason = { unified: 'other', raw: undefined }
     let usage: AgentUsage | undefined
     let responseId: string | undefined
+    const serverToolNames = getServerToolNames(options.tools)
     const seenUrls = new Set<string>()
     const openTextIds = new Set<string>()
     const pendingToolCalls = new Map<string, PerplexityFunctionCallItem>()
     const emittedToolCallIds = new Set<string>()
+    const emittedServerToolCallIds = new Set<string>()
     let reasoningOpen = false
 
     return {
@@ -480,6 +579,40 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
               emittedToolCallIds.add(item.call_id)
               finishReason = { unified: 'tool-calls', raw: 'function_call' }
             }
+            const emitServerToolResult = (item: PerplexityOutputItem, outputIndex: number) => {
+              const serverToolResult = getServerToolResult(item, serverToolNames)
+              if (!serverToolResult) return
+              const toolCallId = getServerToolCallId(responseId, item, outputIndex)
+              if (emittedServerToolCallIds.has(toolCallId)) return
+              const providerMetadata = buildServerToolProviderMetadata(serverToolResult.serverToolType)
+              controller.enqueue({
+                type: 'tool-input-start',
+                id: toolCallId,
+                toolName: serverToolResult.toolName,
+                providerExecuted: true,
+                ...(serverToolResult.dynamic ? { dynamic: true } : {}),
+                providerMetadata
+              })
+              controller.enqueue({ type: 'tool-input-end', id: toolCallId, providerMetadata })
+              controller.enqueue({
+                type: 'tool-call',
+                toolCallId,
+                toolName: serverToolResult.toolName,
+                input: '{}',
+                providerExecuted: true,
+                ...(serverToolResult.dynamic ? { dynamic: true } : {}),
+                providerMetadata
+              })
+              controller.enqueue({
+                type: 'tool-result',
+                toolCallId,
+                toolName: serverToolResult.toolName,
+                result: serverToolResult.result,
+                ...(serverToolResult.dynamic ? { dynamic: true } : {}),
+                providerMetadata
+              })
+              emittedServerToolCallIds.add(toolCallId)
+            }
 
             const event = chunk.value as PerplexityAgentEvent & Record<string, unknown>
             switch (event.type) {
@@ -518,6 +651,9 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
                   if (event.type === 'response.output_item.added') startFunctionCall(functionCall)
                   else emitFunctionCall(functionCall)
                 } else {
+                  if (event.type === 'response.output_item.done') {
+                    emitServerToolResult(item, (event as { output_index?: number }).output_index ?? 0)
+                  }
                   emitSources(extractSources(item))
                 }
                 break
@@ -564,10 +700,13 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
                 ).response
                 if (envelope?.id) responseId = envelope.id
                 usage = envelope?.usage ?? usage
-                for (const item of envelope?.output ?? []) {
+                for (const [outputIndex, item] of (envelope?.output ?? []).entries()) {
                   const functionCall = asFunctionCall(item)
                   if (functionCall) emitFunctionCall(functionCall)
-                  else emitSources(extractSources(item))
+                  else {
+                    emitServerToolResult(item, outputIndex)
+                    emitSources(extractSources(item))
+                  }
                 }
                 if (emittedToolCallIds.size === 0) {
                   finishReason = mapStatusToFinishReason(envelope?.status ?? 'completed')

@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`Perplexity Agent request boundary > anthropic model: defaults max_output_tokens and web_search, forwards provider options 1`] = `
+exports[`Perplexity Agent request boundary > anthropic model: defaults max_output_tokens and forwards provider options with a web-search tool 1`] = `
 {
   "input": [
     {

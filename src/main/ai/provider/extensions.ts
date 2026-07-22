@@ -37,7 +37,11 @@ import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvid
 import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from './custom/ovms/ovmsProvider'
 import type { PerplexityFetchUrlConfig, PerplexityWebSearchConfig } from './custom/perplexity/perplexityAgentSchemas'
-import { createPerplexityProvider, type PerplexityProviderSettings } from './custom/perplexity/perplexityProvider'
+import {
+  createPerplexityProvider,
+  type PerplexityProvider,
+  type PerplexityProviderSettings
+} from './custom/perplexity/perplexityProvider'
 import { createPpioProvider, type PpioProviderSettings } from './custom/ppio/ppioProvider'
 import { createSiliconProvider, type SiliconProviderSettings } from './custom/silicon/siliconProvider'
 import { createZhipuProvider, type ZhipuProviderSettings } from './custom/zhipuProvider'
@@ -115,8 +119,8 @@ export const BedrockExtension = ProviderExtension.create({
 
 /**
  * Perplexity Agent API (`/v1/agent`). `webSearch` / `urlContext` map the app's
- * web-search / url-context toggles onto Perplexity's server-side `web_search` /
- * `fetch_url` tools, translated into `providerOptions.perplexity`.
+ * web-search / url-context toggles onto Perplexity's provider-defined
+ * `web_search` / `fetch_url` tools.
  */
 export const PerplexityExtension = ProviderExtension.create({
   name: 'perplexity',
@@ -125,17 +129,17 @@ export const PerplexityExtension = ProviderExtension.create({
   create: createPerplexityProvider,
   toolFactories: {
     webSearch:
-      () =>
+      (provider: PerplexityProvider) =>
       (config: PerplexityWebSearchConfig = {}) => ({
-        providerOptions: { perplexity: { webSearch: config } }
+        tools: { webSearch: provider.tools.webSearch(config) }
       }),
     urlContext:
-      () =>
+      (provider: PerplexityProvider) =>
       (config: PerplexityFetchUrlConfig = {}) => ({
-        providerOptions: { perplexity: { fetchUrl: config } }
+        tools: { urlContext: provider.tools.fetchUrl(config) }
       })
   }
-} as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ProviderV3, 'perplexity'>)
+} as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, PerplexityProvider, 'perplexity'>)
 
 export const MistralExtension = ProviderExtension.create({
   name: 'mistral',

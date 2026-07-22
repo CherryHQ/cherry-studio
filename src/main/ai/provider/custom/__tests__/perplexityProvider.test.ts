@@ -20,6 +20,16 @@ describe('createPerplexityProvider', () => {
     const provider = createPerplexityProvider({ apiKey: 'sk-test', fetch: vi.fn() })
     expect(provider.languageModel('perplexity/sonar')).toBeInstanceOf(PerplexityAgentLanguageModel)
     expect(provider.languageModel('openai/gpt-5.6-sol').provider).toBe('perplexity')
+    expect(provider.tools.webSearch({ maxResults: 5 })).toMatchObject({
+      type: 'provider',
+      id: 'perplexity.web_search',
+      args: { maxResults: 5 }
+    })
+    expect(provider.tools.fetchUrl({ maxUrls: 3 })).toMatchObject({
+      type: 'provider',
+      id: 'perplexity.fetch_url',
+      args: { maxUrls: 3 }
+    })
   })
 
   it('POSTs /v1/agent and maps output_text + url_citation annotations', async () => {

@@ -16,6 +16,7 @@ import type {
 import { convertUint8ArrayToBase64 } from '@ai-sdk/provider-utils'
 
 import type { PerplexityFunctionCallInput, PerplexityFunctionCallOutputInput } from './perplexityAgentSchemas'
+import type { PerplexityFetchUrlOutput, PerplexityWebSearchOutput } from './perplexityTools'
 
 type Prompt = LanguageModelV3CallOptions['prompt']
 
@@ -24,6 +25,8 @@ interface PerplexityAgentInputResult {
     | { type: 'message'; role: string; content: string | unknown[] }
     | PerplexityFunctionCallInput
     | PerplexityFunctionCallOutputInput
+    | PerplexityWebSearchOutput
+    | PerplexityFetchUrlOutput
   >
   instructions?: string
   warnings: SharedV3Warning[]
@@ -38,6 +41,7 @@ function fileToUrl(data: string | Uint8Array | URL, mediaType: string): string {
 interface PerplexityToolMetadata {
   itemId?: string
   thoughtSignature?: string
+  serverToolType?: 'search_results' | 'people_search_results' | 'fetch_url_results'
 }
 
 function getToolMetadata(part: unknown): PerplexityToolMetadata | undefined {
@@ -66,7 +70,21 @@ function serializeToolResultOutput(output: LanguageModelV3ToolResultOutput): str
   }
 }
 
-export function convertToPerplexityAgentInput(prompt: Prompt): PerplexityAgentInputResult {
+interface ConvertOptions {
+  previousResponseId?: string
+  store?: boolean
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+export function convertToPerplexityAgentInput(
+  prompt: Prompt,
+  options: ConvertOptions = {}
+): PerplexityAgentInputResult {
   const input: PerplexityAgentInputResult['input'] = []
   const warnings: SharedV3Warning[] = []
   const instructionParts: string[] = []
@@ -83,6 +101,18 @@ export function convertToPerplexityAgentInput(prompt: Prompt): PerplexityAgentIn
     }
   }
 
+  const mapServerToolResult = (part: LanguageModelV3ToolResultPart) => {
+    const serverToolType = getToolMetadata(part)?.serverToolType
+    if (!serverToolType) return undefined
+    if (part.output.type !== 'json') {
+      warnings.push({ type: 'unsupported', feature: `${serverToolType} result without JSON output` })
+      return undefined
+    }
+    const output = asRecord(part.output.value)
+    if (!output) return undefined
+    return { ...output, type: serverToolType } as PerplexityWebSearchOutput | PerplexityFetchUrlOutput
+  }
+
   for (const { role, content } of prompt) {
     switch (role) {
       case 'system':
@@ -92,7 +122,12 @@ export function convertToPerplexityAgentInput(prompt: Prompt): PerplexityAgentIn
       case 'assistant': {
         const textType = role === 'assistant' ? 'output_text' : 'input_text'
         const parts: unknown[] = []
-        const functionItems: Array<PerplexityFunctionCallInput | PerplexityFunctionCallOutputInput> = []
+        const functionItems: Array<
+          | PerplexityFunctionCallInput
+          | PerplexityFunctionCallOutputInput
+          | PerplexityWebSearchOutput
+          | PerplexityFetchUrlOutput
+        > = []
         for (const part of content) {
           switch (part.type) {
             case 'text':
@@ -118,8 +153,11 @@ export function convertToPerplexityAgentInput(prompt: Prompt): PerplexityAgentIn
               break
             }
             case 'tool-call': {
-              const signature = getToolMetadata(part)?.thoughtSignature
+              const metadata = getToolMetadata(part)
+              const signature = metadata?.thoughtSignature
               if (signature) thoughtSignatures.set(part.toolCallId, signature)
+              if (metadata?.serverToolType || part.providerExecuted) break
+              if (options.previousResponseId && options.store && metadata?.itemId) break
               functionItems.push({
                 type: 'function_call',
                 call_id: part.toolCallId,
@@ -130,7 +168,7 @@ export function convertToPerplexityAgentInput(prompt: Prompt): PerplexityAgentIn
               break
             }
             case 'tool-result': {
-              const result = mapToolResult(part)
+              const result = getToolMetadata(part)?.serverToolType ? mapServerToolResult(part) : mapToolResult(part)
               if (result) functionItems.push(result)
               break
             }
@@ -158,7 +196,7 @@ export function convertToPerplexityAgentInput(prompt: Prompt): PerplexityAgentIn
       case 'tool':
         for (const part of content) {
           if (part.type === 'tool-result') {
-            const result = mapToolResult(part)
+            const result = getToolMetadata(part)?.serverToolType ? mapServerToolResult(part) : mapToolResult(part)
             if (result) input.push(result)
           } else {
             warnings.push({ type: 'unsupported', feature: 'tool approval response' })

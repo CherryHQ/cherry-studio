@@ -10,6 +10,7 @@ import { type LanguageModelV3, NoSuchModelError, type ProviderV3 } from '@ai-sdk
 import { type FetchFunction, loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
 import { PerplexityAgentLanguageModel } from './PerplexityAgentLanguageModel'
+import { perplexityTools } from './perplexityTools'
 
 export const PERPLEXITY_PROVIDER_NAME = 'perplexity' as const
 
@@ -24,6 +25,7 @@ export interface PerplexityProvider extends ProviderV3 {
   (modelId: string): LanguageModelV3
   languageModel(modelId: string): LanguageModelV3
   chatModel(modelId: string): LanguageModelV3
+  tools: typeof perplexityTools
 }
 
 export function createPerplexityProvider(settings: PerplexityProviderSettings = {}): PerplexityProvider {
@@ -51,6 +53,7 @@ export function createPerplexityProvider(settings: PerplexityProviderSettings = 
   provider.imageModel = (modelId: string) => {
     throw new NoSuchModelError({ modelId, modelType: 'imageModel' })
   }
+  provider.tools = perplexityTools
 
   return provider as PerplexityProvider
 }

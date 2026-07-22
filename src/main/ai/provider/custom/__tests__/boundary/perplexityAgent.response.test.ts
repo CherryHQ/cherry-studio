@@ -13,6 +13,11 @@ const options: LanguageModelV3CallOptions = {
   prompt: [{ role: 'user', content: [{ type: 'text', text: 'Q' }] }]
 }
 
+const serverToolOptions: LanguageModelV3CallOptions = {
+  ...options,
+  tools: [{ type: 'provider', name: 'webSearch', id: 'perplexity.web_search', args: {} }]
+}
+
 const jsonFetch = (body: unknown): typeof globalThis.fetch =>
   (() =>
     Promise.resolve(
@@ -80,6 +85,22 @@ describe('Perplexity Agent response boundary', () => {
     ])
     expect(result.finishReason.unified).toBe('stop')
     expect(result.usage.outputTokens.total).toBe(2)
+    expect(result.content).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-call',
+        toolName: 'webSearch',
+        providerExecuted: true,
+        dynamic: true
+      })
+    )
+    expect(result.content).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-result',
+        toolName: 'webSearch',
+        dynamic: true,
+        result: { type: 'search_results', results: [{ url: 'https://s.com', title: 'S' }, { url: 'https://c.com' }] }
+      })
+    )
   })
 
   it('streaming: emits reasoning, source, text, and finish in order', async () => {
@@ -224,6 +245,50 @@ describe('Perplexity Agent response boundary', () => {
     expect(parts.find((part) => part.type === 'finish')).toMatchObject({
       finishReason: { unified: 'tool-calls', raw: 'function_call' }
     })
+  })
+
+  it('streaming: emits a provider-executed server-tool call/result once and preserves the raw output item', async () => {
+    const searchResults = {
+      type: 'search_results',
+      queries: ['latest AI news'],
+      results: [{ url: 'https://example.com', title: 'Example', snippet: 'News', rank: 1 }],
+      request_id: 'search-1'
+    }
+    const model = new PerplexityAgentLanguageModel(
+      'openai/gpt-5.6-sol',
+      config(
+        sseFetch([
+          { type: 'response.created', response: { id: 'r1', model: 'openai/gpt-5.6-sol' } },
+          { type: 'response.output_item.done', output_index: 0, item: searchResults },
+          {
+            type: 'response.completed',
+            response: { id: 'r1', status: 'completed', output: [searchResults], usage: { input_tokens: 3 } }
+          }
+        ])
+      )
+    )
+
+    const { stream } = await model.doStream(serverToolOptions)
+    const parts = await collect(stream)
+
+    expect(parts).toContainEqual({
+      type: 'tool-call',
+      toolCallId: 'r1:search_results:0',
+      toolName: 'webSearch',
+      input: '{}',
+      providerExecuted: true,
+      providerMetadata: { perplexity: { serverToolType: 'search_results' } }
+    })
+    expect(parts).toContainEqual({
+      type: 'tool-result',
+      toolCallId: 'r1:search_results:0',
+      toolName: 'webSearch',
+      result: searchResults,
+      providerMetadata: { perplexity: { serverToolType: 'search_results' } }
+    })
+    expect(parts.filter((part) => part.type === 'tool-call')).toHaveLength(1)
+    expect(parts.filter((part) => part.type === 'tool-result')).toHaveLength(1)
+    expect(parts).toContainEqual(expect.objectContaining({ type: 'source', url: 'https://example.com' }))
   })
 
   it('non-streaming: failed status throws an AI SDK APICallError', async () => {
