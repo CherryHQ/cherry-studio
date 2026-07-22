@@ -45,6 +45,30 @@ describe('remarkHtmlArtifact', () => {
     })
   })
 
+  it('keeps a complete HTML document with blank lines in one code node', () => {
+    const source = `<!doctype html>
+<html>
+<head>
+  <title>Demo</title>
+
+  <style>body { color: red; }</style>
+</head>
+
+<body>
+  <h1>Hello</h1>
+</body>
+</html>`
+    const tree = parse(source)
+
+    expect(tree.children).toEqual([
+      expect.objectContaining({
+        type: 'code',
+        lang: 'html',
+        value: source
+      })
+    ])
+  })
+
   it('leaves inline HTML inside Markdown paragraphs unchanged', () => {
     const tree = parse('Text with <span>inline HTML</span>.')
 

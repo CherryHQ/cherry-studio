@@ -304,6 +304,10 @@ const MainTextBlock: React.FC<Props> = ({
     content: role === 'user' ? userDisplayContent : smoothedContent,
     status: isStreaming ? 'streaming' : 'success'
   }
+  // Upstream completion can precede the smooth-stream tail. Keep the iframe unmounted
+  // until its first srcDoc contains the complete artifact.
+  const resolvedInlineHtmlPreviewMode =
+    inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
   const processContent = useCallback(
     (rawText: string) => {
@@ -368,7 +372,11 @@ const MainTextBlock: React.FC<Props> = ({
           )}
         </CollapsibleUserMessageContent>
       ) : (
-        <ChatMarkdown block={block} inlineHtmlPreviewMode={inlineHtmlPreviewMode} postProcess={processContent} />
+        <ChatMarkdown
+          block={block}
+          inlineHtmlPreviewMode={resolvedInlineHtmlPreviewMode}
+          postProcess={processContent}
+        />
       )}
       {/* Parts data stores citation refs per text part, so the list is scoped to the text segment that produced it. */}
       {citations.length > 0 && <CitationsList citations={citations} />}
