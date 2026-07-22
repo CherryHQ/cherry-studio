@@ -16,6 +16,8 @@ vi.mock('react-i18next', () => ({
         return `Response preparation took ${options?.seconds}s`
       }
       if (key === 'message.tools.placeholder.prepare.footer.copy') return 'Copy diagnostics'
+      // Stage / detail keys resolve to their last segment ("...stage.dispatch" -> "dispatch")
+      if (key.startsWith('message.tools.placeholder.prepare.footer.')) return key.split('.').pop() ?? key
       return key
     }
   })
@@ -56,6 +58,9 @@ describe('PrepareTimelineBlock', () => {
 
     expect(screen.getByText('dispatch')).toBeInTheDocument()
     expect(screen.getByText('mcp-warm')).toBeInTheDocument()
+    // Details render as localized notes, not raw JSON
+    expect(screen.getByText(/filesystem/)).toBeInTheDocument()
+    expect(screen.queryByText(/serverCount/)).toBeNull()
 
     clickCopy()
     await waitFor(() => expect(mockWriteText).toHaveBeenCalledOnce())
