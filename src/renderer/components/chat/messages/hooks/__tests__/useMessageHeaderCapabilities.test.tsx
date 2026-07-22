@@ -53,6 +53,15 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+
+  return { promise, resolve }
+}
+
 describe('useMessageHeaderCapabilities', () => {
   beforeEach(() => {
     mocks.dataApiGet.mockReset()
@@ -95,6 +104,62 @@ describe('useMessageHeaderCapabilities', () => {
     expect(mocks.loggerError).toHaveBeenCalledWith(`Failed to load ${kind} for message author editor`, error, {
       id: `${kind}-1`
     })
+  })
+
+  it('keeps resource loading and the popup lifecycle single-flight', async () => {
+    const firstResource = { id: 'assistant-1', name: 'First assistant' }
+    const secondResource = { id: 'assistant-2', name: 'Second assistant' }
+    const firstLoad = createDeferred<typeof firstResource>()
+    const secondLoad = createDeferred<typeof secondResource>()
+    const firstPopup = createDeferred<void>()
+    mocks.dataApiGet.mockReturnValueOnce(firstLoad.promise).mockReturnValueOnce(secondLoad.promise)
+    mocks.openResourceEditor.mockReturnValueOnce(firstPopup.promise).mockResolvedValueOnce(undefined)
+    const { result } = renderHook(() => useMessageHeaderCapabilities('assistant'))
+
+    let firstOpen: void | Promise<void>
+    let interleavedOpen: void | Promise<void>
+    act(() => {
+      firstOpen = result.current.openMessageAuthorEditor?.(firstResource.id)
+      interleavedOpen = result.current.openMessageAuthorEditor?.(secondResource.id)
+    })
+
+    expect(interleavedOpen!).toBe(firstOpen!)
+    expect(mocks.dataApiGet).toHaveBeenCalledTimes(1)
+    expect(mocks.dataApiGet).toHaveBeenCalledWith(`/assistants/${firstResource.id}`)
+
+    await act(async () => {
+      firstLoad.resolve(firstResource)
+      await firstLoad.promise
+    })
+
+    expect(mocks.openResourceEditor).toHaveBeenCalledWith({ kind: 'assistant', resource: firstResource })
+
+    act(() => {
+      interleavedOpen = result.current.openMessageAuthorEditor?.(secondResource.id)
+    })
+
+    expect(interleavedOpen!).toBe(firstOpen!)
+    expect(mocks.dataApiGet).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      firstPopup.resolve()
+      await firstOpen
+    })
+
+    let secondOpen: void | Promise<void>
+    act(() => {
+      secondOpen = result.current.openMessageAuthorEditor?.(secondResource.id)
+    })
+
+    expect(mocks.dataApiGet).toHaveBeenCalledTimes(2)
+    expect(mocks.dataApiGet).toHaveBeenLastCalledWith(`/assistants/${secondResource.id}`)
+
+    await act(async () => {
+      secondLoad.resolve(secondResource)
+      await secondOpen
+    })
+
+    expect(mocks.openResourceEditor).toHaveBeenLastCalledWith({ kind: 'assistant', resource: secondResource })
   })
 
   it('keeps the existing user profile action', () => {
