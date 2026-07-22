@@ -108,8 +108,8 @@ export class AppUpdaterService extends BaseService {
       autoUpdater.autoDownload = false
     })
 
-    // Dev builds and portable builds never auto-update; the manual "check for
-    // update" button still works in those cases.
+    // Development builds skip automatic checks but still support manual checks.
+    // Portable builds do not perform update checks.
     if (!app.isPackaged || this.isPortable()) {
       return
     }

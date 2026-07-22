@@ -197,7 +197,7 @@ jobs:
           if [ "$IS_PRERELEASE" = "true" ]; then
             RELEASE_STATUS="pre"
           else
-            LATEST_TAG=$(gh api "repos/${{ github.repository }}/releases/latest" --jq '.tag_name' 2>/dev/null || true)
+            LATEST_TAG=$(gh api "repos/${{ github.repository }}/releases/latest" --jq '.tag_name')
             if [ "$LATEST_TAG" = "$TAG_NAME" ]; then
               RELEASE_STATUS="latest"
             else
