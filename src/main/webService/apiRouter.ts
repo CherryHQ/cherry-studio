@@ -75,6 +75,20 @@ type WebUiUpdateSessionModelBody = {
   readonly model: UniqueModelId
 }
 
+type WebUiPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
+
+type WebUiUpdatePermissionModeBody = {
+  readonly permissionMode: WebUiPermissionMode
+}
+
+type WebUiToolApprovalBody = {
+  readonly approvalId: string
+  readonly approved: boolean
+  readonly reason?: string
+}
+
+const WEBUI_PERMISSION_MODES = ['default', 'acceptEdits', 'bypassPermissions', 'plan'] as const
+
 const jsonHeaders = {
   'Cache-Control': 'no-store',
   'Content-Type': 'application/json; charset=utf-8'
@@ -148,6 +162,8 @@ const sessionAbortPath = /^\/api\/agent-sessions\/([^/]+)\/abort$/
 const sessionContextUsagePath = /^\/api\/agent-sessions\/([^/]+)\/context-usage$/
 const sessionSlashCommandsPath = /^\/api\/agent-sessions\/([^/]+)\/slash-commands$/
 const sessionModelPath = /^\/api\/agent-sessions\/([^/]+)\/model$/
+const sessionPermissionModePath = /^\/api\/agent-sessions\/([^/]+)\/permission-mode$/
+const sessionToolApprovalsPath = /^\/api\/agent-sessions\/([^/]+)\/tool-approvals$/
 const sessionGenerateTitlePath = /^\/api\/agent-sessions\/([^/]+)\/generate-title$/
 const sessionWorkspaceFilesPath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/files$/
 const sessionWorkspaceFilePath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/file$/
@@ -238,6 +254,28 @@ const parseUpdateSessionModelBody = (value: unknown): WebUiUpdateSessionModelBod
 
   const model = (value as { model: string }).model
   return isUniqueModelId(model) ? { model } : undefined
+}
+
+const parseUpdatePermissionModeBody = (value: unknown): WebUiUpdatePermissionModeBody | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const permissionMode = (value as { permissionMode?: unknown }).permissionMode
+  if (typeof permissionMode !== 'string') return undefined
+  return (WEBUI_PERMISSION_MODES as readonly string[]).includes(permissionMode)
+    ? { permissionMode: permissionMode as WebUiPermissionMode }
+    : undefined
+}
+
+const parseToolApprovalBody = (value: unknown): WebUiToolApprovalBody | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as { approvalId?: unknown; approved?: unknown; reason?: unknown }
+  if (typeof candidate.approvalId !== 'string' || !candidate.approvalId.trim()) return undefined
+  if (typeof candidate.approved !== 'boolean') return undefined
+  if (candidate.reason !== undefined && typeof candidate.reason !== 'string') return undefined
+  return {
+    approvalId: candidate.approvalId.trim(),
+    approved: candidate.approved,
+    ...(typeof candidate.reason === 'string' && candidate.reason.trim() ? { reason: candidate.reason.trim() } : {})
+  }
 }
 
 const listWebUiChatModelGroups = () => {
@@ -499,6 +537,8 @@ export const createWebUiApiRouter = ({
     const contextUsageMatch = pathname.match(sessionContextUsagePath)
     const slashCommandsMatch = pathname.match(sessionSlashCommandsPath)
     const sessionModelMatch = pathname.match(sessionModelPath)
+    const sessionPermissionModeMatch = pathname.match(sessionPermissionModePath)
+    const sessionToolApprovalsMatch = pathname.match(sessionToolApprovalsPath)
     const sessionGenerateTitleMatch = pathname.match(sessionGenerateTitlePath)
     const workspaceFilesMatch = pathname.match(sessionWorkspaceFilesPath)
     const workspaceFileMatch = pathname.match(sessionWorkspaceFilePath)
@@ -671,6 +711,107 @@ export const createWebUiApiRouter = ({
           body: {
             code: 'WEBUI_MODEL_UPDATE_REJECTED',
             message: error instanceof Error ? error.message : 'Desktop Agent model update rejected'
+          }
+        }
+      }
+    }
+
+    // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+    // 权限模式写在 Agent.configuration.permission_mode，与桌面 Composer 一致。
+    if (sessionPermissionModeMatch) {
+      if (method !== 'PATCH') return methodNotAllowed(['PATCH'])
+
+      try {
+        const body = parseUpdatePermissionModeBody(await readJsonBody(request))
+        if (!body) {
+          return {
+            status: 400,
+            body: {
+              code: 'WEBUI_INVALID_PERMISSION_MODE',
+              message: 'permissionMode must be one of: default, plan, acceptEdits, bypassPermissions'
+            }
+          }
+        }
+
+        const encodedSessionId = sessionPermissionModeMatch[1]
+        if (!encodedSessionId)
+          return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+        const session = agentSessionService.getById(decodeURIComponent(encodedSessionId))
+        if (!session.agentId)
+          return { status: 409, body: { code: 'WEBUI_AGENT_UNAVAILABLE', message: 'This conversation has no Agent' } }
+
+        const existing = agentService.getAgent(session.agentId)
+        if (!existing)
+          return { status: 404, body: { code: 'WEBUI_AGENT_NOT_FOUND', message: 'Desktop Agent was not found' } }
+
+        const configuration = {
+          ...(existing.configuration ?? {}),
+          permission_mode: body.permissionMode
+        }
+        const agent = agentService.updateAgent(session.agentId, { configuration })
+        if (!agent)
+          return { status: 404, body: { code: 'WEBUI_AGENT_NOT_FOUND', message: 'Desktop Agent was not found' } }
+        sseRelay.broadcast({
+          event: 'sync',
+          data: { conversationId: session.id, reason: 'agent-permission-mode-updated' }
+        })
+        return { status: 200, body: { agent, permissionMode: body.permissionMode } }
+      } catch (error) {
+        return {
+          status: 422,
+          body: {
+            code: 'WEBUI_PERMISSION_MODE_UPDATE_REJECTED',
+            message: error instanceof Error ? error.message : 'Desktop Agent permission mode update rejected'
+          }
+        }
+      }
+    }
+
+    // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+    // Agent 快路径：复用 ToolApprovalRegistry，与桌面 ai.respond_tool_approval 同决策入口。
+    if (sessionToolApprovalsMatch) {
+      if (method !== 'POST') return methodNotAllowed(['POST'])
+
+      try {
+        const body = parseToolApprovalBody(await readJsonBody(request))
+        if (!body) {
+          return {
+            status: 400,
+            body: {
+              code: 'WEBUI_INVALID_TOOL_APPROVAL',
+              message: 'approvalId (non-empty string) and approved (boolean) are required'
+            }
+          }
+        }
+
+        const encodedSessionId = sessionToolApprovalsMatch[1]
+        if (!encodedSessionId)
+          return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+        // 校验会话存在，避免对已删会话误报成功；决策仍以 approvalId 为唯一键（与桌面 IPC 一致）。
+        agentSessionService.getById(decodeURIComponent(encodedSessionId))
+
+        const ok = application.get('AgentSessionRuntimeService').respondToolApproval(body.approvalId, {
+          approved: body.approved,
+          ...(body.reason ? { reason: body.reason } : {})
+        })
+        if (!ok) {
+          return {
+            status: 409,
+            body: {
+              code: 'WEBUI_APPROVAL_NOT_FOUND',
+              message: 'No pending tool approval matches this approvalId (already settled or expired)',
+              ok: false
+            }
+          }
+        }
+        return { status: 200, body: { ok: true } }
+      } catch (error) {
+        return {
+          status: 422,
+          body: {
+            code: 'WEBUI_TOOL_APPROVAL_REJECTED',
+            message: error instanceof Error ? error.message : 'Tool approval response rejected',
+            ok: false
           }
         }
       }

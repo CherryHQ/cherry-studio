@@ -118,9 +118,24 @@ export type WebUiToolCallSnapshot = {
   readonly id: string
   readonly name: string
   readonly state: WebUiToolCallState
+  /** Live `tool-approval-request` id — required to respond; absent on read-only history. */
+  readonly approvalId?: string
   readonly input?: string
   readonly output?: string
   readonly errorText?: string
+}
+
+export type WebUiPermissionMode = 'default' | 'plan' | 'acceptEdits' | 'bypassPermissions'
+
+export type WebUiToolApprovalResponse = {
+  readonly ok: boolean
+  readonly code?: string
+  readonly message?: string
+}
+
+export type WebUiPermissionModeResponse = {
+  readonly permissionMode: WebUiPermissionMode
+  readonly agent?: unknown
 }
 
 export type WebUiSseEventName = 'ready' | 'chunk' | 'sync' | 'error' | 'done'
@@ -143,6 +158,7 @@ export type WebUiStreamChunk = {
   readonly delta?: string
   readonly toolCallId?: string
   readonly toolName?: string
+  readonly approvalId?: string
   readonly inputTextDelta?: string
   readonly input?: unknown
   readonly output?: unknown
@@ -187,6 +203,10 @@ export type WebUiAgentEntity = {
   readonly name: string
   readonly model: string | null
   readonly modelName: string | null
+  readonly configuration?: {
+    readonly permission_mode?: WebUiPermissionMode
+    readonly [key: string]: unknown
+  }
 }
 
 export type WebUiModel = {
@@ -234,6 +254,12 @@ export type WebUiMessagePart = {
   readonly errorText?: string
   readonly filename?: string
   readonly mediaType?: string
+  /** ToolUIPart approval payload — `id` is the live registry key. */
+  readonly approval?: {
+    readonly id?: string
+    readonly approved?: boolean
+    readonly reason?: string
+  }
   readonly providerMetadata?: {
     readonly cherry?: {
       readonly thinkingMs?: number

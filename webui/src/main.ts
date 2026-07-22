@@ -33,10 +33,13 @@ import type {
   WebUiModelGroup,
   WebUiModelsResponse,
   WebUiOffsetResponse,
+  WebUiPermissionMode,
+  WebUiPermissionModeResponse,
   WebUiRole,
   WebUiSendAttachment,
   WebUiSlashCommand,
   WebUiSlashCommandsResponse,
+  WebUiToolApprovalResponse,
   WebUiToolCallSnapshot,
   WebUiToolCallState,
   WebUiWorkspaceFileEntry,
@@ -302,7 +305,21 @@ const textPacks = {
     unavailable: 'Unavailable',
     verify: 'Verify',
     webui: 'WebUI',
-    webUiVersion: 'WebUI'
+    webUiVersion: 'WebUI',
+    approveTool: 'Approve',
+    denyTool: 'Deny',
+    approvalSubmitting: 'Submitting…',
+    approvalReadonly: 'Approval required — open the desktop app if buttons are unavailable.',
+    approvalFailed: 'Failed to send tool approval.',
+    permissionMode: 'Permission mode',
+    permissionModeDefault: 'Normal',
+    permissionModePlan: 'Plan',
+    permissionModeAcceptEdits: 'Auto-edit',
+    permissionModeBypass: 'Full auto',
+    permissionModeDefaultDesc: 'Read freely. Ask before edits or commands.',
+    permissionModePlanDesc: 'Read and plan only. No edits or commands.',
+    permissionModeAcceptEditsDesc: 'Read and edit freely. Ask before commands.',
+    permissionModeBypassDesc: 'Do everything without asking. Use with caution.'
   },
   'zh-CN': {
     agent: '智能体',
@@ -455,7 +472,21 @@ const textPacks = {
     unavailable: '不可用',
     verify: '验证',
     webui: 'WebUI',
-    webUiVersion: 'WebUI'
+    webUiVersion: 'WebUI',
+    approveTool: '批准',
+    denyTool: '拒绝',
+    approvalSubmitting: '提交中…',
+    approvalReadonly: '需要授权 — 若无按钮请在桌面端处理。',
+    approvalFailed: '工具授权提交失败。',
+    permissionMode: '权限模式',
+    permissionModeDefault: '标准',
+    permissionModePlan: '计划',
+    permissionModeAcceptEdits: '自动编辑',
+    permissionModeBypass: '全自动',
+    permissionModeDefaultDesc: '可自由读取；编辑或执行命令前需确认。',
+    permissionModePlanDesc: '仅可读取与规划；不可编辑或执行命令。',
+    permissionModeAcceptEditsDesc: '可自由读写文件；执行命令前需确认。',
+    permissionModeBypassDesc: '无需确认即可执行全部操作，请谨慎使用。'
   },
   'zh-TW': {
     agent: '智慧體',
@@ -608,7 +639,21 @@ const textPacks = {
     unavailable: '不可用',
     verify: '驗證',
     webui: 'WebUI',
-    webUiVersion: 'WebUI'
+    webUiVersion: 'WebUI',
+    approveTool: '批准',
+    denyTool: '拒絕',
+    approvalSubmitting: '提交中…',
+    approvalReadonly: '需要授權 — 若無按鈕請在桌面端處理。',
+    approvalFailed: '工具授權提交失敗。',
+    permissionMode: '權限模式',
+    permissionModeDefault: '標準',
+    permissionModePlan: '計劃',
+    permissionModeAcceptEdits: '自動編輯',
+    permissionModeBypass: '全自動',
+    permissionModeDefaultDesc: '可自由讀取；編輯或執行命令前需確認。',
+    permissionModePlanDesc: '僅可讀取與規劃；不可編輯或執行命令。',
+    permissionModeAcceptEditsDesc: '可自由讀寫檔案；執行命令前需確認。',
+    permissionModeBypassDesc: '無需確認即可執行全部操作，請謹慎使用。'
   }
 } as const
 
@@ -655,7 +700,7 @@ const terminalToolStates: ReadonlySet<WebUiToolCallState> = new Set([
   'output-denied'
 ])
 
-type ComposerToolIconName = 'attachment' | 'newConversation' | 'thinking'
+type ComposerToolIconName = 'attachment' | 'newConversation' | 'thinking' | 'permission'
 
 // Mirrors the compact line-icon treatment used by the desktop ComposerSurface.
 const renderComposerToolIcon = (name: ComposerToolIconName) => {
@@ -694,6 +739,14 @@ const renderComposerToolIcon = (name: ComposerToolIconName) => {
       h('path', { d: 'M9 18h6' }),
       h('path', { d: 'M10 22h4' }),
       h('path', { d: 'M8.5 14.5A6.5 6.5 0 1 1 15.5 14c-1.1.8-1.5 1.6-1.5 2.5h-4c0-.9-.4-1.5-1.5-2' })
+    ])
+  }
+
+  if (name === 'permission') {
+    // Shield-check: permission / policy control (aligns with desktop permission mode affordance).
+    return h('svg', baseProps, [
+      h('path', { d: 'M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z' }),
+      h('path', { d: 'm9 12 2 2 4-4' })
     ])
   }
 
@@ -986,10 +1039,13 @@ const toToolCalls = (parts: readonly WebUiMessagePart[]) => {
     const state = part.state ?? 'input-available'
     const input = toDisplayText(part.input)
     const output = toDisplayText(part.output)
+    const approvalId =
+      typeof part.approval?.id === 'string' && part.approval.id.trim() ? part.approval.id.trim() : undefined
     const tool: WebUiToolCallSnapshot = {
       id,
       name: toToolName(part.type, part.toolName),
       state: toToolState(state),
+      ...(approvalId ? { approvalId } : {}),
       ...(input ? { input } : {}),
       ...(output ? { output } : {}),
       ...(part.errorText ? { errorText: part.errorText } : {})
@@ -1153,8 +1209,13 @@ const App = defineComponent({
     const slashCommands = ref<readonly WebUiSlashCommand[]>([])
     const modelPickerOpen = ref(false)
     const reasoningPickerOpen = ref(false)
+    const permissionModePickerOpen = ref(false)
     const reasoningEffort = ref('default')
     const modelUpdateState = ref<'idle' | 'updating' | 'error'>('idle')
+    const permissionModeUpdateState = ref<'idle' | 'updating' | 'error'>('idle')
+    /** Optimistic submit keys: `${messageId}:${toolCallId}` */
+    const approvalSubmittingKeys = ref<ReadonlySet<string>>(new Set())
+    const approvalErrorByKey = ref<Readonly<Record<string, string>>>({})
     const mobileSidebarOpen = ref(false)
     const themeMode = ref<'light' | 'dark'>(
       window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -1200,6 +1261,40 @@ const App = defineComponent({
       return agents.value.find((agent) => agent.id === agentId)?.name
     })
     const selectedAgent = computed(() => agents.value.find((agent) => agent.id === selectedConversation.value?.agentId))
+    const selectedPermissionMode = computed<WebUiPermissionMode>(() => {
+      const mode = selectedAgent.value?.configuration?.permission_mode
+      if (mode === 'plan' || mode === 'acceptEdits' || mode === 'bypassPermissions' || mode === 'default') return mode
+      return 'default'
+    })
+    const permissionModeCards = computed(
+      () =>
+        [
+          {
+            mode: 'default' as const,
+            titleKey: 'permissionModeDefault' as const,
+            descriptionKey: 'permissionModeDefaultDesc' as const
+          },
+          {
+            mode: 'plan' as const,
+            titleKey: 'permissionModePlan' as const,
+            descriptionKey: 'permissionModePlanDesc' as const
+          },
+          {
+            mode: 'acceptEdits' as const,
+            titleKey: 'permissionModeAcceptEdits' as const,
+            descriptionKey: 'permissionModeAcceptEditsDesc' as const
+          },
+          {
+            mode: 'bypassPermissions' as const,
+            titleKey: 'permissionModeBypass' as const,
+            descriptionKey: 'permissionModeBypassDesc' as const
+          }
+        ] as const
+    )
+    const permissionModeLabel = computed(() => {
+      const card = permissionModeCards.value.find((item) => item.mode === selectedPermissionMode.value)
+      return card ? text(card.titleKey) : text('permissionModeDefault')
+    })
     const models = computed(() => modelGroups.value.flatMap((group) => group.models))
     const selectedModel = computed(() => models.value.find((model) => model.id === selectedAgent.value?.model))
     const modelPickerLabel = computed(
@@ -1492,12 +1587,61 @@ const App = defineComponent({
         return `${text('processDetails')} · ${message.toolCalls.length} ${text('toolCalls')}`
       return text('reasoning')
     }
-    const renderToolCall = (tool: WebUiToolCallSnapshot, message: WebUiMessageSnapshot) =>
-      h(
+    const approvalKey = (messageId: string, toolId: string) => `${messageId}:${toolId}`
+    const isApprovalSubmitting = (messageId: string, toolId: string) =>
+      approvalSubmittingKeys.value.has(approvalKey(messageId, toolId))
+    const setApprovalSubmitting = (messageId: string, toolId: string, submitting: boolean) => {
+      const key = approvalKey(messageId, toolId)
+      const next = new Set(approvalSubmittingKeys.value)
+      if (submitting) next.add(key)
+      else next.delete(key)
+      approvalSubmittingKeys.value = next
+    }
+    const setApprovalError = (messageId: string, toolId: string, error: string) => {
+      const key = approvalKey(messageId, toolId)
+      if (!error) {
+        if (!(key in approvalErrorByKey.value)) return
+        const { [key]: _removed, ...rest } = approvalErrorByKey.value
+        approvalErrorByKey.value = rest
+        return
+      }
+      approvalErrorByKey.value = { ...approvalErrorByKey.value, [key]: error }
+    }
+    const respondToolApproval = async (
+      tool: WebUiToolCallSnapshot,
+      message: WebUiMessageSnapshot,
+      approved: boolean
+    ) => {
+      const conversationId = selectedConversationId.value
+      const approvalId = tool.approvalId
+      if (!conversationId || !approvalId || isApprovalSubmitting(message.id, tool.id)) return
+
+      setApprovalSubmitting(message.id, tool.id, true)
+      setApprovalError(message.id, tool.id, '')
+      try {
+        await httpClient.postJson<WebUiToolApprovalResponse>(
+          `/api/agent-sessions/${encodeURIComponent(conversationId)}/tool-approvals`,
+          {
+            approvalId,
+            approved,
+            ...(approved ? {} : { reason: text('denyTool') })
+          }
+        )
+      } catch (error) {
+        setApprovalSubmitting(message.id, tool.id, false)
+        setApprovalError(message.id, tool.id, localizedErrorMessage(error) || text('approvalFailed'))
+      }
+    }
+    const renderToolCall = (tool: WebUiToolCallSnapshot, message: WebUiMessageSnapshot) => {
+      const submitting = isApprovalSubmitting(message.id, tool.id)
+      const approvalError = approvalErrorByKey.value[approvalKey(message.id, tool.id)]
+      const showApprovalActions = tool.state === 'approval-requested'
+      return h(
         'details',
         {
           class: ['tool-call', `tool-call-${tool.state}`],
-          open: message.status === 'pending' && !terminalToolStates.has(tool.state)
+          open:
+            (message.status === 'pending' && !terminalToolStates.has(tool.state)) || tool.state === 'approval-requested'
         },
         [
           h('summary', [
@@ -1508,10 +1652,48 @@ const App = defineComponent({
           h('div', { class: 'tool-call-body' }, [
             tool.input ? h('pre', { class: 'tool-call-data' }, tool.input) : undefined,
             tool.output ? h('pre', { class: 'tool-call-data' }, tool.output) : undefined,
-            tool.errorText ? h('p', { class: 'tool-call-error' }, tool.errorText) : undefined
+            tool.errorText ? h('p', { class: 'tool-call-error' }, tool.errorText) : undefined,
+            showApprovalActions
+              ? h('div', { class: 'tool-approval-bar' }, [
+                  tool.approvalId
+                    ? h('div', { class: 'tool-approval-actions' }, [
+                        h(
+                          'button',
+                          {
+                            class: 'tool-approval-button tool-approval-button-approve',
+                            type: 'button',
+                            disabled: submitting,
+                            onClick: (event: MouseEvent) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              void respondToolApproval(tool, message, true)
+                            }
+                          },
+                          submitting ? text('approvalSubmitting') : text('approveTool')
+                        ),
+                        h(
+                          'button',
+                          {
+                            class: 'tool-approval-button tool-approval-button-deny',
+                            type: 'button',
+                            disabled: submitting,
+                            onClick: (event: MouseEvent) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              void respondToolApproval(tool, message, false)
+                            }
+                          },
+                          text('denyTool')
+                        )
+                      ])
+                    : h('p', { class: 'tool-approval-readonly' }, text('approvalReadonly')),
+                  approvalError ? h('p', { class: 'tool-call-error' }, approvalError) : undefined
+                ])
+              : undefined
           ])
         ]
       )
+    }
     const renderProcessDetails = (message: WebUiMessageSnapshot) =>
       hasProcessDetails(message)
         ? h('details', { class: ['process-block', { 'process-block-pending': message.status === 'pending' }] }, [
@@ -2181,51 +2363,55 @@ const App = defineComponent({
       )
 
     const renderWorkspacePreviewToolbar = (preview: WorkspaceFilePreviewState, previewKind: string) => {
-      if (preview.status !== 'text') return undefined
+      if (preview.status !== 'text') return [] as const
       const isMarkdown = previewKind === 'markdown'
       const language = isMarkdown ? 'markdown' : (getWorkspaceCodeLanguage(preview.path) ?? 'text')
-      const languageLabel = language === 'plaintext' ? 'TEXT' : language.toUpperCase()
-      return h('div', { class: 'workspace-file-preview-toolbar' }, [
+      // Left type label (TEXT / MARKDOWN / TS …); action buttons sit as a separate right group.
+      const languageLabel =
+        !language || language === 'text' || language === 'plaintext' ? 'TEXT' : language.toUpperCase()
+      return [
         h('span', { class: 'workspace-preview-language' }, languageLabel),
-        isMarkdown
-          ? renderWorkspacePreviewToolButton(
-              text('copyMarkdown'),
-              () => {
-                void handleWorkspacePreviewCopy(preview.content, text('copyMarkdown'))
-              },
-              { shortLabel: 'MD' }
-            )
-          : undefined,
-        renderWorkspacePreviewToolButton(
-          isMarkdown ? text('copyPlainText') : text('copySource'),
-          () => {
-            void handleWorkspacePreviewCopy(
-              isMarkdown ? markdownToPlainText(preview.content) : preview.content,
-              isMarkdown ? text('copyPlainText') : text('copySource')
-            )
-          },
-          { shortLabel: 'TXT' }
-        ),
-        isMarkdown
-          ? renderWorkspacePreviewToolButton(
-              workspacePreviewMode.value === 'preview' ? text('sourceMode') : text('previewMode'),
-              () => {
-                workspacePreviewMode.value = workspacePreviewMode.value === 'preview' ? 'source' : 'preview'
-              },
-              { active: workspacePreviewMode.value === 'source', icon: 'source' }
-            )
-          : undefined,
-        renderWorkspacePreviewToolButton(
-          workspacePreviewWrap.value ? text('unwrapLines') : text('wrapLines'),
-          () => {
-            workspacePreviewWrap.value = !workspacePreviewWrap.value
-          },
-          { active: workspacePreviewWrap.value, icon: 'wrap' }
-        ),
-        renderWorkspacePreviewToolButton(text('downloadSource'), () => downloadWorkspacePreviewSource(preview), {
-          icon: 'download'
-        })
-      ])
+        h('div', { class: 'workspace-preview-tool-actions', role: 'toolbar' }, [
+          isMarkdown
+            ? renderWorkspacePreviewToolButton(
+                text('copyMarkdown'),
+                () => {
+                  void handleWorkspacePreviewCopy(preview.content, text('copyMarkdown'))
+                },
+                { shortLabel: 'MD' }
+              )
+            : undefined,
+          renderWorkspacePreviewToolButton(
+            isMarkdown ? text('copyPlainText') : text('copySource'),
+            () => {
+              void handleWorkspacePreviewCopy(
+                isMarkdown ? markdownToPlainText(preview.content) : preview.content,
+                isMarkdown ? text('copyPlainText') : text('copySource')
+              )
+            },
+            { shortLabel: 'TXT' }
+          ),
+          isMarkdown
+            ? renderWorkspacePreviewToolButton(
+                workspacePreviewMode.value === 'preview' ? text('sourceMode') : text('previewMode'),
+                () => {
+                  workspacePreviewMode.value = workspacePreviewMode.value === 'preview' ? 'source' : 'preview'
+                },
+                { active: workspacePreviewMode.value === 'source', icon: 'source' }
+              )
+            : undefined,
+          renderWorkspacePreviewToolButton(
+            workspacePreviewWrap.value ? text('unwrapLines') : text('wrapLines'),
+            () => {
+              workspacePreviewWrap.value = !workspacePreviewWrap.value
+            },
+            { active: workspacePreviewWrap.value, icon: 'wrap' }
+          ),
+          renderWorkspacePreviewToolButton(text('downloadSource'), () => downloadWorkspacePreviewSource(preview), {
+            icon: 'download'
+          })
+        ])
+      ] as const
     }
 
     const renderWorkspaceFilePreview = () => {
@@ -2246,7 +2432,7 @@ const App = defineComponent({
             renderActionIcon('back')
           ),
           h('span', { class: 'workspace-file-preview-title' }, getWorkspacePathBasename(preview.path)),
-          renderWorkspacePreviewToolbar(preview, previewKind)
+          ...renderWorkspacePreviewToolbar(preview, previewKind)
         ]),
         h('div', { class: ['workspace-file-preview-content', `workspace-file-preview-${preview.status}`] }, [
           preview.status === 'loading'
@@ -2645,6 +2831,33 @@ const App = defineComponent({
       }
     }
 
+    const updatePermissionMode = async (mode: WebUiPermissionMode) => {
+      const conversationId = selectedConversationId.value
+      if (
+        !conversationId ||
+        !selectedAgent.value ||
+        mode === selectedPermissionMode.value ||
+        permissionModeUpdateState.value === 'updating'
+      ) {
+        return
+      }
+
+      permissionModeUpdateState.value = 'updating'
+      submitError.value = ''
+      try {
+        await httpClient.patchJson<WebUiPermissionModeResponse>(
+          `/api/agent-sessions/${encodeURIComponent(conversationId)}/permission-mode`,
+          { permissionMode: mode }
+        )
+        await loadAgents()
+        permissionModePickerOpen.value = false
+        permissionModeUpdateState.value = 'idle'
+      } catch (error) {
+        submitError.value = localizedErrorMessage(error)
+        permissionModeUpdateState.value = 'error'
+      }
+    }
+
     const refreshComposerInfo = (conversationId = selectedConversationId.value) => {
       if (!conversationId) return
       void httpClient
@@ -2693,6 +2906,9 @@ const App = defineComponent({
       reasoningEffort.value = 'default'
       modelPickerOpen.value = false
       reasoningPickerOpen.value = false
+      permissionModePickerOpen.value = false
+      approvalSubmittingKeys.value = new Set()
+      approvalErrorByKey.value = {}
       void loadConversationMessages(conversationId)
       refreshComposerInfo(conversationId)
       refreshSlashCommands(conversationId)
@@ -2890,6 +3106,11 @@ const App = defineComponent({
       syncTimer = window.setTimeout(() => {
         syncTimer = undefined
         void loadConversations()
+        if (reason === 'agent-permission-mode-updated') {
+          void loadAgents().catch(() => {
+            /* ignore — label falls back until next manual refresh */
+          })
+        }
         const selectedId = selectedConversationId.value
         if (selectedId && (!conversationId || conversationId === selectedId)) {
           if (reason === 'stream-terminal' || reason === 'message-submitted' || reason === 'message-deleted') {
@@ -2934,6 +3155,10 @@ const App = defineComponent({
         )
         const input = toDisplayText(chunk.input)
         const output = toDisplayText(chunk.output)
+        const approvalId =
+          typeof chunk.approvalId === 'string' && chunk.approvalId.trim()
+            ? chunk.approvalId.trim()
+            : previousTool?.approvalId
         const nextTool: WebUiToolCallSnapshot = {
           id: chunk.toolCallId,
           name: chunk.toolName ?? previousTool?.name ?? 'Tool',
@@ -2951,6 +3176,12 @@ const App = defineComponent({
                       : chunk.type === 'tool-input-available'
                         ? 'input-available'
                         : (previousTool?.state ?? 'input-streaming'),
+          ...(approvalId &&
+          (chunk.type === 'tool-approval-request' ||
+            previousTool?.state === 'approval-requested' ||
+            previousTool?.approvalId)
+            ? { approvalId }
+            : {}),
           ...(chunk.type === 'tool-input-delta'
             ? { input: `${previousTool?.input ?? ''}${chunk.inputTextDelta ?? ''}` }
             : input
@@ -2964,6 +3195,10 @@ const App = defineComponent({
             : previousTool?.errorText
               ? { errorText: previousTool.errorText }
               : {})
+        }
+        if (chunk.type === 'tool-approval-request' || nextTool.state !== 'approval-requested') {
+          setApprovalSubmitting(message.id, chunk.toolCallId, false)
+          if (nextTool.state !== 'approval-requested') setApprovalError(message.id, chunk.toolCallId, '')
         }
         nextMessages[messageIndex] = {
           ...message,
@@ -4049,9 +4284,33 @@ const App = defineComponent({
                             onClick: () => {
                               reasoningPickerOpen.value = !reasoningPickerOpen.value
                               modelPickerOpen.value = false
+                              permissionModePickerOpen.value = false
                             }
                           },
                           renderComposerToolIcon('thinking')
+                        ),
+                        h(
+                          'button',
+                          {
+                            class: [
+                              'composer-tool-button',
+                              {
+                                'composer-tool-button-active': selectedPermissionMode.value !== 'default',
+                                'composer-tool-button-caution': selectedPermissionMode.value === 'bypassPermissions'
+                              }
+                            ],
+                            type: 'button',
+                            disabled: !selectedConversation.value || permissionModeUpdateState.value === 'updating',
+                            title: `${text('permissionMode')}: ${permissionModeLabel.value}`,
+                            'aria-label': text('permissionMode'),
+                            'aria-expanded': permissionModePickerOpen.value,
+                            onClick: () => {
+                              permissionModePickerOpen.value = !permissionModePickerOpen.value
+                              modelPickerOpen.value = false
+                              reasoningPickerOpen.value = false
+                            }
+                          },
+                          renderComposerToolIcon('permission')
                         ),
                         h(
                           'button',
@@ -4069,6 +4328,7 @@ const App = defineComponent({
                             onClick: () => {
                               modelPickerOpen.value = !modelPickerOpen.value
                               reasoningPickerOpen.value = false
+                              permissionModePickerOpen.value = false
                             }
                           },
                           modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
@@ -4174,6 +4434,36 @@ const App = defineComponent({
                               )
                             )
                           ])
+                        )
+                      : undefined,
+                    permissionModePickerOpen.value
+                      ? h(
+                          'div',
+                          { class: 'permission-mode-picker-menu', role: 'listbox' },
+                          permissionModeCards.value.map((card) =>
+                            h(
+                              'button',
+                              {
+                                class: [
+                                  'permission-mode-option',
+                                  {
+                                    'permission-mode-option-selected': card.mode === selectedPermissionMode.value,
+                                    'permission-mode-option-caution': card.mode === 'bypassPermissions'
+                                  }
+                                ],
+                                key: card.mode,
+                                type: 'button',
+                                role: 'option',
+                                'aria-selected': card.mode === selectedPermissionMode.value,
+                                disabled: permissionModeUpdateState.value === 'updating',
+                                onClick: () => void updatePermissionMode(card.mode)
+                              },
+                              [
+                                h('span', { class: 'permission-mode-option-title' }, text(card.titleKey)),
+                                h('span', { class: 'permission-mode-option-desc' }, text(card.descriptionKey))
+                              ]
+                            )
+                          )
                         )
                       : undefined,
                     slashCommandSuggestions.value.length
@@ -5682,25 +5972,24 @@ style.textContent = `
     white-space: nowrap;
   }
 
-  .workspace-file-preview-toolbar {
-    display: flex;
-    min-width: 0;
-    flex: 0 1 auto;
-    gap: 4px;
-    align-items: center;
-    justify-content: flex-end;
-  }
-
   .workspace-preview-language {
-    max-width: 82px;
+    max-width: 96px;
+    flex: 0 1 auto;
     overflow: hidden;
-    color: #94a3b8;
-    font-size: 10px;
+    color: #64748b;
+    font-size: 11px;
     font-weight: 700;
     text-overflow: ellipsis;
     text-transform: uppercase;
     white-space: nowrap;
     letter-spacing: 0.04em;
+  }
+
+  .workspace-preview-tool-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+    align-items: center;
   }
 
   .workspace-preview-tool-button {
@@ -6500,14 +6789,19 @@ style.textContent = `
 
   .markdown-code-language {
     position: absolute;
-    top: 8px;
-    left: 10px;
+    top: 10px;
+    left: 12px;
     z-index: 1;
-    color: #94a3b8;
+    max-width: calc(100% - 120px);
+    overflow: hidden;
+    color: #64748b;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
+    text-overflow: ellipsis;
     text-transform: uppercase;
+    white-space: nowrap;
     letter-spacing: 0.04em;
+    pointer-events: none;
   }
 
   .markdown-code-toolbar {
@@ -6742,6 +7036,53 @@ style.textContent = `
   .tool-call-output-error .tool-state-indicator,
   .tool-call-output-denied .tool-state-indicator {
     background: #dc2626;
+  }
+
+  .tool-approval-bar {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .tool-approval-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tool-approval-button {
+    min-height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .tool-approval-button:disabled {
+    opacity: 0.65;
+    cursor: wait;
+  }
+
+  .tool-approval-button-approve {
+    color: #065f46;
+    background: #d1fae5;
+    border-color: #6ee7b7;
+  }
+
+  .tool-approval-button-deny {
+    color: #991b1b;
+    background: #fee2e2;
+    border-color: #fca5a5;
+  }
+
+  .tool-approval-readonly {
+    margin: 0;
+    font-size: 12px;
+    color: #92400e;
   }
 
   .tool-call-name {
@@ -7176,6 +7517,11 @@ style.textContent = `
     background: #eff6ff;
   }
 
+  .composer-tool-button-caution {
+    color: #7c3aed;
+    background: #f5f3ff;
+  }
+
   .send-button {
     display: grid;
     width: 40px;
@@ -7201,7 +7547,8 @@ style.textContent = `
   }
 
   .model-picker-menu,
-  .reasoning-picker-menu {
+  .reasoning-picker-menu,
+  .permission-mode-picker-menu {
     position: absolute;
     z-index: 6;
     right: 8px;
@@ -7232,6 +7579,54 @@ style.textContent = `
     right: auto;
     left: 8px;
     max-height: min(276px, 42dvh);
+  }
+
+  .permission-mode-picker-menu {
+    z-index: 7;
+    right: auto;
+    left: 8px;
+    width: min(320px, calc(100% - 16px));
+    max-height: min(360px, 48dvh);
+  }
+
+  .permission-mode-option {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    padding: 9px 10px;
+    text-align: left;
+    color: #1f2937;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .permission-mode-option:hover,
+  .permission-mode-option:focus-visible,
+  .permission-mode-option-selected {
+    background: #eef2ff;
+    outline: 0;
+  }
+
+  .permission-mode-option:disabled {
+    opacity: 0.65;
+    cursor: wait;
+  }
+
+  .permission-mode-option-caution .permission-mode-option-title {
+    color: #7c3aed;
+  }
+
+  .permission-mode-option-title {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .permission-mode-option-desc {
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.35;
   }
 
   @keyframes model-drawer-up {
@@ -7598,6 +7993,16 @@ style.textContent = `
       color: #64748b;
     }
 
+    .composer-tool-button-active {
+      color: #93c5fd;
+      background: #1e3a5f;
+    }
+
+    .composer-tool-button-caution {
+      color: #c4b5fd;
+      background: #2e1065;
+    }
+
     .conversation-item,
     .tool-call,
     .reasoning-block,
@@ -7634,6 +8039,7 @@ style.textContent = `
     .slash-command-menu,
     .model-picker-menu,
     .reasoning-picker-menu,
+    .permission-mode-picker-menu,
     .scroll-bottom-button {
       color: #e5e7eb;
       background: #273449;
@@ -7652,8 +8058,17 @@ style.textContent = `
     }
 
     .model-picker-option,
-    .reasoning-picker-option {
+    .reasoning-picker-option,
+    .permission-mode-option {
       color: #e5e7eb;
+    }
+
+    .permission-mode-option-desc {
+      color: #94a3b8;
+    }
+
+    .permission-mode-option-caution .permission-mode-option-title {
+      color: #c4b5fd;
     }
 
     .slash-command-option:hover,
@@ -7665,7 +8080,10 @@ style.textContent = `
     .model-picker-option:focus-visible,
     .model-picker-option-selected,
     .reasoning-picker-option:hover,
-    .reasoning-picker-option-selected {
+    .reasoning-picker-option-selected,
+    .permission-mode-option:hover,
+    .permission-mode-option:focus-visible,
+    .permission-mode-option-selected {
       background: #334155;
     }
 
@@ -7802,6 +8220,7 @@ style.textContent = `
   :root[data-webui-theme='dark'] .slash-command-menu,
   :root[data-webui-theme='dark'] .model-picker-menu,
   :root[data-webui-theme='dark'] .reasoning-picker-menu,
+  :root[data-webui-theme='dark'] .permission-mode-picker-menu,
   :root[data-webui-theme='dark'] .scroll-bottom-button,
   :root[data-webui-theme='dark'] .theme-toggle-button,
   :root[data-webui-theme='dark'] .panel-icon-button,
@@ -7823,6 +8242,9 @@ style.textContent = `
   :root[data-webui-theme='dark'] .model-picker-option-selected,
   :root[data-webui-theme='dark'] .reasoning-picker-option:hover,
   :root[data-webui-theme='dark'] .reasoning-picker-option-selected,
+  :root[data-webui-theme='dark'] .permission-mode-option:hover,
+  :root[data-webui-theme='dark'] .permission-mode-option:focus-visible,
+  :root[data-webui-theme='dark'] .permission-mode-option-selected,
   :root[data-webui-theme='dark'] .slash-command-option:hover,
   :root[data-webui-theme='dark'] .theme-toggle-button:hover {
     background: #334155;
@@ -7838,16 +8260,32 @@ style.textContent = `
   :root[data-webui-theme='dark'] .slash-command-option,
   :root[data-webui-theme='dark'] .model-picker-option,
   :root[data-webui-theme='dark'] .reasoning-picker-option,
+  :root[data-webui-theme='dark'] .permission-mode-option,
   :root[data-webui-theme='dark'] .composer-tool-button {
     color: #e5e7eb;
   }
 
   :root[data-webui-theme='dark'] .composer-tool-button-pending,
   :root[data-webui-theme='dark'] .slash-command-description,
+  :root[data-webui-theme='dark'] .permission-mode-option-desc,
   :root[data-webui-theme='dark'] .help-guide-tree ul,
   :root[data-webui-theme='dark'] .conversation-meta,
   :root[data-webui-theme='dark'] .model-picker-provider {
     color: #94a3b8;
+  }
+
+  :root[data-webui-theme='dark'] .composer-tool-button-active {
+    color: #93c5fd;
+    background: #1e3a5f;
+  }
+
+  :root[data-webui-theme='dark'] .composer-tool-button-caution {
+    color: #c4b5fd;
+    background: #2e1065;
+  }
+
+  :root[data-webui-theme='dark'] .permission-mode-option-caution .permission-mode-option-title {
+    color: #c4b5fd;
   }
 
   :root[data-webui-theme='dark'] .model-selector-button {
@@ -8003,6 +8441,23 @@ style.textContent = `
     color: #cbd5e1;
   }
 
+  :root[data-webui-theme='dark'] .workspace-preview-language,
+  :root[data-webui-theme='dark'] .markdown-code-language {
+    color: #94a3b8;
+  }
+
+  :root[data-webui-theme='dark'] .workspace-preview-tool-button {
+    color: #94a3b8;
+  }
+
+  :root[data-webui-theme='dark'] .workspace-preview-tool-button:hover,
+  :root[data-webui-theme='dark'] .workspace-preview-tool-button:focus-visible,
+  :root[data-webui-theme='dark'] .workspace-preview-tool-button-active {
+    color: #f8fafc;
+    background: #334155;
+    border-color: #475569;
+  }
+
   :root[data-webui-theme='light'] {
     --webui-divider: #e5e7eb;
     color: #1f2937;
@@ -8045,6 +8500,7 @@ style.textContent = `
   :root[data-webui-theme='light'] .slash-command-menu,
   :root[data-webui-theme='light'] .model-picker-menu,
   :root[data-webui-theme='light'] .reasoning-picker-menu,
+  :root[data-webui-theme='light'] .permission-mode-picker-menu,
   :root[data-webui-theme='light'] .scroll-bottom-button,
   :root[data-webui-theme='light'] .theme-toggle-button,
   :root[data-webui-theme='light'] .panel-icon-button,
@@ -8061,6 +8517,9 @@ style.textContent = `
   :root[data-webui-theme='light'] .model-picker-option-selected,
   :root[data-webui-theme='light'] .reasoning-picker-option:hover,
   :root[data-webui-theme='light'] .reasoning-picker-option-selected,
+  :root[data-webui-theme='light'] .permission-mode-option:hover,
+  :root[data-webui-theme='light'] .permission-mode-option:focus-visible,
+  :root[data-webui-theme='light'] .permission-mode-option-selected,
   :root[data-webui-theme='light'] .slash-command-option:hover,
   :root[data-webui-theme='light'] .theme-toggle-button:hover {
     background: #eef2ff;
@@ -8073,8 +8532,27 @@ style.textContent = `
   :root[data-webui-theme='light'] .slash-command-option,
   :root[data-webui-theme='light'] .model-picker-option,
   :root[data-webui-theme='light'] .reasoning-picker-option,
+  :root[data-webui-theme='light'] .permission-mode-option,
   :root[data-webui-theme='light'] .composer-tool-button {
     color: #1f2937;
+  }
+
+  :root[data-webui-theme='light'] .composer-tool-button-active {
+    color: #2563eb;
+    background: #eff6ff;
+  }
+
+  :root[data-webui-theme='light'] .composer-tool-button-caution {
+    color: #7c3aed;
+    background: #f5f3ff;
+  }
+
+  :root[data-webui-theme='light'] .permission-mode-option-caution .permission-mode-option-title {
+    color: #7c3aed;
+  }
+
+  :root[data-webui-theme='light'] .permission-mode-option-desc {
+    color: #64748b;
   }
 
   @media (max-width: 900px) {
@@ -8326,7 +8804,8 @@ style.textContent = `
     }
 
     .model-picker-menu,
-    .reasoning-picker-menu {
+    .reasoning-picker-menu,
+    .permission-mode-picker-menu {
       right: 0;
       bottom: calc(100% + 10px);
       width: min(280px, calc(100% - 8px));
@@ -8344,6 +8823,13 @@ style.textContent = `
     .reasoning-picker-menu {
       right: auto;
       left: 0;
+    }
+
+    .permission-mode-picker-menu {
+      right: auto;
+      left: 0;
+      width: min(100%, 320px);
+      max-height: min(340px, 48dvh);
     }
 
     .slash-command-option {

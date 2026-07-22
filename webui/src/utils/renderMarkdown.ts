@@ -68,9 +68,10 @@ markdown.renderer.rules.fence = (tokens, index, options) => {
   const copyLabel = escapeAttribute(opts.copyCodeLabel ?? 'Copy code')
   const downloadLabel = escapeAttribute(opts.downloadCodeLabel ?? 'Download')
   const wrapLabel = escapeAttribute(opts.wrapLinesLabel ?? 'Wrap lines')
-  const languageLabel = language
-    ? `<span class="markdown-code-language">${markdown.utils.escapeHtml(language)}</span>`
-    : ''
+  // Always show a left-side type label (aligns with desktop CodeBlockView header).
+  // Bare / text / plaintext fences use TEXT so the left edge is never empty.
+  const languageDisplay = !language || language === 'text' || language === 'plaintext' ? 'TEXT' : language.toUpperCase()
+  const languageLabel = `<span class="markdown-code-language">${markdown.utils.escapeHtml(languageDisplay)}</span>`
   const langAttr = language ? ` data-webui-code-lang="${escapeAttribute(language)}"` : ''
   const toolbar = `<div class="markdown-code-toolbar" role="toolbar" aria-label="code">
 <button type="button" class="markdown-code-tool" data-webui-copy-code title="${copyLabel}" aria-label="${copyLabel}">${toolbarIcon('copy')}</button>
