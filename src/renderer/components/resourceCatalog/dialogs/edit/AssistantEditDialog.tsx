@@ -36,6 +36,7 @@ import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import {
+  type AutoSaveOutcome,
   AvatarField,
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
@@ -244,9 +245,12 @@ function AssistantEditDialogContent({
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
   const changeKey = canPersist ? JSON.stringify(values) : null
 
-  const persist = async () => {
+  // Recomputes the pending diff from the form and baseline refs on the spot —
+  // never from rendered state, which lags a render cycle — and reports the
+  // outcome so the close path can decide from what actually happened.
+  const persist = async (): Promise<AutoSaveOutcome> => {
     const currentValues = form.getValues()
-    if (!currentValues.name.trim()) return
+    if (!currentValues.name.trim()) return 'noop'
 
     const currentBaselineAssistant = baselineAssistantRef.current
     const baseline = initialAssistantFormState(currentBaselineAssistant)
@@ -255,8 +259,8 @@ function AssistantEditDialogContent({
       baseline,
       currentBaselineAssistant
     )
-    if (!pending) return
-    const attemptedKey = changeKey
+    if (!pending) return 'noop'
+    const attemptedKey = JSON.stringify(currentValues)
 
     form.clearErrors('root')
     failedSaveKeyRef.current = null
@@ -268,7 +272,7 @@ function AssistantEditDialogContent({
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
-      return
+      return 'failed'
     }
 
     baselineAssistantRef.current = updated
@@ -278,29 +282,27 @@ function AssistantEditDialogContent({
     } catch (error) {
       logger.warn('Failed to run assistant edit dialog post-save callback', { error, assistantId: resource.id })
     }
+    return 'saved'
   }
 
   // Key the debounce on user input, not saveIntent. Advancing the local baseline
   // after a save must not schedule another save when the form values did not move.
-  const { flushAll, hasInFlightSave } = useDebouncedAutoSave({
+  const { flushAll } = useDebouncedAutoSave({
     enabled: open,
     changeKey,
     onSave: persist
   })
 
-  // On close with a pending edit, run the serialized save queue until it is
-  // genuinely quiescent before closing — so a failed final save stays visible
-  // instead of being silently dropped, and an edit made while the close waits
-  // is persisted rather than lost when unmount clears its debounce timer.
+  // On close, run the serialized save queue until a pass reports 'noop' — so a
+  // failed final save stays visible instead of being silently dropped, and an
+  // edit (or revert) made while the close waits is persisted rather than lost
+  // when unmount clears its debounce timer.
   const attemptClose = async (): Promise<boolean> => {
     if (failedSaveKeyRef.current === changeKey) {
       onOpenChange(false)
       return true
     }
-    if (canPersist || hasInFlightSave()) {
-      await flushAll()
-      if (failedSaveKeyRef.current === changeKey) return false
-    }
+    if ((await flushAll()) === 'failed') return false
     onOpenChange(false)
     return true
   }

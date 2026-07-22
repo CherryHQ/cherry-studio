@@ -1154,12 +1154,16 @@ describe('edit dialogs', () => {
 
   it('waits for an in-flight agent skill save and persists a revert before closing', async () => {
     let resolveFirstSave: (() => void) | undefined
-    updateAgentMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveFirstSave = () => resolve(AGENT)
-        })
-    )
+    updateAgentMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstSave = () => resolve(AGENT)
+          })
+      )
+      // Echo the submitted state like the real backend does, so the close-time
+      // verification pass sees a converged baseline and terminates.
+      .mockImplementationOnce(() => Promise.resolve(AGENT))
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
@@ -1236,12 +1240,11 @@ describe('edit dialogs', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open model settings' }))
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // The close attempt always awaits the save queue, so even a pristine close
+    // settles asynchronously — but still strictly before the navigation frame.
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(settingsNavigateMock).not.toHaveBeenCalled()
 
-    await act(async () => {
-      await Promise.resolve()
-    })
     expect(frames.pendingCount()).toBeGreaterThan(0)
     frames.flushAllFrames()
 
@@ -1267,12 +1270,11 @@ describe('edit dialogs', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Open model settings' })[0])
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // The close attempt always awaits the save queue, so even a pristine close
+    // settles asynchronously — but still strictly before the navigation frame.
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(settingsNavigateMock).not.toHaveBeenCalled()
 
-    await act(async () => {
-      await Promise.resolve()
-    })
     expect(frames.pendingCount()).toBeGreaterThan(0)
     frames.flushAllFrames()
 
@@ -1431,12 +1433,14 @@ describe('edit dialogs', () => {
 
   it('waits for an in-flight assistant save and persists a revert before closing', async () => {
     let resolveFirstSave: (() => void) | undefined
-    updateAssistantMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveFirstSave = () => resolve({ ...ASSISTANT, name: 'First Edit' })
-        })
-    )
+    updateAssistantMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstSave = () => resolve({ ...ASSISTANT, name: 'First Edit' })
+          })
+      )
+      .mockImplementationOnce(() => Promise.resolve({ ...ASSISTANT }))
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
@@ -1458,12 +1462,14 @@ describe('edit dialogs', () => {
 
   it('persists an assistant edit made while the close is waiting for an in-flight save', async () => {
     let resolveFirstSave: (() => void) | undefined
-    updateAssistantMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveFirstSave = () => resolve({ ...ASSISTANT, name: 'First Edit' })
-        })
-    )
+    updateAssistantMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstSave = () => resolve({ ...ASSISTANT, name: 'First Edit' })
+          })
+      )
+      .mockImplementationOnce(() => Promise.resolve({ ...ASSISTANT, name: 'Late Edit' }))
     // Close must actually unmount the dialog like the real parent does — that is
     // what clears a re-armed debounce timer. A spy-only onOpenChange would leave
     // the timer running and mask the exact loss this test guards against.
@@ -1494,12 +1500,14 @@ describe('edit dialogs', () => {
 
   it('persists an agent edit made while the close is waiting for an in-flight save', async () => {
     let resolveFirstSave: (() => void) | undefined
-    updateAgentMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveFirstSave = () => resolve({ ...AGENT, name: 'First Edit' })
-        })
-    )
+    updateAgentMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstSave = () => resolve({ ...AGENT, name: 'First Edit' })
+          })
+      )
+      .mockImplementationOnce(() => Promise.resolve({ ...AGENT, name: 'Late Edit' }))
     function Host() {
       const [open, setOpen] = useState(true)
       return <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} onSaved={vi.fn()} />
@@ -1519,6 +1527,93 @@ describe('edit dialogs', () => {
     expect(updateAgentMock).toHaveBeenNthCalledWith(2, {
       body: expect.objectContaining({ name: 'Late Edit' })
     })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('persists an assistant revert made while the close is waiting for an in-flight save', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    let resolveSecondSave: (() => void) | undefined
+    updateAssistantMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstSave = () => resolve({ ...ASSISTANT, name: 'First Edit' })
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondSave = () => resolve({ ...ASSISTANT })
+          })
+      )
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} onSaved={vi.fn()} />
+    }
+    render(<Host />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'First Edit' } })
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+
+    // Close, then revert to the original name while the close waits on the
+    // in-flight save. Against the stale rendered baseline the revert looks like
+    // "nothing to save", so a key-based close would skip the write-back and
+    // leave 'First Edit' in the store while the user last saw the original.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.change(nameInput, { target: { value: ASSISTANT.name } })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    resolveFirstSave?.()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+      body: expect.objectContaining({ name: ASSISTANT.name })
+    })
+    // The dialog must stay open until the revert write settles.
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    resolveSecondSave?.()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('persists an agent revert made while the close is waiting for an in-flight save', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    let resolveSecondSave: (() => void) | undefined
+    updateAgentMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstSave = () => resolve({ ...AGENT, name: 'First Edit' })
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondSave = () => resolve({ ...AGENT })
+          })
+      )
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} onSaved={vi.fn()} />
+    }
+    render(<Host />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'First Edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.change(nameInput, { target: { value: AGENT.name } })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    resolveFirstSave?.()
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock).toHaveBeenNthCalledWith(2, {
+      body: expect.objectContaining({ name: AGENT.name })
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    resolveSecondSave?.()
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 

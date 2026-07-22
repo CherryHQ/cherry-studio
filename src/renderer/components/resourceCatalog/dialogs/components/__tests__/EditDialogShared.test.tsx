@@ -73,7 +73,7 @@ vi.mock('@renderer/ipc', () => ({
 
 import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
 import type { ResourceCreateWizardFormValues } from '../../create/types'
-import { PromptVariablesPopover, useDebouncedAutoSave } from '../EditDialogShared'
+import { type AutoSaveOutcome, PromptVariablesPopover, useDebouncedAutoSave } from '../EditDialogShared'
 
 beforeAll(() => {
   HTMLElement.prototype.scrollIntoView = () => {}
@@ -229,60 +229,85 @@ describe('EditDialogShared', () => {
 
 describe('useDebouncedAutoSave', () => {
   function deferredOnSave() {
-    const resolvers: Array<() => void> = []
+    const resolvers: Array<(outcome: AutoSaveOutcome) => void> = []
     const onSave = vi.fn(
       () =>
-        new Promise<void>((resolve) => {
+        new Promise<AutoSaveOutcome>((resolve) => {
           resolvers.push(resolve)
         })
     )
     return { onSave, resolvers }
   }
 
-  it('flushAll keeps saving until an edit made while it awaits an in-flight save is covered', async () => {
-    const { onSave, resolvers } = deferredOnSave()
-    const { result, rerender } = renderHook(
-      ({ changeKey }) => useDebouncedAutoSave({ enabled: true, changeKey, onSave, delay: 60_000 }),
-      { initialProps: { changeKey: 'B' } }
-    )
-
-    let settled = false
-    act(() => {
-      void result.current.flushAll().then(() => {
-        settled = true
-      })
-    })
-    expect(onSave).toHaveBeenCalledTimes(1)
-    expect(result.current.hasInFlightSave()).toBe(true)
-
-    // The state moves on while flushAll awaits the first save; the new key only
-    // re-arms the debounce timer and never joins the awaited promise.
-    rerender({ changeKey: 'C' })
-
-    resolvers[0]?.()
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
-    expect(settled).toBe(false)
-
-    resolvers[1]?.()
-    await waitFor(() => expect(settled).toBe(true))
-    expect(result.current.hasInFlightSave()).toBe(false)
-  })
-
-  it('flushAll settles with the in-flight save when the key has not moved on', async () => {
+  it('flushAll keeps saving until a verification pass reports noop', async () => {
     const { onSave, resolvers } = deferredOnSave()
     const { result } = renderHook(() => useDebouncedAutoSave({ enabled: true, changeKey: 'B', onSave, delay: 60_000 }))
 
-    let settled = false
+    let settled: string | null = null
     act(() => {
-      void result.current.flushAll().then(() => {
-        settled = true
+      void result.current.flushAll().then((outcome) => {
+        settled = outcome
       })
     })
     expect(onSave).toHaveBeenCalledTimes(1)
 
-    resolvers[0]?.()
-    await waitFor(() => expect(settled).toBe(true))
+    // Each 'saved' pass triggers a verification pass; only 'noop' terminates,
+    // so a revert applied between passes is recomputed and written, never
+    // skipped off a stale rendered key.
+    resolvers[0]?.('saved')
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
+    expect(settled).toBeNull()
+
+    resolvers[1]?.('saved')
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(3))
+    expect(settled).toBeNull()
+
+    resolvers[2]?.('noop')
+    await waitFor(() => expect(settled).toBe('noop'))
+    expect(onSave).toHaveBeenCalledTimes(3)
+  })
+
+  it('flushAll joins an in-flight save and queues one trailing pass', async () => {
+    const { onSave, resolvers } = deferredOnSave()
+    const { result } = renderHook(() => useDebouncedAutoSave({ enabled: true, changeKey: 'B', onSave, delay: 0 }))
+
+    // The debounce timer starts the first save on its own.
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+
+    let settled: string | null = null
+    act(() => {
+      void result.current.flushAll().then((outcome) => {
+        settled = outcome
+      })
+    })
+    // Joining an in-flight save queues a trailing pass unconditionally — the
+    // pass recomputes the diff from refs, so it must run even when the
+    // rendered key looks unchanged.
     expect(onSave).toHaveBeenCalledTimes(1)
-    expect(result.current.hasInFlightSave()).toBe(false)
+
+    resolvers[0]?.('saved')
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
+    expect(settled).toBeNull()
+
+    resolvers[1]?.('noop')
+    await waitFor(() => expect(settled).toBe('noop'))
+    expect(onSave).toHaveBeenCalledTimes(2)
+  })
+
+  it('flushAll stops on a failed pass without retrying', async () => {
+    const { onSave, resolvers } = deferredOnSave()
+    const { result } = renderHook(() => useDebouncedAutoSave({ enabled: true, changeKey: 'B', onSave, delay: 60_000 }))
+
+    let settled: string | null = null
+    act(() => {
+      void result.current.flushAll().then((outcome) => {
+        settled = outcome
+      })
+    })
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    resolvers[0]?.('failed')
+    await waitFor(() => expect(settled).toBe('failed'))
+    expect(onSave).toHaveBeenCalledTimes(1)
   })
 })
