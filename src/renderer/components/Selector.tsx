@@ -202,7 +202,7 @@ const Selector = <V extends string | number>({
     <Popover open={open && !disabled} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           role="combobox"
           aria-label={accessibleLabel || undefined}
@@ -210,8 +210,8 @@ const Selector = <V extends string | number>({
           aria-disabled={disabled || undefined}
           tabIndex={disabled ? -1 : 0}
           className={cn(
-            'min-w-0 justify-between rounded-lg bg-muted/50 text-left leading-none hover:bg-muted',
-            open && !disabled && 'bg-muted',
+            'min-w-0 justify-between rounded-lg text-left leading-none focus-visible:ring-[1px] focus-visible:ring-ring/35',
+            open && !disabled && 'bg-accent',
             disabled && 'cursor-not-allowed opacity-60',
             isPlaceholder && 'text-muted-foreground'
           )}
