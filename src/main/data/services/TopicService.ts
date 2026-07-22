@@ -227,7 +227,7 @@ export class TopicService {
   }
 
   /** Monotonically advance activity from inside a caller-owned write transaction. */
-  advanceLastActivityAtTx(tx: DbOrTx, topicId: string, timestamp: number): void {
+  advanceLastActivityAtTx(tx: Pick<DbOrTx, 'update'>, topicId: string, timestamp: number): void {
     const updated = tx
       .update(topicTable)
       .set({ lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})` })
@@ -238,7 +238,7 @@ export class TopicService {
   }
 
   /** Restore `max(topic.createdAt, surviving message activity)` after deletion/copying. */
-  recomputeLastActivityAtTx(tx: DbOrTx, topicId: string): void {
+  recomputeLastActivityAtTx(tx: Pick<DbOrTx, 'select' | 'update'>, topicId: string): void {
     const [topic] = tx
       .select({ createdAt: topicTable.createdAt })
       .from(topicTable)

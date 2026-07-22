@@ -272,7 +272,7 @@ export class AgentSessionService {
   }
 
   /** Monotonically advance activity from inside a caller-owned write transaction. */
-  advanceLastActivityAtTx(tx: DbOrTx, sessionId: string, timestamp: number): void {
+  advanceLastActivityAtTx(tx: Pick<DbOrTx, 'update'>, sessionId: string, timestamp: number): void {
     const updated = tx
       .update(sessionsTable)
       .set({ lastActivityAt: sql`max(${sessionsTable.lastActivityAt}, ${timestamp})` })
@@ -283,7 +283,7 @@ export class AgentSessionService {
   }
 
   /** Restore `max(session.createdAt, surviving message activity)` after deletion. */
-  recomputeLastActivityAtTx(tx: DbOrTx, sessionId: string): void {
+  recomputeLastActivityAtTx(tx: Pick<DbOrTx, 'select' | 'update'>, sessionId: string): void {
     const [session] = tx
       .select({ createdAt: sessionsTable.createdAt })
       .from(sessionsTable)
