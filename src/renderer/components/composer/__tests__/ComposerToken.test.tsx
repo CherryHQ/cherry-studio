@@ -435,9 +435,15 @@ describe('ComposerToken', () => {
 
     fireEvent.error(imagePreview)
     expect(screen.queryByAltText('avatar-preview.png')).not.toBeInTheDocument()
-    expect(popoverContent).toHaveTextContent('avatar-preview.png')
-    expect(popoverContent).toHaveTextContent('PNG')
-    expect(popoverContent).toHaveTextContent('2 KB')
+    expect(popoverContent).toHaveTextContent('chat.input.image_preview_failed')
+    expect(popoverContent).not.toHaveTextContent('avatar-preview.png')
+    expect(popoverContent).not.toHaveTextContent('PNG')
+    expect(popoverContent).not.toHaveTextContent('2 KB')
+    expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).toHaveClass(
+      'bg-muted',
+      'text-muted-foreground',
+      'text-sm'
+    )
   })
 
   it('renders input raster images as chips with a thumbnail in the icon slot', () => {

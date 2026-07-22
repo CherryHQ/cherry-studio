@@ -23,6 +23,7 @@ import {
   useRef,
   useState
 } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
 import { type FileTokenPresentation, getFileTokenPresentation } from './fileTokenPresentation'
@@ -337,10 +338,12 @@ function FileTokenPreviewCard({
   readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
   secondaryAction?: ReactNode
 }) {
+  const { t } = useTranslation()
   const sizeLabel = typeof file?.size === 'number' ? formatFileSize(file.size) : undefined
   const hasActions = Boolean(secondaryAction)
   const [failedPreviewUrl, setFailedPreviewUrl] = useState<string>()
-  const previewUrl = presentation.previewUrl === failedPreviewUrl ? undefined : presentation.previewUrl
+  const hasFailedPreview = Boolean(presentation.previewUrl && presentation.previewUrl === failedPreviewUrl)
+  const previewUrl = hasFailedPreview ? undefined : presentation.previewUrl
 
   if (file?.composerFileKind === COMPOSER_FILE_KIND.PASTED_TEXT) {
     return (
@@ -361,6 +364,16 @@ function FileTokenPreviewCard({
           className="block max-h-48 max-w-60 object-contain"
           onError={() => setFailedPreviewUrl(previewUrl)}
         />
+      </div>
+    )
+  }
+
+  if (hasFailedPreview) {
+    return (
+      <div
+        className="bg-muted px-5 py-4 text-center text-muted-foreground text-sm"
+        data-file-token-image-preview-error="">
+        {t('chat.input.image_preview_failed')}
       </div>
     )
   }
