@@ -1,9 +1,9 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInvalidateCache, mockUseWriteCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
 
@@ -92,6 +92,72 @@ describe('useTopicMutations', () => {
     })
     expect(settled[0]?.status).toBe('fulfilled')
     expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
+  })
+
+  it('moves a topic atomically, updates its by-id cache, then revalidates once', async () => {
+    const cachedTopic = { id: 'topic-a', assistantId: 'assistant-1', name: 'Topic A' }
+    MockUseDataApiUtils.seedCache('/topics/topic-a', cachedTopic as never)
+    const post = vi.mocked(dataApiService.post).mockResolvedValueOnce(undefined as never)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    await act(async () =>
+      result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
+    )
+
+    expect(post).toHaveBeenCalledWith('/topics/topic-a/move', {
+      body: { assistantId: 'assistant-2', order: { after: 'topic-d' } }
+    })
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+    // The atomic move commits before the by-id cache changes, so an open conversation follows
+    // the new assistant without exposing a partially moved server state.
+    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', {
+      ...cachedTopic,
+      assistantId: 'assistant-2'
+    })
+    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeGreaterThan(post.mock.invocationCallOrder[0])
+    expect(invalidateSpy).toHaveBeenCalledTimes(1)
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats', '/topics/topic-a'])
+    expect(invalidateSpy.mock.invocationCallOrder[0]).toBeGreaterThan(writeCacheSpy.mock.invocationCallOrder[0])
+  })
+
+  it('reorders without an assistant change using only the order write and a list refresh', async () => {
+    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined as never)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    await act(async () => result.current.moveTopic('topic-a', { anchor: { before: 'topic-b' } }))
+
+    expect(patch).toHaveBeenCalledTimes(1)
+    expect(patch).toHaveBeenCalledWith('/topics/topic-a/order', { body: { before: 'topic-b' } })
+    expect(writeCacheSpy).not.toHaveBeenCalled()
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats'])
+  })
+
+  it('reconciles caches and rethrows when the atomic move fails', async () => {
+    vi.mocked(dataApiService.post).mockRejectedValueOnce(new Error('move failed'))
+
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    // `expect(act(...)).rejects` observes the rejection before moveTopic's catch block finishes,
+    // so catch the rethrow manually inside act and assert afterwards.
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
+      } catch (err) {
+        caught = err
+      }
+    })
+
+    // Rethrown so the caller can roll its optimistic UI back.
+    expect(caught).toEqual(new Error('move failed'))
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats', '/topics/topic-a'])
   })
 })
 

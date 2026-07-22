@@ -734,6 +734,19 @@ describe('ChatAppShell', () => {
     expect(onPaneCollapse).not.toHaveBeenCalled()
   })
 
+  it('keeps the resize handle outside the clipped pane content so it does not cover the scrollbar', () => {
+    const { container } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />)
+    const pane = container.querySelector('[data-resource-list-pane]')
+    const paneContent = container.querySelector('[data-resource-list-pane-content]')
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    expect(pane).toHaveClass('overflow-visible')
+    expect(paneContent).toHaveClass('overflow-hidden')
+    expect(handle).toHaveClass('left-full', 'w-2')
+    expect(handle).not.toHaveClass('right-0')
+    expect(handle?.firstElementChild).toHaveClass('left-0')
+  })
+
   it('keeps the resize handle below history overlays', () => {
     const { container } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />)
     const handle = container.querySelector('[data-resource-list-pane-resize-handle]')

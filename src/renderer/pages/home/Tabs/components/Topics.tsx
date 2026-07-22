@@ -267,6 +267,7 @@ export function Topics({
     updateTopic: patchTopic,
     deleteTopic: deleteTopicById,
     deleteTopicsByAssistantId,
+    moveTopic,
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
@@ -1506,6 +1507,16 @@ export function Topics({
         : undefined,
     [activeOrdinaryAssistantGroupId, isAssistantDisplayMode, topicExpansionAssistant, topicGroupSeeds]
   )
+  const topicAssistantSectionIds = useMemo(
+    () =>
+      isGroupGrouping
+        ? [
+            TOPIC_ASSISTANT_UNGROUPED_SECTION_ID,
+            ...assistantGroups.map((group) => `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}${group.id}`)
+          ]
+        : [TOPIC_ASSISTANT_SECTION_ID],
+    [assistantGroups, isGroupGrouping]
+  )
   const handleTopicCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
       if (isAssistantDisplayMode) setTopicExpansionAssistant(nextCollapsedIds)
@@ -1678,17 +1689,12 @@ export function Topics({
       setOptimisticMove({ payload: normalizedPayload, targetAssistantId })
 
       try {
-        if (ownerChanged) {
-          await dataApiService.post(`/topics/${payload.activeId}/move`, {
-            body: { assistantId: targetAssistantId, order: anchor }
-          })
-        } else {
-          await dataApiService.patch(`/topics/${payload.activeId}/order`, { body: anchor })
-        }
-        if (ownerChanged && activeTopicRef.current?.id === topic.id) {
-          setActiveTopic({ ...activeTopicRef.current, assistantId: targetAssistantId ?? undefined })
-        }
-        await refreshTopics()
+        // `moveTopic` owns the cache orchestration: the open conversation follows the new
+        // assistant through `/topics/:id`, while paginated list streams reconcile together.
+        await moveTopic(payload.activeId, {
+          assistantId: ownerChanged ? targetAssistantId : undefined,
+          anchor
+        })
       } catch (err) {
         setOptimisticMove(null)
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
@@ -1698,10 +1704,9 @@ export function Topics({
     [
       assistantById,
       isAssistantDisplayMode,
+      moveTopic,
       orderedAssistants,
       refreshAssistants,
-      refreshTopics,
-      setActiveTopic,
       t,
       topicItemDragReady,
       topics
@@ -1774,7 +1779,7 @@ export function Topics({
                       onManageAssistants={manageAssistantsMenuItem?.onSelect}
                       onOpenHistoryRecords={onOpenHistoryRecords}
                       onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
-                      sectionId={isAssistantDisplayMode ? TOPIC_ASSISTANT_SECTION_ID : undefined}
+                      sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
                       sortBy={topicSortBy}
                     />
                   </>
@@ -1790,7 +1795,7 @@ export function Topics({
               onManageAssistants={manageAssistantsMenuItem?.onSelect}
               onOpenHistoryRecords={onOpenHistoryRecords}
               onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
-              sectionId={TOPIC_ASSISTANT_SECTION_ID}
+              sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
               sortBy={topicSortBy}
             />
           )}

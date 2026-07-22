@@ -237,16 +237,18 @@ type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label' 
   collapseLabel: string
   expandIcon?: ReactNode
   expandLabel: string
-  sectionId: string
+  sectionIds: readonly string[]
 }
 
-function useSectionToggle(sectionId: string) {
+function useSectionToggle(sectionIds: readonly string[]) {
   const actions = useResourceListActions()
   const view = useResourceListView()
-  const section = view.sections.find((candidate) => candidate.section.id === sectionId)
-  const groupIds = section?.groups.map((group) => group.group.id) ?? []
-  const expandGroupIds = section ? [section.section.id, ...groupIds] : groupIds
-  const expandedGroupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
+  const sectionIdSet = new Set(sectionIds)
+  const sections = view.sections.filter((candidate) => sectionIdSet.has(candidate.section.id))
+  const groups = sections.flatMap((section) => section.groups)
+  const groupIds = groups.map((group) => group.group.id)
+  const expandGroupIds = [...sections.map((section) => section.section.id), ...groupIds]
+  const expandedGroupIds = groups.filter((group) => !group.collapsed).map((group) => group.group.id)
   const hasExpandedGroup = expandedGroupIds.length > 0
 
   const toggle = () => {
@@ -267,10 +269,10 @@ function SectionToggleMenuItem({
   expandIcon,
   expandLabel,
   onClick,
-  sectionId,
+  sectionIds,
   ...props
 }: SectionToggleMenuItemProps) {
-  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionId)
+  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionIds)
   const isDisabled = disabled || groupIds.length === 0
 
   return (
@@ -293,7 +295,7 @@ type SectionToggleDropdownMenuItemProps = Omit<ComponentProps<typeof DropdownMen
   collapseLabel: string
   expandIcon?: ReactNode
   expandLabel: string
-  sectionId: string
+  sectionIds: readonly string[]
 }
 
 function SectionToggleDropdownMenuItem({
@@ -303,10 +305,10 @@ function SectionToggleDropdownMenuItem({
   expandIcon,
   expandLabel,
   onSelect,
-  sectionId,
+  sectionIds,
   ...props
 }: SectionToggleDropdownMenuItemProps) {
-  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionId)
+  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionIds)
   const isDisabled = disabled || groupIds.length === 0
   const icon = hasExpandedGroup ? collapseIcon : expandIcon
 

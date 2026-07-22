@@ -20,7 +20,9 @@ import {
   useInfiniteQuery,
   useInvalidateCache,
   useMutation,
-  useQuery
+  useQuery,
+  useReadCache,
+  useWriteCache
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
@@ -29,6 +31,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { ErrorCode } from '@shared/data/api/errors'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   CreateTopicDto,
   DeleteTopicsResult,
@@ -337,6 +340,8 @@ export function useLatestTopic(opts?: { enabled?: boolean }) {
  */
 export function useTopicMutations() {
   const invalidate = useInvalidateCache()
+  const readCache = useReadCache()
+  const writeCache = useWriteCache()
   const closeConversationTabs = useCloseConversationTabs()
 
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
@@ -418,6 +423,61 @@ export function useTopicMutations() {
     [duplicateTrigger]
   )
 
+  /**
+   * Drag-move a topic and keep the opened conversation's by-id cache aligned
+   * with its new assistant. Cross-assistant moves use the atomic move endpoint
+   * introduced by cursor pagination; same-assistant moves only update order.
+   *
+   * After the atomic write commits, the cached topic is updated in place so an
+   * open composer immediately re-resolves its model/capabilities. One combined
+   * revalidation then reconciles all paginated topic streams, stats, and the
+   * by-id row without maintaining a second active-topic state in the page.
+   *
+   * `assistantId: null` remains supported for non-drag callers through the
+   * ordinary PATCH contract. Failures are rethrown so the page can roll back
+   * its optimistic row overlay.
+   */
+  const moveTopic = useCallback(
+    async (
+      topicId: string,
+      { assistantId, anchor }: { assistantId?: string | null; anchor: OrderRequest }
+    ): Promise<void> => {
+      const assistantChanged = assistantId !== undefined
+      const refreshKeys = assistantChanged ? [...TOPIC_LIST_REFRESH, `/topics/${topicId}`] : TOPIC_LIST_REFRESH
+
+      try {
+        if (assistantChanged) {
+          if (assistantId) {
+            await dataApiService.post(`/topics/${topicId}/move`, {
+              body: { assistantId, order: anchor }
+            })
+            const cachedTopic = readCache<Topic>(`/topics/${topicId}`)
+            if (cachedTopic) {
+              await writeCache(`/topics/${topicId}`, { ...cachedTopic, assistantId })
+            }
+          } else {
+            const topic = await dataApiService.patch(`/topics/${topicId}`, { body: { assistantId } })
+            await writeCache(`/topics/${topicId}`, topic)
+            await dataApiService.patch(`/topics/${topicId}/order`, { body: anchor })
+          }
+        } else {
+          await dataApiService.patch(`/topics/${topicId}/order`, { body: anchor })
+        }
+        await invalidate(refreshKeys)
+      } catch (err) {
+        if (assistantChanged) {
+          try {
+            await invalidate(refreshKeys)
+          } catch (refreshErr) {
+            logger.error('Failed to refresh topics after partial topic move', { refreshErr, topicId })
+          }
+        }
+        throw err
+      }
+    },
+    [invalidate, readCache, writeCache]
+  )
+
   const batchUpdateTopics = useCallback(
     async (topics: Array<{ id: string; dto: UpdateTopicDto }>) => {
       const results = await Promise.allSettled(
@@ -436,6 +496,7 @@ export function useTopicMutations() {
     deleteTopics,
     deleteTopicsByAssistantId,
     duplicateTopicBranch,
+    moveTopic,
     batchUpdateTopics,
     refreshTopics,
     isCreating,

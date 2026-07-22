@@ -41,7 +41,7 @@ type SessionListOptionsMenuProps = {
   onManageSkills?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSortByChange: (sortBy: TopicSessionSortBy) => void
-  sectionId?: string
+  sectionIds?: readonly string[]
   sortBy: TopicSessionSortBy
 }
 
@@ -56,7 +56,7 @@ export function SessionListOptionsMenu({
   onManageSkills,
   onOpenHistoryRecords,
   onSortByChange,
-  sectionId,
+  sectionIds,
   sortBy
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
@@ -112,13 +112,13 @@ export function SessionListOptionsMenu({
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        {sectionId && (
+        {sectionIds && sectionIds.length > 0 && (
           <>
             <DropdownMenuSeparator />
             <ResourceList.SectionToggleDropdownMenuItem
               expandIcon={<ChevronsUpDown size={16} />}
               collapseIcon={<ChevronsDownUp size={16} />}
-              sectionId={sectionId}
+              sectionIds={sectionIds}
               expandLabel={t('agent.session.group.expand_all')}
               collapseLabel={t('agent.session.group.collapse_all')}
               onSelect={() => {

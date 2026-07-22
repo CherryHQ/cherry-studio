@@ -37,7 +37,7 @@ type TopicListOptionsMenuProps = {
   onManageAssistants?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSortByChange: (sortBy: TopicSessionSortBy) => void
-  sectionId?: string
+  sectionIds?: readonly string[]
   sortBy: TopicSessionSortBy
 }
 
@@ -49,7 +49,7 @@ export function TopicListOptionsMenu({
   onManageAssistants,
   onOpenHistoryRecords,
   onSortByChange,
-  sectionId,
+  sectionIds,
   sortBy
 }: TopicListOptionsMenuProps) {
   const { t } = useTranslation()
@@ -101,13 +101,13 @@ export function TopicListOptionsMenu({
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        {sectionId && (
+        {sectionIds && sectionIds.length > 0 && (
           <>
             <DropdownMenuSeparator />
             <ResourceList.SectionToggleDropdownMenuItem
               expandIcon={<ChevronsUpDown size={16} />}
               collapseIcon={<ChevronsDownUp size={16} />}
-              sectionId={sectionId}
+              sectionIds={sectionIds}
               expandLabel={t('chat.topics.group.expand_all')}
               collapseLabel={t('chat.topics.group.collapse_all')}
               onSelect={() => {

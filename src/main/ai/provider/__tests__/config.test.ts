@@ -412,6 +412,96 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.anthropicBaseURL).toBeDefined()
       expect(settings.geminiBaseURL).toBeDefined()
     })
+
+    it('routes a CherryIn google-generate-content model (e.g. nano-banana image) to the cherryin extension, not openai-compatible (REGRESSION)', async () => {
+      // CherryIN relays its Google models via Gemini's native `generateContent`; its
+      // registry declares `google-generate-content` → adapterFamily 'cherryin'.
+      // Without that declaration the endpoint fell through to `openai-compatible`,
+      // whose image model POSTs edits to `/v1/images/edits` — which CherryIN serves
+      // only for imagen (500 "only imagen models supported"). The declaration routes
+      // it to the cherryin extension so createImageModel() drives editing through
+      // `generateContent`.
+      const cherryinEndpointConfigs = {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' }
+      }
+      getByProviderIdMock.mockReturnValue(makeProvider({ id: 'cherryin', endpointConfigs: cherryinEndpointConfigs }))
+      const provider = makeProvider({
+        id: 'cherryin',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: cherryinEndpointConfigs
+      })
+      const model = makeModel({
+        providerId: 'cherryin',
+        apiModelId: 'google/gemini-3.1-flash-image-preview',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('cherryin')
+    })
+
+    it('leaves a CherryIn image model on an undeclared endpoint (e.g. imagen via openai-image-generation) on openai-compatible', async () => {
+      // Only `google-generate-content` (Gemini) is declared. An imagen model reports
+      // `openai-image-generation`, which stays undeclared → resolveAiSdkProviderId
+      // returns openai-compatible, keeping imagen on its working `/v1/images/*` path.
+      getByProviderIdMock.mockReturnValue(makeProvider({ id: 'cherryin', endpointConfigs: {} }))
+      const provider = makeProvider({
+        id: 'cherryin',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'cherryin',
+        apiModelId: 'imagen-4.0-generate-001',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('openai-compatible')
+    })
+
+    it('routes a preset-derived CherryIN instance (custom host) through buildCherryinConfig with ITS OWN relay base URLs (REGRESSION)', async () => {
+      // A user-created / enterprise CherryIN instance: UUID id, presetProviderId
+      // 'cherryin', custom host. `matchesPreset` (not a bare `id === 'cherryin'`)
+      // must still dispatch to buildCherryinConfig, and its gemini/anthropic base
+      // URLs must come from THIS instance — reading the hardcoded preset would send
+      // the request to open.cherryin.net instead of the enterprise host.
+      const host = 'https://express-ent-admin.cherryin.ai'
+      const provider = makeProvider({
+        id: 'aa1dff45-uuid',
+        presetProviderId: 'cherryin',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: host, adapterFamily: 'cherryin' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: `${host}/v1`, adapterFamily: 'cherryin' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: `${host}/v1beta`, adapterFamily: 'cherryin' }
+        }
+      })
+      // Gemini image model with EMPTY endpointTypes (how the instance's models are
+      // stored) → falls back to the chat endpoint → cherryin-chat variant;
+      // createImageModel still dispatches gemini→generateContent by model id.
+      const model = makeModel({
+        providerId: 'aa1dff45-uuid',
+        apiModelId: 'google/gemini-3.1-flash-image-preview',
+        endpointTypes: undefined,
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('cherryin-chat')
+      // The fix: relay base URLs come from THIS instance, not open.cherryin.net.
+      expect(settings.geminiBaseURL).toBe(`${host}/v1beta`)
+      expect(settings.anthropicBaseURL).toBe(`${host}/v1`)
+    })
   })
 
   describe('CherryAI routing', () => {

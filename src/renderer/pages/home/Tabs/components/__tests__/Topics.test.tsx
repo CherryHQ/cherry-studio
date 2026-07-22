@@ -161,6 +161,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 const topicDataMocks = vi.hoisted(() => ({
   deleteTopicsByAssistantId: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   deleteTopic: vi.fn().mockResolvedValue(undefined),
+  moveTopic: vi.fn().mockResolvedValue(undefined),
   refreshTopics: vi.fn().mockResolvedValue(undefined),
   updateTopic: vi.fn().mockResolvedValue(undefined)
 }))
@@ -237,6 +238,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       updateTopic: topicDataMocks.updateTopic,
       deleteTopic: topicDataMocks.deleteTopic,
       deleteTopicsByAssistantId: topicDataMocks.deleteTopicsByAssistantId,
+      moveTopic: topicDataMocks.moveTopic,
       refreshTopics: topicDataMocks.refreshTopics
     })
   }
@@ -2469,6 +2471,29 @@ describe('Topics', () => {
     ])
   })
 
+  it('collapses assistant groups across multiple group sections when any group is expanded', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: ['topic:assistant:assistant-1']
+    })
+
+    renderTopicList()
+
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    const optionsMenu = openTopicListOptions()
+    fireEvent.click(within(optionsMenu).getByRole('button', { name: 'Collapse all' }))
+
+    expect(getTopicGroupExpansionCache().assistant).toEqual([
+      'topic:assistant:assistant-1',
+      'topic:assistant:assistant-2'
+    ])
+  })
+
   it('expands the active assistant group without changing selection while history records are active', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     setTopicGroupExpansionCache({
@@ -3687,8 +3712,6 @@ describe('Topics', () => {
   })
 
   it('uses the drag rect fallback when dropping without a prior insertion line', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
-    const postSpy = vi.spyOn(dataApiService, 'post').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
@@ -3710,19 +3733,17 @@ describe('Topics', () => {
         rowTexts.findIndex((text) => text.includes('Gamma topic'))
       )
     })
-    // Cross/same-group reorder is one atomic move that carries the ordering anchor.
+    // Same-group drop: no assistant re-home, just the order anchor.
     await vi.waitFor(() =>
-      expect(postSpy).toHaveBeenCalledWith('/topics/topic-d/move', {
-        body: { assistantId: 'assistant-2', order: { before: 'topic-c' } }
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-d', {
+        assistantId: undefined,
+        anchor: { before: 'topic-c' }
       })
     )
-    expect(postSpy).toHaveBeenCalledTimes(1)
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
   it('keeps multi-topic same-group drops at the fallback insertion index', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
-    const postSpy = vi.spyOn(dataApiService, 'post').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
     mockUseInfiniteQuery.mockReturnValue({
@@ -3766,16 +3787,15 @@ describe('Topics', () => {
       )
     })
     await vi.waitFor(() =>
-      expect(postSpy).toHaveBeenCalledWith('/topics/topic-c/move', {
-        body: { assistantId: 'assistant-2', order: { before: 'topic-a' } }
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-c', {
+        assistantId: undefined,
+        anchor: { before: 'topic-a' }
       })
     )
-    expect(postSpy).toHaveBeenCalledTimes(1)
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
   it('keeps assistant grouped topics stable during cross-group drag hover', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
@@ -3794,13 +3814,12 @@ describe('Topics', () => {
       })
     })
 
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
     expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeHoverRows)
     expect(document.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
   })
 
   it('keeps assistant grouped topics stable during same-group drag hover', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
@@ -3819,14 +3838,12 @@ describe('Topics', () => {
       })
     })
 
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
     expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeHoverRows)
     expect(document.querySelector('[data-drop-indicator="before"]')).toBeInTheDocument()
   })
 
   it('persists same-group drops using the last insertion line position', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
-    const postSpy = vi.spyOn(dataApiService, 'post').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
@@ -3859,17 +3876,15 @@ describe('Topics', () => {
       )
     })
     await vi.waitFor(() =>
-      expect(postSpy).toHaveBeenCalledWith('/topics/topic-d/move', {
-        body: { assistantId: 'assistant-2', order: { before: 'topic-c' } }
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-d', {
+        assistantId: undefined,
+        anchor: { before: 'topic-c' }
       })
     )
-    expect(postSpy).toHaveBeenCalledTimes(1)
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
-  it('moves topics across assistant groups and orders them at the target position in one call', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
-    const postSpy = vi.spyOn(dataApiService, 'post').mockResolvedValue(undefined as never)
+  it('moves topics across assistant groups before ordering them at the target position', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
@@ -3893,22 +3908,25 @@ describe('Topics', () => {
         rowTexts.findIndex((text) => text.includes('Alpha topic'))
       )
     })
-    // The new owner and the target ordering anchor travel together in a single atomic move.
+    // Cross-assistant drop: the re-home + order + cache-follow orchestration is delegated to
+    // `moveTopic` (covered in useTopic.test.ts) in a single call.
     await vi.waitFor(() =>
-      expect(postSpy).toHaveBeenCalledWith('/topics/topic-a/move', {
-        body: { assistantId: 'assistant-2', order: { after: 'topic-d' } }
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-a', {
+        assistantId: 'assistant-2',
+        anchor: { after: 'topic-d' }
       })
     )
-    expect(postSpy).toHaveBeenCalledTimes(1)
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
-  it('reverts the optimistic cross-assistant move and does not refresh when the move fails', async () => {
-    const postSpy = vi.spyOn(dataApiService, 'post').mockRejectedValue(new Error('order failed'))
+  it('rolls back the optimistic row order when a cross-assistant move fails', async () => {
+    topicDataMocks.moveTopic.mockRejectedValueOnce(new Error('order failed'))
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
 
     renderTopicList()
+
+    const beforeDropRows = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
 
     dndMocks.onDragEnd?.({
       active: {
@@ -3919,18 +3937,16 @@ describe('Topics', () => {
       over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
     })
 
+    await vi.waitFor(() => expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1))
+    // The failed move clears the optimistic overlay, snapping rows back to server order.
     await vi.waitFor(() =>
-      expect(postSpy).toHaveBeenCalledWith('/topics/topic-a/move', {
-        body: { assistantId: 'assistant-2', order: { after: 'topic-d' } }
-      })
+      expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeDropRows)
     )
-    // A failed atomic move reverts the optimistic overlay and surfaces an error instead of refreshing.
-    await vi.waitFor(() => expect(toast.error).toHaveBeenCalled())
+    expect(toast.error).toHaveBeenCalled()
     expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
   })
 
   it('does not drop topics into the unlinked assistant group for empty assistant ids', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
     mockUseQuery.mockImplementation((path) => {
@@ -4000,12 +4016,10 @@ describe('Topics', () => {
       over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
     })
 
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
   })
 
   it('allows unlinked assistant topics to move into known assistant groups', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
-    const postSpy = vi.spyOn(dataApiService, 'post').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
     mockUseInfiniteQuery.mockReturnValue({
@@ -4040,16 +4054,15 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() =>
-      expect(postSpy).toHaveBeenCalledWith('/topics/topic-e/move', {
-        body: { assistantId: 'assistant-1', order: { after: 'topic-a' } }
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-e', {
+        assistantId: 'assistant-1',
+        anchor: { after: 'topic-a' }
       })
     )
-    expect(postSpy).toHaveBeenCalledTimes(1)
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
   it('does not drop topics into pinned or unlinked assistant groups', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('topic.sort_type' as never, 'orderKey')
     mockUseInfiniteQuery.mockReturnValue({
@@ -4088,6 +4101,6 @@ describe('Topics', () => {
       over: { data: sortableData('item:topic-e'), id: 'item:topic-e' }
     })
 
-    expect(patchSpy).not.toHaveBeenCalled()
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
   })
 })

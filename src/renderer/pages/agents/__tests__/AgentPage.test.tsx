@@ -1573,7 +1573,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('false')
   })
 
-  it('uses the remembered workspace when creating an empty session from the classic-layout agent create dialog', async () => {
+  it('does not reuse the remembered workspace when creating an empty session for a new agent', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = { sessionId: 'session-existing' }
     agentPageMocks.lastUsedWorkspaceId = 'workspace-remembered'
@@ -1581,12 +1581,28 @@ describe('AgentPage', () => {
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
       { id: 'agent-b', model: 'model-b', name: 'Agent B' }
     ]
+    agentPageMocks.resourceLayoutSessions = [
+      {
+        id: 'session-empty-remembered-workspace',
+        agentId: 'agent-b',
+        name: '',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        lastActivityAt: '2026-01-02T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+        workspaceId: 'workspace-remembered',
+        workspace: { type: 'user' }
+      }
+    ]
     agentPageMocks.dataApiPost.mockResolvedValue({
       ...agentPageMocks.persistedSession,
-      id: 'session-picker-workspace',
+      id: 'session-picker-system-workspace',
       agentId: 'agent-b',
-      workspaceId: 'workspace-remembered',
-      workspace: { ...agentPageMocks.workspaceNext, id: 'workspace-remembered' }
+      workspaceId: undefined,
+      workspace: {
+        type: 'system',
+        name: 'No project',
+        path: ''
+      }
     })
 
     render(<AgentPage />)
@@ -1595,16 +1611,16 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create resource agent' }))
 
     await waitFor(() =>
-      expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-workspaces/workspace-remembered')
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-b',
+          name: '',
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
     )
-    expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
-      body: {
-        agentId: 'agent-b',
-        name: '',
-        workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-remembered' }
-      }
-    })
-    expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-remembered')
+    expect(agentPageMocks.dataApiGet).not.toHaveBeenCalled()
+    expect(agentPageMocks.setLastUsedWorkspaceId).not.toHaveBeenCalled()
   })
 
   it('reuses the agent latest empty session instead of creating another one from the classic-layout agent create dialog', async () => {
