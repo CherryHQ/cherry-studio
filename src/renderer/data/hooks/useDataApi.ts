@@ -125,6 +125,9 @@ type OffsetPaginatedPath<TPath extends ApiPath> = InferPaginationMode<ResponseFo
   ? TPath
   : never
 
+/** Preserve each branch when removing hook-managed fields from union query inputs. */
+type DistributiveOmit<TValue, TKey extends PropertyKey> = TValue extends unknown ? Omit<TValue, TKey> : never
+
 /**
  * Map a path to the shape of its `params` option.
  *
@@ -823,7 +826,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
   path: CursorPaginatedPath<TPath>,
   options?: ParamsOption<TPath, 'GET'> & {
     /** Additional query parameters (cursor/limit are managed internally) */
-    query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
+    query?: DistributiveOmit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
     /** Items per page (default: 10) */
     limit?: number
     /** Set to false to disable fetching (default: true) */

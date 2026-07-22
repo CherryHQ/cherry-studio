@@ -565,6 +565,34 @@ describe('useInfiniteQuery / useInfiniteFlatItems type contracts', () => {
     }
   })
 
+  it('preserves union-specific collection query fields and discriminants', () => {
+    if ((false as boolean) === true) {
+      void useInfiniteQuery('/topics', {
+        query: {
+          pinned: false,
+          assistantId: '11111111-1111-4111-8111-111111111111',
+          searchScope: 'name-or-owner',
+          sortBy: 'lastActivityAt'
+        }
+      })
+      void useInfiniteQuery('/agent-sessions', {
+        query: {
+          pinned: false,
+          agentId: 'agent-1',
+          q: 'needle',
+          searchScope: 'name-or-owner',
+          workspaceId: 'system',
+          sortBy: 'createdAt'
+        }
+      })
+
+      // @ts-expect-error - sort profiles belong only to the ordinary (`pinned: false`) topic stream
+      void useInfiniteQuery('/topics', { query: { pinned: true, sortBy: 'createdAt' } })
+      // @ts-expect-error - sort profiles belong only to the ordinary (`pinned: false`) session stream
+      void useInfiniteQuery('/agent-sessions', { query: { pinned: true, sortBy: 'createdAt' } })
+    }
+  })
+
   it('useInfiniteFlatItems infers the page item type', () => {
     if ((false as boolean) === true) {
       const r = useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: '' } })
