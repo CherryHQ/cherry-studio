@@ -122,11 +122,13 @@ export const zhCN = {
         title: '诊断包已保存',
         logs_included: '诊断包包含当天的原始应用日志，可能含有文件路径、错误堆栈、用户内容或凭据。发送前请自行检查。',
         logs_not_included_retry_suggested:
-          '诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。您可以重新保存；即使日志仍缺失，当前诊断包也可用于排查。',
-        logs_not_included_retry_not_suggested:
-          '诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。再次保存通常无法解决，当前诊断包仍可用于排查。',
-        large: '文件较大，建议使用邮箱的大附件或网盘功能发送。',
-        not_uploaded: '诊断包不会自动上传。'
+          '诊断包已保存，但当天应用日志未能加入。您可以重新保存；当前诊断包仍可用于排查。',
+        logs_not_included_retry_not_suggested: '诊断包已保存，但当天应用日志未能加入。',
+        attachment: {
+          emphasis: '发送邮件时请务必手动添加完整诊断包附件',
+          detail: '，预填邮件不包含附件。',
+          large_suffix: '文件较大时，可使用邮箱大附件或网盘发送。'
+        }
       },
       actions: {
         save_again: '重新保存',
@@ -277,11 +279,14 @@ export const enUS = {
         logs_included:
           "The diagnostic bundle contains today's raw application logs, which may include file paths, error stacks, user content, or credentials. Review it before sending.",
         logs_not_included_retry_suggested:
-          "The diagnostic bundle was saved, but today's application logs could not be included. The basic diagnostics record the reason and related absolute paths; collection exceptions also include the original error text and complete error stack. You can save again; the current bundle is still useful if logs remain unavailable.",
+          "The diagnostic bundle was saved, but today's application logs could not be included. You can save again; the current bundle is still useful.",
         logs_not_included_retry_not_suggested:
-          "The diagnostic bundle was saved, but today's application logs could not be included. The basic diagnostics record the reason and related absolute paths; collection exceptions also include the original error text and complete error stack. Saving again is unlikely to help, and the current bundle is still useful.",
-        large: "The file is large. Use your email provider's large-attachment feature or cloud storage to send it.",
-        not_uploaded: 'The diagnostic bundle is not automatically uploaded.'
+          "The diagnostic bundle was saved, but today's application logs could not be included.",
+        attachment: {
+          emphasis: 'When emailing support, be sure to manually attach the complete diagnostic bundle',
+          detail: '. The prefilled email does not include an attachment.',
+          large_suffix: " For large files, use your email provider's large-attachment feature or cloud storage."
+        }
       },
       actions: {
         save_again: 'Save again',

@@ -98,8 +98,8 @@ export type MigrationDiagnosticNoticePart =
   | 'logs_included'
   | 'logs_not_included_retry_suggested'
   | 'logs_not_included_retry_not_suggested'
-  | 'large'
-  | 'not_uploaded'
+  | 'attachment_required'
+  | 'attachment_required_large'
 
 const MAX_MIGRATION_DIAGNOSTIC_CAUSE_DEPTH = 5
 
@@ -174,10 +174,6 @@ export function getMigrationDiagnosticNoticeParts(
         : 'logs_not_included_retry_not_suggested'
   ]
 
-  if (result.size === 'large') {
-    parts.push('large')
-  }
-
-  parts.push('not_uploaded')
+  parts.push(result.size === 'large' ? 'attachment_required_large' : 'attachment_required')
   return parts
 }

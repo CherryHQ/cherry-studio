@@ -55,8 +55,8 @@ const NOTICE_KEYS = {
   logs_included: 'notice.logsIncluded',
   logs_not_included_retry_suggested: 'notice.logsNotIncludedRetrySuggested',
   logs_not_included_retry_not_suggested: 'notice.logsNotIncludedRetryNotSuggested',
-  large: 'notice.large',
-  not_uploaded: 'notice.notUploaded'
+  attachment_required: 'notice.attachmentRequired',
+  attachment_required_large: 'notice.attachmentRequiredLarge'
 } as const
 
 export function createMigrationDiagnosticSavedDetail(

@@ -743,17 +743,35 @@ describe('MigrationApp', () => {
     })
 
     it.each([
-      [{ status: 'saved', logs: 'included', size: 'standard' }, ['logs_included', 'not_uploaded']],
-      [{ status: 'saved', logs: 'included', size: 'large' }, ['logs_included', 'large', 'not_uploaded']],
+      [
+        { status: 'saved', logs: 'included', size: 'standard' },
+        [
+          'migration.diagnostics.saved.logs_included',
+          'migration.diagnostics.saved.attachment.emphasismigration.diagnostics.saved.attachment.detail'
+        ]
+      ],
+      [
+        { status: 'saved', logs: 'included', size: 'large' },
+        [
+          'migration.diagnostics.saved.logs_included',
+          'migration.diagnostics.saved.attachment.emphasismigration.diagnostics.saved.attachment.detailmigration.diagnostics.saved.attachment.large_suffix'
+        ]
+      ],
       [
         { status: 'saved', logs: 'not_included', retry: 'suggested', size: 'standard' },
-        ['logs_not_included_retry_suggested', 'not_uploaded']
+        [
+          'migration.diagnostics.saved.logs_not_included_retry_suggested',
+          'migration.diagnostics.saved.attachment.emphasismigration.diagnostics.saved.attachment.detail'
+        ]
       ],
       [
         { status: 'saved', logs: 'not_included', retry: 'not_suggested', size: 'large' },
-        ['logs_not_included_retry_not_suggested', 'large', 'not_uploaded']
+        [
+          'migration.diagnostics.saved.logs_not_included_retry_not_suggested',
+          'migration.diagnostics.saved.attachment.emphasismigration.diagnostics.saved.attachment.detailmigration.diagnostics.saved.attachment.large_suffix'
+        ]
       ]
-    ] as const)('renders saved notices in contract order for %j', async (result, noticeParts) => {
+    ] as const)('renders the log result and attachment reminder for %j', async (result, expectedNotices) => {
       setStage('error')
       migrationHookMock.actions.saveDiagnostics.mockResolvedValue(result)
 
@@ -764,7 +782,21 @@ describe('MigrationApp', () => {
       const notices = within(panel)
         .getAllByTestId('migration-diagnostics-notice')
         .map((notice) => notice.textContent)
-      expect(notices).toEqual(noticeParts.map((part) => `migration.diagnostics.saved.${part}`))
+      expect(notices).toEqual(expectedNotices)
+    })
+
+    it('emphasizes the manual attachment action', async () => {
+      setStage('error')
+      migrationHookMock.actions.saveDiagnostics.mockResolvedValue({
+        status: 'saved',
+        logs: 'included',
+        size: 'standard'
+      })
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      expect(await screen.findByText('migration.diagnostics.saved.attachment.emphasis')).toHaveClass('font-semibold')
     })
 
     it('offers one-click save again only when log collection suggests retry', async () => {
@@ -930,17 +962,24 @@ describe('MigrationApp', () => {
         title: '诊断包已保存',
         logs_included: '诊断包包含当天的原始应用日志，可能含有文件路径、错误堆栈、用户内容或凭据。发送前请自行检查。',
         logs_not_included_retry_suggested:
-          '诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。您可以重新保存；即使日志仍缺失，当前诊断包也可用于排查。',
-        logs_not_included_retry_not_suggested:
-          '诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。再次保存通常无法解决，当前诊断包仍可用于排查。',
-        large: '文件较大，建议使用邮箱的大附件或网盘功能发送。',
-        not_uploaded: '诊断包不会自动上传。'
+          '诊断包已保存，但当天应用日志未能加入。您可以重新保存；当前诊断包仍可用于排查。',
+        logs_not_included_retry_not_suggested: '诊断包已保存，但当天应用日志未能加入。',
+        attachment: {
+          emphasis: '发送邮件时请务必手动添加完整诊断包附件',
+          detail: '，预填邮件不包含附件。',
+          large_suffix: '文件较大时，可使用邮箱大附件或网盘发送。'
+        }
       })
       expect(enUS.migration.diagnostics.saved.logs_included).toMatch(/raw application logs/i)
-      expect(enUS.migration.diagnostics.saved.logs_not_included_retry_suggested).toMatch(/complete error stack/i)
-      expect(enUS.migration.diagnostics.saved.logs_not_included_retry_not_suggested).toMatch(/saving again.*unlikely/i)
-      expect(enUS.migration.diagnostics.saved.large).toMatch(/large attachment|cloud storage/i)
-      expect(enUS.migration.diagnostics.saved.not_uploaded).toMatch(/not.*automatically upload/i)
+      expect(enUS.migration.diagnostics.saved.logs_not_included_retry_suggested).toMatch(/save again/i)
+      expect(enUS.migration.diagnostics.saved.logs_not_included_retry_not_suggested).toBe(
+        "The diagnostic bundle was saved, but today's application logs could not be included."
+      )
+      expect(enUS.migration.diagnostics.saved.attachment.emphasis).toMatch(
+        /manually attach.*complete diagnostic bundle/i
+      )
+      expect(enUS.migration.diagnostics.saved.attachment.detail).toMatch(/prefilled email.*does not include/i)
+      expect(enUS.migration.diagnostics.saved.attachment.large_suffix).toMatch(/large-attachment|cloud storage/i)
     })
   })
 

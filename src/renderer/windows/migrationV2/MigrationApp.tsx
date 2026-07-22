@@ -83,12 +83,13 @@ const diagnosticFailureMessageKey: Record<MigrationDiagnosticSaveFailureCode, st
   save_in_progress: 'migration.diagnostics.failures.save_in_progress'
 }
 
-const diagnosticNoticeMessageKey: Record<MigrationDiagnosticNoticePart, string> = {
+const diagnosticNoticeMessageKey: Record<
+  Exclude<MigrationDiagnosticNoticePart, 'attachment_required' | 'attachment_required_large'>,
+  string
+> = {
   logs_included: 'migration.diagnostics.saved.logs_included',
   logs_not_included_retry_suggested: 'migration.diagnostics.saved.logs_not_included_retry_suggested',
-  logs_not_included_retry_not_suggested: 'migration.diagnostics.saved.logs_not_included_retry_not_suggested',
-  large: 'migration.diagnostics.saved.large',
-  not_uploaded: 'migration.diagnostics.saved.not_uploaded'
+  logs_not_included_retry_not_suggested: 'migration.diagnostics.saved.logs_not_included_retry_not_suggested'
 }
 
 const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({ tone = 'neutral', children }) => (
@@ -488,11 +489,21 @@ const MigrationApp: React.FC = () => {
         <div>
           <p className="font-medium text-foreground text-sm">{t('migration.diagnostics.saved.title')}</p>
           <div className="mt-1 space-y-1 text-foreground-muted text-xs leading-relaxed">
-            {getMigrationDiagnosticNoticeParts(diagnosticSaveResult).map((part) => (
-              <p key={part} data-testid="migration-diagnostics-notice">
-                {t(diagnosticNoticeMessageKey[part])}
-              </p>
-            ))}
+            {getMigrationDiagnosticNoticeParts(diagnosticSaveResult).map((part) =>
+              part === 'attachment_required' || part === 'attachment_required_large' ? (
+                <p key={part} data-testid="migration-diagnostics-notice">
+                  <strong className="font-semibold text-foreground">
+                    {t('migration.diagnostics.saved.attachment.emphasis')}
+                  </strong>
+                  {t('migration.diagnostics.saved.attachment.detail')}
+                  {part === 'attachment_required_large' && t('migration.diagnostics.saved.attachment.large_suffix')}
+                </p>
+              ) : (
+                <p key={part} data-testid="migration-diagnostics-notice">
+                  {t(diagnosticNoticeMessageKey[part])}
+                </p>
+              )
+            )}
           </div>
         </div>
         {diagnosticSaveResult.logs === 'not_included' && diagnosticSaveResult.retry === 'suggested' && (
