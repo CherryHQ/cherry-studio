@@ -144,7 +144,13 @@ describe('Selector', () => {
     )
 
     const trigger = screen.getByRole('combobox', { name: /short/i })
-    expect(trigger).toHaveClass('rounded-lg', 'bg-muted/50')
+    expect(trigger).toHaveClass(
+      'rounded-lg',
+      'border',
+      'bg-transparent',
+      'focus-visible:ring-[1px]',
+      'focus-visible:ring-ring/35'
+    )
 
     const sizingLabels = trigger.querySelectorAll('[aria-hidden="true"].invisible')
     expect(Array.from(sizingLabels, (element) => element.textContent)).toEqual(['Short', 'A much longer option'])
