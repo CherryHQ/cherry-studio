@@ -192,6 +192,23 @@ describe('ProviderRegistryService', () => {
     MockMainDbServiceUtils.setDb(dbh.db)
   })
 
+  describe('getPresetEndpointConfigs', () => {
+    it('returns the registry default endpoint configs (the factory baseUrl reset targets)', () => {
+      setupRegistryData()
+      const configs = providerRegistryService.getPresetEndpointConfigs('openai')
+      expect(configs?.['openai-chat-completions']?.baseUrl).toBe('https://api.openai.com/v1')
+    })
+
+    it('resolves via presetProviderId and returns null for an unknown provider', () => {
+      setupRegistryData()
+      expect(
+        providerRegistryService.getPresetEndpointConfigs('my-openai-clone', 'openai')?.['openai-chat-completions']
+          ?.baseUrl
+      ).toBe('https://api.openai.com/v1')
+      expect(providerRegistryService.getPresetEndpointConfigs('does-not-exist')).toBeNull()
+    })
+  })
+
   describe('registry load failure', () => {
     it('should throw when models.json cannot be read', async () => {
       setupRegistryData()

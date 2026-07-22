@@ -1,4 +1,4 @@
-import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
+import { useProvider, useProviderMutations, useProviderPresetEndpointConfigs } from '@renderer/hooks/useProvider'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useState } from 'react'
@@ -25,11 +25,15 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
   const { primaryEndpoint, apiHost, setApiHost, anthropicApiHost, setAnthropicApiHost, apiVersion, setApiVersion } =
     useProviderEndpoints(provider)
   const topology = getProviderHostTopology(provider)
+  const { data: presetEndpointConfigs } = useProviderPresetEndpointConfigs(providerId)
+  // Factory-default host for the primary endpoint (registry-sourced); '' for custom providers.
+  const defaultApiHost = presetEndpointConfigs?.[topology.primaryEndpoint]?.baseUrl ?? ''
   const isAnthropicPrimaryEndpoint = primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
   const hostPreview = useProviderHostPreview({
     provider,
     apiHost,
-    anthropicApiHost
+    anthropicApiHost,
+    defaultApiHost
   })
   const endpointActions = useProviderEndpointActions({
     provider,
@@ -40,6 +44,7 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
     anthropicApiHost,
     setAnthropicApiHost,
     apiVersion,
+    defaultApiHost,
     patchProvider: updateProvider
   })
   const handleApiHostChange = (value: string) => {

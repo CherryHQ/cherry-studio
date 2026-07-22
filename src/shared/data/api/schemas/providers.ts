@@ -246,6 +246,20 @@ export type ProviderSchemas = {
   }
 
   /**
+   * Registry-default per-endpoint config (baseUrl, …) for a provider — the factory
+   * value the API-host settings UI resets an edited host to. Registry-sourced and
+   * read-only, fetched on demand so it never rides on the runtime Provider payload.
+   * `null` for custom providers with no registry match.
+   * @example GET /providers/openai/preset-endpoint-configs
+   */
+  '/providers/:providerId/preset-endpoint-configs': {
+    GET: {
+      params: { providerId: string }
+      response: Partial<Record<EndpointType, EndpointConfig>> | null
+    }
+  }
+
+  /**
    * Manage a specific API key by ID
    * @example PATCH /providers/openai/api-keys/abc-123 { "label": "Primary" }
    * @example DELETE /providers/openai/api-keys/abc-123

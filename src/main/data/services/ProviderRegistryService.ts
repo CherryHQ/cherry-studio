@@ -484,6 +484,30 @@ class ProviderRegistryService {
   }
 
   /**
+   * The pristine registry default per-endpoint config (baseUrl, …) for a provider —
+   * the factory value the settings UI resets an edited API host back to. Read-only,
+   * on-demand (settings only); it deliberately never rides on the runtime Provider.
+   * `null` for custom providers with no registry match.
+   */
+  getPresetEndpointConfigs(
+    providerId: string,
+    presetProviderId?: string
+  ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    try {
+      const provider =
+        this.findRegistryProvider(providerId) ??
+        (presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined)
+      if (!provider) return null
+      return buildRuntimeEndpointConfigs(provider.endpointConfigs) as Partial<
+        Record<EndpointType, EndpointConfig>
+      > | null
+    } catch (error) {
+      logger.warn('Failed to load preset endpoint configs', { providerId, presetProviderId, error })
+      return null
+    }
+  }
+
+  /**
    * Get reasoning config from registry providers.json only (no DB).
    *
    * Resolves `defaultChatEndpoint` and `reasoningFormatTypes` for a provider

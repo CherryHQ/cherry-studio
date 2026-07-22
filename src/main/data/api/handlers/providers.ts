@@ -6,6 +6,7 @@
  * - Listing with filters
  */
 
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -80,6 +81,13 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
         return { type, clientId, accountId, expiresAt }
       }
       return authConfig
+    }
+  },
+
+  '/providers/:providerId/preset-endpoint-configs': {
+    GET: async ({ params }) => {
+      const provider = providerService.getByProviderId(params.providerId)
+      return providerRegistryService.getPresetEndpointConfigs(provider.id, provider.presetProviderId)
     }
   },
 
