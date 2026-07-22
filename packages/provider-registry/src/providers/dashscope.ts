@@ -86,8 +86,6 @@ const qwenChatModels = [
   'qwen3-6-max-preview',
   'qwen3-7-plus',
   'qwen3-7-max',
-  'qwen3-coder',
-  'qwen3-coder-next',
   'qwen3-max',
   'qwen3-omni-flash',
   'qwen3-vl',

@@ -18,7 +18,12 @@ import { fileURLToPath } from 'node:url'
 import type { ZodType } from 'zod'
 
 import { CREATORS } from '../src/creators'
-import { matchReasoningControls, matchTokenLimits } from '../src/patterns/reasoning-families'
+import {
+  matchReasoningControls,
+  matchReasoningTogglePolicy,
+  matchTokenLimits
+} from '../src/patterns/reasoning-families'
+import { matchReasoningMembership } from '../src/patterns/reasoning-membership'
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
 import type { ReasoningFamilyRule } from '../src/schemas/model'
@@ -264,6 +269,19 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
       models.set(id, { ...existing, ...lm, id, ownedBy: creator.id, metadata: existing.metadata ?? {} })
     }
   }
+  // Creator profile regexes are the membership authority. Upstream sometimes
+  // labels non-reasoning siblings (for example Qwen coder SKUs) as adjustable;
+  // strip those rows when they do not match their creator's profile rules.
+  const reasoningRulesByCreator = new Map(CREATORS.map((creator) => [creator.id, creator.reasoningFamilies ?? []]))
+  for (const m of models.values()) {
+    if (!(m.capabilities ?? []).includes('reasoning')) continue
+    const creatorRules = reasoningRulesByCreator.get(m.ownedBy) ?? []
+    const belongsToReasoningProfile = matchReasoningMembership(m.id, creatorRules)
+    const rejectedByCreatorPattern = matchReasoningTogglePolicy(m.id, creatorRules) === false
+    if (belongsToReasoningProfile || !rejectedByCreatorPattern) continue
+    delete m.reasoning
+    m.capabilities = (m.capabilities ?? []).filter((capability: string) => capability !== 'reasoning')
+  }
   // Family fill — reasoning-capable models with NO reasoning block at all
   // (models.dev has no reasoning_options for them) get their controls from
   // the creator-declared family rules. Ingest-time only: the knowledge ships
@@ -282,6 +300,11 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
   for (const m of models.values()) {
     const controls = m.reasoning?.controls
     if (!controls?.length) continue
+    if (matchReasoningTogglePolicy(m.id, familyRules) === false) {
+      for (let index = controls.length - 1; index >= 0; index -= 1) {
+        if (controls[index].kind === 'toggle') controls.splice(index, 1)
+      }
+    }
     if (!controls.some((c: { kind: string }) => c.kind === 'budget')) {
       const limits = matchTokenLimits(m.id, familyRules)
       if (limits) controls.push({ kind: 'budget', min: limits.min, max: limits.max })

@@ -1165,7 +1165,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "structured-output"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-235b-a22b-instruct-2507-maas",
@@ -1184,23 +1184,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.88
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "budget",
-            "max": 38912,
-            "min": 1024
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 38912,
-          "min": 1024
         }
       }
     },
@@ -2123,7 +2106,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "structured-output"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-coder",
@@ -2146,27 +2129,10 @@
           "currency": "USD",
           "perMillionTokens": 7.5
         }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "budget",
-            "max": 38912,
-            "min": 1024
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 38912,
-          "min": 1024
-        }
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "structured-output"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-coder-30b-a3b",
@@ -2184,23 +2150,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.6
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "budget",
-            "max": 38912,
-            "min": 1024
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 38912,
-          "min": 1024
         }
       }
     },
@@ -2296,7 +2245,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "structured-output"],
       "contextWindow": 262144,
       "family": "qwen",
       "id": "qwen3-coder-next",
@@ -2315,23 +2264,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.8
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "budget",
-            "max": 38912,
-            "min": 1024
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 38912,
-          "min": 1024
         }
       }
     },
@@ -3497,12 +3429,9 @@
           {
             "kind": "effort",
             "values": ["low", "medium", "high", "xhigh", "max"]
-          },
-          {
-            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
       }
     },
     {
@@ -3529,12 +3458,9 @@
           {
             "kind": "effort",
             "values": ["low", "medium", "high", "max"]
-          },
-          {
-            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max"]
       }
     },
     {
@@ -19932,5 +19858,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "cf90a3bcf16136fd"
+  "version": "96e79ec0a16c027e"
 }

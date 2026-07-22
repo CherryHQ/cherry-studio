@@ -8,11 +8,17 @@ export default defineCreator({
   modelsDevProviders: ['anthropic'],
   idPrefixes: ['claude'],
   reasoningFamilies: [
+    // Fable always reasons. The API rejects attempts to disable thinking.
+    {
+      pattern: '^(?:anthropic\\.)?claude-fable',
+      effort: ['low', 'medium', 'high', 'max'],
+      toggle: false
+    },
     // Adaptive-effort generations: 4.6+ minors, the 5.x/Fable line, and the
     // -latest aliases (which track the newest flagship).
     {
       pattern:
-        '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\\d)|(?:opus|sonnet|haiku)-latest|fable)',
+        '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\\d)|(?:opus|sonnet|haiku)-latest)',
       effort: ['low', 'medium', 'high', 'max'],
       toggle: true
     },

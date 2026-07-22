@@ -73,23 +73,11 @@ describe('inferReasoningMembership', () => {
       id: string
       reasoning?: { controls?: unknown[] }
     }>
-    // Reviewed upstream mislabels: models.dev grants these controls, but the
-    // vendor documents the SKU as non-thinking (or the knob is a fixed no-op).
-    // A custom-provider row for these ids correctly gets no descriptor. Every
-    // entry must still be a live gap — remove it here once upstream corrects.
-    const KNOWN_UPSTREAM_MISLABELS = new Set([
-      'qwen3-coder', // Qwen3-Coder: officially no thinking mode
-      'qwen3-coder-30b-a3b',
-      'qwen3-coder-next',
-      'qwen3-235b-a22b-instruct-2507-maas', // instruct = non-thinking hybrid variant
-      'gpt-5-1-chat-latest', // chat SKUs pinned to a single fixed effort — nothing to control
-      'gpt-5-2-chat-latest'
-    ])
     const gaps = models
       .filter((m) => (m.reasoning?.controls?.length ?? 0) > 0 && !inferReasoningMembership(m.id))
       .map((m) => m.id)
-    expect(gaps.filter((id) => !KNOWN_UPSTREAM_MISLABELS.has(id))).toEqual([])
-    // Stale-exemption guard: every listed mislabel must still be a real gap.
-    expect([...KNOWN_UPSTREAM_MISLABELS].filter((id) => !gaps.includes(id))).toEqual([])
+    // OpenAI chat aliases expose one fixed upstream effort and therefore have
+    // no user-selectable creator profile. Keep this exception pattern-based.
+    expect(gaps.filter((id) => !/^gpt-5-\d+-chat-latest$/.test(id))).toEqual([])
   })
 })

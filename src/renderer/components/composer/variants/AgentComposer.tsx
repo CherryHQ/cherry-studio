@@ -58,6 +58,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -1177,9 +1178,10 @@ const AgentComposerInner = ({
   const handleModelSelect = useCallback(
     (nextModel?: Model) => {
       if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
+      setReasoningEffort(resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default')
       void updateModel(agentId, nextModel.id, { showSuccessToast: false })
     },
-    [agentId, canChangeModel, model?.id, updateModel]
+    [agentId, canChangeModel, model?.id, reasoningEffort, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -1206,10 +1208,11 @@ const AgentComposerInner = ({
     ]
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
-  const toolsSession = useMemo(() => {
-    if (!sessionData) return undefined
-    return { ...sessionData, reasoningEffort, onReasoningEffortChange: setReasoningEffort }
-  }, [sessionData, reasoningEffort])
+  const toolsSession = sessionData
+  const reasoningContext = useMemo(
+    () => ({ effort: reasoningEffort, onEffortChange: setReasoningEffort }),
+    [reasoningEffort]
+  )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
@@ -1518,7 +1521,9 @@ const AgentComposerInner = ({
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
-      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
+      {model && (
+        <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} reasoning={reasoningContext} />
+      )}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface

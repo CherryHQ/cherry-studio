@@ -1911,6 +1911,89 @@
       }
     },
     {
+      "modelId": "claude-opus-4-5",
+      "providerId": "anthropic",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "missing": {
+                  "type": "fallback",
+                  "value": 13312
+                }
+              },
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "thinking.budgetTokens",
+                  "value": {
+                    "source": "budget"
+                  }
+                },
+                {
+                  "target": "sendReasoning",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "missing": {
+                  "type": "fallback",
+                  "value": 13312
+                }
+              },
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "thinking.budgetTokens",
+                  "value": {
+                    "source": "budget"
+                  }
+                },
+                {
+                  "target": "sendReasoning",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "modelId": "claude-sonnet-4",
       "providerId": "anthropic",
       "reasoningContracts": {
@@ -2346,29 +2429,49 @@
         "anthropic-messages": {
           "wire": {
             "auto": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "missing": {
+                  "type": "fallback",
+                  "value": 13312
+                }
+              },
               "operations": [
                 {
                   "target": "reasoningConfig.type",
                   "value": {
                     "source": "literal",
-                    "value": "adaptive"
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "reasoningConfig.budgetTokens",
+                  "value": {
+                    "source": "budget"
                   }
                 }
               ]
             },
             "effort": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "missing": {
+                  "type": "fallback",
+                  "value": 13312
+                }
+              },
               "operations": [
                 {
                   "target": "reasoningConfig.type",
                   "value": {
                     "source": "literal",
-                    "value": "adaptive"
+                    "value": "enabled"
                   }
                 },
                 {
-                  "target": "reasoningConfig.maxReasoningEffort",
+                  "target": "reasoningConfig.budgetTokens",
                   "value": {
-                    "source": "effort"
+                    "source": "budget"
                   }
                 }
               ]
@@ -6875,212 +6978,6 @@
               "min": 0
             }
           },
-          "wire": {
-            "auto": {
-              "effortMap": {
-                "auto": "medium"
-              },
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "literal",
-                    "value": "none"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "qwen3-coder",
-      "providerId": "dashscope",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "missing": {
-                  "type": "omit-value"
-                }
-              },
-              "operations": [
-                {
-                  "target": "enable_thinking",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinking_budget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "omit-value"
-                }
-              },
-              "operations": [
-                {
-                  "target": "enable_thinking",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinking_budget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "enable_thinking",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                }
-              ]
-            }
-          }
-        },
-        "openai-responses": {
-          "wire": {
-            "auto": {
-              "effortMap": {
-                "auto": "medium"
-              },
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "effort"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "reasoningEffort",
-                  "value": {
-                    "source": "literal",
-                    "value": "none"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "qwen3-coder-next",
-      "providerId": "dashscope",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "missing": {
-                  "type": "omit-value"
-                }
-              },
-              "operations": [
-                {
-                  "target": "enable_thinking",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinking_budget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "omit-value"
-                }
-              },
-              "operations": [
-                {
-                  "target": "enable_thinking",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinking_budget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "enable_thinking",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                }
-              ]
-            }
-          }
-        },
-        "openai-responses": {
           "wire": {
             "auto": {
               "effortMap": {
@@ -17868,7 +17765,44 @@
           "perMillionTokens": 0.28
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["none", "high", "max"]
+              }
+            ],
+            "defaultEffort": "high"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "deepseek-ai/deepseek-v4-pro",
@@ -17887,7 +17821,44 @@
           "perMillionTokens": 0.87
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["none", "high", "max"]
+              }
+            ],
+            "defaultEffort": "high"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "abacusai/dracarys-llama-3_1-70b-instruct",
@@ -18053,7 +18024,43 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "nvidia/gliner-pii",
@@ -18098,7 +18105,33 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high"]
+              }
+            ],
+            "defaultEffort": "medium"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "openai/gpt-oss-20b",
@@ -18113,7 +18146,33 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["low", "medium", "high"]
+              }
+            ],
+            "defaultEffort": "medium"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "moonshotai/kimi-k2.6",
@@ -18128,7 +18187,42 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "moonshotai/kimi-k2-instruct-0905",
@@ -18398,7 +18492,42 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.thinking_mode",
+                  "value": {
+                    "source": "literal",
+                    "value": "adaptive"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.thinking_mode",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "mistralai/mistral-7b-instruct-v03",
@@ -18473,7 +18602,44 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["none", "high"]
+              }
+            ],
+            "defaultEffort": "high"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "mistralai/mixtral-8x22b-instruct",
@@ -18548,7 +18714,45 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": 16384,
+                "kind": "budget",
+                "max": 32768,
+                "min": 0
+              }
+            ],
+            "thinkingTokenLimits": {
+              "default": 16384,
+              "max": 32768,
+              "min": 0
+            }
+          },
+          "wire": {
+            "effort": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "min": 1,
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "reasoning_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "nvidia/nemotron-3-super-120b-a12b",
@@ -18563,7 +18767,44 @@
           "perMillionTokens": 0.8
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["none", "low", "high"]
+              }
+            ],
+            "defaultEffort": "high"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "nvidia/nemotron-3-ultra-550b-a55b",
@@ -18582,7 +18823,44 @@
           "perMillionTokens": 2.5
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["none", "medium", "high"]
+              }
+            ],
+            "defaultEffort": "high"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "nvidia/nemotron-content-safety-reasoning-4b",
@@ -18777,7 +19055,42 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "qwen/qwen3.5-397b-a17b",
@@ -18792,7 +19105,42 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "chat_template_kwargs.enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "qwen/qwen3-coder-480b-a35b-instruct",
@@ -18882,7 +19230,69 @@
           "perMillionTokens": 0
         }
       },
-      "providerId": "nvidia"
+      "providerId": "nvidia",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              },
+              {
+                "kind": "budget",
+                "max": 16384,
+                "min": 0
+              }
+            ],
+            "thinkingTokenLimits": {
+              "max": 16384,
+              "min": 0
+            }
+          },
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "literal",
+                    "value": -1
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "min": 1,
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "literal",
+                    "value": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "upstage/solar-10_7b-instruct",
@@ -22905,15 +23315,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.15314
+          "perMillionTokens": 0.15236
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.8246
+          "perMillionTokens": 0.8204
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.5916
+          "perMillionTokens": 2.5784
         }
       },
       "providerId": "openrouter",
@@ -28099,13 +28509,17 @@
       "apiModelId": "qwen/qwen3-next-80b-a3b-instruct",
       "modelId": "qwen3-next-80b-a3b-instruct",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.0975
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.78
+          "perMillionTokens": 1.1
         }
       },
       "providerId": "openrouter"
@@ -29554,6 +29968,344 @@
         }
       },
       "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "Claude-Fable-5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-fable-5",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "Claude-Opus-4.6",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-6",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "Claude-Opus-4.7",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-7",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "Claude-Opus-4.8",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-8",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "Claude-Sonnet-4.6",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-sonnet-4-6",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "Claude-Sonnet-5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-sonnet-5",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "Gemini-3.1-Pro",
+      "modelId": "gemini-3-1-pro-preview",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "GPT-5.4",
+      "modelId": "gpt-5-4",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "medium"
+              },
+              "operations": [
+                {
+                  "target": "extra_body.reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "extra_body.reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "extra_body.reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "zai-org/autoglm-phone-9b-multilingual",
@@ -34631,5 +35383,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "877d5a6abe5475f3"
+  "version": "a4e06b9748d4b4f7"
 }

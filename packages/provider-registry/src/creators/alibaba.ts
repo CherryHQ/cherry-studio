@@ -7,6 +7,10 @@ export default defineCreator({
   families: ['qwen', 'qvq'],
   idPrefixes: ['qwen', 'qvq', 'tongyi'],
   reasoningFamilies: [
+    // Upstream sometimes reports reasoning controls for non-thinking coder /
+    // instruct SKUs. This template grants no membership and blocks the broad
+    // Qwen toggle rule below, so generation can discard the mislabeled block.
+    { pattern: '^qwen3-(?=.*(?:coder|instruct))', toggle: false, template: true },
     // Always-think SKUs: thinking cannot be disabled — the explicit
     // `toggle: false` stops the generic qwen rule below; budget still applies.
     { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },

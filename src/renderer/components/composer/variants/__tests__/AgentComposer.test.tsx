@@ -62,7 +62,12 @@ const mocks = vi.hoisted(() => ({
   ipcOn: vi.fn(),
   sessionLayout: undefined as string | undefined,
   runtimeHostProps: undefined as
-    | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
+    | {
+        assistant?: { modelId?: string | null }
+        model?: Model
+        session?: { agentId?: string }
+        reasoning?: { effort: string; onEffortChange: (effort: string) => void }
+      }
     | undefined,
   sessionWorkspaceId: 'workspace-1',
   sessionWorkspaceName: 'Workspace 1',
@@ -271,6 +276,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     assistant?: { modelId?: string | null }
     model?: Model
     session?: { agentId?: string }
+    reasoning?: { effort: string; onEffortChange: (effort: string) => void }
   }) => {
     mocks.runtimeHostProps = props
     return null
@@ -428,7 +434,20 @@ vi.mock('@renderer/components/ModelSelector', () => ({
           </button>
         </>
       ) : null}
-      <button type="button" onClick={() => onSelect({ id: 'anthropic::claude-opus-4', name: 'Claude Opus 4' })}>
+      <button
+        type="button"
+        onClick={() =>
+          onSelect({
+            id: 'anthropic::claude-opus-4',
+            providerId: 'anthropic',
+            apiModelId: 'claude-opus-4',
+            name: 'Claude Opus 4',
+            capabilities: [],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false
+          })
+        }>
         select model 2
       </button>
     </div>
@@ -742,6 +761,26 @@ describe('AgentComposer', () => {
     expect(mocks.updateModel).toHaveBeenCalledWith('agent-1', 'anthropic::claude-opus-4', {
       showSuccessToast: false
     })
+  })
+
+  it('reconciles the session reasoning selection immediately when switching models', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('default')
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {

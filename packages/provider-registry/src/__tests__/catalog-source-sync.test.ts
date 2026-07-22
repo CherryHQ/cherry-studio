@@ -26,7 +26,11 @@ import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const read = (f: string) => JSON.parse(readFileSync(join(dataDir, f), 'utf8'))
-const models = read('models.json').models as Array<{ id: string; name?: string; ownedBy: string }>
+const models = read('models.json').models as Array<{
+  id: string
+  name?: string
+  ownedBy: string
+}>
 const providers = read('providers.json').providers as Array<Record<string, unknown> & { id: string }>
 const overrides = read('provider-models.json').overrides as Array<
   Record<string, unknown> & { providerId: string; modelId: string; apiModelId?: string; modelVariants?: string[] }

@@ -246,6 +246,45 @@ describe('ProviderRegistryService', () => {
       expect(models[0].name).toBe('custom-model')
     })
 
+    it('does not infer controls when a preset model fails the reasoning membership gate', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [
+          {
+            id: 'qwen3-coder',
+            name: 'Qwen3 Coder',
+            capabilities: ['function-call']
+          }
+        ]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'openai', modelId: 'qwen3-coder' }]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'openai',
+            name: 'OpenAI',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'openai-chat-completions': {
+                adapterFamily: 'openai-compatible',
+                reasoningFormat: { type: 'openai-chat' }
+              }
+            },
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const [model] = providerRegistryService.resolveModels('openai', ['qwen3-coder'])
+
+      expect(model.reasoning).toBeUndefined()
+      expect(model.capabilities).not.toContain('reasoning')
+    })
+
     it('should deduplicate by modelId', async () => {
       setupRegistryData()
 

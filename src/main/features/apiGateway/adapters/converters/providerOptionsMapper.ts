@@ -26,7 +26,12 @@ type GatewayReasoningEffort = ReasoningEffortOption
 type GeminiThinkingConfig = { includeThoughts?: boolean; thinkingBudget?: number; thinkingLevel?: string }
 type AnthropicThinkingConfig = NonNullable<MessageCreateParams['thinking']>
 
-function buildProviderOptions(provider: Provider, model: Model, effort: GatewayReasoningEffort): ProviderOptions {
+function buildProviderOptions(
+  provider: Provider,
+  model: Model,
+  effort: GatewayReasoningEffort,
+  maxTokens?: number
+): ProviderOptions {
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
@@ -34,6 +39,7 @@ function buildProviderOptions(provider: Provider, model: Model, effort: GatewayR
     selection: effort,
     model,
     profile: reasoningProfile.wire,
+    maxTokens,
     assistantSummary: provider.settings?.summaryText
   })
   return buildResolvedReasoningProviderOptions({
@@ -81,27 +87,29 @@ export function mapAnthropicThinkingToProviderOptions(
   provider: Provider,
   model: Model,
   config: MessageCreateParams['thinking'],
-  effort?: GatewayReasoningEffort | null
+  effort?: GatewayReasoningEffort | null,
+  maxTokens?: number
 ): ProviderOptions | undefined {
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     return passThroughAnthropicReasoning(config, effort)
   }
 
-  if (effort != null) return buildProviderOptions(provider, model, effort)
+  if (effort != null) return buildProviderOptions(provider, model, effort, maxTokens)
   if (!config) return undefined
-  if (config.type === 'disabled') return buildProviderOptions(provider, model, 'none')
-  if (config.type !== 'enabled') return buildProviderOptions(provider, model, 'auto')
+  if (config.type === 'disabled') return buildProviderOptions(provider, model, 'none', maxTokens)
+  if (config.type !== 'enabled') return buildProviderOptions(provider, model, 'auto', maxTokens)
 
   const budgetEffort = nearestEffortForBudget(config.budget_tokens, model.reasoning?.thinkingTokenLimits) ?? 'high'
-  return buildProviderOptions(provider, model, budgetEffort)
+  return buildProviderOptions(provider, model, budgetEffort, maxTokens)
 }
 
 /** Map a Gemini-native thinking configuration to the resolved model's target dialect. */
 export function mapGeminiThinkingToProviderOptions(
   provider: Provider,
   model: Model,
-  thinkingConfig: GeminiThinkingConfig
+  thinkingConfig: GeminiThinkingConfig,
+  maxTokens?: number
 ): ProviderOptions | undefined {
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return passThroughGeminiThinking(thinkingConfig)
@@ -118,14 +126,15 @@ export function mapGeminiThinkingToProviderOptions(
   } else if (includeThoughts === true) effort = 'auto'
   else if (includeThoughts === false) effort = 'none'
 
-  return effort === undefined ? undefined : buildProviderOptions(provider, model, effort)
+  return effort === undefined ? undefined : buildProviderOptions(provider, model, effort, maxTokens)
 }
 
 /** Map OpenAI-style reasoning_effort to the resolved model's target dialect. */
 export function mapReasoningEffortToProviderOptions(
   provider: Provider,
   model: Model,
-  reasoningEffort?: ReasoningEffort
+  reasoningEffort?: ReasoningEffort,
+  maxTokens?: number
 ): ProviderOptions | undefined {
-  return reasoningEffort == null ? undefined : buildProviderOptions(provider, model, reasoningEffort)
+  return reasoningEffort == null ? undefined : buildProviderOptions(provider, model, reasoningEffort, maxTokens)
 }

@@ -26,7 +26,6 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
-import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -44,7 +43,7 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
+import { canModelUseAssistantWebSearch, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -537,7 +536,8 @@ const ChatComposerInner = ({
     model,
     isModelPending,
     isModelMissing,
-    setModel
+    setModel,
+    updateAssistantSettings
   } = useAssistant(assistantId)
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
@@ -640,6 +640,46 @@ const ChatComposerInner = ({
   const runtimeModel = assistant || !assistantId ? model : undefined
   const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
+  const canonicalReasoningEffort = (assistant?.settings.reasoning_effort ?? 'default') as ReasoningEffortOption
+  const [reasoningOverride, setReasoningOverride] = useState<{
+    assistantId: string
+    value: ReasoningEffortOption
+    version: number
+  } | null>(null)
+  const reasoningMutationVersionRef = useRef(0)
+  const reasoningEffort =
+    reasoningOverride?.assistantId === selectedAssistantId ? reasoningOverride.value : canonicalReasoningEffort
+
+  // A local override only bridges the latest PATCH/revalidation window. Do
+  // not retire it on an intermediate refresh from an older mutation.
+  useEffect(() => {
+    setReasoningOverride((current) => {
+      if (!current) return current
+      if (current.assistantId !== selectedAssistantId) return null
+      return current
+    })
+  }, [selectedAssistantId])
+
+  const handleReasoningEffortChange = useCallback(
+    (option: ReasoningEffortOption) => {
+      if (!selectedAssistantId) return
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        assistantId: selectedAssistantId,
+        value: option,
+        version
+      })
+      void updateAssistantSettings({ reasoning_effort: option })
+        .then(() => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+        })
+        .catch((error) => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+          logger.warn('Failed to persist reasoning effort', { error })
+        })
+    },
+    [selectedAssistantId, updateAssistantSettings]
+  )
 
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
@@ -647,9 +687,36 @@ const ChatComposerInner = ({
       if (!assistant) return
 
       const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
-      return setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
+      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        assistantId: assistant.id,
+        value: nextReasoningEffort ?? 'default',
+        version
+      })
+      const extraSettings: {
+        enableWebSearch: boolean
+        reasoning_effort?: ReasoningEffortOption
+      } = { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
+      if (reasoningOverride?.assistantId === assistant.id) {
+        extraSettings.reasoning_effort = nextReasoningEffort
+      }
+      const update = setModel(nextModel, extraSettings)
+      return update
+        ?.then(() => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+        })
+        .catch((error) => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+          throw error
+        })
     },
-    [assistant, setModel]
+    [assistant, reasoningEffort, reasoningOverride, setModel]
+  )
+
+  const reasoningContext = useMemo(
+    () => ({ effort: reasoningEffort, onEffortChange: handleReasoningEffortChange }),
+    [handleReasoningEffortChange, reasoningEffort]
   )
 
   const {
@@ -969,15 +1036,11 @@ const ChatComposerInner = ({
               ? mentionedModels.map((currentModel) => currentModel.id)
               : undefined,
             knowledgeBaseIds: knowledgeBaseIds.length ? knowledgeBaseIds : undefined,
-            reasoningEffort: assistantId
-              ? ((cacheService.get(`assistant.reasoning_effort_cache.${assistantId}`) ??
-                  assistant?.settings.reasoning_effort ??
-                  'default') as ReasoningEffortOption)
-              : 'default'
+            reasoningEffort: assistantId ? reasoningEffort : 'default'
           }
         }
       }),
-    [assistant?.settings.reasoning_effort, assistantId, files, mentionedModels, selectedKnowledgeBasesInScope]
+    [assistantId, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1300,7 +1363,12 @@ const ChatComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       {displayAssistant && runtimeModel && (
-        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
+        <ComposerToolRuntimeHost
+          scope={scope}
+          assistant={displayAssistant}
+          model={runtimeModel}
+          reasoning={reasoningContext}
+        />
       )}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>

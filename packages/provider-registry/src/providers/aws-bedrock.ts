@@ -36,10 +36,9 @@ const bedrockEffortWire: ReasoningWireProfile = {
   }
 }
 
-const bedrockBudgetModels = new Set(['claude-haiku-4-5', 'claude-opus-4-1', 'claude-sonnet-4-5'])
+const bedrockBudgetModels = new Set(['claude-haiku-4-5', 'claude-opus-4-1', 'claude-opus-4-5', 'claude-sonnet-4-5'])
 const bedrockEffortModels = new Set([
   'claude-fable-5',
-  'claude-opus-4-5',
   'claude-opus-4-6',
   'claude-opus-4-7',
   'claude-opus-4-8',

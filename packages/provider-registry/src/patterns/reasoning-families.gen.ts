@@ -9,6 +9,7 @@ import type { ReasoningFamilyRule } from '../schemas/model'
 
 export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // alibaba
+  { pattern: '^qwen3-(?=.*(?:coder|instruct))', toggle: false, template: true },
   { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
   { pattern: '^qwq|^qvq', toggle: false },
   { pattern: '^qwen', toggle: true, template: true },
@@ -43,9 +44,10 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // amazon
   { pattern: '^nova-2' },
   // anthropic
+  { pattern: '^(?:anthropic\\.)?claude-fable', effort: ['low', 'medium', 'high', 'max'], toggle: false },
   {
     pattern:
-      '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\\d)|(?:opus|sonnet|haiku)-latest|fable)',
+      '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\\d)|(?:opus|sonnet|haiku)-latest)',
     effort: ['low', 'medium', 'high', 'max'],
     toggle: true
   },
@@ -205,7 +207,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'hunyuan-t1' },
   { pattern: 'hunyuan-a13b' },
   // upstage
-  { pattern: '^solar-pro-?2' },
+  { pattern: '^solar-pro-?[23]' },
   // vercel
   { pattern: '^muse-spark' },
   { pattern: '^interfaze' },

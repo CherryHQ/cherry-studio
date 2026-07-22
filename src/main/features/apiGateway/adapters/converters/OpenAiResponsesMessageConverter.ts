@@ -221,8 +221,13 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
   /**
    * Extract provider-specific options from Responses API params
    */
-  extractProviderOptions(provider: Provider, model: Model, params: ResponsesCreateParams): ProviderOptions | undefined {
-    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort)
+  extractProviderOptions(
+    provider: Provider,
+    model: Model,
+    params: ResponsesCreateParams,
+    maxOutputTokens?: number
+  ): ProviderOptions | undefined {
+    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }
 

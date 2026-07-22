@@ -109,6 +109,28 @@ describe('mergeCustomProviderParameters', () => {
     expect((result['openai-compatible'] as Record<string, unknown>).reasoningEffort).toBe('low')
   })
 
+  it('normalizes reasoning_effort into a concrete provider namespace for an openai-compatible adapter', () => {
+    const result = mergeCustomProviderParameters(
+      { dashscope: {} } as Record<string, Record<string, never>>,
+      { dashscope: { reasoning_effort: 'high' } },
+      'dashscope',
+      'openai-compatible'
+    )
+
+    expect(result).toEqual({ dashscope: { reasoningEffort: 'high' } })
+  })
+
+  it('does not rewrite a nested extra_body reasoning_effort field', () => {
+    const result = mergeCustomProviderParameters(
+      { poe: {} } as Record<string, Record<string, never>>,
+      { extra_body: { reasoning_effort: 'high' } },
+      'poe',
+      'openai-compatible'
+    )
+
+    expect(result).toEqual({ poe: { extra_body: { reasoning_effort: 'high' } } })
+  })
+
   it('preserves unrelated providerOptions entries', () => {
     const initial = { google: { thinkingConfig: { mode: 'auto' as never } }, anthropic: { cacheControl: {} as never } }
     const result = mergeCustomProviderParameters(
@@ -237,6 +259,77 @@ describe('buildCapabilityProviderOptions', () => {
     )
 
     expect(result).toMatchObject({ minimax: { thinking: { type: 'adaptive' } } })
+    expect(result['openai-compatible']).toBeUndefined()
+  })
+
+  it('normalizes compatible profile emissions in the concrete provider namespace', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: { reasoning_effort: 'high' } } as Assistant,
+      {
+        id: 'dashscope::qwen3-8-max-preview',
+        providerId: 'dashscope',
+        name: 'Qwen3.8 Max Preview',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'xhigh'] }],
+          selectableEfforts: ['low', 'medium', 'xhigh']
+        }
+      } as unknown as Model,
+      { id: 'dashscope', name: 'Bailian', settings: {} } as Provider,
+      {
+        enableReasoning: true,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'openai-compatible',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'effort',
+          selection: 'high',
+          effort: 'xhigh',
+          emissions: [{ target: 'reasoning_effort', value: 'xhigh' }]
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ dashscope: { reasoningEffort: 'xhigh' } })
+    expect(result.dashscope.reasoning_effort).toBeUndefined()
+  })
+
+  it('preserves an audited compatible-provider budget field in the concrete namespace', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: { reasoning_effort: 'high' } } as Assistant,
+      {
+        id: 'nvidia::nemotron-3-nano-omni-30b-a3b',
+        providerId: 'nvidia',
+        name: 'Nemotron 3 Nano Omni',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'budget', min: 0, max: 32_768 }],
+          selectableEfforts: ['low', 'medium', 'high'],
+          thinkingTokenLimits: { min: 0, max: 32_768 }
+        }
+      } as unknown as Model,
+      { id: 'nvidia', name: 'NVIDIA', settings: {} } as Provider,
+      {
+        enableReasoning: true,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'openai-compatible',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'budget',
+          selection: 'high',
+          budgetTokens: 26_214,
+          emissions: [{ target: 'reasoning_budget', value: 26_214 }]
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ nvidia: { reasoning_budget: 26_214 } })
     expect(result['openai-compatible']).toBeUndefined()
   })
 })

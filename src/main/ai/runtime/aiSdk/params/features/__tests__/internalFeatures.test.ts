@@ -28,6 +28,7 @@ function makeScope(overrides: {
   topicId?: string
   endpointType?: string
   aiSdkProviderId?: string
+  reasoning?: RequestScope['reasoning']
 }): RequestScope {
   return {
     request: { mcpToolIds: [] } as never,
@@ -41,7 +42,7 @@ function makeScope(overrides: {
     endpointType: overrides.endpointType as never,
     aiSdkProviderId: (overrides.aiSdkProviderId ?? 'openai-compatible') as never,
     reasoningProfile: { format: 'none', wire: { disabled: true } },
-    reasoning: { kind: 'omit', selection: 'default', emissions: [] },
+    reasoning: overrides.reasoning ?? { kind: 'omit', selection: 'default', emissions: [] },
     requestContext: {
       requestId: 'req-1',
       topicId: overrides.topicId,
@@ -54,6 +55,18 @@ function makeScope(overrides: {
 
 function activeNames(scope: RequestScope): string[] {
   return collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.map((p) => (p as { name: string }).name)
+}
+
+async function qwenUserText(scope: RequestScope): Promise<string> {
+  const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
+    (candidate) => (candidate as { name?: string }).name === 'qwen-thinking'
+  ) as any
+  const context = { middlewares: [] as any[] }
+  plugin.configureContext(context)
+  const result = await context.middlewares[0].transformParams({
+    params: { prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }] }
+  })
+  return result.prompt[0].content[0].text
 }
 
 describe('INTERNAL_FEATURES — decision matrix', () => {
@@ -146,6 +159,37 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(activeNames(makeScope({ provider: {}, model: {}, capabilities: { enableUrlContext: true } }))).toContain(
       'provider-tool-urlContext'
     )
+  })
+
+  it('drives the Qwen suffix from the resolved request snapshot instead of persisted assistant settings', async () => {
+    const base: Parameters<typeof makeScope>[0] = {
+      provider: { id: 'nvidia' },
+      model: {
+        id: 'nvidia::qwen3-32b',
+        providerId: 'nvidia',
+        reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
+      },
+      assistant: { id: 'a', settings: { reasoning_effort: 'high' } as Assistant['settings'] }
+    }
+
+    expect(activeNames(makeScope(base))).not.toContain('qwen-thinking')
+    expect(
+      await qwenUserText(
+        makeScope({
+          ...base,
+          reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+        })
+      )
+    ).toBe('hello /no_think')
+    expect(
+      await qwenUserText(
+        makeScope({
+          ...base,
+          assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
+          reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'enable_thinking', value: true }] }
+        })
+      )
+    ).toBe('hello /think')
   })
 
   it('model-params is the first active feature for a plain assistant scope', () => {

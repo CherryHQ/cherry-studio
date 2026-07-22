@@ -116,7 +116,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     ['gpt-5-6', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }]],
     ['claude-sonnet-5', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }]],
     ['claude-opus-4-8', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }]],
-    ['claude-fable-5', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }, { kind: 'toggle' }]],
+    ['claude-fable-5', [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }]],
     [
       'doubao-seed-2.1',
       [

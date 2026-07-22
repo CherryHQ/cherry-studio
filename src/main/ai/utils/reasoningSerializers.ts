@@ -94,7 +94,7 @@ function resolveModeBudget(
   model: Model,
   policy: Extract<ReasoningWireMode, { budget: unknown }>['budget'],
   maxTokens: number | undefined
-): number | undefined {
+): number | undefined | null {
   let budget = selection === 'auto' ? policy.autoValue : undefined
   budget ??= resolveBudgetTokens(selection, model.reasoning)
 
@@ -108,7 +108,11 @@ function resolveModeBudget(
   }
 
   if (policy.clampToMaxTokens) {
-    budget = Math.min(Math.max(policy.min ?? 1024, budget), maxTokens ?? DEFAULT_MAX_TOKENS)
+    const minimum = policy.min ?? 1024
+    const outputLimit = maxTokens ?? DEFAULT_MAX_TOKENS
+    const maximumBudget = outputLimit - 1
+    if (maximumBudget < minimum) return null
+    budget = Math.min(Math.max(minimum, budget), maximumBudget)
   }
 
   return Math.floor(budget)
@@ -126,6 +130,11 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
   const effort = resolveModeEffort(selection, mode)
   const budgetTokens =
     'budget' in mode ? resolveModeBudget(selection, input.model, mode.budget, input.maxTokens) : undefined
+
+  // `null` means the request's output cap cannot satisfy the wire contract
+  // (for example Anthropic requires budget_tokens < max_tokens). Omit the
+  // whole mode instead of emitting an invalid or partially enabled request.
+  if (budgetTokens === null) return { ...OMIT, selection }
 
   if ('budget' in mode && mode.budget.missing.type === 'omit-mode' && budgetTokens === undefined) {
     return { ...OMIT, selection }

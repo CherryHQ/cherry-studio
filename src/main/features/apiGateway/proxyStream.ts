@@ -158,7 +158,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const provider: Provider = config.provider ?? resolvedProvider
-  const providerOptions = provider ? converter.extractProviderOptions(provider, model, params) : undefined
+  const providerOptions = provider
+    ? converter.extractProviderOptions(provider, model, params, streamOptions.maxOutputTokens)
+    : undefined
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {

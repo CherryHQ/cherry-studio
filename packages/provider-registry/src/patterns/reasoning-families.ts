@@ -66,6 +66,20 @@ export function matchReasoningControls(
   return controls.length ? controls : undefined
 }
 
+/** Return the first matching vocabulary rule's explicit toggle policy. */
+export function matchReasoningTogglePolicy(
+  rawModelId: string,
+  rules: readonly ReasoningFamilyRule[]
+): boolean | undefined {
+  const id = baseName(rawModelId)
+  for (const rule of rules) {
+    if ((rule.effort !== undefined || rule.toggle !== undefined) && ruleRegex(rule.pattern).test(id)) {
+      return rule.toggle
+    }
+  }
+  return undefined
+}
+
 /**
  * Thinking-token limits for a raw catalog id. Tests the raw string so
  * unanchored patterns also match namespaced ids.

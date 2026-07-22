@@ -297,7 +297,12 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
     if (Object.keys(customParams).length > 0) {
       const split = extractAiSdkStandardParams(customParams)
       standardParams = filterStandardParams(split.standardParams, model)
-      providerOptions = mergeCustomProviderParameters(providerOptions, split.providerParams, aiSdkProviderId)
+      providerOptions = mergeCustomProviderParameters(
+        providerOptions,
+        split.providerParams,
+        provider.id,
+        aiSdkProviderId
+      )
     }
   }
 

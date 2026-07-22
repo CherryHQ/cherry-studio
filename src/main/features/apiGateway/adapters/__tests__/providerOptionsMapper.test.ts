@@ -142,7 +142,15 @@ describe('cross-dialect descriptor translation', () => {
       anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 }, sendReasoning: true }
     })
     expect(mapReasoningEffortToProviderOptions(target, anthropicBudgetModel, 'high')).toEqual({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 8192 }, sendReasoning: true }
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 8191 }, sendReasoning: true }
+    })
+  })
+
+  it('clamps a translated Anthropic budget below the request max output tokens', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
+    expect(mapReasoningEffortToProviderOptions(target, anthropicBudgetModel, 'high', 2048)).toEqual({
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 2047 }, sendReasoning: true }
     })
   })
 

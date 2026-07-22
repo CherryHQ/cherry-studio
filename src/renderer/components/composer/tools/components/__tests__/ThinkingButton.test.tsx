@@ -11,8 +11,7 @@ import { ThinkingToolRuntime } from '../ThinkingButton'
 const mocks = vi.hoisted(() => ({
   isGPT5SeriesReasoningModel: vi.fn(),
   isOpenAIWebSearchModel: vi.fn(),
-  isReasoningModel: vi.fn(),
-  useAssistant: vi.fn()
+  isReasoningModel: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -36,16 +35,6 @@ vi.mock('react-i18next', () => ({
       return translations[key] ?? key
     }
   })
-}))
-
-vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: (...args: unknown[]) => mocks.useAssistant(...args)
-}))
-
-vi.mock('@renderer/data/CacheService', () => ({
-  cacheService: {
-    set: vi.fn()
-  }
 }))
 
 vi.mock('@renderer/utils/model', () => ({
@@ -138,16 +127,23 @@ const renderRuntime = (
     launcher = createLauncherApi(),
     model = createModel()
   } = options
-  const updateAssistantSettings = vi.fn()
+  const onReasoningEffortChange = vi.fn()
 
-  mocks.useAssistant.mockReturnValue({ assistant, updateAssistantSettings })
   mocks.isGPT5SeriesReasoningModel.mockReturnValue(isGPT5SeriesReasoningModel)
   mocks.isOpenAIWebSearchModel.mockReturnValue(isOpenAIWebSearchModel)
   mocks.isReasoningModel.mockReturnValue(isReasoningModel)
 
-  render(<ThinkingToolRuntime launcher={launcher} model={model} assistantId={assistant.id} />)
+  render(
+    <ThinkingToolRuntime
+      launcher={launcher}
+      model={model}
+      assistant={assistant}
+      reasoningEffort={assistant.settings.reasoning_effort as ThinkingOption}
+      onReasoningEffortChange={onReasoningEffortChange}
+    />
+  )
 
-  return { launcher, updateAssistantSettings }
+  return { launcher, onReasoningEffortChange }
 }
 
 describe('ThinkingToolRuntime', () => {
@@ -183,7 +179,7 @@ describe('ThinkingToolRuntime', () => {
   })
 
   it('cycles GPT-5 from off to the first supported reasoning level', async () => {
-    const { launcher, updateAssistantSettings } = renderRuntime({
+    const { launcher, onReasoningEffortChange } = renderRuntime({
       assistant: createAssistant({ reasoning_effort: 'none' })
     })
 
@@ -195,9 +191,7 @@ describe('ThinkingToolRuntime', () => {
       source: 'popover'
     })
 
-    expect(updateAssistantSettings).toHaveBeenCalledWith({
-      reasoning_effort: 'minimal'
-    })
+    expect(onReasoningEffortChange).toHaveBeenCalledWith('minimal')
   })
 
   it('renders the toggle+budget vocabulary projected by registry enrichment', async () => {
@@ -307,7 +301,7 @@ describe('ThinkingToolRuntime', () => {
   })
 
   it('keeps OpenAI web search from selecting minimal reasoning', async () => {
-    const { launcher, updateAssistantSettings } = renderRuntime({
+    const { launcher, onReasoningEffortChange } = renderRuntime({
       assistant: createAssistant({ enableWebSearch: true, reasoning_effort: 'none' }),
       isGPT5SeriesReasoningModel: true,
       isOpenAIWebSearchModel: true
@@ -324,6 +318,6 @@ describe('ThinkingToolRuntime', () => {
       })
 
     expect(toast.warning).toHaveBeenCalledWith('Cannot use minimal reasoning with web search')
-    expect(updateAssistantSettings).not.toHaveBeenCalled()
+    expect(onReasoningEffortChange).not.toHaveBeenCalled()
   })
 })

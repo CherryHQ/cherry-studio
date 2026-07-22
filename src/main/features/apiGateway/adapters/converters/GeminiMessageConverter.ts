@@ -332,11 +332,12 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
   extractProviderOptions(
     provider: Provider,
     model: Model,
-    params: GeminiGenerateContentRequest
+    params: GeminiGenerateContentRequest,
+    maxOutputTokens?: number
   ): ProviderOptions | undefined {
     const thinkingConfig = params.generationConfig?.thinkingConfig
     if (!thinkingConfig) return undefined
-    return mapGeminiThinkingToProviderOptions(provider, model, thinkingConfig)
+    return mapGeminiThinkingToProviderOptions(provider, model, thinkingConfig, maxOutputTokens)
   }
 }
 

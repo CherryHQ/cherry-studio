@@ -10,9 +10,8 @@ import {
   MdiLightbulbOn90,
   MdiLightbulbQuestion
 } from '@renderer/components/icons/SvgIcon'
-import { cacheService } from '@renderer/data/CacheService'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
+import type { Assistant } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { isGPT5SeriesReasoningModel, isOpenAIWebSearchModel, isReasoningModel } from '@renderer/utils/model'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
@@ -24,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   launcher: ToolLauncherApi
   model: Model
-  assistantId?: string
+  assistant?: Assistant
   reasoningEffort?: ThinkingOption
   onReasoningEffortChange?: (option: ThinkingOption) => void
 }
@@ -32,19 +31,14 @@ interface Props {
 const useThinkingToolController = ({
   launcher,
   model,
-  assistantId,
+  assistant,
   reasoningEffort: controlledEffort,
   onReasoningEffortChange
 }: Props) => {
   const { t } = useTranslation()
-  const isControlled = controlledEffort !== undefined
-  const { assistant, updateAssistantSettings } = useAssistant(assistantId)
-
   const currentReasoningEffort = useMemo<ThinkingOption>(() => {
-    if (isControlled) return controlledEffort
-    const stored = assistant?.settings.reasoning_effort
-    return (stored ?? 'none') as ThinkingOption
-  }, [isControlled, controlledEffort, assistant?.settings.reasoning_effort])
+    return controlledEffort ?? ((assistant?.settings.reasoning_effort ?? 'default') as ThinkingOption)
+  }, [controlledEffort, assistant?.settings.reasoning_effort])
 
   const supportsReasoning = isReasoningModel(model)
 
@@ -59,20 +53,6 @@ const useThinkingToolController = ({
 
   const onThinkingChange = useCallback(
     (option: ThinkingOption) => {
-      const isEnabled = option !== 'none'
-
-      if (isControlled) {
-        onReasoningEffortChange?.(option)
-        return
-      }
-
-      if (!isEnabled) {
-        cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
-        updateAssistantSettings({
-          reasoning_effort: option
-        })
-        return
-      }
       if (
         isOpenAIWebSearchModel(model) &&
         isGPT5SeriesReasoningModel(model) &&
@@ -82,20 +62,9 @@ const useThinkingToolController = ({
         toast.warning(t('chat.web_search.warning.openai'))
         return
       }
-      cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
-      updateAssistantSettings({
-        reasoning_effort: option
-      })
+      onReasoningEffortChange?.(option)
     },
-    [
-      isControlled,
-      onReasoningEffortChange,
-      updateAssistantSettings,
-      assistantId,
-      assistant?.settings.enableWebSearch,
-      model,
-      t
-    ]
+    [onReasoningEffortChange, assistant?.settings.enableWebSearch, model, t]
   )
 
   const reasoningEffortOptionLabelMap = useMemo(

@@ -1282,7 +1282,10 @@
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://integrate.api.nvidia.com",
           "reasoningFormat": {
-            "type": "openai-chat"
+            "type": "openai-chat",
+            "wire": {
+              "disabled": true
+            }
           }
         }
       },
@@ -1775,11 +1778,18 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Poe - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.poe.com"
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api.poe.com/v1/",
           "reasoningFormat": {
-            "type": "openai-chat"
+            "type": "openai-chat",
+            "wire": {
+              "disabled": true
+            }
           }
         }
       },
@@ -2059,5 +2069,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "13cfe872c27db35b"
+  "version": "0098e5789b9ccc42"
 }

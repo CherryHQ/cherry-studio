@@ -128,7 +128,10 @@ function deriveSelectableEfforts(
 
   let intrinsic: ReasoningEffortType[]
   if (effortControl?.kind === 'effort') {
-    intrinsic = [...effortControl.values]
+    intrinsic = [
+      ...effortControl.values,
+      ...(hasToggle && !effortControl.values.includes(REASONING_EFFORT.NONE) ? [REASONING_EFFORT.NONE] : [])
+    ]
   } else if (!hasDeclaredControls && reasoning.supportedEfforts?.length) {
     intrinsic = [...reasoning.supportedEfforts]
   } else if (hasBudget) {
@@ -581,7 +584,9 @@ class ProviderRegistryService {
     )
     const contract = endpointType ? registryOverride?.reasoningContracts?.[endpointType] : undefined
     const inferredControls =
-      presetModel?.reasoning || contract?.support ? undefined : inferReasoningControls(fallbackModelId)
+      presetModel?.reasoning || contract?.support || !inferReasoningMembership(fallbackModelId)
+        ? undefined
+        : inferReasoningControls(fallbackModelId)
     const reasoning =
       mergeReasoningSupport(presetModel?.reasoning, contract?.support) ??
       (inferredControls ? { controls: inferredControls } : undefined)

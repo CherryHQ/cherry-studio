@@ -251,9 +251,10 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
   extractProviderOptions(
     provider: Provider,
     model: Model,
-    params: ExtendedChatCompletionCreateParams
+    params: ExtendedChatCompletionCreateParams,
+    maxOutputTokens?: number
   ): ProviderOptions | undefined {
-    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort)
+    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }
 

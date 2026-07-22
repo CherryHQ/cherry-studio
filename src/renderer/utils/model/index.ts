@@ -19,7 +19,8 @@ export {
   canModelUseAssistantWebSearch,
   hasModelBuiltinWebSearch,
   reconcileReasoningEffortForModel,
-  reconcileWebSearchForModel
+  reconcileWebSearchForModel,
+  resolveReasoningEffortForModel
 } from './reconcile'
 export { readDefaultModel, readQuickModel, readTranslateModel } from './resolve'
 export { getSearchMatchScore } from './search'

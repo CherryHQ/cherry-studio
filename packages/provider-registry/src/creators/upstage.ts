@@ -7,5 +7,5 @@ export default defineCreator({
   fetchModels: openaiCompatible('https://api.upstage.ai/v1', 'UPSTAGE_API_KEY'),
   modelsDevProviders: ['upstage'],
   idPrefixes: ['solar'],
-  reasoningFamilies: [{ pattern: '^solar-pro-?2' }]
+  reasoningFamilies: [{ pattern: '^solar-pro-?[23]' }]
 })

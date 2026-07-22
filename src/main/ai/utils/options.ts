@@ -125,12 +125,16 @@ export function buildCapabilityProviderOptions(
   const rawProviderId = context.aiSdkProviderId
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
-  const reasoningOptions = capabilities.enableReasoning
+  const resolvedReasoningOptions = capabilities.enableReasoning
     ? encodeReasoningOptions(rawProviderId, context.endpointType, context.reasoning, actualProvider.id)
     : {
         providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : rawProviderId,
         options: {}
       }
+  const reasoningOptions =
+    rawProviderId === 'openai-compatible'
+      ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
+      : resolvedReasoningOptions
 
   let providerSpecificOptions: Record<string, any> = {}
 
@@ -297,26 +301,31 @@ export function buildResolvedReasoningProviderOptions(context: {
 export function mergeCustomProviderParameters(
   providerOptions: Record<string, Record<string, JSONValue>>,
   providerParams: Record<string, any>,
-  rawProviderId: string
+  rawProviderId: string,
+  adapterFamily: AppProviderId = rawProviderId as AppProviderId
 ): Record<string, Record<string, JSONValue>> {
   const actualAiSdkProviderIds = Object.keys(providerOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0]
-
-  if (primaryAiSdkProviderId === 'openai-compatible' && 'reasoning_effort' in providerParams) {
-    if (!('reasoningEffort' in providerParams)) {
-      providerParams.reasoningEffort = providerParams.reasoning_effort
-    }
-    delete providerParams.reasoning_effort
-  }
+  const normalizedProviderParams =
+    adapterFamily === 'openai-compatible' ? normalizeOpenAICompatibleParams(providerParams) : providerParams
 
   let result = providerOptions
-  for (const key of Object.keys(providerParams)) {
+  for (const key of Object.keys(normalizedProviderParams)) {
+    const isProviderNamespace = actualAiSdkProviderIds.includes(key) || key === rawProviderId
+    const value =
+      adapterFamily === 'openai-compatible' &&
+      isProviderNamespace &&
+      normalizedProviderParams[key] !== null &&
+      typeof normalizedProviderParams[key] === 'object' &&
+      !Array.isArray(normalizedProviderParams[key])
+        ? normalizeOpenAICompatibleParams(normalizedProviderParams[key])
+        : normalizedProviderParams[key]
     if (actualAiSdkProviderIds.includes(key)) {
       result = {
         ...result,
         [key]: {
           ...result[key],
-          ...providerParams[key]
+          ...value
         }
       }
     } else if (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId)) {
@@ -325,7 +334,7 @@ export function mergeCustomProviderParameters(
           ...result,
           [key]: {
             ...result[key],
-            ...providerParams[key]
+            ...value
           }
         }
       } else {
@@ -333,7 +342,7 @@ export function mergeCustomProviderParameters(
           ...result,
           [primaryAiSdkProviderId]: {
             ...result[primaryAiSdkProviderId],
-            ...providerParams[key]
+            ...value
           }
         }
       }
@@ -342,12 +351,21 @@ export function mergeCustomProviderParameters(
         ...result,
         [primaryAiSdkProviderId]: {
           ...result[primaryAiSdkProviderId],
-          [key]: providerParams[key]
+          [key]: value
         }
       }
     }
   }
   return result
+}
+
+function normalizeOpenAICompatibleParams(params: Record<string, any>): Record<string, any> {
+  if (!('reasoning_effort' in params)) return params
+
+  const normalized = { ...params }
+  if (!('reasoningEffort' in normalized)) normalized.reasoningEffort = normalized.reasoning_effort
+  delete normalized.reasoning_effort
+  return normalized
 }
 
 function buildOpenAIProviderOptions(

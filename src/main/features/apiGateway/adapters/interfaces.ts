@@ -140,7 +140,12 @@ export interface IMessageConverter<TInputParams = unknown> {
    * Extract provider-specific options from input params
    * Handles thinking/reasoning configuration based on provider type
    */
-  extractProviderOptions(provider: Provider, model: Model, params: TInputParams): ProviderOptions | undefined
+  extractProviderOptions(
+    provider: Provider,
+    model: Model,
+    params: TInputParams,
+    maxOutputTokens?: number
+  ): ProviderOptions | undefined
 }
 
 /**

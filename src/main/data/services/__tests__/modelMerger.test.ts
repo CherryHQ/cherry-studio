@@ -383,6 +383,27 @@ describe('mergePresetModel — reasoning', () => {
     expect(model.reasoning?.selectableEfforts).toEqual(['high', 'max'])
   })
 
+  it('adds none when an endpoint exposes both effort and toggle controls', () => {
+    const preset = {
+      id: 'hybrid-effort-model',
+      name: 'Hybrid Effort Model',
+      capabilities: ['reasoning'],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }, { kind: 'toggle' }]
+      }
+    } as any
+    const wire = {
+      off: {
+        operations: [{ target: 'reasoning.enabled' as const, value: { source: 'literal' as const, value: false } }]
+      },
+      effort: { operations: [{ target: 'reasoning.effort' as const, value: { source: 'effort' as const } }] }
+    }
+
+    const model = mergePresetModel(preset, null, 'provider', wire)
+
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'none'])
+  })
+
   it('prefers an endpoint-keyed model contract over the endpoint wire', () => {
     const endpointWire = {
       effort: { operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }] }
