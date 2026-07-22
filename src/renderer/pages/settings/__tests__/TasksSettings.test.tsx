@@ -726,6 +726,29 @@ describe('TasksSettings task logs', () => {
     await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
   })
 
+  it('preserves an unblurred prompt draft when another field save fails', async () => {
+    const nameSave = createDeferred<typeof taskDataMock.task | undefined>()
+    taskMutationMocks.updateTask.mockReturnValueOnce(nameSave.promise)
+
+    render(<TasksSettings />)
+
+    const nameInput = await screen.findByDisplayValue('Daily task')
+    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
+    fireEvent.blur(nameInput)
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+    const promptInput = screen.getByDisplayValue('Run daily summary')
+    fireEvent.focus(promptInput)
+    fireEvent.change(promptInput, { target: { value: 'New uncommitted prompt' } })
+
+    await act(async () => nameSave.resolve(undefined))
+
+    expect(screen.getByDisplayValue('New uncommitted prompt')).toBeInTheDocument()
+    expect(taskMutationMocks.updateTask).not.toHaveBeenCalledWith('agent-1', 'task-1', {
+      prompt: 'New uncommitted prompt'
+    })
+  })
+
   it('runs before saves appended after the run action', async () => {
     const firstSave = createDeferred<typeof taskDataMock.task>()
     const secondSave = createDeferred<typeof taskDataMock.task>()
@@ -778,6 +801,32 @@ describe('TasksSettings task logs', () => {
     await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(2))
     await act(async () => secondSave.resolve({ ...taskDataMock.task, name: 'Edited after run' }))
     await waitFor(() => expect(screen.getByDisplayValue('Edited after run')).toBeInTheDocument())
+  })
+
+  it('refreshes the task only once after running', async () => {
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.tasks.logs.viewSession')
+    await act(async () => {})
+    dataApiMock.get.mockClear()
+    vi.useFakeTimers()
+
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+      fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+
+      await act(async () => {})
+      expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000)
+      })
+
+      const taskRefreshCalls = dataApiMock.get.mock.calls.filter(([path]) => path === '/agents/agent-1/tasks/task-1')
+      expect(taskRefreshCalls).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it.each([
@@ -844,6 +893,25 @@ describe('TasksSettings task logs', () => {
     await act(async () => {})
     expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
     expect(taskMutationMocks.updateTask).not.toHaveBeenCalledWith('agent-1', 'task-1', { enabled: true })
+  })
+
+  it('pauses when a preceding configuration save fails', async () => {
+    const save = createDeferred<typeof taskDataMock.task | undefined>()
+    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
+
+    render(<TasksSettings />)
+
+    const nameInput = await screen.findByDisplayValue('Daily task')
+    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
+    fireEvent.blur(nameInput)
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
+    await act(async () => save.resolve(undefined))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', { enabled: false })
+    )
   })
 
   it('toggles the selected task status from the header switch', async () => {
