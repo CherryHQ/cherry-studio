@@ -155,6 +155,33 @@ describe('syncMcpToolsToRegistry', () => {
     expect(reg.getByName('mcp__flaky__stale')).toBeDefined()
   })
 
+  it('evicts a locally-disabled tool immediately even when the cache snapshot is stale', async () => {
+    const reg = new ToolRegistry()
+    // Pre-existing entry from a previous sync.
+    reg.register({
+      name: 'mcp__srv__old_bug',
+      namespace: 'mcp:srv',
+      description: 'now disabled by user',
+      defer: 'auto',
+      tool: { description: '' } as unknown as Tool
+    } satisfies ToolEntry)
+
+    list.mockReturnValue({
+      items: [
+        { id: 'srv', name: 'srv', isActive: true, disabledTools: ['mcp__srv__old_bug'], disabledAutoApproveTools: [] }
+      ]
+    })
+    // Stale cache still has the previous snapshot including the now-disabled tool.
+    listTools.mockReturnValue({ tools: [mcpTool('srv', 'old_bug'), mcpTool('srv', 'ok')], fresh: false })
+
+    await syncMcpToolsToRegistry(reg)
+
+    // Locally-disabled tool is evicted regardless of stale/fresh status.
+    expect(reg.getByName('mcp__srv__old_bug')).toBeUndefined()
+    // Enabled tool is kept (stale fallback preserves last-known-good).
+    expect(reg.getByName('mcp__srv__ok')).toBeDefined()
+  })
+
   it('evicts removed/disabled tools on a successful empty refresh (fresh:true with [])', async () => {
     const reg = new ToolRegistry()
     // Pre-existing entry that the server no longer offers.
