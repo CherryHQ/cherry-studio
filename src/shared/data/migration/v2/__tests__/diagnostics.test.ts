@@ -10,19 +10,25 @@ import {
 
 describe('getMigrationDiagnosticNoticeParts', () => {
   it.each<[MigrationDiagnosticSavedResult, readonly MigrationDiagnosticNoticePart[]]>([
-    [{ status: 'saved', logs: 'included', size: 'standard' }, ['logs_included', 'attachment_required']],
+    [
+      { status: 'saved', logs: 'included', size: 'standard' },
+      ['logs_included', 'not_transmitted', 'attachment_required']
+    ],
     [
       { status: 'saved', logs: 'not_included', retry: 'suggested', size: 'standard' },
-      ['logs_not_included_retry_suggested', 'attachment_required']
+      ['logs_not_included_retry_suggested', 'not_transmitted', 'attachment_required']
     ],
     [
       { status: 'saved', logs: 'not_included', retry: 'not_suggested', size: 'standard' },
-      ['logs_not_included_retry_not_suggested', 'attachment_required']
+      ['logs_not_included_retry_not_suggested', 'not_transmitted', 'attachment_required']
     ],
-    [{ status: 'saved', logs: 'included', size: 'large' }, ['logs_included', 'attachment_required_large']],
+    [
+      { status: 'saved', logs: 'included', size: 'large' },
+      ['logs_included', 'not_transmitted', 'attachment_required_large']
+    ],
     [
       { status: 'saved', logs: 'not_included', retry: 'suggested', size: 'large' },
-      ['logs_not_included_retry_suggested', 'attachment_required_large']
+      ['logs_not_included_retry_suggested', 'not_transmitted', 'attachment_required_large']
     ]
   ])('returns the ordered notice parts for %o', (result, expected) => {
     expect(getMigrationDiagnosticNoticeParts(result)).toEqual(expected)

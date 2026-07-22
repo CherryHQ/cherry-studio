@@ -89,7 +89,8 @@ const diagnosticNoticeMessageKey: Record<
 > = {
   logs_included: 'migration.diagnostics.saved.logs_included',
   logs_not_included_retry_suggested: 'migration.diagnostics.saved.logs_not_included_retry_suggested',
-  logs_not_included_retry_not_suggested: 'migration.diagnostics.saved.logs_not_included_retry_not_suggested'
+  logs_not_included_retry_not_suggested: 'migration.diagnostics.saved.logs_not_included_retry_not_suggested',
+  not_transmitted: 'migration.diagnostics.saved.not_transmitted'
 }
 
 const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({ tone = 'neutral', children }) => (

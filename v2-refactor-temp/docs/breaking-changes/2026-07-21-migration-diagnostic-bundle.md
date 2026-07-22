@@ -18,7 +18,8 @@ The bundle provides basic migration diagnostics and, when available, every appli
 user's local calendar day at save time. The log set is all-or-none: if any matching log cannot be
 read consistently, the ZIP keeps the basic diagnostics and records why logs were omitted. Logs are
 not redacted and may contain file paths, error stacks, user content, or credentials; the app never
-uploads, attaches, or sends the ZIP or email automatically.
+uploads, attaches, or sends the ZIP or email automatically, and every successful save states this
+explicitly.
 
 ## What the user should do
 

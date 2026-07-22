@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { groupTable } from '@data/db/schemas/group'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import type { MigrationProgress } from '@shared/data/migration/v2/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
@@ -251,6 +252,76 @@ describe('MigrationEngine', () => {
     await engine.run({})
     expect(engine.getLastDiagnosticFailure()).toBeUndefined()
 
+    errorSpy.mockRestore()
+  })
+
+  it.each(['prepare', 'execute', 'validate'] as const)(
+    'publishes a terminal failed status when a migrator %s step reports failure',
+    async (phase) => {
+      const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+      const events: string[] = []
+      const completed = createTestMigrator('completed', 1, events)
+      const failing = createTestMigrator('failing', 2, events)
+      const pending = createTestMigrator('pending', 3, events)
+      const expectedError = `failing ${phase === 'validate' ? 'validation' : phase} failed: ${phase} rejected`
+      if (phase === 'prepare') {
+        failing.prepare.mockResolvedValueOnce({
+          success: false,
+          itemCount: 0,
+          error: 'prepare rejected'
+        } as any)
+      } else if (phase === 'execute') {
+        failing.execute.mockResolvedValueOnce({
+          success: false,
+          processedCount: 0,
+          error: 'execute rejected'
+        } as any)
+      } else {
+        failing.validate.mockResolvedValueOnce({
+          success: false,
+          errors: [{ key: 'failing', message: 'validate rejected' }],
+          stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
+        } as any)
+      }
+      engine.registerMigrators([pending as any, failing as any, completed as any])
+      const progress: MigrationProgress[] = []
+      engine.onProgress((update) => progress.push(update))
+
+      const result = await engine.run({})
+
+      expect(result).toMatchObject({ success: false, error: expectedError })
+      expect(progress.at(-1)?.migrators).toEqual([
+        expect.objectContaining({ id: 'completed', status: 'completed' }),
+        expect.objectContaining({ id: 'failing', status: 'failed' }),
+        expect.objectContaining({ id: 'pending', status: 'pending' })
+      ])
+      expect(
+        progress
+          .map((update) => update.migrators.find((migrator) => migrator.id === 'failing')?.status)
+          .filter((status) => status === 'running' || status === 'failed')
+      ).toEqual(['running', 'failed'])
+      expect(failing.prepare).toHaveBeenCalledOnce()
+      expect(failing.execute).toHaveBeenCalledTimes(phase === 'prepare' ? 0 : 1)
+      expect(failing.validate).toHaveBeenCalledTimes(phase === 'validate' ? 1 : 0)
+      errorSpy.mockRestore()
+    }
+  )
+
+  it('keeps completed migrators completed when a post-migrator engine step fails', async () => {
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    const events: string[] = []
+    const completed = createTestMigrator('completed', 1, events)
+    engine.registerMigrators([completed as any])
+    vi.mocked((engine as any).verifyForeignKeys).mockImplementationOnce(() => {
+      throw new Error('foreign key check exploded')
+    })
+    const progress: MigrationProgress[] = []
+    engine.onProgress((update) => progress.push(update))
+
+    const result = await engine.run({})
+
+    expect(result).toMatchObject({ success: false, error: 'foreign key check exploded' })
+    expect(progress.at(-1)?.migrators).toEqual([expect.objectContaining({ id: 'completed', status: 'completed' })])
     errorSpy.mockRestore()
   })
 

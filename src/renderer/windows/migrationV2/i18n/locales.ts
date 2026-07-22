@@ -124,6 +124,7 @@ export const zhCN = {
         logs_not_included_retry_suggested:
           '诊断包已保存，但当天应用日志未能加入。您可以重新保存；当前诊断包仍可用于排查。',
         logs_not_included_retry_not_suggested: '诊断包已保存，但当天应用日志未能加入。',
+        not_transmitted: '诊断包已保存到本地，未被自动上传、附加或发送。',
         attachment: {
           emphasis: '发送邮件时请务必手动添加完整诊断包附件',
           detail: '，预填邮件不包含附件。',
@@ -282,6 +283,8 @@ export const enUS = {
           "The diagnostic bundle was saved, but today's application logs could not be included. You can save again; the current bundle is still useful.",
         logs_not_included_retry_not_suggested:
           "The diagnostic bundle was saved, but today's application logs could not be included.",
+        not_transmitted:
+          'The diagnostic bundle was saved locally and was not uploaded, attached, or sent automatically.',
         attachment: {
           emphasis: 'When emailing support, be sure to manually attach the complete diagnostic bundle',
           detail: '. The prefilled email does not include an attachment.',

@@ -245,6 +245,9 @@ export class MigrationEngine {
     this.lastDiagnosticFailure = undefined
     const startTime = Date.now()
     const results: MigratorResult[] = []
+    let activeMigrator: BaseMigrator | undefined
+    let activeMigratorIndex = -1
+    let activeMigratorProgress = 0
 
     try {
       for (const migrator of this.migrators) {
@@ -266,6 +269,9 @@ export class MigrationEngine {
       for (let i = 0; i < this.migrators.length; i++) {
         const migrator = this.migrators[i]
         const migratorStartTime = Date.now()
+        activeMigrator = migrator
+        activeMigratorIndex = i
+        activeMigratorProgress = 0
 
         logger.info(`Starting migrator: ${migrator.name}`, { id: migrator.id })
 
@@ -274,6 +280,7 @@ export class MigrationEngine {
 
         // Set up migrator progress callback
         migrator.setProgressCallback((progress, progressMessage) => {
+          activeMigratorProgress = progress
           this.updateProgress('migration', this.calculateProgress(i, progress), migrator, progressMessage)
         })
 
@@ -323,7 +330,8 @@ export class MigrationEngine {
         })
 
         // Update progress: migrator completed
-        this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator)
+        this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator, undefined, 'completed')
+        activeMigrator = undefined
       }
 
       // Verify FK integrity after all inserts (FK was off during bulk inserts)
@@ -348,6 +356,15 @@ export class MigrationEngine {
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
       const errorMessage = err.message
+      if (activeMigrator) {
+        this.updateProgress(
+          'migration',
+          this.calculateProgress(activeMigratorIndex, activeMigratorProgress),
+          activeMigrator,
+          undefined,
+          'failed'
+        )
+      }
       let diagnosticFailure: MigrationDiagnosticFailure = {
         code: 'migration_engine_failed',
         origin: 'main',
@@ -533,12 +550,13 @@ export class MigrationEngine {
     stage: MigrationStage,
     overallProgress: number,
     currentMigrator: BaseMigrator,
-    progressMessage?: ProgressMessage
+    progressMessage?: ProgressMessage,
+    currentMigratorStatus: Extract<MigratorStatus, 'running' | 'completed' | 'failed'> = 'running'
   ): void {
     const migratorsProgress = this.migrators.map((m) => ({
       id: m.id,
       name: m.name,
-      status: this.getMigratorStatus(m, currentMigrator)
+      status: this.getMigratorStatus(m, currentMigrator, currentMigratorStatus)
     }))
 
     const defaultMessage = `Processing ${currentMigrator.name}...`
@@ -556,9 +574,13 @@ export class MigrationEngine {
   /**
    * Determine migrator status based on execution order
    */
-  private getMigratorStatus(migrator: BaseMigrator, current: BaseMigrator): MigratorStatus {
+  private getMigratorStatus(
+    migrator: BaseMigrator,
+    current: BaseMigrator,
+    currentStatus: Extract<MigratorStatus, 'running' | 'completed' | 'failed'>
+  ): MigratorStatus {
     if (migrator.order < current.order) return 'completed'
-    if (migrator.order === current.order) return 'running'
+    if (migrator.order === current.order) return currentStatus
     return 'pending'
   }
 

@@ -189,6 +189,14 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
         error: serializeMigrationDiagnosticError(result.error, result.targetPath)
       }
       recordDiagnosticFailure(failure)
+      const message = failure.error?.message ?? failure.code
+      updateProgress({
+        stage: 'error',
+        overallProgress: currentProgress.overallProgress,
+        currentMessage: message,
+        migrators: currentProgress.migrators,
+        error: message
+      })
       logger.error('Error writing migration export', result.error as Error, {
         operation: result.operation,
         runId: activeDiagnosticRun?.id

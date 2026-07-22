@@ -98,6 +98,7 @@ export type MigrationDiagnosticNoticePart =
   | 'logs_included'
   | 'logs_not_included_retry_suggested'
   | 'logs_not_included_retry_not_suggested'
+  | 'not_transmitted'
   | 'attachment_required'
   | 'attachment_required_large'
 
@@ -174,6 +175,6 @@ export function getMigrationDiagnosticNoticeParts(
         : 'logs_not_included_retry_not_suggested'
   ]
 
-  parts.push(result.size === 'large' ? 'attachment_required_large' : 'attachment_required')
+  parts.push('not_transmitted', result.size === 'large' ? 'attachment_required_large' : 'attachment_required')
   return parts
 }

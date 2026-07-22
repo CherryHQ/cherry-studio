@@ -751,6 +751,7 @@ describe('MigrationApp', () => {
         { status: 'saved', logs: 'included', size: 'standard' },
         [
           'migration.diagnostics.saved.logs_included',
+          'migration.diagnostics.saved.not_transmitted',
           'migration.diagnostics.saved.attachment.emphasismigration.diagnostics.saved.attachment.detail'
         ]
       ],
@@ -758,6 +759,7 @@ describe('MigrationApp', () => {
         { status: 'saved', logs: 'included', size: 'large' },
         [
           'migration.diagnostics.saved.logs_included',
+          'migration.diagnostics.saved.not_transmitted',
           'migration.diagnostics.saved.attachment.emphasismigration.diagnostics.saved.attachment.detailmigration.diagnostics.saved.attachment.large_suffix'
         ]
       ],
@@ -765,6 +767,7 @@ describe('MigrationApp', () => {
         { status: 'saved', logs: 'not_included', retry: 'suggested', size: 'standard' },
         [
           'migration.diagnostics.saved.logs_not_included_retry_suggested',
+          'migration.diagnostics.saved.not_transmitted',
           'migration.diagnostics.saved.attachment.emphasismigration.diagnostics.saved.attachment.detail'
         ]
       ],
@@ -772,6 +775,7 @@ describe('MigrationApp', () => {
         { status: 'saved', logs: 'not_included', retry: 'not_suggested', size: 'large' },
         [
           'migration.diagnostics.saved.logs_not_included_retry_not_suggested',
+          'migration.diagnostics.saved.not_transmitted',
           'migration.diagnostics.saved.attachment.emphasismigration.diagnostics.saved.attachment.detailmigration.diagnostics.saved.attachment.large_suffix'
         ]
       ]
@@ -969,6 +973,7 @@ describe('MigrationApp', () => {
         logs_not_included_retry_suggested:
           '诊断包已保存，但当天应用日志未能加入。您可以重新保存；当前诊断包仍可用于排查。',
         logs_not_included_retry_not_suggested: '诊断包已保存，但当天应用日志未能加入。',
+        not_transmitted: '诊断包已保存到本地，未被自动上传、附加或发送。',
         attachment: {
           emphasis: '发送邮件时请务必手动添加完整诊断包附件',
           detail: '，预填邮件不包含附件。',
@@ -980,6 +985,7 @@ describe('MigrationApp', () => {
       expect(enUS.migration.diagnostics.saved.logs_not_included_retry_not_suggested).toBe(
         "The diagnostic bundle was saved, but today's application logs could not be included."
       )
+      expect(enUS.migration.diagnostics.saved.not_transmitted).toMatch(/not uploaded, attached, or sent automatically/i)
       expect(enUS.migration.diagnostics.saved.attachment.emphasis).toMatch(
         /manually attach.*complete diagnostic bundle/i
       )

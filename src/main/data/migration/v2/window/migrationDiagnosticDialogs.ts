@@ -55,6 +55,7 @@ const NOTICE_KEYS = {
   logs_included: 'notice.logsIncluded',
   logs_not_included_retry_suggested: 'notice.logsNotIncludedRetrySuggested',
   logs_not_included_retry_not_suggested: 'notice.logsNotIncludedRetryNotSuggested',
+  not_transmitted: 'notice.notTransmitted',
   attachment_required: 'notice.attachmentRequired',
   attachment_required_large: 'notice.attachmentRequiredLarge'
 } as const

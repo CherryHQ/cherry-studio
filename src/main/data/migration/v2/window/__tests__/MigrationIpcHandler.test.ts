@@ -1,5 +1,10 @@
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
 import { clipboard, ipcMain, shell } from 'electron'
+import StreamZip from 'node-stream-zip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Shared mock fns so each test can configure return values.
@@ -76,6 +81,7 @@ vi.mock('../MigrationWindowManager', () => ({
   }
 }))
 
+import { MigrationDiagnosticBundleBuilder } from '../../diagnostics'
 import {
   registerMigrationIpcHandlers,
   resetMigrationData,
@@ -275,6 +281,59 @@ describe('MigrationIpcHandler', () => {
         }
       }
     })
+  })
+
+  it('saves the Main export failure as the current error summary in the diagnostic JSON', async () => {
+    const workDirectory = await mkdtemp(join(tmpdir(), 'migration-ipc-diagnostic-'))
+    const logsDirectory = join(workDirectory, 'logs')
+    const destination = join(workDirectory, 'diagnostics.zip')
+    await mkdir(logsDirectory)
+
+    try {
+      await invoke(MigrationIpcChannels.BeginRun, { runId: 'run-write' })
+      const writeError = Object.assign(new Error('permission denied'), {
+        code: 'EACCES',
+        syscall: 'open'
+      })
+      engineMock.writeExportFile.mockResolvedValueOnce({
+        ok: false,
+        operation: 'write_export_file',
+        targetPath: `${migrationPaths.dexieExportDir}/topics.json`,
+        error: writeError
+      })
+      diagnosticSaveDialogMock.mockImplementationOnce(async (context) => {
+        const result = await new MigrationDiagnosticBundleBuilder({
+          clock: () => new Date('2026-07-22T12:00:00.000Z'),
+          applicationMetadata: { version: '2.0.0-test', platform: 'darwin', arch: 'arm64' }
+        }).save({ destination, logsDirectory, context })
+        return { result, destination }
+      })
+
+      await invoke(MigrationIpcChannels.WriteExportFile, {
+        target: 'dexie',
+        tableName: 'topics',
+        jsonData: '[]'
+      })
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+
+      const zip = new StreamZip.async({ file: destination })
+      try {
+        const document = JSON.parse((await zip.entryData('migration-diagnostics.json')).toString('utf8'))
+        expect(document.migration).toMatchObject({
+          stage: 'error',
+          errorSummary: 'permission denied',
+          failureCode: 'export_file_write_failed',
+          failure: {
+            code: 'export_file_write_failed',
+            error: { message: 'permission denied' }
+          }
+        })
+      } finally {
+        await zip.close()
+      }
+    } finally {
+      await rm(workDirectory, { recursive: true, force: true })
+    }
   })
 
   it('rejects unknown Dexie tables before the engine can write', async () => {
