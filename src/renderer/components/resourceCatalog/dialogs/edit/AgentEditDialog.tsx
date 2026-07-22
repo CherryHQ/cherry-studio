@@ -19,7 +19,6 @@ import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
-import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
@@ -357,19 +356,28 @@ function AgentEditDialogContent({
   // On close with a pending edit, flush through the same serialized save queue and
   // only close once it settles — so a failed final save stays visible instead of
   // being silently dropped, and we never race a second concurrent save.
+  const attemptClose = async (): Promise<boolean> => {
+    if (canPersist || hasInFlightSave()) {
+      await flush()
+      if (saveFailedRef.current) return false
+    }
+    onOpenChange(false)
+    return true
+  }
   const handleOpenChange = (next: boolean) => {
-    if (next || (!canPersist && !hasInFlightSave())) {
-      onOpenChange(next)
+    if (next) {
+      onOpenChange(true)
       return
     }
-    void (async () => {
-      await flush()
-      if (saveFailedRef.current) return
-      onOpenChange(false)
-    })()
+    void attemptClose()
   }
-  // Route the settings-navigate close through handleOpenChange so it flushes too.
-  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
+  // Settings navigation must wait for the same awaitable close attempt: navigate on
+  // the next frame only if the flush succeeded and the dialog actually closed.
+  const handleSettingsNavigate = (action: () => void) => {
+    void attemptClose().then((closed) => {
+      if (closed) window.requestAnimationFrame(() => action())
+    })
+  }
 
   return (
     <EditDialogShell
@@ -394,7 +402,7 @@ function AgentEditDialogContent({
             patchAgentForm={patchAgentForm}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
-            onSettingsNavigate={closeBeforeAction}
+            onSettingsNavigate={handleSettingsNavigate}
           />
         </TabsContent>
         <TabsContent

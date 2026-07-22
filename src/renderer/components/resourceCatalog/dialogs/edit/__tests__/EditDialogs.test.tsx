@@ -1280,6 +1280,68 @@ describe('edit dialogs', () => {
     frames.restore()
   })
 
+  it('runs model settings navigation only after the pending assistant save flushes and the dialog closes', async () => {
+    let resolveSave: (() => void) | undefined
+    updateAssistantMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = () => resolve({ ...ASSISTANT, name: 'Nav Edit' })
+        })
+    )
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    const frames = mockDeferredAnimationFrames()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Nav Edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Open model settings' }))
+
+    // The navigation click flushes the pending edit and must wait for it to settle.
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    frames.flushAllFrames()
+    expect(settingsNavigateMock).not.toHaveBeenCalled()
+
+    resolveSave?.()
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    frames.flushAllFrames()
+    expect(settingsNavigateMock).toHaveBeenCalledTimes(1)
+    frames.restore()
+  })
+
+  it('does not run model settings navigation when the pending assistant save fails', async () => {
+    updateAssistantMock.mockRejectedValue(new Error('Network down'))
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    const frames = mockDeferredAnimationFrames()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Broken Assistant' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Open model settings' }))
+
+    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    frames.flushAllFrames()
+    expect(settingsNavigateMock).not.toHaveBeenCalled()
+    frames.restore()
+  })
+
+  it('does not run model settings navigation when the pending agent save fails', async () => {
+    updateAgentMock.mockRejectedValue(new Error('Network down'))
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    const frames = mockDeferredAnimationFrames()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Broken Agent' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open model settings' })[0])
+
+    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    frames.flushAllFrames()
+    expect(settingsNavigateMock).not.toHaveBeenCalled()
+    frames.restore()
+  })
+
   it('keeps popover content inside the dialog container', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
