@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  colonVariantTagToHyphen,
   expandKnownPrefixes,
   normalizeModelId,
   normalizeVersionSeparators,
@@ -161,21 +162,37 @@ describe('normalizeModelId — spelling variants collapse to one canonical', () 
     expect(normalizeModelId('claude-sonnet-4-5-20250929')).toBe(normalizeModelId('claude-sonnet-4-5'))
   })
 
-  it('strips a colon-delimited size/quant tag so registry-tagged ids match the catalog', () => {
-    // The `:tag` encodes size/quant, not identity; the catalog id never has it. Local runners such as
-    // Ollama emit this form (`qwen2.5:7b`, `gpt-oss:20b`), but the rule is provider-agnostic.
-    expect(normalizeModelId('gpt-oss:20b')).toBe(normalizeModelId('gpt-oss-20b'))
-    expect(normalizeModelId('qwen2.5:7b')).toBe(normalizeModelId('qwen2-5'))
-    expect(normalizeModelId('mixtral:8x7b')).toBe(normalizeModelId('mixtral'))
-    // compound size + variant + quant tag, and a bare quantization tag
-    expect(normalizeModelId('llama3.2:30b-a3b-q4_K_M')).toBe(normalizeModelId('llama3.2'))
-    expect(normalizeModelId('gemma3:q8_0')).toBe(normalizeModelId('gemma3'))
+  it('the default (size-agnostic) key still collapses sizes for fuzzy matching', () => {
+    // This collapse is exactly why colon-tagged ids need the size-preserving key below: `gpt-oss:20b`
+    // must not resolve through here (it would land on whichever `gpt-oss` sibling was indexed first).
+    expect(normalizeModelId('gpt-oss-20b')).toBe('gpt-oss')
+    expect(normalizeModelId('gpt-oss-120b')).toBe('gpt-oss')
+  })
+})
+
+describe('registry-tag colon size/quant tags — size-preserving normalization', () => {
+  it('realigns a colon size/quant tag to the catalog hyphen spelling', () => {
+    // Local runners such as Ollama spell a variant with a `:tag` (`qwen2.5:7b`, `gpt-oss:20b`); the rule
+    // is provider-agnostic. Only a size/quant LEADER is realigned.
+    expect(colonVariantTagToHyphen('gpt-oss:20b')).toBe('gpt-oss-20b')
+    expect(colonVariantTagToHyphen('qwen2.5:7b')).toBe('qwen2.5-7b')
+    expect(colonVariantTagToHyphen('mixtral:8x7b')).toBe('mixtral-8x7b')
+    expect(colonVariantTagToHyphen('llama3.2:30b-a3b-q4_K_M')).toBe('llama3.2-30b-a3b-q4_K_M')
+    expect(colonVariantTagToHyphen('gemma3:q8_0')).toBe('gemma3-q8_0')
+    // a word tag (allowlist) and a Bedrock revision are NOT size/quant leaders — left untouched here
+    expect(colonVariantTagToHyphen('some-model:free')).toBe('some-model:free')
+    expect(colonVariantTagToHyphen('some-model:0')).toBe('some-model:0')
   })
 
-  it('does NOT strip a bedrock revision or a non-size word tag as if it were a size', () => {
-    // `:0` is a bedrock revision (handled by stripBedrockRevision), not an Ollama size tag.
-    expect(stripVariantSuffixes('some-model:0')).toBe('some-model:0')
-    // a word after the colon is not a size/quant leader, so this pass leaves it for the allowlist.
-    expect(stripVariantSuffixes('some-model:custom')).toBe('some-model:custom')
+  it('keepParameterSize keeps distinct sizes distinct instead of collapsing them', () => {
+    // `:20b` and `:120b` must produce DIFFERENT keys (the default key collapses both to `gpt-oss`).
+    expect(normalizeModelId('gpt-oss:20b', { keepParameterSize: true })).toBe('gpt-oss-20b')
+    expect(normalizeModelId('gpt-oss:120b', { keepParameterSize: true })).toBe('gpt-oss-120b')
+    // a colon-tagged pull and the catalog's hyphen-sized id share one size-preserving key
+    expect(normalizeModelId('gpt-oss:20b', { keepParameterSize: true })).toBe(
+      normalizeModelId('gpt-oss-20b', { keepParameterSize: true })
+    )
+    // dots still fold to the catalog dash spelling, size retained
+    expect(normalizeModelId('qwen2.5:7b', { keepParameterSize: true })).toBe('qwen2-5-7b')
   })
 })
