@@ -7,6 +7,7 @@
 
 import * as z from 'zod'
 
+import { AssistantIdSchema } from '../../types/assistant'
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -37,19 +38,19 @@ export const UpdateTopicSchema = TopicSchema.pick({
 })
   .partial()
   .extend({
-    assistantId: z.string().nullable().optional()
+    assistantId: AssistantIdSchema.nullable().optional()
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /** Atomically move a topic to a live Assistant at one visible-neighbour position. */
 export const MoveTopicSchema = z.strictObject({
-  assistantId: z.uuidv4(),
+  assistantId: AssistantIdSchema,
   order: z.union([z.strictObject({ before: z.string().min(1) }), z.strictObject({ after: z.string().min(1) })])
 })
 export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
 
 /** A concrete live Assistant id, or the reserved unlinked-owner scope. */
-export const TopicOwnerScopeSchema = z.union([z.uuidv4(), z.literal('unlinked')])
+export const TopicOwnerScopeSchema = z.union([AssistantIdSchema, z.literal('unlinked')])
 export type TopicOwnerScope = z.infer<typeof TopicOwnerScopeSchema>
 
 export const TopicSortBySchema = z.enum(['createdAt', 'lastActivityAt', 'orderKey'])
@@ -117,7 +118,7 @@ export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
  * not include topics whose former assistant was soft-deleted.
  */
 export const ReusableTopicPlaceholderQuerySchema = z.strictObject({
-  assistantId: z.union([z.uuidv4(), z.literal('unassigned')])
+  assistantId: z.union([AssistantIdSchema, z.literal('unassigned')])
 })
 export type ReusableTopicPlaceholderQuery = z.infer<typeof ReusableTopicPlaceholderQuerySchema>
 

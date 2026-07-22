@@ -40,6 +40,13 @@ describe('ReusableTopicPlaceholderQuerySchema', () => {
 })
 
 describe('CreateTopicSchema', () => {
+  it('accepts UUID assistant ownership and rejects legacy sentinels or arbitrary ids', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
+    expect(CreateTopicSchema.parse({ assistantId })).toEqual({ assistantId })
+    expect(CreateTopicSchema.safeParse({ assistantId: 'default' }).success).toBe(false)
+    expect(CreateTopicSchema.safeParse({ assistantId: 'assistant-1' }).success).toBe(false)
+  })
+
   it.each(['sourceNodeId', 'groupId'])('rejects unsupported key %s', (key) => {
     expect(() => CreateTopicSchema.parse({ [key]: 'value' })).toThrow(/unrecognized/i)
   })
@@ -56,16 +63,22 @@ describe('UpdateTopicSchema', () => {
   })
 
   it('accepts allowed fields', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
     const parsed = UpdateTopicSchema.parse({
       name: 'n',
       isNameManuallyEdited: true,
-      assistantId: 'a1'
+      assistantId
     })
-    expect(parsed).toEqual({ name: 'n', isNameManuallyEdited: true, assistantId: 'a1' })
+    expect(parsed).toEqual({ name: 'n', isNameManuallyEdited: true, assistantId })
   })
 
   it('accepts null assistantId to clear default-assistant ownership', () => {
     expect(UpdateTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
+  })
+
+  it('rejects legacy sentinels and arbitrary assistant ids', () => {
+    expect(UpdateTopicSchema.safeParse({ assistantId: 'default' }).success).toBe(false)
+    expect(UpdateTopicSchema.safeParse({ assistantId: 'assistant-1' }).success).toBe(false)
   })
 })
 

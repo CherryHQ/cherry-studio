@@ -6,6 +6,7 @@
 
 import * as z from 'zod'
 
+import { AssistantIdSchema } from './assistant'
 import { TraceIdSchema } from './trace'
 
 export const TopicIdSchema = z.uuidv4()
@@ -28,7 +29,7 @@ export const TopicSchema = z.strictObject({
   /** Whether the name was manually edited by user */
   isNameManuallyEdited: z.boolean(),
   /** Last-used assistant ID (updated on message send) */
-  assistantId: z.string().optional(),
+  assistantId: AssistantIdSchema.optional(),
   /** Active node ID in the message tree */
   activeNodeId: z.string().optional(),
   /** Container-level OTel trace id */

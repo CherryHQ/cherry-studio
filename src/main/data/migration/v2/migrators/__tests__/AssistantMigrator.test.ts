@@ -72,9 +72,14 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
   }
 }
 
+// The supported migration source is final v1, where non-default assistant IDs
+// come from uuidv4(). Keep the common fixture faithful to that production shape;
+// targeted malformed-source tests below use synthetic IDs where the ID is incidental.
+const SAMPLE_ASSISTANT_IDS = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'] as const
+
 const SAMPLE_ASSISTANTS = [
   {
-    id: 'ast-1',
+    id: SAMPLE_ASSISTANT_IDS[0],
     name: 'Assistant One',
     prompt: 'You are helpful',
     emoji: '🤖',
@@ -83,7 +88,7 @@ const SAMPLE_ASSISTANTS = [
     knowledge_bases: [{ id: 'kb-1' }]
   },
   {
-    id: 'ast-2',
+    id: SAMPLE_ASSISTANT_IDS[1],
     name: 'Assistant Two',
     enableWebSearch: true
   }
@@ -481,9 +486,9 @@ describe('AssistantMigrator', () => {
 
       expect(result.success).toBe(true)
       const assistantRows = (inserted.flat() as Array<Record<string, unknown>>).filter((row) =>
-        String(row.id).startsWith('ast-')
+        SAMPLE_ASSISTANT_IDS.includes(String(row.id) as (typeof SAMPLE_ASSISTANT_IDS)[number])
       )
-      expect(assistantRows.map((row) => row.id)).toEqual(['ast-1', 'ast-2'])
+      expect(assistantRows.map((row) => row.id)).toEqual(SAMPLE_ASSISTANT_IDS)
       const orderKeys = assistantRows
         .map((row) => row.orderKey)
         .filter((orderKey): orderKey is string => typeof orderKey === 'string')
@@ -499,8 +504,8 @@ describe('AssistantMigrator', () => {
       await migrator.execute(ctx as any)
       const ids = ctx.sharedData.get('assistantIds') as Set<string>
       expect(ids).toBeInstanceOf(Set)
-      expect(ids.has('ast-1')).toBe(true)
-      expect(ids.has('ast-2')).toBe(true)
+      expect(ids.has(SAMPLE_ASSISTANT_IDS[0])).toBe(true)
+      expect(ids.has(SAMPLE_ASSISTANT_IDS[1])).toBe(true)
       // v2 has no system-reserved 'default' row.
       expect(ids.has('default')).toBe(false)
     })
