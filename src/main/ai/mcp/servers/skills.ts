@@ -1,86 +1,58 @@
-import { mkdir, readdir } from 'node:fs/promises'
-
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { normalizeClaudePlugins } from '@shared/utils/skillMarketplace'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('McpServer:Skills')
 
 const MARKETPLACE_BASE_URL = 'https://claude-plugins.dev'
 
-type SkillSearchResult = {
-  name: string
-  namespace?: string
-  description?: string | null
-  author?: string | null
-  installs?: number
-  metadata?: {
-    repoOwner?: string
-    repoName?: string
-  }
-}
-
-function buildSkillIdentifier(skill: SkillSearchResult): string {
-  const { name, namespace, metadata } = skill
-  const repoOwner = metadata?.repoOwner
-  const repoName = metadata?.repoName
-
-  if (repoOwner && repoName) {
-    return `${repoOwner}/${repoName}/${name}`
-  }
-
-  if (namespace) {
-    const cleanNamespace = namespace.replace(/^@/, '')
-    const parts = cleanNamespace.split('/').filter(Boolean)
-    if (parts.length >= 2) {
-      return `${parts[0]}/${parts[1]}/${name}`
-    }
-    return `${cleanNamespace}/${name}`
-  }
-
-  return name
-}
-
-const SKILLS_TOOL: Tool = {
-  name: 'skills',
+const SEARCH_TOOL: Tool = {
+  name: 'search_skills',
   description:
-    "Manage Claude skills. Use 'search' to find skills from the marketplace, 'install' to install a marketplace skill, 'remove' to uninstall, or 'list' to see installed skills. To author a brand-new skill, use 'init' to prepare a target directory, write SKILL.md and supporting files into that directory, then call 'register' to add it to the global skill list and enable it for the current session.",
+    'Search the skill marketplace for installable skills by keyword. Returns matches, each with an opaque `install_source` string you pass verbatim to install_skill. Use this when the user wants a capability that might already exist as a skill.',
   inputSchema: {
     type: 'object',
     properties: {
-      action: {
-        type: 'string',
-        enum: ['search', 'install', 'remove', 'list', 'init', 'register'],
-        description: 'The action to perform'
-      },
       query: {
         type: 'string',
-        description: "Search query for finding skills in the marketplace (required for 'search')"
-      },
-      identifier: {
-        type: 'string',
-        description:
-          "Marketplace skill identifier in 'owner/repo/skill-name' format (required for 'install'). Get this from the search results."
-      },
-      name: {
-        type: 'string',
-        description:
-          "Skill folder name. Required for 'remove' (from list results), 'init' (the new skill's folder name), and 'register' (same name passed to init)."
+        description: 'Keywords describing the capability, e.g. "react performance" or "pr review".'
       }
     },
-    required: ['action']
+    required: ['query']
+  }
+}
+
+const INSTALL_TOOL: Tool = {
+  name: 'install_skill',
+  description:
+    "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Call this only when the user intends to install the skill; the active Claude permission mode controls whether execution prompts or runs directly.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      install_source: {
+        type: 'string',
+        description: 'The exact `install_source` value from a search_skills result. Opaque — pass it verbatim.'
+      }
+    },
+    required: ['install_source']
   }
 }
 
 /**
- * MCP server exposing skill management to any agent.
+ * MCP server exposing skill discovery + install to any agent.
  *
- * Skills are a generally useful capability — searching the marketplace,
- * installing, listing, and authoring skills via init/register applies to
- * regular chat agents and autonomous agents alike.
+ * Only two deterministic actions: `search_skills` (read-only marketplace search) and
+ * `install_skill` (clone-and-install exactly one skill into Cherry's managed library via
+ * `SkillService.install`). Search reuses the shared `normalizeClaudePlugins` so the install source
+ * is built from the real repo directory, never the display name — the model passes that opaque
+ * string straight back to install_skill, so it can't pick the wrong skill. Authoring is intentionally
+ * NOT here — the skill-creator skill writes files into `$CHERRY_STUDIO_SKILLS_DIR` and
+ * `SkillService.reconcileSkills` catalogs them. Install goes through the main process so a weak model
+ * only needs one tool call, not a correct multi-step shell sequence.
  */
 class SkillsServer {
   public mcpServer: McpServer
@@ -104,7 +76,7 @@ class SkillsServer {
 
   private setupHandlers() {
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [SKILLS_TOOL]
+      tools: [SEARCH_TOOL, INSTALL_TOOL]
     }))
 
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -112,28 +84,13 @@ class SkillsServer {
       const args = (request.params.arguments ?? {}) as Record<string, string | undefined>
 
       try {
-        if (toolName !== 'skills') {
-          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
-        }
-        const action = args.action
-        switch (action) {
-          case 'search':
+        switch (toolName) {
+          case 'search_skills':
             return await this.searchSkills(args)
-          case 'install':
+          case 'install_skill':
             return await this.installSkill(args)
-          case 'remove':
-            return await this.removeSkill(args)
-          case 'list':
-            return await this.listSkills()
-          case 'init':
-            return await this.initSkill(args)
-          case 'register':
-            return await this.registerSkill(args)
           default:
-            throw new McpError(
-              ErrorCode.InvalidParams,
-              `Unknown action "${action}", expected search/install/remove/list/init/register`
-            )
+            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -148,7 +105,7 @@ class SkillsServer {
 
   private async searchSkills(args: Record<string, string | undefined>) {
     const query = args.query
-    if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required for search")
+    if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required for search_skills")
 
     const url = new URL(`${MARKETPLACE_BASE_URL}/api/skills`)
     url.searchParams.set('q', query.replace(/[-_]+/g, ' ').trim())
@@ -160,213 +117,58 @@ class SkillsServer {
       throw new Error(`Marketplace API returned ${response.status}: ${response.statusText}`)
     }
 
-    const json = (await response.json()) as { skills?: SkillSearchResult[]; total?: number }
-    const skills = json.skills ?? []
+    // Shared normalizer: builds install_source from the real directoryPath and drops entries whose
+    // install target can't be resolved reliably (so we never hand back an ambiguous one).
+    const results = normalizeClaudePlugins(await response.json())
 
-    if (skills.length === 0) {
-      return { content: [{ type: 'text' as const, text: `No skills found for "${query}".` }] }
+    if (results.length === 0) {
+      return { content: [{ type: 'text' as const, text: `No installable skills found for "${query}".` }] }
     }
 
-    const results = skills.map((s) => ({
-      name: s.name,
-      description: s.description ?? null,
-      author: s.author ?? null,
-      identifier: buildSkillIdentifier(s),
-      installs: s.installs ?? 0
+    const view = results.map((r) => ({
+      name: r.name,
+      description: r.description,
+      author: r.author,
+      installs: r.downloads,
+      install_source: r.installSource
     }))
 
-    logger.info('Skills search via tool', { agentId: this.agentId, query, resultCount: results.length })
+    logger.info('Skills search via tool', { agentId: this.agentId, query, resultCount: view.length })
     return {
       content: [
         {
           type: 'text' as const,
-          text: `Found ${results.length} skill(s) for "${query}":\n${JSON.stringify(results, null, 2)}\n\nUse the 'identifier' field with action 'install' to install a skill.`
+          text: `Found ${view.length} installable skill(s) for "${query}":\n${JSON.stringify(view, null, 2)}\n\nWhen the user asks to install one, pass its exact 'install_source' string to install_skill.`
         }
       ]
     }
   }
 
   private async installSkill(args: Record<string, string | undefined>) {
-    const identifier = args.identifier
-    if (!identifier) {
+    const installSource = args.install_source
+    if (!installSource) {
       throw new McpError(
         ErrorCode.InvalidParams,
-        "'identifier' is required for install (format: 'owner/repo/skill-name')"
+        "'install_source' is required — use the value from a search_skills result"
       )
     }
 
-    const installed = await skillService.install({
-      installSource: `claude-plugins:${identifier}`
-    })
-    // Enable the freshly-installed skill for the CURRENT agent only. Other
-    // agents remain untouched — skill enablement is per-agent.
+    // SkillService validates the source prefix and (for claude-plugins) resolves the exact directory,
+    // rejecting a path that escapes the clone root. The tool never builds the identifier itself.
+    const installed = await skillService.install({ installSource })
+    // Enable the freshly-installed skill for the CURRENT agent only; enablement is per-agent.
     const enabled = skillService.toggle({
       skillId: installed.id,
       agentId: this.agentId,
       isEnabled: true
     })
 
-    logger.info('Skill installed via tool', { agentId: this.agentId, identifier, name: installed.name })
+    logger.info('Skill installed via tool', { agentId: this.agentId, installSource, name: installed.name })
     return {
       content: [
         {
           type: 'text' as const,
-          text: `Skill installed${enabled?.isEnabled ? ' and enabled for this agent' : ' (warning: failed to enable)'}:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}\n  Enabled: ${enabled?.isEnabled ?? false}`
-        }
-      ]
-    }
-  }
-
-  private async removeSkill(args: Record<string, string | undefined>) {
-    const name = args.name
-    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for remove (skill folder name)")
-
-    await skillService.uninstallByFolderName(name)
-
-    logger.info('Skill removed via tool', { agentId: this.agentId, name })
-    return {
-      content: [{ type: 'text' as const, text: `Skill "${name}" removed.` }]
-    }
-  }
-
-  private async listSkills() {
-    const skills = await skillService.list({ agentId: this.agentId })
-
-    if (skills.length === 0) {
-      return { content: [{ type: 'text' as const, text: 'No skills installed.' }] }
-    }
-
-    // Include the absolute on-disk path so the model can patch a skill in
-    // place via the native Read / Edit tools when it discovers the skill is
-    // outdated, incomplete, or wrong (the live symlink picks up file edits
-    // immediately, so no separate "patch" tool is needed).
-    const results = skills.map((s) => ({
-      name: s.name,
-      folder: s.folderName,
-      path: skillService.getInstalledSkillDirectory(s),
-      description: s.description ?? null,
-      enabled: s.isEnabled
-    }))
-
-    logger.info('Skills list via tool', { agentId: this.agentId, count: results.length })
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }]
-    }
-  }
-
-  private async initSkill(args: Record<string, string | undefined>) {
-    const name = args.name
-    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for init")
-
-    const skillDir = skillService.getSkillDirectory(name)
-
-    // Check for collision with an existing skill in DB.
-    const existingSkill = await skillService.getByFolderName(name)
-    if (existingSkill) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        `A skill named "${existingSkill.name}" already exists with folder "${name}". ` +
-          `Choose a different name, or use action="remove" with name="${name}" first if you intend to replace it.`
-      )
-    }
-
-    // Guard against an orphaned non-empty directory that isn't tracked in the DB.
-    let dirHasContent = false
-    try {
-      const entries = await readdir(skillDir)
-      dirHasContent = entries.length > 0
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code
-      if (code !== 'ENOENT') {
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Cannot read skill directory "${skillDir}": ${(err as Error).message}`
-        )
-      }
-      // Directory doesn't exist yet — safe to create.
-    }
-    if (dirHasContent) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        `The directory "${skillDir}" already exists and is non-empty but is not tracked in the skill database. ` +
-          `Choose a different name, or manually remove the directory before calling init.`
-      )
-    }
-
-    await mkdir(skillDir, { recursive: true })
-
-    logger.info('Skill directory initialized via tool', { agentId: this.agentId, name, skillDir })
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: [
-            `Skill directory ready at:`,
-            skillDir,
-            ``,
-            `Write SKILL.md and any supporting files (scripts/, references/, assets/) directly into this directory.`,
-            `When the skill is ready, call skills with action="register" and name="${name}" to register it in the global skill list and enable it for the current session.`,
-            `You can re-edit files in place and call register again to refresh.`
-          ].join('\n')
-        }
-      ]
-    }
-  }
-
-  private async registerSkill(args: Record<string, string | undefined>) {
-    const name = args.name
-    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for register")
-
-    const skillDir = skillService.getSkillDirectory(name)
-
-    // Pre-flight: ensure SKILL.md exists before attempting install
-    try {
-      const entries = await readdir(skillDir)
-      if (!entries.some((e) => e.toLowerCase() === 'skill.md')) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `No SKILL.md found in "${skillDir}". Call action="init" first and write a SKILL.md file before registering.`
-        )
-      }
-    } catch (err) {
-      if (err instanceof McpError) throw err
-      const code = (err as NodeJS.ErrnoException).code
-      if (code === 'ENOENT') {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `Skill directory "${skillDir}" does not exist. Did you call action="init" first?`
-        )
-      }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Cannot read skill directory "${skillDir}": ${(err as Error).message}`
-      )
-    }
-
-    const installed = await skillService.installFromDirectory({ directoryPath: skillDir })
-    // Same per-agent scope as installSkill above — register only enables the
-    // skill for the current agent, not globally.
-    const enabled = skillService.toggle({
-      skillId: installed.id,
-      agentId: this.agentId,
-      isEnabled: true
-    })
-
-    logger.info('Skill registered via tool', {
-      agentId: this.agentId,
-      name: installed.name,
-      folderName: installed.folderName
-    })
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: [
-            `Skill "${installed.name}" registered${enabled?.isEnabled ? ' and enabled for this agent' : ' (warning: failed to enable)'}.`,
-            `  Folder: ${installed.folderName}`,
-            `  Description: ${installed.description ?? 'N/A'}`,
-            `  Enabled: ${enabled?.isEnabled ?? false}`
-          ].join('\n')
+          text: `Skill installed${enabled?.isEnabled ? ' and enabled for this agent' : ' (warning: failed to enable)'}:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}`
         }
       ]
     }

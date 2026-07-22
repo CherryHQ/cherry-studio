@@ -746,8 +746,28 @@ describe('SkillService', () => {
       expect(unlinkSpy).toHaveBeenCalledWith('skill-one')
     })
 
-    it('reconcileSkills heals mirrors, prunes managed orphans, leaves user-dropped skills untouched', async () => {
-      // DB skill with files → mirrored. DB skill without files → warned, not mirrored.
+    function skillMeta(folderName: string, overrides: Record<string, unknown> = {}) {
+      return {
+        sourcePath: folderName,
+        filename: folderName,
+        name: folderName,
+        description: undefined,
+        tools: undefined,
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'x',
+        ...overrides
+      } as unknown as Awaited<ReturnType<typeof parseSkillMetadata>>
+    }
+
+    it('reconcileSkills heals mirrors, prunes non-builtin skills whose files are gone, keeps builtins', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      // skill-one: files present → mirrored, kept. gone: no files, marketplace → pruned.
+      // builtin-gone: no files but builtin → kept (installBuiltinSkills owns builtins).
       await writeLibrarySkill('skill-one')
       await dbh.db.insert(agentGlobalSkillTable).values([
         {
@@ -758,47 +778,199 @@ describe('SkillService', () => {
           contentHash: 'a',
           isEnabled: false
         },
-        { id: SKILL_ID_2, name: 'gone', folderName: 'gone', source: 'marketplace', contentHash: 'b', isEnabled: false }
+        { id: SKILL_ID_2, name: 'gone', folderName: 'gone', source: 'marketplace', contentHash: 'b', isEnabled: false },
+        {
+          id: SKILL_ID_BUILTIN,
+          name: 'builtin-gone',
+          folderName: 'builtin-gone',
+          source: 'builtin',
+          contentHash: 'c',
+          isEnabled: false
+        }
       ])
 
-      // Managed-orphan: a mirror symlink into Data/Skills with no DB row → pruned.
-      await writeLibrarySkill('orphan')
-      await fs.promises.symlink(path.join(dataSkillsRoot, 'orphan'), path.join(mirrorRoot, 'orphan'), 'dir')
+      await skillService.reconcileSkills()
 
-      // User-dropped real skill (has SKILL.md) → left untouched, never adopted.
+      // plugin bridge manifest written
+      await expect(
+        fs.promises.readFile(path.join(path.dirname(mirrorRoot), '.claude-plugin', 'plugin.json'), 'utf-8')
+      ).resolves.toBe('{\n  "name": "cherry-studio-skills"\n}\n')
+      // heal: skill-one mirrored
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+      // prune: non-builtin 'gone' removed
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'gone'))
+      ).toHaveLength(0)
+      // builtin kept despite missing files
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'builtin-gone'))
+      ).toHaveLength(1)
+    })
+
+    it('reconcileSkills adopts an untracked library skill into the catalog', async () => {
+      vi.mocked(parseSkillMetadata).mockResolvedValue(
+        skillMeta('new-skill', { name: 'New Skill', description: 'freshly authored' })
+      )
+      await writeLibrarySkill('new-skill')
+
+      await skillService.reconcileSkills()
+
+      const rows = await dbh.db
+        .select()
+        .from(agentGlobalSkillTable)
+        .where(eq(agentGlobalSkillTable.folderName, 'new-skill'))
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.source).toBe('local')
+      expect(rows[0]?.name).toBe('New Skill')
+      expect(rows[0]?.isEnabled).toBe(false)
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(true)
+    })
+
+    it('reconcileSkills leaves a real dir dropped in the mirror untouched (one-way projection)', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      // Agents write to the managed library (CHERRY_STUDIO_SKILLS_DIR), not the mirror, so a real
+      // dir dropped under CLAUDE_CONFIG_DIR/skills is neither adopted into the catalog nor pruned.
       const dropped = path.join(mirrorRoot, 'dropped')
       await fs.promises.mkdir(dropped, { recursive: true })
       await fs.promises.writeFile(path.join(dropped, 'SKILL.md'), '# dropped')
 
-      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
+      await skillService.reconcileSkills()
 
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'dropped'))
+      ).toHaveLength(0)
+      await expect(fs.promises.access(path.join(mirrorRoot, 'dropped', 'SKILL.md'))).resolves.toBeUndefined()
+      await expect(fs.promises.access(path.join(dataSkillsRoot, 'dropped'))).rejects.toThrow()
+    })
+
+    it('reconcileSkills does not prune the catalog when the library root is unreadable', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'ghost',
+        folderName: 'ghost',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false
+      })
+      // Simulate a transient read failure of the library root.
+      await fs.promises.rm(dataSkillsRoot, { recursive: true, force: true })
+
+      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
       try {
         await skillService.reconcileSkills()
-
-        await expect(
-          fs.promises.readFile(path.join(path.dirname(mirrorRoot), '.claude-plugin', 'plugin.json'), 'utf-8')
-        ).resolves.toBe('{\n  "name": "cherry-studio-skills"\n}\n')
-
-        // heal: DB skill with files is mirrored
-        await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
-        // warn: DB skill whose source files are missing
-        expect(warnSpy).toHaveBeenCalledWith(
-          'Skill source files missing; skipping mirror',
-          expect.objectContaining({ folderName: 'gone' })
-        )
-        // user-dropped: no DB row created, files left in place
-        const droppedRow = await dbh.db
-          .select()
-          .from(agentGlobalSkillTable)
-          .where(eq(agentGlobalSkillTable.folderName, 'dropped'))
-        expect(droppedRow).toHaveLength(0)
-        await expect(fs.promises.access(path.join(mirrorRoot, 'dropped', 'SKILL.md'))).resolves.toBeUndefined()
-        await expect(fs.promises.access(path.join(dataSkillsRoot, 'dropped'))).rejects.toThrow()
-        // prune: managed-orphan mirror entry removed
-        await expect(fs.promises.access(path.join(mirrorRoot, 'orphan'))).rejects.toThrow()
+        expect(
+          await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'ghost'))
+        ).toHaveLength(1)
       } finally {
         warnSpy.mockRestore()
       }
+    })
+
+    it('reconcileSkills keeps a catalog row whose descriptor is present but unreadable', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      // SKILL.md exists but reading it throws a non-ENOENT error (here EISDIR: it is a directory),
+      // standing in for EACCES / EIO / an atomic-replace window. This must NOT be treated as deletion.
+      const dir = path.join(dataSkillsRoot, 'locked')
+      await fs.promises.mkdir(path.join(dir, 'SKILL.md'), { recursive: true })
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'locked',
+        folderName: 'locked',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false
+      })
+
+      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
+      try {
+        await skillService.reconcileSkills()
+        expect(
+          await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'locked'))
+        ).toHaveLength(1)
+      } finally {
+        warnSpy.mockRestore()
+      }
+    })
+
+    it('reconcileSkills normalizes a lowercase skill.md and still mirrors + adopts it', async () => {
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('lower', { name: 'Lower' }))
+      // Author wrote a lowercase descriptor (only distinguishable on case-sensitive filesystems).
+      const dir = path.join(dataSkillsRoot, 'lower')
+      await fs.promises.mkdir(dir, { recursive: true })
+      await fs.promises.writeFile(path.join(dir, 'skill.md'), '# lower')
+
+      await skillService.reconcileSkills()
+
+      // resolves as SKILL.md (renamed on case-sensitive FS, same file on case-insensitive)
+      await expect(fs.promises.access(path.join(dir, 'SKILL.md'))).resolves.toBeUndefined()
+      // adopted into the catalog
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'lower'))
+      ).toHaveLength(1)
+      // mirrored — would be skipped if the mirror only recognized uppercase SKILL.md
+      await expect(fs.promises.access(path.join(mirrorRoot, 'lower', 'SKILL.md'))).resolves.toBeUndefined()
+    })
+
+    it('reconcileSkills keeps a row + agent_skill when the folder exists but its descriptor is gone (ENOENT window)', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      // The folder is present on disk but has no SKILL.md (either casing) — the atomic-save window
+      // where an editor removed the old descriptor before writing the new one. Must NOT be pruned.
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'saving'), { recursive: true })
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'saving',
+        folderName: 'saving',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false
+      })
+      await seedAgent()
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
+
+      await skillService.reconcileSkills()
+
+      expect(
+        await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.folderName, 'saving'))
+      ).toHaveLength(1)
+      // enablement survives — deleting the row would have cascade-removed this via the FK
+      expect(await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))).toHaveLength(1)
+    })
+
+    it('install refuses to overwrite a different-source (builtin) skill of the same folder name', async () => {
+      // A builtin skill occupies folder "skill-creator" with a user enablement row.
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_BUILTIN,
+        name: 'skill-creator',
+        folderName: 'skill-creator',
+        source: 'builtin',
+        contentHash: 'orig',
+        isEnabled: false
+      })
+      await seedAgent()
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_BUILTIN, isEnabled: false })
+      // An incoming local install whose metadata resolves to the SAME folder name.
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('skill-creator', { name: 'Evil Creator' }))
+      // Source dir OUTSIDE the library root so folderName derives from metadata (not the dir basename).
+      const src = await createTempDir('incoming-')
+      await fs.promises.writeFile(path.join(src, 'SKILL.md'), '# evil')
+
+      await expect(skillService.installFromDirectory({ directoryPath: src })).rejects.toThrow(
+        /already used by a builtin skill/
+      )
+
+      // Original builtin row, source, content, and enablement all untouched.
+      const rows = await dbh.db
+        .select()
+        .from(agentGlobalSkillTable)
+        .where(eq(agentGlobalSkillTable.folderName, 'skill-creator'))
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.source).toBe('builtin')
+      expect(rows[0]?.contentHash).toBe('orig')
+      expect(rows[0]?.name).toBe('skill-creator')
+      expect(
+        await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_BUILTIN))
+      ).toHaveLength(1)
     })
   })
 })
