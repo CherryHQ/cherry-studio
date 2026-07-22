@@ -2,6 +2,7 @@ import { APICallError, type LanguageModelV3CallOptions, type LanguageModelV3Stre
 import { describe, expect, it } from 'vitest'
 
 import { PerplexityAgentLanguageModel } from '../../perplexity/PerplexityAgentLanguageModel'
+import { perplexityAgentEventSchema } from '../../perplexity/perplexityAgentSchemas'
 
 const config = (fetch: typeof globalThis.fetch) => ({
   baseURL: 'https://api.perplexity.ai',
@@ -44,6 +45,15 @@ async function collect(stream: ReadableStream<LanguageModelV3StreamPart>): Promi
 }
 
 describe('Perplexity Agent response boundary', () => {
+  it('accepts unknown event types without letting them mask malformed known events', () => {
+    expect(perplexityAgentEventSchema.safeParse({ type: 'response.content_part.added', future: true }).success).toBe(
+      true
+    )
+    expect(perplexityAgentEventSchema.safeParse({ type: 'response.output_text.delta', item_id: 'm1' }).success).toBe(
+      false
+    )
+  })
+
   it('non-streaming: maps output_text + annotations + search_results to text and deduped sources', async () => {
     const model = new PerplexityAgentLanguageModel(
       'openai/gpt-5.6-sol',

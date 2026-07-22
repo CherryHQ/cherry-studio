@@ -186,7 +186,7 @@ const responseEnvelopeSchema = z.looseObject({
   output: z.array(perplexityOutputItemSchema).nullish()
 })
 
-export const perplexityAgentEventSchema = z.union([
+const perplexityKnownAgentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('response.created'), response: responseEnvelopeSchema.nullish() }),
   z.object({ type: z.literal('response.in_progress'), response: responseEnvelopeSchema.nullish() }),
   z.object({ type: z.literal('response.completed'), response: responseEnvelopeSchema.nullish() }),
@@ -228,11 +228,27 @@ export const perplexityAgentEventSchema = z.union([
     thought: z.string().nullish(),
     contents: z.array(perplexityResultEntrySchema).nullish()
   }),
-  z.object({ type: z.literal('response.reasoning.stopped'), thought: z.string().nullish() }),
-  // catch-all for any event type we don't act on
-  z.looseObject({ type: z.string() })
+  z.object({ type: z.literal('response.reasoning.stopped'), thought: z.string().nullish() })
 ])
+
+export type PerplexityKnownAgentEvent = z.infer<typeof perplexityKnownAgentEventSchema>
+
+const knownAgentEventTypes: ReadonlySet<string> = new Set(
+  perplexityKnownAgentEventSchema.options.map((schema) => schema.shape.type.value)
+)
+
+// Unknown event types remain forward-compatible, but a malformed known event
+// must fail validation instead of falling through this permissive branch.
+const unknownAgentEventSchema = z.looseObject({
+  type: z.string().refine((type) => !knownAgentEventTypes.has(type))
+})
+
+export const perplexityAgentEventSchema = z.union([perplexityKnownAgentEventSchema, unknownAgentEventSchema])
 export type PerplexityAgentEvent = z.infer<typeof perplexityAgentEventSchema>
+
+export function isPerplexityKnownAgentEvent(event: PerplexityAgentEvent): event is PerplexityKnownAgentEvent {
+  return knownAgentEventTypes.has(event.type)
+}
 
 // ── server-side tools (`web_search`, `fetch_url`) ──
 

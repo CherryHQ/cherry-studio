@@ -35,6 +35,7 @@ import {
 import { convertToPerplexityAgentInput } from './convertToPerplexityAgentInput'
 import type { perplexityAgentUsageSchema } from './perplexityAgentSchemas'
 import {
+  isPerplexityKnownAgentEvent,
   perplexityAgentErrorSchema,
   perplexityAgentErrorToMessage,
   type PerplexityAgentEvent,
@@ -124,11 +125,15 @@ function mapFinishReason(
   return { unified, raw: incompleteReason ?? undefined }
 }
 
+function resultEntriesToSources(entries: PerplexityResultEntry[] | null | undefined): Source[] {
+  return (entries ?? []).flatMap((entry) => (entry.url ? [{ url: entry.url, title: entry.title ?? undefined }] : []))
+}
+
 /** Pull citation/search sources out of any output item (unknown types yield none). */
 function extractSources(item: PerplexityOutputItem): Source[] {
   const out: Source[] = []
   const pushEntries = (entries?: PerplexityResultEntry[] | null) => {
-    for (const entry of entries ?? []) if (entry?.url) out.push({ url: entry.url, title: entry.title ?? undefined })
+    out.push(...resultEntriesToSources(entries))
   }
   switch (item.type) {
     case 'search_results':
@@ -619,28 +624,34 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
               emittedServerToolCallIds.add(toolCallId)
             }
 
-            const event = chunk.value as PerplexityAgentEvent & Record<string, unknown>
+            const event = chunk.value
+            if (!isPerplexityKnownAgentEvent(event)) return
+
             switch (event.type) {
               case 'response.created':
               case 'response.in_progress': {
-                const envelope = (event as { response?: { id?: string; model?: string } }).response
+                const envelope = event.response
                 if (envelope?.id) responseId = envelope.id
                 if (event.type === 'response.created') {
-                  controller.enqueue({ type: 'response-metadata', id: envelope?.id, modelId: envelope?.model })
+                  controller.enqueue({
+                    type: 'response-metadata',
+                    id: envelope?.id ?? undefined,
+                    modelId: envelope?.model ?? undefined
+                  })
                 }
                 break
               }
               case 'response.output_text.delta': {
-                const id = (event as { item_id?: string }).item_id ?? '0'
+                const id = event.item_id ?? '0'
                 if (!openTextIds.has(id)) {
                   controller.enqueue({ type: 'text-start', id })
                   openTextIds.add(id)
                 }
-                controller.enqueue({ type: 'text-delta', id, delta: (event as { delta: string }).delta })
+                controller.enqueue({ type: 'text-delta', id, delta: event.delta })
                 break
               }
               case 'response.output_text.done': {
-                const id = (event as { item_id?: string }).item_id ?? '0'
+                const id = event.item_id ?? '0'
                 if (openTextIds.has(id)) {
                   controller.enqueue({ type: 'text-end', id })
                   openTextIds.delete(id)
@@ -649,7 +660,7 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
               }
               case 'response.output_item.added':
               case 'response.output_item.done': {
-                const item = (event as { item?: PerplexityOutputItem }).item
+                const item = event.item
                 if (!item) break
                 const functionCall = asFunctionCall(item)
                 if (functionCall) {
@@ -657,41 +668,31 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
                   else emitFunctionCall(functionCall)
                 } else {
                   if (event.type === 'response.output_item.done') {
-                    emitServerToolResult(item, (event as { output_index?: number }).output_index ?? 0)
+                    emitServerToolResult(item, event.output_index ?? 0)
                   }
                   emitSources(extractSources(item))
                 }
                 break
               }
               case 'response.reasoning.started':
-                emitThought((event as { thought?: string }).thought)
+                emitThought(event.thought)
                 break
               case 'response.reasoning.search_queries':
               case 'response.reasoning.fetch_url_queries':
-                emitThought((event as { thought?: string }).thought)
+                emitThought(event.thought)
                 break
               case 'response.reasoning.search_results': {
-                emitThought((event as { thought?: string }).thought)
-                emitSources(
-                  extractSources({
-                    type: 'search_results',
-                    results: (event as { results?: PerplexityResultEntry[] }).results
-                  } as PerplexityOutputItem)
-                )
+                emitThought(event.thought)
+                emitSources(resultEntriesToSources(event.results))
                 break
               }
               case 'response.reasoning.fetch_url_results': {
-                emitThought((event as { thought?: string }).thought)
-                emitSources(
-                  extractSources({
-                    type: 'fetch_url_results',
-                    contents: (event as { contents?: PerplexityResultEntry[] }).contents
-                  } as PerplexityOutputItem)
-                )
+                emitThought(event.thought)
+                emitSources(resultEntriesToSources(event.contents))
                 break
               }
               case 'response.reasoning.stopped':
-                emitThought((event as { thought?: string }).thought)
+                emitThought(event.thought)
                 if (reasoningOpen) {
                   controller.enqueue({ type: 'reasoning-end', id: REASONING_ID })
                   reasoningOpen = false
@@ -699,16 +700,7 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
                 break
               case 'response.completed':
               case 'response.incomplete': {
-                const envelope = (
-                  event as {
-                    response?: {
-                      id?: string
-                      usage?: AgentUsage
-                      incomplete_details?: { reason?: string | null } | null
-                      output?: PerplexityOutputItem[]
-                    }
-                  }
-                ).response
+                const envelope = event.response
                 if (envelope?.id) responseId = envelope.id
                 usage = envelope?.usage ?? usage
                 for (const [outputIndex, item] of (envelope?.output ?? []).entries()) {
@@ -723,7 +715,7 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
                 break
               }
               case 'response.failed': {
-                const errData = (event as { error?: { message?: string } }).error
+                const errData = event.error
                 // Wrap in an AI SDK error so the app's serializeError extracts a real
                 // message instead of stringifying a plain object to "[object Object]".
                 controller.enqueue({
