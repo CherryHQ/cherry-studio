@@ -440,7 +440,8 @@ describe('ComposerToken', () => {
     expect(popoverContent).not.toHaveTextContent('PNG')
     expect(popoverContent).not.toHaveTextContent('2 KB')
     expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).toHaveClass(
-      'bg-popover',
+      'bg-neutral-100',
+      'dark:bg-neutral-800',
       'text-muted-foreground',
       'text-sm'
     )
