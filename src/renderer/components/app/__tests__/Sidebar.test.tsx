@@ -177,7 +177,8 @@ vi.mock('../../Sidebar', async () => {
       user,
       actions,
       width,
-      onResizePreview
+      onResizePreview,
+      onResizingChange
     }: {
       isFloating?: boolean
       isFloatingClosing?: boolean
@@ -189,6 +190,7 @@ vi.mock('../../Sidebar', async () => {
       actions?: ReactNode | ((layout: 'icon' | 'full') => ReactNode)
       width?: number
       onResizePreview?: (width: number | null) => void
+      onResizingChange?: (resizing: boolean) => void
       onDismiss?: () => void
       onHoverChange?: (hovering: boolean) => void
       onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
@@ -206,6 +208,8 @@ vi.mock('../../Sidebar', async () => {
           <button type="button" onClick={onDismiss}>
             dismiss
           </button>
+          <button type="button" data-testid="floating-resize-start" onClick={() => onResizingChange?.(true)} />
+          <button type="button" data-testid="floating-resize-stop" onClick={() => onResizingChange?.(false)} />
         </div>
       ) : (
         <>
@@ -758,5 +762,20 @@ describe('app Sidebar', () => {
 
     expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
     expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
+  })
+
+  it('keeps the floating sidebar mounted while its resize crosses into a visible layout', () => {
+    mocks.sidebarWidth = 0
+    render(<Sidebar />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'reveal' }))
+    expect(screen.getByTestId('floating-sidebar')).toBeInTheDocument()
+
+    mocks.sidebarWidth = 120
+    fireEvent.click(screen.getByTestId('floating-resize-start'))
+    expect(screen.getByTestId('floating-sidebar')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('floating-resize-stop'))
+    expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
   })
 })

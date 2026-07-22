@@ -2,7 +2,6 @@ import { MenuItem } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
 import type { ReactNode } from 'react'
 
-import { ActiveIndicator } from './primitives'
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
@@ -69,11 +68,8 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 aria-label={entry.label}
                 onClick={guardClick(entry.key, entry.onOpen)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
-                  isActive
-                    ? 'bg-sidebar-active-bg text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                  isActive ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}>
-                {isActive && <ActiveIndicator className="rounded-full" />}
                 {entry.renderIcon(18, 'lg')}
               </button>
             </EntryContextMenu>
@@ -103,10 +99,9 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 label={entry.label}
                 active={isActive}
                 onClick={guardClick(entry.key, entry.onOpen)}
-                className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
+                className="hover:!bg-muted data-[active=true]:!bg-muted rounded-xl"
               />
             </EntryContextMenu>
-            {isActive && <ActiveIndicator className="rounded-xl" />}
           </div>
         )
       }}

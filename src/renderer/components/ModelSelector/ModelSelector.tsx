@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Checkbox, HorizontalScrollContainer, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
@@ -39,7 +39,7 @@ const logger = loggerService.withContext('ModelSelector')
 
 const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
-const ROW_TAG_SIZE = 9
+const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
@@ -178,9 +178,9 @@ function ModelRow({
   const providerName = getProviderDisplayName(item.provider)
 
   const leading = icon ? (
-    <icon.Avatar size={24} className="border border-border" />
+    <icon.Avatar size={20} />
   ) : (
-    <Avatar size="sm" className="border border-border">
+    <Avatar size="sm">
       <AvatarFallback>{first(item.model.name) || 'M'}</AvatarFallback>
     </Avatar>
   )
@@ -198,7 +198,7 @@ function ModelRow({
 
   const trailing =
     rowTags.length > 0 ? (
-      <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+      <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
         {rowTags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
@@ -264,6 +264,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     align = 'start',
     sideOffset = 4,
     contentClassName,
+    contentWidth = MODEL_SELECTOR_WIDTH,
     portalContainer,
     mountStrategy = 'destroy',
     multiSelectMode: multiSelectModeProp,
@@ -767,7 +768,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     return (
-      <>
+      <HorizontalScrollContainer className="w-full" dependencies={availableTags} gap="6px">
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}
@@ -776,10 +777,10 @@ export function ModelSelector(props: ModelSelectorProps) {
             showLabel
             inactive={!tagSelection[tag]}
             onClick={() => toggleTag(tag)}
-            className="h-5 items-center transition-colors"
+            className="h-5 shrink-0 items-center transition-colors"
           />
         ))}
-      </>
+      </HorizontalScrollContainer>
     )
   }, [availableTags, showTagFilter, tagSelection, toggleTag])
 
@@ -821,7 +822,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         search={searchConfig}
         filterContent={filterContent}
         multiSelect={multiSelectConfig}
-        width={MODEL_SELECTOR_WIDTH}
+        width={contentWidth}
         side={side}
         align={align}
         sideOffset={sideOffset}

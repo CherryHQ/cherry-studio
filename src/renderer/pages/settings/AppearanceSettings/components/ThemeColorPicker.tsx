@@ -1,6 +1,17 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import {
+  ColorPicker,
+  ColorPickerEyeDropper,
+  ColorPickerHue,
+  ColorPickerSelection,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowFlex
+} from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/
 const SHORT_HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{3}$/
@@ -40,6 +51,7 @@ interface ThemeColorPickerProps {
 }
 
 const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: ThemeColorPickerProps) => {
+  const { t } = useTranslation()
   const normalizedValue = normalizeHexColor(value) ?? '#000000'
   const [draftValue, setDraftValue] = useState(normalizedValue)
 
@@ -54,6 +66,11 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
     if (nextColor) {
       onChange(nextColor)
     }
+  }
+
+  const handlePickerChange = ([r, g, b]: [number, number, number, number]) => {
+    const hex = `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+    commitColor(hex)
   }
 
   const handleInputBlur = () => {
@@ -84,7 +101,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
               aria-label={normalizedPreset}
               aria-pressed={selected}
               className={cn(
-                'relative flex h-6 w-6 items-center justify-center rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-3 focus-visible:ring-ring/50'
+                'relative flex h-6 w-6 items-center justify-center rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-[1px] focus-visible:ring-ring/35'
               )}
               onClick={() => commitColor(normalizedPreset)}>
               <span
@@ -95,17 +112,30 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
           )
         })}
       </RowFlex>
-      <label className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-within:ring-3 focus-within:ring-ring/50">
-        <input
-          type="color"
-          value={normalizedValue}
-          aria-label={ariaLabel}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          onChange={(event) => commitColor(event.target.value)}
-        />
-        <span className="h-5 w-5 rounded-sm border border-border" style={{ backgroundColor: normalizedValue }} />
-      </label>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={ariaLabel}
+            className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35">
+            <span className="h-5 w-5 rounded-sm border border-border" style={{ backgroundColor: normalizedValue }} />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-64 p-3">
+          <ColorPicker value={normalizedValue} onChange={handlePickerChange} className="gap-3">
+            <ColorPickerSelection
+              aria-label={t('settings.theme.color_picker.selection')}
+              className="h-40 w-full rounded-lg"
+            />
+            <RowFlex className="items-center gap-2">
+              <ColorPickerEyeDropper aria-label={t('settings.theme.color_picker.eyedropper')} size="icon-sm" />
+              <ColorPickerHue aria-label={t('settings.theme.color_picker.hue')} className="flex-1" />
+            </RowFlex>
+          </ColorPicker>
+        </PopoverContent>
+      </Popover>
       <Input
+        aria-label={ariaLabel}
         value={draftValue}
         onChange={(event) => setDraftValue(event.target.value)}
         onBlur={handleInputBlur}

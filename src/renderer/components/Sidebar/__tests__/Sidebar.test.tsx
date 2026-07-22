@@ -190,6 +190,7 @@ describe('Sidebar resize handle', () => {
     expect(resizeHandle).toBeInTheDocument()
     expect(resizeHandle).toHaveClass('w-0.75')
     expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
+    expect(resizeHandle).toBeEmptyDOMElement()
   })
 
   it('previews intermediate widths and snaps release by drag direction', () => {
@@ -289,8 +290,41 @@ describe('Sidebar resize handle', () => {
     const hotZone = resizeHandle.parentElement
 
     expect(resizeHandle).toHaveClass('h-full', 'w-full', 'cursor-col-resize')
+    expect(resizeHandle).toBeEmptyDOMElement()
     expect(hotZone).toHaveClass('absolute', 'inset-y-0', 'left-0', 'z-50', 'w-4')
     expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
+  })
+
+  it('keeps a resize hit zone on the floating sidebar edge', () => {
+    const setWidth = vi.fn()
+    const onResizingChange = vi.fn()
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
+        setWidth={setWidth}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        isFloating
+        onResizingChange={onResizingChange}
+      />
+    )
+
+    const panel = container.querySelector('.slide-in-from-left-2')
+    const resizeHandle = panel?.querySelector('.cursor-col-resize')
+
+    expect(resizeHandle).toBeInTheDocument()
+    expect(resizeHandle).toHaveClass('absolute', 'inset-y-0', 'right-0', 'z-50', 'w-2')
+    expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
+    expect(resizeHandle).toBeEmptyDOMElement()
+
+    fireEvent.mouseDown(resizeHandle as HTMLElement, { clientX: 174 })
+    expect(onResizingChange).toHaveBeenLastCalledWith(true)
+
+    fireEvent.mouseMove(document, { clientX: 180 })
+    expect(setWidth).toHaveBeenLastCalledWith(180)
+
+    fireEvent.mouseUp(document)
+    expect(onResizingChange).toHaveBeenLastCalledWith(false)
   })
 
   it('restores a hidden sidebar by dragging wider from the hot zone', () => {
@@ -419,7 +453,7 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Qwen')).toBeInTheDocument()
   })
 
-  it('gives docked mini apps the shared icon-row button sizing and hover styles', () => {
+  it('gives docked mini apps the shared icon-row button sizing and settings-style hover state', () => {
     const { container } = render(
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
@@ -440,7 +474,25 @@ describe('Sidebar resize handle', () => {
 
     expect(miniAppLogo).toHaveStyle({ width: '22px', height: '22px' })
     expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
-    expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
+    expect(dockedMiniAppButton).toHaveClass('hover:bg-muted', 'hover:text-foreground')
+  })
+
+  it('uses the settings navigation selected state in icon and full layouts', () => {
+    const { rerender } = render(
+      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
+    )
+
+    const iconButton = screen.getByRole('button', { name: 'Chat' })
+    expect(iconButton).toHaveClass('bg-muted', 'text-foreground')
+    expect(iconButton.children).toHaveLength(1)
+
+    rerender(
+      <Sidebar width={SIDEBAR_FULL_THRESHOLD} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
+    )
+
+    const fullButton = screen.getByRole('button', { name: 'Chat' })
+    expect(fullButton).toHaveClass('hover:!bg-muted', 'data-[active=true]:!bg-muted')
+    expect(fullButton.parentElement?.children).toHaveLength(1)
   })
 
   it('names icon-only docked mini app buttons from the full title when the logo is missing', () => {

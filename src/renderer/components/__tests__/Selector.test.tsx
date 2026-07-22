@@ -122,4 +122,42 @@ describe('Selector', () => {
 
     expect(screen.getByRole('combobox', { name: /system/i })).toBeInTheDocument()
   })
+
+  it('sizes the v2 trigger and popover from unique leaf option labels', async () => {
+    render(
+      <Selector
+        value="short"
+        onChange={vi.fn()}
+        options={[
+          { label: 'Short', value: 'short' },
+          {
+            label: 'Group label',
+            value: 'group',
+            type: 'group',
+            options: [
+              { label: 'A much longer option', value: 'long' },
+              { label: 'Short', value: 'duplicate' }
+            ]
+          }
+        ]}
+      />
+    )
+
+    const trigger = screen.getByRole('combobox', { name: /short/i })
+    expect(trigger).toHaveClass(
+      'rounded-lg',
+      'border',
+      'bg-transparent',
+      'focus-visible:ring-[1px]',
+      'focus-visible:ring-ring/35'
+    )
+
+    const sizingLabels = trigger.querySelectorAll('[aria-hidden="true"].invisible')
+    expect(Array.from(sizingLabels, (element) => element.textContent)).toEqual(['Short', 'A much longer option'])
+
+    await userEvent.click(trigger)
+
+    expect(screen.getByRole('option', { name: /a much longer option/i })).toHaveClass('rounded-md')
+    expect(screen.getByRole('listbox').parentElement).toHaveClass('w-(--radix-popover-trigger-width)')
+  })
 })

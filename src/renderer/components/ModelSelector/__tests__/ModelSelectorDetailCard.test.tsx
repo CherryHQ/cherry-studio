@@ -60,8 +60,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/components/tags/Model', () => ({
-  getModelDisplayTags: () => [],
-  ModelTag: () => null
+  getModelDisplayTags: () => ['reasoning'],
+  ModelTag: ({ tag }: { tag: string }) => <span data-testid="model-detail-tag">{tag}</span>
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -178,6 +178,24 @@ describe('ModelSelectorDetailCard', () => {
     expect(screen.getByText('Model ID')).toBeInTheDocument()
     expect(screen.getByText('gpt-4o-mini')).toBeInTheDocument()
     expect(screen.queryByText('/')).not.toBeInTheDocument()
+  })
+
+  it('uses the compact v2 hierarchy without section dividers', () => {
+    const model = makeModel()
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    const title = screen.getAllByText('GPT-4o mini').at(-1)
+    const tag = screen.getByTestId('model-detail-tag')
+    const providerLabel = screen.getByText('Provider')
+
+    expect(title).toHaveClass('text-xs')
+    expect(tag.compareDocumentPosition(providerLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(providerLabel.closest('dl')).not.toHaveClass('border-t', 'pt-3')
   })
 
   it('constrains the hover card to Radix available space', () => {

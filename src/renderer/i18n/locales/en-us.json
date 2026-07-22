@@ -7577,6 +7577,11 @@
       "title": "System"
     },
     "theme": {
+      "color_picker": {
+        "eyedropper": "Pick color from screen",
+        "hue": "Hue",
+        "selection": "Color saturation and brightness"
+      },
       "color_primary": "Primary Color",
       "dark": "Dark",
       "light": "Light",
