@@ -450,6 +450,26 @@ vi.mock('@renderer/components/ModelSelector', () => ({
         }>
         select model 2
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          onSelect({
+            id: 'anthropic::claude-reasoning',
+            providerId: 'anthropic',
+            apiModelId: 'claude-reasoning',
+            name: 'Claude Reasoning',
+            capabilities: [],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false,
+            reasoning: {
+              controls: [{ kind: 'effort', values: ['low', 'high'] }],
+              selectableEfforts: ['low', 'high']
+            }
+          })
+        }>
+        select reasoning model
+      </button>
     </div>
   )
 }))
@@ -806,6 +826,35 @@ describe('AgentComposer', () => {
     })
 
     expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+  })
+
+  it('reconciles from the latest reasoning selection when it changes while the model update is pending', async () => {
+    let finishModelUpdate!: (value: object) => void
+    mocks.updateModel.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishModelUpdate = resolve
+        })
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    fireEvent.click(screen.getByText('select reasoning model'))
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('low'))
+
+    await act(async () => finishModelUpdate({}))
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('low')
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {

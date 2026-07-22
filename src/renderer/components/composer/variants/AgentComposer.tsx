@@ -1180,9 +1180,9 @@ const AgentComposerInner = ({
       if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
       const updatedAgent = await updateModel(agentId, nextModel.id, { showSuccessToast: false })
       if (!updatedAgent) return
-      setReasoningEffort(resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default')
+      setReasoningEffort((current) => resolveReasoningEffortForModel(nextModel, current) ?? 'default')
     },
-    [agentId, canChangeModel, model?.id, reasoningEffort, updateModel]
+    [agentId, canChangeModel, model?.id, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
