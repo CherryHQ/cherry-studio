@@ -27,6 +27,7 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { serializeMigrationDiagnosticError } from '@shared/data/migration/v2/diagnostics'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('V2MigrationGate')
@@ -49,6 +50,7 @@ export type V2MigrationGateResult = 'handled' | 'skipped'
 interface NativeMigrationFailure {
   readonly failureCode: string
   readonly errorSummary: string
+  readonly cause?: unknown
   readonly type: 'error' | 'warning'
   readonly title: string
   readonly message: string
@@ -60,10 +62,16 @@ interface NativeMigrationFailure {
 async function presentNativeMigrationFailure(failure: NativeMigrationFailure): Promise<number> {
   try {
     await app.whenReady()
-    const { failureCode, errorSummary, ...dialogFailure } = failure
+    const { failureCode, errorSummary, cause, ...dialogFailure } = failure
     return await presentMigrationDiagnosticFailure({
       locale: app.getLocale(),
-      context: { source: 'native', stage: 'preboot', failureCode, errorSummary },
+      context: {
+        source: 'native',
+        stage: 'preboot',
+        failureCode,
+        errorSummary,
+        ...(cause === undefined ? {} : { error: serializeMigrationDiagnosticError(cause) })
+      },
       failure: dialogFailure
     })
   } catch (error) {
@@ -84,6 +92,7 @@ async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGat
   await presentNativeMigrationFailure({
     failureCode: 'data_location_pin_failed',
     errorSummary: 'Could not save the application data directory.',
+    cause,
     type: 'error',
     title: 'Data Location Error - Application Cannot Start',
     message:
@@ -115,6 +124,7 @@ async function quitWithMigrationCheckError(
     await presentNativeMigrationFailure({
       failureCode,
       errorSummary,
+      cause: error,
       type: 'error',
       title: 'Database Schema Out of Sync (Dev)',
       message:
@@ -143,6 +153,7 @@ async function quitWithMigrationCheckError(
     await presentNativeMigrationFailure({
       failureCode,
       errorSummary,
+      cause: error,
       type: 'error',
       title: 'Migration Failed (Dev) - Application Cannot Start',
       message:
@@ -164,6 +175,7 @@ async function quitWithMigrationCheckError(
     await presentNativeMigrationFailure({
       failureCode,
       errorSummary,
+      cause: error,
       type: 'error',
       title: 'Migration Failed - Application Cannot Start',
       message:
@@ -325,6 +337,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         await presentNativeMigrationFailure({
           failureCode: 'version_window_failed',
           errorSummary: 'Could not open the upgrade guidance window.',
+          cause: windowError,
           type: 'error',
           title: 'Version Upgrade Required',
           message: getBlockMessage(versionCheck.reason, versionCheck.details),
@@ -357,6 +370,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       await presentNativeMigrationFailure({
         failureCode: 'migration_window_failed',
         errorSummary: 'Could not open the migration window.',
+        cause: migrationError,
         type: 'error',
         title: 'Migration Required - Application Cannot Start',
         message: `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`,

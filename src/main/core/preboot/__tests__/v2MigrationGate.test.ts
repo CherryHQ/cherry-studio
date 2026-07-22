@@ -255,8 +255,13 @@ describe('runV2MigrationGate', () => {
 
   describe('handled path — migration check fails', () => {
     it("returns 'handled', shows an error dialog, and quits when the engine fails to initialize", async () => {
+      const initializationError = Object.assign(new Error('DB unavailable'), {
+        stack: 'Error: DB unavailable\n    at initialize (/app/main.js:18:5)',
+        code: 'SQLITE_CANTOPEN',
+        path: '/mock/userData/cherrystudio.sqlite'
+      })
       initializeMock.mockImplementation(() => {
-        throw new Error('DB unavailable')
+        throw initializationError
       })
       stubMigrationV2()
       stubElectron()
@@ -278,6 +283,13 @@ describe('runV2MigrationGate', () => {
       // Regression: the old fallback mislabeled every failure as a DB "connectivity issue".
       expect(failure.message).not.toContain('connectivity')
       expect(failure).toMatchObject({ type: 'error', buttons: ['Quit'], defaultId: 0, cancelId: 0 })
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[0].context.error).toEqual({
+        name: 'Error',
+        message: 'DB unavailable',
+        stack: 'Error: DB unavailable\n    at initialize (/app/main.js:18:5)',
+        code: 'SQLITE_CANTOPEN',
+        path: '/mock/userData/cherrystudio.sqlite'
+      })
       expect(getLocaleMock).toHaveBeenCalledTimes(1)
       expect(whenReadyMock.mock.invocationCallOrder[0]).toBeLessThan(getLocaleMock.mock.invocationCallOrder[0])
       expect(appQuitMock).toHaveBeenCalledTimes(1)
@@ -404,8 +416,10 @@ describe('runV2MigrationGate', () => {
         previousVersion: '1.9.0',
         versionLogExists: true
       })
+      const windowError = new Error('window create failed')
+      windowError.stack = 'Error: window create failed\n    at create (/app/main.js:72:3)'
       migrationWindowCreateMock.mockImplementation(() => {
-        throw new Error('window create failed')
+        throw windowError
       })
       stubMigrationV2()
       stubElectron()
@@ -421,6 +435,11 @@ describe('runV2MigrationGate', () => {
       expect(failure.title).toContain('Migration Required')
       expect(failure.message).toContain('window create failed')
       expect(failure).toMatchObject({ type: 'error', buttons: ['Quit'], defaultId: 0, cancelId: 0 })
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[0].context.error).toEqual({
+        name: 'Error',
+        message: 'window create failed',
+        stack: 'Error: window create failed\n    at create (/app/main.js:72:3)'
+      })
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
@@ -720,8 +739,14 @@ describe('runV2MigrationGate', () => {
     it('quits with a fatal error when resolveMigrationPaths cannot persist the pin', async () => {
       // The only throwing operation in resolveMigrationPaths() is the strict
       // pinUserDataPath() persist on the redirect branch.
+      const pinError = Object.assign(new Error('ENOSPC: no space left on device'), {
+        stack: 'Error: ENOSPC: no space left on device\n    at persist (/app/main.js:8:9)',
+        code: 'ENOSPC',
+        syscall: 'write',
+        path: '/mock/.cherrystudio/boot-config.json'
+      })
       resolveMigrationPathsMock.mockImplementation(() => {
-        throw new Error('ENOSPC: no space left on device')
+        throw pinError
       })
       stubMigrationV2()
       stubElectron()
@@ -743,6 +768,14 @@ describe('runV2MigrationGate', () => {
         cancelId: 0
       })
       expect(failure.message).toContain('ENOSPC: no space left on device')
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[0].context.error).toEqual({
+        name: 'Error',
+        message: 'ENOSPC: no space left on device',
+        stack: 'Error: ENOSPC: no space left on device\n    at persist (/app/main.js:8:9)',
+        code: 'ENOSPC',
+        syscall: 'write',
+        path: '/mock/.cherrystudio/boot-config.json'
+      })
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })

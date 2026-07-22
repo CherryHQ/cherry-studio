@@ -54,16 +54,27 @@ describe('MigrationApplicationLogCollector', () => {
         logsDirectory,
         clock: () => new Date(2026, 6, 21, 12)
       }).collect()
-    ).resolves.toEqual({ status: 'not_included', entries: [] })
+    ).resolves.toEqual({
+      status: 'not_included',
+      entries: [],
+      reason: 'no_eligible_logs',
+      retry: 'suggested',
+      path: logsDirectory
+    })
   })
 
-  it('discards the entire collection when any selected log cannot be read', async () => {
+  it('preserves the complete read error and absolute path when any selected log cannot be read', async () => {
     await Promise.all([
       writeFile(join(logsDirectory, 'app.2026-07-21.log'), 'base'),
       writeFile(join(logsDirectory, 'app.2026-07-21.log.1'), 'one')
     ])
+    const readError = Object.assign(new Error('unreadable'), {
+      stack: 'Error: unreadable\n    at readLogs (/app/main.js:42:7)',
+      code: 'EACCES',
+      syscall: 'open'
+    })
     const injectedReadFile = vi.fn(async (filePath: string) => {
-      if (basename(filePath).endsWith('.1')) throw new Error('unreadable')
+      if (basename(filePath).endsWith('.1')) throw readError
       return readFile(filePath)
     })
 
@@ -73,10 +84,24 @@ describe('MigrationApplicationLogCollector', () => {
       readFile: injectedReadFile
     }).collect()
 
-    expect(result).toEqual({ status: 'not_included', entries: [] })
+    expect(result).toEqual({
+      status: 'not_included',
+      entries: [],
+      reason: 'file_read_failed',
+      retry: 'not_suggested',
+      path: join(logsDirectory, 'app.2026-07-21.log.1'),
+      error: {
+        name: 'Error',
+        message: 'unreadable',
+        stack: 'Error: unreadable\n    at readLogs (/app/main.js:42:7)',
+        code: 'EACCES',
+        syscall: 'open',
+        path: join(logsDirectory, 'app.2026-07-21.log.1')
+      }
+    })
   })
 
-  it('returns not_included when the logs directory cannot be scanned', async () => {
+  it('preserves the scan error stack and suggests retry when the logs directory is missing', async () => {
     const missingDirectory = join(logsDirectory, 'missing')
 
     await expect(
@@ -84,6 +109,19 @@ describe('MigrationApplicationLogCollector', () => {
         logsDirectory: missingDirectory,
         clock: () => new Date(2026, 6, 21, 12)
       }).collect()
-    ).resolves.toEqual({ status: 'not_included', entries: [] })
+    ).resolves.toMatchObject({
+      status: 'not_included',
+      entries: [],
+      reason: 'directory_scan_failed',
+      retry: 'suggested',
+      path: missingDirectory,
+      error: {
+        name: 'Error',
+        code: 'ENOENT',
+        syscall: 'scandir',
+        path: missingDirectory,
+        stack: expect.stringContaining('ENOENT')
+      }
+    })
   })
 })

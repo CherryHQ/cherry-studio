@@ -2,7 +2,8 @@
   "en-US": {
     "translation": {
       "action": {
-        "save": "Save diagnostic bundle"
+        "save": "Save diagnostic bundle",
+        "saveAgain": "Save again"
       },
       "email": {
         "appVersion": "App version: {{version}}",
@@ -19,7 +20,8 @@
       "notice": {
         "large": "The file is large. Consider using your email provider's large-attachment feature or a cloud drive.",
         "logsIncluded": "The diagnostic bundle contains today's raw application logs, which may include file paths, error stacks, user content, or credentials. Review it yourself before sending.",
-        "logsNotIncluded": "The diagnostic bundle was saved, but today's application logs could not be included. You can save it again before sending.",
+        "logsNotIncludedRetryNotSuggested": "The diagnostic bundle was saved, but today's application logs could not be included. The basic diagnostics record the reason and related absolute paths; collection exceptions also include the original error text and complete error stack. Saving again is unlikely to help, and the current bundle is still useful.",
+        "logsNotIncludedRetrySuggested": "The diagnostic bundle was saved, but today's application logs could not be included. The basic diagnostics record the reason and related absolute paths; collection exceptions also include the original error text and complete error stack. You can save again; the current bundle is still useful if logs remain unavailable.",
         "notUploaded": "The diagnostic bundle is not uploaded automatically."
       },
       "save": {
@@ -34,7 +36,8 @@
   "zh-CN": {
     "translation": {
       "action": {
-        "save": "保存诊断包"
+        "save": "保存诊断包",
+        "saveAgain": "重新保存"
       },
       "email": {
         "appVersion": "应用版本：{{version}}",
@@ -51,7 +54,8 @@
       "notice": {
         "large": "文件较大，建议使用邮箱的大附件或网盘功能发送。",
         "logsIncluded": "诊断包包含当天的原始应用日志，可能含有文件路径、错误堆栈、用户内容或凭据。发送前请自行检查。",
-        "logsNotIncluded": "诊断包已保存，但当天应用日志未能加入。您可以重新保存后再发送。",
+        "logsNotIncludedRetryNotSuggested": "诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。再次保存通常无法解决，当前诊断包仍可用于排查。",
+        "logsNotIncludedRetrySuggested": "诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。您可以重新保存；即使日志仍缺失，当前诊断包也可用于排查。",
         "notUploaded": "诊断包不会自动上传。"
       },
       "save": {

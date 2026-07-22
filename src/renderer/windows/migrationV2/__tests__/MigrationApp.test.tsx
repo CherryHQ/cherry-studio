@@ -402,8 +402,10 @@ describe('MigrationApp', () => {
     vi.mocked(ReduxExporter).mockImplementation(
       () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
     )
+    const exportError = new Error('Dexie export failed')
+    exportError.stack = 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
     vi.mocked(DexieExporter).mockImplementation(
-      () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
+      () => ({ exportAll: vi.fn().mockRejectedValue(exportError) }) as unknown as DexieExporter
     )
     invoke.mockResolvedValue('/tmp/userData')
 
@@ -415,7 +417,11 @@ describe('MigrationApp', () => {
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(/Dexie export failed/)).toBeInTheDocument()
     expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
-    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'Dexie export failed')
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
+      name: 'Error',
+      message: 'Dexie export failed',
+      stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
+    })
   })
 
   it('drives the error stage when the migration handoff rejects', async () => {
@@ -442,7 +448,9 @@ describe('MigrationApp', () => {
         }) as unknown as LocalStorageExporter
     )
     invoke.mockResolvedValue('/tmp/userData')
-    migrationHookMock.actions.startMigration.mockRejectedValue(new Error('StartMigration failed'))
+    const handoffError = new Error('StartMigration failed')
+    handoffError.stack = 'Error: StartMigration failed\n    at startMigration (/app/renderer.js:24:5)'
+    migrationHookMock.actions.startMigration.mockRejectedValue(handoffError)
 
     render(<MigrationApp />)
 
@@ -450,7 +458,11 @@ describe('MigrationApp', () => {
 
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(/StartMigration failed/)).toBeInTheDocument()
-    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'StartMigration failed')
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
+      name: 'Error',
+      message: 'StartMigration failed',
+      stack: 'Error: StartMigration failed\n    at startMigration (/app/renderer.js:24:5)'
+    })
   })
 
   it('clears the local error latch when main later drives a non-error stage', async () => {
@@ -496,11 +508,13 @@ describe('MigrationApp', () => {
     }
 
     const rejectRendererExport = () => {
+      const exportError = new Error('Dexie export failed')
+      exportError.stack = 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
       vi.mocked(ReduxExporter).mockImplementation(
         () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
       )
       vi.mocked(DexieExporter).mockImplementation(
-        () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
+        () => ({ exportAll: vi.fn().mockRejectedValue(exportError) }) as unknown as DexieExporter
       )
     }
 
@@ -529,7 +543,11 @@ describe('MigrationApp', () => {
 
       expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
-      expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'Dexie export failed')
+      expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
+        name: 'Error',
+        message: 'Dexie export failed',
+        stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
+      })
 
       await act(async () => resolveReport(true))
 
@@ -593,7 +611,9 @@ describe('MigrationApp', () => {
             getEntryCount: vi.fn(() => 1)
           }) as unknown as LocalStorageExporter
       )
-      migrationHookMock.actions.startMigration.mockRejectedValue(new Error('handoff failed'))
+      const handoffError = new Error('handoff failed')
+      handoffError.stack = 'Error: handoff failed\n    at startMigration (/app/renderer.js:24:5)'
+      migrationHookMock.actions.startMigration.mockRejectedValue(handoffError)
       invoke.mockImplementation((channel: string) =>
         Promise.resolve(channel === MigrationIpcChannels.ReportError ? true : '/tmp/userData')
       )
@@ -602,7 +622,11 @@ describe('MigrationApp', () => {
       fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
 
       expect(await screen.findByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
-      expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, 'handoff failed')
+      expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
+        name: 'Error',
+        message: 'handoff failed',
+        stack: 'Error: handoff failed\n    at startMigration (/app/renderer.js:24:5)'
+      })
     })
 
     it.each(['error', 'version_incompatible'] as const)(
@@ -648,8 +672,14 @@ describe('MigrationApp', () => {
     it.each([
       [{ status: 'saved', logs: 'included', size: 'standard' }, ['logs_included', 'not_uploaded']],
       [{ status: 'saved', logs: 'included', size: 'large' }, ['logs_included', 'large', 'not_uploaded']],
-      [{ status: 'saved', logs: 'not_included', size: 'standard' }, ['logs_not_included', 'not_uploaded']],
-      [{ status: 'saved', logs: 'not_included', size: 'large' }, ['logs_not_included', 'large', 'not_uploaded']]
+      [
+        { status: 'saved', logs: 'not_included', retry: 'suggested', size: 'standard' },
+        ['logs_not_included_retry_suggested', 'not_uploaded']
+      ],
+      [
+        { status: 'saved', logs: 'not_included', retry: 'not_suggested', size: 'large' },
+        ['logs_not_included_retry_not_suggested', 'large', 'not_uploaded']
+      ]
     ] as const)('renders saved notices in contract order for %j', async (result, noticeParts) => {
       setStage('error')
       migrationHookMock.actions.saveDiagnostics.mockResolvedValue(result)
@@ -662,6 +692,44 @@ describe('MigrationApp', () => {
         .getAllByTestId('migration-diagnostics-notice')
         .map((notice) => notice.textContent)
       expect(notices).toEqual(noticeParts.map((part) => `migration.diagnostics.saved.${part}`))
+    })
+
+    it('offers one-click save again only when log collection suggests retry', async () => {
+      setStage('error')
+      migrationHookMock.actions.saveDiagnostics
+        .mockResolvedValueOnce({
+          status: 'saved',
+          logs: 'not_included',
+          retry: 'suggested',
+          size: 'standard'
+        })
+        .mockResolvedValueOnce({ status: 'canceled' })
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      const saveAgain = await screen.findByRole('button', { name: 'migration.diagnostics.actions.save_again' })
+      await act(async () => {
+        fireEvent.click(saveAgain)
+      })
+
+      expect(migrationHookMock.actions.saveDiagnostics).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not suggest save again for a non-retryable log collection failure', async () => {
+      setStage('error')
+      migrationHookMock.actions.saveDiagnostics.mockResolvedValue({
+        status: 'saved',
+        logs: 'not_included',
+        retry: 'not_suggested',
+        size: 'standard'
+      })
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+
+      expect(await screen.findByText('migration.diagnostics.saved.title')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'migration.diagnostics.actions.save_again' })).not.toBeInTheDocument()
     })
 
     it.each(['dialog_failed', 'bundle_save_failed', 'save_in_progress'] as const)(
@@ -788,12 +856,16 @@ describe('MigrationApp', () => {
       expect(zhCN.migration.diagnostics.saved).toEqual({
         title: '诊断包已保存',
         logs_included: '诊断包包含当天的原始应用日志，可能含有文件路径、错误堆栈、用户内容或凭据。发送前请自行检查。',
-        logs_not_included: '诊断包已保存，但当天应用日志未能加入。您可以重新保存后再发送。',
+        logs_not_included_retry_suggested:
+          '诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。您可以重新保存；即使日志仍缺失，当前诊断包也可用于排查。',
+        logs_not_included_retry_not_suggested:
+          '诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。再次保存通常无法解决，当前诊断包仍可用于排查。',
         large: '文件较大，建议使用邮箱的大附件或网盘功能发送。',
         not_uploaded: '诊断包不会自动上传。'
       })
       expect(enUS.migration.diagnostics.saved.logs_included).toMatch(/raw application logs/i)
-      expect(enUS.migration.diagnostics.saved.logs_not_included).toMatch(/could not be included/i)
+      expect(enUS.migration.diagnostics.saved.logs_not_included_retry_suggested).toMatch(/complete error stack/i)
+      expect(enUS.migration.diagnostics.saved.logs_not_included_retry_not_suggested).toMatch(/saving again.*unlikely/i)
       expect(enUS.migration.diagnostics.saved.large).toMatch(/large attachment|cloud storage/i)
       expect(enUS.migration.diagnostics.saved.not_uploaded).toMatch(/not.*automatically upload/i)
     })

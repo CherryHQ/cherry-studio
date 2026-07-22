@@ -24,7 +24,8 @@ import { isMac } from '@renderer/utils/platform'
 import {
   getMigrationDiagnosticNoticeParts,
   type MigrationDiagnosticNoticePart,
-  type MigrationDiagnosticSaveResult
+  type MigrationDiagnosticSaveResult,
+  serializeMigrationDiagnosticError
 } from '@shared/data/migration/v2/diagnostics'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 import {
@@ -82,7 +83,8 @@ const diagnosticFailureMessageKey: Record<MigrationDiagnosticSaveFailureCode, st
 
 const diagnosticNoticeMessageKey: Record<MigrationDiagnosticNoticePart, string> = {
   logs_included: 'migration.diagnostics.saved.logs_included',
-  logs_not_included: 'migration.diagnostics.saved.logs_not_included',
+  logs_not_included_retry_suggested: 'migration.diagnostics.saved.logs_not_included_retry_suggested',
+  logs_not_included_retry_not_suggested: 'migration.diagnostics.saved.logs_not_included_retry_not_suggested',
   large: 'migration.diagnostics.saved.large',
   not_uploaded: 'migration.diagnostics.saved.not_uploaded'
 }
@@ -133,10 +135,6 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 // Makes MigrationStage switches exhaustive.
@@ -392,13 +390,14 @@ const MigrationApp: React.FC = () => {
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
-      const message = errorMessage(error)
+      const diagnosticError = serializeMigrationDiagnosticError(error)
+      const message = diagnosticError.message
       const failureReportEpoch = ++localFailureReportEpochRef.current
       setLocalMigrationError(message)
       void (async () => {
         try {
           const diagnosticsAvailable =
-            (await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, message)) === true
+            (await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, diagnosticError)) === true
           if (diagnosticsAvailable && localFailureReportEpochRef.current === failureReportEpoch) {
             setLocalMigrationDiagnosticsAvailable(true)
           }
@@ -475,6 +474,17 @@ const MigrationApp: React.FC = () => {
             ))}
           </div>
         </div>
+        {diagnosticSaveResult.logs === 'not_included' && diagnosticSaveResult.retry === 'suggested' && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2"
+            disabled={isSavingDiagnostics}
+            onClick={() => void saveDiagnostics()}>
+            <RotateCcw size={14} />
+            {t('migration.diagnostics.actions.save_again')}
+          </Button>
+        )}
         <div className="grid grid-cols-3 gap-2" data-testid="migration-diagnostics-saved-actions">
           <Button
             type="button"

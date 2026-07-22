@@ -6,7 +6,11 @@ import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { validateSender } from '@main/core/security/validateSender'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
-import type { MigrationDiagnosticSaveResult } from '@shared/data/migration/v2/diagnostics'
+import {
+  type MigrationDiagnosticError,
+  type MigrationDiagnosticSaveResult,
+  serializeMigrationDiagnosticError
+} from '@shared/data/migration/v2/diagnostics'
 import {
   MigrationIpcChannels,
   type MigrationProgress,
@@ -31,6 +35,7 @@ const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 let inFlightMigration: Promise<MigrationResult> | null = null
 let diagnosticSaveInFlight: Promise<MigrationDiagnosticSaveResult> | null = null
 let lastSavedDiagnosticBundlePath: string | null = null
+let currentDiagnosticError: MigrationDiagnosticError | undefined
 let diagnosticStateEpoch = 0
 // Set once a deferred quit has been registered, so repeated confirmations while a migration
 // write is in flight don't stack a second allSettled().then(confirmQuit).
@@ -167,6 +172,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       throw new Error(CONCURRENT_MIGRATION_ERROR)
     }
 
+    currentDiagnosticError = undefined
     let runPromise: Promise<MigrationResult> | null = null
 
     try {
@@ -212,6 +218,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
           summary: createMigrationSummary(result, currentProgress)
         })
       } else {
+        currentDiagnosticError = migrationEngine.getLastDiagnosticError()
         updateProgress({
           stage: 'error',
           overallProgress: currentProgress.overallProgress,
@@ -230,6 +237,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         throw error
       }
 
+      currentDiagnosticError = serializeMigrationDiagnosticError(error)
+
       updateProgress({
         stage: 'error',
         overallProgress: currentProgress.overallProgress,
@@ -247,13 +256,16 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Mirror renderer-local failures into main so close handling sees the terminal error stage.
-  ipcMain.handle(MigrationIpcChannels.ReportError, (_event, message: string) => {
+  ipcMain.handle(MigrationIpcChannels.ReportError, (event, reportedError: MigrationDiagnosticError) => {
+    assertDiagnosticSender(event)
+    const error = serializeMigrationDiagnosticError(reportedError)
+    currentDiagnosticError = error
     updateProgress({
       stage: 'error',
       overallProgress: currentProgress.overallProgress,
-      currentMessage: message,
+      currentMessage: error.message,
       migrators: currentProgress.migrators,
-      error: message
+      error: error.message
     })
     return true
   })
@@ -261,6 +273,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   // Retry migration
   ipcMain.handle(MigrationIpcChannels.Retry, async () => {
     try {
+      currentDiagnosticError = undefined
       // Reset to the introduction stage so the user can re-trigger migration from its Start button.
       // Carry the data-location notice back so it doesn't disappear after a failed export.
       updateProgress({
@@ -372,6 +385,7 @@ function createRendererDiagnosticContext(): MigrationDiagnosticContext {
     source: 'renderer',
     stage: currentProgress.stage,
     errorSummary: currentProgress.error ?? currentProgress.currentMessage,
+    ...(currentDiagnosticError === undefined ? {} : { error: currentDiagnosticError }),
     overallProgress: currentProgress.overallProgress,
     migrators: currentProgress.migrators.map(({ id, status }) => ({ id, status }))
   }
@@ -427,6 +441,7 @@ export function resetMigrationData(): void {
   inFlightMigration = null
   diagnosticSaveInFlight = null
   lastSavedDiagnosticBundlePath = null
+  currentDiagnosticError = undefined
   diagnosticStateEpoch += 1
   quitScheduled = false
   dataLocationNotice = null

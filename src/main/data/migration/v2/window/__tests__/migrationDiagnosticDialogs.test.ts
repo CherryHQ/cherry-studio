@@ -39,12 +39,12 @@ describe('migrationDiagnosticDialogs', () => {
       '诊断包包含当天的原始应用日志，可能含有文件路径、错误堆栈、用户内容或凭据。发送前请自行检查。\n\n文件较大，建议使用邮箱的大附件或网盘功能发送。\n\n诊断包不会自动上传。'
     ],
     [
-      { status: 'saved', logs: 'not_included', size: 'standard' },
-      '诊断包已保存，但当天应用日志未能加入。您可以重新保存后再发送。\n\n诊断包不会自动上传。'
+      { status: 'saved', logs: 'not_included', retry: 'suggested', size: 'standard' },
+      '诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。您可以重新保存；即使日志仍缺失，当前诊断包也可用于排查。\n\n诊断包不会自动上传。'
     ],
     [
-      { status: 'saved', logs: 'not_included', size: 'large' },
-      '诊断包已保存，但当天应用日志未能加入。您可以重新保存后再发送。\n\n文件较大，建议使用邮箱的大附件或网盘功能发送。\n\n诊断包不会自动上传。'
+      { status: 'saved', logs: 'not_included', retry: 'not_suggested', size: 'large' },
+      '诊断包已保存，但当天应用日志未能加入。基础诊断信息会记录原因和相关绝对路径；发生收集异常时还会包含原始异常文本与完整错误堆栈。再次保存通常无法解决，当前诊断包仍可用于排查。\n\n文件较大，建议使用邮箱的大附件或网盘功能发送。\n\n诊断包不会自动上传。'
     ]
   ] as const)('builds the exact ordered Chinese saved detail for %#', async (result, expected) => {
     const i18n = await createMigrationDiagnosticNativeI18n('zh-CN')
@@ -172,6 +172,49 @@ describe('migrationDiagnosticDialogs', () => {
       defaultId: 0,
       cancelId: 2
     })
+  })
+
+  it('offers Save Again for retryable missing logs and repeats the save flow directly', async () => {
+    showMessageBoxMock
+      .mockResolvedValueOnce({ response: 0 } as never)
+      .mockResolvedValueOnce({ response: 0 } as never)
+      .mockResolvedValueOnce({ response: 1 } as never)
+    showSaveDialogMock.mockResolvedValue({ canceled: false, filePath: '/chosen/diagnostics.zip' } as never)
+    const saveBundle = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 'saved',
+        logs: 'not_included',
+        retry: 'suggested',
+        size: 'standard'
+      })
+      .mockResolvedValueOnce({ status: 'saved', logs: 'included', size: 'standard' })
+
+    const result = await presentMigrationDiagnosticFailure(
+      {
+        locale: 'en-US',
+        context,
+        failure: {
+          type: 'error',
+          title: 'Startup failed',
+          message: 'Could not start',
+          buttons: ['Retry', 'Quit'],
+          defaultId: 0,
+          cancelId: 1
+        }
+      },
+      { saveBundle }
+    )
+
+    expect(result).toBe(1)
+    expect(showSaveDialogMock).toHaveBeenCalledTimes(2)
+    expect(saveBundle).toHaveBeenCalledTimes(2)
+    expect(showMessageBoxMock.mock.calls[1]?.[0]).toMatchObject({
+      buttons: ['Save again', 'Retry', 'Quit'],
+      defaultId: 0,
+      cancelId: 2
+    })
+    expect(showMessageBoxMock.mock.calls[2]?.[0].buttons).toEqual(['Retry', 'Quit'])
   })
 
   it('explains that failed saves did not upload or send data before returning an original decision', async () => {

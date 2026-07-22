@@ -50,7 +50,8 @@ export interface MigrationDiagnosticFailurePresentation {
 
 const NOTICE_KEYS = {
   logs_included: 'notice.logsIncluded',
-  logs_not_included: 'notice.logsNotIncluded',
+  logs_not_included_retry_suggested: 'notice.logsNotIncludedRetrySuggested',
+  logs_not_included_retry_not_suggested: 'notice.logsNotIncludedRetryNotSuggested',
   large: 'notice.large',
   not_uploaded: 'notice.notUploaded'
 } as const
@@ -120,19 +121,21 @@ async function showSaveOutcome(
   result: Exclude<MigrationDiagnosticSaveResult, { status: 'canceled' }>,
   failure: MigrationDiagnosticFailureDialog,
   i18n: MigrationDiagnosticNativeI18n
-): Promise<number> {
+): Promise<number | 'save_again'> {
   const saved = result.status === 'saved'
+  const saveAgain = saved && result.logs === 'not_included' && result.retry === 'suggested'
   try {
     const response = await dialog.showMessageBox({
       type: saved ? 'info' : 'error',
       title: i18n.t(saved ? 'save.savedTitle' : 'save.failedTitle'),
       message: i18n.t(saved ? 'save.savedMessage' : 'save.failedMessage'),
       ...(saved ? { detail: createMigrationDiagnosticSavedDetail(result, i18n) } : {}),
-      buttons: [...failure.buttons],
-      defaultId: failure.defaultId,
-      cancelId: failure.cancelId
+      buttons: [...(saveAgain ? [i18n.t('action.saveAgain')] : []), ...failure.buttons],
+      defaultId: saveAgain ? 0 : failure.defaultId,
+      cancelId: failure.cancelId + (saveAgain ? 1 : 0)
     })
-    return originalResponse(response.response, failure)
+    if (saveAgain && response.response === 0) return 'save_again'
+    return originalResponse(response.response - (saveAgain ? 1 : 0), failure)
   } catch {
     return failure.cancelId
   }
@@ -148,11 +151,15 @@ export async function presentMigrationDiagnosticFailure(
     const response = await showFailureWithSave(presentation.failure, i18n)
     if (response !== 0) return originalResponse(response - 1, presentation.failure)
 
-    const outcome = await saveMigrationDiagnosticBundleWithDialog(presentation.context, {
-      ...dependencies,
-      locale: presentation.locale
-    })
-    if (outcome.result.status === 'canceled') continue
-    return showSaveOutcome(outcome.result, presentation.failure, i18n)
+    while (true) {
+      const outcome = await saveMigrationDiagnosticBundleWithDialog(presentation.context, {
+        ...dependencies,
+        locale: presentation.locale
+      })
+      if (outcome.result.status === 'canceled') break
+      const decision = await showSaveOutcome(outcome.result, presentation.failure, i18n)
+      if (decision === 'save_again') continue
+      return decision
+    }
   }
 }

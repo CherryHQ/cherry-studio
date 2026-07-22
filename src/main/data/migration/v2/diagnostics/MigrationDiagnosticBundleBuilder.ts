@@ -3,7 +3,9 @@ import path from 'node:path'
 import { type AtomicWriteStream, createAtomicWriteStream, stat } from '@main/utils/file'
 import {
   MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES,
-  type MigrationDiagnosticSavedResult
+  type MigrationDiagnosticError,
+  type MigrationDiagnosticSavedResult,
+  serializeMigrationDiagnosticError
 } from '@shared/data/migration/v2/diagnostics'
 import type { MigrationStage, MigratorStatus } from '@shared/data/migration/v2/types'
 import type { FilePath } from '@shared/types/file'
@@ -26,6 +28,7 @@ export interface MigrationDiagnosticContext {
   readonly stage: MigrationStage | 'preboot'
   readonly failureCode?: string
   readonly errorSummary?: string
+  readonly error?: MigrationDiagnosticError
   readonly overallProgress?: number
   readonly migrators?: ReadonlyArray<{ readonly id: string; readonly status: MigratorStatus }>
 }
@@ -149,13 +152,25 @@ export class MigrationDiagnosticBundleBuilder {
           stage: input.context.stage,
           ...(input.context.failureCode === undefined ? {} : { failureCode: input.context.failureCode }),
           ...(input.context.errorSummary === undefined ? {} : { errorSummary: input.context.errorSummary }),
+          ...(input.context.error === undefined ? {} : { error: input.context.error }),
           ...(input.context.overallProgress === undefined ? {} : { overallProgress: input.context.overallProgress }),
           ...(input.context.migrators === undefined
             ? {}
             : {
                 migrators: input.context.migrators.map(({ id, status }) => ({ id, status }))
               })
-        }
+        },
+        ...(logs.status === 'included'
+          ? {}
+          : {
+              logCollection: {
+                status: logs.status,
+                reason: logs.reason,
+                retry: logs.retry,
+                path: logs.path,
+                ...(logs.error === undefined ? {} : { error: logs.error })
+              }
+            })
       }
       const archiveEntries: ArchiveEntry[] = [
         {
@@ -171,11 +186,10 @@ export class MigrationDiagnosticBundleBuilder {
 
       await writeArchive(input.destination, archiveEntries)
       const archiveSize = await this.getArchiveSize(input.destination)
-      return {
-        status: 'saved',
-        logs: logs.status,
-        size: archiveSize > MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES ? 'large' : 'standard'
-      }
+      const size = archiveSize > MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES ? 'large' : 'standard'
+      return logs.status === 'included'
+        ? { status: 'saved', logs: 'included', size }
+        : { status: 'saved', logs: 'not_included', retry: logs.retry, size }
     } catch {
       return failed()
     }
@@ -185,8 +199,15 @@ export class MigrationDiagnosticBundleBuilder {
     try {
       if (this.collectApplicationLogs !== undefined) return await this.collectApplicationLogs(logsDirectory)
       return await new MigrationApplicationLogCollector({ logsDirectory, clock: () => saveTime }).collect()
-    } catch {
-      return { status: 'not_included', entries: [] }
+    } catch (error) {
+      return {
+        status: 'not_included',
+        entries: [],
+        reason: 'collector_failed',
+        retry: 'not_suggested',
+        path: logsDirectory,
+        error: serializeMigrationDiagnosticError(error, logsDirectory)
+      }
     }
   }
 }

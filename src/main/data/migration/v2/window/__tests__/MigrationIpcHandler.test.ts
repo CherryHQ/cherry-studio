@@ -17,7 +17,8 @@ const engineMock = vi.hoisted(() => ({
   onProgress: vi.fn(),
   run: vi.fn(),
   needsMigration: vi.fn(),
-  getLastError: vi.fn()
+  getLastError: vi.fn(),
+  getLastDiagnosticError: vi.fn()
 }))
 const windowSendMock = vi.hoisted(() => vi.fn())
 const windowMinimizeMock = vi.hoisted(() => vi.fn())
@@ -114,6 +115,7 @@ describe('MigrationIpcHandler', () => {
     electronMock.appGetLocale.mockReturnValue('en-US')
     diagnosticEmailUrlMock.mockReturnValue('mailto:support@cherry-ai.com?subject=diagnostics')
     diagnosticI18nMock.mockResolvedValue({ locale: 'en-US', t: vi.fn() })
+    engineMock.getLastDiagnosticError.mockReturnValue(undefined)
     resetMigrationData()
     registerMigrationIpcHandlers('/mock/userData')
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -281,7 +283,12 @@ describe('MigrationIpcHandler', () => {
     })
 
     it('transitions main to the terminal error stage when the renderer reports a pre-handoff failure', async () => {
-      const result = await invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
+      const error = {
+        name: 'Error',
+        message: 'Dexie export failed',
+        stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
+      }
+      const result = await invoke(MigrationIpcChannels.ReportError, error)
 
       expect(result).toBe(true)
       const progress = lastProgress()
@@ -332,6 +339,11 @@ describe('MigrationIpcHandler', () => {
         })
         return { success: false, error: 'Validation failed', totalDuration: 1, migratorResults: [] }
       })
+      engineMock.getLastDiagnosticError.mockReturnValue({
+        name: 'Error',
+        message: 'Validation failed',
+        stack: 'Error: Validation failed\n    at validate (/app/main.js:84:5)'
+      })
       diagnosticSaveDialogMock.mockResolvedValue({
         result: { status: 'saved', logs: 'included', size: 'standard' },
         destination: '/main/chosen.zip'
@@ -346,6 +358,11 @@ describe('MigrationIpcHandler', () => {
         source: 'renderer',
         stage: 'error',
         errorSummary: 'Validation failed',
+        error: {
+          name: 'Error',
+          message: 'Validation failed',
+          stack: 'Error: Validation failed\n    at validate (/app/main.js:84:5)'
+        },
         overallProgress: 65,
         migrators: [
           { id: 'settings', status: 'completed' },
@@ -377,7 +394,7 @@ describe('MigrationIpcHandler', () => {
 
       diagnosticSaveDialogMock
         .mockResolvedValueOnce({
-          result: { status: 'saved', logs: 'not_included', size: 'standard' },
+          result: { status: 'saved', logs: 'not_included', retry: 'suggested', size: 'standard' },
           destination: '/main/success.zip'
         })
         .mockResolvedValueOnce({ result: { status: 'canceled' } })
@@ -392,7 +409,12 @@ describe('MigrationIpcHandler', () => {
     })
 
     it('creates the support email and copies the fixed address without accepting Renderer content', async () => {
-      await invoke(MigrationIpcChannels.ReportError, 'Dexie export failed')
+      const error = {
+        name: 'Error',
+        message: 'Dexie export failed',
+        stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
+      }
+      await invoke(MigrationIpcChannels.ReportError, error)
 
       expect(
         await invoke(MigrationIpcChannels.OpenDiagnosticEmail, {
@@ -405,6 +427,7 @@ describe('MigrationIpcHandler', () => {
           source: 'renderer',
           stage: 'error',
           errorSummary: 'Dexie export failed',
+          error,
           overallProgress: 0,
           migrators: []
         },
@@ -431,7 +454,8 @@ describe('MigrationIpcHandler', () => {
       MigrationIpcChannels.SaveDiagnosticBundle,
       MigrationIpcChannels.OpenDiagnosticEmail,
       MigrationIpcChannels.ShowDiagnosticBundleInFolder,
-      MigrationIpcChannels.CopySupportEmail
+      MigrationIpcChannels.CopySupportEmail,
+      MigrationIpcChannels.ReportError
     ])('rejects an untrusted sender before side effects on %s', async (channel) => {
       validateSenderMock.mockReturnValue(false)
 
@@ -445,16 +469,17 @@ describe('MigrationIpcHandler', () => {
       expect(clipboard.writeText).not.toHaveBeenCalled()
     })
 
-    it('validates exactly the four diagnostic handlers', async () => {
+    it('validates exactly the five diagnostic handlers', async () => {
       diagnosticSaveDialogMock.mockResolvedValue({ result: { status: 'canceled' } })
 
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
       await invoke(MigrationIpcChannels.OpenDiagnosticEmail)
       await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
       await invoke(MigrationIpcChannels.CopySupportEmail)
+      await invoke(MigrationIpcChannels.ReportError, { name: 'Error', message: 'boom' })
       await invoke(MigrationIpcChannels.GetProgress)
 
-      expect(validateSenderMock).toHaveBeenCalledTimes(4)
+      expect(validateSenderMock).toHaveBeenCalledTimes(5)
     })
 
     it('clears the latest path and in-flight guard when migration data is reset', async () => {
@@ -518,7 +543,7 @@ describe('MigrationIpcHandler', () => {
     })
 
     it('pushes the live stage to the window manager on progress updates', async () => {
-      await invoke(MigrationIpcChannels.ReportError, 'boom')
+      await invoke(MigrationIpcChannels.ReportError, { name: 'Error', message: 'boom' })
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
     })
   })

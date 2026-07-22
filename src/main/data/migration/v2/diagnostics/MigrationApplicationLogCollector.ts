@@ -1,5 +1,8 @@
+import type { Dirent } from 'node:fs'
 import { readdir, readFile as fsReadFile } from 'node:fs/promises'
 import path from 'node:path'
+
+import { type MigrationDiagnosticError, serializeMigrationDiagnosticError } from '@shared/data/migration/v2/diagnostics'
 
 export interface MigrationApplicationLogEntry {
   readonly fileName: string
@@ -8,7 +11,14 @@ export interface MigrationApplicationLogEntry {
 
 export type MigrationApplicationLogCollection =
   | { readonly status: 'included'; readonly entries: readonly MigrationApplicationLogEntry[] }
-  | { readonly status: 'not_included'; readonly entries: readonly [] }
+  | {
+      readonly status: 'not_included'
+      readonly entries: readonly []
+      readonly reason: 'no_eligible_logs' | 'directory_scan_failed' | 'file_read_failed' | 'collector_failed'
+      readonly retry: 'suggested' | 'not_suggested'
+      readonly path: string
+      readonly error?: MigrationDiagnosticError
+    }
 
 interface MigrationApplicationLogCollectorOptions {
   readonly logsDirectory: string
@@ -28,6 +38,31 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+const RETRYABLE_ERROR_CODES = new Set(['EAGAIN', 'EBUSY', 'EMFILE', 'ENFILE', 'ENOENT'])
+
+function retryFor(error: unknown): 'suggested' | 'not_suggested' {
+  const code =
+    typeof error === 'object' && error !== null && typeof (error as { code?: unknown }).code === 'string'
+      ? (error as { code: string }).code
+      : undefined
+  return code !== undefined && RETRYABLE_ERROR_CODES.has(code) ? 'suggested' : 'not_suggested'
+}
+
+function omitted(
+  reason: Exclude<MigrationApplicationLogCollection, { status: 'included' }>['reason'],
+  targetPath: string,
+  error?: unknown
+): Exclude<MigrationApplicationLogCollection, { status: 'included' }> {
+  return {
+    status: 'not_included',
+    entries: [],
+    reason,
+    retry: reason === 'no_eligible_logs' ? 'suggested' : retryFor(error),
+    path: targetPath,
+    ...(error === undefined ? {} : { error: serializeMigrationDiagnosticError(error, targetPath) })
+  }
+}
+
 export class MigrationApplicationLogCollector {
   private readonly logsDirectory: string
   private readonly clock: () => Date
@@ -44,7 +79,12 @@ export class MigrationApplicationLogCollector {
       const date = formatLocalDate(this.clock())
       const baseFileName = `app.${date}.log`
       const fileNamePattern = new RegExp(`^app\\.${date}\\.log(?:\\.(\\d+))?$`)
-      const directoryEntries = await readdir(this.logsDirectory, { withFileTypes: true })
+      let directoryEntries: Dirent<string>[]
+      try {
+        directoryEntries = await readdir(this.logsDirectory, { withFileTypes: true })
+      } catch (error) {
+        return omitted('directory_scan_failed', this.logsDirectory, error)
+      }
       const selectedLogs: SelectedLog[] = []
 
       for (const directoryEntry of directoryEntries) {
@@ -58,18 +98,20 @@ export class MigrationApplicationLogCollector {
       }
 
       selectedLogs.sort((left, right) => left.rotation - right.rotation)
-      if (selectedLogs.length === 0) return { status: 'not_included', entries: [] }
+      if (selectedLogs.length === 0) return omitted('no_eligible_logs', this.logsDirectory)
 
       const entries: MigrationApplicationLogEntry[] = []
       for (const selectedLog of selectedLogs) {
-        entries.push({
-          fileName: selectedLog.fileName,
-          data: await this.readFile(path.join(this.logsDirectory, selectedLog.fileName))
-        })
+        const logPath = path.join(this.logsDirectory, selectedLog.fileName)
+        try {
+          entries.push({ fileName: selectedLog.fileName, data: await this.readFile(logPath) })
+        } catch (error) {
+          return omitted('file_read_failed', logPath, error)
+        }
       }
       return { status: 'included', entries }
-    } catch {
-      return { status: 'not_included', entries: [] }
+    } catch (error) {
+      return omitted('collector_failed', this.logsDirectory, error)
     }
   }
 }

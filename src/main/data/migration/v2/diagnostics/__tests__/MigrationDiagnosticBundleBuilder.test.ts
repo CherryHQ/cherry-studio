@@ -58,6 +58,11 @@ describe('MigrationDiagnosticBundleBuilder', () => {
         stage: 'error',
         failureCode: 'migration_failed',
         errorSummary: 'Migration failed while copying records.',
+        error: {
+          name: 'Error',
+          message: 'Migration failed while copying records.',
+          stack: 'Error: Migration failed while copying records.\n    at migrate (/app/main.js:10:3)'
+        },
         overallProgress: 42,
         migrators: [
           { id: 'settings', status: 'completed' },
@@ -86,6 +91,11 @@ describe('MigrationDiagnosticBundleBuilder', () => {
         stage: 'error',
         failureCode: 'migration_failed',
         errorSummary: 'Migration failed while copying records.',
+        error: {
+          name: 'Error',
+          message: 'Migration failed while copying records.',
+          stack: 'Error: Migration failed while copying records.\n    at migrate (/app/main.js:10:3)'
+        },
         overallProgress: 42,
         migrators: [
           { id: 'settings', status: 'completed' },
@@ -97,19 +107,41 @@ describe('MigrationDiagnosticBundleBuilder', () => {
 
   it('still saves compact diagnostics when the daily application logs are unavailable', async () => {
     const destination = join(workDirectory, 'without-logs.zip')
+    const collectionError = Object.assign(new Error('log collection failed'), {
+      stack: 'Error: log collection failed\n    at collectLogs (/app/main.js:80:5)',
+      code: 'EACCES',
+      syscall: 'scandir',
+      path: logsDirectory
+    })
     const result = await new MigrationDiagnosticBundleBuilder({
       clock: FIXED_CLOCK,
       applicationMetadata: TEST_APPLICATION,
       collectApplicationLogs: async () => {
-        throw new Error('log collection failed')
+        throw collectionError
       }
     }).save({
       destination,
       logsDirectory,
-      context: { source: 'native', stage: 'preboot', failureCode: 'database_initialize_failed' }
+      context: {
+        source: 'native',
+        stage: 'preboot',
+        failureCode: 'database_initialize_failed',
+        error: {
+          name: 'Error',
+          message: 'database initialization failed',
+          stack: 'Error: database initialization failed\n    at initialize (/app/main.js:20:7)',
+          code: 'SQLITE_CANTOPEN',
+          path: '/absolute/cherrystudio.sqlite'
+        }
+      }
     })
 
-    expect(result).toEqual({ status: 'saved', logs: 'not_included', size: 'standard' })
+    expect(result).toEqual({
+      status: 'saved',
+      logs: 'not_included',
+      retry: 'not_suggested',
+      size: 'standard'
+    })
     const archive = await readZip(destination)
     expect(archive.names).toEqual(['migration-diagnostics.json'])
     expect(JSON.parse(archive.data['migration-diagnostics.json'].toString('utf8'))).toEqual({
@@ -119,8 +151,51 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       migration: {
         source: 'native',
         stage: 'preboot',
-        failureCode: 'database_initialize_failed'
+        failureCode: 'database_initialize_failed',
+        error: {
+          name: 'Error',
+          message: 'database initialization failed',
+          stack: 'Error: database initialization failed\n    at initialize (/app/main.js:20:7)',
+          code: 'SQLITE_CANTOPEN',
+          path: '/absolute/cherrystudio.sqlite'
+        }
+      },
+      logCollection: {
+        status: 'not_included',
+        reason: 'collector_failed',
+        retry: 'not_suggested',
+        path: logsDirectory,
+        error: {
+          name: 'Error',
+          message: 'log collection failed',
+          stack: 'Error: log collection failed\n    at collectLogs (/app/main.js:80:5)',
+          code: 'EACCES',
+          syscall: 'scandir',
+          path: logsDirectory
+        }
       }
+    })
+  })
+
+  it('records no_eligible_logs without inventing an error stack', async () => {
+    const destination = join(workDirectory, 'no-eligible-logs.zip')
+
+    const result = await new MigrationDiagnosticBundleBuilder({
+      clock: FIXED_CLOCK,
+      applicationMetadata: TEST_APPLICATION
+    }).save({
+      destination,
+      logsDirectory,
+      context: { source: 'renderer', stage: 'error' }
+    })
+
+    expect(result).toEqual({ status: 'saved', logs: 'not_included', retry: 'suggested', size: 'standard' })
+    const archive = await readZip(destination)
+    expect(JSON.parse(archive.data['migration-diagnostics.json'].toString('utf8')).logCollection).toEqual({
+      status: 'not_included',
+      reason: 'no_eligible_logs',
+      retry: 'suggested',
+      path: logsDirectory
     })
   })
 
@@ -157,7 +232,7 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       context: { source: 'renderer', stage: 'error' }
     })
 
-    expect(result).toEqual({ status: 'saved', logs: 'not_included', size: expectedSize })
+    expect(result).toEqual({ status: 'saved', logs: 'not_included', retry: 'suggested', size: expectedSize })
   })
 
   it('uses the fixed public failure code for invalid targets and post-write stat failures', async () => {

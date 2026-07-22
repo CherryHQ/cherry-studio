@@ -145,11 +145,13 @@ describe('MigrationEngine', () => {
     expect(result.migratorResults[0].warnings).toBeUndefined()
   })
 
-  it('logs failed runs with an Error object so stack/cause are preserved', async () => {
+  it('preserves the complete failed-run error for diagnostics and clears it before the next run', async () => {
     const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
     const events: string[] = []
     const failing = createTestMigrator('failing', 1, events)
-    failing.execute.mockResolvedValueOnce({ success: false, processedCount: 0, error: 'execute exploded' } as any)
+    const migrationError = new Error('execute exploded')
+    migrationError.stack = 'Error: execute exploded\n    at execute (/app/main.js:42:7)'
+    failing.execute.mockRejectedValueOnce(migrationError)
 
     engine.registerMigrators([failing as any])
 
@@ -160,6 +162,14 @@ describe('MigrationEngine', () => {
     const lastCall = errorSpy.mock.calls.at(-1)
     expect(lastCall).toBeDefined()
     expect((lastCall![1] as Error).message).toContain('execute exploded')
+    expect(engine.getLastDiagnosticError()).toEqual({
+      name: 'Error',
+      message: 'execute exploded',
+      stack: 'Error: execute exploded\n    at execute (/app/main.js:42:7)'
+    })
+
+    await engine.run({}, '/tmp/dexie_export')
+    expect(engine.getLastDiagnosticError()).toBeUndefined()
 
     errorSpy.mockRestore()
   })
