@@ -66,6 +66,29 @@ describe('useAgentSessionContextUsage', () => {
     })
   })
 
+  it('keeps only the 100 most recent session snapshots', async () => {
+    MockUseCacheUtils.setPersistCacheValue(
+      AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY,
+      Object.fromEntries(
+        Array.from({ length: 100 }, (_, index) => [
+          `session-${index}`,
+          { ...snapshot, totalTokens: index, percentage: index }
+        ])
+      )
+    )
+    MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-100', usage)
+
+    renderHook(() => useAgentSessionContextUsage('session-100'))
+
+    await waitFor(() => {
+      const snapshots = MockUseCacheUtils.getPersistCacheValue(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY)
+      expect(Object.keys(snapshots)).toHaveLength(100)
+      expect(snapshots['session-0']).toBeUndefined()
+      expect(snapshots['session-1']).toBeDefined()
+      expect(snapshots['session-100']).toEqual(snapshot)
+    })
+  })
+
   it('hides a persisted snapshot captured for a different model', () => {
     MockUseCacheUtils.setPersistCacheValue(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY, {
       'session-1': snapshot

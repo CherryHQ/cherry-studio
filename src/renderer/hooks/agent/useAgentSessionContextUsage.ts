@@ -3,10 +3,14 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import type { AgentSessionContextUsageSummary } from '@shared/data/cache/cacheValueTypes'
+import type {
+  AgentSessionContextUsageSnapshotStore,
+  AgentSessionContextUsageSummary
+} from '@shared/data/cache/cacheValueTypes'
 import { useEffect } from 'react'
 
 const EMPTY_SESSION_ID = '__none__'
+const MAX_CONTEXT_USAGE_SNAPSHOTS = 100
 export const AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY = 'ui.agent.context_usage_snapshots' as const
 
 interface AgentSessionContextUsageState {
@@ -30,10 +34,7 @@ export function useAgentSessionContextUsage(
       const current = previous[sessionId]
       if (current && snapshotMatchesUsage(current, cachedUsage)) return previous
 
-      return {
-        ...previous,
-        [sessionId]: createSnapshot(cachedUsage)
-      }
+      return upsertSnapshot(previous, sessionId, createSnapshot(cachedUsage))
     })
   }, [cachedUsage, sessionId, setSnapshots])
 
@@ -72,6 +73,16 @@ function createSnapshot(usage: AgentSessionContextUsage): AgentSessionContextUsa
     percentage: usage.percentage,
     model: usage.model
   }
+}
+
+function upsertSnapshot(
+  snapshots: AgentSessionContextUsageSnapshotStore,
+  sessionId: string,
+  snapshot: AgentSessionContextUsageSummary
+): AgentSessionContextUsageSnapshotStore {
+  const entries = Object.entries(snapshots).filter(([existingSessionId]) => existingSessionId !== sessionId)
+  entries.push([sessionId, snapshot])
+  return Object.fromEntries(entries.slice(-MAX_CONTEXT_USAGE_SNAPSHOTS))
 }
 
 function snapshotMatchesUsage(snapshot: AgentSessionContextUsageSummary, usage: AgentSessionContextUsage): boolean {
