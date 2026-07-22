@@ -52,7 +52,7 @@ async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalida
  * PATCH /agents (see `AgentEditDialog`), not through this hook.
  */
 export function useInstalledSkills(agentId?: string, options: { enabled?: boolean } = {}) {
-  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
+  const { data, isLoading, error, refetch } = useQuery('/skills', {
     enabled: options.enabled !== false,
     ...(agentId ? { query: { agentId } } : {})
   })
@@ -74,7 +74,7 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
 
   return {
     skills: data ?? [],
-    loading: isLoading || isRefreshing,
+    loading: isLoading,
     error: error?.message ?? null,
     refresh: refetch,
     uninstall

@@ -99,6 +99,22 @@ describe('useInstalledSkills', () => {
     expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
   })
 
+  it('keeps cached skills visible during background refresh', () => {
+    useQueryMock.mockReturnValue({
+      data: [createSkill()],
+      isLoading: false,
+      isRefreshing: true,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { result } = renderHook(() => useInstalledSkills('agent-1'))
+
+    expect(result.current.loading).toBe(false)
+    expect(result.current.skills).toHaveLength(1)
+  })
+
   it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
     const { result } = renderHook(() => useInstalledSkills())
 

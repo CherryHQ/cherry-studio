@@ -197,6 +197,26 @@ vi.mock('@renderer/hooks/useSkills', () => ({
     ],
     loading: false,
     refresh: vi.fn()
+  }),
+  useSkillInstall: () => ({
+    install: vi.fn(),
+    installFromDirectory: vi.fn(),
+    installFromZip: vi.fn(),
+    isInstalling: vi.fn(() => false)
+  }),
+  useSkillSearch: () => ({
+    results: [],
+    searching: false,
+    error: null,
+    search: vi.fn(),
+    clear: vi.fn()
+  }),
+  useSystemSkills: () => ({
+    skills: [],
+    loading: false,
+    error: null,
+    importSkill: vi.fn(),
+    importing: new Set()
   })
 }))
 
@@ -243,6 +263,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.undo': 'Undo',
           'error.no_response': 'No response',
           'library.action.enable': 'Enable',
+          'library.config.dialogs.create.capability.search': 'Search skills',
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
           'library.config.agent.field.description.placeholder': 'Describe this agent',
@@ -270,6 +291,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.no_mcp_bound': 'No MCP servers bound',
           'library.config.agent.section.tools.no_skills_enabled': 'No skills enabled',
           'library.config.agent.section.tools.search_placeholder': 'Search tools',
+          'library.config.agent.section.tools.skills_enable_all': 'Enable all skills',
           'library.config.agent.section.tools.skills_require_save': 'Save before skills',
           'library.config.agent.section.tools.tab.mcp': 'MCP',
           'library.config.agent.section.tools.tab.skills': 'Skills',
@@ -374,6 +396,10 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.tools.no_more': 'No more servers',
           'library.config.tools.search': 'Search servers',
           'library.no_match': 'No match',
+          'library.skill_add.add': 'Add',
+          'library.skill_add.local_import': 'Import locally',
+          'library.skill_add.online_search': 'Search online',
+          'library.skill_add.system_search': 'Search system skills',
           'settings.mcp.runtimeStatus.connected': 'Connected',
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
@@ -962,6 +988,19 @@ describe('edit dialogs', () => {
 
     expect(screen.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('reuses the create flow skill management controls in the agent edit dialog', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
+
+    expect(screen.getByPlaceholderText('Search skills')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Enable all skills' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Search online' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Import locally' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Search system skills' })).toBeInTheDocument()
   })
 
   it('opens the assistant edit dialog directly on the requested initial tab', () => {
