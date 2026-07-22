@@ -8,6 +8,10 @@
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net"
         },
+        "google-generate-content": {
+          "adapterFamily": "cherryin",
+          "baseUrl": "https://open.cherryin.net"
+        },
         "openai-chat-completions": {
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net",
@@ -470,6 +474,11 @@
         "openai-chat-completions": {
           "adapterFamily": "openrouter",
           "baseUrl": "https://openrouter.ai/api/v1/",
+          "modelsApiUrls": {
+            "default": "https://openrouter.ai/api/v1/models",
+            "embedding": "https://openrouter.ai/api/v1/embeddings/models",
+            "image": "https://openrouter.ai/api/v1/images/models"
+          },
           "reasoningFormat": {
             "type": "openai-chat",
             "wire": {
@@ -507,6 +516,10 @@
               }
             }
           }
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openrouter",
+          "baseUrl": "https://openrouter.ai/api/v1/"
         }
       },
       "id": "openrouter",
@@ -2046,5 +2059,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "1c98e1f55a91815b"
+  "version": "13cfe872c27db35b"
 }

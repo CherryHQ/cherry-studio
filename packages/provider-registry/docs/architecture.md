@@ -17,7 +17,7 @@ Reasoning controls have an additional model-capability/request-encoding boundary
   src/providers/<prov>.ts  ─┤──►  scripts/generate-catalog.ts  ──►   data/models.json          ─┐
     (defineProvider)       │       buildIndex                       data/providers.json        ├─► src/registry-loader.ts
   models.dev    (live)    ─┤       assignCreators   → ownedBy            data/provider-models.json ─┘     + src/schemas/*
-  openrouter.ai (live)    ─┘       buildModels / buildProviders /                                    (app reads these)
+  OpenRouter text + image ─┘       buildModels / buildProviders /                                    (app reads these)
                                    buildProviderModels
 ```
 
@@ -61,8 +61,8 @@ A provider declares how to connect + what it serves. Fields:
 
 ## Generation pipeline (`scripts/generate-catalog.ts`)
 
-1. **`load`** — fetch the upstream catalogs live (or a local file via `MODELSDEV_CACHE` / `OPENROUTER_CACHE`), validate with zod.
-2. **`buildIndex`** — a canonical-id → metadata index, **unioned across sources**. models.dev is read only for the creator providers a creator forward-declares (clean listings); OpenRouter is always read (clean org/model ids). Host/gateway listings are ignored to avoid host-prefixed dup ids.
+1. **`load`** — fetch the upstream catalogs live (or local files via `MODELSDEV_CACHE` / `OPENROUTER_CACHE` / `OPENROUTER_IMAGE_CACHE`), validate with zod.
+2. **`buildIndex`** — a canonical-id → metadata index, **unioned across sources**. models.dev is read only for the creator providers a creator forward-declares (clean listings); OpenRouter's general and dedicated image catalogs are always read (clean org/model ids). Host/gateway listings are ignored to avoid host-prefixed dup ids.
 3. **`assignCreators`** — assign each canonical id an owning creator (`ownedBy`), most-explicit signal first:
    - **pass 1 — explicit identity**: the id names the creator (`fetchModels` list, hand-listed `models`, `idPrefixes`).
    - **pass 2 — family**: base architecture (`families`), weaker than an id.

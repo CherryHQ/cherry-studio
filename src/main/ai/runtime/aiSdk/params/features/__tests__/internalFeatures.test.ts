@@ -40,6 +40,8 @@ function makeScope(overrides: {
     sdkConfig: { providerId: 'openai' as never, providerSettings: {} as never, modelId: 'm1' },
     endpointType: overrides.endpointType as never,
     aiSdkProviderId: (overrides.aiSdkProviderId ?? 'openai-compatible') as never,
+    reasoningProfile: { format: 'none', wire: { disabled: true } },
+    reasoning: { kind: 'omit', selection: 'default', emissions: [] },
     requestContext: {
       requestId: 'req-1',
       topicId: overrides.topicId,

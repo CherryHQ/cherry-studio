@@ -259,7 +259,7 @@ describe('ProviderRegistryService', () => {
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
-      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
+      expect(result.reasoningProfile.format).toBe('openai-chat')
       expect(result.presetModel?.id).toBe('gpt-4o')
     })
 
@@ -273,7 +273,7 @@ describe('ProviderRegistryService', () => {
 
       expect(() => providerRegistryService.resolveModels('openai', ['gpt-4o'])).toThrow('database offline')
 
-      expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning config', error)
+      expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning profile', error)
       providerSpy.mockRestore()
     })
 

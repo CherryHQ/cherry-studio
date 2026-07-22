@@ -26,8 +26,10 @@ import type {
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import {
+  buildPersistedEndpointConfigs,
   deriveLegacyReasoningFields,
   ENDPOINT_TYPE,
+  inferAdapterFamily,
   inferReasoningControls,
   inferReasoningMembership,
   inferReasoningOwnedBy,
@@ -40,7 +42,7 @@ import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
-import type { Provider, ProviderWebsites } from '@shared/data/types/provider'
+import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
@@ -475,6 +477,30 @@ class ProviderRegistryService {
     return this.getLoader()
       .loadProviders()
       .find((provider) => provider.id === providerId)
+  }
+
+  resolveAdapterFamilies(
+    endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
+    presetProviderId?: string | null
+  ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    if (!endpointConfigs || Object.keys(endpointConfigs).length === 0) return null
+
+    const presetProvider = presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined
+    const presetConfigs = presetProvider
+      ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
+          Record<EndpointType, EndpointConfig>
+        > | null)
+      : null
+
+    const result: Partial<Record<EndpointType, EndpointConfig>> = {}
+    for (const [key, config] of Object.entries(endpointConfigs)) {
+      if (!config) continue
+      const ep = key as EndpointType
+      result[ep] = config.adapterFamily
+        ? config
+        : { ...config, adapterFamily: presetConfigs?.[ep]?.adapterFamily ?? inferAdapterFamily(ep) }
+    }
+    return result
   }
 
   /**

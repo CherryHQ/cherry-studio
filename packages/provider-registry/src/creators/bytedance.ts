@@ -4,7 +4,7 @@ export default defineCreator({
   id: 'bytedance',
   name: 'ByteDance (Doubao)',
   families: ['doubao', 'seed'],
-  idPrefixes: ['doubao', 'skylark'],
+  idPrefixes: ['doubao', 'seedream', 'skylark'],
   reasoningFamilies: [
     {
       pattern: 'doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]\\d|doubao-seed-1[.-]8',

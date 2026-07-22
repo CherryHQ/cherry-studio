@@ -39,7 +39,7 @@ const { lookupModelMock } = vi.hoisted(() => ({
         capabilities?: { force?: string[]; add?: string[]; remove?: string[] }
         imageGeneration?: unknown
       } | null
-      reasoningProfile: { format: 'openai-chat'; wire: any }
+      reasoningProfile: ProviderRegistryServiceModule.ResolvedReasoningProfile
     }
   >(() => ({
     presetModel: null,
@@ -48,7 +48,7 @@ const { lookupModelMock } = vi.hoisted(() => ({
   }))
 }))
 
-const OPENAI_CHAT_REASONING_PROFILE = {
+const OPENAI_CHAT_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
   format: 'openai-chat' as const,
   wire: {
     off: { operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }] },
@@ -955,7 +955,7 @@ describe('ModelService — reasoning descriptor enrichment', () => {
         presetModelId: 'claude-opus-4-6',
         name: 'Claude Opus 4.6',
         capabilities: [MODEL_CAPABILITY.REASONING],
-        reasoning: userReasoning,
+        reasoning: userReasoning as any,
         userOverrides: ['reasoning']
       })
     )

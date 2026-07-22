@@ -110,9 +110,9 @@ const createAssistant = (settings: Partial<Assistant['settings']> = {}): Assista
   modelName: null,
   name: 'Assistant',
   orderKey: 'a0',
+  groupId: null,
   prompt: '',
   settings: { ...DEFAULT_TEST_SETTINGS, ...settings },
-  tags: [],
   updatedAt: new Date().toISOString()
 })
 

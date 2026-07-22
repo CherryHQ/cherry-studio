@@ -148,7 +148,11 @@ describe('buildPersistedEndpointConfigs', () => {
   })
 
   it('all fields present', () => {
-    const urls = { default: 'https://api.example.com/models', embedding: 'https://api.example.com/embed' }
+    const urls = {
+      default: 'https://api.example.com/models',
+      embedding: 'https://api.example.com/embed',
+      image: 'https://api.example.com/images'
+    }
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': {
         baseUrl: 'https://api.example.com/v1',

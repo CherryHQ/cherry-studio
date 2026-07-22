@@ -16,7 +16,9 @@ const EFFORT_RATIO: Record<BudgetEffort, number> = {
 }
 
 const BUDGET_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
-const EFFORT_ORDER_INDEX = new Map(REASONING_EFFORT_ORDER.map((effort, index) => [effort, index]))
+const EFFORT_ORDER_INDEX = new Map<ReasoningEffortOption, number>(
+  REASONING_EFFORT_ORDER.map((effort, index) => [effort, index])
+)
 
 export function deriveThinkingOptions(model: Model): ReasoningEffortOption[] | undefined {
   if (!isReasoningModel(model)) return undefined

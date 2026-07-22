@@ -91,6 +91,8 @@ export const RegistryEndpointConfigSchema = z.object({
       default: z.url().optional(),
       /** Embedding models listing endpoint (if separate from default) */
       embedding: z.url().optional(),
+      /** Image models listing endpoint (if separate from default) */
+      image: z.url().optional(),
       /** Reranker models listing endpoint (if separate from default) */
       reranker: z.url().optional()
     })

@@ -1,6 +1,7 @@
+import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
 
-const budgetThinkingWire = {
+const budgetThinkingWire: ReasoningWireProfile = {
   off: {
     operations: [
       { target: 'thinkingConfig.includeThoughts' as const, value: { source: 'literal' as const, value: false } },

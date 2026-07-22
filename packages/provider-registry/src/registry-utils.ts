@@ -50,7 +50,7 @@ export function lookupRegistryProvider(providers: ProviderConfig[], providerId: 
 
 export interface PersistedEndpointConfig {
   baseUrl?: string
-  modelsApiUrls?: { default?: string; embedding?: string; reranker?: string }
+  modelsApiUrls?: { default?: string; embedding?: string; image?: string; reranker?: string }
   adapterFamily?: string
 }
 

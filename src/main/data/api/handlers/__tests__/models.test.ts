@@ -60,6 +60,8 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
 
 import { modelHandlers } from '../models'
 
+const DISABLED_REASONING_PROFILE = { format: 'none', wire: { disabled: true } } as const
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -205,8 +207,16 @@ describe('/models', () => {
   })
 
   it('accepts a bare array body and delegates to create', async () => {
-    const registryData1 = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
-    const registryData2 = { presetModel: { id: 'gpt-5', name: 'GPT-5' }, registryOverride: null }
+    const registryData1 = {
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
+    const registryData2 = {
+      presetModel: { id: 'gpt-5', name: 'GPT-5' },
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
     const created = [{ id: 'openai::gpt-4o' }, { id: 'openai::gpt-5' }]
 
     lookupModelMock.mockReturnValueOnce(registryData1).mockReturnValueOnce(registryData2)
@@ -234,7 +244,11 @@ describe('/models', () => {
 
   it('falls back to custom model creation when registry lookup returns NOT_FOUND for one batch item', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-    const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
+    const registryData = {
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
 
     lookupModelMock.mockReturnValueOnce(registryData).mockImplementationOnce(() => {
       throw DataApiErrorFactory.notFound('Model', 'my-model')
@@ -266,7 +280,11 @@ describe('/models', () => {
 
   it('propagates create service errors without wrapping them', async () => {
     const serviceError = DataApiErrorFactory.conflict('Model', 'openai/gpt-4o')
-    const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
+    const registryData = {
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
 
     lookupModelMock.mockReturnValueOnce(registryData)
     createMock.mockImplementationOnce(() => {

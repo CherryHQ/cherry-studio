@@ -5,6 +5,7 @@
  * PURE ARTIFACTS — never hand-edit them.
  *
  *   MODELSDEV_CACHE=/tmp/md.json OPENROUTER_CACHE=/tmp/or.json \
+ *     OPENROUTER_IMAGE_CACHE=/tmp/or-images.json \
  *     tsx scripts/generate-catalog.ts            # dry run (prints summary)
  *     tsx scripts/generate-catalog.ts --write    # write both JSON files
  *     tsx scripts/generate-catalog.ts --report   # also dump /tmp/gen-*.txt review files
@@ -36,7 +37,8 @@ import {
   OpenRouterApiSchema,
   parseMdEntry,
   parseOpenRouterReasoning,
-  parseOrEntry
+  parseOrEntry,
+  parseOrImageGeneration
 } from './upstream'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -50,7 +52,8 @@ const REPORT = process.argv.includes('--report')
 // equal version, ANY content change ⇒ new version. Seeders (`PresetProviderSeeder` via `SeedRunner`)
 // skip when the journal version matches, so a date stamp would let a same-day regeneration change
 // content without changing version — and the seed would silently never run. Upstream (models.dev/
-// OpenRouter) is read live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE to cache it during dev.
+// OpenRouter) is read live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE /
+// OPENROUTER_IMAGE_CACHE to cache it during dev.
 const contentVersion = (body: unknown): string =>
   createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16)
 
@@ -345,7 +348,12 @@ function buildProviders(): ProviderEntry[] {
  * `modelsDevProvider`, one row per served model carrying that listing's PRICING. `modelId` resolves to a
  * base row or is standalone with a `name`.
  */
-function buildProviderModels(md: ModelsDevApi, or: OpenRouterApi, baseIds: Set<string>): { overrides: any[] } {
+function buildProviderModels(
+  md: ModelsDevApi,
+  orModels: OpenRouterApi,
+  orImageModels: OpenRouterApi,
+  baseIds: Set<string>
+): { overrides: any[] } {
   const seen = new Set<string>()
   const rows: any[] = []
   const variantsKey = (o: any): string => (o.modelVariants ?? []).slice().sort().join(',')
@@ -397,7 +405,7 @@ function buildProviderModels(md: ModelsDevApi, or: OpenRouterApi, baseIds: Set<s
 
   // OpenRouter publishes endpoint-specific controls. Attach them to the exact
   // provider-model row; creator metadata remains provider-neutral.
-  for (const entry of or.data ?? []) {
+  for (const entry of orModels.data ?? []) {
     const support = parseOpenRouterReasoning(entry)
     if (!support) continue
     const modelId = canonOf(entry.id)
@@ -421,13 +429,43 @@ function buildProviderModels(md: ModelsDevApi, or: OpenRouterApi, baseIds: Set<s
       reasoningContracts: mergeOpenRouterReasoningContracts(support, undefined)
     })
   }
+  // OpenRouter's dedicated image catalog publishes typed, per-model parameter descriptors. Keep
+  // these as provider overrides: the same canonical model can expose different controls through
+  // another provider, and the raw org/model id must remain the API id used for lookup and requests.
+  for (const model of orImageModels.data ?? []) {
+    const imageGeneration = parseOrImageGeneration(model)
+    const modelId = canonOf(model.id)
+    if (!imageGeneration || !modelId) continue
+    const meta = parseOrEntry(model)
+    const imageRow = {
+      providerId: 'openrouter',
+      modelId,
+      apiModelId: model.id,
+      ...(!baseIds.has(modelId) ? { name: model.name ?? model.id, ownedBy: model.id.split('/')[0] } : {}),
+      capabilities: { add: ['image-generation'] },
+      endpointTypes: ['openai-image-generation'],
+      ...(meta?.inputModalities ? { inputModalities: meta.inputModalities } : {}),
+      ...(meta?.outputModalities ? { outputModalities: meta.outputModalities } : {}),
+      imageGeneration
+    }
+    // `/models` may already have contributed pricing for this exact OpenRouter model. Enrich that
+    // row in place so its pricing and the image catalog's controls coexist instead of first-wins
+    // deduplication silently dropping one side.
+    const existing = rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === model.id)
+    if (existing) Object.assign(existing, imageRow)
+    else addModel(imageRow)
+  }
   rows.sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))
   return { overrides: rows }
 }
 
 void (async () => {
   const md = await load('MODELSDEV_CACHE', 'https://models.dev/api.json', ModelsDevApiSchema)
-  const or = await load('OPENROUTER_CACHE', 'https://openrouter.ai/api/v1/models', OpenRouterApiSchema)
+  const [orModels, orImageModels] = await Promise.all([
+    load('OPENROUTER_CACHE', 'https://openrouter.ai/api/v1/models', OpenRouterApiSchema),
+    load('OPENROUTER_IMAGE_CACHE', 'https://openrouter.ai/api/v1/images/models', OpenRouterApiSchema)
+  ])
+  const or: OpenRouterApi = { data: [...(orModels.data ?? []), ...(orImageModels.data ?? [])] }
 
   const index = buildIndex(md, or)
   const claimed = await assignCreators(index, md)
@@ -459,10 +497,16 @@ void (async () => {
     return
   }
 
-  const list = [...models.values()].map((m) => {
-    const { metadata, ...rest } = m
-    return { ...rest, ...(metadata ? { metadata } : {}) }
-  })
+  const list = [...models.values()]
+    .sort((a, b) => {
+      const aKey = `${a.ownedBy ?? ''}\0${a.id}`
+      const bKey = `${b.ownedBy ?? ''}\0${b.id}`
+      return aKey < bKey ? -1 : aKey > bKey ? 1 : 0
+    })
+    .map((m) => {
+      const { metadata, ...rest } = m
+      return { ...rest, ...(metadata ? { metadata } : {}) }
+    })
   fs.writeFileSync(MODELS_PATH, stampAndSerialize({ models: list }))
   console.log(`\nWROTE ${MODELS_PATH} (${list.length} models).`)
 
@@ -470,7 +514,7 @@ void (async () => {
   fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers }))
   console.log(`WROTE ${PROVIDERS_PATH} (${providers.length} providers).`)
 
-  const pm = buildProviderModels(md, or, new Set(models.keys()))
+  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
   fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize(pm))
   console.log(`WROTE ${PROVIDER_MODELS_PATH} (${pm.overrides.length} rows).`)
 

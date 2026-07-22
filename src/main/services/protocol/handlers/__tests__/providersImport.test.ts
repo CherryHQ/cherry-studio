@@ -72,4 +72,14 @@ describe('providersImport protocol handler', () => {
 
     expect(parseProvidersImportData(payload)).toBe(JSON.stringify({ id: 'custom-openai' }))
   })
+
+  it('preserves standard JSON string values with apostrophes and parentheses', () => {
+    const config = {
+      id: 'custom-openai',
+      name: "Bob's OpenAI (EU)"
+    }
+    const payload = Buffer.from(JSON.stringify(config), 'utf-8').toString('base64')
+
+    expect(parseProvidersImportData(payload)).toBe(JSON.stringify(config))
+  })
 })

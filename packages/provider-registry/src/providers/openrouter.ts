@@ -19,7 +19,16 @@ export default defineProvider({
           auto: { operations: [{ target: 'reasoning.effort', value: { source: 'literal', value: 'medium' } }] },
           effort: { operations: [{ target: 'reasoning.effort', value: { source: 'effort' } }] }
         }
+      },
+      modelsApiUrls: {
+        default: 'https://openrouter.ai/api/v1/models',
+        embedding: 'https://openrouter.ai/api/v1/embeddings/models',
+        image: 'https://openrouter.ai/api/v1/images/models'
       }
+    },
+    'openai-image-generation': {
+      adapterFamily: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1/'
     }
   },
   metadata: {

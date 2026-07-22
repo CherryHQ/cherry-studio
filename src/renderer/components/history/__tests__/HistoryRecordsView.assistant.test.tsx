@@ -356,9 +356,9 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     modelId: null,
     mcpServerIds: [],
     knowledgeBaseIds: [],
+    groupId: null,
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
-    tags: [],
     modelName: null,
     ...overrides
   } as Assistant
