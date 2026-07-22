@@ -4040,6 +4040,16 @@
           "seconds": "{{seconds}} 秒"
         },
         "generating": "正在生成回复",
+        "prepare": {
+          "connectingMcp": "正在连接 MCP 服务器…",
+          "connectingMcpNamed": "正在连接 MCP 服务器（{{name}}）…",
+          "footer": {
+            "copy": "复制诊断信息",
+            "summary": "响应准备耗时 {{seconds}}s"
+          },
+          "startingRuntime": "正在启动运行时…",
+          "waitingFirstResponse": "正在等待模型的首个响应…"
+        },
         "preparing": "正在准备回复",
         "thinking": "正在思考",
         "usingTools": "正在处理任务"

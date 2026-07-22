@@ -23,6 +23,7 @@ import { FILE_TYPE } from '@renderer/types/file'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
+import type { PrepareProgressPartData } from '@shared/ai/agentPrepareTimeline'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageToken, ErrorPartData } from '@shared/data/types/uiParts'
@@ -383,6 +384,16 @@ function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): Placehol
   return 'preparing'
 }
 
+/** Extract the current prepare-progress payload (live phase + finalized timeline) if present. */
+function getPrepareProgress(parts: readonly CherryMessagePart[]): PrepareProgressPartData | undefined {
+  for (const part of parts) {
+    if ((part.type as string) === 'data-prepare-progress' && 'data' in part && part.data) {
+      return part.data as PrepareProgressPartData
+    }
+  }
+  return undefined
+}
+
 function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean {
   const { part } = entry
   const partType = part.type as string
@@ -561,6 +572,11 @@ function renderPart(
 
     case 'data-agent-task-event':
       // Agent task events are hidden inline state consumed by the agent status panes.
+      return null
+
+    case 'data-prepare-progress':
+      // Prepare-timeline progress is hidden inline state: the live phase drives the placeholder label
+      // (see MessagePartsRendererContent) and the finalized breakdown drives the footer.
       return null
 
     case 'file': {
@@ -1270,6 +1286,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     [messageParts]
   )
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
+  const prepareProgress = useMemo(() => getPrepareProgress(messageParts), [messageParts])
   const nextReportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
     [partEntries, message.id]
@@ -1305,7 +1322,13 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       return (
         <AnimatePresence mode="sync">
           <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-            <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
+            <PlaceholderBlock
+              isProcessing={true}
+              createdAt={message.createdAt}
+              status={placeholderStatus}
+              preparePhase={prepareProgress?.phase}
+              prepareMcpServerName={prepareProgress?.mcpServerName}
+            />
           </AnimatedBlockWrapper>
         </AnimatePresence>
       )

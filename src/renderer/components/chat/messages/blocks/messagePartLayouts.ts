@@ -37,7 +37,8 @@ const HIDDEN_PART_TYPES = new Set([
   'source-url',
   'source-document',
   'data-citation',
-  'data-agent-task-event'
+  'data-agent-task-event',
+  'data-prepare-progress'
 ])
 
 const SUBSTANTIVE_ANSWER_PART_TYPES = new Set([
