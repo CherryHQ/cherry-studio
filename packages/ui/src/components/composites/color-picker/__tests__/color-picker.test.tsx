@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { ColorPicker, ColorPickerSelection } from '../index'
+import { ColorPicker, ColorPickerHue, ColorPickerSelection } from '../index'
+
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
+})
 
 describe('ColorPicker', () => {
   it('falls back instead of throwing on an undefined or invalid value (safeColor)', () => {
@@ -141,5 +149,15 @@ describe('ColorPicker', () => {
     )
 
     expect(nextOnChange).not.toHaveBeenCalled()
+  })
+
+  it('labels the interactive hue slider thumb', () => {
+    render(
+      <ColorPicker>
+        <ColorPickerHue aria-label="Localized hue" />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('slider', { name: 'Localized hue' })).toBeTruthy()
   })
 })

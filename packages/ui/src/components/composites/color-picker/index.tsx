@@ -316,12 +316,14 @@ export const ColorPickerHue = ({ className, 'aria-label': ariaLabel, ...props }:
       max={360}
       onValueChange={([hue]) => setHue(hue)}
       step={1}
-      value={[hue]}
-      aria-label={ariaLabel ?? 'Hue'}>
+      value={[hue]}>
       <SliderPrimitive.Track className="relative my-0.5 h-3 w-full grow rounded-full bg-[linear-gradient(90deg,#FF0000,#FFFF00,#00FF00,#00FFFF,#0000FF,#FF00FF,#FF0000)]">
         <SliderPrimitive.Range className="absolute h-full" />
       </SliderPrimitive.Track>
-      <SliderPrimitive.Thumb className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
+      <SliderPrimitive.Thumb
+        aria-label={ariaLabel ?? 'Hue'}
+        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+      />
     </SliderPrimitive.Root>
   )
 }
