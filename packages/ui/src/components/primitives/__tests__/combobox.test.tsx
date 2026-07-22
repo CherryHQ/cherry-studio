@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { Combobox, type ComboboxOption } from '../combobox'
@@ -24,6 +24,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.useRealTimers()
 })
 
 describe('Combobox', () => {
@@ -68,6 +69,51 @@ describe('Combobox', () => {
         width: 'var(--radix-popover-trigger-width)'
       })
     })
+  })
+
+  it('only shows the dropdown scrollbar while scrolling', async () => {
+    vi.useFakeTimers()
+
+    const fontOptions = Array.from({ length: 50 }, (_, index) => ({
+      value: `font-${index}`,
+      label: `Font ${index}`
+    }))
+
+    render(
+      <Combobox
+        open
+        options={fontOptions}
+        searchPlacement="trigger"
+        placeholder="Select Font"
+        emptyText="No results"
+        popoverClassName="max-h-[320px] overflow-y-auto"
+      />
+    )
+
+    const list = document.querySelector<HTMLElement>('[data-slot="command-list"]')
+
+    expect(list).not.toBeNull()
+    expect(list).toHaveClass(
+      '[scrollbar-gutter:auto]',
+      '[scrollbar-width:none]',
+      '[&::-webkit-scrollbar]:hidden',
+      'data-[scrolling=true]:[scrollbar-gutter:stable]',
+      'data-[scrolling=true]:![scrollbar-width:auto]',
+      'data-[scrolling=true]:[&::-webkit-scrollbar]:!block'
+    )
+    expect(list).not.toHaveClass('[scrollbar-gutter:stable]')
+    expect(list).toHaveAttribute('data-scrolling', 'false')
+    expect(list).toHaveStyle('scrollbar-color: transparent transparent')
+
+    fireEvent.scroll(list!)
+
+    expect(list).toHaveAttribute('data-scrolling', 'true')
+    expect(list).toHaveStyle('scrollbar-color: var(--color-scrollbar-thumb) transparent')
+
+    await act(() => vi.advanceTimersByTimeAsync(1600))
+
+    expect(list).toHaveAttribute('data-scrolling', 'false')
+    expect(list).toHaveStyle('scrollbar-color: transparent transparent')
   })
 
   it('maps the selected value to the trigger placeholder when opened', async () => {
