@@ -5,7 +5,7 @@ import {
   type MigrationDiagnosticSavedResult,
   type MigrationDiagnosticSaveResult
 } from '@shared/data/migration/v2/diagnostics'
-import type { MessageBoxOptions } from 'electron'
+import type { Event as ElectronEvent, MessageBoxOptions } from 'electron'
 import { app, dialog } from 'electron'
 
 import { MigrationDiagnosticBundleBuilder, type MigrationDiagnosticContext } from '../diagnostics'
@@ -109,6 +109,27 @@ export async function saveMigrationDiagnosticBundleWithDialog(
   }
 }
 
+async function saveNativeMigrationDiagnosticBundleWithQuitDeferral(
+  context: MigrationDiagnosticContext,
+  dependencies: MigrationDiagnosticDialogDependencies
+): Promise<{ outcome: MigrationDiagnosticBundleDialogOutcome; quitRequested: boolean }> {
+  let quitRequested = false
+  const handleBeforeQuit = (event: ElectronEvent): void => {
+    event.preventDefault()
+    if (quitRequested) return
+    quitRequested = true
+    logger.info('Quit requested during native diagnostic save; deferring until the save settles')
+  }
+
+  app.on('before-quit', handleBeforeQuit)
+  try {
+    const outcome = await saveMigrationDiagnosticBundleWithDialog(context, dependencies)
+    return { outcome, quitRequested }
+  } finally {
+    app.removeListener('before-quit', handleBeforeQuit)
+  }
+}
+
 function originalResponse(response: number, failure: MigrationDiagnosticFailureDialog): number {
   return response >= 0 && response < failure.buttons.length ? response : failure.cancelId
 }
@@ -168,10 +189,14 @@ export async function presentMigrationDiagnosticFailure(
       if (response !== 0) return originalResponse(response - 1, presentation.failure)
 
       while (true) {
-        const outcome = await saveMigrationDiagnosticBundleWithDialog(presentation.context, {
-          ...dependencies,
-          locale: presentation.locale
-        })
+        const { outcome, quitRequested } = await saveNativeMigrationDiagnosticBundleWithQuitDeferral(
+          presentation.context,
+          {
+            ...dependencies,
+            locale: presentation.locale
+          }
+        )
+        if (quitRequested) return presentation.failure.cancelId
         if (outcome.result.status === 'canceled') break
         const decision = await showSaveOutcome(outcome.result, presentation.failure, i18n)
         if (decision === 'save_again') continue

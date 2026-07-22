@@ -1,7 +1,9 @@
+import { EventEmitter } from 'node:events'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { MigrationDiagnosticSavedResult } from '@shared/data/migration/v2/diagnostics'
-import { dialog } from 'electron'
+import { app, dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -14,6 +16,7 @@ import { createMigrationDiagnosticNativeI18n } from '../migrationDiagnosticNativ
 const showMessageBoxMock = vi.mocked(dialog.showMessageBox)
 const showSaveDialogMock = vi.mocked(dialog.showSaveDialog)
 const getPathMock = vi.mocked(application.getPath)
+const appEvents = new EventEmitter()
 
 const context = {
   source: 'native' as const,
@@ -25,6 +28,11 @@ const context = {
 describe('migrationDiagnosticDialogs', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    appEvents.removeAllListeners()
+    Object.assign(app, {
+      on: appEvents.on.bind(appEvents),
+      removeListener: appEvents.removeListener.bind(appEvents)
+    })
     getPathMock.mockImplementation((key: string, filename?: string) =>
       filename ? `/central/${key}/${filename}` : `/central/${key}`
     )
@@ -230,6 +238,59 @@ describe('migrationDiagnosticDialogs', () => {
       defaultId: 0,
       cancelId: 2
     })
+  })
+
+  it('defers repeated preboot quit requests until the native save settles and returns the quit decision', async () => {
+    showMessageBoxMock.mockResolvedValueOnce({ response: 0 } as never)
+    let resolveSaveDialog!: (value: { canceled: false; filePath: string }) => void
+    showSaveDialogMock.mockImplementationOnce(
+      () =>
+        new Promise<{ canceled: false; filePath: string }>((resolve) => {
+          resolveSaveDialog = resolve
+        }) as never
+    )
+    let resolveSave!: (value: MigrationDiagnosticSavedResult) => void
+    const saveBundle = vi.fn(
+      () =>
+        new Promise<MigrationDiagnosticSavedResult>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+
+    const flow = presentMigrationDiagnosticFailure(
+      {
+        locale: 'en-US',
+        context,
+        failure: {
+          type: 'error',
+          title: 'Startup failed',
+          message: 'Could not start',
+          buttons: ['Retry', 'Quit'],
+          defaultId: 0,
+          cancelId: 1
+        }
+      },
+      { saveBundle }
+    )
+    await vi.waitFor(() => expect(showSaveDialogMock).toHaveBeenCalledTimes(1))
+
+    const beforeDestinationSelected = vi.fn()
+    appEvents.emit('before-quit', { preventDefault: beforeDestinationSelected })
+    expect(beforeDestinationSelected).toHaveBeenCalledTimes(1)
+    expect(appEvents.listenerCount('before-quit')).toBe(1)
+
+    resolveSaveDialog({ canceled: false, filePath: '/chosen/diagnostics.zip' })
+    await vi.waitFor(() => expect(saveBundle).toHaveBeenCalledTimes(1))
+
+    const whileBundleIsWriting = vi.fn()
+    appEvents.emit('before-quit', { preventDefault: whileBundleIsWriting })
+    expect(whileBundleIsWriting).toHaveBeenCalledTimes(1)
+
+    resolveSave({ status: 'saved', logs: 'included', size: 'standard' })
+
+    await expect(flow).resolves.toBe(1)
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1)
+    expect(appEvents.listenerCount('before-quit')).toBe(0)
   })
 
   it('offers Save Again for retryable missing logs and repeats the save flow directly', async () => {

@@ -93,6 +93,13 @@ while a save or deferred quit is active. Main remembers only the most recently s
 owns the fixed support address and prefilled `mailto:` URL. After saving, the user can open the email
 client, reveal the ZIP in its folder, or copy the support address.
 
+Native preboot saves install a scoped `before-quit` barrier before destination selection and remove
+it after the save settles. An intercepted quit resumes through the native failure's existing Quit
+decision instead of interrupting the save. This completion guarantee covers migration-flow actions
+and cooperative Electron quit/close paths that can be intercepted. Forced process termination,
+process crashes, and OS session termination that Electron cannot defer are outside the guarantee;
+atomic publication still prevents those paths from exposing a partial destination archive.
+
 ## Version Compatibility Gate
 
 Before the migration window is created, the gate validates the upgrade
