@@ -31,6 +31,8 @@ vi.mock('dexie', () => ({
 import { DexieExporter } from '../DexieExporter'
 
 const invoke = vi.fn()
+const EXPORT_CHUNK_CHAR_LIMIT = 1024 * 1024
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u
 
 function createTableMock(inputRows: LegacyRecord[]) {
   const rows = [...inputRows].sort((a, b) => a.id.localeCompare(b.id))
@@ -105,8 +107,29 @@ describe('DexieExporter', () => {
     await new DexieExporter('/export').exportAll()
 
     const writeCalls = invoke.mock.calls.filter(([channel]) => channel === MigrationIpcChannels.WriteExportFile)
-    expect(writeCalls.map(([, , , chunk]) => String(chunk).length).every((length) => length <= 1024 * 1024)).toBe(true)
+    expect(
+      writeCalls.map(([, , , chunk]) => String(chunk).length).every((length) => length <= EXPORT_CHUNK_CHAR_LIMIT)
+    ).toBe(true)
     expect(JSON.parse(exportedText())).toEqual(rows)
+  })
+
+  it('safely splits a single record larger than the export chunk limit', async () => {
+    const serializedPrefix = JSON.stringify({ id: 'block-1', payload: '' }).slice(0, -2)
+    const row = {
+      id: 'block-1',
+      payload: `${'a'.repeat(EXPORT_CHUNK_CHAR_LIMIT - serializedPrefix.length - 1)}😀tail`
+    }
+    dexieMock.table.mockReturnValue(createTableMock([row]))
+
+    await new DexieExporter('/export').exportAll()
+
+    const writeCalls = invoke.mock.calls.filter(([channel]) => channel === MigrationIpcChannels.WriteExportFile)
+    const chunks = writeCalls.map(([, , , chunk]) => String(chunk))
+    expect(chunks.every((chunk) => chunk.length <= EXPORT_CHUNK_CHAR_LIMIT)).toBe(true)
+    expect(chunks.every((chunk) => !LONE_SURROGATE.test(chunk))).toBe(true)
+    expect(writeCalls[0]?.[4]).toBe('overwrite')
+    expect(writeCalls.slice(1).every((call) => call[4] === 'append')).toBe(true)
+    expect(JSON.parse(chunks.join(''))).toEqual([row])
   })
 
   it('exports an empty table as an empty JSON array', async () => {

@@ -11,6 +11,7 @@
  */
 
 import { type MigrationExportFileWriteMode, MigrationIpcChannels } from '@shared/data/migration/v2/types'
+import { clampSurrogateBoundary } from '@shared/utils/text'
 import { Dexie, type IndexableType } from 'dexie'
 
 /** Legacy v1 IndexedDB database name. */
@@ -42,18 +43,27 @@ export class DexieExporter {
     this.exportPath = exportPath
   }
 
-  private async writeExportChunk(
+  private async writeExportText(
     tableName: string,
-    jsonChunk: string,
+    jsonText: string,
     writeMode: MigrationExportFileWriteMode
   ): Promise<void> {
-    await window.electron.ipcRenderer.invoke(
-      MigrationIpcChannels.WriteExportFile,
-      this.exportPath,
-      tableName,
-      jsonChunk,
-      writeMode
-    )
+    let offset = 0
+    let nextWriteMode = writeMode
+
+    while (offset < jsonText.length) {
+      const requestedEnd = Math.min(offset + DEXIE_EXPORT_CHUNK_CHAR_LIMIT, jsonText.length)
+      const end = clampSurrogateBoundary(jsonText, requestedEnd)
+      await window.electron.ipcRenderer.invoke(
+        MigrationIpcChannels.WriteExportFile,
+        this.exportPath,
+        tableName,
+        jsonText.slice(offset, end),
+        nextWriteMode
+      )
+      offset = end
+      nextWriteMode = 'append'
+    }
   }
 
   private createRecordExportError(tableName: string, primaryKey: IndexableType, cause: unknown): Error {
@@ -70,7 +80,7 @@ export class DexieExporter {
     let pendingChunk = ''
     let hasRecords = false
 
-    await this.writeExportChunk(tableName, '[', 'overwrite')
+    await this.writeExportText(tableName, '[', 'overwrite')
 
     while (true) {
       const collection = lastPrimaryKey === undefined ? table.orderBy(':id') : table.where(':id').above(lastPrimaryKey)
@@ -103,12 +113,12 @@ export class DexieExporter {
 
         const entry = `${hasRecords ? ',' : ''}${serializedRecord}`
         if (pendingChunk && pendingChunk.length + entry.length > DEXIE_EXPORT_CHUNK_CHAR_LIMIT) {
-          await this.writeExportChunk(tableName, pendingChunk, 'append')
+          await this.writeExportText(tableName, pendingChunk, 'append')
           pendingChunk = ''
         }
 
         if (entry.length > DEXIE_EXPORT_CHUNK_CHAR_LIMIT) {
-          await this.writeExportChunk(tableName, entry, 'append')
+          await this.writeExportText(tableName, entry, 'append')
         } else {
           pendingChunk += entry
         }
@@ -119,9 +129,9 @@ export class DexieExporter {
     }
 
     if (pendingChunk) {
-      await this.writeExportChunk(tableName, pendingChunk, 'append')
+      await this.writeExportText(tableName, pendingChunk, 'append')
     }
-    await this.writeExportChunk(tableName, ']', 'append')
+    await this.writeExportText(tableName, ']', 'append')
   }
 
   /**
