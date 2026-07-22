@@ -1455,6 +1455,7 @@ const ChatComposerInner = ({
           toolLaunchersVersion={toolLaunchersVersion}
           rootPanelLeadingItems={rootPanelLeadingItems}
           rootPanelAdditionalItems={rootPanelCustomizeItems}
+          hideRootPanelLeadingItemsOnButtonOpen
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           {...controlSlots}
         />

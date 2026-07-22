@@ -218,6 +218,43 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(insertSkill).toHaveBeenCalledOnce()
   })
 
+  it('excludes persistent launchers while keeping the bare-root customize footer', () => {
+    const launchers = [
+      {
+        id: 'thinking',
+        kind: 'command' as const,
+        label: 'Thinking',
+        icon: 'brain',
+        sources: ['popover'] as const
+      },
+      {
+        id: 'attachment',
+        kind: 'command' as const,
+        label: 'Attachment',
+        icon: 'paperclip',
+        sources: ['popover'] as const
+      }
+    ]
+    const additionalItems = [
+      {
+        id: 'composer:customize-toolbar',
+        label: 'Customize toolbar',
+        icon: 'settings',
+        fixedToBottom: true
+      }
+    ]
+
+    const pinned = createUnifiedQuickPanelOpenOptions(launchers, {
+      quickPanel,
+      additionalItems,
+      excludedLauncherIds: new Set(['thinking'])
+    })
+    expect(pinned.list.map((item) => item.id)).toEqual(['attachment', 'composer:customize-toolbar'])
+
+    const unpinned = createUnifiedQuickPanelOpenOptions(launchers, { quickPanel, additionalItems })
+    expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment', 'composer:customize-toolbar'])
+  })
+
   it('drops bottom-pinned chrome from category views seeded with a search text', () => {
     const additionalItems = [
       { id: 'skill:pdf', label: 'Agent skill', filterText: 'Skills', icon: 'skill' },

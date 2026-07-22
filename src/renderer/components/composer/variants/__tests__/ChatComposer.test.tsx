@@ -1204,6 +1204,7 @@ describe('ChatComposer', () => {
     ).not.toBeInTheDocument()
     fireEvent.click(newTopicButton)
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    expect(mocks.surfaceProps?.hideRootPanelLeadingItemsOnButtonOpen).toBe(true)
 
     const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newTopicItem).toEqual(

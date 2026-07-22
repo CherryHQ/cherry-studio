@@ -927,6 +927,10 @@ const AgentComposerInner = ({
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
+  const pinnedLauncherIds = useMemo(
+    () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
+    [pinnedToolIds]
+  )
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
@@ -1525,7 +1529,7 @@ const AgentComposerInner = ({
         <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} reasoning={reasoningContext} />
       )}
       <ResourceEditDialogEventHost />
-      <ComposerPinnedToolsProvider value={pinnedToolIds}>
+      <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
           text={text}
           onTextChange={handleTextChange}
@@ -1584,6 +1588,7 @@ const AgentComposerInner = ({
           suggestionSources={resourceMentionSources}
           rootPanelLeadingItems={rootPanelNewSessionItems}
           rootPanelAdditionalItems={rootPanelTrailingItems}
+          hideRootPanelLeadingItemsOnButtonOpen
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}

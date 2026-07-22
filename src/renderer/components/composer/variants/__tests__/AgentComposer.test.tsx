@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   inputAdapterFocus: vi.fn(),
   quickPanelOpen: vi.fn(),
   pinnedToolIds: ['thinking', 'skills'] as string[],
+  pinnedLauncherIds: [] as readonly string[],
   toolLaunchers: [] as ComposerToolLauncher[],
   toolLaunchersVersion: 0,
   reconcileTokens: vi.fn(),
@@ -283,7 +284,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   },
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
-  ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
+  ComposerPinnedToolsProvider: ({ children, value }: { children: ReactNode; value: readonly string[] }) => {
+    mocks.pinnedLauncherIds = value
+    return children
+  },
   useComposerToolState: () => ({
     files: mocks.files,
     mentionedModels: [],
@@ -665,6 +669,7 @@ describe('AgentComposer', () => {
     mocks.inputAdapterFocus.mockReset()
     mocks.quickPanelOpen.mockReset()
     mocks.pinnedToolIds = ['thinking', 'skills']
+    mocks.pinnedLauncherIds = []
     mocks.toolLaunchers = []
     mocks.toolLaunchersVersion = 0
     mocks.setFiles.mockImplementation((value) => {
@@ -950,6 +955,7 @@ describe('AgentComposer', () => {
     ).not.toBeInTheDocument()
     fireEvent.click(newSessionButton)
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
+    expect(mocks.surfaceProps?.hideRootPanelLeadingItemsOnButtonOpen).toBe(true)
 
     const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newSessionItem).toEqual(
@@ -1801,14 +1807,16 @@ describe('AgentComposer', () => {
 
     // Skills no longer render inline in the root panel; only the customize-toolbar footer does.
     expect(mocks.surfaceProps?.rootPanelAdditionalItems).toEqual([
-      expect.objectContaining({ id: 'composer:customize-toolbar' })
+      expect.objectContaining({ id: 'composer:customize-toolbar', fixedToBottom: true })
     ])
     const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
     expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
     expect(skillsLauncher?.order).toBe(40)
     expect(skillsLauncher?.rootSearchItems).toEqual([expect.objectContaining({ id: 'skill:pdf' })])
+    expect(mocks.pinnedLauncherIds).toEqual(['thinking', 'agent-skills'])
 
     const items = getAgentSkillsPanelItems()
+    expect(items).not.toContainEqual(expect.objectContaining({ id: 'composer:customize-toolbar' }))
     const skillItem = items[0]
     expect(skillItem).toEqual(
       expect.objectContaining({

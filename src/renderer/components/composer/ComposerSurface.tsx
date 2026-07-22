@@ -42,7 +42,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
-import { ComposerToolMenu } from './ComposerToolRuntime'
+import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
@@ -168,6 +168,7 @@ export interface ComposerSurfaceProps {
   queueContent?: React.ReactNode
   rootPanelLeadingItems?: readonly QuickPanelListItem[]
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
+  hideRootPanelLeadingItemsOnButtonOpen?: boolean
   onRootPanelOpen?: () => void
   onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
   renderLeftControls?: (
@@ -571,6 +572,7 @@ export default function ComposerSurface({
   queueContent,
   rootPanelLeadingItems,
   rootPanelAdditionalItems,
+  hideRootPanelLeadingItemsOnButtonOpen = false,
   onRootPanelOpen,
   onToolLauncherSelect,
   renderLeftControls,
@@ -582,6 +584,8 @@ export default function ComposerSurface({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
+  const pinnedLauncherIds = useComposerPinnedTools()
+  const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
   const { setTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
@@ -954,6 +958,8 @@ export default function ComposerSurface({
     resourceProvider,
     rootPanelLeadingItems,
     rootPanelAdditionalItems,
+    hideRootPanelLeadingItemsOnButtonOpen,
+    pinnedLauncherIdSet,
     unifiedResourceItems
   })
 
@@ -966,12 +972,16 @@ export default function ComposerSurface({
       resourceProvider,
       rootPanelLeadingItems,
       rootPanelAdditionalItems,
+      hideRootPanelLeadingItemsOnButtonOpen,
+      pinnedLauncherIdSet,
       unifiedResourceItems
     }
   }, [
     getToolLaunchers,
+    hideRootPanelLeadingItemsOnButtonOpen,
     onRootPanelOpen,
     onToolLauncherSelect,
+    pinnedLauncherIdSet,
     quickPanel,
     resourceProvider,
     rootPanelAdditionalItems,
@@ -985,29 +995,40 @@ export default function ComposerSurface({
       inputAdapter,
       queryAnchor,
       resourceItems,
-      triggerInfo
+      triggerInfo,
+      includePinnedLaunchers = false
     }: {
       initialSearchText?: string
       inputAdapter?: QuickPanelInputAdapter
       queryAnchor?: number
       resourceItems?: readonly QuickPanelListItem[]
       triggerInfo?: QuickPanelTriggerInfo
+      includePinnedLaunchers?: boolean
     }): QuickPanelOpenOptions => {
-      const { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems, rootPanelLeadingItems } =
-        rootSuggestionStateRef.current
+      const {
+        getToolLaunchers,
+        hideRootPanelLeadingItemsOnButtonOpen,
+        onToolLauncherSelect,
+        pinnedLauncherIdSet,
+        quickPanel,
+        rootPanelAdditionalItems,
+        rootPanelLeadingItems
+      } = rootSuggestionStateRef.current
       const launchers = getToolLaunchers?.() ?? []
+      const isButtonRoot = (triggerInfo?.type ?? 'button') === 'button'
 
       return createUnifiedQuickPanelOpenOptions(launchers, {
         onToolLauncherSelect,
         inputAdapter,
         quickPanel,
         title: t('settings.quickPanel.title'),
-        leadingItems: rootPanelLeadingItems,
+        leadingItems: hideRootPanelLeadingItemsOnButtonOpen && isButtonRoot ? undefined : rootPanelLeadingItems,
         additionalItems: rootPanelAdditionalItems,
         resourceItems,
         queryAnchor,
         triggerInfo,
-        initialSearchText
+        initialSearchText,
+        excludedLauncherIds: isButtonRoot && !includePinnedLaunchers ? pinnedLauncherIdSet : undefined
       })
     },
     [t]
@@ -1141,7 +1162,16 @@ export default function ComposerSurface({
         resourceItems: [],
         triggerInfo
       })
-      const launcherItem = rootPanelOptions.list.find((item) => item.id === launcherId)
+      const launcherItem =
+        rootPanelOptions.list.find((item) => item.id === launcherId) ??
+        createUnifiedPanelOptions({
+          initialSearchText: searchText,
+          inputAdapter,
+          queryAnchor,
+          resourceItems: [],
+          triggerInfo,
+          includePinnedLaunchers: true
+        }).list.find((item) => item.id === launcherId)
       if (!launcherItem?.isMenu || launcherItem.disabled) return false
 
       launcherItem.action?.({
@@ -1900,6 +1930,7 @@ export default function ComposerSurface({
     rootQuickPanelTriggerInfo,
     rootPanelAdditionalItems,
     rootPanelLeadingItems,
+    pinnedLauncherIdSet,
     toolLaunchersVersion,
     unifiedResourceItems
   ])

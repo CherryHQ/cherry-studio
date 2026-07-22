@@ -379,6 +379,7 @@ function createUnifiedSectionItems(
   options: {
     source: ComposerToolLauncherSource
     seenLauncherIds: Set<string>
+    excludedLauncherIds?: ReadonlySet<string>
     inputAdapter?: QuickPanelInputAdapter
     quickPanel: QuickPanelContextType
     onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
@@ -386,7 +387,9 @@ function createUnifiedSectionItems(
   }
 ) {
   return launchers.flatMap((launcher) => {
-    if (launcher.hidden || options.seenLauncherIds.has(launcher.id)) return []
+    if (launcher.hidden || options.seenLauncherIds.has(launcher.id) || options.excludedLauncherIds?.has(launcher.id)) {
+      return []
+    }
 
     const children = getSectionChildren(launcher, options.source)
     const supportsSource = launcherSupportsSource(launcher, options.source)
@@ -461,6 +464,7 @@ export function createUnifiedQuickPanelOpenOptions(
     queryAnchor?: number
     triggerInfo?: QuickPanelTriggerInfo
     initialSearchText?: string
+    excludedLauncherIds?: ReadonlySet<string>
   }
 ): QuickPanelOpenOptions {
   const getRootPanelOptions = () =>
