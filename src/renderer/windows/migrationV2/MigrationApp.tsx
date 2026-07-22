@@ -25,7 +25,6 @@ import {
   getMigrationDiagnosticNoticeParts,
   type MigrationDiagnosticNoticePart,
   type MigrationDiagnosticSaveResult,
-  MigrationExportWriteError,
   type MigrationFailureCode,
   type MigrationFailureOperation,
   serializeMigrationDiagnosticError
@@ -61,7 +60,7 @@ import {
   MigratorProgressList,
   SkipMigrationDialog
 } from './components'
-import { DexieExporter, LocalStorageExporter, ReduxExporter } from './exporters'
+import { DexieExporter, LocalStorageExporter, MigrationExportWriteError, ReduxExporter } from './exporters'
 import { useMigrationActions, useMigrationProgress } from './hooks/useMigrationProgress'
 
 const logger = loggerService.withContext('MigrationApp')

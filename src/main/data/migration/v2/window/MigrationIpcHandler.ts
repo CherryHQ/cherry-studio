@@ -10,6 +10,7 @@ import {
   type MigrationDiagnosticFailure,
   type MigrationDiagnosticRun,
   type MigrationDiagnosticSaveResult,
+  type MigrationExportWriteResult,
   type MigrationVersionDiagnostic,
   serializeMigrationDiagnosticError
 } from '@shared/data/migration/v2/diagnostics'
@@ -164,28 +165,33 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
   })
 
   // Write export file from Renderer
-  ipcMain.handle(MigrationIpcChannels.WriteExportFile, async (event, payload: MigrationExportWritePayload) => {
-    assertMigrationSender(event)
-    if (!isMigrationExportWritePayload(payload)) throw new Error('Invalid migration export payload.')
+  ipcMain.handle(
+    MigrationIpcChannels.WriteExportFile,
+    async (event, payload: MigrationExportWritePayload): Promise<MigrationExportWriteResult> => {
+      assertMigrationSender(event)
+      if (!isMigrationExportWritePayload(payload)) throw new Error('Invalid migration export payload.')
 
-    const result = await migrationEngine.writeExportFile(payload)
-    if (result.ok) return result
+      const result = await migrationEngine.writeExportFile(payload)
+      if (result.ok) return result
 
-    const failure: MigrationDiagnosticFailure = {
-      code:
-        result.operation === 'create_export_directory' ? 'export_directory_create_failed' : 'export_file_write_failed',
-      origin: 'main',
-      operation: result.operation,
-      targetPath: result.targetPath,
-      error: serializeMigrationDiagnosticError(result.error, result.targetPath)
+      const failure: MigrationDiagnosticFailure = {
+        code:
+          result.operation === 'create_export_directory'
+            ? 'export_directory_create_failed'
+            : 'export_file_write_failed',
+        origin: 'main',
+        operation: result.operation,
+        targetPath: result.targetPath,
+        error: serializeMigrationDiagnosticError(result.error, result.targetPath)
+      }
+      recordDiagnosticFailure(failure)
+      logger.error('Error writing migration export', result.error as Error, {
+        operation: result.operation,
+        runId: activeDiagnosticRun?.id
+      })
+      return { ok: false, failure }
     }
-    recordDiagnosticFailure(failure)
-    logger.error('Error writing migration export', result.error as Error, {
-      operation: result.operation,
-      runId: activeDiagnosticRun?.id
-    })
-    return { ok: false, failure } as const
-  })
+  )
 
   // Start the migration process
   ipcMain.handle(MigrationIpcChannels.StartMigration, async (event, payload: StartMigrationPayload) => {

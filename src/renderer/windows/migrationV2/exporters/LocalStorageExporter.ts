@@ -1,8 +1,7 @@
-import {
-  assertMigrationExportWriteSucceeded,
-  type MigrationExportWriteResult
-} from '@shared/data/migration/v2/diagnostics'
+import type { MigrationExportWriteResult } from '@shared/data/migration/v2/diagnostics'
 import { type LocalStorageRecord, MigrationIpcChannels } from '@shared/data/migration/v2/types'
+
+import { assertMigrationExportWriteSucceeded } from './MigrationExportWriteError'
 
 export class LocalStorageExporter {
   private exportedCount = 0

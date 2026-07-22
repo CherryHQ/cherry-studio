@@ -10,12 +10,11 @@
  * at its last version, so no Dexie upgrade hooks need to run before export.
  */
 
-import {
-  assertMigrationExportWriteSucceeded,
-  type MigrationExportWriteResult
-} from '@shared/data/migration/v2/diagnostics'
+import type { MigrationExportWriteResult } from '@shared/data/migration/v2/diagnostics'
 import { type MigrationDexieExportTable, MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { Dexie } from 'dexie'
+
+import { assertMigrationExportWriteSucceeded } from './MigrationExportWriteError'
 
 /** Legacy v1 IndexedDB database name. */
 const DEXIE_DB_NAME = 'CherryStudio'

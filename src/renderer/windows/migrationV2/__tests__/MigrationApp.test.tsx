@@ -1,8 +1,10 @@
-import { MigrationExportWriteError } from '@shared/data/migration/v2/diagnostics'
+import type { MigrationDiagnosticFailure } from '@shared/data/migration/v2/diagnostics'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MigrationExportWriteError } from '../exporters'
 
 type MockChildrenProps = { children?: ReactNode }
 type MockPassthroughProps = MockChildrenProps & Record<string, unknown>
@@ -23,6 +25,14 @@ const removeAllListeners = vi.fn()
 const invoke = vi.fn()
 const platformState = vi.hoisted(() => ({
   isMac: false
+}))
+const exporterMocks = vi.hoisted(() => ({
+  MigrationExportWriteError: class MigrationExportWriteError extends Error {
+    constructor(readonly failure: MigrationDiagnosticFailure) {
+      super(failure.error?.message ?? failure.code)
+      this.name = 'MigrationExportWriteError'
+    }
+  }
 }))
 const migrationHookMock = vi.hoisted(() => ({
   actions: {
@@ -165,6 +175,7 @@ vi.mock('../components', () => {
 vi.mock('../exporters', () => ({
   DexieExporter: vi.fn(),
   LocalStorageExporter: vi.fn(),
+  MigrationExportWriteError: exporterMocks.MigrationExportWriteError,
   ReduxExporter: vi.fn()
 }))
 
