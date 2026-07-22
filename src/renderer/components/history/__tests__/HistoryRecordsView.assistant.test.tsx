@@ -366,9 +366,10 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
 const flushCommandMenuAction = flushAnimationFrame
+let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     confirmActionShow.mockClear()
     hookMocks.useAgents.mockReset()
@@ -414,7 +415,19 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.usePins.mockReturnValue({ pinnedIds: [], togglePin: hookMocks.togglePin })
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
-  })
+
+    if (!assistantHistoryLoaded) {
+      await import('../AssistantHistoryRecords')
+      hookMocks.useTopics.mockReturnValue({ topics: [], error: undefined, isLoading: false })
+      hookMocks.useAssistants.mockReturnValue({ assistants: [] })
+      const { unmount } = render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} />)
+
+      await screen.findByRole('region', { name: 'History' })
+      unmount()
+      vi.clearAllMocks()
+      assistantHistoryLoaded = true
+    }
+  }, 60_000)
 
   it('selects a topic when the history title is clicked', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
