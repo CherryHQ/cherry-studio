@@ -1,10 +1,35 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { SelectDropdown } from '../index'
+
+const virtualizer = vi.hoisted(() => ({
+  startIndex: 0,
+  scrollToIndex: vi.fn((index: number) => {
+    virtualizer.startIndex = index
+  })
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count, estimateSize }: { count: number; estimateSize: () => number }) => ({
+    getTotalSize: () => count * estimateSize(),
+    getVirtualItems: () => {
+      const indexes = virtualizer.startIndex === 0 ? [0, 1] : [virtualizer.startIndex]
+      return indexes
+        .filter((index) => index < count)
+        .map((index) => ({
+          index,
+          key: index,
+          size: estimateSize(),
+          start: index * estimateSize()
+        }))
+    },
+    scrollToIndex: virtualizer.scrollToIndex
+  })
+}))
 
 type Item = { id: string; label: string }
 
@@ -33,6 +58,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  virtualizer.startIndex = 0
 })
 
 describe('SelectDropdown', () => {
@@ -81,6 +107,20 @@ describe('SelectDropdown', () => {
       expect(options[2]).toHaveFocus()
       fireEvent.keyDown(options[2], { key: 'ArrowDown' })
       expect(options[0]).toHaveFocus()
+    })
+
+    it('moves focus to options outside the rendered virtual window', async () => {
+      render(<SelectDropdown {...defaultProps} virtualize />)
+      fireEvent.click(screen.getByRole('button'))
+      const firstOption = screen.getByRole('option', { name: 'Alpha' })
+      firstOption.focus()
+
+      fireEvent.keyDown(firstOption, { key: 'End' })
+
+      expect(virtualizer.scrollToIndex).toHaveBeenCalledWith(2, { align: 'auto' })
+      await waitFor(() => {
+        expect(screen.getByRole('option', { name: 'Gamma' })).toHaveFocus()
+      })
     })
 
     it('calls onSelect when an item is clicked', () => {
