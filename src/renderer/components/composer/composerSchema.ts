@@ -61,14 +61,16 @@ export const ComposerHardBreak = Node.create({
     return {
       setHardBreak:
         () =>
-        ({ commands }) => {
-          return commands.insertContent({ type: this.name })
+        ({ chain }) => {
+          return chain().insertContent({ type: this.name }).scrollIntoView().run()
         }
     }
   },
 
   addKeyboardShortcuts() {
     return {
+      Enter: () => this.editor.commands.setHardBreak(),
+      NumpadEnter: () => this.editor.commands.setHardBreak(),
       'Mod-Enter': () => this.editor.commands.setHardBreak(),
       'Shift-Enter': () => this.editor.commands.setHardBreak()
     }

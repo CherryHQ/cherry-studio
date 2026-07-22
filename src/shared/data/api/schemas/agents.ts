@@ -189,10 +189,9 @@ export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_M
    * Writes `agent_skill` join rows in the same create transaction. Builtin
    * skills need no id here — they read as enabled by default for every agent
    * (see `AgentGlobalSkillService.list()`) until a row explicitly disables one.
-   * Editing an existing agent's skills goes through the skill toggle IPC (which
-   * also manages workspace symlinks), NOT PATCH /agents — so this is
-   * intentionally absent from AGENT_MUTABLE_FIELDS / UpdateAgentSchema to avoid
-   * a dual-write path.
+   * Editing an existing agent's skills goes through PATCH /agents with
+   * `skillUpdates`. This remains intentionally absent from AGENT_MUTABLE_FIELDS
+   * because join-table updates are applied separately from agent-row fields.
    */
   skillIds: AgentSkillIdSetSchema.optional()
 })
