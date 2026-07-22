@@ -1,7 +1,7 @@
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
 
-import { PerplexityAgentLanguageModel } from '../perplexity/perplexityAgentLanguageModel'
+import { PerplexityAgentLanguageModel } from '../perplexity/PerplexityAgentLanguageModel'
 import { createPerplexityProvider } from '../perplexity/perplexityProvider'
 
 const callOptions = (text: string): LanguageModelV3CallOptions => ({

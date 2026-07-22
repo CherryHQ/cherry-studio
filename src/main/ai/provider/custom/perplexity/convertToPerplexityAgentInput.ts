@@ -45,11 +45,16 @@ export function convertToPerplexityAgentInput(prompt: Prompt): PerplexityAgentIn
               break
             case 'file': {
               if (part.mediaType === 'application/pdf') {
-                parts.push({
-                  type: 'input_file',
-                  filename: part.filename ?? 'document.pdf',
-                  file_data: fileToUrl(part.data, part.mediaType)
-                })
+                // Remote files go in `file_url`; `file_data` only accepts base64/data-URI.
+                parts.push(
+                  part.data instanceof URL
+                    ? { type: 'input_file', file_url: part.data.toString() }
+                    : {
+                        type: 'input_file',
+                        filename: part.filename ?? 'document.pdf',
+                        file_data: fileToUrl(part.data, part.mediaType)
+                      }
+                )
               } else if (part.mediaType.startsWith('image/')) {
                 parts.push({ type: 'input_image', image_url: fileToUrl(part.data, part.mediaType) })
               } else {

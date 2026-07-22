@@ -1,7 +1,7 @@
 import { APICallError, type LanguageModelV3CallOptions, type LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-import { PerplexityAgentLanguageModel } from '../../perplexity/perplexityAgentLanguageModel'
+import { PerplexityAgentLanguageModel } from '../../perplexity/PerplexityAgentLanguageModel'
 
 const config = (fetch: typeof globalThis.fetch) => ({
   baseURL: 'https://api.perplexity.ai',

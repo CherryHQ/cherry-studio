@@ -4,12 +4,12 @@
  * The legacy Sonar chat-completions endpoint (bare ids like `sonar` / `sonar-pro`)
  * is deprecated and no longer served, so every model routes through the Agent API
  * (`perplexity/sonar`, `openai/gpt-5.6-*`, `anthropic/claude-*`, …). The bespoke
- * `LanguageModelV3` lives in `./perplexityAgentLanguageModel`.
+ * `LanguageModelV3` lives in `./PerplexityAgentLanguageModel`.
  */
 import { type LanguageModelV3, NoSuchModelError, type ProviderV3 } from '@ai-sdk/provider'
 import { type FetchFunction, loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { PerplexityAgentLanguageModel } from './perplexityAgentLanguageModel'
+import { PerplexityAgentLanguageModel } from './PerplexityAgentLanguageModel'
 
 export const PERPLEXITY_PROVIDER_NAME = 'perplexity' as const
 

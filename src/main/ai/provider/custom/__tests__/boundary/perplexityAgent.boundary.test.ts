@@ -2,7 +2,7 @@ import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
-import { PerplexityAgentLanguageModel } from '../../perplexity/perplexityAgentLanguageModel'
+import { PerplexityAgentLanguageModel } from '../../perplexity/PerplexityAgentLanguageModel'
 import { captureWithFetch } from './captureRequest'
 
 const config = (fetch: typeof globalThis.fetch) => ({
@@ -99,5 +99,34 @@ describe('Perplexity Agent request boundary', () => {
       })
     )
     expect(req.body).not.toHaveProperty('tools')
+  })
+
+  it('routes a URL-referenced PDF to file_url, not file_data', async () => {
+    const req = await captureWithFetch((fetch) =>
+      new PerplexityAgentLanguageModel('perplexity/sonar', config(fetch)).doGenerate({
+        prompt: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Summarize' },
+              { type: 'file', mediaType: 'application/pdf', data: new URL('https://x.com/doc.pdf') }
+            ]
+          }
+        ]
+      })
+    )
+    const input = (req.body as { input: Array<{ content: Array<{ type: string }> }> }).input
+    const fileParts = input[0].content.filter((c) => c.type === 'input_file')
+    expect(fileParts).toEqual([{ type: 'input_file', file_url: 'https://x.com/doc.pdf' }])
+  })
+
+  it('omits response_format when JSON mode has no schema', async () => {
+    const req = await captureWithFetch((fetch) =>
+      new PerplexityAgentLanguageModel('perplexity/sonar', config(fetch)).doGenerate({
+        prompt: prompt('Q'),
+        responseFormat: { type: 'json' }
+      })
+    )
+    expect(req.body).not.toHaveProperty('response_format')
   })
 })

@@ -215,6 +215,11 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
     if (presencePenalty != null) warnings.push({ type: 'unsupported', feature: 'presencePenalty' })
     if (stopSequences != null) warnings.push({ type: 'unsupported', feature: 'stopSequences' })
     if (seed != null) warnings.push({ type: 'unsupported', feature: 'seed' })
+    // The Agent API's json_schema response_format requires a schema; JSON mode
+    // without one can't be enforced, so we skip it rather than send an invalid body.
+    if (responseFormat?.type === 'json' && !responseFormat.schema) {
+      warnings.push({ type: 'unsupported', feature: 'JSON response format without a schema' })
+    }
 
     const opts =
       (await parseProviderOptions({
@@ -241,7 +246,7 @@ export class PerplexityAgentLanguageModel implements LanguageModelV3 {
       top_p: topP,
       reasoning: opts.reasoningEffort ? { effort: opts.reasoningEffort } : undefined,
       response_format:
-        responseFormat?.type === 'json'
+        responseFormat?.type === 'json' && responseFormat.schema
           ? {
               type: 'json_schema',
               json_schema: { name: responseFormat.name ?? 'response', schema: responseFormat.schema, strict: true }
