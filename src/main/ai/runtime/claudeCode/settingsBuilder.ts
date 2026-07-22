@@ -982,17 +982,28 @@ export async function buildSystemPrompt(
   const channelSecurityBlock = isChannelLinked ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
+  const workspaceBlock = [
+    '## Current Workspace',
+    `The current working directory for this conversation is ${JSON.stringify(cwd)}.`,
+    'Use this directory as the default base for file operations and shell commands.',
+    'When the user refers to the current directory, workspace, or project directory, or does not specify a path, resolve the target from this exact directory.',
+    "Only work outside this directory when the user explicitly requests a different location. Never infer the user's home directory or another directory as the current working directory.",
+    'The working directory is already provided here; do not run `pwd` only to rediscover it.'
+  ].join('\n')
+  const workspaceContextBlock = `\n\n${workspaceBlock}`
 
   // Assistant mode
   if (isAssistant) {
     try {
       const context = buildAssistantContext()
-      return instructions ? `${instructions}\n\n${context}${channelSecurityBlock}` : `${context}${channelSecurityBlock}`
+      return instructions
+        ? `${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}`
+        : `${context}${workspaceContextBlock}${channelSecurityBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a context read failure drops the entire
       // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${instructions}${channelSecurityBlock}`
+      return `${instructions}${workspaceContextBlock}${channelSecurityBlock}`
     }
   }
 
@@ -1002,7 +1013,7 @@ export async function buildSystemPrompt(
 
   const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig, Boolean(instructions?.trim()))
   const userInstructions = instructions ? `\n\n${instructions}` : ''
-  return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  return `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }
 
 export function buildMcpServers(
