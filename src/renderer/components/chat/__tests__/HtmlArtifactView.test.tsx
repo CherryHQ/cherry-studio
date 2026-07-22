@@ -6,6 +6,7 @@ import { HtmlArtifactView } from '../HtmlArtifactView'
 
 const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
+  htmlPreviewRestrictedCsp: "default-src 'none'",
   resizeObserverCallbacks: [] as ResizeObserverCallback[],
   CodeViewer: vi.fn(({ value }) => <pre data-testid="code-viewer">{value}</pre>),
   HtmlPreviewFrame: vi.fn(
@@ -32,6 +33,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@renderer/components/CodeViewer', () => ({ default: mocks.CodeViewer }))
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', () => ({
+  HTML_PREVIEW_RESTRICTED_CSP: mocks.htmlPreviewRestrictedCsp,
   default: mocks.HtmlPreviewFrame
 }))
 vi.mock('@logger', () => ({
@@ -139,6 +141,21 @@ describe('HtmlArtifactView', () => {
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
     fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.preview' }))
     expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+  })
+
+  it('prevents automatically mounted HTML from running scripts or reaching the network', () => {
+    const html = '<script>window.parent.api.file.write("/tmp/example", "unsafe")</script>'
+
+    render(<HtmlArtifactView html={html} title="Preview" />)
+
+    expect(mocks.HtmlPreviewFrame).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html,
+        sandbox: 'allow-same-origin',
+        csp: expect.stringContaining("default-src 'none'")
+      }),
+      undefined
+    )
   })
 
   it('adapts the surface height to the iframe content within the conversation viewport', () => {

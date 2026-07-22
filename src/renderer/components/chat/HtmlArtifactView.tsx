@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
+import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_CSP } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -177,7 +177,14 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
           height: `${100 / zoomScale}%`,
           transform: `scale(${zoomScale})`
         }}>
-        <HtmlPreviewFrame html={html} title={title} iframeRef={iframeRef} />
+        {/* Keep same-origin only for parent-side sizing; generated scripts and forms stay blocked. */}
+        <HtmlPreviewFrame
+          html={html}
+          title={title}
+          iframeRef={iframeRef}
+          sandbox="allow-same-origin"
+          csp={HTML_PREVIEW_RESTRICTED_CSP}
+        />
       </div>
     </div>
   )
