@@ -350,8 +350,8 @@ function FileTokenPreviewCard({
 
   if (presentation.previewUrl) {
     return (
-      <div className="flex max-h-64 max-w-80 overflow-hidden bg-muted text-left" data-file-token-image-preview="">
-        <img src={presentation.previewUrl} alt={label} className="block max-h-64 max-w-80 object-contain" />
+      <div className="flex max-h-48 max-w-60 overflow-hidden bg-muted text-left" data-file-token-image-preview="">
+        <img src={presentation.previewUrl} alt={label} className="block max-h-48 max-w-60 object-contain" />
       </div>
     )
   }
@@ -633,10 +633,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
           icon={tokenIcon}
           removeLabel={removeLabel}
           onRemove={onRemove}
-          removeButtonClassName={cn(
-            'size-full rounded-[5px]',
-            presentation.variant !== 'text' && presentation.variant !== 'fallback' && 'dark:text-black'
-          )}
+          removeButtonClassName="size-full rounded-[5px] bg-neutral-100 text-foreground dark:bg-neutral-800"
           removeIconClassName="size-3"
         />
       </span>

@@ -428,9 +428,9 @@ describe('ComposerToken', () => {
     expect(popoverContent).not.toHaveTextContent('2 KB')
     const imagePreview = screen.getByAltText('avatar-preview.png')
     expect(imagePreview).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
-    expect(imagePreview).toHaveClass('block', 'max-h-64', 'max-w-80', 'object-contain')
+    expect(imagePreview).toHaveClass('block', 'max-h-48', 'max-w-60', 'object-contain')
     expect(imagePreview).not.toHaveClass('h-full', 'w-full', 'object-cover')
-    expect(imagePreview.parentElement).toHaveClass('flex', 'max-h-64', 'max-w-80', 'overflow-hidden', 'bg-muted')
+    expect(imagePreview.parentElement).toHaveClass('flex', 'max-h-48', 'max-w-60', 'overflow-hidden', 'bg-muted')
     expect(imagePreview.parentElement).not.toHaveClass('inline-flex')
   })
 
@@ -476,14 +476,18 @@ describe('ComposerToken', () => {
     expect(removeButton).toHaveClass(
       'size-full',
       'rounded-[5px]',
+      'bg-neutral-100',
+      'text-foreground',
+      'dark:bg-neutral-800',
       'opacity-0',
       'group-hover/composer-token:pointer-events-auto',
       'group-hover/composer-token:opacity-100'
     )
+    expect(removeButton).not.toHaveClass('bg-transparent', 'text-current', 'dark:text-black')
     expect(removeButton.querySelector('svg')).toHaveClass('size-3')
 
     openFileTokenPopover(container)
-    expect(screen.getByAltText('avatar-preview.png')).toHaveClass('max-h-64', 'max-w-80', 'object-contain')
+    expect(screen.getByAltText('avatar-preview.png')).toHaveClass('max-h-48', 'max-w-60', 'object-contain')
 
     fireEvent.click(removeButton)
     expect(onRemove).toHaveBeenCalledTimes(1)
@@ -563,7 +567,16 @@ describe('ComposerToken', () => {
     expect(token).not.toHaveClass('align-baseline')
     expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
     expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
-    expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass('text-current', 'dark:text-black')
+    expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass(
+      'bg-neutral-100',
+      'text-foreground',
+      'dark:bg-neutral-800'
+    )
+    expect(token?.querySelector('[data-composer-token-remove]')).not.toHaveClass(
+      'bg-transparent',
+      'text-current',
+      'dark:text-black'
+    )
     expect(token?.querySelector('[data-composer-token-remove] svg')).toHaveClass('size-3', 'text-current')
     expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')
   })
@@ -701,10 +714,17 @@ describe('ComposerToken', () => {
     const removeButton = container.querySelector('[data-composer-token-remove]') as HTMLButtonElement
     expect(removeButton).toBeInTheDocument()
     expect(removeButton).toHaveAttribute('aria-label', '删除')
-    expect(removeButton).toHaveClass('size-full', 'rounded-[5px]')
-    expect(removeButton).toHaveClass('text-current')
+    expect(removeButton).toHaveClass(
+      'size-full',
+      'rounded-[5px]',
+      'bg-neutral-100',
+      'text-foreground',
+      'dark:bg-neutral-800'
+    )
     expect(removeButton).not.toHaveClass(
+      'bg-transparent',
       'dark:text-black',
+      'text-current',
       'text-muted-foreground',
       'hover:text-foreground',
       'hover:text-destructive'
