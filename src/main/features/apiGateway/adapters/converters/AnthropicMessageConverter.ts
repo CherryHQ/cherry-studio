@@ -13,7 +13,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
-import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
+import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolResultPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
@@ -40,27 +40,44 @@ function sanitizeJson(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value))
 }
 
+/** A single item in a multimodal tool-result `{type:'content'}` model output. */
+type ToolResultContentValue = Extract<ToolResultPart['output'], { type: 'content' }>['value'][number]
+
 /**
- * Flatten Anthropic tool_result content into a plain string output for the
- * `dynamic-tool` UI part. `convertToModelMessages` re-wraps it into a tool
- * result model message.
+ * Flatten Anthropic tool_result content for a `dynamic-tool` UI part's `output`.
+ *
+ * Text-only results become a plain string (byte-identical to the raw text). Results that
+ * carry ≥1 image become a structured items array (text + `image-data`/`image-url`) so the
+ * model receives real image content instead of a giant base64 STRING — the tool's
+ * `toModelOutput` (see `toAiSdkTools`) lifts an array into a `{type:'content'}` model output,
+ * and `gateToolResultMedia` gates the images downstream: kept when the wire+model accept
+ * them (vision model on an anthropic/google wire), replaced with a note otherwise —
+ * including every openai-style wire, whose tool messages cannot carry media at all.
  */
-function toolResultToOutput(content: NonNullable<ToolResultBlockParam['content']>): string {
+function toolResultToOutput(content: NonNullable<ToolResultBlockParam['content']>): string | ToolResultContentValue[] {
   if (typeof content === 'string') return content
-  const parts: string[] = []
+  const hasImage = content.some((block) => block.type === 'image')
+  if (!hasImage) {
+    const parts: string[] = []
+    for (const block of content) {
+      if (block.type === 'text') parts.push(block.text)
+    }
+    return parts.join('\n')
+  }
+  const items: ToolResultContentValue[] = []
   for (const block of content) {
     if (block.type === 'text') {
-      parts.push(block.text)
+      items.push({ type: 'text', text: block.text })
     } else if (block.type === 'image') {
       const source = block.source
       if (source.type === 'base64') {
-        parts.push(`data:${source.media_type};base64,${source.data}`)
+        items.push({ type: 'image-data', data: source.data, mediaType: source.media_type })
       } else if (source.type === 'url') {
-        parts.push(source.url)
+        items.push({ type: 'image-url', url: source.url })
       }
     }
   }
-  return parts.join('\n')
+  return items
 }
 
 /**
@@ -112,7 +129,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
     // tool_use id → name (for tool_result parts) and tool_use id → result output.
     const toolCallIdToName = new Map<string, string>()
-    const toolResultOutputs = new Map<string, string>()
+    const toolResultOutputs = new Map<string, string | ToolResultContentValue[]>()
     for (const msg of params.messages) {
       if (!Array.isArray(msg.content)) continue
       for (const block of msg.content) {
@@ -225,7 +242,15 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
       const aiTool = tool({
         description: toolDef.description || '',
-        inputSchema: zodSchema(schema)
+        inputSchema: zodSchema(schema),
+        // A structured `output` alone would serialize as `{type:'json'}` (base64 as text);
+        // only this lifts our items array into a `{type:'content'}` multimodal output.
+        toModelOutput: ({ output }) =>
+          Array.isArray(output)
+            ? { type: 'content', value: output as ToolResultContentValue[] }
+            : typeof output === 'string'
+              ? { type: 'text', value: output }
+              : { type: 'json', value: (output ?? null) as JSONValue }
       })
 
       aiSdkTools[toolDef.name] = aiTool
