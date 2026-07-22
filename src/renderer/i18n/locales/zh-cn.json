@@ -3248,7 +3248,7 @@
             "skills_require_save": "保存后才能启用技能",
             "tab": {
               "mcp": "MCP",
-              "skills": "Skills",
+              "skills": "技能",
               "tools": "内置工具"
             },
             "title": "能力扩展"

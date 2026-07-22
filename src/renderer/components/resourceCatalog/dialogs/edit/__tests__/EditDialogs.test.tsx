@@ -12,13 +12,16 @@ import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '..
 const {
   agentTools,
   fetchGenerateMock,
+  getDefaultRouteTitleMock,
+  ipcRequestMock,
   mcpStatusState,
   openSettingsTabMock,
   settingsNavigateMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
-  useQueryMock
+  useQueryMock,
+  uuidMock
 } = vi.hoisted(() => ({
   agentTools: [
     { id: 'Bash', name: 'Bash', description: 'Run shell commands', origin: 'builtin', approval: 'prompt' },
@@ -48,13 +51,16 @@ const {
     { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
   ],
   fetchGenerateMock: vi.fn(),
+  getDefaultRouteTitleMock: vi.fn(),
+  ipcRequestMock: vi.fn(),
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
   settingsNavigateMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
-  useQueryMock: vi.fn()
+  useQueryMock: vi.fn(),
+  uuidMock: vi.fn()
 }))
 
 const MODEL = vi.hoisted(
@@ -185,6 +191,10 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
   useMcpRuntimeStatusMap: () => mcpStatusState.current
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
+}))
+
 vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
     skills: [
@@ -208,6 +218,14 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: fetchGenerateMock
 }))
 
+vi.mock('@renderer/utils/routeTitle', () => ({
+  getDefaultRouteTitle: getDefaultRouteTitleMock
+}))
+
+vi.mock('@renderer/utils/uuid', () => ({
+  uuid: uuidMock
+}))
+
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: openSettingsTabMock
 }))
@@ -225,6 +243,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.settings.tooling.permissionMode.bypassPermissions.title': 'Full Auto Mode',
           'agent.settings.tooling.permissionMode.default.title': 'Normal Mode',
           'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
+          'agent.settings.skills.addMore': 'Add More Skills',
           'common.avatar': 'Avatar',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
@@ -272,7 +291,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.search_placeholder': 'Search tools',
           'library.config.agent.section.tools.skills_require_save': 'Save before skills',
           'library.config.agent.section.tools.tab.mcp': 'MCP',
-          'library.config.agent.section.tools.tab.skills': 'Skills',
+          'library.config.agent.section.tools.tab.skills': '技能',
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
           'library.config.agent.model_config': 'Model configuration',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
@@ -455,6 +474,8 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  getDefaultRouteTitleMock.mockReturnValue('Settings')
+  uuidMock.mockReturnValue('detached-tab-id')
   mcpStatusState.current = {
     'mcp-1': { state: 'connected', lastCheckedAt: 1 }
   }
@@ -953,15 +974,37 @@ describe('edit dialogs', () => {
     selectTab('MCP')
     expect(screen.getByText('MCP One')).toBeInTheDocument()
 
-    selectTab('Skills')
+    selectTab('技能')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
   })
 
   it('opens the agent edit dialog directly on the requested initial tab', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
 
-    expect(screen.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '技能' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('opens Skill settings in a detached window without closing the agent edit dialog', () => {
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    selectTab('技能')
+
+    const addMoreButton = screen.getByRole('button', { name: 'Add More Skills' })
+    expect(addMoreButton).toHaveClass('min-h-11', 'w-full', 'border-dashed')
+    expect(addMoreButton.parentElement).toHaveClass('sm:grid-cols-2')
+
+    fireEvent.click(addMoreButton)
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('tab.detach', {
+      id: 'detached-tab-id',
+      url: '/settings/skills',
+      title: 'Settings',
+      type: 'route'
+    })
+    expect(openSettingsTabMock).not.toHaveBeenCalledWith('/settings/skills')
+    expect(onOpenChange).not.toHaveBeenCalled()
   })
 
   it('opens the assistant edit dialog directly on the requested initial tab', () => {
@@ -975,7 +1018,7 @@ describe('edit dialogs', () => {
   it('auto-saves agent skill toggles after a debounce', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    selectTab('Skills')
+    selectTab('技能')
 
     fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
     // Not persisted synchronously — the debounce is still pending.
