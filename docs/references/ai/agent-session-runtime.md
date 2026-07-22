@@ -198,7 +198,11 @@ prepare window. `onPrepareStage` therefore goes host-side:
 (stable id, reconciled in place) directly into the turn's stream
 controller. The finalized timeline lands on the same part; the
 renderer shows a live phase label past 3s and a post-hoc stage
-breakdown inside the process group past 5s. Diagnostics built from the
+breakdown inside the process group past 5s. Persistence mirrors that
+display rule: `dropSubThresholdPrepareParts` strips the part at persist
+time unless it carries a finalized timeline above the 5s threshold
+(fast and never-finalized timelines stay log-only), so no message row
+stores a breakdown the renderer would never show. Diagnostics built from the
 timeline carry only stage timings, app version, agent type, and MCP
 server names — never env values, keys, or base URLs.
 
