@@ -1,11 +1,11 @@
 import { EventEmitter } from 'node:events'
 
 import { application } from '@application'
-import { loggerService } from '@logger'
 import type { MigrationDiagnosticSavedResult } from '@shared/data/migration/v2/diagnostics'
 import { app, dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MigrationDiagnosticContext } from '../../diagnostics'
 import {
   createMigrationDiagnosticSavedDetail,
   presentMigrationDiagnosticFailure,
@@ -36,11 +36,6 @@ describe('migrationDiagnosticDialogs', () => {
     getPathMock.mockImplementation((key: string, filename?: string) =>
       filename ? `/central/${key}/${filename}` : `/central/${key}`
     )
-    ;(
-      loggerService as unknown as {
-        getProcessIdentity: () => { processId: number; processStartedAt: string }
-      }
-    ).getProcessIdentity = vi.fn(() => ({ processId: 4321, processStartedAt: '2026-07-21T10:00:00.000Z' }))
   })
 
   it.each([
@@ -109,30 +104,40 @@ describe('migrationDiagnosticDialogs', () => {
     ).resolves.toEqual({ result: { status: 'failed', code: 'bundle_save_failed' } })
   })
 
-  it('returns the Main-selected destination and central logs directory on success', async () => {
+  it('returns the Main-selected destination, central logs directory, and stable migration-owned process identity', async () => {
     showSaveDialogMock.mockResolvedValue({ canceled: false, filePath: '/chosen/diagnostics.zip' } as never)
     const saved: MigrationDiagnosticSavedResult = { status: 'saved', logs: 'included', size: 'large' }
-    const saveBundle = vi.fn(async () => saved)
+    const runtimes: Array<NonNullable<MigrationDiagnosticContext['runtime']>> = []
+    const saveBundle = vi.fn(async (input: { readonly context: MigrationDiagnosticContext }) => {
+      if (input.context.runtime) runtimes.push(input.context.runtime)
+      return saved
+    })
 
-    const outcome = await saveMigrationDiagnosticBundleWithDialog(context, {
+    const dependencies = {
       locale: 'en-US',
       saveBundle,
       userDataPath: '/resolved/custom-user-data'
-    })
+    } as const
+    const firstOutcome = await saveMigrationDiagnosticBundleWithDialog(context, dependencies)
+    const secondOutcome = await saveMigrationDiagnosticBundleWithDialog(context, dependencies)
 
-    expect(outcome).toEqual({ result: saved, destination: '/chosen/diagnostics.zip' })
-    expect(saveBundle).toHaveBeenCalledWith({
-      destination: '/chosen/diagnostics.zip',
-      logsDirectory: '/central/app.logs',
-      context: {
-        ...context,
-        runtime: {
-          processId: 4321,
-          processStartedAt: '2026-07-21T10:00:00.000Z',
-          userDataPath: '/resolved/custom-user-data'
-        }
-      }
+    expect(firstOutcome).toEqual({ result: saved, destination: '/chosen/diagnostics.zip' })
+    expect(secondOutcome).toEqual(firstOutcome)
+    expect(saveBundle).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        destination: '/chosen/diagnostics.zip',
+        logsDirectory: '/central/app.logs'
+      })
+    )
+    expect(runtimes).toHaveLength(2)
+    expect(runtimes[0]).toEqual({
+      processId: process.pid,
+      processStartedAt: expect.any(String),
+      userDataPath: '/resolved/custom-user-data'
     })
+    expect(Number.isNaN(Date.parse(runtimes[0]!.processStartedAt))).toBe(false)
+    expect(runtimes[1]).toEqual(runtimes[0])
     expect(getPathMock).not.toHaveBeenCalledWith('app.userdata')
   })
 
@@ -146,8 +151,8 @@ describe('migrationDiagnosticDialogs', () => {
       expect.objectContaining({
         context: expect.objectContaining({
           runtime: {
-            processId: 4321,
-            processStartedAt: '2026-07-21T10:00:00.000Z'
+            processId: process.pid,
+            processStartedAt: expect.any(String)
           }
         })
       })

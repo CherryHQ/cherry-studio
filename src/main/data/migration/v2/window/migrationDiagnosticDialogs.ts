@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import {
   getMigrationDiagnosticNoticeParts,
+  type MigrationDiagnosticRuntime,
   type MigrationDiagnosticSavedResult,
   type MigrationDiagnosticSaveResult
 } from '@shared/data/migration/v2/diagnostics'
@@ -15,6 +16,10 @@ import {
 } from './migrationDiagnosticNativeI18n'
 
 const DIAGNOSTIC_BUNDLE_FILE_NAME = 'cherry-studio-migration-diagnostics.zip'
+const MIGRATION_DIAGNOSTIC_PROCESS_IDENTITY = Object.freeze({
+  processId: process.pid,
+  processStartedAt: new Date(Date.now() - process.uptime() * 1000).toISOString()
+}) satisfies Omit<MigrationDiagnosticRuntime, 'userDataPath'>
 const logger = loggerService.withContext('MigrationDiagnosticDialogs')
 
 type BundleSaveResult = Awaited<ReturnType<MigrationDiagnosticBundleBuilder['save']>>
@@ -98,7 +103,7 @@ export async function saveMigrationDiagnosticBundleWithDialog(
       context: {
         ...context,
         runtime: {
-          ...loggerService.getProcessIdentity(),
+          ...MIGRATION_DIAGNOSTIC_PROCESS_IDENTITY,
           ...(dependencies.userDataPath === undefined ? {} : { userDataPath: dependencies.userDataPath })
         }
       }

@@ -50,11 +50,6 @@ const DEV_LOGGING = isDev || DIAGNOSTICS_ENABLED
 
 const DEFAULT_LEVEL = DEV_LOGGING ? LEVEL.SILLY : LEVEL.INFO
 
-export interface LoggerProcessIdentity {
-  readonly processId: number
-  readonly processStartedAt: string
-}
-
 /**
  * IMPORTANT: How to use LoggerService
  * please refer to
@@ -63,7 +58,6 @@ export interface LoggerProcessIdentity {
  */
 export class LoggerService {
   private logger: winston.Logger
-  private readonly processIdentity: LoggerProcessIdentity
 
   // env variables, only used in dev / diagnostics (CS_DIAGNOSTICS) mode
   private envLevel: LogLevel = LEVEL.NONE
@@ -78,11 +72,6 @@ export class LoggerService {
     if (!isMainThread) {
       throw new Error('[LoggerService] NOT support worker thread yet, can only be instantiated in main process.')
     }
-
-    this.processIdentity = Object.freeze({
-      processId: process.pid,
-      processStartedAt: new Date(Date.now() - process.uptime() * 1000).toISOString()
-    })
 
     // Logs directory comes from the central early-constants module so that
     // LoggerService, BootConfigService, and pathRegistry all share a single
@@ -153,7 +142,6 @@ export class LoggerService {
         winston.format.json()
       ),
       exitOnError: false,
-      defaultMeta: { processId: this.processIdentity.processId },
       transports
     })
 
@@ -384,11 +372,6 @@ export class LoggerService {
    */
   public getLogsDir(): string {
     return this.logsDir
-  }
-
-  /** Stable identity for correlating this Main process with its persisted log lines. */
-  public getProcessIdentity(): LoggerProcessIdentity {
-    return this.processIdentity
   }
 
   /**
