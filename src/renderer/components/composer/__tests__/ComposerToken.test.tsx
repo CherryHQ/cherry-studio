@@ -476,7 +476,8 @@ describe('ComposerToken', () => {
     expect(token).toHaveTextContent('avatar-preview.png')
 
     const iconSlot = token.querySelector('[data-file-token-icon="image"]')
-    expect(iconSlot).toHaveClass('size-4.5', 'overflow-hidden', 'rounded-[5px]')
+    expect(iconSlot).toHaveClass('size-4.5', 'overflow-hidden', 'rounded-[5px]', 'bg-accent', 'text-muted-foreground')
+    expect(iconSlot).not.toHaveClass('bg-cyan-100', 'text-cyan-700')
     const thumbnail = iconSlot?.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement
     expect(thumbnail).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
     expect(thumbnail).toHaveAttribute('alt', '')
@@ -526,7 +527,10 @@ describe('ComposerToken', () => {
 
     expect(getRenderedFileToken(container)).toHaveTextContent('icon.svg')
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
-    expect(container.querySelector('[data-file-token-icon="image"] svg')).toBeInTheDocument()
+    const iconSlot = container.querySelector('[data-file-token-icon="image"]')
+    expect(iconSlot).toHaveClass('bg-accent', 'text-muted-foreground')
+    expect(iconSlot).not.toHaveClass('bg-cyan-100', 'text-cyan-700')
+    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
   })
 
   it('falls back to the default image icon when the icon thumbnail fails to load', () => {
@@ -550,7 +554,10 @@ describe('ComposerToken', () => {
 
     fireEvent.error(container.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement)
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
-    expect(container.querySelector('[data-file-token-icon="image"] svg')).toBeInTheDocument()
+    const iconSlot = container.querySelector('[data-file-token-icon="image"]')
+    expect(iconSlot).toHaveClass('bg-accent', 'text-muted-foreground')
+    expect(iconSlot).not.toHaveClass('bg-cyan-100', 'text-cyan-700')
+    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
     expect(getRenderedFileToken(container)).toHaveTextContent('avatar-preview.png')
   })
 

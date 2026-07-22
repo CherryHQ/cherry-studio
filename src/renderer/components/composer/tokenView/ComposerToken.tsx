@@ -623,9 +623,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     shouldShowFileTokenPopover(file) && (!props.readOnly || Boolean(props.readOnlyFilePreview?.url))
   const pathTooltipPath = props.readOnly ? getReadOnlyFilePreviewPath(props.readOnlyFilePreview) : file?.path
   const shouldShowPathTooltip = Boolean(pathTooltipPath) && !shouldShowFileTokenPopover(file)
+  const shouldUseNeutralImageIcon = imageIconPreview && presentation.variant === 'image'
   const tokenIcon = props.token.icon ? (
     props.token.icon
-  ) : imageIconPreview && presentation.variant === 'image' && !isSvgFile(file, label) ? (
+  ) : shouldUseNeutralImageIcon && !isSvgFile(file, label) ? (
     <FileTokenImageIcon previewUrl={presentation.previewUrl} fallbackIcon={presentation.icon} />
   ) : (
     presentation.icon
@@ -648,7 +649,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       <span
         className={cn(
           'inline-flex size-4.5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border-0 leading-none',
-          presentation.iconClassName
+          shouldUseNeutralImageIcon ? 'bg-accent text-muted-foreground' : presentation.iconClassName
         )}
         data-file-token-icon={presentation.variant}>
         <InlineTokenIconSlot
