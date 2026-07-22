@@ -1470,16 +1470,16 @@
         "unsupported_model": "O modelo atual não suporta raciocínio ajustável"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Personalizar barra de ferramentas",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Reordenação cancelada para {{name}}.",
+          "dropped": "{{name}} caiu.",
+          "instructions": "Para reordenar, pressione Espaço ou Enter para pegar uma ferramenta, use as teclas de seta para movê-la, depois Espaço ou Enter para soltá-la, ou Escape para cancelar.",
+          "over": "{{name}} mudou para {{over}}.",
+          "picked_up": "Peguei {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Arraste para reordenar {{name}}",
+        "restore_default": "Restaurar padrão"
       },
       "tools": {
         "collapse": "Recolher",
@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Gerar nome de tópico",
+      "auto_rename_failed": "Falha ao gerar nome da conversa automaticamente",
       "clear": {
         "title": "Limpar mensagens"
       },
@@ -2452,6 +2453,80 @@
       "reasoning_truncated": "A cadeia de pensamento não pode ser dividida em partes, foi interrompida"
     },
     "user": "Usuário"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Este arquivo HTML não tem conteúdo.",
+        "title": "Arquivo vazio"
+      },
+      "mode": {
+        "label": "Modo de visualização HTML",
+        "preview": "Pré-visualização",
+        "source": "Fonte"
+      },
+      "read_error": {
+        "title": "Não foi possível ler este arquivo"
+      },
+      "too_large": {
+        "description": "Arquivos HTML maiores que {{limit}} MiB não podem ser visualizados.",
+        "title": "O arquivo é muito grande"
+      }
+    },
+    "invalid_path": {
+      "description": "A pré-visualização de arquivo requer um caminho local absoluto válido.",
+      "title": "Não é possível pré-visualizar este arquivo"
+    },
+    "load_error": {
+      "description": "O conteúdo de pré-visualização não pôde ser carregado.",
+      "title": "Falha na pré-visualização"
+    },
+    "loading": "Carregando pré-visualização...",
+    "markdown": {
+      "empty": {
+        "description": "Este arquivo Markdown não tem conteúdo.",
+        "title": "Arquivo vazio"
+      },
+      "mode": {
+        "label": "Modo de visualização Markdown",
+        "preview": "Pré-visualização",
+        "source": "Fonte"
+      },
+      "read_error": {
+        "title": "Não foi possível ler este arquivo"
+      },
+      "too_large": {
+        "description": "Arquivos Markdown maiores que {{limit}} MiB não podem ser visualizados.",
+        "title": "O arquivo é muito grande"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Abrir com aplicação padrão",
+        "description": "Arquivos PDF maiores que {{limit}} MiB não podem ser pré-visualizados.",
+        "open_error": "Não foi possível abrir este arquivo",
+        "title": "O arquivo é muito grande"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Este arquivo de texto não tem conteúdo.",
+        "title": "Arquivo vazio"
+      },
+      "read_error": {
+        "title": "Não foi possível ler este arquivo"
+      },
+      "too_large": {
+        "description": "Arquivos de texto maiores que {{limit}} MiB não podem ser visualizados.",
+        "title": "O arquivo é muito grande"
+      }
+    },
+    "unsupported": {
+      "action": "Abrir com aplicação padrão",
+      "description": "Este tipo de arquivo ainda não pode ser visualizado.",
+      "open_error": "Não foi possível abrir este arquivo",
+      "title": "Visualização indisponível"
+    }
   },
   "files": {
     "actions": "Ações",
@@ -3496,8 +3571,10 @@
       "title": "Biblioteca"
     },
     "skill_add": {
+      "add": "Adicionar Habilidade",
       "local_import": "Importação local",
-      "online_search": "Pesquisa online"
+      "online_search": "Pesquisa online",
+      "system_search": "Pesquisa do sistema"
     },
     "skill_detail": {
       "created_at": "Criado",
@@ -3525,6 +3602,19 @@
       "updated": "Ordenar por atualizado"
     },
     "subtitle": "Gerencie seus assistentes, agentes e habilidades",
+    "system_skill": {
+      "conflict": "Conflito de nome",
+      "description": "Importar habilidades já instaladas neste sistema.",
+      "empty_description": "Nenhuma habilidade importável foi encontrada em outras ferramentas de codificação neste dispositivo.",
+      "empty_title": "Nenhuma habilidade disponível para importar",
+      "enable_success": "Ativado {{name}}",
+      "enabled": "Ativado",
+      "import": "Importar",
+      "import_success": "Importado {{name}}",
+      "imported": "Importado",
+      "search_placeholder": "Pesquisar habilidades do sistema...",
+      "title": "Habilidades do sistema"
+    },
     "tag_picker": {
       "no_tags": "Ainda sem tags",
       "placeholder": "Novo nome da tag..."
@@ -4698,6 +4788,7 @@
     "req_error_text": "O servidor está ocupado ou o prompt contém palavras com \"direitos autorais\" ou \"palavras sensíveis\". Por favor, tente novamente.",
     "req_error_token": "Verifique a validade do token",
     "required_field": "Campo obrigatório",
+    "revealing": "Revelando imagem gerada",
     "safety_tolerance": "Tolerância de Segurança",
     "safety_tolerance_tip": "Mais alto = filtro mais permissivo; 0 é o mais restrito, 6 é o mais permissivo",
     "seed": "Semente Aleatória",
@@ -5355,7 +5446,7 @@
         "icon": {
           "error": "Nome de ícone inválido, verifique a entrada",
           "label": "Ícone",
-          "placeholder": "Insira o nome do ícone Lucide",
+          "placeholder": "Nome do ícone",
           "random": "Ícone aleatório",
           "tooltip": "O nome do ícone Lucide é em letras minúsculas, como arrow-right",
           "view_all": "Ver todos os ícones"
@@ -6100,7 +6191,8 @@
           "downloading": "A descarregar…",
           "ready": "Pronto"
         },
-        "title": "Modelos Locais"
+        "title": "Modelos Locais",
+        "unsupported": "Os modelos locais não são suportados nesta plataforma."
       },
       "notInstalled": "Não instalado",
       "openBinariesDir": "Open binaries directory",
@@ -6574,10 +6666,10 @@
       "user": "Usuário"
     },
     "menuGroups": {
-      "automation": "Automação",
-      "capabilities": "Capacidades e Ferramentas",
+      "automation": "Eficiência",
+      "capabilities": "Ferramentas",
       "models": "Modelos",
-      "personal": "Pessoal",
+      "personal": "Preferências",
       "quickAccess": "Acesso Rápido",
       "system": "Sistema"
     },
@@ -7725,16 +7817,6 @@
     "zoom": {
       "reset": "Redefinir",
       "title": "Escala"
-    },
-    "webui": {
-      "title": "WebUI Remote",
-      "enable_remote_access": "Enable remote access",
-      "service_status": "Service status",
-      "running": "Running",
-      "stopped": "Stopped",
-      "access_key": "Access key",
-      "access_key_placeholder": "Leave empty to disable verification",
-      "port": "Port"
     }
   },
   "subWindow": {
@@ -7744,6 +7826,8 @@
   },
   "tab": {
     "close": "Fechar Aba",
+    "close_others": "Fechar Outras Abas",
+    "close_to_right": "Fechar Guias à Direita",
     "move_to_first": "Mover para o Primeiro",
     "new": "Nova Aba",
     "open_in_new_window": "Abrir em Nova Janela",

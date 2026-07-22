@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const reorderableItemsCalls: Provider[][] = []
+const providerAvatarCalls: any[] = []
 
 vi.mock('@cherrystudio/ui', () => ({
   ReorderableList: ({ items }: { items: Provider[] }) => {
@@ -13,7 +14,10 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@renderer/i18n/label', () => ({ getProviderLabelKey: (id: string) => id }))
 vi.mock('@renderer/pages/settings/ProviderSettings/components/ProviderAvatar', () => ({
-  ProviderAvatar: () => null
+  ProviderAvatar: (props: any) => {
+    providerAvatarCalls.push(props)
+    return null
+  }
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k }),
@@ -44,6 +48,7 @@ describe('ProviderListGroup', () => {
 
   beforeEach(() => {
     reorderableItemsCalls.length = 0
+    providerAvatarCalls.length = 0
   })
 
   afterEach(() => {
@@ -104,6 +109,29 @@ describe('ProviderListGroup', () => {
     )
 
     expect(screen.getByTestId('provider-list-group-drag-handle-zhipu')).toBeInTheDocument()
+  })
+
+  it('uses provider-list icon display rules in the group header', () => {
+    render(
+      <ProviderListGroup
+        presetProviderId="anthropic"
+        members={providers}
+        items={providers}
+        expanded={false}
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={() => {}}
+        renderItem={() => null}
+      />
+    )
+
+    expect(providerAvatarCalls).toContainEqual(
+      expect.objectContaining({
+        provider: { id: 'anthropic', name: 'anthropic' },
+        displayContext: 'provider-list'
+      })
+    )
   })
 
   it('renders only the chevron in the group trailing area', () => {

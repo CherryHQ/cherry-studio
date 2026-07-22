@@ -3,8 +3,10 @@
  *
  * DO NOT add new code here. If you feel the need to, you almost certainly
  * misunderstand the startup timing or service architecture. New services
- * belong in the lifecycle system (see core/lifecycle/); new preboot work
- * belongs in core/preboot/. This file is glue — it should only shrink.
+ * belong in the lifecycle system (see core/lifecycle/); non-removable
+ * preboot steps belong in core/preboot/; removable capabilities that must
+ * execute at preboot time belong in their nature-home (e.g. services/)
+ * and are invoked from here. This file is glue — it should only shrink.
  */
 
 // BootConfig must load before any other import (configures userData path)
@@ -22,6 +24,7 @@ import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
+import { runUserDataRelocation } from '@main/services/userDataRelocation'
 
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
@@ -49,6 +52,12 @@ const isWindows11 = () => {
 }
 
 const startApp = async () => {
+  // userData relocation: a pending/failed relocation makes this a dedicated
+  // relocation launch (execute or explain, then relaunch) before any service
+  // opens files under the source tree. See services/userDataRelocation/README.md.
+  const relocationResult = await runUserDataRelocation()
+  if (relocationResult === 'handled') return
+
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
   // migration gate reads the DB. Never throws; on any failure the old DB
   // stays live and the app starts normally.

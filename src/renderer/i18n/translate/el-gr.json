@@ -1470,16 +1470,16 @@
         "unsupported_model": "Το τρέχον μοντέλο δεν υποστηρίζει ρυθμιζόμενη λογική"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Προσαρμογή γραμμής εργαλείων",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Η αναδιάταξη ακυρώθηκε για {{name}}.",
+          "dropped": "{{name}} αποσύνδεθηκε.",
+          "instructions": "Για να αναδιατάξετε, πατήστε Space ή Enter για να πάρετε ένα εργαλείο, χρησιμοποιήστε τα πλήκτρα βέλους για να το μετακινήσετε, μετά Space ή Enter για να το αφήσετε, ή Escape για ακύρωση.",
+          "over": "{{name}} μετακινήθηκε πάνω από {{over}}.",
+          "picked_up": "Παραλήφθηκε {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Σύρετε για να αναδιατάξετε το {{name}}",
+        "restore_default": "Επαναφορά προεπιλογής"
       },
       "tools": {
         "collapse": "Σύμπτυξη",
@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} διακριτικά",
     "topics": {
       "auto_rename": "Δημιουργία θέματος",
+      "auto_rename_failed": "Αποτυχία αυτόματης δημιουργίας ονόματος συνομιλίας",
       "clear": {
         "title": "Καθαρισμός μηνυμάτων"
       },
@@ -2452,6 +2453,80 @@
       "reasoning_truncated": "Η αλυσίδα σκέψης δεν μπορεί να διαιρεθεί, έχει κοπεί"
     },
     "user": "Χρήστης"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Αυτό το αρχείο HTML δεν έχει περιεχόμενο.",
+        "title": "Άδειο αρχείο"
+      },
+      "mode": {
+        "label": "Λειτουργία προβολής HTML",
+        "preview": "Προεπισκόπηση",
+        "source": "Πηγή"
+      },
+      "read_error": {
+        "title": "Δεν ήταν δυνατή η ανάγνωση αυτού του αρχείου"
+      },
+      "too_large": {
+        "description": "Δεν είναι δυνατή η προεπισκόπηση αρχείων HTML μεγαλύτερων από {{limit}} MiB.",
+        "title": "Το αρχείο είναι πολύ μεγάλο"
+      }
+    },
+    "invalid_path": {
+      "description": "Η προεπισκόπηση αρχείου απαιτεί έγκυρη απόλυτη τοπική διαδρομή.",
+      "title": "Δεν είναι δυνατή η προεπισκόπηση αυτού του αρχείου"
+    },
+    "load_error": {
+      "description": "Το περιεχόμενο προεπισκόπησης δεν μπόρεσε να φορτωθεί.",
+      "title": "Η προεπισκόπηση απέτυχε"
+    },
+    "loading": "Φόρτωση προεπισκόπησης...",
+    "markdown": {
+      "empty": {
+        "description": "Αυτό το αρχείο Markdown δεν έχει περιεχόμενο.",
+        "title": "Άδειο αρχείο"
+      },
+      "mode": {
+        "label": "Λειτουργία προβολής Markdown",
+        "preview": "Προεπισκόπηση",
+        "source": "Πηγή"
+      },
+      "read_error": {
+        "title": "Δεν ήταν δυνατή η ανάγνωση αυτού του αρχείου"
+      },
+      "too_large": {
+        "description": "Αρχεία Markdown μεγαλύτερα από {{limit}} MiB δεν μπορούν να προεπισκοπηθούν.",
+        "title": "Το αρχείο είναι πολύ μεγάλο"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
+        "description": "Τα αρχεία PDF μεγαλύτερα από {{limit}} MiB δεν μπορούν να προβληθούν.",
+        "open_error": "Δεν ήταν δυνατό να ανοίξει αυτό το αρχείο",
+        "title": "Το αρχείο είναι πολύ μεγάλο"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Αυτό το αρχείο κειμένου δεν έχει περιεχόμενο.",
+        "title": "Άδειο αρχείο"
+      },
+      "read_error": {
+        "title": "Δεν ήταν δυνατή η ανάγνωση αυτού του αρχείου"
+      },
+      "too_large": {
+        "description": "Αρχεία κειμένου μεγαλύτερα από {{limit}} MiB δεν μπορούν να προεπισκοπηθούν.",
+        "title": "Το αρχείο είναι πολύ μεγάλο"
+      }
+    },
+    "unsupported": {
+      "action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
+      "description": "Αυτός ο τύπος αρχείου δεν μπορεί να προεπισκοπηθεί ακόμα.",
+      "open_error": "Δεν ήταν δυνατό να ανοίξει αυτό το αρχείο",
+      "title": "Η προεπισκόπηση δεν είναι διαθέσιμη"
+    }
   },
   "files": {
     "actions": "Ενέργειες",
@@ -3496,8 +3571,10 @@
       "title": "Βιβλιοθήκη"
     },
     "skill_add": {
+      "add": "Προσθήκη Δεξιότητας",
       "local_import": "Τοπική εισαγωγή",
-      "online_search": "Διαδικτυακή αναζήτηση"
+      "online_search": "Διαδικτυακή αναζήτηση",
+      "system_search": "Αναζήτηση συστήματος"
     },
     "skill_detail": {
       "created_at": "Δημιουργήθηκε",
@@ -3525,6 +3602,19 @@
       "updated": "Ταξινόμηση κατά ημερομηνία ενημέρωσης"
     },
     "subtitle": "Διαχειριστείτε τους βοηθούς σας, τους πράκτορες και τις δεξιότητές σας",
+    "system_skill": {
+      "conflict": "Σύγκρουση ονομάτων",
+      "description": "Εισαγωγή δεξιοτήτων που είναι ήδη εγκατεστημένες σε αυτό το σύστημα.",
+      "empty_description": "Δεν βρέθηκαν εισαγόμενες δεξιότητες σε άλλα εργαλεία κωδικοποίησης σε αυτή τη συσκευή.",
+      "empty_title": "Δεν υπάρχουν διαθέσιμες δεξιότητες για εισαγωγή",
+      "enable_success": "Ενεργοποιήθηκε {{name}}",
+      "enabled": "Ενεργοποιημένο",
+      "import": "Εισαγωγή",
+      "import_success": "Εισήχθηκε {{name}}",
+      "imported": "Εισαγόμενο",
+      "search_placeholder": "Αναζήτηση δεξιοτήτων συστήματος...",
+      "title": "Δεξιότητες συστήματος"
+    },
     "tag_picker": {
       "no_tags": "Δεν υπάρχουν ακόμα ετικέτες",
       "placeholder": "Νέο όνομα ετικέτας..."
@@ -4698,6 +4788,7 @@
     "req_error_text": "Ο διακομιστής είναι απασχολημένος ή η εντολή περιέχει «λέξεις πνευματικής ιδιοκτησίας» ή «ευαίσθητες λέξεις». Παρακαλούμε δοκιμάστε ξανά.",
     "req_error_token": "Ελέγξτε την εγκυρότητα του token",
     "required_field": "Υποχρεωτικό πεδίο",
+    "revealing": "Αποκάλυψη δημιουργημένης εικόνας",
     "safety_tolerance": "Ανοχή Ασφαλείας",
     "safety_tolerance_tip": "Υψηλότερο = πιο επιεικής φίλτρο· 0 είναι το πιο αυστηρό, 6 είναι το πιο επιεικές",
     "seed": "Τυχαίος παράγοντας",
@@ -5355,7 +5446,7 @@
         "icon": {
           "error": "Μη έγκυρο όνομα εικονιδίου, ελέγξτε την εισαγωγή",
           "label": "Εικονίδιο",
-          "placeholder": "Εισαγωγή ονόματος εικονιδίου Lucide",
+          "placeholder": "Όνομα εικονιδίου",
           "random": "Τυχαίο εικονίδιο",
           "tooltip": "Το όνομα εικονιδίου Lucide είναι με πεζά, π.χ. arrow-right",
           "view_all": "Προβολή όλων των εικονιδίων"
@@ -6100,7 +6191,8 @@
           "downloading": "Λήψη…",
           "ready": "Έτοιμος"
         },
-        "title": "Τοπικά Μοντέλα"
+        "title": "Τοπικά Μοντέλα",
+        "unsupported": "Τα τοπικά μοντέλα δεν υποστηρίζονται σε αυτήν την πλατφόρμα."
       },
       "notInstalled": "Δεν έχει εγκατασταθεί",
       "openBinariesDir": "Open binaries directory",
@@ -6574,10 +6666,10 @@
       "user": "Χρήστης"
     },
     "menuGroups": {
-      "automation": "Αυτοματοποίηση",
-      "capabilities": "Δυνατότητες & Εργαλεία",
+      "automation": "Αποδοτικότητα",
+      "capabilities": "Εργαλεία",
       "models": "Μοντέλα",
-      "personal": "Προσωπικό",
+      "personal": "Προτιμήσεις",
       "quickAccess": "Γρήγορη Πρόσβαση",
       "system": "Σύστημα"
     },
@@ -7725,16 +7817,6 @@
     "zoom": {
       "reset": "Επαναφορά",
       "title": "Κλίμακα"
-    },
-    "webui": {
-      "title": "WebUI Remote",
-      "enable_remote_access": "Enable remote access",
-      "service_status": "Service status",
-      "running": "Running",
-      "stopped": "Stopped",
-      "access_key": "Access key",
-      "access_key_placeholder": "Leave empty to disable verification",
-      "port": "Port"
     }
   },
   "subWindow": {
@@ -7744,6 +7826,8 @@
   },
   "tab": {
     "close": "Κλείσιμο Καρτέλας",
+    "close_others": "Κλείσιμο άλλων καρτελών",
+    "close_to_right": "Κλείσιμο καρτελών προς τα δεξιά",
     "move_to_first": "Μετακίνηση στην Αρχή",
     "new": "Νέα Καρτέλα",
     "open_in_new_window": "Άνοιγμα σε Νέο Παράθυρο",

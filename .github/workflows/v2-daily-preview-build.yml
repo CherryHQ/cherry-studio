@@ -219,6 +219,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-
 
+      - name: Configure Windows package architectures
+        if: matrix.os == 'windows-2022'
+        shell: pwsh
+        run: |
+          $workspaceConfig = Get-Content pnpm-workspace.yaml -Raw
+          $currentArchitectures = "supportedArchitectures:\r?\n  os:\r?\n    - current\r?\n  cpu:\r?\n    - current"
+          $windowsArchitectures = @'
+          supportedArchitectures:
+            os:
+              - current
+            cpu:
+              - current
+              - arm64
+          '@
+          $workspaceConfig = $workspaceConfig -replace $currentArchitectures, $windowsArchitectures
+          Set-Content pnpm-workspace.yaml $workspaceConfig
+
       - name: Install Dependencies
         run: pnpm install
 
@@ -315,6 +332,7 @@ jobs:
         run: |
           pnpm build:win
         env:
+          ELECTRON_BUILDER_7Z_FILTER: BCJ
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}

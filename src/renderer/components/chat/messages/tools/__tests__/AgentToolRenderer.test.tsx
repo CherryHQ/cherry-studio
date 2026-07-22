@@ -161,6 +161,7 @@ describe('AgentToolRenderer', () => {
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
     'agent.sidebar_title': 'Agents',
+    'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
@@ -731,6 +732,24 @@ describe('AgentToolRenderer', () => {
         path: '/app/agents',
         query: { sessionId: 'session-1' }
       })
+    })
+
+    it('uses the document processing feature title for the file-processing route', () => {
+      const toolResponse = createToolResponse({
+        tool: {
+          id: 'mcp__assistant__navigate',
+          name: 'mcp__assistant__navigate',
+          description: 'Navigate',
+          type: 'provider'
+        },
+        status: 'done',
+        arguments: { path: '/settings/file-processing' },
+        response: 'Navigate link created: /settings/file-processing'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText(/Document Processing/)).toBeInTheDocument()
     })
   })
 

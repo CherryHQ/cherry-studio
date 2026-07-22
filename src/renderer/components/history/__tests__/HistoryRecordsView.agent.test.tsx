@@ -1,4 +1,5 @@
 import { cacheService } from '@renderer/data/CacheService'
+import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
@@ -34,6 +35,18 @@ vi.mock('@cherrystudio/ui', async () => {
 vi.mock('@renderer/data/CacheService', async () => {
   const { MockCacheService } = await import('@test-mocks/renderer/CacheService')
   return MockCacheService
+})
+
+vi.mock('@renderer/data/hooks/useCache', async (importOriginal) => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+  const actual = await importOriginal<typeof UseCacheModule>()
+  return {
+    ...MockUseCache,
+    // Stream statuses are seeded into (and updated through) this suite's
+    // CacheService mock — run the real selector over that store so status
+    // updates stay reactive.
+    useSharedCacheSelector: actual.useSharedCacheSelector
+  }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({
