@@ -16,6 +16,7 @@ const {
   mcpStatusState,
   openSettingsTabMock,
   settingsNavigateMock,
+  skillCatalogPickerMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
@@ -66,6 +67,7 @@ const {
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
   settingsNavigateMock: vi.fn(),
+  skillCatalogPickerMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -160,6 +162,46 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
   )
 }))
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
+  SkillCatalogPicker: (props: {
+    mode: 'create' | 'edit'
+    skills: Array<{ id: string; name: string }>
+    loading: boolean
+    selectedIds: readonly string[]
+    disabled?: boolean
+    onSelectedIdsChange: (ids: string[]) => void
+  }) => {
+    skillCatalogPickerMock(props)
+
+    return (
+      <div data-testid="skill-catalog-picker" data-mode={props.mode}>
+        {props.loading
+          ? null
+          : props.skills.map((skill) => {
+              const selected = props.selectedIds.includes(skill.id)
+              return (
+                <button
+                  key={skill.id}
+                  type="button"
+                  role="switch"
+                  aria-checked={selected}
+                  disabled={props.disabled}
+                  onClick={() =>
+                    props.onSelectedIdsChange(
+                      selected
+                        ? props.selectedIds.filter((selectedId) => selectedId !== skill.id)
+                        : [...props.selectedIds, skill.id]
+                    )
+                  }>
+                  {skill.name}
+                </button>
+              )
+            })}
+      </div>
+    )
+  }
+}))
+
 vi.mock('@renderer/hooks/useGroups', () => ({
   useGroups: () => ({
     groups: [
@@ -204,26 +246,6 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
     ...installedSkillsState.current,
     refresh: vi.fn()
-  }),
-  useSkillInstall: () => ({
-    install: vi.fn(),
-    installFromDirectory: vi.fn(),
-    installFromZip: vi.fn(),
-    isInstalling: vi.fn(() => false)
-  }),
-  useSkillSearch: () => ({
-    results: [],
-    searching: false,
-    error: null,
-    search: vi.fn(),
-    clear: vi.fn()
-  }),
-  useSystemSkills: () => ({
-    skills: [],
-    loading: false,
-    error: null,
-    importSkill: vi.fn(),
-    importing: new Set()
   })
 }))
 
@@ -270,7 +292,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.undo': 'Undo',
           'error.no_response': 'No response',
           'library.action.enable': 'Enable',
-          'library.config.dialogs.create.capability.search': 'Search skills',
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
           'library.config.agent.field.description.placeholder': 'Describe this agent',
@@ -298,7 +319,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.no_mcp_bound': 'No MCP servers bound',
           'library.config.agent.section.tools.no_skills_enabled': 'No skills enabled',
           'library.config.agent.section.tools.search_placeholder': 'Search tools',
-          'library.config.agent.section.tools.skills_enable_all': 'Enable all skills',
           'library.config.agent.section.tools.skills_require_save': 'Save before skills',
           'library.config.agent.section.tools.tab.mcp': 'MCP',
           'library.config.agent.section.tools.tab.skills': 'Skills',
@@ -403,10 +423,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.tools.no_more': 'No more servers',
           'library.config.tools.search': 'Search servers',
           'library.no_match': 'No match',
-          'library.skill_add.add': 'Add',
-          'library.skill_add.local_import': 'Import locally',
-          'library.skill_add.online_search': 'Search online',
-          'library.skill_add.system_search': 'Search system skills',
           'settings.mcp.runtimeStatus.connected': 'Connected',
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
@@ -1009,17 +1025,21 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Skill One')).toBeInTheDocument()
   })
 
-  it('reuses the create flow skill management controls in the agent edit dialog', async () => {
+  it('reuses the shared skill catalog in the agent edit dialog', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
 
-    expect(screen.getByPlaceholderText('Search skills')).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: 'Enable all skills' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-
-    expect(await screen.findByRole('menuitem', { name: 'Search online' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Import locally' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Search system skills' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(skillCatalogPickerMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          mode: 'edit',
+          skills: installedSkillsState.current.skills,
+          loading: false,
+          selectedIds: [],
+          disabled: false
+        })
+      )
+    )
+    expect(screen.getByTestId('skill-catalog-picker')).toHaveAttribute('data-mode', 'edit')
   })
 
   it('waits for background skill refresh before initializing the editable baseline', async () => {
