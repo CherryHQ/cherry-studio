@@ -23,7 +23,7 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { PrepareTimelineRecorder } from '@main/ai/runtime/prepareTimelineRecorder'
+import { PrepareTimelineRecorder } from '@main/ai/runtime/PrepareTimelineRecorder'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {

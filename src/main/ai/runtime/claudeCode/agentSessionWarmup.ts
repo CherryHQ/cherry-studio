@@ -19,7 +19,7 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isExternalCliProvider, isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import type { PrepareTimelineRecorder } from '../prepareTimelineRecorder'
+import type { PrepareTimelineRecorder } from '../PrepareTimelineRecorder'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'

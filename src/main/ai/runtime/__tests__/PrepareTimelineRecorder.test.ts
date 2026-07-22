@@ -7,7 +7,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { PrepareTimelineRecorder } = await import('../prepareTimelineRecorder')
+const { PrepareTimelineRecorder } = await import('../PrepareTimelineRecorder')
 
 function makeRecorder(now: number) {
   const updates: PrepareProgressPartData[] = []

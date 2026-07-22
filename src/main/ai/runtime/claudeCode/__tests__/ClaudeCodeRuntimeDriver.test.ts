@@ -1,4 +1,4 @@
-import { PrepareTimelineRecorder } from '@main/ai/runtime/prepareTimelineRecorder'
+import { PrepareTimelineRecorder } from '@main/ai/runtime/PrepareTimelineRecorder'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
