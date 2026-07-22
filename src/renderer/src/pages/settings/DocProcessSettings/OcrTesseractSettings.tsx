@@ -1,4 +1,5 @@
 // import { loggerService } from '@logger'
+import FlagEmoji from '@renderer/components/FlagEmoji'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
@@ -30,7 +31,11 @@ export const OcrTesseractSettings = () => {
       translateLanguages
         .map((lang) => ({
           value: TESSERACT_LANG_MAP[lang.langCode],
-          label: lang.emoji + ' ' + lang.label()
+          label: (
+            <>
+              <FlagEmoji emoji={lang.emoji} /> {lang.label()}
+            </>
+          )
         }))
         .filter((option) => option.value),
     [translateLanguages]
