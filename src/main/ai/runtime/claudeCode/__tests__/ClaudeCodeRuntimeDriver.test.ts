@@ -1,3 +1,4 @@
+import { PrepareTimelineRecorder } from '@main/ai/runtime/prepareTimelineRecorder'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -160,7 +161,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'ClaudeCodeTraceBridgeService') return { prepareTrace: mocks.prepareTrace }
       throw new Error(`Unexpected application.get(${name})`)
     })
-    mocks.consumeWarmQuery.mockResolvedValue(undefined)
+    mocks.consumeWarmQuery.mockResolvedValue({ outcome: 'miss-no-entry' })
     mocks.getWarmAgentSessionIds.mockReturnValue([])
     mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.collectFileAttachments.mockReturnValue([])
@@ -201,7 +202,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // The connection routes with the host-chosen model — not a fresh DB read — so a live turn keeps
     // the model captured at its creation even if the agent was edited since.
-    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', 'claude-code::sonnet')
+    expect(mocks.buildRequest).toHaveBeenCalledWith(
+      'session-1',
+      'resume-1',
+      'claude-code::sonnet',
+      expect.any(PrepareTimelineRecorder)
+    )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
