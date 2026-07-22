@@ -180,6 +180,34 @@ change refreshes the snapshot's disabled set in place. A rejected update is
 failed closed by the host (the connection is torn down) rather than left
 running under the old policy.
 
+## Prepare timeline
+
+The window between turn dispatch and the first streamed chunk is
+recorded per turn. `AgentSessionRuntimeService` captures
+`prepareStartedAt` when it opens the turn stream and passes it to
+`connect()` together with an `onPrepareStage` callback (both on
+`AgentRuntimeConnectInput`). The Claude Code driver owns a
+`PrepareTimelineRecorder` that tiles the window into contiguous stages
+(settings build steps, warm-query consume, spawn-to-init,
+init-to-first-chunk) and logs the breakdown on finalize.
+
+Live progress cannot ride the connection's event queue — the queue is
+only drained after `connect()` resolves, which is after most of the
+prepare window. `onPrepareStage` therefore goes host-side:
+`AgentSessionRuntimeService` enqueues a `data-prepare-progress` part
+(stable id, reconciled in place) directly into the turn's stream
+controller. The finalized timeline lands on the same part; the
+renderer shows a live phase label past 3s and a post-hoc stage
+breakdown inside the process group past 5s. Diagnostics built from the
+timeline carry only stage timings, app version, agent type, and MCP
+server names — never env values, keys, or base URLs.
+
+`ClaudeCodeWarmQueryManager.consume(...)` reports its outcome
+(`hit` / `miss-no-entry` / `miss-signature`) so the timeline records
+why a cold start happened. A `miss-signature` means prewarm and
+consume computed different settings signatures — a drift bug signal,
+not an expected state.
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.
@@ -225,3 +253,4 @@ Focused tests:
 - `src/main/ai/__tests__/AiService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
+- `src/main/ai/runtime/__tests__/PrepareTimelineRecorder.test.ts`
