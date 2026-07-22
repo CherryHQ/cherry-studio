@@ -106,6 +106,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Floating sidebar (hover reveal when hidden)
   const [hoverVisible, setHoverVisible] = useState(false)
+  const [floatingResizeActive, setFloatingResizeActive] = useState(false)
   const layout = getSidebarLayout(activeSidebarWidth)
 
   // Menu items
@@ -277,11 +278,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         onResizePreview={setPreviewSidebarWidth}
         {...sidebarProps}
       />
-      {hoverVisible && layout === 'hidden' && (
+      {((hoverVisible && layout === 'hidden') || floatingResizeActive) && (
         <UISidebar
           width={activeSidebarWidth}
           setWidth={setSidebarWidth}
           isFloating
+          onResizingChange={setFloatingResizeActive}
           onDismiss={() => setHoverVisible(false)}
           {...sidebarProps}
         />

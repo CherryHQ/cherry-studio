@@ -12,7 +12,8 @@ import {
 export function useSidebarResize(
   width: number,
   setWidth: (width: number) => void,
-  onResizePreview?: (width: number | null) => void
+  onResizePreview?: (width: number | null) => void,
+  onResizingChange?: (resizing: boolean) => void
 ) {
   const isResizing = useRef(false)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
@@ -26,6 +27,7 @@ export function useSidebarResize(
     (event: React.MouseEvent) => {
       event.preventDefault()
       isResizing.current = true
+      onResizingChange?.(true)
       document.body.style.cursor = 'col-resize'
       document.body.style.userSelect = 'none'
 
@@ -66,6 +68,7 @@ export function useSidebarResize(
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
         resizeCleanupRef.current = null
+        onResizingChange?.(false)
       }
 
       const onMouseUp = () => {
@@ -79,7 +82,7 @@ export function useSidebarResize(
       document.addEventListener('mouseup', onMouseUp)
       resizeCleanupRef.current = cleanup
     },
-    [onResizePreview, setWidth, width]
+    [onResizePreview, onResizingChange, setWidth, width]
   )
 
   return { sidebarRef, startResizing }

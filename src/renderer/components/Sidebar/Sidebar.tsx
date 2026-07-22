@@ -26,6 +26,7 @@ export interface SidebarProps {
   actions?: SidebarFooterActions
   onHoverChange?: (visible: boolean) => void
   onResizePreview?: (width: number | null) => void
+  onResizingChange?: (resizing: boolean) => void
   onSearchClick?: () => void
   onExtensionsClick?: () => void
   onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
@@ -46,13 +47,14 @@ export function Sidebar({
   actions,
   onHoverChange,
   onResizePreview,
+  onResizingChange,
   onSearchClick,
   onExtensionsClick,
   onEntriesReorder,
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview)
+  const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview, onResizingChange)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const contextMenuOpenRef = useRef(false)
   const floatingPointerInsideRef = useRef(false)
@@ -161,6 +163,12 @@ export function Sidebar({
               <SidebarFooter layout="full" {...footerProps} />
             </div>
           )}
+
+          <div
+            data-sidebar-resize-handle
+            onMouseDown={startResizing}
+            className="absolute inset-y-0 right-0 z-50 w-2 cursor-col-resize [-webkit-app-region:no-drag]"
+          />
         </div>
       </div>
     )
