@@ -72,6 +72,41 @@ describe('MigrationApplicationLogCollector', () => {
     await closeIncluded(result)
   })
 
+  it('falls back to failure-day logs when the save day has no eligible log', async () => {
+    await writeFile(join(logsDirectory, 'app.2026-07-21.log'), 'failure day')
+
+    const result = await new MigrationApplicationLogCollector({
+      logsDirectory,
+      clock: () => new Date(2026, 6, 22, 0, 10),
+      fallbackDate: new Date(2026, 6, 21, 23, 50)
+    }).collect()
+
+    expect(result).toMatchObject({
+      status: 'included',
+      entries: [{ fileName: 'app.2026-07-21.log', snapshotBytes: 11 }]
+    })
+    await closeIncluded(result)
+  })
+
+  it('keeps save-day logs exclusive when both save-day and failure-day logs exist', async () => {
+    await Promise.all([
+      writeFile(join(logsDirectory, 'app.2026-07-22.log'), 'save day'),
+      writeFile(join(logsDirectory, 'app.2026-07-21.log'), 'failure day')
+    ])
+
+    const result = await new MigrationApplicationLogCollector({
+      logsDirectory,
+      clock: () => new Date(2026, 6, 22, 0, 10),
+      fallbackDate: new Date(2026, 6, 21, 23, 50)
+    }).collect()
+
+    expect(result).toMatchObject({
+      status: 'included',
+      entries: [{ fileName: 'app.2026-07-22.log', snapshotBytes: 8 }]
+    })
+    await closeIncluded(result)
+  })
+
   it('includes every same-day log even when the set exceeds four files and 40 MiB', async () => {
     const fileNames = Array.from({ length: 5 }, (_, index) => `app.2026-07-21.log.${index + 1}`)
     await Promise.all(fileNames.map((fileName) => writeFile(join(logsDirectory, fileName), 'x')))

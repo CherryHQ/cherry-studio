@@ -125,6 +125,10 @@ describe('MigrationIpcHandler', () => {
     return invoke(MigrationIpcChannels.StartMigration, { ...payload, runId: RUN_ID })
   }
 
+  function saveDiagnostics(locale = 'en-US', extra: Record<string, unknown> = {}) {
+    return invoke(MigrationIpcChannels.SaveDiagnosticBundle, { locale, ...extra })
+  }
+
   function rendererFailure(error: { name: string; message: string; stack?: string }) {
     return {
       runId: RUN_ID,
@@ -314,7 +318,7 @@ describe('MigrationIpcHandler', () => {
         tableName: 'topics',
         jsonData: '[]'
       })
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await saveDiagnostics()
 
       const zip = new StreamZip.async({ file: destination })
       try {
@@ -532,7 +536,7 @@ describe('MigrationIpcHandler', () => {
         }
       )
 
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await saveDiagnostics('zh-CN')
 
       expect(diagnosticSaveDialogMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -551,8 +555,14 @@ describe('MigrationIpcHandler', () => {
             }
           }
         }),
-        { userDataPath: '/mock/userData' }
+        { locale: 'zh-CN', userDataPath: '/mock/userData' }
       )
+    })
+
+    it('rejects an unsupported Renderer locale before opening the save dialog', async () => {
+      await expect(saveDiagnostics('fr-FR')).rejects.toThrow('Unsupported migration diagnostic locale.')
+
+      expect(diagnosticSaveDialogMock).not.toHaveBeenCalled()
     })
 
     it('builds a renderer context in Main and ignores a caller-supplied destination', async () => {
@@ -588,7 +598,7 @@ describe('MigrationIpcHandler', () => {
       })
 
       await startMigration({ reduxData: {} })
-      const result = await invoke(MigrationIpcChannels.SaveDiagnosticBundle, '/renderer/evil.zip')
+      const result = await saveDiagnostics('en-US', { destination: '/renderer/evil.zip' })
 
       expect(result).toEqual({ status: 'saved', logs: 'included', size: 'standard' })
       expect(diagnosticSaveDialogMock).toHaveBeenCalledTimes(1)
@@ -615,7 +625,7 @@ describe('MigrationIpcHandler', () => {
           }),
           run: expect.objectContaining({ id: RUN_ID, failedAt: expect.any(String) })
         }),
-        { userDataPath: '/mock/userData' }
+        { locale: 'en-US', userDataPath: '/mock/userData' }
       )
     })
 
@@ -623,10 +633,10 @@ describe('MigrationIpcHandler', () => {
       let finishSave!: (value: unknown) => void
       diagnosticSaveDialogMock.mockImplementationOnce(() => new Promise((resolve) => (finishSave = resolve)))
 
-      const first = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      const first = saveDiagnostics()
       await Promise.resolve()
 
-      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+      await expect(saveDiagnostics()).resolves.toEqual({
         status: 'failed',
         code: 'save_in_progress'
       })
@@ -645,7 +655,7 @@ describe('MigrationIpcHandler', () => {
     ] as const)('rejects state mutation on %s while a diagnostic save is in flight', async (channel, payload) => {
       let finishSave!: (value: unknown) => void
       diagnosticSaveDialogMock.mockImplementationOnce(() => new Promise((resolve) => (finishSave = resolve)))
-      const saveFlow = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      const saveFlow = saveDiagnostics()
       await Promise.resolve()
 
       await expect(Promise.resolve().then(() => invoke(channel, payload))).rejects.toThrow(
@@ -668,9 +678,9 @@ describe('MigrationIpcHandler', () => {
         .mockResolvedValueOnce({ result: { status: 'canceled' } })
         .mockResolvedValueOnce({ result: { status: 'failed', code: 'bundle_save_failed' } })
 
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await saveDiagnostics()
+      await saveDiagnostics()
+      await saveDiagnostics()
 
       expect(await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder, '/renderer/evil.zip')).toBe(true)
       expect(shell.showItemInFolder).toHaveBeenCalledWith('/main/success.zip')
@@ -764,19 +774,19 @@ describe('MigrationIpcHandler', () => {
         result: { status: 'saved', logs: 'included', size: 'standard' },
         destination: '/main/old.zip'
       })
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      await saveDiagnostics()
 
       let finishOldSave!: (value: unknown) => void
       diagnosticSaveDialogMock
         .mockImplementationOnce(() => new Promise((resolve) => (finishOldSave = resolve)))
         .mockResolvedValueOnce({ result: { status: 'canceled' } })
-      const oldSave = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      const oldSave = saveDiagnostics()
       await Promise.resolve()
 
       resetMigrationData()
 
       expect(await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).toBe(false)
-      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({ status: 'canceled' })
+      await expect(saveDiagnostics()).resolves.toEqual({ status: 'canceled' })
 
       finishOldSave({
         result: { status: 'saved', logs: 'included', size: 'standard' },
@@ -929,7 +939,7 @@ describe('MigrationIpcHandler', () => {
       let finishSave!: (value: unknown) => void
       diagnosticSaveDialogMock.mockImplementation(() => new Promise((resolve) => (finishSave = resolve)))
 
-      const saveFlow = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      const saveFlow = saveDiagnostics()
       await Promise.resolve()
 
       expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
@@ -946,7 +956,7 @@ describe('MigrationIpcHandler', () => {
       let finishSave!: (value: unknown) => void
       diagnosticSaveDialogMock.mockImplementation(() => new Promise((resolve) => (finishSave = resolve)))
 
-      const saveFlow = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+      const saveFlow = saveDiagnostics()
       await Promise.resolve()
 
       expect(await invoke(MigrationIpcChannels.Cancel)).toBe(false)
@@ -965,7 +975,7 @@ describe('MigrationIpcHandler', () => {
         let finishSave!: (value: unknown) => void
         diagnosticSaveDialogMock.mockImplementation(() => new Promise((resolve) => (finishSave = resolve)))
 
-        const saveFlow = invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+        const saveFlow = saveDiagnostics()
         await Promise.resolve()
 
         expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
@@ -986,7 +996,7 @@ describe('MigrationIpcHandler', () => {
       try {
         diagnosticSaveDialogMock.mockImplementation(() => new Promise(() => undefined))
 
-        void invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+        void saveDiagnostics()
         await Promise.resolve()
 
         expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
@@ -1007,7 +1017,7 @@ describe('MigrationIpcHandler', () => {
       await expect(invoke(MigrationIpcChannels.Retry)).rejects.toThrow(
         'Cannot change migration state while a diagnostic save or quit is in progress'
       )
-      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle)).resolves.toEqual({
+      await expect(saveDiagnostics()).resolves.toEqual({
         status: 'failed',
         code: 'save_in_progress'
       })

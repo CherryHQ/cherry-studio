@@ -170,7 +170,7 @@ export interface ReportMigrationErrorPayload {
 
 export type MigrationWindowLocale = 'en-US' | 'zh-CN'
 
-export interface OpenMigrationDiagnosticEmailPayload {
+export interface MigrationDiagnosticLocalePayload {
   locale: MigrationWindowLocale
 }
 

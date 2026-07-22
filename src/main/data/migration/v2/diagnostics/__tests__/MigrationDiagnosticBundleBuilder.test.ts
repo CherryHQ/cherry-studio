@@ -151,6 +151,35 @@ describe('MigrationDiagnosticBundleBuilder', () => {
     })
   })
 
+  it('uses the recorded failure day when the save day has no eligible log', async () => {
+    const saveTime = new Date(2026, 6, 22, 0, 10)
+    const failureTime = new Date(2026, 6, 21, 23, 50)
+    await writeFile(join(logsDirectory, 'app.2026-07-21.log'), 'failure evidence')
+    const destination = join(workDirectory, 'failure-day-logs.zip')
+
+    const result = await new MigrationDiagnosticBundleBuilder({
+      clock: () => saveTime,
+      applicationMetadata: TEST_APPLICATION
+    }).save({
+      destination,
+      logsDirectory,
+      context: {
+        source: 'renderer',
+        stage: 'error',
+        run: {
+          id: 'run-cross-midnight',
+          startedAt: new Date(2026, 6, 21, 23, 45).toISOString(),
+          failedAt: failureTime.toISOString()
+        }
+      }
+    })
+
+    expect(result).toEqual({ status: 'saved', logs: 'included', size: 'standard' })
+    const archive = await readZip(destination)
+    expect(archive.names).toEqual(['migration-diagnostics.json', 'logs/app.2026-07-21.log'])
+    expect(archive.data['logs/app.2026-07-21.log']).toEqual(Buffer.from('failure evidence'))
+  })
+
   it('still saves compact diagnostics when the daily application logs are unavailable', async () => {
     const destination = join(workDirectory, 'without-logs.zip')
     const collectionError = Object.assign(new Error('log collection failed'), {

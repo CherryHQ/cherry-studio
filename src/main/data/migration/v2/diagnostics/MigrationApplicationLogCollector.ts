@@ -41,6 +41,7 @@ export type MigrationApplicationLogCollection =
 interface MigrationApplicationLogCollectorOptions {
   readonly logsDirectory: string
   readonly clock?: () => Date
+  readonly fallbackDate?: Date
   readonly lstatFile?: (filePath: string) => Promise<Stats>
   readonly openFile?: (filePath: string) => Promise<FileHandle>
 }
@@ -99,12 +100,14 @@ async function closeEntries(entries: readonly MigrationApplicationLogEntry[]): P
 export class MigrationApplicationLogCollector {
   private readonly logsDirectory: string
   private readonly clock: () => Date
+  private readonly fallbackDate?: Date
   private readonly lstatFile: (filePath: string) => Promise<Stats>
   private readonly openFile: (filePath: string) => Promise<FileHandle>
 
   constructor(options: MigrationApplicationLogCollectorOptions) {
     this.logsDirectory = options.logsDirectory
     this.clock = options.clock ?? (() => new Date())
+    this.fallbackDate = options.fallbackDate
     this.lstatFile = options.lstatFile ?? lstat
     this.openFile = options.openFile ?? ((filePath) => open(filePath, 'r'))
   }
@@ -113,7 +116,6 @@ export class MigrationApplicationLogCollector {
     const entries: MigrationApplicationLogEntry[] = []
     try {
       const date = formatLocalDate(this.clock())
-      const fileNamePattern = new RegExp(`^app\\.${date}\\.log(?:\\.\\d+)?$`)
       let directoryEntries: Dirent<string>[]
       try {
         directoryEntries = await readdir(this.logsDirectory, { withFileTypes: true })
@@ -121,9 +123,15 @@ export class MigrationApplicationLogCollector {
         return omitted('directory_scan_failed', this.logsDirectory, error)
       }
 
-      const eligibleNames = directoryEntries
-        .filter((entry) => fileNamePattern.test(entry.name))
-        .map((entry) => entry.name)
+      const eligibleNamesFor = (localDate: string): string[] => {
+        const fileNamePattern = new RegExp(`^app\\.${localDate}\\.log(?:\\.\\d+)?$`)
+        return directoryEntries.filter((entry) => fileNamePattern.test(entry.name)).map((entry) => entry.name)
+      }
+      let eligibleNames = eligibleNamesFor(date)
+      if (eligibleNames.length === 0 && this.fallbackDate !== undefined) {
+        const fallbackDate = formatLocalDate(this.fallbackDate)
+        if (fallbackDate !== date) eligibleNames = eligibleNamesFor(fallbackDate)
+      }
       if (eligibleNames.length === 0) return omitted('no_eligible_logs', this.logsDirectory)
 
       for (const fileName of eligibleNames) {

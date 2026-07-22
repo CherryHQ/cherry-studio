@@ -5,12 +5,12 @@
 import { loggerService } from '@logger'
 import type { MigrationDiagnosticSaveResult } from '@shared/data/migration/v2/diagnostics'
 import {
+  type MigrationDiagnosticLocalePayload,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationStage,
   type MigrationWindowLocale,
   type MigratorStatus,
-  type OpenMigrationDiagnosticEmailPayload,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -132,12 +132,13 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SkipMigration)
   }, [])
 
-  const saveDiagnostics = useCallback((): Promise<MigrationDiagnosticSaveResult> => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+  const saveDiagnostics = useCallback((locale: MigrationWindowLocale): Promise<MigrationDiagnosticSaveResult> => {
+    const payload: MigrationDiagnosticLocalePayload = { locale }
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle, payload)
   }, [])
 
   const openDiagnosticEmail = useCallback((locale: MigrationWindowLocale) => {
-    const payload: OpenMigrationDiagnosticEmailPayload = { locale }
+    const payload: MigrationDiagnosticLocalePayload = { locale }
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDiagnosticEmail, payload)
   }, [])
 

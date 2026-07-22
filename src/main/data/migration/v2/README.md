@@ -72,11 +72,14 @@ atomically. Each bundle contains:
 - Optional `logs/app.YYYY-MM-DD.log` and numeric rotation files such as
   `logs/app.YYYY-MM-DD.log.1`, each preserved as a separate ZIP entry.
 
-"Today" means the user's local calendar date when they click save. The collector accepts only
-application log names for that date; it excludes `app-error` logs and other dates. Every matching
-path must resolve to a stable regular, non-symlink file. The collector opens and verifies every file,
-keeps those handles through archive creation, and includes the complete same-day set without an
-application-level file-count or raw-byte budget. Each handle streams only its scanned byte length.
+The collector first selects the user's local calendar date when they click save. If that date has no
+eligible application log, an active migration run falls back once to its local failure date
+(`failedAt`, or `startedAt` when no failure timestamp exists). The two dates are never combined. The
+collector accepts only application log names for the selected date; it excludes `app-error` logs and
+other dates. Every matching path must resolve to a stable regular, non-symlink file. The collector
+opens and verifies every file, keeps those handles through archive creation, and includes the
+complete selected-date set without an application-level file-count or raw-byte budget. Each handle
+streams only its scanned byte length.
 If any path cannot be verified/opened, any stream fails, or a stream ends before its scanned length,
 the whole log set is omitted and the builder atomically rebuilds a basic-only ZIP. The JSON records
 completeness, included file sizes, failure reason, retry recommendation, relevant absolute path, and

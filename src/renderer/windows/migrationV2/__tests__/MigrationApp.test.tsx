@@ -1,6 +1,6 @@
 import type { MigrationDiagnosticFailure } from '@shared/data/migration/v2/diagnostics'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -742,7 +742,7 @@ describe('MigrationApp', () => {
       render(<MigrationApp />)
       fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
 
-      expect(await screen.findByRole('button', { name: 'migration.diagnostics.save' })).toBeEnabled()
+      await waitFor(() => expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeEnabled())
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
@@ -869,7 +869,7 @@ describe('MigrationApp', () => {
       expect(screen.queryByText(/diagnostic-canary/)).not.toBeInTheDocument()
     })
 
-    it('passes the current Renderer locale when opening the email and keeps the other support actions payload-free', async () => {
+    it('passes the current Renderer locale when saving and opening the email', async () => {
       setStage('error')
       i18nState.language = 'zh-CN'
       migrationHookMock.actions.saveDiagnostics.mockResolvedValue({
@@ -880,6 +880,7 @@ describe('MigrationApp', () => {
 
       render(<MigrationApp />)
       fireEvent.click(screen.getByRole('button', { name: 'migration.diagnostics.save' }))
+      expect(migrationHookMock.actions.saveDiagnostics).toHaveBeenCalledWith('zh-CN')
       const supportActions = await screen.findByTestId('migration-diagnostics-saved-actions')
       const buttons = within(supportActions).getAllByRole('button')
 

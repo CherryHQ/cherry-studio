@@ -261,6 +261,8 @@ const themeLabelKey: Record<string, string> = {
 
 const MigrationApp: React.FC = () => {
   const { t, i18n } = useTranslation()
+  const diagnosticLocale: MigrationWindowLocale =
+    (i18n.resolvedLanguage ?? i18n.language) === 'zh-CN' ? 'zh-CN' : 'en-US'
   const { progress, lastError } = useMigrationProgress()
   const actions = useMigrationActions()
   const [isLoading, setIsLoading] = useState(false)
@@ -444,7 +446,7 @@ const MigrationApp: React.FC = () => {
     setDiagnosticSaveResult(null)
     setDiagnosticSupportActionFailed(false)
     try {
-      setDiagnosticSaveResult(await actions.saveDiagnostics())
+      setDiagnosticSaveResult(await actions.saveDiagnostics(diagnosticLocale))
     } catch {
       setDiagnosticSaveResult({ status: 'failed', code: 'bundle_save_failed' })
     } finally {
@@ -479,8 +481,6 @@ const MigrationApp: React.FC = () => {
   }, [progress, t])
 
   const stage = localMigrationError ? 'error' : progress.stage
-  const diagnosticEmailLocale: MigrationWindowLocale =
-    (i18n.resolvedLanguage ?? i18n.language) === 'zh-CN' ? 'zh-CN' : 'en-US'
 
   const showRail = stage !== 'version_incompatible'
 
@@ -526,7 +526,7 @@ const MigrationApp: React.FC = () => {
             variant="outline"
             className="gap-2"
             disabled={isRunningDiagnosticSupportAction}
-            onClick={() => void runDiagnosticSupportAction(() => actions.openDiagnosticEmail(diagnosticEmailLocale))}>
+            onClick={() => void runDiagnosticSupportAction(() => actions.openDiagnosticEmail(diagnosticLocale))}>
             <Mail size={14} />
             {t('migration.diagnostics.actions.open_email')}
           </Button>

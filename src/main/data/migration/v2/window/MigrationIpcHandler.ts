@@ -17,12 +17,12 @@ import {
 import {
   type BeginMigrationRunPayload,
   MIGRATION_DEXIE_EXPORT_TABLES,
+  type MigrationDiagnosticLocalePayload,
   type MigrationExportWritePayload,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationResult,
   type MigrationSummary,
-  type OpenMigrationDiagnosticEmailPayload,
   type ReportMigrationErrorPayload,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
@@ -85,12 +85,16 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
     return true
   })
 
-  ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
+  ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event, payload: unknown) => {
     assertMigrationSender(event)
+    if (!isMigrationDiagnosticLocalePayload(payload)) {
+      throw new Error('Unsupported migration diagnostic locale.')
+    }
     if (diagnosticSaveInFlight || quitScheduled) return { status: 'failed', code: 'save_in_progress' } as const
 
     const saveEpoch = diagnosticStateEpoch
     const operation = saveMigrationDiagnosticBundleWithDialog(createRendererDiagnosticContext(), {
+      locale: payload.locale,
       userDataPath: paths.userData
     }).then((outcome) => {
       if (
@@ -113,7 +117,7 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
 
   ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event, payload: unknown) => {
     assertMigrationSender(event)
-    if (!isOpenMigrationDiagnosticEmailPayload(payload)) {
+    if (!isMigrationDiagnosticLocalePayload(payload)) {
       throw new Error('Unsupported migration diagnostic email locale.')
     }
     const i18n = await createMigrationDiagnosticNativeI18n(payload.locale)
@@ -470,7 +474,7 @@ function isMigrationExportWritePayload(payload: unknown): payload is MigrationEx
   )
 }
 
-function isOpenMigrationDiagnosticEmailPayload(payload: unknown): payload is OpenMigrationDiagnosticEmailPayload {
+function isMigrationDiagnosticLocalePayload(payload: unknown): payload is MigrationDiagnosticLocalePayload {
   if (typeof payload !== 'object' || payload === null) return false
   const { locale } = payload as Record<string, unknown>
   return locale === 'en-US' || locale === 'zh-CN'

@@ -63,6 +63,15 @@ function failed(): MigrationDiagnosticBundleSaveResult {
   return { status: 'failed', code: 'bundle_save_failed' }
 }
 
+function migrationFailureDate(context: MigrationDiagnosticContext): Date | undefined {
+  for (const timestamp of [context.run?.failedAt, context.run?.startedAt]) {
+    if (timestamp === undefined) continue
+    const date = new Date(timestamp)
+    if (!Number.isNaN(date.getTime())) return date
+  }
+  return undefined
+}
+
 function isValidDestination(destination: string): destination is FilePath {
   if (!path.isAbsolute(destination)) return false
   const parsed = path.parse(destination)
@@ -298,7 +307,7 @@ export class MigrationDiagnosticBundleBuilder {
     let collectedLogs: MigrationApplicationLogCollection | undefined
     try {
       const generatedAt = this.clock()
-      collectedLogs = await this.collectLogs(input.logsDirectory, generatedAt)
+      collectedLogs = await this.collectLogs(input.logsDirectory, generatedAt, input.context)
       let logs = collectedLogs
       const application = this.applicationMetadata ?? {
         version: app.getVersion(),
@@ -338,10 +347,18 @@ export class MigrationDiagnosticBundleBuilder {
     }
   }
 
-  private async collectLogs(logsDirectory: string, saveTime: Date): Promise<MigrationApplicationLogCollection> {
+  private async collectLogs(
+    logsDirectory: string,
+    saveTime: Date,
+    context: MigrationDiagnosticContext
+  ): Promise<MigrationApplicationLogCollection> {
     try {
       if (this.collectApplicationLogs !== undefined) return await this.collectApplicationLogs(logsDirectory)
-      return await new MigrationApplicationLogCollector({ logsDirectory, clock: () => saveTime }).collect()
+      return await new MigrationApplicationLogCollector({
+        logsDirectory,
+        clock: () => saveTime,
+        fallbackDate: migrationFailureDate(context)
+      }).collect()
     } catch (error) {
       return {
         status: 'not_included',
