@@ -375,26 +375,21 @@ const MigrationApp: React.FC = () => {
       // Export Dexie data
       failureCode = 'dexie_export_failed'
       failureOperation = 'export_dexie'
-      const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
-      const exportBasePath = `${userDataPath}/migration_temp`
-      const dexieExportPath = `${exportBasePath}/dexie_export`
-      const dexieExporter = new DexieExporter(dexieExportPath)
+      const dexieExporter = new DexieExporter()
 
       await dexieExporter.exportAll((p) => {
         logger.info('Dexie export progress', p)
       })
 
-      logger.info('Dexie data exported', { exportPath: dexieExportPath })
+      logger.info('Dexie data exported')
 
       // Export localStorage data
       failureCode = 'localstorage_export_failed'
       failureOperation = 'export_localstorage'
-      const localStorageExportPath = `${exportBasePath}/localstorage_export`
-      const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
-      const localStorageFilePath = await localStorageExporter.export()
+      const localStorageExporter = new LocalStorageExporter()
+      await localStorageExporter.export()
       logger.info('localStorage data exported', {
-        entryCount: localStorageExporter.getEntryCount(),
-        filePath: localStorageFilePath
+        entryCount: localStorageExporter.getEntryCount()
       })
 
       // Start migration with exported data
@@ -402,9 +397,7 @@ const MigrationApp: React.FC = () => {
       failureOperation = 'start_migration'
       await actions.startMigration({
         runId,
-        reduxData: reduxResult.data,
-        dexieExportPath,
-        localStorageExportPath: localStorageFilePath
+        reduxData: reduxResult.data
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)

@@ -1,8 +1,7 @@
-import { createReadStream } from 'node:fs'
 import path from 'node:path'
-import type { Readable } from 'node:stream'
+import { type Readable, Transform } from 'node:stream'
 
-import { type AtomicWriteStream, createAtomicWriteStream, stat } from '@main/utils/file'
+import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/file'
 import {
   MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES,
   type MigrationDiagnosticError,
@@ -20,7 +19,8 @@ import { app } from 'electron'
 import {
   type MigrationApplicationLogCollection,
   MigrationApplicationLogCollector,
-  type MigrationApplicationLogEntry
+  type MigrationApplicationLogEntry,
+  migrationDiagnosticRetryFor
 } from './MigrationApplicationLogCollector'
 
 interface MigrationDiagnosticApplicationMetadata {
@@ -46,7 +46,6 @@ interface MigrationDiagnosticBundleBuilderOptions {
   readonly clock?: () => Date
   readonly collectApplicationLogs?: (logsDirectory: string) => Promise<MigrationApplicationLogCollection>
   readonly applicationMetadata?: MigrationDiagnosticApplicationMetadata
-  readonly getArchiveSize?: (destination: string) => Promise<number>
   readonly createLogReadStream?: (entry: MigrationApplicationLogEntry) => Readable
 }
 
@@ -81,7 +80,45 @@ class MigrationLogStreamError extends Error {
 }
 
 function defaultCreateLogReadStream(entry: MigrationApplicationLogEntry): Readable {
-  return createReadStream(entry.filePath, { start: 0, end: entry.snapshotBytes - 1 })
+  return entry.handle.createReadStream({ start: 0, end: entry.snapshotBytes - 1, autoClose: false })
+}
+
+function exactLengthStream(source: Readable, expectedBytes: number): Readable {
+  let emittedBytes = 0
+  const output = new Transform({
+    transform(chunk: Buffer | string, encoding, callback) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding)
+      const remaining = expectedBytes - emittedBytes
+      if (remaining <= 0) {
+        callback()
+        return
+      }
+      const bounded = buffer.subarray(0, remaining)
+      emittedBytes += bounded.length
+      callback(null, bounded)
+    },
+    flush(callback) {
+      if (emittedBytes === expectedBytes) {
+        callback()
+        return
+      }
+      callback(
+        Object.assign(new Error(`Migration log snapshot ended after ${emittedBytes} of ${expectedBytes} bytes.`), {
+          code: 'EIO'
+        })
+      )
+    }
+  })
+  const forwardError = (error: unknown): void => {
+    output.destroy(error as Error)
+  }
+  source.once('error', forwardError)
+  output.once('close', () => {
+    source.removeListener('error', forwardError)
+    if (!source.destroyed && !source.readableEnded) source.destroy()
+  })
+  source.pipe(output)
+  return output
 }
 
 async function writeArchive(
@@ -89,7 +126,7 @@ async function writeArchive(
   diagnosticDocument: Buffer,
   logEntries: readonly MigrationApplicationLogEntry[],
   createLogReadStream: (entry: MigrationApplicationLogEntry) => Readable
-): Promise<void> {
+): Promise<number> {
   let output: AtomicWriteStream | undefined
   let archive: ZipArchive | undefined
   try {
@@ -100,7 +137,7 @@ async function writeArchive(
     throw new Error('bundle_save_failed')
   }
 
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<number>((resolve, reject) => {
     let settled = false
     const activeStreams = new Map<Readable, (error: unknown) => void>()
 
@@ -116,7 +153,7 @@ async function writeArchive(
       if (settled) return
       settled = true
       cleanup()
-      resolve()
+      resolve(archive.pointer())
     }
     const fail = (error: unknown = new Error('bundle_save_failed')): void => {
       if (settled) return
@@ -147,7 +184,7 @@ async function writeArchive(
         }
         let input: Readable
         try {
-          input = createLogReadStream(entry)
+          input = exactLengthStream(createLogReadStream(entry), entry.snapshotBytes)
         } catch (error) {
           fail(new MigrationLogStreamError(entry.filePath, error))
           return
@@ -232,41 +269,46 @@ function streamFailureCollection(
     ],
     includedRawBytes: 0,
     reason: 'file_read_failed',
-    retry: 'not_suggested',
+    retry: migrationDiagnosticRetryFor(failure.streamError),
     path: failure.filePath,
     error: serializeMigrationDiagnosticError(failure.streamError, failure.filePath)
   }
+}
+
+export function classifyMigrationDiagnosticArchiveSize(archiveBytes: number): 'standard' | 'large' {
+  return archiveBytes > MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES ? 'large' : 'standard'
 }
 
 export class MigrationDiagnosticBundleBuilder {
   private readonly clock: () => Date
   private readonly collectApplicationLogs?: (logsDirectory: string) => Promise<MigrationApplicationLogCollection>
   private readonly applicationMetadata?: MigrationDiagnosticApplicationMetadata
-  private readonly getArchiveSize: (destination: string) => Promise<number>
   private readonly createLogReadStream: (entry: MigrationApplicationLogEntry) => Readable
 
   constructor(options: MigrationDiagnosticBundleBuilderOptions = {}) {
     this.clock = options.clock ?? (() => new Date())
     this.collectApplicationLogs = options.collectApplicationLogs
     this.applicationMetadata = options.applicationMetadata
-    this.getArchiveSize = options.getArchiveSize ?? (async (destination) => (await stat(destination as FilePath)).size)
     this.createLogReadStream = options.createLogReadStream ?? defaultCreateLogReadStream
   }
 
   async save(input: MigrationDiagnosticBundleSaveInput): Promise<MigrationDiagnosticBundleSaveResult> {
     if (!isValidDestination(input.destination)) return failed()
 
+    let collectedLogs: MigrationApplicationLogCollection | undefined
     try {
       const generatedAt = this.clock()
-      let logs = await this.collectLogs(input.logsDirectory, generatedAt)
+      collectedLogs = await this.collectLogs(input.logsDirectory, generatedAt)
+      let logs = collectedLogs
       const application = this.applicationMetadata ?? {
         version: app.getVersion(),
         platform: process.platform,
         arch: process.arch
       }
 
+      let archiveSize: number
       try {
-        await writeArchive(
+        archiveSize = await writeArchive(
           input.destination,
           diagnosticDocument(generatedAt, application, input.context, logs),
           logs.status === 'included' ? logs.entries : [],
@@ -275,7 +317,7 @@ export class MigrationDiagnosticBundleBuilder {
       } catch (error) {
         if (logs.status !== 'included' || !(error instanceof MigrationLogStreamError)) throw error
         logs = streamFailureCollection(logs, error)
-        await writeArchive(
+        archiveSize = await writeArchive(
           input.destination,
           diagnosticDocument(generatedAt, application, input.context, logs),
           [],
@@ -283,13 +325,16 @@ export class MigrationDiagnosticBundleBuilder {
         )
       }
 
-      const archiveSize = await this.getArchiveSize(input.destination)
-      const size = archiveSize > MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES ? 'large' : 'standard'
+      const size = classifyMigrationDiagnosticArchiveSize(archiveSize)
       return logs.status === 'included'
         ? { status: 'saved', logs: 'included', size }
         : { status: 'saved', logs: 'not_included', retry: logs.retry, size }
     } catch {
       return failed()
+    } finally {
+      if (collectedLogs?.status === 'included') {
+        await Promise.allSettled(collectedLogs.entries.map((entry) => entry.handle.close()))
+      }
     }
   }
 

@@ -51,6 +51,12 @@ export interface MigrationPaths {
   readonly knowledgeBaseDir: string
   /** {userData}/Data/Files */
   readonly filesDataDir: string
+  /** {userData}/migration_temp — the only workspace the migration engine may clean recursively. */
+  readonly migrationTempDir: string
+  /** {userData}/migration_temp/dexie_export */
+  readonly dexieExportDir: string
+  /** {userData}/migration_temp/localstorage_export/localStorage.json */
+  readonly localStorageExportFile: string
   /** {userData}/version.log — v1 VersionService version history log. */
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
@@ -204,12 +210,16 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   }
 
   const filesDataDir = path.join(currentUserData, 'Data', 'Files')
+  const migrationTempDir = path.join(currentUserData, 'migration_temp')
   const paths: MigrationPaths = Object.freeze({
     userData: currentUserData,
     cherryHome: CHERRY_HOME,
     databaseFile: path.join(currentUserData, DB_NAME),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     filesDataDir,
+    migrationTempDir,
+    dexieExportDir: path.join(migrationTempDir, 'dexie_export'),
+    localStorageExportFile: path.join(migrationTempDir, 'localstorage_export', 'localStorage.json'),
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
     agentWorkspacesDir: path.join(currentUserData, 'Data', 'Agents'),

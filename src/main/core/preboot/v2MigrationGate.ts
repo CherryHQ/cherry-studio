@@ -63,32 +63,36 @@ interface NativeMigrationFailure {
   readonly buttons: readonly string[]
   readonly defaultId: number
   readonly cancelId: number
+  readonly userDataPath?: string
 }
 
 async function presentNativeMigrationFailure(failure: NativeMigrationFailure): Promise<number> {
   try {
     await app.whenReady()
-    const { failureCode, operation, targetPath, errorSummary, cause, ...dialogFailure } = failure
+    const { failureCode, operation, targetPath, errorSummary, cause, userDataPath, ...dialogFailure } = failure
     const diagnosticError = cause === undefined ? undefined : serializeMigrationDiagnosticError(cause, targetPath)
     const diagnosticTargetPath = targetPath ?? diagnosticError?.path
-    return await presentMigrationDiagnosticFailure({
-      locale: app.getLocale(),
-      context: {
-        source: 'native',
-        stage: 'preboot',
-        failureCode,
-        errorSummary,
-        ...(diagnosticError === undefined ? {} : { error: diagnosticError }),
-        failure: {
-          code: failureCode,
-          origin: 'main',
-          operation,
-          ...(diagnosticTargetPath === undefined ? {} : { targetPath: diagnosticTargetPath }),
-          ...(diagnosticError === undefined ? {} : { error: diagnosticError })
-        }
+    return await presentMigrationDiagnosticFailure(
+      {
+        locale: app.getLocale(),
+        context: {
+          source: 'native',
+          stage: 'preboot',
+          failureCode,
+          errorSummary,
+          ...(diagnosticError === undefined ? {} : { error: diagnosticError }),
+          failure: {
+            code: failureCode,
+            origin: 'main',
+            operation,
+            ...(diagnosticTargetPath === undefined ? {} : { targetPath: diagnosticTargetPath }),
+            ...(diagnosticError === undefined ? {} : { error: diagnosticError })
+          }
+        },
+        failure: dialogFailure
       },
-      failure: dialogFailure
-    })
+      userDataPath === undefined ? {} : { userDataPath }
+    )
   } catch (error) {
     logger.error('Failed to present native migration diagnostic failure', error as Error)
     return failure.cancelId
@@ -102,7 +106,7 @@ async function presentNativeMigrationFailure(failure: NativeMigrationFailure): P
  * depends on that write, so continuing would relaunch into the old directory
  * and loop (or make migrated data appear lost). Stop loudly instead.
  */
-async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGateResult> {
+async function quitWithDataLocationError(cause: unknown, userDataPath?: string): Promise<V2MigrationGateResult> {
   logger.error('Failed to persist userData location; cannot continue', cause as Error)
   await presentNativeMigrationFailure({
     failureCode: 'data_location_pin_failed',
@@ -116,7 +120,8 @@ async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGat
       `Check that there is free disk space and that ~/.cherrystudio is writable, then try again. The application will now exit.`,
     buttons: ['Quit'],
     defaultId: 0,
-    cancelId: 0
+    cancelId: 0,
+    ...(userDataPath === undefined ? {} : { userDataPath })
   })
   application.quit()
   return 'handled'
@@ -126,7 +131,8 @@ async function quitWithMigrationCheckError(
   error: unknown,
   databaseFile: string,
   failureCode: 'database_initialize_failed' | 'migration_status_probe_failed',
-  errorSummary: string
+  errorSummary: string,
+  userDataPath: string
 ): Promise<V2MigrationGateResult> {
   logger.error('Migration status check failed', error as Error)
 
@@ -155,7 +161,8 @@ async function quitWithMigrationCheckError(
         `Original error: ${(error as Error).message}`,
       buttons: ['Quit'],
       defaultId: 0,
-      cancelId: 0
+      cancelId: 0,
+      userDataPath
     })
     logger.error('Exiting application due to schema out of sync (dev)')
     application.quit()
@@ -189,7 +196,8 @@ async function quitWithMigrationCheckError(
         `The application will now exit.`,
       buttons: ['Quit'],
       defaultId: 0,
-      cancelId: 0
+      cancelId: 0,
+      userDataPath
     })
   } else {
     await presentNativeMigrationFailure({
@@ -205,7 +213,8 @@ async function quitWithMigrationCheckError(
         `The application will now exit. Please try again, and contact support if the problem persists.`,
       buttons: ['Quit'],
       defaultId: 0,
-      cancelId: 0
+      cancelId: 0,
+      userDataPath
     })
   }
   logger.error('Exiting application due to migration status check failure')
@@ -272,7 +281,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         '• Quit.',
       buttons: ['Retry', 'Use Default Directory', 'Quit'],
       defaultId: 0,
-      cancelId: 2
+      cancelId: 2,
+      userDataPath: paths.userData
     })
     if (response === 0) {
       application.relaunch()
@@ -289,7 +299,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     try {
       pinUserDataPath(paths.userData)
     } catch (error) {
-      return quitWithDataLocationError(error)
+      return quitWithDataLocationError(error, paths.userData)
     }
     logger.info('User chose to continue with the default data directory', { defaultPath: paths.userData })
   }
@@ -305,7 +315,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       error,
       paths.databaseFile,
       'database_initialize_failed',
-      'Could not initialize the migration database.'
+      'Could not initialize the migration database.',
+      paths.userData
     )
   }
 
@@ -317,7 +328,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       error,
       paths.databaseFile,
       'migration_status_probe_failed',
-      'Could not check the migration status.'
+      'Could not check the migration status.',
+      paths.userData
     )
   }
 
@@ -351,7 +363,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         versionLogExists,
         versionLogPath: paths.versionLogFile
       })
-      registerMigrationIpcHandlers(paths.userData)
+      registerMigrationIpcHandlers(paths)
 
       try {
         await app.whenReady()
@@ -375,7 +387,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           message: getBlockMessage(versionCheck.reason, versionCheck.details),
           buttons: ['Quit'],
           defaultId: 0,
-          cancelId: 0
+          cancelId: 0,
+          userDataPath: paths.userData
         })
         application.quit()
         return 'handled'
@@ -388,7 +401,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     if (dataLocation) setDataLocationNotice(dataLocation)
 
     logger.info('Data Migration v2 needed, starting migration process')
-    registerMigrationIpcHandlers(paths.userData)
+    registerMigrationIpcHandlers(paths)
 
     try {
       await app.whenReady()
@@ -409,7 +422,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         message: `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`,
         buttons: ['Quit'],
         defaultId: 0,
-        cancelId: 0
+        cancelId: 0,
+        userDataPath: paths.userData
       })
       logger.error('Exiting application due to failed migration startup')
       application.quit()

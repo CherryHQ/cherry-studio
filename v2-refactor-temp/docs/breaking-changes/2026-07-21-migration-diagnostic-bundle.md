@@ -14,11 +14,11 @@ support address. Successful migration behavior is unchanged.
 
 ## Why this matters to the user
 
-The bundle provides basic migration diagnostics and, when available, up to four of the newest
-application logs from the user's local calendar day at save time, within a 40 MiB raw-log budget.
-Bundle metadata records included files and omissions. Logs are not redacted and may contain file
-paths, error stacks, user content, or credentials; the app never uploads, attaches, or sends the ZIP
-or email automatically.
+The bundle provides basic migration diagnostics and, when available, every application log from the
+user's local calendar day at save time. The log set is all-or-none: if any matching log cannot be
+read consistently, the ZIP keeps the basic diagnostics and records why logs were omitted. Logs are
+not redacted and may contain file paths, error stacks, user content, or credentials; the app never
+uploads, attaches, or sends the ZIP or email automatically.
 
 ## What the user should do
 

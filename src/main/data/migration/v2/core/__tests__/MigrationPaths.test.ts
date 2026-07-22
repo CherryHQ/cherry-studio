@@ -372,6 +372,11 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     const result = resolveMigrationPaths()
 
     expect(result.paths.userData).toBe('E:\\Dropbox\\Cherry Data\\CherryStudio')
+    expect(result.paths.migrationTempDir).toBe('E:\\Dropbox\\Cherry Data\\CherryStudio/migration_temp')
+    expect(result.paths.dexieExportDir).toBe('E:\\Dropbox\\Cherry Data\\CherryStudio/migration_temp/dexie_export')
+    expect(result.paths.localStorageExportFile).toBe(
+      'E:\\Dropbox\\Cherry Data\\CherryStudio/migration_temp/localstorage_export/localStorage.json'
+    )
     expect(result.userDataChanged).toBe(true)
     expect(result.legacyDataConfirmed).toBe(true)
     expect(h.setPath).toHaveBeenCalledWith('userData', 'E:\\Dropbox\\Cherry Data\\CherryStudio')

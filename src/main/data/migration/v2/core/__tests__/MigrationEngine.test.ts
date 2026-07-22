@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { groupTable } from '@data/db/schemas/group'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
@@ -31,6 +33,9 @@ const mockPaths: MigrationPaths = {
   databaseFile: '/tmp/test-userdata/cherrystudio.sqlite',
   knowledgeBaseDir: '/tmp/test-userdata/Data/KnowledgeBase',
   filesDataDir: '/tmp/test-userdata/Data/Files',
+  migrationTempDir: '/tmp/test-userdata/migration_temp',
+  dexieExportDir: '/tmp/test-userdata/migration_temp/dexie_export',
+  localStorageExportFile: '/tmp/test-userdata/migration_temp/localstorage_export/localStorage.json',
   versionLogFile: '/tmp/test-userdata/version.log',
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
   agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces',
@@ -94,8 +99,8 @@ describe('MigrationEngine', () => {
 
     engine.registerMigrators([chat as any, boot as any])
 
-    await engine.run({}, '/tmp/dexie_export', '/tmp/localstorage_export/export.json')
-    await engine.run({}, '/tmp/dexie_export', '/tmp/localstorage_export/export.json')
+    await engine.run({})
+    await engine.run({})
 
     expect(boot.reset).toHaveBeenCalledTimes(2)
     expect(chat.reset).toHaveBeenCalledTimes(2)
@@ -119,6 +124,76 @@ describe('MigrationEngine', () => {
     ])
   })
 
+  it('writes only to the export files owned by MigrationPaths', async () => {
+    const mkdir = vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
+    const writeFile = vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined)
+
+    await expect(
+      (engine as any).writeExportFile({ target: 'dexie', tableName: 'topics', jsonData: '[]' })
+    ).resolves.toEqual({ ok: true })
+    await expect((engine as any).writeExportFile({ target: 'local_storage', jsonData: '[]' })).resolves.toEqual({
+      ok: true
+    })
+
+    expect(mkdir).toHaveBeenNthCalledWith(1, mockPaths.dexieExportDir, { recursive: true })
+    expect(writeFile).toHaveBeenNthCalledWith(1, `${mockPaths.dexieExportDir}/topics.json`, '[]', 'utf-8')
+    expect(mkdir).toHaveBeenNthCalledWith(2, `${mockPaths.migrationTempDir}/localstorage_export`, { recursive: true })
+    expect(writeFile).toHaveBeenNthCalledWith(2, mockPaths.localStorageExportFile, '[]', 'utf-8')
+
+    mkdir.mockRestore()
+    writeFile.mockRestore()
+  })
+
+  it('reports export-directory creation failure without attempting the file write', async () => {
+    const directoryError = Object.assign(new Error('not a directory'), { code: 'ENOTDIR' })
+    const mkdir = vi.spyOn(fs, 'mkdir').mockRejectedValue(directoryError)
+    const writeFile = vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined)
+
+    await expect(engine.writeExportFile({ target: 'dexie', tableName: 'topics', jsonData: '[]' })).resolves.toEqual({
+      ok: false,
+      operation: 'create_export_directory',
+      targetPath: mockPaths.dexieExportDir,
+      error: directoryError
+    })
+    expect(writeFile).not.toHaveBeenCalled()
+
+    mkdir.mockRestore()
+    writeFile.mockRestore()
+  })
+
+  it('reports the owned target when writing an export file fails', async () => {
+    const writeError = Object.assign(new Error('permission denied'), { code: 'EACCES' })
+    const mkdir = vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
+    const writeFile = vi.spyOn(fs, 'writeFile').mockRejectedValue(writeError)
+
+    await expect(engine.writeExportFile({ target: 'local_storage', jsonData: '[]' })).resolves.toEqual({
+      ok: false,
+      operation: 'write_export_file',
+      targetPath: mockPaths.localStorageExportFile,
+      error: writeError
+    })
+
+    mkdir.mockRestore()
+    writeFile.mockRestore()
+  })
+
+  it('uses its own export paths for the context and cleans only the owned migration workspace', async () => {
+    const { createMigrationContext } = await import('../MigrationContext')
+    vi.mocked(createMigrationContext).mockClear()
+
+    await engine.run({ settings: true })
+
+    expect(createMigrationContext).toHaveBeenCalledWith(
+      expect.anything(),
+      mockPaths,
+      { settings: true },
+      mockPaths.dexieExportDir,
+      mockPaths.localStorageExportFile
+    )
+    expect((engine as any).cleanupTempFiles).toHaveBeenCalledOnce()
+    expect((engine as any).cleanupTempFiles).toHaveBeenCalledWith(mockPaths.migrationTempDir)
+  })
+
   it('aggregates prepare and execute warnings into the migrator result on success', async () => {
     const events: string[] = []
     const migrator = createTestMigrator('knowledge', 1, events)
@@ -127,7 +202,7 @@ describe('MigrationEngine', () => {
 
     engine.registerMigrators([migrator as any])
 
-    const result = await engine.run({}, '/tmp/dexie_export')
+    const result = await engine.run({})
 
     expect(result.success).toBe(true)
     expect(result.migratorResults).toHaveLength(1)
@@ -140,7 +215,7 @@ describe('MigrationEngine', () => {
 
     engine.registerMigrators([migrator as any])
 
-    const result = await engine.run({}, '/tmp/dexie_export')
+    const result = await engine.run({})
 
     expect(result.migratorResults[0].warnings).toBeUndefined()
   })
@@ -155,7 +230,7 @@ describe('MigrationEngine', () => {
 
     engine.registerMigrators([failing as any])
 
-    const result = await engine.run({}, '/tmp/dexie_export')
+    const result = await engine.run({})
 
     expect(result.success).toBe(false)
     expect(errorSpy).toHaveBeenCalledWith('Migration failed', expect.any(Error))
@@ -173,7 +248,7 @@ describe('MigrationEngine', () => {
       }
     })
 
-    await engine.run({}, '/tmp/dexie_export')
+    await engine.run({})
     expect(engine.getLastDiagnosticFailure()).toBeUndefined()
 
     errorSpy.mockRestore()
@@ -189,7 +264,7 @@ describe('MigrationEngine', () => {
     vi.mocked((engine as any).markFailed).mockRejectedValueOnce(persistenceError)
     engine.registerMigrators([failing as any])
 
-    const result = await engine.run({}, '/tmp/dexie_export')
+    const result = await engine.run({})
 
     expect(result).toMatchObject({ success: false, error: 'execute exploded' })
     expect((engine as any).getLastDiagnosticFailure()).toMatchObject({
@@ -219,7 +294,7 @@ describe('MigrationEngine', () => {
 
     engine.registerMigrators([migrator as any])
 
-    const result = await engine.run({}, '/tmp/dexie_export')
+    const result = await engine.run({})
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('count mismatch')
@@ -242,7 +317,7 @@ describe('MigrationEngine', () => {
 
     engine.registerMigrators([migrator as any])
 
-    const result = await engine.run({}, '/tmp/dexie_export')
+    const result = await engine.run({})
 
     expect(result.success).toBe(true)
     expect((engine as any).markFailed).not.toHaveBeenCalled()

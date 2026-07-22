@@ -181,8 +181,7 @@ import { enUS, zhCN } from '../i18n/locales'
 import MigrationApp from '../MigrationApp'
 
 describe('MigrationApp', () => {
-  const successfulMigrationInvoke = (channel: string) =>
-    Promise.resolve(channel === MigrationIpcChannels.GetUserDataPath ? '/tmp/userData' : true)
+  const successfulMigrationInvoke: (channel?: string) => Promise<boolean> = () => Promise.resolve(true)
 
   beforeEach(() => {
     cleanup.mockClear()
@@ -368,13 +367,13 @@ describe('MigrationApp', () => {
     vi.mocked(DexieExporter).mockImplementation(
       () =>
         ({
-          exportAll: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/dexie_export')
+          exportAll: vi.fn().mockResolvedValue(undefined)
         }) as unknown as DexieExporter
     )
     vi.mocked(LocalStorageExporter).mockImplementation(
       () =>
         ({
-          export: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/localstorage_export/localStorage.json'),
+          export: vi.fn().mockResolvedValue(undefined),
           getEntryCount: vi.fn(() => 1)
         }) as unknown as LocalStorageExporter
     )
@@ -388,10 +387,9 @@ describe('MigrationApp', () => {
 
     expect(migrationHookMock.actions.startMigration).toHaveBeenCalledWith({
       runId: expect.any(String),
-      reduxData: { a: 1 },
-      dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
-      localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json'
+      reduxData: { a: 1 }
     })
+    expect(invoke.mock.calls.map(([channel]) => channel)).not.toContain('migration:get-user-data-path')
   })
 
   // A renderer-side exporter rejection used to be swallowed (only logged), leaving the user
@@ -600,9 +598,7 @@ describe('MigrationApp', () => {
             exportAll: vi.fn().mockRejectedValue(new MigrationExportWriteError(mainFailure))
           }) as unknown as DexieExporter
       )
-      invoke.mockImplementation((channel: string) =>
-        Promise.resolve(channel === MigrationIpcChannels.GetUserDataPath ? '/tmp/userData' : true)
-      )
+      invoke.mockResolvedValue(true)
 
       render(<MigrationApp />)
       fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
@@ -665,7 +661,7 @@ describe('MigrationApp', () => {
       vi.mocked(LocalStorageExporter).mockImplementation(
         () =>
           ({
-            export: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/localstorage_export/localStorage.json'),
+            export: vi.fn().mockResolvedValue(undefined),
             getEntryCount: vi.fn(() => 1)
           }) as unknown as LocalStorageExporter
       )

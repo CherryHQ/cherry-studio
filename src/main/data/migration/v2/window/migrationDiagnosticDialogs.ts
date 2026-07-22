@@ -27,6 +27,7 @@ type SaveBundle = (input: {
 interface MigrationDiagnosticDialogDependencies {
   readonly locale?: string
   readonly saveBundle?: SaveBundle
+  readonly userDataPath?: string
 }
 
 export interface MigrationDiagnosticBundleDialogOutcome {
@@ -97,7 +98,7 @@ export async function saveMigrationDiagnosticBundleWithDialog(
         ...context,
         runtime: {
           ...loggerService.getProcessIdentity(),
-          userDataPath: application.getPath('app.userdata')
+          ...(dependencies.userDataPath === undefined ? {} : { userDataPath: dependencies.userDataPath })
         }
       }
     })

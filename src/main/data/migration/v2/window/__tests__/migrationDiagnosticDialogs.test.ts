@@ -106,7 +106,11 @@ describe('migrationDiagnosticDialogs', () => {
     const saved: MigrationDiagnosticSavedResult = { status: 'saved', logs: 'included', size: 'large' }
     const saveBundle = vi.fn(async () => saved)
 
-    const outcome = await saveMigrationDiagnosticBundleWithDialog(context, { locale: 'en-US', saveBundle })
+    const outcome = await saveMigrationDiagnosticBundleWithDialog(context, {
+      locale: 'en-US',
+      saveBundle,
+      userDataPath: '/resolved/custom-user-data'
+    })
 
     expect(outcome).toEqual({ result: saved, destination: '/chosen/diagnostics.zip' })
     expect(saveBundle).toHaveBeenCalledWith({
@@ -117,10 +121,29 @@ describe('migrationDiagnosticDialogs', () => {
         runtime: {
           processId: 4321,
           processStartedAt: '2026-07-21T10:00:00.000Z',
-          userDataPath: '/central/app.userdata'
+          userDataPath: '/resolved/custom-user-data'
         }
       }
     })
+    expect(getPathMock).not.toHaveBeenCalledWith('app.userdata')
+  })
+
+  it('omits userDataPath when path resolution did not produce a reliable location', async () => {
+    showSaveDialogMock.mockResolvedValue({ canceled: false, filePath: '/chosen/diagnostics.zip' } as never)
+    const saveBundle = vi.fn(async () => ({ status: 'saved', logs: 'included', size: 'standard' }) as const)
+
+    await saveMigrationDiagnosticBundleWithDialog(context, { saveBundle })
+
+    expect(saveBundle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          runtime: {
+            processId: 4321,
+            processStartedAt: '2026-07-21T10:00:00.000Z'
+          }
+        })
+      })
+    )
   })
 
   it('returns to the original failure dialog after canceling save and preserves original decision ids', async () => {

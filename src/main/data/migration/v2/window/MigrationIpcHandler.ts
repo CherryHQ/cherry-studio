@@ -15,6 +15,8 @@ import {
 } from '@shared/data/migration/v2/diagnostics'
 import {
   type BeginMigrationRunPayload,
+  MIGRATION_DEXIE_EXPORT_TABLES,
+  type MigrationExportWritePayload,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationResult,
@@ -23,10 +25,9 @@ import {
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
 import { app, clipboard, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
-import fs from 'fs/promises'
-import path from 'path'
 
 import { migrationEngine } from '../core/MigrationEngine'
+import type { MigrationPaths } from '../core/MigrationPaths'
 import type { MigrationDiagnosticContext } from '../diagnostics'
 import { saveMigrationDiagnosticBundleWithDialog } from './migrationDiagnosticDialogs'
 import { createMigrationDiagnosticEmailUrl, MIGRATION_DIAGNOSTIC_SUPPORT_EMAIL } from './migrationDiagnosticEmail'
@@ -35,7 +36,8 @@ import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
-const DIAGNOSTIC_SAVE_QUIT_GRACE_MS = 30_000
+const STATE_MUTATION_DURING_SAVE_ERROR = 'Cannot change migration state while a diagnostic save or quit is in progress.'
+const MIGRATION_DEXIE_EXPORT_TABLE_SET = new Set<string>(MIGRATION_DEXIE_EXPORT_TABLES)
 
 let inFlightMigration: Promise<MigrationResult> | null = null
 let diagnosticSaveInFlight: Promise<MigrationDiagnosticSaveResult> | null = null
@@ -63,7 +65,7 @@ let dataLocationNotice: string | null = null
 /**
  * Register all migration IPC handlers
  */
-export function registerMigrationIpcHandlers(userDataPath: string): void {
+export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
   logger.info('Registering migration IPC handlers')
 
   // Wire the window manager's force-quit escape hatch (crash / hang / repeated close) to the same
@@ -71,7 +73,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   migrationWindowManager.setQuitRequester(requestQuit)
 
   ipcMain.handle(MigrationIpcChannels.BeginRun, (event, payload: BeginMigrationRunPayload) => {
-    assertDiagnosticSender(event)
+    assertMigrationSender(event)
+    assertStateMutationAllowed()
     if (!payload.runId) return false
     activeDiagnosticRun = { id: payload.runId, startedAt: new Date().toISOString() }
     currentDiagnosticFailure = undefined
@@ -81,11 +84,13 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
-    assertDiagnosticSender(event)
+    assertMigrationSender(event)
     if (diagnosticSaveInFlight || quitScheduled) return { status: 'failed', code: 'save_in_progress' } as const
 
     const saveEpoch = diagnosticStateEpoch
-    const operation = saveMigrationDiagnosticBundleWithDialog(createRendererDiagnosticContext()).then((outcome) => {
+    const operation = saveMigrationDiagnosticBundleWithDialog(createRendererDiagnosticContext(), {
+      userDataPath: paths.userData
+    }).then((outcome) => {
       if (
         outcome.result.status === 'saved' &&
         outcome.destination !== undefined &&
@@ -105,7 +110,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   ipcMain.handle(MigrationIpcChannels.OpenDiagnosticEmail, async (event) => {
-    assertDiagnosticSender(event)
+    assertMigrationSender(event)
     const i18n = await createMigrationDiagnosticNativeI18n(app.getLocale())
     const mailto = createMigrationDiagnosticEmailUrl(
       createRendererDiagnosticContext(),
@@ -118,25 +123,21 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, (event) => {
-    assertDiagnosticSender(event)
+    assertMigrationSender(event)
     if (lastSavedDiagnosticBundlePath === null) return false
     shell.showItemInFolder(lastSavedDiagnosticBundlePath)
     return true
   })
 
   ipcMain.handle(MigrationIpcChannels.CopySupportEmail, (event) => {
-    assertDiagnosticSender(event)
+    assertMigrationSender(event)
     clipboard.writeText(MIGRATION_DIAGNOSTIC_SUPPORT_EMAIL)
     return true
   })
 
-  // Get user data path
-  ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
-    return userDataPath
-  })
-
   // Check if migration is needed
-  ipcMain.handle(MigrationIpcChannels.CheckNeeded, async () => {
+  ipcMain.handle(MigrationIpcChannels.CheckNeeded, async (event) => {
+    assertMigrationSender(event)
     try {
       return await migrationEngine.needsMigration()
     } catch (error) {
@@ -146,12 +147,14 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Get current progress
-  ipcMain.handle(MigrationIpcChannels.GetProgress, () => {
+  ipcMain.handle(MigrationIpcChannels.GetProgress, (event) => {
+    assertMigrationSender(event)
     return currentProgress
   })
 
   // Get last error
-  ipcMain.handle(MigrationIpcChannels.GetLastError, async () => {
+  ipcMain.handle(MigrationIpcChannels.GetLastError, async (event) => {
+    assertMigrationSender(event)
     try {
       return migrationEngine.getLastError()
     } catch (error) {
@@ -161,46 +164,33 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Write export file from Renderer
-  ipcMain.handle(
-    MigrationIpcChannels.WriteExportFile,
-    async (_event, exportPath: string, tableName: string, jsonData: string) => {
-      try {
-        await fs.mkdir(exportPath, { recursive: true })
-      } catch (error) {
-        const failure: MigrationDiagnosticFailure = {
-          code: 'export_directory_create_failed',
-          origin: 'main',
-          operation: 'create_export_directory',
-          targetPath: exportPath,
-          error: serializeMigrationDiagnosticError(error, exportPath)
-        }
-        recordDiagnosticFailure(failure)
-        logger.error('Error creating migration export directory', error as Error, { runId: activeDiagnosticRun?.id })
-        return { ok: false, failure } as const
-      }
+  ipcMain.handle(MigrationIpcChannels.WriteExportFile, async (event, payload: MigrationExportWritePayload) => {
+    assertMigrationSender(event)
+    if (!isMigrationExportWritePayload(payload)) throw new Error('Invalid migration export payload.')
 
-      const filePath = path.join(exportPath, `${tableName}.json`)
-      try {
-        await fs.writeFile(filePath, jsonData, 'utf-8')
-        logger.info('Export file written', { tableName, filePath })
-        return { ok: true } as const
-      } catch (error) {
-        const failure: MigrationDiagnosticFailure = {
-          code: 'export_file_write_failed',
-          origin: 'main',
-          operation: 'write_export_file',
-          targetPath: filePath,
-          error: serializeMigrationDiagnosticError(error, filePath)
-        }
-        recordDiagnosticFailure(failure)
-        logger.error('Error writing export file', error as Error, { runId: activeDiagnosticRun?.id })
-        return { ok: false, failure } as const
-      }
+    const result = await migrationEngine.writeExportFile(payload)
+    if (result.ok) return result
+
+    const failure: MigrationDiagnosticFailure = {
+      code:
+        result.operation === 'create_export_directory' ? 'export_directory_create_failed' : 'export_file_write_failed',
+      origin: 'main',
+      operation: result.operation,
+      targetPath: result.targetPath,
+      error: serializeMigrationDiagnosticError(result.error, result.targetPath)
     }
-  )
+    recordDiagnosticFailure(failure)
+    logger.error('Error writing migration export', result.error as Error, {
+      operation: result.operation,
+      runId: activeDiagnosticRun?.id
+    })
+    return { ok: false, failure } as const
+  })
 
   // Start the migration process
-  ipcMain.handle(MigrationIpcChannels.StartMigration, async (_event, payload: StartMigrationPayload) => {
+  ipcMain.handle(MigrationIpcChannels.StartMigration, async (event, payload: StartMigrationPayload) => {
+    assertMigrationSender(event)
+    assertStateMutationAllowed()
     if (inFlightMigration) {
       logger.warn(CONCURRENT_MIGRATION_ERROR)
       throw new Error(CONCURRENT_MIGRATION_ERROR)
@@ -214,10 +204,10 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     let runPromise: Promise<MigrationResult> | null = null
 
     try {
-      const { reduxData, dexieExportPath, localStorageExportPath } = payload
+      const { reduxData } = payload
 
-      if (!reduxData || !dexieExportPath) {
-        throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
+      if (!reduxData) {
+        throw new Error('Migration data not ready. Redux data missing.')
       }
 
       // Set up progress callback
@@ -238,7 +228,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       })
 
       // Run migration
-      runPromise = migrationEngine.run(reduxData, dexieExportPath, localStorageExportPath)
+      runPromise = migrationEngine.run(reduxData)
       inFlightMigration = runPromise
 
       const result = await runPromise
@@ -304,7 +294,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
 
   // Mirror renderer-local failures into main so close handling sees the terminal error stage.
   ipcMain.handle(MigrationIpcChannels.ReportError, (event, payload: ReportMigrationErrorPayload) => {
-    assertDiagnosticSender(event)
+    assertMigrationSender(event)
     if (!payload?.runId || !payload.failure || activeDiagnosticRun?.id !== payload.runId) return false
     if (currentDiagnosticFailure) return true
     const failure = payload.failure
@@ -322,7 +312,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Retry migration
-  ipcMain.handle(MigrationIpcChannels.Retry, async () => {
+  ipcMain.handle(MigrationIpcChannels.Retry, async (event) => {
+    assertMigrationSender(event)
+    assertStateMutationAllowed()
     try {
       currentDiagnosticFailure = undefined
       activeDiagnosticRun = undefined
@@ -344,7 +336,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Cancel migration
-  ipcMain.handle(MigrationIpcChannels.Cancel, async () => {
+  ipcMain.handle(MigrationIpcChannels.Cancel, async (event) => {
+    assertMigrationSender(event)
     try {
       logger.info('Migration cancelled by user')
       return requestQuit()
@@ -355,7 +348,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Skip migration (version incompatible — user chose to use defaults)
-  ipcMain.handle(MigrationIpcChannels.SkipMigration, async () => {
+  ipcMain.handle(MigrationIpcChannels.SkipMigration, async (event) => {
+    assertMigrationSender(event)
+    assertStateMutationAllowed()
     try {
       logger.info('User chose to skip migration and use defaults')
       await migrationEngine.skipMigration()
@@ -369,7 +364,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Restart app
-  ipcMain.handle(MigrationIpcChannels.Restart, async () => {
+  ipcMain.handle(MigrationIpcChannels.Restart, async (event) => {
+    assertMigrationSender(event)
+    assertStateMutationAllowed()
     try {
       logger.info('Restarting app after migration')
       void migrationWindowManager.restartApp()
@@ -381,14 +378,16 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Minimize the migration window (custom control on Windows/Linux)
-  ipcMain.handle(MigrationIpcChannels.Minimize, () => {
+  ipcMain.handle(MigrationIpcChannels.Minimize, (event) => {
+    assertMigrationSender(event)
     migrationWindowManager.minimize()
     return true
   })
 
   // Request a user-initiated close (custom control on Windows/Linux). Routes through the
   // native close event so the in-flow confirmation applies.
-  ipcMain.handle(MigrationIpcChannels.CloseWindow, () => {
+  ipcMain.handle(MigrationIpcChannels.CloseWindow, (event) => {
+    assertMigrationSender(event)
     migrationWindowManager.requestClose()
     return true
   })
@@ -396,11 +395,15 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   // User confirmed quit from the renderer's in-flow close dialog. Returns true when quitting
   // immediately, false when deferred (an active write must settle first) — the renderer uses this
   // to show the "app will close when the current step finishes" notice.
-  ipcMain.handle(MigrationIpcChannels.ConfirmQuit, () => requestQuit())
+  ipcMain.handle(MigrationIpcChannels.ConfirmQuit, (event) => {
+    assertMigrationSender(event)
+    return requestQuit()
+  })
 
   // Renderer dismissed the in-flow close dialog without quitting (Continue / Esc / backdrop).
   // Drop the pending-close flag so the next close re-prompts instead of force-quitting.
-  ipcMain.handle(MigrationIpcChannels.CancelClose, () => {
+  ipcMain.handle(MigrationIpcChannels.CancelClose, (event) => {
+    assertMigrationSender(event)
     migrationWindowManager.clearCloseConfirm()
     return true
   })
@@ -429,8 +432,24 @@ function updateProgress(progress: MigrationProgress): void {
   migrationWindowManager.send(MigrationIpcChannels.Progress, progress)
 }
 
-function assertDiagnosticSender(event: IpcMainInvokeEvent): void {
-  if (!validateSender(event)) throw new Error('Untrusted migration diagnostic IPC sender.')
+function assertMigrationSender(event: IpcMainInvokeEvent): void {
+  if (!validateSender(event)) throw new Error('Untrusted migration IPC sender.')
+}
+
+function assertStateMutationAllowed(): void {
+  if (diagnosticSaveInFlight || quitScheduled) throw new Error(STATE_MUTATION_DURING_SAVE_ERROR)
+}
+
+function isMigrationExportWritePayload(payload: unknown): payload is MigrationExportWritePayload {
+  if (typeof payload !== 'object' || payload === null) return false
+  const candidate = payload as Record<string, unknown>
+  if (typeof candidate.jsonData !== 'string') return false
+  if (candidate.target === 'local_storage') return true
+  return (
+    candidate.target === 'dexie' &&
+    typeof candidate.tableName === 'string' &&
+    MIGRATION_DEXIE_EXPORT_TABLE_SET.has(candidate.tableName)
+  )
 }
 
 function createRendererDiagnosticContext(): MigrationDiagnosticContext {
@@ -460,29 +479,10 @@ function recordDiagnosticFailure(failure: MigrationDiagnosticFailure): void {
   }
 }
 
-function waitForDiagnosticSaveBeforeQuit(save: Promise<MigrationDiagnosticSaveResult>): Promise<void> {
-  return new Promise((resolve) => {
-    let settled = false
-    const finish = (): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      resolve()
-    }
-    const timeout = setTimeout(() => {
-      logger.warn('Diagnostic bundle save exceeded the quit grace period; continuing quit')
-      finish()
-    }, DIAGNOSTIC_SAVE_QUIT_GRACE_MS)
-    timeout.unref?.()
-
-    void save.then(finish, finish)
-  })
-}
-
 /**
- * Request an app quit. Migration writes remain an unbounded hard wait so we never terminate with a
- * half-applied migration. Diagnostic saves get a bounded grace period because they are optional
- * support artifacts. Returns true when quitting immediately, false when deferred.
+ * Request an app quit. Migration writes and diagnostic bundle writes both remain an unbounded hard
+ * wait so the process never terminates with a partially committed artifact. Returns true when
+ * quitting immediately, false when deferred.
  *
  * Shared by the ConfirmQuit IPC handler (renderer's in-flow dialog) and the window manager's
  * force-quit escape hatch (crash / hang / repeated close), so every quit path inherits the same
@@ -493,7 +493,7 @@ function requestQuit(): boolean {
 
   const pending: Promise<unknown>[] = []
   if (inFlightMigration) pending.push(inFlightMigration)
-  if (diagnosticSaveInFlight) pending.push(waitForDiagnosticSaveBeforeQuit(diagnosticSaveInFlight))
+  if (diagnosticSaveInFlight) pending.push(diagnosticSaveInFlight)
 
   if (pending.length === 0) {
     migrationWindowManager.confirmQuit()

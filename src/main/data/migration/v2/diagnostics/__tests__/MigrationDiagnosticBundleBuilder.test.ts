@@ -1,13 +1,16 @@
-import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, open, readdir, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 
 import { MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES } from '@shared/data/migration/v2/diagnostics'
 import StreamZip from 'node-stream-zip'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MigrationDiagnosticBundleBuilder } from '../MigrationDiagnosticBundleBuilder'
+import {
+  classifyMigrationDiagnosticArchiveSize,
+  MigrationDiagnosticBundleBuilder
+} from '../MigrationDiagnosticBundleBuilder'
 
 const FIXED_CLOCK = () => new Date('2026-07-21T12:34:56.000Z')
 const TEST_APPLICATION = { version: '2.0.0-test', platform: 'darwin' as const, arch: 'arm64' }
@@ -268,9 +271,14 @@ describe('MigrationDiagnosticBundleBuilder', () => {
     expect(archive.data['logs/app.2026-07-21.log']).toHaveLength(17 * 1024 * 1024)
   })
 
-  it('streams only the collector snapshot when a log grows before archiving', async () => {
+  it('streams the opened snapshot when the log path is replaced before archiving', async () => {
     const logPath = join(logsDirectory, 'app.2026-07-21.log')
-    await writeFile(logPath, 'before-after')
+    const rotatedPath = join(logsDirectory, 'rotated-away.log')
+    await writeFile(logPath, 'before')
+    const handle = await open(logPath, 'r')
+    const close = vi.spyOn(handle, 'close')
+    await rename(logPath, rotatedPath)
+    await writeFile(logPath, 'replacement')
     const destination = join(workDirectory, 'snapshot.zip')
 
     const result = await new MigrationDiagnosticBundleBuilder({
@@ -279,7 +287,7 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       collectApplicationLogs: async () => ({
         status: 'included',
         completeness: 'complete',
-        entries: [{ fileName: 'app.2026-07-21.log', filePath: logPath, mtimeMs: 1, snapshotBytes: 6 }],
+        entries: [{ fileName: 'app.2026-07-21.log', filePath: logPath, handle, mtimeMs: 1, snapshotBytes: 6 }],
         omittedEntries: [],
         includedRawBytes: 6
       })
@@ -287,15 +295,44 @@ describe('MigrationDiagnosticBundleBuilder', () => {
 
     expect(result).toEqual({ status: 'saved', logs: 'included', size: 'standard' })
     expect((await readZip(destination)).data['logs/app.2026-07-21.log'].toString()).toBe('before')
+    expect(close).toHaveBeenCalled()
+    expect(handle.fd).toBe(-1)
+  })
+
+  it('rebuilds metadata-only diagnostics when a log becomes shorter than its snapshot', async () => {
+    const logPath = join(logsDirectory, 'app.2026-07-21.log')
+    await writeFile(logPath, 'log')
+    const handle = await open(logPath, 'r')
+    const close = vi.spyOn(handle, 'close')
+    const destination = join(workDirectory, 'short-read.zip')
+
+    const result = await new MigrationDiagnosticBundleBuilder({
+      clock: FIXED_CLOCK,
+      applicationMetadata: TEST_APPLICATION,
+      collectApplicationLogs: async () => ({
+        status: 'included',
+        completeness: 'complete',
+        entries: [{ fileName: 'app.2026-07-21.log', filePath: logPath, handle, mtimeMs: 1, snapshotBytes: 6 }],
+        omittedEntries: [],
+        includedRawBytes: 6
+      })
+    }).save({ destination, logsDirectory, context: { source: 'renderer', stage: 'error' } })
+
+    expect(result).toEqual({ status: 'saved', logs: 'not_included', retry: 'not_suggested', size: 'standard' })
+    expect((await readZip(destination)).names).toEqual(['migration-diagnostics.json'])
+    expect(close).toHaveBeenCalled()
+    expect(handle.fd).toBe(-1)
   })
 
   it('rebuilds a basic ZIP when a selected log stream fails and removes atomic temp files', async () => {
     const logPath = join(logsDirectory, 'app.2026-07-21.log')
     await writeFile(logPath, 'log')
     const destination = join(workDirectory, 'fallback.zip')
+    const handle = await open(logPath, 'r')
+    const close = vi.spyOn(handle, 'close')
     const streamError = Object.assign(new Error('stream read failed'), {
       stack: 'Error: stream read failed\n    at streamLog (/app/main.js:55:9)',
-      code: 'EIO',
+      code: 'ENOENT',
       syscall: 'read'
     })
 
@@ -305,7 +342,7 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       collectApplicationLogs: async () => ({
         status: 'included',
         completeness: 'complete',
-        entries: [{ fileName: 'app.2026-07-21.log', filePath: logPath, mtimeMs: 1, snapshotBytes: 3 }],
+        entries: [{ fileName: 'app.2026-07-21.log', filePath: logPath, handle, mtimeMs: 1, snapshotBytes: 3 }],
         omittedEntries: [],
         includedRawBytes: 3
       }),
@@ -317,7 +354,7 @@ describe('MigrationDiagnosticBundleBuilder', () => {
         })
     }).save({ destination, logsDirectory, context: { source: 'renderer', stage: 'error' } })
 
-    expect(result).toEqual({ status: 'saved', logs: 'not_included', retry: 'not_suggested', size: 'standard' })
+    expect(result).toEqual({ status: 'saved', logs: 'not_included', retry: 'suggested', size: 'standard' })
     const archive = await readZip(destination)
     expect(archive.names).toEqual(['migration-diagnostics.json'])
     expect(JSON.parse(archive.data['migration-diagnostics.json'].toString('utf8')).logCollection).toEqual({
@@ -327,54 +364,34 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       omittedFileCount: 1,
       includedRawBytes: 0,
       reason: 'file_read_failed',
-      retry: 'not_suggested',
+      retry: 'suggested',
       path: logPath,
       error: {
         name: 'Error',
         message: 'stream read failed',
         stack: 'Error: stream read failed\n    at streamLog (/app/main.js:55:9)',
-        code: 'EIO',
+        code: 'ENOENT',
         syscall: 'read',
         path: logPath
       }
     })
     expect((await readdir(workDirectory)).filter((name) => name.includes('.tmp-'))).toEqual([])
+    expect(close).toHaveBeenCalledOnce()
   })
 
   it.each([
     [MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES, 'standard'],
     [MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES + 1, 'large']
   ] as const)('classifies the final ZIP size %s as %s', async (archiveSize, expectedSize) => {
-    const destination = join(workDirectory, `size-${archiveSize}.zip`)
-    const result = await new MigrationDiagnosticBundleBuilder({
-      clock: FIXED_CLOCK,
-      applicationMetadata: TEST_APPLICATION,
-      getArchiveSize: async () => archiveSize
-    }).save({
-      destination,
-      logsDirectory,
-      context: { source: 'renderer', stage: 'error' }
-    })
-
-    expect(result).toEqual({ status: 'saved', logs: 'not_included', retry: 'suggested', size: expectedSize })
+    expect(classifyMigrationDiagnosticArchiveSize(archiveSize)).toBe(expectedSize)
   })
 
-  it('uses the fixed public failure code for invalid targets and post-write stat failures', async () => {
+  it('uses the fixed public failure code for invalid targets and write failures', async () => {
     const builder = new MigrationDiagnosticBundleBuilder({
       clock: FIXED_CLOCK,
-      applicationMetadata: TEST_APPLICATION,
-      getArchiveSize: async () => {
-        throw new Error('stat failed')
-      }
+      applicationMetadata: TEST_APPLICATION
     })
 
-    await expect(
-      builder.save({
-        destination: join(workDirectory, 'stat-failure.zip'),
-        logsDirectory,
-        context: { source: 'native', stage: 'preboot' }
-      })
-    ).resolves.toEqual({ status: 'failed', code: 'bundle_save_failed' })
     await expect(
       builder.save({
         destination: 'relative.zip',

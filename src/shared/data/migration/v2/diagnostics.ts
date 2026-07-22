@@ -73,7 +73,7 @@ export interface MigrationDiagnosticRun {
 export interface MigrationDiagnosticRuntime {
   readonly processId: number
   readonly processStartedAt: string
-  readonly userDataPath: string
+  readonly userDataPath?: string
 }
 
 export type MigrationExportWriteResult =

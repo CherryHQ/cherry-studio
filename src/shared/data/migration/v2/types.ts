@@ -133,9 +133,31 @@ export interface LocalStorageRecord {
 export interface StartMigrationPayload {
   runId: string
   reduxData: Record<string, unknown>
-  dexieExportPath: string
-  localStorageExportPath?: string
 }
+
+export const MIGRATION_DEXIE_EXPORT_TABLES = [
+  'topics',
+  'files',
+  'knowledge_notes',
+  'message_blocks',
+  'settings',
+  'translate_history',
+  'quick_phrases',
+  'translate_languages'
+] as const
+
+export type MigrationDexieExportTable = (typeof MIGRATION_DEXIE_EXPORT_TABLES)[number]
+
+export type MigrationExportWritePayload =
+  | {
+      target: 'dexie'
+      tableName: MigrationDexieExportTable
+      jsonData: string
+    }
+  | {
+      target: 'local_storage'
+      jsonData: string
+    }
 
 export interface BeginMigrationRunPayload {
   runId: string
@@ -152,8 +174,6 @@ export const MigrationIpcChannels = {
   CheckNeeded: 'migration:check-needed',
   GetProgress: 'migration:get-progress',
   GetLastError: 'migration:get-last-error',
-  GetUserDataPath: 'migration:get-user-data-path',
-
   // Flow control
   BeginRun: 'migration:begin-run',
   StartMigration: 'migration:start-migration',

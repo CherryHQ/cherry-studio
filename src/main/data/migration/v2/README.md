@@ -39,6 +39,8 @@ paths with `path.join()` from scratch inside migration code.
 | `ctx.paths.userData` | `app.getPath('userData')` |
 | `ctx.paths.databaseFile` | `path.join(app.getPath('userData'), 'cherrystudio.sqlite')` |
 | `ctx.paths.knowledgeBaseDir` | `path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')` |
+| `ctx.paths.dexieExportDir` | Renderer-provided export directory |
+| `ctx.paths.localStorageExportFile` | Renderer-provided export file path |
 | `ctx.paths.legacyConfigFile` | `path.join(os.homedir(), '.cherrystudio', 'config', 'config.json')` |
 | `new Store({ cwd: ctx.paths.userData })` | `new Store()` |
 
@@ -47,6 +49,10 @@ paths with `path.join()` from scratch inside migration code.
 then passed through `MigrationContext.paths` to all migrators. If you
 need a new path, add it to the `MigrationPaths` interface — do not
 construct it inline.
+
+Migration export paths follow the same rule. Renderer sends only a fixed logical target, an
+allowlisted Dexie table name when applicable, and JSON data. Main resolves the destination from
+`MigrationPaths`; the engine reads from and recursively cleans only `paths.migrationTempDir`.
 
 The diagnostic log collector is a separate domain: it reads the application's runtime logs, not
 migration data. It resolves that directory through the central path registry with
@@ -67,23 +73,25 @@ atomically. Each bundle contains:
   `logs/app.YYYY-MM-DD.log.1`, each preserved as a separate ZIP entry.
 
 "Today" means the user's local calendar date when they click save. The collector accepts only
-regular application log files for that date; it excludes `app-error` logs, other dates, symlinks,
-and directories. It selects newest mtime first, at most four files and 40 MiB of scanned raw bytes.
-Selected files stream directly into the ZIP at their scanned size; files omitted by the budget are
-counted in `logCollection`. If collection or a selected file stream fails, the log set is omitted
-and the builder atomically rebuilds a basic-only ZIP. The JSON records completeness, included file
-sizes, omitted count, failure reason, retry recommendation, relevant absolute path, and the complete
-collection exception when one exists. `no_eligible_logs` records the reason and logs directory
-without inventing an exception or stack.
+application log names for that date; it excludes `app-error` logs and other dates. Every matching
+path must resolve to a stable regular, non-symlink file. The collector opens and verifies every file,
+keeps those handles through archive creation, and includes the complete same-day set without an
+application-level file-count or raw-byte budget. Each handle streams only its scanned byte length.
+If any path cannot be verified/opened, any stream fails, or a stream ends before its scanned length,
+the whole log set is omitted and the builder atomically rebuilds a basic-only ZIP. The JSON records
+completeness, included file sizes, failure reason, retry recommendation, relevant absolute path, and
+the complete collection exception when one exists. `no_eligible_logs` records the reason and logs
+directory without inventing an exception or stack.
 
 The application never uploads, attaches, emails, or otherwise sends the bundle automatically; the
 user must inspect it and attach it manually. A final compressed ZIP strictly larger than 15 MiB is
 still saved and only triggers advice to use an email large-attachment or cloud-storage feature.
 
 Renderer diagnostic commands carry no paths or file content. Main serializes save requests, gives
-an active save up to 30 seconds to settle before quitting, remembers only the most recently saved
-bundle path, and owns the fixed support address and prefilled `mailto:` URL. After saving, the user
-can open the email client, reveal the ZIP in its folder, or copy the support address.
+an active save an unbounded completion wait before quitting, and rejects migration-state changes
+while a save or deferred quit is active. Main remembers only the most recently saved bundle path and
+owns the fixed support address and prefilled `mailto:` URL. After saving, the user can open the email
+client, reveal the ZIP in its folder, or copy the support address.
 
 ## Version Compatibility Gate
 

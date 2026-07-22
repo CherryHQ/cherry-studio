@@ -52,6 +52,9 @@ const getBlockMessageMock = vi.fn()
 
 const defaultMigrationPaths = {
   userData: '/mock/userData',
+  migrationTempDir: '/mock/userData/migration_temp',
+  dexieExportDir: '/mock/userData/migration_temp/dexie_export',
+  localStorageExportFile: '/mock/userData/migration_temp/localstorage_export/localStorage.json',
   versionLogFile: '/mock/version.log',
   databaseFile: '/mock/userData/cherrystudio.sqlite'
 }
@@ -239,7 +242,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
-      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith('/mock/userData')
+      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith(defaultMigrationPaths)
       expect(migrationWindowCreateMock).toHaveBeenCalledTimes(1)
       expect(migrationWindowWaitForReadyMock).toHaveBeenCalledTimes(1)
       // Success path should NOT unregister handlers — the migration window
@@ -289,6 +292,9 @@ describe('runV2MigrationGate', () => {
         stack: 'Error: DB unavailable\n    at initialize (/app/main.js:18:5)',
         code: 'SQLITE_CANTOPEN',
         path: '/mock/userData/cherrystudio.sqlite'
+      })
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[1]).toEqual({
+        userDataPath: '/mock/userData'
       })
       expect(getLocaleMock).toHaveBeenCalledTimes(1)
       expect(whenReadyMock.mock.invocationCallOrder[0]).toBeLessThan(getLocaleMock.mock.invocationCallOrder[0])
@@ -785,6 +791,7 @@ describe('runV2MigrationGate', () => {
         syscall: 'write',
         path: '/mock/.cherrystudio/boot-config.json'
       })
+      expect(presentMigrationDiagnosticFailureMock.mock.calls[0]?.[1]).toEqual({})
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })

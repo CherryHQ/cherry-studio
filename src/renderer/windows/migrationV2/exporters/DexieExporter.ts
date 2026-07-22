@@ -14,13 +14,14 @@ import {
   assertMigrationExportWriteSucceeded,
   type MigrationExportWriteResult
 } from '@shared/data/migration/v2/diagnostics'
+import { type MigrationDexieExportTable, MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { Dexie } from 'dexie'
 
 /** Legacy v1 IndexedDB database name. */
 const DEXIE_DB_NAME = 'CherryStudio'
 
 // Required tables that must exist
-const REQUIRED_TABLES = [
+const REQUIRED_TABLES: readonly MigrationDexieExportTable[] = [
   'topics', // Contains messages embedded within each topic
   'files', // File metadata
   'knowledge_notes', // Individual knowledge note items
@@ -28,7 +29,12 @@ const REQUIRED_TABLES = [
 ]
 
 // Optional tables that may not exist in older versions
-const OPTIONAL_TABLES = ['settings', 'translate_history', 'quick_phrases', 'translate_languages']
+const OPTIONAL_TABLES: readonly MigrationDexieExportTable[] = [
+  'settings',
+  'translate_history',
+  'quick_phrases',
+  'translate_languages'
+]
 
 export interface ExportProgress {
   table: string
@@ -37,12 +43,6 @@ export interface ExportProgress {
 }
 
 export class DexieExporter {
-  private exportPath: string
-
-  constructor(exportPath: string) {
-    this.exportPath = exportPath
-  }
-
   /**
    * Open the legacy v1 database in dynamic mode, or return null when no such
    * database exists (fresh install — nothing to migrate). The caller owns
@@ -60,13 +60,12 @@ export class DexieExporter {
   /**
    * Export all Dexie tables to JSON files
    * @param onProgress - Progress callback
-   * @returns Export path
    */
-  async exportAll(onProgress?: (progress: ExportProgress) => void): Promise<string> {
+  async exportAll(onProgress?: (progress: ExportProgress) => void): Promise<void> {
     const db = await this.openLegacyDb()
     if (!db) {
       // No Dexie database at all — fresh install, nothing to export
-      return this.exportPath
+      return
     }
 
     try {
@@ -89,12 +88,11 @@ export class DexieExporter {
 
         // Send data to Main process for writing
         // Uses IPC invoke with migration channel
-        const result = (await window.electron.ipcRenderer.invoke(
-          'migration:write-export-file',
-          this.exportPath,
+        const result = (await window.electron.ipcRenderer.invoke(MigrationIpcChannels.WriteExportFile, {
+          target: 'dexie',
           tableName,
-          JSON.stringify(data)
-        )) as MigrationExportWriteResult
+          jsonData: JSON.stringify(data)
+        })) as MigrationExportWriteResult
         assertMigrationExportWriteSucceeded(result)
 
         onProgress?.({
@@ -103,8 +101,6 @@ export class DexieExporter {
           total: tablesToExport.length
         })
       }
-
-      return this.exportPath
     } finally {
       db.close()
     }

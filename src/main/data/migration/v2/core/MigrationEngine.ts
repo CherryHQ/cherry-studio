@@ -3,6 +3,8 @@
  * Coordinates migrators, manages progress, and handles failures
  */
 
+import path from 'node:path'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
@@ -47,6 +49,7 @@ import {
   serializeMigrationDiagnosticError
 } from '@shared/data/migration/v2/diagnostics'
 import type {
+  MigrationExportWritePayload,
   MigrationProgress,
   MigrationResult,
   MigrationStage,
@@ -58,7 +61,6 @@ import type {
 import { eq, sql } from 'drizzle-orm'
 import Store from 'electron-store'
 import fs from 'fs/promises'
-import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
@@ -68,6 +70,15 @@ import type { MigrationPaths } from './MigrationPaths'
 const logger = loggerService.withContext('MigrationEngine')
 
 const MIGRATION_V2_STATUS = 'migration_v2_status'
+
+type MigrationExportFileWriteResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false
+      readonly operation: 'create_export_directory' | 'write_export_file'
+      readonly targetPath: string
+      readonly error: unknown
+    }
 
 export class MigrationEngine {
   private migrators: BaseMigrator[] = []
@@ -200,16 +211,37 @@ export class MigrationEngine {
     return this.lastDiagnosticFailure
   }
 
+  async writeExportFile(payload: MigrationExportWritePayload): Promise<MigrationExportFileWriteResult> {
+    const filePath =
+      payload.target === 'dexie'
+        ? path.join(this.paths.dexieExportDir, `${payload.tableName}.json`)
+        : this.paths.localStorageExportFile
+    const exportDir =
+      payload.target === 'dexie' ? this.paths.dexieExportDir : path.dirname(this.paths.localStorageExportFile)
+
+    try {
+      await fs.mkdir(exportDir, { recursive: true })
+    } catch (error) {
+      return { ok: false, operation: 'create_export_directory', targetPath: exportDir, error }
+    }
+
+    try {
+      await fs.writeFile(filePath, payload.jsonData, 'utf-8')
+      logger.info('Migration export file written', {
+        target: payload.target,
+        ...(payload.target === 'dexie' ? { tableName: payload.tableName } : {})
+      })
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, operation: 'write_export_file', targetPath: filePath, error }
+    }
+  }
+
   /**
    * Execute full migration
    * @param reduxData - Parsed Redux state data from Renderer
-   * @param dexieExportPath - Path to exported Dexie files
    */
-  async run(
-    reduxData: Record<string, unknown>,
-    dexieExportPath: string,
-    localStorageExportPath?: string
-  ): Promise<MigrationResult> {
+  async run(reduxData: Record<string, unknown>): Promise<MigrationResult> {
     this.lastDiagnosticFailure = undefined
     const startTime = Date.now()
     const results: MigratorResult[] = []
@@ -227,8 +259,8 @@ export class MigrationEngine {
         this.getDb(),
         this.paths,
         reduxData,
-        dexieExportPath,
-        localStorageExportPath
+        this.paths.dexieExportDir,
+        this.paths.localStorageExportFile
       )
 
       for (let i = 0; i < this.migrators.length; i++) {
@@ -301,11 +333,7 @@ export class MigrationEngine {
       await this.markCompleted()
 
       // Cleanup temporary files
-      await this.cleanupTempFiles(dexieExportPath)
-
-      if (localStorageExportPath) {
-        await this.cleanupTempFiles(path.dirname(localStorageExportPath))
-      }
+      await this.cleanupTempFiles(this.paths.migrationTempDir)
 
       logger.info('Migration completed successfully', {
         totalDuration: Date.now() - startTime,
