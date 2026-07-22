@@ -3,9 +3,6 @@
   --app-top-chrome-height: 44px;
   --navbar-height: var(--app-top-chrome-height);
   --sidebar-width: 200px;
-  --status-bar-height: 40px;
-  --input-bar-height: 100px;
-
   --assistants-width: 275px;
   --topic-list-width: 275px;
   --settings-width: 250px;
