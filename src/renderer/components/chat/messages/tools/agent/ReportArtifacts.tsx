@@ -1,6 +1,6 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
@@ -10,7 +10,7 @@ import { isMac, isWin } from '@renderer/utils/platform'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type { TFunction } from 'i18next'
-import { ExternalLink, FolderOpen } from 'lucide-react'
+import { ChevronDown, FolderOpen } from 'lucide-react'
 import { type MouseEvent, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -83,6 +83,9 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   const copyText = actions?.copyText
   const notifyError = actions?.notifyError
   const availableEditors = useMemo(() => ui?.externalCodeEditors ?? [], [ui?.externalCodeEditors])
+  const hasOpenActions = Boolean(
+    openArtifactFile || openPath || showInFolder || (openInExternalApp && availableEditors.length > 0)
+  )
   const displayPath = useMemo(() => normalizeInlineFilePath(artifact.path), [artifact.path])
   const targetPath = useMemo(() => resolveInlineFilePath(artifact.path), [artifact.path])
   const fileName = useMemo(() => getArtifactFileName(displayPath), [displayPath])
@@ -205,19 +208,26 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         </span>
         <span className="min-w-0 truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
       </button>
-      {openPath && (
-        <Tooltip content={t('chat.input.tools.open_file')} delay={500}>
-          <button
+      {hasOpenActions && (
+        <CommandPopupMenu
+          location="webcontents.context"
+          extraItems={contextMenuItems}
+          align="end"
+          side="bottom"
+          sideOffset={6}
+          contentClassName="min-w-44">
+          <Button
             type="button"
-            aria-label={`${t('chat.input.tools.open_file')} ${fileName}`}
+            variant="outline"
+            aria-label={`${t('chat.input.tools.open_with')} ${fileName}`}
             onClick={(event: MouseEvent<HTMLButtonElement>) => {
               event.stopPropagation()
-              handleOpenExternal()
             }}
-            className="mr-2 flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-muted opacity-70 transition-colors hover:bg-background hover:text-foreground hover:opacity-100">
-            <ExternalLink size={15} />
-          </button>
-        </Tooltip>
+            className="mr-2 rounded-lg data-[state=open]:bg-accent">
+            {t('chat.input.tools.open_with')}
+            <ChevronDown className="text-foreground-muted" size={14} />
+          </Button>
+        </CommandPopupMenu>
       )}
     </div>
   )

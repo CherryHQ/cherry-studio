@@ -38,13 +38,22 @@ function hasSuspiciousDecodedCharacters(text: string): boolean {
   return controlCharacters / Math.max(characters, 1) > 0.01
 }
 
-function decodeWithoutSuspiciousCharacters(data: Buffer, encoding: string): string | null {
+function decodeWithoutSuspiciousCharacters(
+  data: Buffer,
+  encoding: string,
+  sampleMayBeTruncated: boolean
+): string | null {
   try {
-    const text = iconv.decode(data, encoding)
+    const decoder = iconv.getDecoder(encoding)
+    const text = decoder.write(data) + (sampleMayBeTruncated ? '' : decoder.end())
     return hasSuspiciousDecodedCharacters(text) ? null : text
   } catch {
     return null
   }
+}
+
+interface DecodeTextBufferOptions {
+  sampleMayBeTruncated?: boolean
 }
 
 /**
@@ -52,12 +61,13 @@ function decodeWithoutSuspiciousCharacters(data: Buffer, encoding: string): stri
  * encodings that UTF-8-oriented binary sniffers reject. Returns `null` when
  * the bytes are binary or their encoding is too ambiguous to decode safely.
  */
-export function decodeTextBufferIfText(data: Buffer): string | null {
+export function decodeTextBufferIfText(data: Buffer, options?: DecodeTextBufferOptions): string | null {
   const sample = data.length > MB ? data.subarray(0, MB) : data
   const isBinary = isBinaryFileSync(sample, sample.byteLength)
+  const sampleMayBeTruncated = options?.sampleMayBeTruncated ?? false
 
   if (!isBinary) {
-    const utf8Text = decodeWithoutSuspiciousCharacters(data, 'UTF-8')
+    const utf8Text = decodeWithoutSuspiciousCharacters(data, 'UTF-8', sampleMayBeTruncated)
     if (utf8Text !== null) return utf8Text
   }
 
@@ -70,7 +80,7 @@ export function decodeTextBufferIfText(data: Buffer): string | null {
     return null
   }
 
-  return decodeWithoutSuspiciousCharacters(data, match.name)
+  return decodeWithoutSuspiciousCharacters(data, match.name, sampleMayBeTruncated)
 }
 
 /** Detect file type from extension. */
