@@ -174,9 +174,7 @@
       "require": "./dist/icons/index.js",
       "default": "./dist/icons/index.js"
     },
-    "./styles": "./dist/styles/tokens.css",
     "./styles/tokens.css": "./dist/styles/tokens.css",
-    "./styles/theme.css": "./dist/styles/theme.css",
-    "./styles/index.css": "./dist/styles/tokens.css"
+    "./styles/theme.css": "./dist/styles/theme.css"
   }
 }

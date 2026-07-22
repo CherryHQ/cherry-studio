@@ -2,8 +2,6 @@ import type { ResourceType, ResourceTypeUIConfig } from '@renderer/types/resourc
 import type { AssistantSettings } from '@shared/data/types/assistant'
 import { Bot, FileText, MessageCircle, ToolCase } from 'lucide-react'
 
-export { DEFAULT_TAG_COLOR, getRandomTagColor, TAG_COLOR_PALETTE } from '@renderer/utils/resourceTags'
-
 export type AssistantConfigMcpMode = AssistantSettings['mcpMode']
 
 type ResourceTypeMeta = ResourceTypeUIConfig & { labelKey: string }
@@ -21,7 +19,7 @@ export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
   },
   skill: {
     icon: ToolCase,
-    color: 'bg-warning-bg text-warning-text',
+    color: 'bg-warning-bg text-warning',
     labelKey: 'library.type.skill'
   },
   prompt: {

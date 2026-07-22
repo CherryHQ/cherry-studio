@@ -278,7 +278,7 @@ const WindowButton: FC<ComponentProps<typeof Button>> = ({ className, ...props }
     variant="ghost"
     size="icon-sm"
     className={cn(
-      'size-6 rounded border-0 bg-transparent p-0 text-icon shadow-none transition-colors hover:bg-accent hover:text-accent-foreground',
+      'size-6 rounded border-0 bg-transparent p-0 text-foreground-secondary shadow-none transition-colors hover:bg-accent hover:text-accent-foreground',
       className
     )}
     {...props}

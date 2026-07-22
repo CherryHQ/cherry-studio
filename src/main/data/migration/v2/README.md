@@ -96,6 +96,8 @@ Path Safety section above.
 - `execute(ctx)`: Perform inserts, report progress
 - `validate(ctx)`: Verify counts and integrity
 
+`AssistantMigrator` also owns v1 assistant tag-group migration: it inserts `group(entityType='assistant')` rows and assigns their IDs to `assistant.groupId` in the same transaction.
+
 ### Foreign Keys Caveat
 
 The engine keeps `foreign_keys = OFF` for the **entire** migration: `MigrationDbService` sets the
