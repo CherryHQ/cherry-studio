@@ -47,7 +47,6 @@ import type {
   MigrationResult,
   MigrationStage,
   MigrationStatusValue,
-  MigrationWarning,
   MigratorResult,
   MigratorStatus,
   ValidateResult
@@ -65,10 +64,6 @@ import type { MigrationPaths } from './MigrationPaths'
 const logger = loggerService.withContext('MigrationEngine')
 
 const MIGRATION_V2_STATUS = 'migration_v2_status'
-
-function getWarningFallback(warning: MigrationWarning): string {
-  return typeof warning === 'string' ? warning : warning.defaultValue
-}
 
 export class MigrationEngine {
   private migrators: BaseMigrator[] = []
@@ -243,11 +238,7 @@ export class MigrationEngine {
         // Phase 1: Prepare (includes dry-run validation)
         const prepareResult = await migrator.prepare(context)
         if (!prepareResult.success) {
-          const warnings: MigrationWarning[] = [
-            ...(prepareResult.warnings ?? []),
-            ...(prepareResult.userWarnings ?? [])
-          ]
-          const reason = prepareResult.error ?? (warnings.map(getWarningFallback).join(', ') || 'unknown reason')
+          const reason = prepareResult.error ?? prepareResult.warnings?.join(', ') ?? 'unknown reason'
           throw new Error(`${migrator.name} prepare failed: ${reason}`)
         }
 
@@ -271,16 +262,12 @@ export class MigrationEngine {
 
         logger.info(`${migrator.name} validation passed`, { stats: validateResult.stats })
 
-        // Raw prepare warnings are legacy diagnostics and may contain untranslated internal
-        // details, so keep them in logs. Only explicitly structured prepare warnings are
-        // user-facing; execute warnings retain their existing completion-report behavior.
-        const prepareDiagnostics = prepareResult.warnings ?? []
-        const warnings: MigrationWarning[] = [...(prepareResult.userWarnings ?? []), ...(executeResult.warnings ?? [])]
-        const warningCount = prepareDiagnostics.length + warnings.length
-        if (warningCount > 0) {
-          logger.warn(`${migrator.name} completed with ${warningCount} warning(s)`, {
-            warnings: [...prepareDiagnostics, ...warnings.map(getWarningFallback)]
-          })
+        // Non-fatal diagnostics from both phases. Prepare warnings were previously only
+        // read on prepare failure; surface them on the success path too, alongside any
+        // execute-phase warnings (e.g. knowledge files kept but not reindexable).
+        const warnings = [...(prepareResult.warnings ?? []), ...(executeResult.warnings ?? [])]
+        if (warnings.length > 0) {
+          logger.warn(`${migrator.name} completed with ${warnings.length} warning(s)`, { warnings })
         }
 
         // Record result

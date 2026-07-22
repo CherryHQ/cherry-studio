@@ -1,5 +1,4 @@
 import { promptTable } from '@data/db/schemas/prompt'
-import type { PrepareResult } from '@shared/data/migration/v2/types'
 import { PROMPT_TITLE_MAX, PromptIdSchema } from '@shared/data/types/prompt'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc } from 'drizzle-orm'
@@ -118,10 +117,6 @@ function captureInsertedRows(ctx: MigrationContext): Array<Array<Record<string, 
   return batches
 }
 
-function warningMessages(result: PrepareResult): string[] {
-  return [...(result.warnings ?? []), ...(result.userWarnings ?? []).map((warning) => warning.defaultValue)]
-}
-
 // ─── Tests ───────────────────────────────────────────────────────────
 
 describe('PromptMigrator', () => {
@@ -145,11 +140,9 @@ describe('PromptMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(0)
-      expect(warningMessages(result)).toContain('The global quick phrase table was not found; that source was skipped.')
-      expect(result.warnings).toBeUndefined()
     })
 
-    it('should retain phrases and repair missing or invalid timestamps', async () => {
+    it('should retain valid phrases and skip invalid content', async () => {
       const ctx = createMockContext({
         tableData: [
           makePhrase({ id: 'a', content: 'valid' }),
@@ -166,28 +159,6 @@ describe('PromptMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(5)
-      expect(warningMessages(result)).toContainEqual(expect.stringMatching(/Invalid quick phrases skipped: 1/))
-      expect(warningMessages(result)).toContain('Quick phrase timestamps repaired: 2')
-      expect(result.userWarnings).toContainEqual(
-        expect.objectContaining({
-          key: 'migration.completed.warnings.prompt.invalid_phrases',
-          params: expect.objectContaining({ count: 1 })
-        })
-      )
-    })
-
-    it('should report the original Dexie index after ordering global phrases', async () => {
-      const ctx = createMockContext({
-        tableData: [
-          makePhrase({ id: 'invalid', content: '', order: 0 }),
-          makePhrase({ id: 'valid', content: 'valid', order: 10 })
-        ]
-      })
-      const migrator = new PromptMigrator()
-
-      const result = await migrator.prepare(ctx)
-
-      expect(warningMessages(result)).toContainEqual(expect.stringContaining('quick_phrases[0]'))
     })
 
     it('should handle empty table', async () => {
@@ -219,7 +190,6 @@ describe('PromptMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(1)
-      expect(warningMessages(result)).toContain('The global quick phrase table was not found; that source was skipped.')
     })
 
     it('should collect phrases from assistants, presets, and the default assistant', async () => {
@@ -247,10 +217,10 @@ describe('PromptMigrator', () => {
 
       const result = await migrator.prepare(ctx)
 
-      expect(result).toStrictEqual({ success: true, itemCount: 3, userWarnings: undefined })
+      expect(result).toStrictEqual({ success: true, itemCount: 3 })
     })
 
-    it('should report a non-array regularPhrases container instead of silently ignoring it', async () => {
+    it('should count a non-array regularPhrases container as skipped', async () => {
       const ctx = createMockContext({
         promptCount: 0,
         assistantState: {
@@ -269,7 +239,6 @@ describe('PromptMigrator', () => {
       const validateResult = await migrator.validate(ctx)
 
       expect(prepareResult.itemCount).toBe(0)
-      expect(warningMessages(prepareResult)).toContainEqual(expect.stringContaining('assistants[0].regularPhrases'))
       expect(validateResult.success).toBe(true)
       expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 0, skippedCount: 1 })
     })
@@ -299,7 +268,6 @@ describe('PromptMigrator', () => {
       const executeResult = await migrator.execute(ctx)
 
       expect(prepareResult.itemCount).toBe(1)
-      expect(warningMessages(prepareResult)).toContain('Quick phrase timestamps repaired: 1')
       expect(executeResult.processedCount).toBe(1)
       expect(batches[0][0]).toMatchObject({ title: 'Imported', content: 'Imported content' })
       expect(Number.isFinite(batches[0][0].createdAt)).toBe(true)
@@ -316,7 +284,6 @@ describe('PromptMigrator', () => {
       expect(result.success).toBe(false)
       expect(result.error).toBe('read error')
       expect(result.warnings).toBeUndefined()
-      expect(result.userWarnings).toBeUndefined()
     })
   })
 
@@ -475,13 +442,9 @@ describe('PromptMigrator', () => {
       const batches = captureInsertedRows(ctx)
       const migrator = new PromptMigrator()
 
-      const prepareResult = await migrator.prepare(ctx)
+      await migrator.prepare(ctx)
       const executeResult = await migrator.execute(ctx)
 
-      expect(warningMessages(prepareResult)).toContain(
-        'Quick phrases given new IDs because IDs were missing or invalid: 2'
-      )
-      expect(warningMessages(prepareResult)).toContain('Quick phrase titles normalized to the V2 prompt contract: 2')
       expect(executeResult).toMatchObject({ success: true, processedCount: 2 })
       expect(new Set(batches[0].map((row) => row.id)).size).toBe(2)
       expect(batches[0].every((row) => PromptIdSchema.safeParse(row.id).success)).toBe(true)
@@ -543,7 +506,6 @@ describe('PromptMigrator', () => {
       const executeResult = await migrator.execute(ctx)
 
       expect(prepareResult.itemCount).toBe(1)
-      expect(warningMessages(prepareResult)).toContain('Duplicate quick phrases skipped: 1')
       expect(executeResult.processedCount).toBe(1)
       expect(batches[0]).toHaveLength(1)
     })
@@ -571,8 +533,6 @@ describe('PromptMigrator', () => {
       const executeResult = await migrator.execute(ctx)
 
       expect(prepareResult.itemCount).toBe(2)
-      expect(warningMessages(prepareResult)).toContain('Conflicting quick phrase IDs reassigned: 1')
-      expect(warningMessages(prepareResult)).toContain('Duplicate quick phrases skipped: 1')
       expect(executeResult.processedCount).toBe(2)
       expect(batches[0].map((row) => row.content)).toEqual(['global content', 'assistant content'])
       expect(batches[0][0].id).toBe(legacyId)

@@ -12,11 +12,11 @@ Prompt Management is now a single SQLite-backed prompt list with title and conte
 
 ## Why this matters to the user
 
-Users will see the Quick Phrase settings entry replaced by Prompt Management, and prompt insertion from the Quick Panel now reads from the unified prompt list. Assistant-specific regular phrases whose content satisfies the v2 prompt limits remain available there as global prompts; their former assistant association is not preserved. Empty or over-limit content is skipped, and malformed legacy phrase containers are reported instead of silently ignored. The localized migration completion screen reports the first affected source paths.
+Users will see the Quick Phrase settings entry replaced by Prompt Management, and prompt insertion from the Quick Panel now reads from the unified prompt list. Assistant-specific regular phrases whose content satisfies the v2 prompt limits remain available there as global prompts; their former assistant association is not preserved. Empty or over-limit content is skipped.
 
 ## What the user should do
 
-Migration is automatic. Review the unified Prompt Management list after upgrading if you want to reorder prompts that previously belonged to different assistants. If the completion screen reports skipped phrases, use the listed source paths to identify and recreate or shorten them from your backup.
+Migration is automatic. Review the unified Prompt Management list after upgrading if you want to reorder prompts that previously belonged to different assistants.
 
 ## Notes for release manager
 

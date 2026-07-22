@@ -42,7 +42,6 @@ const migrationHookMock = vi.hoisted(() => ({
     migrators: unknown[]
     overallProgress: number
     stage: string
-    warnings?: Array<string | { key: string; params?: Record<string, string | number>; defaultValue: string }>
   }
 }))
 
@@ -344,28 +343,6 @@ describe('MigrationApp', () => {
     render(<MigrationApp />)
 
     expect(screen.queryByText('migration.introduction.data_location')).not.toBeInTheDocument()
-  })
-
-  it('translates structured completion warnings while preserving legacy warning text', () => {
-    migrationHookMock.progress = {
-      currentMessage: 'Complete',
-      migrators: [],
-      overallProgress: 100,
-      stage: 'completed',
-      warnings: [
-        'legacy warning',
-        {
-          key: 'migration.completed.warnings.prompt.repaired_timestamps',
-          params: { count: 2 },
-          defaultValue: 'Quick phrase timestamps repaired: 2'
-        }
-      ]
-    }
-
-    render(<MigrationApp />)
-
-    expect(screen.getByText('legacy warning')).toBeInTheDocument()
-    expect(screen.getByText('migration.completed.warnings.prompt.repaired_timestamps')).toBeInTheDocument()
   })
 
   it('runs the exporters and hands off to startMigration from the introduction Start button', async () => {

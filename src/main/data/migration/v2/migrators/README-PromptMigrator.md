@@ -42,15 +42,15 @@ This keeps the existing global migration order stable and deterministically appe
 The v1 Redux state can contain the same assistant data in multiple slots, especially the default assistant.
 
 - Same ID, title, and content: keep the first row and count later rows as skipped duplicates. Timestamp-only differences do not create another prompt.
-- Same ID but different title or content: preserve both rows. The first row keeps the v1 ID; each later conflicting row receives a new UUID and emits a migration warning.
-- Missing or non-UUID ID: preserve the phrase under a generated UUID and emit a migration warning. Repeated non-empty legacy IDs still participate in duplicate detection before regeneration.
+- Same ID but different title or content: preserve both rows. The first row keeps the v1 ID; each later conflicting row receives a new UUID.
+- Missing or non-UUID ID: preserve the phrase under a generated UUID. Repeated non-empty legacy IDs still participate in duplicate detection before regeneration.
 - Different IDs: preserve both rows even when their title and content match. The migrator does not infer that separately-created user records are duplicates.
 
 Source precedence is global Dexie phrases, `assistants[]`, `presets[]`, then `defaultAssistant`.
 
 ## Validation
 
-A candidate is rejected as invalid when its content cannot satisfy the v2 prompt contract (for example, it is missing, empty, or exceeds the v2 limit), or when an existing `regularPhrases` container is malformed. The localized completion warning includes the first few source paths so affected entries can be located. Missing IDs, invalid IDs, titles, and timestamps are normalized instead of dropping otherwise usable content.
+A candidate is rejected as invalid when its content cannot satisfy the v2 prompt contract (for example, it is missing, empty, or exceeds the v2 limit), or when an existing `regularPhrases` container is malformed. Missing IDs, invalid IDs, titles, and timestamps are normalized instead of dropping otherwise usable content.
 
 Identical rows that reuse an ID are skipped separately as duplicates. A non-array `regularPhrases` value counts as one invalid source container, so it contributes to both `sourceCount` and `skippedCount` instead of disappearing from the migration report.
 

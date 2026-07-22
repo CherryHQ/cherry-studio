@@ -17,13 +17,7 @@
 
 import { promptTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
-import type {
-  ExecuteResult,
-  I18nMigrationWarning,
-  PrepareResult,
-  ValidateResult,
-  ValidationError
-} from '@shared/data/migration/v2/types'
+import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
   PROMPT_CONTENT_MAX,
   PROMPT_TITLE_MAX,
@@ -41,7 +35,7 @@ import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('PromptMigrator')
 const INSERT_BATCH_SIZE = 100
-const WARNING_SOURCE_PREVIEW_LIMIT = 5
+const INVALID_SOURCE_PREVIEW_LIMIT = 5
 
 type PromptInsertRow = typeof promptTable.$inferInsert
 
@@ -97,17 +91,12 @@ export class PromptMigrator extends BaseMigrator {
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     try {
-      const userWarnings: I18nMigrationWarning[] = []
       const exists = await ctx.sources.dexieExport.tableExists('quick_phrases')
       let globalPhrases: unknown[] = []
       if (exists) {
         globalPhrases = await ctx.sources.dexieExport.readTable<unknown>('quick_phrases')
       } else {
         logger.info('quick_phrases table not found, skipping')
-        userWarnings.push({
-          key: 'migration.completed.warnings.prompt.quick_phrases_missing',
-          defaultValue: 'The global quick phrase table was not found; that source was skipped.'
-        })
       }
 
       // Keep the existing global prompt order stable. Assistant arrays already use
@@ -142,7 +131,7 @@ export class PromptMigrator extends BaseMigrator {
           : normalizeLegacyPhrase(candidate.phrase, fallbackTimestamp)
         if (!normalized.success) {
           invalidCount++
-          appendWarningDetail(invalidDetails, candidate.source, normalized.reason)
+          appendInvalidDetail(invalidDetails, candidate.source, normalized.reason)
           continue
         }
 
@@ -200,48 +189,9 @@ export class PromptMigrator extends BaseMigrator {
 
       if (invalidCount > 0) {
         logger.warn('Skipped invalid quick phrases', { skipped: invalidCount, sources: invalidDetails })
-        const sources = invalidDetails.map((detail) => detail.source).join(', ')
-        userWarnings.push({
-          key: 'migration.completed.warnings.prompt.invalid_phrases',
-          params: { count: invalidCount, sources },
-          defaultValue: `Invalid quick phrases skipped: ${invalidCount}; first sources: ${sources}`
-        })
       }
       if (duplicateCount > 0) {
         logger.info('Skipped duplicate quick phrases', { skipped: duplicateCount })
-        userWarnings.push({
-          key: 'migration.completed.warnings.prompt.duplicate_phrases',
-          params: { count: duplicateCount },
-          defaultValue: `Duplicate quick phrases skipped: ${duplicateCount}`
-        })
-      }
-      if (reassignedIdCount > 0) {
-        userWarnings.push({
-          key: 'migration.completed.warnings.prompt.reassigned_ids',
-          params: { count: reassignedIdCount },
-          defaultValue: `Conflicting quick phrase IDs reassigned: ${reassignedIdCount}`
-        })
-      }
-      if (regeneratedIdCount > 0) {
-        userWarnings.push({
-          key: 'migration.completed.warnings.prompt.regenerated_ids',
-          params: { count: regeneratedIdCount },
-          defaultValue: `Quick phrases given new IDs because IDs were missing or invalid: ${regeneratedIdCount}`
-        })
-      }
-      if (normalizedTitleCount > 0) {
-        userWarnings.push({
-          key: 'migration.completed.warnings.prompt.normalized_titles',
-          params: { count: normalizedTitleCount },
-          defaultValue: `Quick phrase titles normalized to the V2 prompt contract: ${normalizedTitleCount}`
-        })
-      }
-      if (normalizedTimestampCount > 0) {
-        userWarnings.push({
-          key: 'migration.completed.warnings.prompt.repaired_timestamps',
-          params: { count: normalizedTimestampCount },
-          defaultValue: `Quick phrase timestamps repaired: ${normalizedTimestampCount}`
-        })
       }
 
       logger.info('Prepared prompt migration', {
@@ -256,8 +206,7 @@ export class PromptMigrator extends BaseMigrator {
 
       return {
         success: true,
-        itemCount: this.promptCount,
-        userWarnings: userWarnings.length > 0 ? userWarnings : undefined
+        itemCount: this.promptCount
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -514,8 +463,8 @@ function truncateAtCodePointBoundary(value: string, maxLength: number): string {
   return splitsSurrogatePair ? bounded.slice(0, -1) : bounded
 }
 
-function appendWarningDetail(details: InvalidPhraseDetail[], source: string, reason: string): void {
-  if (details.length < WARNING_SOURCE_PREVIEW_LIMIT) details.push({ source, reason })
+function appendInvalidDetail(details: InvalidPhraseDetail[], source: string, reason: string): void {
+  if (details.length < INVALID_SOURCE_PREVIEW_LIMIT) details.push({ source, reason })
 }
 
 function getPromptContractErrors(row: {

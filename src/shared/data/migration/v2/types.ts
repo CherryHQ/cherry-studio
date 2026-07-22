@@ -22,14 +22,6 @@ export interface I18nMessage {
   params?: Record<string, string | number>
 }
 
-export interface I18nMigrationWarning extends I18nMessage {
-  /** Fallback text for logs or clients that do not have the translation key yet. */
-  defaultValue: string
-}
-
-/** Completion warnings support legacy raw text and renderer-localized messages during migration. */
-export type MigrationWarning = string | I18nMigrationWarning
-
 // Completion-screen summary stats (display metadata only, derived on success)
 export interface MigrationSummary {
   completedMigrators: number
@@ -49,7 +41,7 @@ export interface MigrationProgress {
   migrators: MigratorProgress[]
   error?: string
   /** Non-fatal diagnostics aggregated across migrators, surfaced on the completion screen */
-  warnings?: MigrationWarning[]
+  warnings?: string[]
   /** Completion-screen summary stats; written only on successful completion */
   summary?: MigrationSummary
   /**
@@ -65,12 +57,9 @@ export interface MigrationProgress {
 export interface PrepareResult {
   success: boolean
   itemCount: number
-  /** Fatal reason when `success === false`. Non-fatal diagnostics belong in a warning field. */
+  /** Fatal reason when `success === false`. Non-fatal diagnostics belong in `warnings`. */
   error?: string
-  /** Legacy prepare diagnostics: logged on success and used as a fallback failure reason. */
   warnings?: string[]
-  /** Non-fatal notices safe for user display and translated by the renderer. */
-  userWarnings?: I18nMigrationWarning[]
 }
 
 // Execute phase result
@@ -113,7 +102,7 @@ export interface MigratorResult {
   duration: number
   error?: string
   /** Non-fatal diagnostics from prepare + execute, surfaced in the migration report */
-  warnings?: MigrationWarning[]
+  warnings?: string[]
 }
 
 // Overall migration result

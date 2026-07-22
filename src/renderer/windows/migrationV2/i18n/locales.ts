@@ -108,18 +108,7 @@ export const zhCN = {
       items_label: '迁移项',
       duration_label: '迁移耗时',
       warning_heading: '{{count}} 条迁移提示',
-      warning_description: '数据已迁移完成，但以下内容需要注意。',
-      warnings: {
-        prompt: {
-          quick_phrases_missing: '未找到全局快捷短语数据表，已跳过该来源。',
-          invalid_phrases: '已跳过 {{count}} 条无效快捷短语；首批来源：{{sources}}',
-          duplicate_phrases: '已跳过 {{count}} 条重复快捷短语。',
-          reassigned_ids: '已为 {{count}} 条 ID 冲突的快捷短语重新分配 ID。',
-          regenerated_ids: '已为 {{count}} 条 ID 缺失或无效的快捷短语生成新 ID。',
-          normalized_titles: '已按 V2 提示词规范修正 {{count}} 个快捷短语标题。',
-          repaired_timestamps: '已修复 {{count}} 条快捷短语的时间戳。'
-        }
-      }
+      warning_description: '数据已迁移完成，但以下内容需要注意。'
     },
     error: {
       title: '迁移失败',
@@ -247,18 +236,7 @@ export const enUS = {
       items_label: 'Migration items',
       duration_label: 'Migration time',
       warning_heading: '{{count}} migration notice(s)',
-      warning_description: 'Migration completed, but the following items need attention.',
-      warnings: {
-        prompt: {
-          quick_phrases_missing: 'The global quick phrase table was not found; that source was skipped.',
-          invalid_phrases: 'Invalid quick phrases skipped: {{count}}; first sources: {{sources}}',
-          duplicate_phrases: 'Duplicate quick phrases skipped: {{count}}.',
-          reassigned_ids: 'Conflicting quick phrase IDs reassigned: {{count}}.',
-          regenerated_ids: 'Quick phrases given new IDs because IDs were missing or invalid: {{count}}.',
-          normalized_titles: 'Quick phrase titles normalized to the V2 prompt contract: {{count}}.',
-          repaired_timestamps: 'Quick phrase timestamps repaired: {{count}}.'
-        }
-      }
+      warning_description: 'Migration completed, but the following items need attention.'
     },
     error: {
       title: 'Migration Failed',
