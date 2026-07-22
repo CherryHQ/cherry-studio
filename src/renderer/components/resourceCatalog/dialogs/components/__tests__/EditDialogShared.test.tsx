@@ -1,6 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -73,7 +73,7 @@ vi.mock('@renderer/ipc', () => ({
 
 import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
 import type { ResourceCreateWizardFormValues } from '../../create/types'
-import { PromptVariablesPopover } from '../EditDialogShared'
+import { PromptVariablesPopover, useDebouncedAutoSave } from '../EditDialogShared'
 
 beforeAll(() => {
   HTMLElement.prototype.scrollIntoView = () => {}
@@ -224,5 +224,65 @@ describe('EditDialogShared', () => {
 
     expect(screen.queryByText('Knowledge one')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add knowledge base' })).toBeDisabled()
+  })
+})
+
+describe('useDebouncedAutoSave', () => {
+  function deferredOnSave() {
+    const resolvers: Array<() => void> = []
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvers.push(resolve)
+        })
+    )
+    return { onSave, resolvers }
+  }
+
+  it('flushAll keeps saving until an edit made while it awaits an in-flight save is covered', async () => {
+    const { onSave, resolvers } = deferredOnSave()
+    const { result, rerender } = renderHook(
+      ({ changeKey }) => useDebouncedAutoSave({ enabled: true, changeKey, onSave, delay: 60_000 }),
+      { initialProps: { changeKey: 'B' } }
+    )
+
+    let settled = false
+    act(() => {
+      void result.current.flushAll().then(() => {
+        settled = true
+      })
+    })
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(result.current.hasInFlightSave()).toBe(true)
+
+    // The state moves on while flushAll awaits the first save; the new key only
+    // re-arms the debounce timer and never joins the awaited promise.
+    rerender({ changeKey: 'C' })
+
+    resolvers[0]?.()
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
+    expect(settled).toBe(false)
+
+    resolvers[1]?.()
+    await waitFor(() => expect(settled).toBe(true))
+    expect(result.current.hasInFlightSave()).toBe(false)
+  })
+
+  it('flushAll settles with the in-flight save when the key has not moved on', async () => {
+    const { onSave, resolvers } = deferredOnSave()
+    const { result } = renderHook(() => useDebouncedAutoSave({ enabled: true, changeKey: 'B', onSave, delay: 60_000 }))
+
+    let settled = false
+    act(() => {
+      void result.current.flushAll().then(() => {
+        settled = true
+      })
+    })
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    resolvers[0]?.()
+    await waitFor(() => expect(settled).toBe(true))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(result.current.hasInFlightSave()).toBe(false)
   })
 })

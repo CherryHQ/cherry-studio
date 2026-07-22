@@ -123,9 +123,11 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
  * save is in flight, a single follow-up pass is queued and runs (with the latest
  * `onSave`) once the current save settles — so the last edit is never dropped.
  *
- * Returns a controller whose `flush()` runs/awaits the serialized save
- * immediately and whose `hasInFlightSave()` synchronously reports whether the
- * queue is active. Close paths use both to persist edits made during a save.
+ * Returns a controller whose `flushAll()` runs the serialized save until the
+ * queue is genuinely quiescent — the latest `changeKey` is either null or
+ * covered by a settled save — and whose `hasInFlightSave()` synchronously
+ * reports whether the queue is active. Close paths use both to persist edits
+ * made during a save, including edits made while the close itself is waiting.
  */
 export function useDebouncedAutoSave({
   enabled,
@@ -137,7 +139,7 @@ export function useDebouncedAutoSave({
   changeKey: string | null
   onSave: () => void | Promise<void>
   delay?: number
-}): { flush: () => Promise<void>; hasInFlightSave: () => boolean } {
+}): { flushAll: () => Promise<void>; hasInFlightSave: () => boolean } {
   const onSaveRef = useRef(onSave)
   const changeKeyRef = useRef(changeKey)
   const savingRef = useRef(false)
@@ -174,6 +176,19 @@ export function useDebouncedAutoSave({
     return inFlightRef.current
   }, [])
 
+  const flushAll = useCallback(async (): Promise<void> => {
+    // An edit made while a save settles only re-arms the debounce timer — it
+    // never joins the promise a single flush() awaits — so one await is not
+    // enough: keep flushing until the latest key is covered by a settled save.
+    // A failed save also counts as covered (savedKey keeps the attempted key),
+    // so a persistent failure cannot loop here; callers surface it instead.
+    for (;;) {
+      await flush()
+      if (savingRef.current) continue
+      if (changeKeyRef.current === null || changeKeyRef.current === savedKeyRef.current) return
+    }
+  }, [flush])
+
   const hasInFlightSave = useCallback(() => savingRef.current, [])
 
   useEffect(() => {
@@ -182,7 +197,7 @@ export function useDebouncedAutoSave({
     return () => clearTimeout(handle)
   }, [enabled, changeKey, delay, flush])
 
-  return { flush, hasInFlightSave }
+  return { flushAll, hasInFlightSave }
 }
 
 const HelpIconButton = ({

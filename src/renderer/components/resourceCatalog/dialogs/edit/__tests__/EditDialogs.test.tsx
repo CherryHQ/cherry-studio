@@ -1456,6 +1456,72 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
+  it('persists an assistant edit made while the close is waiting for an in-flight save', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAssistantMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...ASSISTANT, name: 'First Edit' })
+        })
+    )
+    // Close must actually unmount the dialog like the real parent does — that is
+    // what clears a re-armed debounce timer. A spy-only onOpenChange would leave
+    // the timer running and mask the exact loss this test guards against.
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} onSaved={vi.fn()} />
+    }
+    render(<Host />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'First Edit' } })
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+
+    // Request close first, then edit while the close waits on the in-flight save.
+    // The late edit only re-arms the debounce timer — it never joins the awaited
+    // promise — so the close must keep flushing until the queue is quiescent.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.change(nameInput, { target: { value: 'Late Edit' } })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    resolveFirstSave?.()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+      body: expect.objectContaining({ name: 'Late Edit' })
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('persists an agent edit made while the close is waiting for an in-flight save', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First Edit' })
+        })
+    )
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} onSaved={vi.fn()} />
+    }
+    render(<Host />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'First Edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.change(nameInput, { target: { value: 'Late Edit' } })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    resolveFirstSave?.()
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock).toHaveBeenNthCalledWith(2, {
+      body: expect.objectContaining({ name: 'Late Edit' })
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
   it('keeps the dialog open with a visible error when the save on close fails', async () => {
     updateAssistantMock.mockRejectedValue(new Error('Network down'))
     const onOpenChange = vi.fn()
