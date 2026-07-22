@@ -585,6 +585,29 @@ describe('MigrationIpcHandler', () => {
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
     })
 
+    it('continues waiting for a migration after the diagnostic save grace period', async () => {
+      vi.useFakeTimers()
+      try {
+        let resolveRun!: (result: MigrationResult) => void
+        engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
+
+        const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+        await Promise.resolve()
+
+        expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(windowConfirmQuitMock).not.toHaveBeenCalled()
+
+        resolveRun({ success: true, totalDuration: 1, migratorResults: [] })
+        await migrationFlow
+        await vi.runAllTimersAsync()
+
+        expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('does not register a second deferred quit on repeated confirmation', async () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
@@ -656,6 +679,41 @@ describe('MigrationIpcHandler', () => {
       await tick()
 
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('quits after the diagnostic save grace period when the save never settles', async () => {
+      vi.useFakeTimers()
+      try {
+        diagnosticSaveDialogMock.mockImplementation(() => new Promise(() => undefined))
+
+        void invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+        await Promise.resolve()
+
+        expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
+        await vi.advanceTimersByTimeAsync(29_999)
+        expect(windowConfirmQuitMock).not.toHaveBeenCalled()
+
+        await vi.advanceTimersByTimeAsync(1)
+        expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('registers only one diagnostic save grace period on repeated confirmation', async () => {
+      vi.useFakeTimers()
+      try {
+        diagnosticSaveDialogMock.mockImplementation(() => new Promise(() => undefined))
+
+        void invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+        await Promise.resolve()
+
+        expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
+        expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
+        expect(vi.getTimerCount()).toBe(1)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('rejects a new diagnostic save after quit has been scheduled', async () => {

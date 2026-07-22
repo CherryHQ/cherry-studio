@@ -141,6 +141,28 @@ describe('migrationDiagnosticDialogs', () => {
     expect(showMessageBoxMock.mock.calls[1]?.[0].buttons).toEqual(['保存诊断包', '重试', '使用默认目录', '退出'])
   })
 
+  it('falls back to the original failure dialog when the diagnostic-enhanced dialog fails', async () => {
+    showMessageBoxMock
+      .mockRejectedValueOnce(new Error('diagnostic dialog unavailable'))
+      .mockResolvedValueOnce({ response: 1 } as never)
+
+    const failure = {
+      type: 'warning' as const,
+      title: 'Original title',
+      message: 'Original message',
+      detail: 'Original detail',
+      buttons: ['Retry', 'Use Default Directory', 'Quit'],
+      defaultId: 0,
+      cancelId: 2
+    }
+
+    const result = await presentMigrationDiagnosticFailure({ locale: 'en-US', context, failure })
+
+    expect(result).toBe(1)
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(2)
+    expect(showMessageBoxMock.mock.calls[1]?.[0]).toEqual(failure)
+  })
+
   it('shows the unified success notice and then returns only an original decision', async () => {
     showMessageBoxMock.mockResolvedValueOnce({ response: 0 } as never).mockResolvedValueOnce({ response: 1 } as never)
     showSaveDialogMock.mockResolvedValue({ canceled: false, filePath: '/chosen/diagnostics.zip' } as never)

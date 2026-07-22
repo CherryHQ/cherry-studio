@@ -78,10 +78,10 @@ The application never uploads, attaches, emails, or otherwise sends the bundle a
 user must inspect it and attach it manually. A final compressed ZIP strictly larger than 15 MiB is
 still saved and only triggers advice to use an email large-attachment or cloud-storage feature.
 
-Renderer diagnostic commands carry no paths or file content. Main serializes save requests, waits
-for an active save before quitting, remembers only the most recently saved bundle path, and owns the
-fixed support address and prefilled `mailto:` URL. After saving, the user can open the email client,
-reveal the ZIP in its folder, or copy the support address.
+Renderer diagnostic commands carry no paths or file content. Main serializes save requests, gives
+an active save up to 30 seconds to settle before quitting, remembers only the most recently saved
+bundle path, and owns the fixed support address and prefilled `mailto:` URL. After saving, the user
+can open the email client, reveal the ZIP in its folder, or copy the support address.
 
 ## Version Compatibility Gate
 

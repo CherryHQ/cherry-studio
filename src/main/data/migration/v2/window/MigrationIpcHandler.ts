@@ -31,14 +31,15 @@ import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
+const DIAGNOSTIC_SAVE_QUIT_GRACE_MS = 30_000
 
 let inFlightMigration: Promise<MigrationResult> | null = null
 let diagnosticSaveInFlight: Promise<MigrationDiagnosticSaveResult> | null = null
 let lastSavedDiagnosticBundlePath: string | null = null
 let currentDiagnosticError: MigrationDiagnosticError | undefined
 let diagnosticStateEpoch = 0
-// Set once a deferred quit has been registered, so repeated confirmations while a migration
-// write is in flight don't stack a second allSettled().then(confirmQuit).
+// Set once a deferred quit has been registered, so repeated confirmations while a protected
+// operation is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
 
 // Current migration progress
@@ -391,32 +392,51 @@ function createRendererDiagnosticContext(): MigrationDiagnosticContext {
   }
 }
 
+function waitForDiagnosticSaveBeforeQuit(save: Promise<MigrationDiagnosticSaveResult>): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      resolve()
+    }
+    const timeout = setTimeout(() => {
+      logger.warn('Diagnostic bundle save exceeded the quit grace period; continuing quit')
+      finish()
+    }, DIAGNOSTIC_SAVE_QUIT_GRACE_MS)
+    timeout.unref?.()
+
+    void save.then(finish, finish)
+  })
+}
+
 /**
- * Request an app quit. If a migration write is still in flight, defer the quit until it settles so
- * we never terminate mid-write (which would leave a half-applied migration). Returns true when
- * quitting immediately, false when deferred.
+ * Request an app quit. Migration writes remain an unbounded hard wait so we never terminate with a
+ * half-applied migration. Diagnostic saves get a bounded grace period because they are optional
+ * support artifacts. Returns true when quitting immediately, false when deferred.
  *
  * Shared by the ConfirmQuit IPC handler (renderer's in-flow dialog) and the window manager's
  * force-quit escape hatch (crash / hang / repeated close), so every quit path inherits the same
  * write-safety. The `quitScheduled` guard dedups repeated triggers into a single deferred quit.
  */
 function requestQuit(): boolean {
+  if (quitScheduled) return false
+
   const pending: Promise<unknown>[] = []
   if (inFlightMigration) pending.push(inFlightMigration)
-  if (diagnosticSaveInFlight) pending.push(diagnosticSaveInFlight)
+  if (diagnosticSaveInFlight) pending.push(waitForDiagnosticSaveBeforeQuit(diagnosticSaveInFlight))
 
   if (pending.length === 0) {
     migrationWindowManager.confirmQuit()
     return true
   }
 
-  if (!quitScheduled) {
-    quitScheduled = true
-    logger.info('Quit requested during an active write; deferring until it settles')
-    void Promise.allSettled(pending).then(() => {
-      migrationWindowManager.confirmQuit()
-    })
-  }
+  quitScheduled = true
+  logger.info('Quit requested during an active protected operation; deferring')
+  void Promise.allSettled(pending).then(() => {
+    migrationWindowManager.confirmQuit()
+  })
   return false
 }
 
