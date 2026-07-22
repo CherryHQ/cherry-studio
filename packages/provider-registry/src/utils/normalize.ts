@@ -104,6 +104,15 @@ const PROTECTED_COMPOUND_PREFIXES = ['non', 'no', 'pre', 'anti', 'post']
 
 const PARAMETER_SIZE_PATTERN = /-(\d+(?:\.\d+)?b)(?=-|$)/i
 
+// A COLON-delimited parameter-size or quantization tag — the registry-tag (OCI/Docker-style)
+// counterpart to the hyphen `-7b` size and `-fp8` quant handling: `<name>:<size>[-<variant>][-<quant>]`
+// or a bare quant tag names the same logical model at a different build. Local runners emit these
+// (e.g. `qwen2.5:7b`, `gpt-oss:20b`, `mixtral:8x7b`, `llama3.2:30b-a3b-q4_K_M`, `gemma3:q8_0`), but the
+// rule is provider-agnostic. Only a size/quant LEADER matches, so word tags like `:free`/`:thinking`
+// still route through the explicit COLON_VARIANT_SUFFIXES allowlist, and a Bedrock revision (`:0`) is
+// left for stripBedrockRevision. Applied to the suffix WITHOUT its leading colon.
+const COLON_VARIANT_TAG_PATTERN = /^(?:\d+(?:[.x]\d+)*b(?:$|[-.])|q\d|iq\d|fp16|bf16|f16)/i
+
 // Quantization markers denote the same logical model at a different precision
 // (e.g. `glm-4-5-fp8` is `glm-4-5`). Stripping them lets the resolver collapse
 // the redundant spellings a provider might return.
@@ -210,7 +219,7 @@ export function stripVariantSuffixes(
   const colonIdx = modelId.lastIndexOf(':')
   if (colonIdx > 0) {
     const suffix = modelId.slice(colonIdx)
-    if (colonSuffixes.includes(suffix)) {
+    if (colonSuffixes.includes(suffix) || COLON_VARIANT_TAG_PATTERN.test(suffix.slice(1))) {
       return modelId.slice(0, colonIdx)
     }
   }

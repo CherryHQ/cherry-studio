@@ -160,4 +160,22 @@ describe('normalizeModelId — spelling variants collapse to one canonical', () 
     expect(normalizeModelId('hunyuan-turbos-20250716')).toBe(canonical)
     expect(normalizeModelId('claude-sonnet-4-5-20250929')).toBe(normalizeModelId('claude-sonnet-4-5'))
   })
+
+  it('strips a colon-delimited size/quant tag so registry-tagged ids match the catalog', () => {
+    // The `:tag` encodes size/quant, not identity; the catalog id never has it. Local runners such as
+    // Ollama emit this form (`qwen2.5:7b`, `gpt-oss:20b`), but the rule is provider-agnostic.
+    expect(normalizeModelId('gpt-oss:20b')).toBe(normalizeModelId('gpt-oss-20b'))
+    expect(normalizeModelId('qwen2.5:7b')).toBe(normalizeModelId('qwen2-5'))
+    expect(normalizeModelId('mixtral:8x7b')).toBe(normalizeModelId('mixtral'))
+    // compound size + variant + quant tag, and a bare quantization tag
+    expect(normalizeModelId('llama3.2:30b-a3b-q4_K_M')).toBe(normalizeModelId('llama3.2'))
+    expect(normalizeModelId('gemma3:q8_0')).toBe(normalizeModelId('gemma3'))
+  })
+
+  it('does NOT strip a bedrock revision or a non-size word tag as if it were a size', () => {
+    // `:0` is a bedrock revision (handled by stripBedrockRevision), not an Ollama size tag.
+    expect(stripVariantSuffixes('some-model:0')).toBe('some-model:0')
+    // a word after the colon is not a size/quant leader, so this pass leaves it for the allowlist.
+    expect(stripVariantSuffixes('some-model:custom')).toBe('some-model:custom')
+  })
 })
