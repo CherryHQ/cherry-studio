@@ -209,7 +209,14 @@ export class TopicService {
           ownerFilter,
           isNull(topicTable.activeNodeId),
           eq(topicTable.isNameManuallyEdited, false),
-          sql`trim(${topicTable.name}) = ''`
+          sql`trim(${topicTable.name}) = ''`,
+          sql`not exists (
+            select 1
+            from ${messageTable}
+            where ${messageTable.topicId} = ${topicTable.id}
+              and ${messageTable.parentId} is not null
+              and ${messageTable.deletedAt} is null
+          )`
         )
       )
       .orderBy(desc(topicTable.createdAt), desc(topicTable.updatedAt), asc(topicTable.id))

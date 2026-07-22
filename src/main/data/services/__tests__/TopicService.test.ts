@@ -1780,6 +1780,42 @@ describe('TopicService', () => {
   })
 
   describe('getReusablePlaceholder', () => {
+    it('does not reuse a blank topic with content when its active node is unset', async () => {
+      const assistantId = '11111111-1111-4111-8111-111111111111'
+      await dbh.db.insert(assistantTable).values({
+        id: assistantId,
+        name: 'Reusable owner',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(topicTable).values({
+        id: 'blank-with-content',
+        name: '',
+        assistantId,
+        orderKey: 'a0',
+        createdAt: 10,
+        updatedAt: 10
+      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('blank-with-content', [
+          {
+            id: 'existing-user-message',
+            parentId: null,
+            topicId: 'blank-with-content',
+            role: 'user',
+            data: { parts: [{ type: 'text', text: 'Hello' }] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 10,
+            updatedAt: 10
+          }
+        ])
+      )
+
+      expect(topicService.getReusablePlaceholder({ assistantId })).toBeNull()
+    })
+
     it('selects the newest exact empty owner target independently of list position and pin state', async () => {
       await dbh.db.insert(assistantTable).values([
         {
