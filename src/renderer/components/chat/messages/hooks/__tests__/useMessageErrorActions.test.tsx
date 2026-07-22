@@ -5,7 +5,8 @@ import type { MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
   cache: new Map<string, unknown>(),
-  classifyErrorByAI: vi.fn()
+  classifyErrorByAI: vi.fn(),
+  showErrorDetailPopup: vi.fn()
 }))
 
 vi.mock('@data/CacheService', () => ({
@@ -24,7 +25,7 @@ vi.mock('@renderer/utils/errorDiagnosis', () => ({
 }))
 
 vi.mock('@renderer/components/ErrorDetailModal', () => ({
-  showErrorDetailPopup: vi.fn()
+  showErrorDetailPopup: mocks.showErrorDetailPopup
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -62,5 +63,27 @@ describe('useMessageErrorActions', () => {
       result.current.diagnoseMessageError?.({ message, partId: 'part-1', error, language: 'en-US' })
     ).resolves.toBe('retry succeeded')
     expect(mocks.classifyErrorByAI).toHaveBeenCalledTimes(2)
+  })
+
+  it('forwards the message topic so Agent diagnosis uses Agent-session storage', () => {
+    const message = {
+      id: 'message-1',
+      role: 'assistant',
+      topicId: 'agent-session:session-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'error'
+    } satisfies MessageListItem
+    const error = { message: 'runtime failed', name: 'AgentRuntimeError', stack: '' }
+    const { result } = renderHook(() => useMessageErrorActions())
+
+    void result.current.openErrorDetail?.({ message, partId: 'message-1-part-0', error })
+
+    expect(mocks.showErrorDetailPopup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        blockId: 'message-1-part-0',
+        error,
+        messageTopicId: 'agent-session:session-1'
+      })
+    )
   })
 })

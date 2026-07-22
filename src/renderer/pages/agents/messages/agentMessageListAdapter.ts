@@ -34,6 +34,7 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   consumePendingAgentSessionImageActions,
@@ -42,6 +43,35 @@ import {
 } from './agentSessionImageActionBus'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
+
+function withTerminalErrorFallback(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>,
+  noResponseMessage: string
+): Record<string, CherryMessagePart[]> {
+  let next = partsByMessageId
+
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue
+    const status = message.metadata?.status
+    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const needsFallback =
+      (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
+      (status === 'success' && parts.length === 0)
+    if (!needsFallback) continue
+
+    if (next === partsByMessageId) next = { ...partsByMessageId }
+    next[message.id] = [
+      ...parts,
+      {
+        type: 'data-error',
+        data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }
+      }
+    ]
+  }
+
+  return next
+}
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
   const runtime = agentMessageListRuntimes.get(topicId)
@@ -113,6 +143,7 @@ export function useAgentMessageListProviderValue({
   workspacePath
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -124,14 +155,18 @@ export function useAgentMessageListProviderValue({
       }
     >()
   )
+  const displayPartsByMessageId = useMemo(
+    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
+    [messages, partsByMessageId, t]
+  )
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
-        const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+        const parts = displayPartsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
         if (parts.length === 0) return true
         return parts.some((part) => !hasPartParentToolCallId(part))
       }),
-    [messages, partsByMessageId]
+    [displayPartsByMessageId, messages]
   )
   const messageItems = useMemo(() => {
     const resolvedAssistantId = assistantId ?? topic.assistantId
@@ -154,19 +189,19 @@ export function useAgentMessageListProviderValue({
     })
   }, [assistantId, visibleMessages, topic.assistantId, topic.id])
 
-  const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
+  const getMessageActivityState = useMessageActivityState(topic.id, displayPartsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
+  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId: displayPartsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const selectionController = useMessageSelectionController({
     topicId: topic.id,
     messages: messageItems,
-    partsByMessageId,
+    partsByMessageId: displayPartsByMessageId,
     deleteMessage,
     saveTextFile: exportActions.saveTextFile,
     copyRichContent: leafCapabilities.copyRichContent
@@ -274,7 +309,7 @@ export function useAgentMessageListProviderValue({
     () => ({
       topic,
       messages: messageItems,
-      partsByMessageId,
+      partsByMessageId: displayPartsByMessageId,
       streamingLayers,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
@@ -301,7 +336,7 @@ export function useAgentMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
-      partsByMessageId,
+      displayPartsByMessageId,
       renderConfig,
       selectionController.selection,
       streamingLayers,

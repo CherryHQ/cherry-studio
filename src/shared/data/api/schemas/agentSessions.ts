@@ -84,6 +84,11 @@ export const CreateAgentSessionMessagesSchema = z.strictObject({
 })
 export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMessagesSchema>
 
+export const UpdateAgentSessionMessageSchema = z.strictObject({
+  data: MessageDataSchema
+})
+export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMessageSchema>
+
 /**
  * Session name validator. Empty is allowed for an untitled placeholder session,
  * and the length is capped at 255 — matching topic.name semantics
@@ -262,6 +267,15 @@ export type AgentSessionSchemas = {
   }
 
   '/agent-sessions/:sessionId/messages/:messageId': {
+    GET: {
+      params: { sessionId: string; messageId: string }
+      response: AgentSessionMessageEntity
+    }
+    PATCH: {
+      params: { sessionId: string; messageId: string }
+      body: UpdateAgentSessionMessageDto
+      response: AgentSessionMessageEntity
+    }
     DELETE: {
       params: { sessionId: string; messageId: string }
       response: void

@@ -37,7 +37,8 @@ export function useMessageErrorActions(): MessageErrorActions {
       error: input.error,
       blockId: input.partId,
       cachedDiagnosis: input.cachedDiagnosis,
-      diagnosisContext: input.diagnosisContext
+      diagnosisContext: input.diagnosisContext,
+      messageTopicId: input.message.topicId
     })
   }, [])
 

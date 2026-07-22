@@ -360,6 +360,60 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
+  it('renders a fallback error for terminal Agent messages without an error part', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const messages = [
+      {
+        id: 'assistant-error',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+      },
+      {
+        id: 'assistant-empty-success',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'success' }
+      },
+      {
+        id: 'assistant-pending',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:02.000Z', status: 'pending' }
+      }
+    ] as CherryUIMessage[]
+    const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId,
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
+  })
+
   it('preserves sealed MessageListItem identities when only the active agent message changes', () => {
     const topic = {
       id: 'agent-session-topic',

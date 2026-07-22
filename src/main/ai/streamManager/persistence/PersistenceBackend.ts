@@ -10,7 +10,12 @@
 
 import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
+import {
+  type AgentTaskEventPartData,
+  type CherryReasoningMeta,
+  readCherryMeta,
+  withCherryMeta
+} from '@shared/data/types/uiParts'
 
 import type { SemanticTimings, TransportTimings } from '../types'
 
@@ -26,7 +31,9 @@ export function finalizeInterruptedParts(
   status: 'success' | 'paused' | 'error'
 ): CherryMessagePart[] {
   if (status === 'success') return parts
-  const reason = status === 'paused' ? 'Interrupted by user' : 'Stream errored before tool completed'
+  const interruptionReason = status === 'paused' ? 'Interrupted by user' : 'Stream errored'
+  const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
+  const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
     if (part.type === 'reasoning') {
       if (part.state === 'streaming') {
@@ -54,10 +61,27 @@ export function finalizeInterruptedParts(
       return part
     }
 
+    if (part.type === 'data-agent-task-event') {
+      const taskPart = part as CherryMessagePart & { data: AgentTaskEventPartData }
+      if (taskPart.data.status !== 'in_progress') return part
+      return {
+        ...taskPart,
+        data: {
+          ...taskPart.data,
+          status: 'error',
+          error: taskPart.data.error ?? taskError
+        }
+      } as CherryMessagePart
+    }
+
     if (!isToolPart(part)) return part
     const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
     if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part
-    return { ...toolPart, state: 'output-error', errorText: toolPart.errorText ?? reason } as CherryMessagePart
+    return {
+      ...toolPart,
+      state: 'output-error',
+      errorText: toolPart.errorText ?? toolError
+    } as CherryMessagePart
   })
 }
 

@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { SerializedError } from '@renderer/types/error'
+import { extractAgentSessionIdFromTopicId, isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { diagnoseError } from '@renderer/utils/errorDiagnosis'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -10,14 +11,22 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
 
-async function persistDiagnosis(partId: string, diagnosis: DiagnosisResult) {
+async function persistDiagnosis(partId: string, diagnosis: DiagnosisResult, messageTopicId?: string) {
   const match = partId.match(/^(.+)-(?:part|block)-(\d+)$/)
   if (!match) return
   const [, messageId, indexStr] = match
   const partIndex = parseInt(indexStr, 10)
+  const agentSessionId =
+    messageTopicId && isAgentSessionTopicId(messageTopicId)
+      ? extractAgentSessionIdFromTopicId(messageTopicId)
+      : undefined
 
   try {
-    const res = (await dataApiService.get(`/messages/${messageId}`)) as { data?: { parts?: CherryMessagePart[] } }
+    const res = (
+      agentSessionId
+        ? await dataApiService.get(`/agent-sessions/${agentSessionId}/messages/${messageId}`)
+        : await dataApiService.get(`/messages/${messageId}`)
+    ) as { data?: { parts?: CherryMessagePart[] } }
     const parts = res.data?.parts
     if (!parts || partIndex < 0 || partIndex >= parts.length) return
 
@@ -36,7 +45,13 @@ async function persistDiagnosis(partId: string, diagnosis: DiagnosisResult) {
       }
     } as CherryMessagePart
     const updatedParts = parts.map((p, i) => (i === partIndex ? updatedPart : p))
-    await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts: updatedParts } } })
+    if (agentSessionId) {
+      await dataApiService.patch(`/agent-sessions/${agentSessionId}/messages/${messageId}`, {
+        body: { data: { parts: updatedParts } }
+      })
+    } else {
+      await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts: updatedParts } } })
+    }
   } catch (err) {
     logger.warn(`Failed to persist diagnosis for ${partId}:`, { error: err })
   }
@@ -62,6 +77,7 @@ const AiDiagnosisSectionWithStatus = memo(
     onStatusChange,
     diagnosisContext,
     blockId,
+    messageTopicId,
     cachedDiagnosis,
     ref
   }: {
@@ -70,6 +86,7 @@ const AiDiagnosisSectionWithStatus = memo(
     onStatusChange: (status: 'idle' | 'loading' | 'done' | 'error') => void
     diagnosisContext?: DiagnosisContext
     blockId?: string
+    messageTopicId?: string
     cachedDiagnosis?: DiagnosisResult
     ref?: React.Ref<AiDiagnosisSectionHandle>
   }) => {
@@ -104,14 +121,14 @@ const AiDiagnosisSectionWithStatus = memo(
         setResult(diagnosis)
         onStatusChange('done')
         if (blockId) {
-          void persistDiagnosis(blockId, diagnosis)
+          void persistDiagnosis(blockId, diagnosis, messageTopicId)
         }
       } catch (err: unknown) {
         if (cancelledRef.current) return
         setDiagError(err instanceof Error ? err.message : 'Diagnosis failed')
         onStatusChange('error')
       }
-    }, [error, i18n.language, onStatusChange, diagnosisContext, blockId])
+    }, [error, i18n.language, onStatusChange, diagnosisContext, blockId, messageTopicId])
 
     React.useImperativeHandle(ref, () => ({ runDiagnosis }), [runDiagnosis])
 

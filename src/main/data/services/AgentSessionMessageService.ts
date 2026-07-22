@@ -14,7 +14,8 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   AgentSessionMessageEntity,
   CreateAgentSessionMessageDto,
-  CreateAgentSessionMessagesDto
+  CreateAgentSessionMessagesDto,
+  UpdateAgentSessionMessageDto
 } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
@@ -216,6 +217,34 @@ export class AgentSessionMessageService {
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
+  }
+
+  getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
+    const database = application.get('DbService').getDb()
+    const row = this.findExistingMessageRow(database, sessionId, messageId)
+    if (!row) throw DataApiErrorFactory.notFound('Message', messageId)
+    return this.rowToEntity(row)
+  }
+
+  updateSessionMessage(
+    sessionId: string,
+    messageId: string,
+    dto: UpdateAgentSessionMessageDto
+  ): AgentSessionMessageEntity {
+    return application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
+
+      const updatedAt = Date.now()
+      const [updated] = tx
+        .update(sessionMessagesTable)
+        .set({ data: dto.data, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .returning()
+        .all()
+      this.touchSessionUpdatedAt(tx, sessionId, updatedAt)
+      return this.rowToEntity(updated)
+    })
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {

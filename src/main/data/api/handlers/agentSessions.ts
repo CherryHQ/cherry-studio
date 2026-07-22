@@ -18,6 +18,7 @@ import {
   DeleteAgentSessionsQuerySchema,
   ListAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
+  UpdateAgentSessionMessageSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -88,6 +89,16 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   },
 
   '/agent-sessions/:sessionId/messages/:messageId': {
+    GET: async ({ params }) => {
+      return agentSessionMessageService.getSessionMessage(params.sessionId, params.messageId)
+    },
+
+    PATCH: async ({ params, body }) => {
+      const parsed = UpdateAgentSessionMessageSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionMessageService.updateSessionMessage(params.sessionId, params.messageId, parsed.data)
+    },
+
     DELETE: async ({ params }) => {
       agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
       return undefined
