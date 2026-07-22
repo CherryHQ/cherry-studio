@@ -417,7 +417,7 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
-  it('renders a fallback error for terminal Agent messages without an error part', () => {
+  it('renders terminal fallbacks in both current and sealed history layers', () => {
     const topic = {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
@@ -444,9 +444,16 @@ describe('useAgentMessageListProviderValue', () => {
         role: 'assistant',
         parts: [],
         metadata: { createdAt: '2026-01-01T00:00:02.000Z', status: 'pending' }
+      },
+      {
+        id: 'assistant-hidden-success',
+        role: 'assistant',
+        parts: [{ type: 'data-agent-task-event', data: {} }],
+        metadata: { createdAt: '2026-01-01T00:00:03.000Z', status: 'success' }
       }
     ] as CherryUIMessage[]
     const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
+    const streamingLayers = { historyPartsByMessageId: partsByMessageId, liveMessageIds: [] }
     let value: MessageListProviderValue | undefined
 
     const Probe = () => {
@@ -454,6 +461,7 @@ describe('useAgentMessageListProviderValue', () => {
         topic,
         messages,
         partsByMessageId,
+        streamingLayers,
         isLoading: false,
         messageNavigation: 'none'
       })
@@ -469,6 +477,18 @@ describe('useAgentMessageListProviderValue', () => {
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
     expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
+    expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
+      expect.objectContaining({ type: 'data-agent-task-event' }),
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hidden-success']).toEqual([
+      expect.objectContaining({ type: 'data-agent-task-event' }),
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.liveMessageIds).toEqual([])
   })
 
   it('preserves sealed MessageListItem identities when only the active agent message changes', () => {

@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
 import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
@@ -59,9 +60,10 @@ function withTerminalErrorFallback(
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
     const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
-      (status === 'success' && parts.length === 0)
+      (status === 'success' && !hasVisiblePart)
     if (!needsFallback) continue
 
     if (next === partsByMessageId) next = { ...partsByMessageId }
@@ -163,6 +165,18 @@ export function useAgentMessageListProviderValue({
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
+  const displayStreamingLayers = useMemo(() => {
+    if (!streamingLayers) return undefined
+
+    const historyPartsByMessageId = withTerminalErrorFallback(
+      messages,
+      streamingLayers.historyPartsByMessageId,
+      t('error.no_response')
+    )
+    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
+
+    return { ...streamingLayers, historyPartsByMessageId }
+  }, [messages, streamingLayers, t])
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
@@ -215,7 +229,10 @@ export function useAgentMessageListProviderValue({
     [sessionId]
   )
   const errorActions = useMessageErrorActions({ persistDiagnosis })
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId: displayPartsByMessageId, streamingLayers })
+  const leafCapabilities = useMessageLeafCapabilities({
+    partsByMessageId: displayPartsByMessageId,
+    streamingLayers: displayStreamingLayers
+  })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
@@ -331,7 +348,7 @@ export function useAgentMessageListProviderValue({
       topic,
       messages: messageItems,
       partsByMessageId: displayPartsByMessageId,
-      streamingLayers,
+      streamingLayers: displayStreamingLayers,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -360,7 +377,7 @@ export function useAgentMessageListProviderValue({
       displayPartsByMessageId,
       renderConfig,
       selectionController.selection,
-      streamingLayers,
+      displayStreamingLayers,
       topic
     ]
   )
