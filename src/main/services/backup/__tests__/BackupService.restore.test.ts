@@ -99,6 +99,20 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       ;(service as unknown as { performRestoreRecovery: () => void }).performRestoreRecovery()
       expect(clearRestoreJournalMock).toHaveBeenCalledTimes(1)
     })
+
+    it('KEEPS a staged journal at boot (genuine pending — gate should have consumed; leave for next boot)', () => {
+      readRestoreJournalMock.mockReturnValue(okJournal('staged'))
+      const service = new BackupService()
+      ;(service as unknown as { performRestoreRecovery: () => void }).performRestoreRecovery()
+      expect(clearRestoreJournalMock).not.toHaveBeenCalled()
+    })
+
+    it('KEEPS a promoting journal at boot (genuine pending)', () => {
+      readRestoreJournalMock.mockReturnValue(okJournal('promoting', 'live-aside'))
+      const service = new BackupService()
+      ;(service as unknown as { performRestoreRecovery: () => void }).performRestoreRecovery()
+      expect(clearRestoreJournalMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('startRestore journal guard (PRIMARY fix path)', () => {
