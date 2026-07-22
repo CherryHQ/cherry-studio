@@ -2,7 +2,7 @@
 title: Conversation and task lists change grouping and sorting
 category: changed
 severity: notice
-introduced_in_pr: "#16998"
+introduced_in_pr: "#17263"
 date: 2026-07-12
 ---
 
