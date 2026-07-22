@@ -250,6 +250,27 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBeUndefined()
     })
 
+    it.each([
+      'meta/llama-4-scout-17b-16e-instruct',
+      'anthropic/claude-3-7-sonnet',
+      'meta/catalog/llama-4-scout-17b-16e-instruct-maas'
+    ])('does not route a non-MaaS slash id (%s) to the google-vertex-maas adapter', async (apiModelId) => {
+      getAuthConfigMock.mockReturnValue(vertexAuth)
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
+        }
+      })
+      const model = makeModel({ id: `vertex::${apiModelId}`, apiModelId })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('google-vertex')
+    })
+
     it('throws when a Vertex-resolved provider lacks iam-gcp auth config', async () => {
       getAuthConfigMock.mockReturnValue(null)
       const provider = makeProvider({

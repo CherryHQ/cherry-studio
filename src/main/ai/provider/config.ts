@@ -32,6 +32,7 @@ import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
+import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 
 interface BaseConfig {
   baseURL: string
@@ -407,26 +408,6 @@ function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
   return { ...base, providerSettings: { ...ctx.baseConfig, baseURL } }
 }
 
-/**
- * Vertex service-account credentials may arrive with either camelCase
- * (`privateKey`/`clientEmail`) or snake_case (`private_key`/`client_email`)
- * keys depending on how the JSON key file was stored. Normalize both shapes to
- * the camelCase form the Vertex SDK expects. Shared with the model-listing path
- * (`createVertexModelListRequest`).
- */
-export function normalizeVertexCredentials(credentials: Record<string, unknown> | undefined): {
-  privateKey?: string
-  clientEmail?: string
-} {
-  if (!credentials) return {}
-  const privateKey = (credentials.privateKey ?? credentials.private_key) as string | undefined
-  const clientEmail = (credentials.clientEmail ?? credentials.client_email) as string | undefined
-  return {
-    ...(privateKey !== undefined && { privateKey }),
-    ...(clientEmail !== undefined && { clientEmail })
-  }
-}
-
 function buildVertexConfig(
   ctx: BuilderContext
 ): ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-maas'> {
@@ -453,9 +434,8 @@ function buildVertexConfig(
   // bakes the publisher prefix in (§listModels/vertex), and that same id is the `model` the
   // OpenAI-compatible endpoint expects. Route them to the dedicated MaaS adapter, which mints
   // the GCP bearer token itself from the iam-gcp credentials.
-  // ponytail: MaaS is detected by the '/' in the id; manually-added MaaS models must be
-  // entered in `publisher/model-maas` form (same convention as OpenRouter ids).
-  if (!isAnthropic && modelId.includes('/')) {
+  // Manually-added MaaS models must use the same `publisher/model-maas` form as listed models.
+  if (!isAnthropic && isVertexMaasModelId(modelId)) {
     return {
       providerId: 'google-vertex-maas',
       endpoint: ctx.endpoint,

@@ -513,6 +513,21 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
     expect(models[0].ownedBy).toBe('meta')
   })
 
+  it('filters non-google publisher models that do not use the MaaS id format', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        publisherModels: [
+          { name: 'publishers/meta/models/llama-4-scout-17b-16e-instruct-maas' },
+          { name: 'publishers/meta/models/llama-3.1-8b-instruct' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeVertexProvider())
+
+    expect(models.map((model) => model.apiModelId)).toEqual(['meta/llama-4-scout-17b-16e-instruct-maas'])
+  })
+
   it('paginates a publisher via nextPageToken', async () => {
     // First call returns a page token; every subsequent call returns a final page.
     aiSdkGetFromApiMock

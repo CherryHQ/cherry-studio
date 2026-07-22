@@ -51,6 +51,7 @@ import {
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
+import { isVertexMaasModelId } from './vertex'
 
 const logger = loggerService.withContext('ModelListService')
 
@@ -281,9 +282,8 @@ const vertexFetcher: ModelFetcher = {
       const ownedBy = getVertexModelPublisher(model.name)
       // MaaS open/partner models (non-google publishers) are served over the OpenAI-compatible
       // endpoint, which requires the `{publisher}/{model}` id form; google's native models
-      // (gemini/gemma/embeddings) keep their bare id. Baking the publisher in here makes the
-      // stored `apiModelId` the exact `model` the request sends, and lets buildVertexConfig
-      // route MaaS by the '/' in the id.
+      // (gemini/gemma/embeddings) keep their bare id. Non-google ids that do not satisfy the
+      // shared MaaS id contract are filtered below.
       const apiModelId = ownedBy === 'google' ? bareId : `${ownedBy}/${bareId}`
       return toModel(apiModelId, provider, {
         name: pickPreferredString([model.displayName, bareId]) || bareId,
@@ -295,7 +295,10 @@ const vertexFetcher: ModelFetcher = {
     // Match against the bare model name (e.g. `gemini-2.0-flash`, `llama-4-scout-…-maas`), not
     // the `provider::model` unique id nor the publisher-prefixed apiModelId — the support
     // patterns are anchored to the model name and would reject either prefixed form.
-    const filteredModels = listedModels.filter((model) => isSupportedVertexPublisherModel(model.apiModelId ?? ''))
+    const filteredModels = listedModels.filter((model) => {
+      const modelId = model.apiModelId ?? ''
+      return isSupportedVertexPublisherModel(modelId) && (model.ownedBy === 'google' || isVertexMaasModelId(modelId))
+    })
 
     if (filteredModels.length !== listedModels.length) {
       logger.info('Filtered unsupported Vertex publisher models from model list', {

@@ -6,7 +6,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { withoutTrailingSlash } from '@shared/utils/api'
 
 import { getBaseUrl } from '../../utils/provider'
-import { normalizeVertexCredentials } from '../config'
+import { normalizeVertexCredentials } from '../vertex'
 
 const logger = loggerService.withContext('ModelListService')
 
