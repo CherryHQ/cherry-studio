@@ -230,24 +230,26 @@ function AssistantEditDialogContent({
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
-  // Tracks whether the most recent save attempt failed, so the close path can
-  // keep the dialog open (and the error visible) instead of closing over a loss.
-  const saveFailedRef = useRef(false)
+  const changeKey = canPersist ? JSON.stringify(values) : null
+  // Tracks the exact form snapshot that failed so the first close keeps the
+  // error visible, while a repeated close can explicitly discard that snapshot.
+  const failedSaveKeyRef = useRef<string | null>(null)
 
   const persist = async () => {
     const pending = saveIntent
     if (!pending) return
+    const attemptedKey = changeKey
 
     form.clearErrors('root')
-    saveFailedRef.current = false
+    failedSaveKeyRef.current = null
 
     let updated: Awaited<ReturnType<typeof updateAssistant>>
     try {
       updated = await updateAssistant(pending.payload)
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
+      failedSaveKeyRef.current = attemptedKey
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
-      saveFailedRef.current = true
       return
     }
 
@@ -264,7 +266,7 @@ function AssistantEditDialogContent({
   // own save (prevents a save→refetch→save loop).
   const flush = useDebouncedAutoSave({
     enabled: open,
-    changeKey: canPersist ? JSON.stringify(values) : null,
+    changeKey,
     onSave: persist
   })
 
@@ -276,9 +278,13 @@ function AssistantEditDialogContent({
       onOpenChange(next)
       return
     }
+    if (failedSaveKeyRef.current === changeKey) {
+      onOpenChange(false)
+      return
+    }
     void (async () => {
       await flush()
-      if (saveFailedRef.current) return
+      if (failedSaveKeyRef.current === changeKey) return
       onOpenChange(false)
     })()
   }
