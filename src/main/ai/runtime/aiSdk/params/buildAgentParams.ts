@@ -94,7 +94,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     selection: request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default',
     model: invocationModel,
     profile: reasoningProfile.wire,
-    maxTokens: request.callOverrides?.maxOutputTokens ?? assistant?.settings.maxTokens,
+    maxTokens: resolveReasoningMaxTokens(request.callOverrides?.maxOutputTokens, assistant, model),
     assistantSummary: provider.settings.summaryText
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
@@ -143,6 +143,19 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     nativeFileSupport,
     fileAttachments
   }
+}
+
+export function resolveReasoningMaxTokens(
+  requestMaxOutputTokens: number | undefined,
+  assistant: Assistant | undefined,
+  model: Model
+): number | undefined {
+  if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
+
+  const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
+  if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
+
+  return model.maxOutputTokens
 }
 
 async function resolveSdkConfig(provider: Provider, model: Model, apiKeyOverride?: string): Promise<SdkConfig> {

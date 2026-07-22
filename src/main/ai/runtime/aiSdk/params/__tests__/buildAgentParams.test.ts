@@ -17,9 +17,30 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { applyCallOverrides, composeStopWhen, resolveKnowledgeBaseIds, resolveTools } = await import(
-  '../buildAgentParams'
-)
+const { applyCallOverrides, composeStopWhen, resolveKnowledgeBaseIds, resolveReasoningMaxTokens, resolveTools } =
+  await import('../buildAgentParams')
+
+describe('resolveReasoningMaxTokens', () => {
+  const model = makeModel({ maxOutputTokens: 64_000 })
+
+  it('ignores a stale assistant limit when max tokens are disabled', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4_096 } })
+
+    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(64_000)
+  })
+
+  it('uses an enabled assistant limit before the model default', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
+
+    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(16_000)
+  })
+
+  it('gives the per-request override highest precedence', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
+
+    expect(resolveReasoningMaxTokens(32_000, assistant, model)).toBe(32_000)
+  })
+})
 
 /**
  * Covers the first-class per-request override merge that replaced the old

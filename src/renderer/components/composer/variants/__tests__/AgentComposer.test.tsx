@@ -639,6 +639,7 @@ describe('AgentComposer', () => {
       }
     }
     mocks.updateModel.mockReset()
+    mocks.updateModel.mockResolvedValue({})
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
     mocks.inputAdapterFocus.mockReset()
@@ -763,7 +764,7 @@ describe('AgentComposer', () => {
     })
   })
 
-  it('reconciles the session reasoning selection immediately when switching models', () => {
+  it('reconciles the session reasoning selection after the model update succeeds', async () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -780,7 +781,31 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('default')
+    await waitFor(() => expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('default'))
+  })
+
+  it('keeps the session reasoning selection when the model update fails', async () => {
+    mocks.updateModel.mockResolvedValueOnce(undefined)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('select model 2'))
+      await Promise.resolve()
+    })
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {

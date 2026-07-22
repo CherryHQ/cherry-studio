@@ -1176,10 +1176,11 @@ const AgentComposerInner = ({
   )
 
   const handleModelSelect = useCallback(
-    (nextModel?: Model) => {
+    async (nextModel?: Model) => {
       if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
+      const updatedAgent = await updateModel(agentId, nextModel.id, { showSuccessToast: false })
+      if (!updatedAgent) return
       setReasoningEffort(resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default')
-      void updateModel(agentId, nextModel.id, { showSuccessToast: false })
     },
     [agentId, canChangeModel, model?.id, reasoningEffort, updateModel]
   )
