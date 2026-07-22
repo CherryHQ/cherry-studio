@@ -253,13 +253,14 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         )}
 
         <DialogFooter>
-          {canCancelExport || phase === 'cancelling' ? (
+          {(phase === 'running' || phase === 'cancelling') && (
             <Button variant="outline" disabled={!canCancelExport} onClick={() => void onCancelExport()}>
               {t('common.cancel')}
             </Button>
-          ) : (
+          )}
+          {(phase === 'idle' || phase === 'selecting-target' || phase === 'starting') && (
             <Button variant="outline" disabled={!canClose} onClick={onClose}>
-              {canClose ? t('common.close') : t('common.cancel')}
+              {t('common.close')}
             </Button>
           )}
           {phase === 'idle' && <Button onClick={() => void onStart()}>{t('backup.confirm.button')}</Button>}

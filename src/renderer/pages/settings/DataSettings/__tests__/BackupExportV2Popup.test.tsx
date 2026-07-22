@@ -162,7 +162,7 @@ describe('BackupExportV2Popup', () => {
     await waitFor(() => {
       expect(screen.getByText('settings.data.backup.v2.export.selecting')).toBeInTheDocument()
     })
-    const closeBtn = screen.getByRole('button', { name: 'common.cancel' })
+    const closeBtn = screen.getByRole('button', { name: 'common.close' })
     expect(closeBtn).toBeDisabled()
 
     resolveSelect(null)
