@@ -51,6 +51,7 @@
     "i18n:all": "pnpm i18n:sync && pnpm i18n:translate",
     "skills:sync": "tsx scripts/skills-sync.ts",
     "skills:check": "tsx scripts/skills-check.ts",
+    "gen:system-provider-ids": "tsx scripts/generate-system-provider-ids.ts",
     "update:languages": "tsx scripts/update-languages.ts",
     "update:upgrade-config": "tsx scripts/update-app-upgrade-config.ts",
     "pretest": "pnpm rebuild:node",
