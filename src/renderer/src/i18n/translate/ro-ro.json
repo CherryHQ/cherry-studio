@@ -5406,6 +5406,14 @@
       "check": "Verifică",
       "check_all_keys": "Verifică toate cheile",
       "check_multiple_keys": "Verifică chei API multiple",
+      "cherryin_route": {
+        "auto": "Selectare automată",
+        "china": "Optimizat pentru China (.net)",
+        "current": "Gazdă curentă: {{host}}",
+        "error": "Ruta CherryIN nu a putut fi schimbată",
+        "global": "Global (.ai)",
+        "title": "Rută de acces"
+      },
       "copilot": {
         "auth_failed": "Autentificarea Github Copilot a eșuat.",
         "auth_success": "Autentificarea GitHub Copilot a reușit.",

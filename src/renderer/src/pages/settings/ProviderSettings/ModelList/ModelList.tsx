@@ -15,6 +15,7 @@ import { type Model, SystemProviderIds } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
+import { getCherryInEndpoints, resolveCherryInHost } from '@shared/config/cherryin'
 import { Button, Flex, Space, Spin, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { Plus, RefreshCw } from 'lucide-react'
@@ -54,8 +55,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const handleEditModel = useCallback((model: Model) => EditModelPopup.show({ provider, model }), [provider])
 
   const providerConfig = PROVIDER_URLS[provider.id]
-  const docsWebsite = providerConfig?.websites?.docs
-  const modelsWebsite = providerConfig?.websites?.models
+  const cherryInEndpoints =
+    provider.id === SystemProviderIds.cherryin ? getCherryInEndpoints(resolveCherryInHost(provider.apiHost)) : undefined
+  const docsWebsite = cherryInEndpoints?.docs ?? providerConfig?.websites?.docs
+  const modelsWebsite = cherryInEndpoints?.models ?? providerConfig?.websites?.models
 
   const [searchText, _setSearchText] = useState('')
   const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(() => {

@@ -1,3 +1,4 @@
+import { CHERRYIN_HOSTS } from './cherryin'
 import { codeLanguages } from './code-languages'
 
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
@@ -498,7 +499,7 @@ export interface GitBashPathInfo {
 // CherryIN OAuth configuration
 export const CHERRYIN_CONFIG = {
   CLIENT_ID: '2a348c87-bae1-4756-a62f-b2e97200fd6d',
-  ALLOWED_HOSTS: ['https://open.cherryin.ai', 'https://open.cherryin.dev'],
+  ALLOWED_HOSTS: [...Object.values(CHERRYIN_HOSTS), 'https://open.cherryin.dev'],
   REDIRECT_URI: 'cherrystudio://oauth/callback',
   SCOPES: 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
 }

@@ -5406,6 +5406,14 @@
       "check": "Vérifier",
       "check_all_keys": "Vérifier toutes les clés",
       "check_multiple_keys": "Vérifier plusieurs clés API",
+      "cherryin_route": {
+        "auto": "Sélection automatique",
+        "china": "Optimisé pour la Chine (.net)",
+        "current": "Hôte actuel : {{host}}",
+        "error": "Impossible de changer la route CherryIN",
+        "global": "Mondial (.ai)",
+        "title": "Route d'accès"
+      },
       "copilot": {
         "auth_failed": "Échec de l'authentification Github Copilot",
         "auth_success": "Authentification Github Copilot réussie",

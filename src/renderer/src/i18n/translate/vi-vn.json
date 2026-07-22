@@ -5406,6 +5406,14 @@
       "check": "Kiểm tra",
       "check_all_keys": "Kiểm tra tất cả các phím",
       "check_multiple_keys": "Kiểm tra nhiều khóa API",
+      "cherryin_route": {
+        "auto": "Tự động chọn",
+        "china": "Tối ưu cho Trung Quốc (.net)",
+        "current": "Máy chủ hiện tại: {{host}}",
+        "error": "Không thể chuyển tuyến CherryIN",
+        "global": "Toàn cầu (.ai)",
+        "title": "Tuyến truy cập"
+      },
       "copilot": {
         "auth_failed": "Xác thực Github Copilot thất bại.",
         "auth_success": "Xác thực GitHub Copilot thành công.",

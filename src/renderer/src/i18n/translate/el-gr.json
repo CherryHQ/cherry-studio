@@ -5406,6 +5406,14 @@
       "check": "Έλεγχος",
       "check_all_keys": "Έλεγχος όλων των κλειδιών",
       "check_multiple_keys": "Έλεγχος πολλαπλών κλειδιών API",
+      "cherryin_route": {
+        "auto": "Αυτόματη επιλογή",
+        "china": "Βελτιστοποιημένο για Κίνα (.net)",
+        "current": "Τρέχων host: {{host}}",
+        "error": "Αποτυχία αλλαγής διαδρομής CherryIN",
+        "global": "Παγκόσμιο (.ai)",
+        "title": "Διαδρομή πρόσβασης"
+      },
       "copilot": {
         "auth_failed": "Η επιβεβαίωση του Github Copilot απέτυχε",
         "auth_success": "Η επιβεβαίωση του Github Copilot ήταν επιτυχής",

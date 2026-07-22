@@ -5406,6 +5406,14 @@
       "check": "Проверить",
       "check_all_keys": "Проверить все ключи",
       "check_multiple_keys": "Проверить несколько ключей API",
+      "cherryin_route": {
+        "auto": "Автоматический выбор",
+        "china": "Оптимизировано для Китая (.net)",
+        "current": "Текущий хост: {{host}}",
+        "error": "Не удалось переключить маршрут CherryIN",
+        "global": "Глобальный (.ai)",
+        "title": "Маршрут доступа"
+      },
       "copilot": {
         "auth_failed": "Github Copilot认证失败",
         "auth_success": "Github Copilot认证成功",

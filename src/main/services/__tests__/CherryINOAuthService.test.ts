@@ -48,6 +48,12 @@ describe('CherryINOAuthService', () => {
     expect(net.fetch).toHaveBeenCalledTimes(2)
   })
 
+  it('accepts the China-optimized CherryIN OAuth host', async () => {
+    const flow = await CherryINOAuthService.startOAuthFlow(createEvent(17), 'https://open.cherryin.net')
+
+    expect(flow.authUrl).toContain('https://open.cherryin.net/oauth2/auth')
+  })
+
   it('rejects CherryIN OAuth code exchanges from a different IPC sender', async () => {
     const flow = await CherryINOAuthService.startOAuthFlow(createEvent(17), 'https://open.cherryin.ai')
 

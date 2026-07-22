@@ -5406,6 +5406,14 @@
       "check": "チェック",
       "check_all_keys": "すべてのキーをチェック",
       "check_multiple_keys": "複数のAPIキーをチェック",
+      "cherryin_route": {
+        "auto": "自動選択",
+        "china": "中国最適化（.net）",
+        "current": "現在のホスト：{{host}}",
+        "error": "CherryINのアクセス経路を切り替えられませんでした",
+        "global": "グローバル（.ai）",
+        "title": "アクセス経路"
+      },
       "copilot": {
         "auth_failed": "Github Copilotの認証に失敗しました。",
         "auth_success": "Github Copilotの認証が成功しました",

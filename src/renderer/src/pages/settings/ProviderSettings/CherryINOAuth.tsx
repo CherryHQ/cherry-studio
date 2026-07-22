@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import CherryINProviderLogo from '@renderer/assets/images/providers/cherryin.png'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
+import { getCherryInEndpoints, resolveCherryInHost } from '@shared/config/cherryin'
 import { Button, Skeleton } from 'antd'
 import { isEmpty } from 'lodash'
 import { CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
@@ -11,9 +12,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('CherryINOAuth')
-
-const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
-const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
 
 /**
  * Generate avatar initials from a name (first 2 characters)
@@ -41,6 +39,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
   const [hasOAuthToken, setHasOAuthToken] = useState<boolean | null>(null)
+  const endpoints = getCherryInEndpoints(resolveCherryInHost(provider.apiHost))
 
   const hasApiKey = !isEmpty(provider.apiKey)
   // User is considered logged in via OAuth only if they have both API key and OAuth token
@@ -49,7 +48,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
     try {
-      const balance = await window.api.cherryin.getBalance(CHERRYIN_OAUTH_SERVER)
+      const balance = await window.api.cherryin.getBalance(endpoints.oauth)
       setBalanceInfo(balance)
     } catch (error) {
       logger.warn('Failed to fetch balance:', error as Error)
@@ -57,7 +56,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     } finally {
       setIsLoadingData(false)
     }
-  }, [])
+  }, [endpoints.oauth])
 
   // Check if OAuth token exists
   useEffect(() => {
@@ -89,14 +88,14 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
           window.toast.success(t('auth.get_key_success'))
         },
         {
-          oauthServer: CHERRYIN_OAUTH_SERVER
+          oauthServer: endpoints.oauth
         }
       )
     } catch (error) {
       logger.error('OAuth Error:', error as Error)
       window.toast.error(t('settings.provider.oauth.error'))
     }
-  }, [updateProvider, t])
+  }, [endpoints.oauth, updateProvider, t])
 
   const handleLogout = useCallback(() => {
     window.modal.confirm({
@@ -107,7 +106,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
         setIsLoggingOut(true)
 
         try {
-          await window.api.cherryin.logout(CHERRYIN_OAUTH_SERVER)
+          await window.api.cherryin.logout(endpoints.oauth)
           updateProvider({ apiKey: '' })
           setHasOAuthToken(false)
           setBalanceInfo(null)
@@ -124,11 +123,11 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
         }
       }
     })
-  }, [updateProvider, t])
+  }, [endpoints.oauth, updateProvider, t])
 
   const handleTopup = useCallback(() => {
-    window.open(CHERRYIN_TOPUP_URL, '_blank')
-  }, [])
+    window.open(endpoints.topup, '_blank')
+  }, [endpoints.topup])
 
   // Render logic:
   // 1. No API key → Show login button
@@ -187,12 +186,12 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
           <LogOut size={14} />
         </LogoutCorner>
       )}
-      <ProviderLogo src={CherryINProviderLogo} onClick={() => window.open('https://open.cherryin.ai', '_blank')} />
+      <ProviderLogo src={CherryINProviderLogo} onClick={() => window.open(endpoints.official, '_blank')} />
       {renderContent()}
       <Description>
         {t('settings.provider.oauth.provided_by')}{' '}
-        <OfficialWebsite href="https://open.cherryin.ai" target="_blank" rel="noreferrer">
-          open.cherryin.ai
+        <OfficialWebsite href={endpoints.official} target="_blank" rel="noreferrer">
+          {new URL(endpoints.official).hostname}
         </OfficialWebsite>
         {t('settings.provider.oauth.provided_by_suffix')}
       </Description>

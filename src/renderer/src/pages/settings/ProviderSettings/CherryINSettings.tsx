@@ -1,67 +1,97 @@
-import { useProvider } from '@renderer/hooks/useProvider'
+import { loggerService } from '@logger'
+import type { CherryInEndpointSelection, CherryInHostMode } from '@shared/config/cherryin'
 import { Select } from 'antd'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+const logger = loggerService.withContext('CherryINSettings')
 
 interface CherryINSettingsProps {
-  providerId: string
   apiHost: string
   setApiHost: (host: string) => void
 }
 
-const API_HOST_OPTIONS = [
-  {
-    value: 'https://open.cherryin.net',
-    labelKey: '加速域名',
-    description: 'open.cherryin.net'
-  },
-  {
-    value: 'https://open.cherryin.ai',
-    labelKey: '国际域名',
-    description: 'open.cherryin.ai'
-  }
-]
+const CherryINSettings: FC<CherryINSettingsProps> = ({ apiHost, setApiHost }) => {
+  const { t } = useTranslation()
+  const [selection, setSelection] = useState<CherryInEndpointSelection | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId, apiHost, setApiHost }) => {
-  const { updateProvider } = useProvider(providerId)
+  useEffect(() => {
+    let active = true
 
-  const getCurrentHost = useMemo(() => {
-    const matchedOption = API_HOST_OPTIONS.find((option) => apiHost?.includes(option.value.replace('https://', '')))
-    return matchedOption?.value ?? API_HOST_OPTIONS[0].value
-  }, [apiHost])
+    window.api.cherryin
+      .getEndpointSelection()
+      .then((result) => {
+        if (!active) return
+        setSelection(result)
+        setApiHost(result.host)
+      })
+      .catch((error) => {
+        logger.warn('Failed to load CherryIN endpoint selection', error as Error)
+      })
+      .finally(() => {
+        if (active) setIsLoading(false)
+      })
 
-  const handleHostChange = useCallback(
-    (value: string) => {
-      setApiHost(value)
-      updateProvider({ apiHost: value, anthropicApiHost: value })
+    return () => {
+      active = false
+    }
+  }, [setApiHost])
+
+  const handleModeChange = useCallback(
+    async (mode: CherryInHostMode) => {
+      setIsLoading(true)
+      try {
+        const result = await window.api.cherryin.setHostMode(mode)
+        setSelection(result)
+        setApiHost(result.host)
+      } catch (error) {
+        logger.error('Failed to change CherryIN host mode', error as Error)
+        window.toast.error(t('settings.provider.cherryin_route.error'))
+      } finally {
+        setIsLoading(false)
+      }
     },
-    [setApiHost, updateProvider]
+    [setApiHost, t]
   )
 
-  const options = useMemo(
-    () =>
-      API_HOST_OPTIONS.map((option) => ({
-        value: option.value,
-        label: (
-          <div className="flex flex-col gap-0.5">
-            <span>{option.labelKey}</span>
-            <span className="text-[var(--color-text-3)] text-xs">{option.description}</span>
-          </div>
-        )
-      })),
-    []
-  )
+  const options = [
+    { value: 'auto', label: t('settings.provider.cherryin_route.auto') },
+    { value: 'china', label: t('settings.provider.cherryin_route.china') },
+    { value: 'global', label: t('settings.provider.cherryin_route.global') }
+  ] satisfies Array<{ value: CherryInHostMode; label: string }>
 
   return (
-    <Select
-      value={getCurrentHost}
-      onChange={handleHostChange}
-      options={options}
-      style={{ width: '100%', marginTop: 5 }}
-      optionLabelProp="label"
-      labelRender={(option) => option.value}
-    />
+    <Container>
+      <Select
+        value={selection?.mode ?? 'auto'}
+        loading={isLoading}
+        onChange={handleModeChange}
+        options={options}
+        style={{ width: '100%' }}
+      />
+      <CurrentHost>{t('settings.provider.cherryin_route.current', { host: selection?.host ?? apiHost })}</CurrentHost>
+    </Container>
   )
 }
+
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin: 5px 0 10px;
+`
+
+const CurrentHost = styled.div`
+  min-height: 18px;
+  padding-left: 6px;
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 18px;
+  word-break: break-all;
+`
 
 export default CherryINSettings

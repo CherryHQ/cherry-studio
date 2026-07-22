@@ -3,6 +3,7 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
+import type { CherryInEndpointSelection, CherryInHostMode } from '@shared/config/cherryin'
 import type { GitBashPathInfo, TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
@@ -460,8 +461,12 @@ const api = {
     saveToken: (accessToken: string, refreshToken?: string) =>
       ipcRenderer.invoke(IpcChannel.CherryIN_SaveToken, accessToken, refreshToken),
     hasToken: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.CherryIN_HasToken),
+    getEndpointSelection: (): Promise<CherryInEndpointSelection> =>
+      ipcRenderer.invoke(IpcChannel.CherryIN_GetEndpointSelection),
     getBalance: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_GetBalance, apiHost),
     logout: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_Logout, apiHost),
+    setHostMode: (mode: CherryInHostMode): Promise<CherryInEndpointSelection> =>
+      ipcRenderer.invoke(IpcChannel.CherryIN_SetHostMode, mode),
     startOAuthFlow: (oauthServer: string, apiHost?: string) =>
       ipcRenderer.invoke(IpcChannel.CherryIN_StartOAuthFlow, oauthServer, apiHost),
     exchangeToken: (code: string, state: string) => ipcRenderer.invoke(IpcChannel.CherryIN_ExchangeToken, code, state)

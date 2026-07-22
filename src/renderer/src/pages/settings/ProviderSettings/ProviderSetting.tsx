@@ -35,6 +35,7 @@ import {
   isSupportAnthropicPromptCacheProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
+import { getCherryInEndpoints, resolveCherryInHost } from '@shared/config/cherryin'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
@@ -117,15 +118,15 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const isAzureOpenAI = isAzureOpenAIProvider(provider)
   const isDmxapi = provider.id === 'dmxapi'
   const isCherryIN = provider.id === 'cherryin'
-  const isChineseUser = i18n.language.startsWith('zh')
   const noAPIInputProviders = ['aws-bedrock'] as const satisfies SystemProviderId[]
   const hideApiInput = noAPIInputProviders.some((id) => id === provider.id)
   const noAPIKeyInputProviders = ['copilot', 'vertexai'] as const satisfies SystemProviderId[]
   const hideApiKeyInput = noAPIKeyInputProviders.some((id) => id === provider.id)
 
   const providerConfig = PROVIDER_URLS[provider.id]
-  const officialWebsite = providerConfig?.websites?.official
-  const apiKeyWebsite = providerConfig?.websites?.apiKey
+  const cherryInEndpoints = isCherryIN ? getCherryInEndpoints(resolveCherryInHost(apiHost)) : undefined
+  const officialWebsite = cherryInEndpoints?.official ?? providerConfig?.websites?.official
+  const apiKeyWebsite = cherryInEndpoints?.apiKey ?? providerConfig?.websites?.apiKey
   const configuredApiHost = providerConfig?.api?.url
 
   const fancyProviderName = getFancyProviderName(provider)
@@ -450,7 +451,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
         <Flex align="center" gap={8}>
           <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
-            <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
+            <Link target="_blank" href={officialWebsite} style={{ display: 'flex' }}>
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
@@ -479,6 +480,12 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {isCherryIN && <CherryINOAuth providerId={provider.id} />}
+      {isCherryIN && (
+        <>
+          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.cherryin_route.title')}</SettingSubtitle>
+          <CherryINSettings apiHost={apiHost} setApiHost={setApiHost} />
+        </>
+      )}
       {provider.id === 'openai' && <OpenAIAlert />}
       {provider.id === 'ovms' && <OVMSSettings />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
@@ -579,8 +586,8 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
               </SettingSubtitle>
               {activeHostField === 'apiHost' && (
                 <>
-                  {isCherryIN && isChineseUser ? (
-                    <CherryINSettings providerId={provider.id} apiHost={apiHost} setApiHost={setApiHost} />
+                  {isCherryIN ? (
+                    <Input value={apiHost} readOnly style={{ width: '100%', marginTop: 5 }} />
                   ) : (
                     <Space.Compact style={{ width: '100%', marginTop: 5 }}>
                       <Input

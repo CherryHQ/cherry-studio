@@ -5407,6 +5407,14 @@
       "check": "檢查",
       "check_all_keys": "檢查所有金鑰",
       "check_multiple_keys": "檢查多個 API 金鑰",
+      "cherryin_route": {
+        "auto": "自動優選",
+        "china": "中國最佳化（.net）",
+        "current": "目前使用：{{host}}",
+        "error": "CherryIN 存取線路切換失敗",
+        "global": "國際線路（.ai）",
+        "title": "存取線路"
+      },
       "copilot": {
         "auth_failed": "GitHub Copilot 認證失敗",
         "auth_success": "GitHub Copilot 認證成功",

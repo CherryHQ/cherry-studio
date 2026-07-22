@@ -14,8 +14,6 @@ import ProviderPopup from './ProviderPopup'
 
 const logger = loggerService.withContext('WelcomePage')
 
-const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
-
 interface WelcomePageProps {
   setStep: (step: OnboardingStep) => void
   setCherryInLoggedIn: (loggedIn: boolean) => void
@@ -29,15 +27,28 @@ const WelcomePage: FC<WelcomePageProps> = ({ setStep, setCherryInLoggedIn }) => 
 
   const handleCherryInLogin = useCallback(async () => {
     try {
+      const endpointSelection = await window.api.cherryin.getEndpointSelection()
+
       await oauthWithCherryIn(
         async (apiKeys: string) => {
-          updateProvider({ apiKey: apiKeys, enabled: true })
+          updateProvider({
+            anthropicApiHost: endpointSelection.host,
+            apiHost: endpointSelection.host,
+            apiKey: apiKeys,
+            enabled: true
+          })
 
           // Fetch and add models
           setIsAddingModels(true)
 
           try {
-            const updatedProvider = { ...provider, apiKey: apiKeys, enabled: true }
+            const updatedProvider = {
+              ...provider,
+              anthropicApiHost: endpointSelection.host,
+              apiHost: endpointSelection.host,
+              apiKey: apiKeys,
+              enabled: true
+            }
             const models = await fetchModels(updatedProvider)
             if (models.length > 0) {
               models.forEach((model) => addModel(model))
@@ -54,7 +65,7 @@ const WelcomePage: FC<WelcomePageProps> = ({ setStep, setCherryInLoggedIn }) => 
           setStep('select-model')
         },
         {
-          oauthServer: CHERRYIN_OAUTH_SERVER
+          oauthServer: endpointSelection.host
         }
       )
     } catch (error) {

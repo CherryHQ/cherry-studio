@@ -6,6 +6,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
+import { prewarmCherryInEndpoint } from '@renderer/services/CherryINEndpointService'
 import MemoryService from '@renderer/services/MemoryService'
 import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
@@ -15,6 +16,7 @@ import {
   type ToolPermissionResultPayload,
   toolPermissionsActions
 } from '@renderer/store/toolPermissions'
+import { SystemProviderIds } from '@renderer/types'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
 import { sendToolApprovalNotification } from '@renderer/utils/userConfirmation'
@@ -52,6 +54,9 @@ export function useAppInit() {
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
   const memoryConfig = useAppSelector(selectMemoryConfig)
+  const isCherryInEnabled = useAppSelector(
+    (state) => state.llm.providers.find((provider) => provider.id === SystemProviderIds.cherryin)?.enabled === true
+  )
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
@@ -61,6 +66,12 @@ export function useAppInit() {
     // Initialize MemoryService after app is ready
     MemoryService.getInstance()
   }, [])
+
+  useEffect(() => {
+    void prewarmCherryInEndpoint(isCherryInEnabled).catch((error) => {
+      logger.warn('Failed to prewarm CherryIN endpoint selection', error as Error)
+    })
+  }, [isCherryInEnabled])
 
   useEffect(() => {
     void window.api.getDataPathFromArgs().then((dataPath) => {

@@ -29,6 +29,7 @@ import type { PaintingAction, PaintingsState } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
+import { getCherryInEndpoints, resolveCherryInHost } from '@shared/config/cherryin'
 import { Avatar, Button, Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { RcFile } from 'antd/es/upload'
@@ -80,6 +81,10 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { autoTranslateWithSpace } = useSettings()
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const newApiProvider = newApiProviders.find((p) => p.id === routeName) || newApiProviders[0]
+  const docsWebsite =
+    newApiProvider.id === 'cherryin'
+      ? getCherryInEndpoints(resolveCherryInHost(newApiProvider.apiHost)).docs
+      : PROVIDER_URLS[newApiProvider.id]?.websites?.docs || 'https://docs.newapi.pro/apps/cherry-studio/'
 
   const filteredPaintings = useMemo(
     () => (newApiPaintings[mode] || []).filter((p) => p.providerId === newApiProvider.id),
@@ -590,9 +595,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <LeftContainer>
           <ProviderTitleContainer>
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-            <SettingHelpLink
-              target="_blank"
-              href={PROVIDER_URLS[newApiProvider.id]?.websites?.docs || 'https://docs.newapi.pro/apps/cherry-studio/'}>
+            <SettingHelpLink target="_blank" href={docsWebsite}>
               {t('paintings.learn_more')}
               <ProviderLogo
                 shape="square"

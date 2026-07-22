@@ -140,8 +140,10 @@ export enum IpcChannel {
   // CherryIN OAuth
   CherryIN_SaveToken = 'cherryin:save-token',
   CherryIN_HasToken = 'cherryin:has-token',
+  CherryIN_GetEndpointSelection = 'cherryin:get-endpoint-selection',
   CherryIN_GetBalance = 'cherryin:get-balance',
   CherryIN_Logout = 'cherryin:logout',
+  CherryIN_SetHostMode = 'cherryin:set-host-mode',
   CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
   CherryIN_ExchangeToken = 'cherryin:exchange-token',
 
