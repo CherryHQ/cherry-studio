@@ -43,7 +43,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { setBackupInProgress } from '@main/data/db/backup/quiesceGate'
-import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
+import { clearRestoreJournal, readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { isPathInside } from '@main/utils/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -337,13 +337,29 @@ export class BackupService extends BaseService {
       // must be reported/cleared first; this guard is the backstop behind the preboot gate.
       const journal = readRestoreJournal()
       if (journal.kind === 'ok') {
-        throw new IpcError(
-          'BACKUP_RESTORE_PENDING',
-          `backup: a prior restore is in state '${journal.journal.state}' — report or clear it before starting another`
+        const priorState = journal.journal.state
+        // staged/promoting = a promotion still in flight; overwriting its journal would lose the
+        // gate's crash-recovery state. Terminal journals (completed/failed/expired) describe a
+        // restore that is DONE — clearing + proceeding is the PRIMARY path that fixes a second
+        // restore triggered in the same post-restore session (that path reaches startRestore, not
+        // a boot clear). Log the completed journal's identity, then clear (its disclosure is owned
+        // by B3 / consumed before this point).
+        if (priorState === 'staged' || priorState === 'promoting') {
+          throw new IpcError(
+            'BACKUP_RESTORE_PENDING',
+            `backup: a prior restore is in state '${priorState}' — report or clear it before starting another`
+          )
+        }
+        logger.info(
+          `clearing terminal restore journal before new restore: state=${priorState} restoreId=${journal.journal.restoreId}`
         )
-      }
-      if (journal.kind === 'corrupt') {
-        throw new IpcError('BACKUP_RESTORE_JOURNAL_CORRUPT', 'backup: restore journal is corrupt — see logs')
+        clearRestoreJournal()
+      } else if (journal.kind === 'corrupt') {
+        // Belt: the preboot gate (restorePromotion.ts) quarantines corrupt journals before services
+        // start, so this is rarely reached. Clear + proceed so a corrupt leftover never locks the
+        // user out of restoring.
+        logger.warn('clearing corrupt restore journal before new restore')
+        clearRestoreJournal()
       }
       const importOrch = new ImportOrchestrator({
         dbService: application.get('DbService'),
@@ -458,13 +474,30 @@ export class BackupService extends BaseService {
       this.gcStagingResidue()
       return
     }
-    // staged/promoting: the preboot gate (runs before services start) should have
-    // consumed these; reaching BackupService.onInit with one is unexpected — leave it
-    // for the gate on the next boot and warn. terminal/corrupt: reported above, cleanup TBD.
     if (journal.kind === 'ok') {
-      logger.warn(`restore journal present at BackupService init: state=${journal.journal.state}`)
+      const state = journal.journal.state
+      if (state === 'completed') {
+        // KEEP the completed journal: the gate (restorePromotion.ts) leaves terminal journals for
+        // BackupService to report + delete together ("Reporting + deletion of terminal journals is
+        // owned by BackupService"). A completed journal is the cross-restart disclosure signal for
+        // B3; it is cleared later by B3 (after acknowledge) or by startRestore (next restore). It
+        // blocks nothing here — hasPendingRestore ignores terminal states and the gate skips them.
+        logger.warn(
+          `completed restore journal kept at init (awaiting disclosure): restoreId=${journal.journal.restoreId}`
+        )
+      } else if (state === 'failed' || state === 'expired') {
+        // Terminal but not the success-report carrier — clear for hygiene so it doesn't linger.
+        logger.warn(`clearing terminal restore journal at init: state=${state} restoreId=${journal.journal.restoreId}`)
+        clearRestoreJournal()
+      } else {
+        // staged/promoting: the preboot gate (runs before services start) should have consumed
+        // these; reaching onInit with one is unexpected — leave it for the gate on the next boot.
+        logger.warn(`restore journal present at BackupService init: state=${state}`)
+      }
     } else if (journal.kind === 'corrupt') {
-      logger.warn('corrupt restore journal present at BackupService init (gate will quarantine)')
+      // Belt: the gate quarantines corrupt journals before services start (rarely reached here).
+      logger.warn('clearing corrupt restore journal at BackupService init')
+      clearRestoreJournal()
     }
   }
 

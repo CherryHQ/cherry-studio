@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { exportBackup, getRegistry, importBackup, readRestoreJournalMock, jobManagerPause } = vi.hoisted(() => ({
-  exportBackup: vi.fn(),
-  getRegistry: vi.fn(() => ({ domains: [] })),
-  importBackup: vi.fn(),
-  readRestoreJournalMock: vi.fn(() => ({ kind: 'none' as const })),
-  jobManagerPause: vi.fn(() => ({ dispose: vi.fn() }))
-}))
+const { exportBackup, getRegistry, importBackup, readRestoreJournalMock, clearRestoreJournalMock, jobManagerPause } =
+  vi.hoisted(() => ({
+    exportBackup: vi.fn(),
+    getRegistry: vi.fn(() => ({ domains: [] })),
+    importBackup: vi.fn(),
+    readRestoreJournalMock: vi.fn(() => ({ kind: 'none' as const })),
+    clearRestoreJournalMock: vi.fn(),
+    jobManagerPause: vi.fn(() => ({ dispose: vi.fn() }))
+  }))
 
 vi.mock('../ExportOrchestrator', () => ({
   ExportOrchestrator: vi.fn().mockImplementation(() => ({
@@ -31,7 +33,8 @@ vi.mock('../ExcludedDomainStripper', () => ({
 }))
 
 vi.mock('@main/data/db/restore/restoreJournal', () => ({
-  readRestoreJournal: readRestoreJournalMock
+  readRestoreJournal: readRestoreJournalMock,
+  clearRestoreJournal: clearRestoreJournalMock
 }))
 
 vi.mock('@application', async () => {
@@ -63,6 +66,7 @@ describe('BackupService packaged export path', () => {
     exportBackup.mockResolvedValue({ archivePath: '/tmp/out.cbu' })
     getRegistry.mockReturnValue({ domains: [] })
     readRestoreJournalMock.mockReturnValue({ kind: 'none' })
+    clearRestoreJournalMock.mockImplementation(() => {})
     // Map import-side failures through toIpcError (quiesce is JobManager.pause, not a throw stub).
     importBackup.mockRejectedValue(new IpcError('BACKUP_ARCHIVE_CORRUPT', 'test corrupt archive'))
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
@@ -150,11 +154,15 @@ describe('BackupService packaged export path', () => {
     )
   })
 
-  it('startRestore throws BACKUP_RESTORE_JOURNAL_CORRUPT when the prior journal is corrupt', async () => {
-    readRestoreJournalMock.mockReturnValue({ kind: 'corrupt' } as never)
+  it('startRestore clears a corrupt prior journal and proceeds (belt — gate already quarantined)', async () => {
+    readRestoreJournalMock.mockReturnValue({ kind: 'corrupt', error: 'bad' } as never)
     const service = await initPackagedService()
-    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy(
-      (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_JOURNAL_CORRUPT'
-    )
+    // A corrupt prior journal is cleared (belt — the preboot gate already quarantined it) so a
+    // corrupt leftover never locks the user out; startRestore proceeds to ImportOrchestrator,
+    // which rejects here via the importBackup mock.
+    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toThrow()
+    // Cleared twice: once by performRestoreRecovery at onInit (boot belt), once by the startRestore
+    // guard — both belt paths, since the preboot gate already quarantined the corrupt journal.
+    expect(clearRestoreJournalMock).toHaveBeenCalledTimes(2)
   })
 })
