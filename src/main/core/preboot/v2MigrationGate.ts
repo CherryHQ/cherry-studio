@@ -27,7 +27,11 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { serializeMigrationDiagnosticError } from '@shared/data/migration/v2/diagnostics'
+import {
+  type MigrationFailureCode,
+  type MigrationFailureOperation,
+  serializeMigrationDiagnosticError
+} from '@shared/data/migration/v2/diagnostics'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('V2MigrationGate')
@@ -48,7 +52,9 @@ const logger = loggerService.withContext('V2MigrationGate')
 export type V2MigrationGateResult = 'handled' | 'skipped'
 
 interface NativeMigrationFailure {
-  readonly failureCode: string
+  readonly failureCode: MigrationFailureCode
+  readonly operation: MigrationFailureOperation
+  readonly targetPath?: string
   readonly errorSummary: string
   readonly cause?: unknown
   readonly type: 'error' | 'warning'
@@ -62,7 +68,9 @@ interface NativeMigrationFailure {
 async function presentNativeMigrationFailure(failure: NativeMigrationFailure): Promise<number> {
   try {
     await app.whenReady()
-    const { failureCode, errorSummary, cause, ...dialogFailure } = failure
+    const { failureCode, operation, targetPath, errorSummary, cause, ...dialogFailure } = failure
+    const diagnosticError = cause === undefined ? undefined : serializeMigrationDiagnosticError(cause, targetPath)
+    const diagnosticTargetPath = targetPath ?? diagnosticError?.path
     return await presentMigrationDiagnosticFailure({
       locale: app.getLocale(),
       context: {
@@ -70,7 +78,14 @@ async function presentNativeMigrationFailure(failure: NativeMigrationFailure): P
         stage: 'preboot',
         failureCode,
         errorSummary,
-        ...(cause === undefined ? {} : { error: serializeMigrationDiagnosticError(cause) })
+        ...(diagnosticError === undefined ? {} : { error: diagnosticError }),
+        failure: {
+          code: failureCode,
+          origin: 'main',
+          operation,
+          ...(diagnosticTargetPath === undefined ? {} : { targetPath: diagnosticTargetPath }),
+          ...(diagnosticError === undefined ? {} : { error: diagnosticError })
+        }
       },
       failure: dialogFailure
     })
@@ -91,6 +106,7 @@ async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGat
   logger.error('Failed to persist userData location; cannot continue', cause as Error)
   await presentNativeMigrationFailure({
     failureCode: 'data_location_pin_failed',
+    operation: 'pin_data_location',
     errorSummary: 'Could not save the application data directory.',
     cause,
     type: 'error',
@@ -123,6 +139,8 @@ async function quitWithMigrationCheckError(
   if (isDev && isSchemaOutOfSyncError(error)) {
     await presentNativeMigrationFailure({
       failureCode,
+      operation: failureCode === 'database_initialize_failed' ? 'initialize_database' : 'probe_migration_status',
+      targetPath: databaseFile,
       errorSummary,
       cause: error,
       type: 'error',
@@ -152,6 +170,8 @@ async function quitWithMigrationCheckError(
   if (isDev) {
     await presentNativeMigrationFailure({
       failureCode,
+      operation: failureCode === 'database_initialize_failed' ? 'initialize_database' : 'probe_migration_status',
+      targetPath: databaseFile,
       errorSummary,
       cause: error,
       type: 'error',
@@ -174,6 +194,8 @@ async function quitWithMigrationCheckError(
   } else {
     await presentNativeMigrationFailure({
       failureCode,
+      operation: failureCode === 'database_initialize_failed' ? 'initialize_database' : 'probe_migration_status',
+      targetPath: databaseFile,
       errorSummary,
       cause: error,
       type: 'error',
@@ -237,6 +259,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     logger.warn('Legacy userData path inaccessible, prompting user', { inaccessibleLegacyPath })
     const response = await presentNativeMigrationFailure({
       failureCode: 'legacy_data_location_unavailable',
+      operation: 'resolve_legacy_data_location',
+      targetPath: inaccessibleLegacyPath,
       errorSummary: 'The previous custom data directory is not currently accessible.',
       type: 'warning',
       title: 'Custom Data Directory Inaccessible',
@@ -303,13 +327,14 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     // the auto-updater's version filtering. evaluateCandidateVersion is the
     // single assembler of the version.log existence/read/compatibility check,
     // shared with the candidate selector so the two cannot drift.
+    const currentVersion = app.getVersion()
     const {
       check: versionCheck,
       previousVersion,
       versionLogExists
-    } = evaluateCandidateVersion(paths.userData, app.getVersion())
+    } = evaluateCandidateVersion(paths.userData, currentVersion)
 
-    logger.info('Version compatibility check', { currentVersion: app.getVersion(), previousVersion, versionLogExists })
+    logger.info('Version compatibility check', { currentVersion, previousVersion, versionLogExists })
 
     if (versionCheck.outcome === 'block') {
       logger.warn('Version compatibility check failed, showing version incompatible UI', {
@@ -320,7 +345,12 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       // Do NOT close the engine — the "skip migration" action needs it
       // to write the completed status. Set the initial stage so the
       // renderer picks it up via GetProgress on mount.
-      setVersionIncompatible(versionCheck.reason, versionCheck.details)
+      setVersionIncompatible(versionCheck.reason, versionCheck.details, {
+        currentVersion,
+        previousVersion,
+        versionLogExists,
+        versionLogPath: paths.versionLogFile
+      })
       registerMigrationIpcHandlers(paths.userData)
 
       try {
@@ -336,6 +366,8 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         migrationEngine.close()
         await presentNativeMigrationFailure({
           failureCode: 'version_window_failed',
+          operation: 'open_version_window',
+          targetPath: paths.versionLogFile,
           errorSummary: 'Could not open the upgrade guidance window.',
           cause: windowError,
           type: 'error',
@@ -369,6 +401,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       unregisterMigrationIpcHandlers()
       await presentNativeMigrationFailure({
         failureCode: 'migration_window_failed',
+        operation: 'open_migration_window',
         errorSummary: 'Could not open the migration window.',
         cause: migrationError,
         type: 'error',

@@ -2,6 +2,8 @@
  * Shared type definitions for the migration system
  */
 
+import type { MigrationDiagnosticFailure } from './diagnostics'
+
 // Migration stages for UI flow
 export type MigrationStage = 'version_incompatible' | 'introduction' | 'migration' | 'completed' | 'error'
 
@@ -129,9 +131,19 @@ export interface LocalStorageRecord {
 }
 
 export interface StartMigrationPayload {
+  runId: string
   reduxData: Record<string, unknown>
   dexieExportPath: string
   localStorageExportPath?: string
+}
+
+export interface BeginMigrationRunPayload {
+  runId: string
+}
+
+export interface ReportMigrationErrorPayload {
+  runId: string
+  failure: MigrationDiagnosticFailure
 }
 
 // IPC channels for migration communication
@@ -143,7 +155,7 @@ export const MigrationIpcChannels = {
   GetUserDataPath: 'migration:get-user-data-path',
 
   // Flow control
-  Start: 'migration:start',
+  BeginRun: 'migration:begin-run',
   StartMigration: 'migration:start-migration',
   // Renderer-local failure mirrored to main's terminal error stage.
   ReportError: 'migration:report-error',

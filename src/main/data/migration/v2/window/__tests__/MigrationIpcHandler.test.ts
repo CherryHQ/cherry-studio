@@ -18,7 +18,11 @@ const engineMock = vi.hoisted(() => ({
   run: vi.fn(),
   needsMigration: vi.fn(),
   getLastError: vi.fn(),
-  getLastDiagnosticError: vi.fn()
+  getLastDiagnosticFailure: vi.fn()
+}))
+const fsMock = vi.hoisted(() => ({
+  mkdir: vi.fn(),
+  writeFile: vi.fn()
 }))
 const windowSendMock = vi.hoisted(() => vi.fn())
 const windowMinimizeMock = vi.hoisted(() => vi.fn())
@@ -51,6 +55,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../../core/MigrationEngine', () => ({ migrationEngine: engineMock }))
+vi.mock('fs/promises', () => ({ default: fsMock }))
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: validateSenderMock }))
 vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: isSafeExternalUrlMock }))
 vi.mock('../migrationDiagnosticDialogs', () => ({
@@ -81,12 +86,14 @@ import {
   registerMigrationIpcHandlers,
   resetMigrationData,
   setDataLocationNotice,
+  setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from '../MigrationIpcHandler'
 
 type Handler = (...args: unknown[]) => unknown
 
 describe('MigrationIpcHandler', () => {
+  const RUN_ID = 'run-current'
   let handlers: Map<string, Handler>
 
   /** All `MigrationIpcChannels.Progress` payloads broadcast to the window, in order. */
@@ -107,6 +114,23 @@ describe('MigrationIpcHandler', () => {
     return handler({}, ...args)
   }
 
+  function startMigration(payload: Record<string, unknown>) {
+    invoke(MigrationIpcChannels.BeginRun, { runId: RUN_ID })
+    return invoke(MigrationIpcChannels.StartMigration, { ...payload, runId: RUN_ID })
+  }
+
+  function rendererFailure(error: { name: string; message: string; stack?: string }) {
+    return {
+      runId: RUN_ID,
+      failure: {
+        code: 'dexie_export_failed',
+        origin: 'renderer',
+        operation: 'export_dexie',
+        error
+      }
+    }
+  }
+
   beforeEach(() => {
     vi.resetAllMocks()
     validateSenderMock.mockReturnValue(true)
@@ -115,7 +139,9 @@ describe('MigrationIpcHandler', () => {
     electronMock.appGetLocale.mockReturnValue('en-US')
     diagnosticEmailUrlMock.mockReturnValue('mailto:support@cherry-ai.com?subject=diagnostics')
     diagnosticI18nMock.mockResolvedValue({ locale: 'en-US', t: vi.fn() })
-    engineMock.getLastDiagnosticError.mockReturnValue(undefined)
+    engineMock.getLastDiagnosticFailure.mockReturnValue(undefined)
+    fsMock.mkdir.mockResolvedValue(undefined)
+    fsMock.writeFile.mockResolvedValue(undefined)
     resetMigrationData()
     registerMigrationIpcHandlers('/mock/userData')
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
@@ -132,7 +158,7 @@ describe('MigrationIpcHandler', () => {
       return { success: true, totalDuration: 1, migratorResults: [] }
     })
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
 
     expect(stageAtRunStart).toBe('migration')
     expect(windowSetStageMock).toHaveBeenCalledWith('migration')
@@ -151,6 +177,90 @@ describe('MigrationIpcHandler', () => {
     expect(windowSetStageMock).toHaveBeenCalledWith('introduction')
   })
 
+  it('rejects StartMigration unless a non-empty matching run was begun', async () => {
+    await expect(
+      invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    ).rejects.toThrow('Stale or missing migration run.')
+    expect(engineMock.run).not.toHaveBeenCalled()
+  })
+
+  it('rejects a renderer failure reported by an old run after Retry starts a new run', async () => {
+    await invoke(MigrationIpcChannels.BeginRun, { runId: 'run-old' })
+    await invoke(MigrationIpcChannels.Retry)
+    await invoke(MigrationIpcChannels.BeginRun, { runId: 'run-new' })
+
+    const accepted = await invoke(MigrationIpcChannels.ReportError, {
+      runId: 'run-old',
+      failure: {
+        code: 'dexie_export_failed',
+        origin: 'renderer',
+        operation: 'export_dexie',
+        error: { name: 'Error', message: 'old failure' }
+      }
+    })
+
+    expect(accepted).toBe(false)
+    expect(lastProgress().stage).toBe('introduction')
+  })
+
+  it('returns and records a Main directory-create failure without Electron error flattening', async () => {
+    await invoke(MigrationIpcChannels.BeginRun, { runId: 'run-write' })
+    const mkdirError = Object.assign(new Error('not a directory'), {
+      code: 'ENOTDIR',
+      syscall: 'mkdir',
+      path: '/mock/userData/migration_temp'
+    })
+    fsMock.mkdir.mockRejectedValueOnce(mkdirError)
+
+    const result = await invoke(MigrationIpcChannels.WriteExportFile, '/mock/userData/migration_temp', 'topics', '[]')
+
+    expect(result).toEqual({
+      ok: false,
+      failure: {
+        code: 'export_directory_create_failed',
+        origin: 'main',
+        operation: 'create_export_directory',
+        targetPath: '/mock/userData/migration_temp',
+        error: {
+          name: 'Error',
+          message: 'not a directory',
+          stack: expect.any(String),
+          code: 'ENOTDIR',
+          syscall: 'mkdir',
+          path: '/mock/userData/migration_temp'
+        }
+      }
+    })
+    expect(fsMock.writeFile).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes a Main export-file write failure from directory creation', async () => {
+    await invoke(MigrationIpcChannels.BeginRun, { runId: 'run-write' })
+    const writeError = Object.assign(new Error('permission denied'), {
+      code: 'EACCES',
+      syscall: 'open'
+    })
+    fsMock.writeFile.mockRejectedValueOnce(writeError)
+
+    const result = await invoke(MigrationIpcChannels.WriteExportFile, '/mock/userData/migration_temp', 'topics', '[]')
+
+    expect(result).toMatchObject({
+      ok: false,
+      failure: {
+        code: 'export_file_write_failed',
+        origin: 'main',
+        operation: 'write_export_file',
+        targetPath: '/mock/userData/migration_temp/topics.json',
+        error: {
+          message: 'permission denied',
+          code: 'EACCES',
+          syscall: 'open',
+          path: '/mock/userData/migration_temp/topics.json'
+        }
+      }
+    })
+  })
+
   it('derives summary and warnings on successful completion', async () => {
     const result: MigrationResult = {
       success: true,
@@ -162,7 +272,7 @@ describe('MigrationIpcHandler', () => {
     }
     engineMock.run.mockResolvedValue(result)
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
 
     const progress = lastProgress()
     expect(progress.stage).toBe('completed')
@@ -205,7 +315,7 @@ describe('MigrationIpcHandler', () => {
       } satisfies MigrationResult
     })
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
 
     const progress = lastProgress()
     expect(progress.stage).toBe('completed')
@@ -227,7 +337,7 @@ describe('MigrationIpcHandler', () => {
       ]
     } satisfies MigrationResult)
 
-    await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+    await startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
 
     // No tick → currentProgress.migrators is [], so totalMigrators uses the result-length
     // fallback and matches completedMigrators.
@@ -251,7 +361,7 @@ describe('MigrationIpcHandler', () => {
         return { success: false, error: 'Validation failed', totalDuration: 1200, migratorResults: [] }
       })
 
-      const result = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const result = await startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
 
       expect(result).toMatchObject({ success: false, error: 'Validation failed' })
       const progress = lastProgress()
@@ -266,9 +376,7 @@ describe('MigrationIpcHandler', () => {
     it('broadcasts the error stage when the run rejects, then frees the in-flight guard so a retry is not blocked', async () => {
       engineMock.run.mockRejectedValueOnce(new Error('Engine exploded'))
 
-      await expect(
-        invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
-      ).rejects.toThrow('Engine exploded')
+      await expect(startMigration({ reduxData: {}, dexieExportPath: '/dexie' })).rejects.toThrow('Engine exploded')
 
       const failure = lastProgress()
       expect(failure.stage).toBe('error')
@@ -276,7 +384,7 @@ describe('MigrationIpcHandler', () => {
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
 
       engineMock.run.mockResolvedValueOnce({ success: true, totalDuration: 1, migratorResults: [] })
-      const retry = await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const retry = await startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
 
       expect(retry).toMatchObject({ success: true })
       expect(lastProgress().stage).toBe('completed')
@@ -288,7 +396,8 @@ describe('MigrationIpcHandler', () => {
         message: 'Dexie export failed',
         stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
       }
-      const result = await invoke(MigrationIpcChannels.ReportError, error)
+      invoke(MigrationIpcChannels.BeginRun, { runId: RUN_ID })
+      const result = await invoke(MigrationIpcChannels.ReportError, rendererFailure(error))
 
       expect(result).toBe(true)
       const progress = lastProgress()
@@ -322,6 +431,41 @@ describe('MigrationIpcHandler', () => {
   })
 
   describe('diagnostic support actions', () => {
+    it('records complete version diagnostics before the incompatible-version window opens', async () => {
+      diagnosticSaveDialogMock.mockResolvedValue({ result: { status: 'canceled' } })
+      setVersionIncompatible(
+        'v1_too_old',
+        { previousVersion: '1.5.0', requiredVersion: '1.9.0' },
+        {
+          currentVersion: '2.0.0-test',
+          previousVersion: '1.5.0',
+          versionLogExists: true,
+          versionLogPath: '/mock/userData/version.log'
+        }
+      )
+
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
+
+      expect(diagnosticSaveDialogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          failureCode: 'v1_too_old',
+          failure: {
+            code: 'v1_too_old',
+            origin: 'main',
+            operation: 'evaluate_version',
+            targetPath: '/mock/userData/version.log',
+            version: {
+              reason: 'v1_too_old',
+              currentVersion: '2.0.0-test',
+              previousVersion: '1.5.0',
+              requiredVersion: '1.9.0',
+              versionLogExists: true
+            }
+          }
+        })
+      )
+    })
+
     it('builds a renderer context in Main and ignores a caller-supplied destination', async () => {
       let engineTick: ((progress: MigrationProgress) => void) | undefined
       engineMock.onProgress.mockImplementation((callback: (progress: MigrationProgress) => void) => {
@@ -339,36 +483,50 @@ describe('MigrationIpcHandler', () => {
         })
         return { success: false, error: 'Validation failed', totalDuration: 1, migratorResults: [] }
       })
-      engineMock.getLastDiagnosticError.mockReturnValue({
-        name: 'Error',
-        message: 'Validation failed',
-        stack: 'Error: Validation failed\n    at validate (/app/main.js:84:5)'
+      engineMock.getLastDiagnosticFailure.mockReturnValue({
+        code: 'migration_engine_failed',
+        origin: 'main',
+        operation: 'run_migration',
+        error: {
+          name: 'Error',
+          message: 'Validation failed',
+          stack: 'Error: Validation failed\n    at validate (/app/main.js:84:5)'
+        }
       })
       diagnosticSaveDialogMock.mockResolvedValue({
         result: { status: 'saved', logs: 'included', size: 'standard' },
         destination: '/main/chosen.zip'
       })
 
-      await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      await startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
       const result = await invoke(MigrationIpcChannels.SaveDiagnosticBundle, '/renderer/evil.zip')
 
       expect(result).toEqual({ status: 'saved', logs: 'included', size: 'standard' })
       expect(diagnosticSaveDialogMock).toHaveBeenCalledTimes(1)
-      expect(diagnosticSaveDialogMock).toHaveBeenCalledWith({
-        source: 'renderer',
-        stage: 'error',
-        errorSummary: 'Validation failed',
-        error: {
-          name: 'Error',
-          message: 'Validation failed',
-          stack: 'Error: Validation failed\n    at validate (/app/main.js:84:5)'
-        },
-        overallProgress: 65,
-        migrators: [
-          { id: 'settings', status: 'completed' },
-          { id: 'messages', status: 'failed' }
-        ]
-      })
+      expect(diagnosticSaveDialogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'renderer',
+          stage: 'error',
+          failureCode: 'migration_engine_failed',
+          errorSummary: 'Validation failed',
+          error: {
+            name: 'Error',
+            message: 'Validation failed',
+            stack: 'Error: Validation failed\n    at validate (/app/main.js:84:5)'
+          },
+          overallProgress: 65,
+          migrators: [
+            { id: 'settings', status: 'completed' },
+            { id: 'messages', status: 'failed' }
+          ],
+          failure: expect.objectContaining({
+            code: 'migration_engine_failed',
+            origin: 'main',
+            operation: 'run_migration'
+          }),
+          run: expect.objectContaining({ id: RUN_ID, failedAt: expect.any(String) })
+        })
+      )
     })
 
     it('rejects a concurrent save immediately with save_in_progress', async () => {
@@ -414,7 +572,8 @@ describe('MigrationIpcHandler', () => {
         message: 'Dexie export failed',
         stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
       }
-      await invoke(MigrationIpcChannels.ReportError, error)
+      invoke(MigrationIpcChannels.BeginRun, { runId: RUN_ID })
+      await invoke(MigrationIpcChannels.ReportError, rendererFailure(error))
 
       expect(
         await invoke(MigrationIpcChannels.OpenDiagnosticEmail, {
@@ -423,14 +582,17 @@ describe('MigrationIpcHandler', () => {
         })
       ).toBe(true)
       expect(diagnosticEmailUrlMock).toHaveBeenCalledWith(
-        {
+        expect.objectContaining({
           source: 'renderer',
           stage: 'error',
+          failureCode: 'dexie_export_failed',
           errorSummary: 'Dexie export failed',
           error,
           overallProgress: 0,
-          migrators: []
-        },
+          migrators: [],
+          failure: expect.objectContaining({ origin: 'renderer', operation: 'export_dexie' }),
+          run: expect.objectContaining({ id: RUN_ID, failedAt: expect.any(String) })
+        }),
         { version: '2.0.0-test', platform: process.platform, arch: process.arch },
         expect.objectContaining({ locale: 'en-US' })
       )
@@ -469,17 +631,18 @@ describe('MigrationIpcHandler', () => {
       expect(clipboard.writeText).not.toHaveBeenCalled()
     })
 
-    it('validates exactly the five diagnostic handlers', async () => {
+    it('validates exactly the six diagnostic handlers', async () => {
       diagnosticSaveDialogMock.mockResolvedValue({ result: { status: 'canceled' } })
 
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle)
       await invoke(MigrationIpcChannels.OpenDiagnosticEmail)
       await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
       await invoke(MigrationIpcChannels.CopySupportEmail)
-      await invoke(MigrationIpcChannels.ReportError, { name: 'Error', message: 'boom' })
+      invoke(MigrationIpcChannels.BeginRun, { runId: RUN_ID })
+      await invoke(MigrationIpcChannels.ReportError, rendererFailure({ name: 'Error', message: 'boom' }))
       await invoke(MigrationIpcChannels.GetProgress)
 
-      expect(validateSenderMock).toHaveBeenCalledTimes(5)
+      expect(validateSenderMock).toHaveBeenCalledTimes(6)
     })
 
     it('clears the latest path and in-flight guard when migration data is reset', async () => {
@@ -543,7 +706,8 @@ describe('MigrationIpcHandler', () => {
     })
 
     it('pushes the live stage to the window manager on progress updates', async () => {
-      await invoke(MigrationIpcChannels.ReportError, { name: 'Error', message: 'boom' })
+      invoke(MigrationIpcChannels.BeginRun, { runId: RUN_ID })
+      await invoke(MigrationIpcChannels.ReportError, rendererFailure({ name: 'Error', message: 'boom' }))
       expect(windowSetStageMock).toHaveBeenCalledWith('error')
     })
   })
@@ -571,7 +735,7 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
       await Promise.resolve()
 
       const quitting = await invoke(MigrationIpcChannels.ConfirmQuit)
@@ -591,7 +755,7 @@ describe('MigrationIpcHandler', () => {
         let resolveRun!: (result: MigrationResult) => void
         engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-        const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+        const migrationFlow = startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
         await Promise.resolve()
 
         expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
@@ -612,7 +776,7 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
       await Promise.resolve()
 
       expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)
@@ -634,7 +798,7 @@ describe('MigrationIpcHandler', () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
 
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
       await Promise.resolve()
 
       expect(requestQuit()).toBe(false)
@@ -719,7 +883,7 @@ describe('MigrationIpcHandler', () => {
     it('rejects a new diagnostic save after quit has been scheduled', async () => {
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
-      const migrationFlow = invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
+      const migrationFlow = startMigration({ reduxData: {}, dexieExportPath: '/dexie' })
       await Promise.resolve()
 
       expect(await invoke(MigrationIpcChannels.ConfirmQuit)).toBe(false)

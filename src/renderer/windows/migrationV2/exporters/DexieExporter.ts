@@ -10,6 +10,10 @@
  * at its last version, so no Dexie upgrade hooks need to run before export.
  */
 
+import {
+  assertMigrationExportWriteSucceeded,
+  type MigrationExportWriteResult
+} from '@shared/data/migration/v2/diagnostics'
 import { Dexie } from 'dexie'
 
 /** Legacy v1 IndexedDB database name. */
@@ -85,12 +89,13 @@ export class DexieExporter {
 
         // Send data to Main process for writing
         // Uses IPC invoke with migration channel
-        await window.electron.ipcRenderer.invoke(
+        const result = (await window.electron.ipcRenderer.invoke(
           'migration:write-export-file',
           this.exportPath,
           tableName,
           JSON.stringify(data)
-        )
+        )) as MigrationExportWriteResult
+        assertMigrationExportWriteSucceeded(result)
 
         onProgress?.({
           table: tableName,

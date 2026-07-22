@@ -90,7 +90,17 @@ export async function saveMigrationDiagnosticBundleWithDialog(
 
   try {
     const saveBundle = dependencies.saveBundle ?? ((input) => new MigrationDiagnosticBundleBuilder().save(input))
-    const result = await saveBundle({ destination: selected.filePath, logsDirectory, context })
+    const result = await saveBundle({
+      destination: selected.filePath,
+      logsDirectory,
+      context: {
+        ...context,
+        runtime: {
+          ...loggerService.getProcessIdentity(),
+          userDataPath: application.getPath('app.userdata')
+        }
+      }
+    })
     if (result.status !== 'saved') return { result: { status: 'failed', code: 'bundle_save_failed' } }
     return { result, destination: selected.filePath }
   } catch {

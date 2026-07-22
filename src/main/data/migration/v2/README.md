@@ -59,20 +59,22 @@ Migration failures, blocked upgrade paths, and native preboot migration failures
 bundle without changing the successful migration flow. Main owns the save dialog and writes the ZIP
 atomically. Each bundle contains:
 
-- `migration-diagnostics.json`: application version, platform, architecture, failure source/stage,
-  a stable error summary, current progress, migrator status, and the complete migration-boundary
-  error when one exists (`name`, raw `message`, `stack`, plus available `code`, `syscall`, and
-  absolute `path`).
+- `migration-diagnostics.json`: application and process identity, migration run identity, failure
+  source/stage/operation/target, version-gate inputs, current progress, migrator status, and the
+  complete migration-boundary error when one exists (`name`, raw `message`, `stack`, nested
+  `cause`, plus available `code`, `syscall`, and absolute `path`).
 - Optional `logs/app.YYYY-MM-DD.log` and numeric rotation files such as
   `logs/app.YYYY-MM-DD.log.1`, each preserved as a separate ZIP entry.
 
 "Today" means the user's local calendar date when they click save. The collector accepts only
 regular application log files for that date; it excludes `app-error` logs, other dates, symlinks,
-and directories. Included files retain their original bytes without redaction, parsing, or
-truncation. If any eligible file cannot be collected, the entire log set is omitted while the basic
-bundle is still saved. The JSON then records `logCollection.reason`, its retry recommendation, the
-relevant absolute path, and the complete collection exception when one exists. `no_eligible_logs`
-records the reason and logs directory without inventing an exception or stack.
+and directories. It selects newest mtime first, at most four files and 40 MiB of scanned raw bytes.
+Selected files stream directly into the ZIP at their scanned size; files omitted by the budget are
+counted in `logCollection`. If collection or a selected file stream fails, the log set is omitted
+and the builder atomically rebuilds a basic-only ZIP. The JSON records completeness, included file
+sizes, omitted count, failure reason, retry recommendation, relevant absolute path, and the complete
+collection exception when one exists. `no_eligible_logs` records the reason and logs directory
+without inventing an exception or stack.
 
 The application never uploads, attaches, emails, or otherwise sends the bundle automatically; the
 user must inspect it and attach it manually. A final compressed ZIP strictly larger than 15 MiB is

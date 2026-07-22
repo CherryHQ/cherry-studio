@@ -25,6 +25,9 @@ import {
   getMigrationDiagnosticNoticeParts,
   type MigrationDiagnosticNoticePart,
   type MigrationDiagnosticSaveResult,
+  MigrationExportWriteError,
+  type MigrationFailureCode,
+  type MigrationFailureOperation,
   serializeMigrationDiagnosticError
 } from '@shared/data/migration/v2/diagnostics'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
@@ -350,10 +353,18 @@ const MigrationApp: React.FC = () => {
     setLocalMigrationDiagnosticsAvailable(false)
     setDiagnosticSaveResult(null)
     setDiagnosticSupportActionFailed(false)
+    const runId = crypto.randomUUID()
+    let failureCode: MigrationFailureCode = 'migration_start_failed'
+    let failureOperation: MigrationFailureOperation = 'start_migration'
     try {
+      const begun = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.BeginRun, { runId })
+      if (begun !== true) throw new Error('Main rejected the migration run.')
+
       logger.info('Starting migration process...')
 
       // Export Redux data
+      failureCode = 'redux_export_failed'
+      failureOperation = 'export_redux'
       const reduxExporter = new ReduxExporter()
       const reduxResult = reduxExporter.export()
       logger.info('Redux data exported', {
@@ -362,6 +373,8 @@ const MigrationApp: React.FC = () => {
       })
 
       // Export Dexie data
+      failureCode = 'dexie_export_failed'
+      failureOperation = 'export_dexie'
       const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
       const exportBasePath = `${userDataPath}/migration_temp`
       const dexieExportPath = `${exportBasePath}/dexie_export`
@@ -374,6 +387,8 @@ const MigrationApp: React.FC = () => {
       logger.info('Dexie data exported', { exportPath: dexieExportPath })
 
       // Export localStorage data
+      failureCode = 'localstorage_export_failed'
+      failureOperation = 'export_localstorage'
       const localStorageExportPath = `${exportBasePath}/localstorage_export`
       const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
       const localStorageFilePath = await localStorageExporter.export()
@@ -383,21 +398,35 @@ const MigrationApp: React.FC = () => {
       })
 
       // Start migration with exported data
+      failureCode = 'migration_start_failed'
+      failureOperation = 'start_migration'
       await actions.startMigration({
+        runId,
         reduxData: reduxResult.data,
         dexieExportPath,
         localStorageExportPath: localStorageFilePath
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
+      if (error instanceof MigrationExportWriteError) {
+        setLocalMigrationError(error.message)
+        setLocalMigrationDiagnosticsAvailable(true)
+        return
+      }
       const diagnosticError = serializeMigrationDiagnosticError(error)
       const message = diagnosticError.message
+      const failure = {
+        code: failureCode,
+        origin: 'renderer' as const,
+        operation: failureOperation,
+        error: diagnosticError
+      }
       const failureReportEpoch = ++localFailureReportEpochRef.current
       setLocalMigrationError(message)
       void (async () => {
         try {
           const diagnosticsAvailable =
-            (await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, diagnosticError)) === true
+            (await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportError, { runId, failure })) === true
           if (diagnosticsAvailable && localFailureReportEpochRef.current === failureReportEpoch) {
             setLocalMigrationDiagnosticsAvailable(true)
           }

@@ -1,3 +1,4 @@
+import { MigrationExportWriteError } from '@shared/data/migration/v2/diagnostics'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
@@ -180,6 +181,9 @@ import { enUS, zhCN } from '../i18n/locales'
 import MigrationApp from '../MigrationApp'
 
 describe('MigrationApp', () => {
+  const successfulMigrationInvoke = (channel: string) =>
+    Promise.resolve(channel === MigrationIpcChannels.GetUserDataPath ? '/tmp/userData' : true)
+
   beforeEach(() => {
     cleanup.mockClear()
     invoke.mockClear()
@@ -374,7 +378,7 @@ describe('MigrationApp', () => {
           getEntryCount: vi.fn(() => 1)
         }) as unknown as LocalStorageExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockImplementation(successfulMigrationInvoke)
 
     render(<MigrationApp />)
 
@@ -383,6 +387,7 @@ describe('MigrationApp', () => {
     })
 
     expect(migrationHookMock.actions.startMigration).toHaveBeenCalledWith({
+      runId: expect.any(String),
       reduxData: { a: 1 },
       dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
       localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json'
@@ -407,7 +412,7 @@ describe('MigrationApp', () => {
     vi.mocked(DexieExporter).mockImplementation(
       () => ({ exportAll: vi.fn().mockRejectedValue(exportError) }) as unknown as DexieExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockImplementation(successfulMigrationInvoke)
 
     render(<MigrationApp />)
 
@@ -418,9 +423,17 @@ describe('MigrationApp', () => {
     expect(screen.getByText(/Dexie export failed/)).toBeInTheDocument()
     expect(migrationHookMock.actions.startMigration).not.toHaveBeenCalled()
     expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
-      name: 'Error',
-      message: 'Dexie export failed',
-      stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
+      runId: expect.any(String),
+      failure: {
+        code: 'dexie_export_failed',
+        origin: 'renderer',
+        operation: 'export_dexie',
+        error: {
+          name: 'Error',
+          message: 'Dexie export failed',
+          stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
+        }
+      }
     })
   })
 
@@ -447,7 +460,7 @@ describe('MigrationApp', () => {
           getEntryCount: vi.fn(() => 1)
         }) as unknown as LocalStorageExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockImplementation(successfulMigrationInvoke)
     const handoffError = new Error('StartMigration failed')
     handoffError.stack = 'Error: StartMigration failed\n    at startMigration (/app/renderer.js:24:5)'
     migrationHookMock.actions.startMigration.mockRejectedValue(handoffError)
@@ -459,9 +472,17 @@ describe('MigrationApp', () => {
     expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
     expect(screen.getByText(/StartMigration failed/)).toBeInTheDocument()
     expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
-      name: 'Error',
-      message: 'StartMigration failed',
-      stack: 'Error: StartMigration failed\n    at startMigration (/app/renderer.js:24:5)'
+      runId: expect.any(String),
+      failure: {
+        code: 'migration_start_failed',
+        origin: 'renderer',
+        operation: 'start_migration',
+        error: {
+          name: 'Error',
+          message: 'StartMigration failed',
+          stack: 'Error: StartMigration failed\n    at startMigration (/app/renderer.js:24:5)'
+        }
+      }
     })
   })
 
@@ -478,7 +499,7 @@ describe('MigrationApp', () => {
     vi.mocked(DexieExporter).mockImplementation(
       () => ({ exportAll: vi.fn().mockRejectedValue(new Error('Dexie export failed')) }) as unknown as DexieExporter
     )
-    invoke.mockResolvedValue('/tmp/userData')
+    invoke.mockImplementation(successfulMigrationInvoke)
 
     const { rerender } = render(<MigrationApp />)
     fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
@@ -535,7 +556,7 @@ describe('MigrationApp', () => {
             resolveReport = resolve
           })
         }
-        return Promise.resolve('/tmp/userData')
+        return successfulMigrationInvoke(channel)
       })
 
       render(<MigrationApp />)
@@ -544,14 +565,51 @@ describe('MigrationApp', () => {
       expect(await screen.findByText('migration.error.title')).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'migration.diagnostics.save' })).not.toBeInTheDocument()
       expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
-        name: 'Error',
-        message: 'Dexie export failed',
-        stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
+        runId: expect.any(String),
+        failure: {
+          code: 'dexie_export_failed',
+          origin: 'renderer',
+          operation: 'export_dexie',
+          error: {
+            name: 'Error',
+            message: 'Dexie export failed',
+            stack: 'Error: Dexie export failed\n    at exportAll (/app/renderer.js:12:3)'
+          }
+        }
       })
 
       await act(async () => resolveReport(true))
 
       expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+    })
+
+    it('offers diagnostics immediately for a structured Main export failure without reporting it as Renderer', async () => {
+      vi.mocked(ReduxExporter).mockImplementation(
+        () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
+      )
+      const mainFailure = {
+        code: 'export_file_write_failed' as const,
+        origin: 'main' as const,
+        operation: 'write_export_file' as const,
+        targetPath: '/tmp/userData/migration_temp/dexie_export/topics.json',
+        error: { name: 'Error', message: 'permission denied', code: 'EACCES' }
+      }
+      vi.mocked(DexieExporter).mockImplementation(
+        () =>
+          ({
+            exportAll: vi.fn().mockRejectedValue(new MigrationExportWriteError(mainFailure))
+          }) as unknown as DexieExporter
+      )
+      invoke.mockImplementation((channel: string) =>
+        Promise.resolve(channel === MigrationIpcChannels.GetUserDataPath ? '/tmp/userData' : true)
+      )
+
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+
+      expect(await screen.findByText(/permission denied/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
+      expect(invoke.mock.calls.some(([channel]) => channel === MigrationIpcChannels.ReportError)).toBe(false)
     })
 
     it('ignores a late ReportError acceptance after Retry clears the local failure', async () => {
@@ -563,7 +621,7 @@ describe('MigrationApp', () => {
             resolveReport = resolve
           })
         }
-        return Promise.resolve('/tmp/userData')
+        return successfulMigrationInvoke(channel)
       })
 
       render(<MigrationApp />)
@@ -587,7 +645,7 @@ describe('MigrationApp', () => {
     ] as const)('does not offer diagnostics when ReportError %s', async (_case, reportResult) => {
       rejectRendererExport()
       invoke.mockImplementation((channel: string) =>
-        channel === MigrationIpcChannels.ReportError ? reportResult() : Promise.resolve('/tmp/userData')
+        channel === MigrationIpcChannels.ReportError ? reportResult() : successfulMigrationInvoke(channel)
       )
 
       render(<MigrationApp />)
@@ -615,7 +673,7 @@ describe('MigrationApp', () => {
       handoffError.stack = 'Error: handoff failed\n    at startMigration (/app/renderer.js:24:5)'
       migrationHookMock.actions.startMigration.mockRejectedValue(handoffError)
       invoke.mockImplementation((channel: string) =>
-        Promise.resolve(channel === MigrationIpcChannels.ReportError ? true : '/tmp/userData')
+        channel === MigrationIpcChannels.ReportError ? Promise.resolve(true) : successfulMigrationInvoke(channel)
       )
 
       render(<MigrationApp />)
@@ -623,9 +681,17 @@ describe('MigrationApp', () => {
 
       expect(await screen.findByRole('button', { name: 'migration.diagnostics.save' })).toBeInTheDocument()
       expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ReportError, {
-        name: 'Error',
-        message: 'handoff failed',
-        stack: 'Error: handoff failed\n    at startMigration (/app/renderer.js:24:5)'
+        runId: expect.any(String),
+        failure: {
+          code: 'migration_start_failed',
+          origin: 'renderer',
+          operation: 'start_migration',
+          error: {
+            name: 'Error',
+            message: 'handoff failed',
+            stack: 'Error: handoff failed\n    at startMigration (/app/renderer.js:24:5)'
+          }
+        }
       })
     })
 

@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import type { MigrationDiagnosticSavedResult } from '@shared/data/migration/v2/diagnostics'
 import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,6 +28,11 @@ describe('migrationDiagnosticDialogs', () => {
     getPathMock.mockImplementation((key: string, filename?: string) =>
       filename ? `/central/${key}/${filename}` : `/central/${key}`
     )
+    ;(
+      loggerService as unknown as {
+        getProcessIdentity: () => { processId: number; processStartedAt: string }
+      }
+    ).getProcessIdentity = vi.fn(() => ({ processId: 4321, processStartedAt: '2026-07-21T10:00:00.000Z' }))
   })
 
   it.each([
@@ -106,7 +112,14 @@ describe('migrationDiagnosticDialogs', () => {
     expect(saveBundle).toHaveBeenCalledWith({
       destination: '/chosen/diagnostics.zip',
       logsDirectory: '/central/app.logs',
-      context
+      context: {
+        ...context,
+        runtime: {
+          processId: 4321,
+          processStartedAt: '2026-07-21T10:00:00.000Z',
+          userDataPath: '/central/app.userdata'
+        }
+      }
     })
   })
 

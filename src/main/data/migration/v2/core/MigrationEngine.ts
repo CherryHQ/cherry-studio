@@ -42,7 +42,10 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { type MigrationDiagnosticError, serializeMigrationDiagnosticError } from '@shared/data/migration/v2/diagnostics'
+import {
+  type MigrationDiagnosticFailure,
+  serializeMigrationDiagnosticError
+} from '@shared/data/migration/v2/diagnostics'
 import type {
   MigrationProgress,
   MigrationResult,
@@ -72,7 +75,7 @@ export class MigrationEngine {
   private migrationDb: MigrationDbService | null = null
   private _paths: MigrationPaths | null = null
   private legacyDataConfirmed = false
-  private lastDiagnosticError?: MigrationDiagnosticError
+  private lastDiagnosticFailure?: MigrationDiagnosticFailure
 
   get paths(): MigrationPaths {
     if (!this._paths) {
@@ -193,8 +196,8 @@ export class MigrationEngine {
     return null
   }
 
-  getLastDiagnosticError(): MigrationDiagnosticError | undefined {
-    return this.lastDiagnosticError
+  getLastDiagnosticFailure(): MigrationDiagnosticFailure | undefined {
+    return this.lastDiagnosticFailure
   }
 
   /**
@@ -207,7 +210,7 @@ export class MigrationEngine {
     dexieExportPath: string,
     localStorageExportPath?: string
   ): Promise<MigrationResult> {
-    this.lastDiagnosticError = undefined
+    this.lastDiagnosticFailure = undefined
     const startTime = Date.now()
     const results: MigratorResult[] = []
 
@@ -317,12 +320,27 @@ export class MigrationEngine {
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
       const errorMessage = err.message
-      this.lastDiagnosticError = serializeMigrationDiagnosticError(error)
+      let diagnosticFailure: MigrationDiagnosticFailure = {
+        code: 'migration_engine_failed',
+        origin: 'main',
+        operation: 'run_migration',
+        error: serializeMigrationDiagnosticError(error)
+      }
+      this.lastDiagnosticFailure = diagnosticFailure
 
       logger.error('Migration failed', err)
 
       // Mark migration as failed with error details
-      await this.markFailed(errorMessage)
+      try {
+        await this.markFailed(errorMessage)
+      } catch (persistenceError) {
+        logger.error('Failed to persist migration failure status', persistenceError as Error)
+        diagnosticFailure = {
+          ...diagnosticFailure,
+          statusPersistenceError: serializeMigrationDiagnosticError(persistenceError)
+        }
+        this.lastDiagnosticFailure = diagnosticFailure
+      }
 
       return {
         success: false,

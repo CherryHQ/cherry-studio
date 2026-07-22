@@ -7,15 +7,19 @@ import { loggerService } from '@logger'
 import { validateSender } from '@main/core/security/validateSender'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import {
-  type MigrationDiagnosticError,
+  type MigrationDiagnosticFailure,
+  type MigrationDiagnosticRun,
   type MigrationDiagnosticSaveResult,
+  type MigrationVersionDiagnostic,
   serializeMigrationDiagnosticError
 } from '@shared/data/migration/v2/diagnostics'
 import {
+  type BeginMigrationRunPayload,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationResult,
   type MigrationSummary,
+  type ReportMigrationErrorPayload,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
 import { app, clipboard, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
@@ -36,7 +40,8 @@ const DIAGNOSTIC_SAVE_QUIT_GRACE_MS = 30_000
 let inFlightMigration: Promise<MigrationResult> | null = null
 let diagnosticSaveInFlight: Promise<MigrationDiagnosticSaveResult> | null = null
 let lastSavedDiagnosticBundlePath: string | null = null
-let currentDiagnosticError: MigrationDiagnosticError | undefined
+let currentDiagnosticFailure: MigrationDiagnosticFailure | undefined
+let activeDiagnosticRun: MigrationDiagnosticRun | undefined
 let diagnosticStateEpoch = 0
 // Set once a deferred quit has been registered, so repeated confirmations while a protected
 // operation is in flight don't stack a second allSettled().then(confirmQuit).
@@ -64,6 +69,16 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   // Wire the window manager's force-quit escape hatch (crash / hang / repeated close) to the same
   // write-deferral the ConfirmQuit handler uses, so those paths never terminate mid-write.
   migrationWindowManager.setQuitRequester(requestQuit)
+
+  ipcMain.handle(MigrationIpcChannels.BeginRun, (event, payload: BeginMigrationRunPayload) => {
+    assertDiagnosticSender(event)
+    if (!payload.runId) return false
+    activeDiagnosticRun = { id: payload.runId, startedAt: new Date().toISOString() }
+    currentDiagnosticFailure = undefined
+    diagnosticStateEpoch += 1
+    logger.info('Beginning migration run', { runId: payload.runId })
+    return true
+  })
 
   ipcMain.handle(MigrationIpcChannels.SaveDiagnosticBundle, async (event) => {
     assertDiagnosticSender(event)
@@ -150,18 +165,36 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     MigrationIpcChannels.WriteExportFile,
     async (_event, exportPath: string, tableName: string, jsonData: string) => {
       try {
-        // Ensure export directory exists
         await fs.mkdir(exportPath, { recursive: true })
-
-        // Write table data to file
-        const filePath = path.join(exportPath, `${tableName}.json`)
-        await fs.writeFile(filePath, jsonData, 'utf-8')
-
-        logger.info('Export file written', { tableName, filePath })
-        return true
       } catch (error) {
-        logger.error('Error writing export file', error as Error)
-        throw error
+        const failure: MigrationDiagnosticFailure = {
+          code: 'export_directory_create_failed',
+          origin: 'main',
+          operation: 'create_export_directory',
+          targetPath: exportPath,
+          error: serializeMigrationDiagnosticError(error, exportPath)
+        }
+        recordDiagnosticFailure(failure)
+        logger.error('Error creating migration export directory', error as Error, { runId: activeDiagnosticRun?.id })
+        return { ok: false, failure } as const
+      }
+
+      const filePath = path.join(exportPath, `${tableName}.json`)
+      try {
+        await fs.writeFile(filePath, jsonData, 'utf-8')
+        logger.info('Export file written', { tableName, filePath })
+        return { ok: true } as const
+      } catch (error) {
+        const failure: MigrationDiagnosticFailure = {
+          code: 'export_file_write_failed',
+          origin: 'main',
+          operation: 'write_export_file',
+          targetPath: filePath,
+          error: serializeMigrationDiagnosticError(error, filePath)
+        }
+        recordDiagnosticFailure(failure)
+        logger.error('Error writing export file', error as Error, { runId: activeDiagnosticRun?.id })
+        return { ok: false, failure } as const
       }
     }
   )
@@ -173,7 +206,11 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       throw new Error(CONCURRENT_MIGRATION_ERROR)
     }
 
-    currentDiagnosticError = undefined
+    if (!payload.runId || activeDiagnosticRun?.id !== payload.runId) {
+      throw new Error('Stale or missing migration run.')
+    }
+
+    currentDiagnosticFailure = undefined
     let runPromise: Promise<MigrationResult> | null = null
 
     try {
@@ -219,7 +256,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
           summary: createMigrationSummary(result, currentProgress)
         })
       } else {
-        currentDiagnosticError = migrationEngine.getLastDiagnosticError()
+        const failure = migrationEngine.getLastDiagnosticFailure()
+        if (failure) recordDiagnosticFailure(failure)
+        logger.warn('Migration run failed', { runId: payload.runId, failureCode: failure?.code })
         updateProgress({
           stage: 'error',
           overallProgress: currentProgress.overallProgress,
@@ -232,13 +271,20 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       return result
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Error starting migration', error as Error)
+      logger.error('Error starting migration', error as Error, { runId: payload.runId })
 
       if (errorMessage === CONCURRENT_MIGRATION_ERROR) {
         throw error
       }
 
-      currentDiagnosticError = serializeMigrationDiagnosticError(error)
+      if (!currentDiagnosticFailure) {
+        recordDiagnosticFailure({
+          code: 'migration_start_failed',
+          origin: 'main',
+          operation: 'start_migration',
+          error: serializeMigrationDiagnosticError(error)
+        })
+      }
 
       updateProgress({
         stage: 'error',
@@ -257,16 +303,20 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Mirror renderer-local failures into main so close handling sees the terminal error stage.
-  ipcMain.handle(MigrationIpcChannels.ReportError, (event, reportedError: MigrationDiagnosticError) => {
+  ipcMain.handle(MigrationIpcChannels.ReportError, (event, payload: ReportMigrationErrorPayload) => {
     assertDiagnosticSender(event)
-    const error = serializeMigrationDiagnosticError(reportedError)
-    currentDiagnosticError = error
+    if (!payload?.runId || !payload.failure || activeDiagnosticRun?.id !== payload.runId) return false
+    if (currentDiagnosticFailure) return true
+    const failure = payload.failure
+    recordDiagnosticFailure(failure)
+    logger.error('Renderer migration step failed', { runId: payload.runId, failure })
+    const message = failure.error?.message ?? failure.code
     updateProgress({
       stage: 'error',
       overallProgress: currentProgress.overallProgress,
-      currentMessage: error.message,
+      currentMessage: message,
       migrators: currentProgress.migrators,
-      error: error.message
+      error: message
     })
     return true
   })
@@ -274,7 +324,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   // Retry migration
   ipcMain.handle(MigrationIpcChannels.Retry, async () => {
     try {
-      currentDiagnosticError = undefined
+      currentDiagnosticFailure = undefined
+      activeDiagnosticRun = undefined
+      diagnosticStateEpoch += 1
       // Reset to the introduction stage so the user can re-trigger migration from its Start button.
       // Carry the data-location notice back so it doesn't disappear after a failed export.
       updateProgress({
@@ -382,13 +434,29 @@ function assertDiagnosticSender(event: IpcMainInvokeEvent): void {
 }
 
 function createRendererDiagnosticContext(): MigrationDiagnosticContext {
+  const compatibilityFailure =
+    currentDiagnosticFailure === undefined
+      ? {}
+      : {
+          failureCode: currentDiagnosticFailure.code,
+          ...(currentDiagnosticFailure.error === undefined ? {} : { error: currentDiagnosticFailure.error }),
+          failure: currentDiagnosticFailure
+        }
   return {
     source: 'renderer',
     stage: currentProgress.stage,
     errorSummary: currentProgress.error ?? currentProgress.currentMessage,
-    ...(currentDiagnosticError === undefined ? {} : { error: currentDiagnosticError }),
+    ...compatibilityFailure,
+    ...(activeDiagnosticRun === undefined ? {} : { run: activeDiagnosticRun }),
     overallProgress: currentProgress.overallProgress,
     migrators: currentProgress.migrators.map(({ id, status }) => ({ id, status }))
+  }
+}
+
+function recordDiagnosticFailure(failure: MigrationDiagnosticFailure): void {
+  currentDiagnosticFailure = failure
+  if (activeDiagnosticRun && activeDiagnosticRun.failedAt === undefined) {
+    activeDiagnosticRun = { ...activeDiagnosticRun, failedAt: new Date().toISOString() }
   }
 }
 
@@ -461,7 +529,8 @@ export function resetMigrationData(): void {
   inFlightMigration = null
   diagnosticSaveInFlight = null
   lastSavedDiagnosticBundlePath = null
-  currentDiagnosticError = undefined
+  currentDiagnosticFailure = undefined
+  activeDiagnosticRun = undefined
   diagnosticStateEpoch += 1
   quitScheduled = false
   dataLocationNotice = null
@@ -478,7 +547,31 @@ export function resetMigrationData(): void {
  * Must be called BEFORE registerMigrationIpcHandlers() so that the
  * renderer picks up this state via the GetProgress IPC on mount.
  */
-export function setVersionIncompatible(reason: VersionBlockReason, details: Record<string, string>): void {
+export function setVersionIncompatible(
+  reason: VersionBlockReason,
+  details: Record<string, string>,
+  diagnostic: {
+    readonly currentVersion: string
+    readonly previousVersion: string | null
+    readonly versionLogExists: boolean
+    readonly versionLogPath: string
+  }
+): void {
+  const version: MigrationVersionDiagnostic = {
+    reason,
+    currentVersion: diagnostic.currentVersion,
+    ...(diagnostic.previousVersion === null ? {} : { previousVersion: diagnostic.previousVersion }),
+    ...(details.requiredVersion === undefined ? {} : { requiredVersion: details.requiredVersion }),
+    ...(details.gatewayVersion === undefined ? {} : { gatewayVersion: details.gatewayVersion }),
+    versionLogExists: diagnostic.versionLogExists
+  }
+  currentDiagnosticFailure = {
+    code: reason,
+    origin: 'main',
+    operation: 'evaluate_version',
+    targetPath: diagnostic.versionLogPath,
+    version
+  }
   currentProgress = {
     stage: 'version_incompatible',
     overallProgress: 0,

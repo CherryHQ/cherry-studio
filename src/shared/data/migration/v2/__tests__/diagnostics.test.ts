@@ -1,11 +1,39 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  assertMigrationExportWriteSucceeded,
   getMigrationDiagnosticNoticeParts,
+  type MigrationDiagnosticError,
   type MigrationDiagnosticNoticePart,
   type MigrationDiagnosticSavedResult,
+  MigrationExportWriteError,
   serializeMigrationDiagnosticError
 } from '../diagnostics'
+
+describe('assertMigrationExportWriteSucceeded', () => {
+  it('throws a typed renderer error without losing Main failure details', () => {
+    const failure = {
+      code: 'export_file_write_failed' as const,
+      origin: 'main' as const,
+      operation: 'write_export_file' as const,
+      targetPath: '/tmp/migration_temp/topics.json',
+      error: { name: 'Error', message: 'permission denied', code: 'EACCES' }
+    }
+
+    expect(() => assertMigrationExportWriteSucceeded({ ok: false, failure })).toThrowError(MigrationExportWriteError)
+
+    try {
+      assertMigrationExportWriteSucceeded({ ok: false, failure })
+    } catch (error) {
+      expect(error).toBeInstanceOf(MigrationExportWriteError)
+      expect((error as MigrationExportWriteError).failure).toBe(failure)
+    }
+  })
+
+  it('accepts a successful Main write result', () => {
+    expect(() => assertMigrationExportWriteSucceeded({ ok: true })).not.toThrow()
+  })
+})
 
 describe('getMigrationDiagnosticNoticeParts', () => {
   it.each<[MigrationDiagnosticSavedResult, readonly MigrationDiagnosticNoticePart[]]>([
@@ -96,5 +124,55 @@ describe('serializeMigrationDiagnosticError', () => {
       message: 'collector failed',
       path: '/absolute/logs'
     })
+  })
+
+  it('preserves a bounded error cause chain including native SQLite metadata', () => {
+    const sqliteError = Object.assign(new Error('file is not a database'), {
+      code: 'SQLITE_NOTADB'
+    })
+    const drizzleError = new Error('Failed query', { cause: sqliteError })
+
+    expect(serializeMigrationDiagnosticError(drizzleError)).toMatchObject({
+      name: 'Error',
+      message: 'Failed query',
+      cause: {
+        name: 'Error',
+        message: 'file is not a database',
+        code: 'SQLITE_NOTADB'
+      }
+    })
+  })
+
+  it('marks a cyclic cause without recursing forever', () => {
+    const outer = new Error('outer') as Error & { cause?: unknown }
+    const inner = new Error('inner', { cause: outer })
+    outer.cause = inner
+
+    expect(serializeMigrationDiagnosticError(outer)).toMatchObject({
+      message: 'outer',
+      cause: {
+        message: 'inner',
+        causeTruncated: true
+      }
+    })
+  })
+
+  it('serializes at most five error levels', () => {
+    const errors = Array.from({ length: 6 }, (_, index) => new Error(`level-${index}`)) as Array<
+      Error & { cause?: unknown }
+    >
+    for (let index = 0; index < errors.length - 1; index++) errors[index].cause = errors[index + 1]
+
+    const serialized = serializeMigrationDiagnosticError(errors[0])
+    const messages: string[] = []
+    let current: MigrationDiagnosticError | undefined = serialized
+    while (current) {
+      messages.push(current.message)
+      if (current.causeTruncated) break
+      current = current.cause
+    }
+
+    expect(messages).toEqual(['level-0', 'level-1', 'level-2', 'level-3', 'level-4'])
+    expect(current?.causeTruncated).toBe(true)
   })
 })

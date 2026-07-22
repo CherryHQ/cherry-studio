@@ -486,10 +486,19 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       // Should show version_incompatible window, not dialog
-      expect(setVersionIncompatibleMock).toHaveBeenCalledWith('v1_too_old', {
-        previousVersion: '1.5.0',
-        requiredVersion: '1.9.0'
-      })
+      expect(setVersionIncompatibleMock).toHaveBeenCalledWith(
+        'v1_too_old',
+        {
+          previousVersion: '1.5.0',
+          requiredVersion: '1.9.0'
+        },
+        {
+          currentVersion: '2.0.0',
+          previousVersion: '1.5.0',
+          versionLogExists: true,
+          versionLogPath: '/mock/version.log'
+        }
+      )
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
       expect(migrationWindowCreateMock).toHaveBeenCalledTimes(1)
       expect(migrationWindowWaitForReadyMock).toHaveBeenCalledTimes(1)

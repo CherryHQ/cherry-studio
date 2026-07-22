@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Readable } from 'node:stream'
 
 import { MIGRATION_DIAGNOSTIC_LARGE_ZIP_BYTES } from '@shared/data/migration/v2/diagnostics'
 import StreamZip from 'node-stream-zip'
@@ -44,6 +45,11 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       writeFile(join(logsDirectory, 'app.2026-07-21.log.2'), 'rotated two'),
       writeFile(join(logsDirectory, 'app.2026-07-21.log.1'), 'rotated one')
     ])
+    await Promise.all([
+      utimes(join(logsDirectory, 'app.2026-07-21.log'), 100, 100),
+      utimes(join(logsDirectory, 'app.2026-07-21.log.2'), 200, 200),
+      utimes(join(logsDirectory, 'app.2026-07-21.log.1'), 300, 300)
+    ])
     const destination = join(workDirectory, 'diagnostics.zip')
     const builder = new MigrationDiagnosticBundleBuilder({
       clock: FIXED_CLOCK,
@@ -67,7 +73,20 @@ describe('MigrationDiagnosticBundleBuilder', () => {
         migrators: [
           { id: 'settings', status: 'completed' },
           { id: 'messages', status: 'failed' }
-        ]
+        ],
+        failure: {
+          code: 'migration_engine_failed',
+          origin: 'main',
+          operation: 'run_migration',
+          targetPath: '/absolute/cherrystudio.sqlite',
+          error: { name: 'Error', message: 'Migration failed while copying records.' }
+        },
+        run: { id: 'run-42', startedAt: '2026-07-21T12:30:00.000Z', failedAt: '2026-07-21T12:31:00.000Z' },
+        runtime: {
+          processId: 4321,
+          processStartedAt: '2026-07-21T10:00:00.000Z',
+          userDataPath: '/absolute/userData'
+        }
       }
     })
 
@@ -75,9 +94,9 @@ describe('MigrationDiagnosticBundleBuilder', () => {
     const archive = await readZip(destination)
     expect(archive.names).toEqual([
       'migration-diagnostics.json',
-      'logs/app.2026-07-21.log',
       'logs/app.2026-07-21.log.1',
-      'logs/app.2026-07-21.log.2'
+      'logs/app.2026-07-21.log.2',
+      'logs/app.2026-07-21.log'
     ])
     expect(archive.data['logs/app.2026-07-21.log']).toEqual(originalBaseLog)
     expect(archive.data['logs/app.2026-07-21.log.1']).toEqual(Buffer.from('rotated one'))
@@ -86,6 +105,11 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       formatVersion: 1,
       generatedAt: '2026-07-21T12:34:56.000Z',
       application: TEST_APPLICATION,
+      runtime: {
+        processId: 4321,
+        processStartedAt: '2026-07-21T10:00:00.000Z',
+        userDataPath: '/absolute/userData'
+      },
       migration: {
         source: 'renderer',
         stage: 'error',
@@ -100,7 +124,26 @@ describe('MigrationDiagnosticBundleBuilder', () => {
         migrators: [
           { id: 'settings', status: 'completed' },
           { id: 'messages', status: 'failed' }
-        ]
+        ],
+        run: { id: 'run-42', startedAt: '2026-07-21T12:30:00.000Z', failedAt: '2026-07-21T12:31:00.000Z' },
+        failure: {
+          code: 'migration_engine_failed',
+          origin: 'main',
+          operation: 'run_migration',
+          targetPath: '/absolute/cherrystudio.sqlite',
+          error: { name: 'Error', message: 'Migration failed while copying records.' }
+        }
+      },
+      logCollection: {
+        status: 'included',
+        completeness: 'complete',
+        includedFiles: [
+          { name: 'app.2026-07-21.log.1', bytes: 11 },
+          { name: 'app.2026-07-21.log.2', bytes: 11 },
+          { name: 'app.2026-07-21.log', bytes: 6 }
+        ],
+        omittedFileCount: 0,
+        includedRawBytes: 28
       }
     })
   })
@@ -162,6 +205,10 @@ describe('MigrationDiagnosticBundleBuilder', () => {
       },
       logCollection: {
         status: 'not_included',
+        completeness: 'none',
+        includedFiles: [],
+        omittedFileCount: 0,
+        includedRawBytes: 0,
         reason: 'collector_failed',
         retry: 'not_suggested',
         path: logsDirectory,
@@ -193,6 +240,10 @@ describe('MigrationDiagnosticBundleBuilder', () => {
     const archive = await readZip(destination)
     expect(JSON.parse(archive.data['migration-diagnostics.json'].toString('utf8')).logCollection).toEqual({
       status: 'not_included',
+      completeness: 'none',
+      includedFiles: [],
+      omittedFileCount: 0,
+      includedRawBytes: 0,
       reason: 'no_eligible_logs',
       retry: 'suggested',
       path: logsDirectory
@@ -215,6 +266,79 @@ describe('MigrationDiagnosticBundleBuilder', () => {
     expect(result).toEqual({ status: 'saved', logs: 'included', size: 'standard' })
     const archive = await readZip(destination)
     expect(archive.data['logs/app.2026-07-21.log']).toHaveLength(17 * 1024 * 1024)
+  })
+
+  it('streams only the collector snapshot when a log grows before archiving', async () => {
+    const logPath = join(logsDirectory, 'app.2026-07-21.log')
+    await writeFile(logPath, 'before-after')
+    const destination = join(workDirectory, 'snapshot.zip')
+
+    const result = await new MigrationDiagnosticBundleBuilder({
+      clock: FIXED_CLOCK,
+      applicationMetadata: TEST_APPLICATION,
+      collectApplicationLogs: async () => ({
+        status: 'included',
+        completeness: 'complete',
+        entries: [{ fileName: 'app.2026-07-21.log', filePath: logPath, mtimeMs: 1, snapshotBytes: 6 }],
+        omittedEntries: [],
+        includedRawBytes: 6
+      })
+    }).save({ destination, logsDirectory, context: { source: 'renderer', stage: 'error' } })
+
+    expect(result).toEqual({ status: 'saved', logs: 'included', size: 'standard' })
+    expect((await readZip(destination)).data['logs/app.2026-07-21.log'].toString()).toBe('before')
+  })
+
+  it('rebuilds a basic ZIP when a selected log stream fails and removes atomic temp files', async () => {
+    const logPath = join(logsDirectory, 'app.2026-07-21.log')
+    await writeFile(logPath, 'log')
+    const destination = join(workDirectory, 'fallback.zip')
+    const streamError = Object.assign(new Error('stream read failed'), {
+      stack: 'Error: stream read failed\n    at streamLog (/app/main.js:55:9)',
+      code: 'EIO',
+      syscall: 'read'
+    })
+
+    const result = await new MigrationDiagnosticBundleBuilder({
+      clock: FIXED_CLOCK,
+      applicationMetadata: TEST_APPLICATION,
+      collectApplicationLogs: async () => ({
+        status: 'included',
+        completeness: 'complete',
+        entries: [{ fileName: 'app.2026-07-21.log', filePath: logPath, mtimeMs: 1, snapshotBytes: 3 }],
+        omittedEntries: [],
+        includedRawBytes: 3
+      }),
+      createLogReadStream: () =>
+        new Readable({
+          read() {
+            this.destroy(streamError)
+          }
+        })
+    }).save({ destination, logsDirectory, context: { source: 'renderer', stage: 'error' } })
+
+    expect(result).toEqual({ status: 'saved', logs: 'not_included', retry: 'not_suggested', size: 'standard' })
+    const archive = await readZip(destination)
+    expect(archive.names).toEqual(['migration-diagnostics.json'])
+    expect(JSON.parse(archive.data['migration-diagnostics.json'].toString('utf8')).logCollection).toEqual({
+      status: 'not_included',
+      completeness: 'none',
+      includedFiles: [],
+      omittedFileCount: 1,
+      includedRawBytes: 0,
+      reason: 'file_read_failed',
+      retry: 'not_suggested',
+      path: logPath,
+      error: {
+        name: 'Error',
+        message: 'stream read failed',
+        stack: 'Error: stream read failed\n    at streamLog (/app/main.js:55:9)',
+        code: 'EIO',
+        syscall: 'read',
+        path: logPath
+      }
+    })
+    expect((await readdir(workDirectory)).filter((name) => name.includes('.tmp-'))).toEqual([])
   })
 
   it.each([

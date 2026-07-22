@@ -1,3 +1,7 @@
+import {
+  assertMigrationExportWriteSucceeded,
+  type MigrationExportWriteResult
+} from '@shared/data/migration/v2/diagnostics'
 import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
 
 export class LocalStorageExporter {
@@ -33,12 +37,13 @@ export class LocalStorageExporter {
     this.exportedCount = records.length
 
     // Write via IPC (reuse existing WriteExportFile channel)
-    await window.electron.ipcRenderer.invoke(
+    const result = (await window.electron.ipcRenderer.invoke(
       'migration:write-export-file',
       this.exportPath,
       'localStorage',
       JSON.stringify(records)
-    )
+    )) as MigrationExportWriteResult
+    assertMigrationExportWriteSucceeded(result)
 
     return `${this.exportPath}/localStorage.json`
   }

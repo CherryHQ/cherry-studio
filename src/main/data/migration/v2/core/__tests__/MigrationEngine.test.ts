@@ -162,15 +162,44 @@ describe('MigrationEngine', () => {
     const lastCall = errorSpy.mock.calls.at(-1)
     expect(lastCall).toBeDefined()
     expect((lastCall![1] as Error).message).toContain('execute exploded')
-    expect(engine.getLastDiagnosticError()).toEqual({
-      name: 'Error',
-      message: 'execute exploded',
-      stack: 'Error: execute exploded\n    at execute (/app/main.js:42:7)'
+    expect(engine.getLastDiagnosticFailure()).toEqual({
+      code: 'migration_engine_failed',
+      origin: 'main',
+      operation: 'run_migration',
+      error: {
+        name: 'Error',
+        message: 'execute exploded',
+        stack: 'Error: execute exploded\n    at execute (/app/main.js:42:7)'
+      }
     })
 
     await engine.run({}, '/tmp/dexie_export')
-    expect(engine.getLastDiagnosticError()).toBeUndefined()
+    expect(engine.getLastDiagnosticFailure()).toBeUndefined()
 
+    errorSpy.mockRestore()
+  })
+
+  it('keeps the migration failure authoritative when persisting failed status also fails', async () => {
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    const events: string[] = []
+    const failing = createTestMigrator('failing', 1, events)
+    const migrationError = new Error('execute exploded')
+    const persistenceError = Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' })
+    failing.execute.mockRejectedValueOnce(migrationError)
+    vi.mocked((engine as any).markFailed).mockRejectedValueOnce(persistenceError)
+    engine.registerMigrators([failing as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result).toMatchObject({ success: false, error: 'execute exploded' })
+    expect((engine as any).getLastDiagnosticFailure()).toMatchObject({
+      code: 'migration_engine_failed',
+      origin: 'main',
+      operation: 'run_migration',
+      error: { message: 'execute exploded' },
+      statusPersistenceError: { message: 'database is locked', code: 'SQLITE_BUSY' }
+    })
+    expect(errorSpy).toHaveBeenCalledWith('Failed to persist migration failure status', persistenceError)
     errorSpy.mockRestore()
   })
 
