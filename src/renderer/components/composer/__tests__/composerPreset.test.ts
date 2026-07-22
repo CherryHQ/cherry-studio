@@ -58,12 +58,14 @@ describe('createComposerEditorPreset', () => {
   })
 
   it.each(['Enter', 'NumpadEnter'])('inserts a hard break for plain %s instead of splitting the paragraph', (key) => {
+    const scrolledIntoView: boolean[] = []
     editor = new Editor({
       element: document.createElement('div'),
       extensions: createComposerEditorPreset({ enableUndoRedo: false }),
       content: '<p>first line</p>'
     })
-    editor.commands.focus('end')
+    editor.commands.focus('end', { scrollIntoView: false })
+    editor.on('transaction', ({ transaction }) => scrolledIntoView.push(transaction.scrolledIntoView))
 
     editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
 
@@ -76,5 +78,6 @@ describe('createComposerEditorPreset', () => {
         }
       ]
     })
+    expect(scrolledIntoView).toContain(true)
   })
 })

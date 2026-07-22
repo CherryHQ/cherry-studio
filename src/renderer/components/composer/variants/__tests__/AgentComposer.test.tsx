@@ -1827,11 +1827,13 @@ describe('AgentComposer', () => {
     }
 
     const skillItem = getAgentSkillsPanelItems()[0]
-    skillItem?.action?.({
-      context: {} as any,
-      action: 'enter',
-      item: skillItem,
-      inputAdapter
+    await act(async () => {
+      skillItem?.action?.({
+        context: {} as any,
+        action: 'enter',
+        item: skillItem,
+        inputAdapter
+      })
     })
 
     await waitFor(() => {
