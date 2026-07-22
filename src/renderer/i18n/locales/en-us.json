@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "Agents",
-    "skill": {
-      "manage": {
-        "title": "Manage skills"
-      }
-    },
     "tasks": {
       "add": "Add Task",
       "cancel": "Cancel",
@@ -1590,8 +1585,7 @@
     "resource_view": {
       "menu": {
         "agent": "Agents",
-        "assistant": "Assistants",
-        "skill": "Skills"
+        "assistant": "Assistants"
       }
     },
     "save": {
