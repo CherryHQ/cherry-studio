@@ -134,6 +134,8 @@ export interface StartMigrationPayload {
   localStorageExportPath?: string
 }
 
+export type MigrationExportFileWriteMode = 'overwrite' | 'append'
+
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
   // Status queries
