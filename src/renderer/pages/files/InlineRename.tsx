@@ -37,6 +37,7 @@ export function InlineRename({
       value={text}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={(e) => {
+        if (e.nativeEvent.isComposing) return
         if (e.key === 'Enter' && text.trim()) onConfirm(text.trim())
         if (e.key === 'Escape') onCancel()
       }}
