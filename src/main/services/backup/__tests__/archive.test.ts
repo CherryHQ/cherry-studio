@@ -166,6 +166,35 @@ describe('assembleArchive', () => {
     }
   })
 
+  it('atomically replaces a prior outPath when overwrite=true (rename publish)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
+    try {
+      const dbCopy = join(dir, 'backup.sqlite')
+      await writeFile(dbCopy, Buffer.from('new-snapshot'))
+      // A pre-existing outPath: overwrite=true MUST replace it atomically (rename of the
+      // fsynced sibling temp over outPath), never refuse. The default (no-clobber) path
+      // is covered above; this proves the overwrite branch lands a fresh archive and the
+      // prior bytes do not survive.
+      const out = join(dir, 'a.cbu')
+      await writeFile(out, Buffer.from('prior-good-backup'))
+      await assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy }, undefined, true)
+
+      // out exists and now holds the NEW archive (zip layout), not the prior bytes.
+      expect(existsSync(out)).toBe(true)
+      const { zip, entries } = await openZip(out)
+      try {
+        expect(entries).toContain('manifest.json')
+        expect(entries).toContain('backup.sqlite')
+        const dbData = await zip.entryData('backup.sqlite')
+        expect(dbData.toString('utf8')).toBe('new-snapshot')
+      } finally {
+        await zip.close()
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('fsyncs tmp before publish; fsync failure leaves no outPath (crash-before-publish)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
     try {

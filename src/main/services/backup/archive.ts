@@ -19,7 +19,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { constants, createWriteStream } from 'node:fs'
-import { copyFile, link, open as fsOpen, stat, unlink } from 'node:fs/promises'
+import { copyFile, link, open as fsOpen, rename, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { finished } from 'node:stream/promises'
 
@@ -75,21 +75,30 @@ export const archiveDurability = {
  * backup that already lives there. Throws on any archiver error OR warning (every
  * entry in a backup archive is required).
  */
-export async function assembleArchive(outPath: string, inputs: ArchiveInputs, signal?: AbortSignal): Promise<void> {
+export async function assembleArchive(
+  outPath: string,
+  inputs: ArchiveInputs,
+  signal?: AbortSignal,
+  overwrite = false
+): Promise<void> {
   // Pre-stat the required DB copy so a missing/unreadable payload fails BEFORE
   // archiving. Without this, archiver would emit a 'warning' (not 'error') for the
   // missing file and finalize successfully — producing a .cbu without backup.sqlite.
   await stat(inputs.dbCopyPath)
-  // No-clobber: refuse to overwrite an existing file. archive publishes via link()
-  // (EEXIST = no-clobber, atomic) with a rename fallback only on hard-link-unsupported
+  // No-clobber (default): refuse to overwrite an existing file. archive publishes via
+  // link() (EEXIST = no-clobber, atomic) with a rename fallback only on hard-link-unsupported
   // volumes (which can overwrite — guarded by this stat + the entry validateOutputPath).
   // Defense-in-depth alongside BackupService.validateOutputPath (entry check); this
   // brackets the small TOCTOU window between entry and archive completion.
-  try {
-    await stat(outPath)
-    throw new OutputPathExistsError(outPath)
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+  // overwrite=true opts into atomic replace instead (see the publish step below), so the
+  // existence pre-check is skipped — validateOutputPath already gated it at entry.
+  if (!overwrite) {
+    try {
+      await stat(outPath)
+      throw new OutputPathExistsError(outPath)
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+    }
   }
   // Honor a pre-aborted signal before opening any stream (no temp file to clean up).
   if (signal?.aborted) throw new BackupCancelledError()
@@ -154,40 +163,48 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs, si
     // writeRestoreJournal (review-M3).
     await archiveDurability.fsyncPath(tmpPath)
 
-    // Atomic no-clobber publish. Prefer hard-link (EEXIST = no-clobber, atomic, no data
-    // copy). Fallback to copyFile(COPYFILE_EXCL) on filesystems that reject hard-links
-    // (exFAT / some network volumes → ENOTSUP / EOPNOTSUPP / ENOSYS): COPYFILE_EXCL is
-    // exclusive (EEXIST if the target exists) — not atomic-visibility, but no clobber,
-    // closing the rename TOCTOU window (#16683 P1).
+    // Atomic publish. overwrite=false (default): no-clobber via hard-link
+    // (EEXIST = no-clobber, atomic, no data copy) with a copyFile(COPYFILE_EXCL) fallback
+    // for volumes that reject hard-links (exFAT / some network → ENOTSUP/EOPNOTSUPP/ENOSYS).
+    // overwrite=true: atomic replace via rename() of the fsynced sibling temp over outPath.
+    // POSIX rename is atomic on the same filesystem (tmp is a sibling of outPath → same
+    // volume), so the visible file flips old→new in one step: never torn, and a failure
+    // leaves the prior backup intact (the durability gate above already fsynced tmp).
     let publishedViaCopy = false
-    try {
-      await link(tmpPath, outPath)
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code
-      if (code === 'EEXIST') throw new OutputPathExistsError(outPath)
-      if (code !== 'ENOTSUP' && code !== 'EOPNOTSUPP' && code !== 'ENOSYS') throw e
-      // Hard-link unsupported on this volume — fallback to copyFile with COPYFILE_EXCL
-      // (cross-platform no-clobber; EEXIST re-thrown as OutputPathExistsError).
+    if (overwrite) {
+      // rename overwrites atomically; tmp is consumed (becomes outPath), so no tmp cleanup.
+      await rename(tmpPath, outPath)
+    } else {
       try {
-        await copyFile(tmpPath, outPath, constants.COPYFILE_EXCL)
-        publishedViaCopy = true
-      } catch (e2) {
-        if ((e2 as NodeJS.ErrnoException).code === 'EEXIST') throw new OutputPathExistsError(outPath)
-        // A partial copy (ENOSPC / interrupted) can leave a truncated outPath that
-        // blocks retry (the no-clobber check sees it). Remove it before propagating.
-        await unlink(outPath).catch(() => {})
-        throw e2
+        await link(tmpPath, outPath)
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code
+        if (code === 'EEXIST') throw new OutputPathExistsError(outPath)
+        if (code !== 'ENOTSUP' && code !== 'EOPNOTSUPP' && code !== 'ENOSYS') throw e
+        // Hard-link unsupported on this volume — fallback to copyFile with COPYFILE_EXCL
+        // (cross-platform no-clobber; EEXIST re-thrown as OutputPathExistsError).
+        try {
+          await copyFile(tmpPath, outPath, constants.COPYFILE_EXCL)
+          publishedViaCopy = true
+        } catch (e2) {
+          if ((e2 as NodeJS.ErrnoException).code === 'EEXIST') throw new OutputPathExistsError(outPath)
+          // A partial copy (ENOSPC / interrupted) can leave a truncated outPath that
+          // blocks retry (the no-clobber check sees it). Remove it before propagating.
+          await unlink(outPath).catch(() => {})
+          throw e2
+        }
       }
     }
-    // copyFile creates a new inode — fsync it too (hard-link shares the already-
+    // copyFile creates a new inode — fsync it too (hard-link/rename share the already-
     // fsynced tmp inode). Then fsync the parent dir so the new directory entry
     // itself is durable on POSIX.
     if (publishedViaCopy) await archiveDurability.fsyncPath(outPath)
     await archiveDurability.fsyncParentDir(outPath)
-    // Commit point reached (link or copy succeeded) — outPath holds the archive. tmp
-    // cleanup is best-effort: a cleanup failure must NOT turn a successful export into a
-    // reported failure (the outer catch would otherwise rethrow, and a retry would then
-    // hit BACKUP_OUTPUT_PATH_EXISTS on the already-written archive).
+    // Commit point reached (link/copy/rename succeeded) — outPath holds the archive. tmp
+    // cleanup is best-effort (rename already consumed tmp; unlink is a no-op then): a
+    // cleanup failure must NOT turn a successful export into a reported failure (the outer
+    // catch would otherwise rethrow, and a retry would then hit BACKUP_OUTPUT_PATH_EXISTS
+    // on the already-written archive).
     await unlink(tmpPath).catch(() => {})
   } catch (e) {
     // Abort the archiver + destroy the write stream BEFORE unlinking the temp

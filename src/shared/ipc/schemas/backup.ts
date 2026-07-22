@@ -24,7 +24,8 @@ export const backupRequestSchemas = {
   'backup.start_backup': defineRoute({
     input: z.strictObject({
       preset: z.enum(['full', 'lite']),
-      outputPath: z.string().trim().min(1)
+      outputPath: z.string().trim().min(1),
+      overwrite: z.boolean().optional()
     }),
     output: z.object({ backupId: z.string(), archivePath: z.string() })
   }),

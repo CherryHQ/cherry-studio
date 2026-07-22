@@ -114,6 +114,8 @@ export interface BackupV2StartOptions {
   /** 'full' = all 14 domains + blobs; 'lite' = 10 domains (excludes KNOWLEDGE / PAINTINGS / FILE_STORAGE / TRANSLATE_HISTORY), no blobs. */
   readonly preset: 'full' | 'lite'
   readonly outputPath: string
+  /** Atomic replace an existing file at outputPath (user confirmed overwrite). Default false = no-clobber. */
+  readonly overwrite?: boolean
 }
 
 /** Renderer-facing restore request (the .cbu path comes from an open dialog). */
@@ -241,7 +243,7 @@ export class BackupService extends BaseService {
    * user cancels via backup.cancel; the orchestrator's finally block still
    * cleans up temp + staging. A second startBackup while one is running throws 'busy'.
    */
-  async startBackup({ preset, outputPath }: BackupV2StartOptions): Promise<BackupV2StartResult> {
+  async startBackup({ preset, outputPath, overwrite }: BackupV2StartOptions): Promise<BackupV2StartResult> {
     if (!this.orchestrator || !this.schemaMigrationId) {
       // Unreachable in normal boot (onInit sets both); reached only if onInit threw +
       // error handling were changed away from fail-fast. Guard anyway.
@@ -252,7 +254,7 @@ export class BackupService extends BaseService {
     }
     // Refuse unsafe output paths BEFORE any work: renderer must not overwrite the live
     // DB or other app-managed data, and must not clobber an existing file (no-clobber).
-    this.validateOutputPath(outputPath)
+    this.validateOutputPath(outputPath, overwrite)
     // Reserve the active slot BEFORE the preflight await so a concurrent startBackup
     // sees it as busy — two invokes that both pass the null check would otherwise
     // both suspend in preflight, then both start (the second overwriting activeOperation
@@ -287,6 +289,7 @@ export class BackupService extends BaseService {
       const result = await this.orchestrator.exportBackup({
         preset,
         outputPath,
+        overwrite,
         restoreId: backupId,
         producerAppVersion: app.getVersion(),
         schemaMigrationId: this.schemaMigrationId,
@@ -767,7 +770,7 @@ export class BackupService extends BaseService {
    * app-managed data, and silently clobber any existing file. Defense in depth — the
    * renderer picks a path via a save dialog, but never trust it across the IPC boundary.
    */
-  private validateOutputPath(outputPath: string): void {
+  private validateOutputPath(outputPath: string, overwrite = false): void {
     // Canonicalize via realpath of the existing parent (resolves symlinks) so a symlinked
     // path cannot route the archive into an app-managed dir that lexical isPathInside
     // misses. The parent must already exist (renderer picks via save dialog); a missing
@@ -819,10 +822,12 @@ export class BackupService extends BaseService {
         throw new IpcError('BACKUP_UNSAFE_OUTPUT_PATH', `backup: outputPath targets an app-managed path: ${outputPath}`)
       }
     }
-    // No-clobber: refuse to overwrite an existing file. archive.ts publishes via link()
-    // which also refuses (EEXIST), but the entry check gives an early, clear error and
-    // bounds the TOCTOU window to the export duration.
-    if (existsSync(canonical)) {
+    // No-clobber: refuse to overwrite an existing file (default). archive.ts publishes via
+    // link() which also refuses (EEXIST), but the entry check gives an early, clear error
+    // and bounds the TOCTOU window to the export duration. overwrite=true opts into atomic
+    // replace (assembleArchive rename()s over the existing file) — skip the existence check
+    // so the user-confirmed overwrite proceeds; managed-path + parent checks still apply.
+    if (!overwrite && existsSync(canonical)) {
       throw new IpcError('BACKUP_OUTPUT_PATH_EXISTS', `backup: outputPath already exists (no-clobber): ${outputPath}`)
     }
   }

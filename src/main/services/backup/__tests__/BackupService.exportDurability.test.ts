@@ -25,9 +25,11 @@ describe('removeExportTempResidue (A8 ⑤ blanket)', () => {
       // Stale marker from a dead pid must not block GC.
       writeExportLiveMarker(tempRoot, 'rid-crash', 999_999_999)
 
-      expect(removeExportTempResidue(tempRoot)).toBe(1)
-      expect(existsSync(tempRoot)).toBe(false)
-      // Second call: missing root → sentinel 0.
+      // Contents removed (count of entries); the root dir is KEPT — ExportOrchestrator caches
+      // tempDir, so removing the root would ENOENT the next export's marker write (A8 ⑤ regression).
+      expect(removeExportTempResidue(tempRoot)).toBe(7)
+      expect(existsSync(tempRoot)).toBe(true)
+      // Second call: root present but empty → 0 entries removed.
       expect(removeExportTempResidue(tempRoot)).toBe(0)
     } finally {
       await rm(tempRoot, { recursive: true, force: true })
@@ -50,8 +52,9 @@ describe('removeExportTempResidue (A8 ⑤ blanket)', () => {
       expect(existsSync(join(tempRoot, 'stray-future.dat'))).toBe(true)
 
       clearExportLiveMarker(tempRoot, 'rid-live')
-      expect(removeExportTempResidue(tempRoot)).toBe(1)
-      expect(existsSync(tempRoot)).toBe(false)
+      // Marker gone → not live → contents removed (3 entries); root kept.
+      expect(removeExportTempResidue(tempRoot)).toBe(3)
+      expect(existsSync(tempRoot)).toBe(true)
     } finally {
       await rm(tempRoot, { recursive: true, force: true })
     }
@@ -61,9 +64,9 @@ describe('removeExportTempResidue (A8 ⑤ blanket)', () => {
     expect(removeExportTempResidue(join(tmpdir(), 'cs-export-temp-missing-xyz'))).toBe(0)
     const empty = await mkdtemp(join(tmpdir(), 'cs-export-temp-empty-'))
     try {
-      // Empty dedicated root is still removed (blanket); return 1.
-      expect(removeExportTempResidue(empty)).toBe(1)
-      expect(existsSync(empty)).toBe(false)
+      // Empty root → 0 entries removed; root dir kept.
+      expect(removeExportTempResidue(empty)).toBe(0)
+      expect(existsSync(empty)).toBe(true)
     } finally {
       await rm(empty, { recursive: true, force: true })
     }

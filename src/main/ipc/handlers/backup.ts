@@ -9,8 +9,8 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * IpcContext — there is no senderId addressing here (contrast window.ts).
  */
 export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
-  'backup.start_backup': async ({ preset, outputPath }) => {
-    const result = await application.get('BackupService').startBackup({ preset, outputPath })
+  'backup.start_backup': async ({ preset, outputPath, overwrite }) => {
+    const result = await application.get('BackupService').startBackup({ preset, outputPath, overwrite })
     return { backupId: result.backupId, archivePath: result.archivePath }
   },
   'backup.cancel': async ({ backupId }) => application.get('BackupService').cancel(backupId),

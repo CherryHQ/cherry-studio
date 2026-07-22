@@ -62,8 +62,15 @@ function restoreIdFromLiveMarkerEntry(name: string): string | null {
 }
 
 /**
- * Blanket-remove the dedicated export temp root when no live export owns it.
- * Returns 1 when the root was removed, 0 when skipped / missing / unreadable.
+ * Blanket-remove the CONTENTS of the dedicated export temp root when no live export
+ * owns it, but KEEP the root directory itself. `ExportOrchestrator` caches
+ * `tempDir = application.getPath('feature.backup.temp')` at onInit; removing the root
+ * would leave the next export's `writeExportLiveMarker` with no parent dir → ENOENT
+ * (regression: an earlier blanket GC removed the root, and getPath does not re-mkdir on
+ * the cached path). Removing every entry (incl. future shapes) still closes the orphan
+ * blind spot the module exists for, while keeping the root the export pipeline writes into.
+ *
+ * Returns the count of removed entries; 0 when skipped / missing / unreadable / live-blocked.
  */
 export function removeExportTempResidue(tempRoot: string): number {
   if (!existsSync(tempRoot)) return 0
@@ -84,13 +91,17 @@ export function removeExportTempResidue(tempRoot: string): number {
     }
   }
 
-  try {
-    rmSync(tempRoot, { recursive: true, force: true })
-  } catch (e) {
-    // EACCES etc. — swallow so boot is never blocked by a stuck residue.
-    logger.warn('export temp residue blanket GC failed', e as Error)
-    return 0
+  // Remove every entry (blanket, incl. unrecognized future shapes) but keep the root dir.
+  let removed = 0
+  for (const name of entries) {
+    try {
+      rmSync(join(tempRoot, name), { recursive: true, force: true })
+      removed += 1
+    } catch (e) {
+      // EACCES etc. — log + continue so one stuck entry doesn't abort the whole sweep.
+      logger.warn('export temp residue GC entry failed', { name, err: e as Error })
+    }
   }
-  logger.info('GC export temp residue: blanket-removed root')
-  return 1
+  logger.info(`GC export temp residue: removed ${removed} entr${removed === 1 ? 'y' : 'ies'} (root kept)`)
+  return removed
 }

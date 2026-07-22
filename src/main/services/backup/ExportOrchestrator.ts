@@ -58,6 +58,12 @@ export interface ExportBackupOptions {
   /** Final .cbu output path. */
   readonly outputPath: string
   /**
+   * Atomic replace an existing file at outputPath (user confirmed overwrite). Default
+   * false = no-clobber (refuse + BACKUP_OUTPUT_PATH_EXISTS). When true, assembleArchive
+   * publishes via rename() over the existing file instead of link()/COPYFILE_EXCL.
+   */
+  readonly overwrite?: boolean
+  /**
    * Unique id for this export — used to name the temp copy (`<restoreId>.sqlite`)
    * AND the per-export staging root (`<restoreId>-stage/`). MUST be a safe basename
    * (no path separators / NUL / `..`); a caller-supplied `../../foo` would escape
@@ -408,7 +414,8 @@ export class ExportOrchestrator {
       await assembleArchive(
         options.outputPath,
         { manifest, dbCopyPath: backupDbPath, filesDir, knowledgeDir, skillsDir, notesDir },
-        options.signal
+        options.signal,
+        options.overwrite
       )
     } finally {
       // Always close the snapshot + remove the temp copy + the whole staging root.

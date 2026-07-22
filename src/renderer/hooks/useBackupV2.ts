@@ -54,30 +54,33 @@ const INITIAL: UseBackupV2State = {
 export function useBackupV2() {
   const [state, setState] = useState<UseBackupV2State>(INITIAL)
 
-  const startBackup = useCallback(async (preset: 'full' | 'lite', outputPath: string): Promise<BackupV2Result> => {
-    setState({ ...INITIAL, loading: true })
-    // Subscribe for THIS export; the first tick carries backupId (cancel routing).
-    const unsubscribe = ipcApi.on('backup.progress', (update) => {
-      setState((s) => ({ ...s, backupId: update.backupId, progress: update }))
-    })
-    try {
-      const result = await ipcApi.request('backup.start_backup', { preset, outputPath })
-      setState({ ...INITIAL, backupId: result.backupId, archivePath: result.archivePath })
-      return result
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
-      // Prefer the stable IpcError code (BACKUP_CANCELLED / BACKUP_INSUFFICIENT_DISK /
-      // BACKUP_DISK_FULL) over regex on the message — BackupService.toIpcError maps
-      // domain errors to codes at the IPC boundary. Fall back to /cancelled/i for any
-      // path that still throws a bare cancel message.
-      const code = (e as { code?: string }).code
-      const cancelled = code === 'BACKUP_CANCELLED' || /cancelled/i.test(message)
-      setState({ ...INITIAL, error: message, cancelled })
-      throw e
-    } finally {
-      unsubscribe()
-    }
-  }, [])
+  const startBackup = useCallback(
+    async (preset: 'full' | 'lite', outputPath: string, overwrite = false): Promise<BackupV2Result> => {
+      setState({ ...INITIAL, loading: true })
+      // Subscribe for THIS export; the first tick carries backupId (cancel routing).
+      const unsubscribe = ipcApi.on('backup.progress', (update) => {
+        setState((s) => ({ ...s, backupId: update.backupId, progress: update }))
+      })
+      try {
+        const result = await ipcApi.request('backup.start_backup', { preset, outputPath, overwrite })
+        setState({ ...INITIAL, backupId: result.backupId, archivePath: result.archivePath })
+        return result
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        // Prefer the stable IpcError code (BACKUP_CANCELLED / BACKUP_INSUFFICIENT_DISK /
+        // BACKUP_DISK_FULL) over regex on the message — BackupService.toIpcError maps
+        // domain errors to codes at the IPC boundary. Fall back to /cancelled/i for any
+        // path that still throws a bare cancel message.
+        const code = (e as { code?: string }).code
+        const cancelled = code === 'BACKUP_CANCELLED' || /cancelled/i.test(message)
+        setState({ ...INITIAL, error: message, cancelled })
+        throw e
+      } finally {
+        unsubscribe()
+      }
+    },
+    []
+  )
 
   const cancelBackup = useCallback(async (): Promise<void> => {
     // No-op if no active export (backupId is set from the first progress tick).
