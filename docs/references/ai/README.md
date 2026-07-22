@@ -22,6 +22,7 @@ translate, summarisation) and the renderer-side transport that connects to it.
 | [Agent Loop](./agent-loop.md) | Main-process `Agent.stream()`: single-pass stream, hook composition, observer pattern, error/abort semantics |
 | [Params Pipeline](./params-pipeline.md) | `buildAgentParams` + `RequestFeature` model: how capabilities, plugins, tools, and provider-specific quirks are composed |
 | [Tool Registry](./tool-registry.md) | Built-in tools (knowledge / web search), MCP tools, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), deferred exposition |
+| [MCP OAuth Interaction](./mcp-oauth-interaction.md) | Silent background connections versus interactive settings authorization; browser-open boundary |
 | [Chat Attachments](./chat-attachments.md) | How attached files reach the model: native file parts when supported, capped extracted text otherwise, `read_file` for overflow paging |
 | [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
 | [Observability (trace / telemetry)](./observability.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, local span projection, sinks |
@@ -38,9 +39,10 @@ translate, summarisation) and the renderer-side transport that connects to it.
 
 > **Scope of the focused docs.** The reference documents in this folder map
 > the **chat / stream pipeline** (dispatch → stream manager → runtime →
-> tools → persistence → renderer transport). The `agents/`, `channels/`,
-> `skills/`, and `mcp/` subsystems are mapped in the tree below but do not
-> yet have dedicated deep-dive docs.
+> tools → persistence → renderer transport). MCP OAuth interaction also has a
+> focused reference; the broader `agents/`, `channels/`, `skills/`, and `mcp/`
+> subsystems are mapped in the tree below but do not yet have dedicated
+> deep-dive docs.
 
 ```
 src/main/ai/

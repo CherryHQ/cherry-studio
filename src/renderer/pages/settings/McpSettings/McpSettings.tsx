@@ -263,7 +263,7 @@ const McpSettings: React.FC = () => {
     if (server?.isActive) {
       try {
         setLoadingServer(server.id)
-        await ipcApi.request('mcp.server.refresh_tools', { serverId: server.id })
+        await ipcApi.request('mcp.server.refresh_tools', { serverId: server.id, interactive: true })
       } catch (error) {
         logger.error('Failed to list MCP tools', error as Error)
       } finally {
@@ -423,7 +423,7 @@ const McpSettings: React.FC = () => {
       if (server.isActive) {
         try {
           await updateMcpServer({ body: { ...mcpServerDto, isActive: true } })
-          await ipcApi.request('mcp.server.restart', { serverId: server.id })
+          await ipcApi.request('mcp.server.restart', { serverId: server.id, interactive: true })
           toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
@@ -539,7 +539,10 @@ const McpSettings: React.FC = () => {
       if (active) {
         await updateMcpServer({ body: { isActive: true } })
         try {
-          await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
+          await ipcApi.request('mcp.server.refresh_tools', {
+            serverId: serverForUpdate.id,
+            interactive: true
+          })
 
           const localPrompts = await ipcApi.request('mcp.server.list_prompts', { serverId: serverForUpdate.id })
           setPrompts(localPrompts)

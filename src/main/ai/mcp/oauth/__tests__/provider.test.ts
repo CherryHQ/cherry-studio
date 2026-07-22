@@ -4,6 +4,9 @@ import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const openMock = vi.hoisted(() => vi.fn())
+vi.mock('open', () => ({ default: openMock }))
+
 // The provider constructor reads application.getPath('feature.mcp.oauth'); the
 // unified mock supplies a deterministic path so construction never touches Electron.
 // We pass an explicit configDir per test, so storage actually lands in a temp dir.
@@ -12,10 +15,40 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({})
 })
 
-const { McpOAuthClientProvider } = await import('../provider')
+const { McpAuthorizationRequiredError, McpOAuthClientProvider } = await import('../provider')
 
 const CLIENT_INFO = { client_id: 'cid', client_secret: 'csecret' } as OAuthClientInformation
 const TOKENS = { access_token: 'at', token_type: 'Bearer', refresh_token: 'rt' } as OAuthTokens
+
+describe('McpOAuthClientProvider authorization mode', () => {
+  let configDir: string
+
+  beforeEach(async () => {
+    openMock.mockReset().mockResolvedValue(undefined)
+    configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'oauth-mode-test-'))
+  })
+
+  afterEach(async () => {
+    await fs.rm(configDir, { recursive: true, force: true })
+  })
+
+  it('does not open the browser when a silent connection needs a new grant', async () => {
+    const provider = new McpOAuthClientProvider({ serverUrlHash: 'silent', configDir })
+
+    await expect(provider.redirectToAuthorization(new URL('https://example.com/authorize'))).rejects.toBeInstanceOf(
+      McpAuthorizationRequiredError
+    )
+    expect(openMock).not.toHaveBeenCalled()
+  })
+
+  it('opens the browser for an interactive authorization request', async () => {
+    const provider = new McpOAuthClientProvider({ serverUrlHash: 'interactive', configDir, authMode: 'interactive' })
+
+    await provider.redirectToAuthorization(new URL('https://example.com/authorize'))
+
+    expect(openMock).toHaveBeenCalledExactlyOnceWith('https://example.com/authorize')
+  })
+})
 
 describe('McpOAuthClientProvider.invalidateCredentials', () => {
   let configDir: string

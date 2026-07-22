@@ -19,14 +19,15 @@ import { defineRoute } from '../define'
  */
 const serverId = z.object({ serverId: z.string() })
 const serverIdNonEmpty = z.object({ serverId: z.string().min(1) })
+const serverIdWithAuthIntent = serverId.extend({ interactive: z.boolean().optional() })
 const uploadInput = z.object({ buffer: z.instanceof(ArrayBuffer), fileName: z.string() })
 
 export const mcpRequestSchemas = {
   // Server lifecycle + per-server queries.
   'mcp.server.remove': defineRoute({ input: serverId, output: z.void() }),
-  'mcp.server.restart': defineRoute({ input: serverId, output: z.void() }),
+  'mcp.server.restart': defineRoute({ input: serverIdWithAuthIntent, output: z.void() }),
   'mcp.server.stop': defineRoute({ input: serverId, output: z.void() }),
-  'mcp.server.refresh_tools': defineRoute({ input: serverId, output: z.void() }),
+  'mcp.server.refresh_tools': defineRoute({ input: serverIdWithAuthIntent, output: z.void() }),
   'mcp.server.list_prompts': defineRoute({ input: serverIdNonEmpty, output: z.any() }),
   'mcp.server.list_resources': defineRoute({ input: serverIdNonEmpty, output: z.any() }),
   'mcp.server.check_connectivity': defineRoute({ input: serverIdNonEmpty, output: z.boolean() }),
