@@ -7,38 +7,11 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * public `BinaryManager` method, which owns all install orchestration, state, and
  * the deep validation of the install spec. Input is already shape-parsed by the
  * route schema; the source-trust gate (validateSender) runs before dispatch.
- *
- * `install_tool` / `add_custom_tool` / `remove_tool` mutate managed state
- * (install_tool / add_custom_tool can additionally execute arbitrary package
- * postinstall code), so they refuse a `senderId: null` caller — one that passed
- * validateSender but is not a WindowManager-managed window. `validateSender` and
- * `senderId` are independent trust sources that are not cross-checked, so a
- * sensitive route gates on `senderId` explicitly rather than assuming a window is
- * present (see ipc-overview.md "Caller Identity"). The read-only query routes have
- * no such side effect and need no gate.
- *
- * This is a should-never-happen guard the renderer does not branch on, so it
- * throws a plain Error (normalized to the framework's INTERNAL code), mirroring
- * the managed-window gates in the ai/translate handlers — not a domain IpcError
- * code, which is reserved for failures the renderer must branch on.
  */
-function requireManagedSender(senderId: string | null, route: string): void {
-  if (senderId == null) throw new Error(`${route} requires a managed window`)
-}
-
 export const binaryHandlers: IpcHandlersFor<typeof binaryRequestSchemas> = {
-  'binary.install_tool': async (request, { senderId }) => {
-    requireManagedSender(senderId, 'binary.install_tool')
-    return application.get('BinaryManager').installByName(request)
-  },
-  'binary.add_custom_tool': async (definition, { senderId }) => {
-    requireManagedSender(senderId, 'binary.add_custom_tool')
-    return application.get('BinaryManager').addCustomTool(definition)
-  },
-  'binary.remove_tool': async (request, { senderId }) => {
-    requireManagedSender(senderId, 'binary.remove_tool')
-    return application.get('BinaryManager').removeTool(request)
-  },
+  'binary.install_tool': async (request) => application.get('BinaryManager').installByName(request),
+  'binary.add_custom_tool': async (definition) => application.get('BinaryManager').addCustomTool(definition),
+  'binary.remove_tool': async (request) => application.get('BinaryManager').removeTool(request),
   'binary.get_tool_snapshots': async (names) => application.get('BinaryManager').getToolSnapshots(names),
   'binary.search_registry': async (query) => application.get('BinaryManager').searchRegistry(query),
   'binary.get_latest_versions': async (force) => application.get('BinaryManager').getLatestVersions(force)

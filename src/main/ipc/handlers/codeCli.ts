@@ -4,9 +4,7 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 
 /** Thin adapters: delegate to CodeCliService. */
 export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
-  'code_cli.run': async (input, { senderId }) => {
-    if (senderId == null) throw new Error('code_cli.run requires a managed window')
-
+  'code_cli.run': async (input) => {
     // Provider/model validation (incl. login-flow and providerless-CLI exemptions) is owned by
     // CodeCliService.run() as the single source of truth; the handler just delegates.
     return application.get('CodeCliService').run(input)

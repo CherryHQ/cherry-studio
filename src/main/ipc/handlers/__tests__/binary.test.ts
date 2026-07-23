@@ -22,33 +22,9 @@ beforeEach(() => {
   })
 })
 
-const ctx: { senderId: string | null } = { senderId: 'w1' }
-const unmanagedCtx: { senderId: string | null } = { senderId: null }
+const ctx = { senderId: 'w1' }
 
 describe('binaryHandlers', () => {
-  it('install_tool refuses an unmanaged (null senderId) caller without touching the manager', async () => {
-    const request = { name: 'fd' }
-    await expect(binaryHandlers['binary.install_tool'](request, unmanagedCtx)).rejects.toThrow(
-      'binary.install_tool requires a managed window'
-    )
-    expect(binaryManager.installByName).not.toHaveBeenCalled()
-  })
-
-  it('add_custom_tool refuses an unmanaged (null senderId) caller without touching the manager', async () => {
-    const definition = { name: 'mytool', tool: 'npm:mytool' }
-    await expect(binaryHandlers['binary.add_custom_tool'](definition, unmanagedCtx)).rejects.toThrow(
-      'binary.add_custom_tool requires a managed window'
-    )
-    expect(binaryManager.addCustomTool).not.toHaveBeenCalled()
-  })
-
-  it('remove_tool refuses an unmanaged (null senderId) caller without touching the manager', async () => {
-    await expect(binaryHandlers['binary.remove_tool']({ name: 'fd' }, unmanagedCtx)).rejects.toThrow(
-      'binary.remove_tool requires a managed window'
-    )
-    expect(binaryManager.removeTool).not.toHaveBeenCalled()
-  })
-
   it('install_tool forwards the name-only request to the manager', async () => {
     binaryManager.installByName.mockResolvedValue(undefined)
     const request = { name: 'fd', targetVersion: '10.0.0' }

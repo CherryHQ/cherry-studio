@@ -39,21 +39,6 @@ describe('codeCliHandlers', () => {
       expect(result).toEqual({ success: true })
     })
 
-    it('rejects callers without a managed window before invoking the service', async () => {
-      const input = {
-        mode: 'normal' as const,
-        cliTool: CodeCli.CLAUDE_CODE,
-        model: 'gpt-4',
-        providerId: 'openai',
-        directory: '/tmp'
-      }
-
-      await expect(codeCliHandlers['code_cli.run'](input, { senderId: null })).rejects.toThrow(
-        'code_cli.run requires a managed window'
-      )
-      expect(codeCliService.run).not.toHaveBeenCalled()
-    })
-
     it('does not accept renderer-supplied env', async () => {
       codeCliService.run.mockResolvedValue({ success: true })
       const input = {
