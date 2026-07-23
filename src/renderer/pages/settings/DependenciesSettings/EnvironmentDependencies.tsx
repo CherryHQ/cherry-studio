@@ -590,6 +590,7 @@ const BinaryToolPresetCard: FC<{
                 className="text-foreground-muted hover:text-foreground"
                 onClick={onUpdate}
                 disabled={busy}
+                aria-label={t('settings.dependencies.update')}
                 title={t('settings.dependencies.update')}>
                 <RefreshCw className="size-3.5" />
               </Button>
@@ -772,6 +773,7 @@ const CustomToolCard: FC<{
               className="text-foreground-muted hover:text-foreground"
               onClick={onUpdate}
               disabled={busy}
+              aria-label={t('settings.dependencies.update')}
               title={t('settings.dependencies.update')}>
               <RefreshCw className="size-3.5" />
             </Button>
