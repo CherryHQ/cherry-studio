@@ -1578,6 +1578,23 @@
       "regenerate": {
         "model": "Switch Model"
       },
+      "token_details": {
+        "cache_read": "Cache read",
+        "cache_write": "Cache write",
+        "input": "Input",
+        "input_breakdown": "Input breakdown",
+        "output": "Output",
+        "reasoning": "Reasoning",
+        "reasoning_time": "Reasoning",
+        "request_duration": "Generation timing",
+        "text_generation": "Text generation",
+        "text_output": "Text output",
+        "tokens": "{{value}} Tokens",
+        "tokens_per_second_value": "{{value}} Tokens/s",
+        "uncached": "Uncached",
+        "usage": "Token usage",
+        "waiting_first_token": "Waiting"
+      },
       "useful": {
         "label": "Set as context",
         "tip": "In this group of messages, this message will be selected to join the context"
