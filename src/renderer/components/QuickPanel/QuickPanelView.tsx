@@ -976,7 +976,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             style={{ height: (collapsed ? 0 : listHeight) + fixedBottomHeight }}>
             {!collapsed ? (
               <DynamicVirtualList
-                key={scrollableItems.length === 0 ? 'empty' : 'populated'}
                 ref={listRef}
                 list={scrollableItems}
                 size={listHeight}
