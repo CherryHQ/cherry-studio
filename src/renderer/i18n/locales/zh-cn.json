@@ -1394,6 +1394,7 @@
       },
       "generate_image": "生成图片",
       "generate_image_no_model": "请在 设置 › 默认模型 中配置画图模型",
+      "image_preview_failed": "图片预览失败",
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
@@ -1564,6 +1565,23 @@
       "quote": "引用",
       "regenerate": {
         "model": "切换模型"
+      },
+      "token_details": {
+        "cache_read": "缓存读取",
+        "cache_write": "缓存写入",
+        "input": "输入",
+        "input_breakdown": "输入构成",
+        "output": "输出",
+        "reasoning": "推理",
+        "reasoning_time": "推理",
+        "request_duration": "生成计时",
+        "text_generation": "文本生成",
+        "text_output": "文本输出",
+        "tokens": "{{value}} Tokens",
+        "tokens_per_second_value": "{{value}} Token/秒",
+        "uncached": "未缓存",
+        "usage": "Token 使用",
+        "waiting_first_token": "等待"
       },
       "useful": {
         "label": "设置为上下文",

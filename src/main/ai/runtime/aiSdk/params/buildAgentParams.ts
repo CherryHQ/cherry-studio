@@ -256,17 +256,20 @@ export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, reques
  * and the tool-call repair function.
  */
 function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
-  const { assistant, capabilities, model, provider, sdkConfig, requestContext, request, aiSdkProviderId } = scope
+  const { assistant, capabilities, model, provider, sdkConfig, requestContext, request } = scope
+  const runtimeProviderId = sdkConfig.providerId
 
   let providerOptions =
-    assistant && capabilities ? buildCapabilityProviderOptions(assistant, model, provider, capabilities) : {}
+    assistant && capabilities
+      ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, runtimeProviderId)
+      : {}
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const customParams = getCustomParameters(assistant)
     if (Object.keys(customParams).length > 0) {
       const split = extractAiSdkStandardParams(customParams)
       standardParams = filterStandardParams(split.standardParams, model)
-      providerOptions = mergeCustomProviderParameters(providerOptions, split.providerParams, aiSdkProviderId)
+      providerOptions = mergeCustomProviderParameters(providerOptions, split.providerParams, runtimeProviderId)
     }
   }
 
