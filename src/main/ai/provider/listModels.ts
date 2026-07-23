@@ -290,11 +290,11 @@ const vertexFetcher: ModelFetcher = {
     const listedModels = dedup(publisherModels, (model) => model.name).map((model) => {
       const bareId = getVertexModelId(model.name)
       const ownedBy = getVertexModelPublisher(model.name)
-      // MaaS open/partner models (non-google publishers) are served over the OpenAI-compatible
-      // endpoint, which requires the `{publisher}/{model}` id form; google's native models
-      // (gemini/gemma/embeddings) keep their bare id. Non-google ids that do not satisfy the
-      // shared MaaS id contract are filtered below.
-      const apiModelId = ownedBy === 'google' ? bareId : `${ownedBy}/${bareId}`
+      // MaaS models are served over the OpenAI-compatible endpoint, which requires the
+      // `{publisher}/{model}` id form even when Google is the publisher. Native Google
+      // models (Gemini/Gemma/embeddings) keep their bare id.
+      const publisherModelId = `${ownedBy}/${bareId}`
+      const apiModelId = isVertexMaasModelId(publisherModelId) ? publisherModelId : bareId
       return toModel(apiModelId, provider, {
         name: pickPreferredString([model.displayName, bareId]) || bareId,
         description: model.description,

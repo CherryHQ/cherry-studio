@@ -749,6 +749,20 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
     expect(models[0].ownedBy).toBe('meta')
   })
 
+  it('preserves the publisher prefix for MaaS models published by Google', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        publisherModels: [{ name: 'publishers/google/models/gemma-4-26b-a4b-it-maas', displayName: 'Gemma 4 26B' }]
+      }
+    })
+
+    const models = await listModels(makeVertexProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].apiModelId).toBe('google/gemma-4-26b-a4b-it-maas')
+    expect(models[0].ownedBy).toBe('google')
+  })
+
   it('filters non-google publisher models that do not use the MaaS id format', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
