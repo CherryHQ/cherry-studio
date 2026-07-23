@@ -121,7 +121,7 @@ Tear down t-2 → refcount = 0, grace timer queued
 
 ### 3.2 Dispose Grace Window
 
-`DISPOSE_GRACE_MS = 500`. When the last consumer of a builder leaves, the actual teardown is deferred by this window. The motivation is React's commit ordering inside a single render: "deletion effects → insertion effects". When `ArtifactPane` swaps between `Shell.Host` and `Shell.MaximizedOverlay`, the unmount fires `File_TreeDispose(old)` and the mount fires `File_TreeCreate(new)` back-to-back. Without the grace window, the unmount would tear down the watcher and the mount would pay a full rescan microseconds later.
+`DISPOSE_GRACE_MS = 500`. When the last consumer of a builder leaves, the actual teardown is deferred by this window. The motivation is React's commit ordering inside a single render: "deletion effects → insertion effects". When a keyed consumer is replaced or a tab unmounts and immediately remounts, `File_TreeDispose(old)` and `File_TreeCreate(new)` can occur back-to-back. Without the grace window, the unmount would tear down the watcher and the mount would pay a full rescan microseconds later.
 
 500ms is long enough to span any realistic React commit (sub-millisecond in practice) and short enough that a genuine workspace close doesn't keep the watcher FDs alive noticeably.
 

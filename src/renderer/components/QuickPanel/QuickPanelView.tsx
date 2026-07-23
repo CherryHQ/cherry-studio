@@ -131,7 +131,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   // Use injected filter and sort functions, or fall back to defaults
   const filterFn = ctx.filterFn || defaultFilterFn
   const sortFn = ctx.sortFn || defaultSortFn
-  // Handle search and filtering while keeping alwaysVisible items at the top.
+  // Handle search and filtering while keeping alwaysVisible items at the top
+  // and fixedToBottom actions outside the searchable result set.
   const list = useMemo(() => {
     // Reset stale state when panel fully closes (both isVisible false AND symbol cleared)
     if (!ctx.isVisible && !ctx.symbol) {
@@ -139,9 +140,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     const baseList = (ctx.list || []).filter((item) => !item.hidden)
+    const fixedBottomItems = baseList.filter((item) => item.fixedToBottom)
+    const flowItems = baseList.filter((item) => !item.fixedToBottom)
 
     if (ctx.manageListExternally || !isTrackedInputPanel) {
-      return baseList
+      return [...flowItems, ...fixedBottomItems]
     }
 
     const _searchText = activeSearchQuery
@@ -153,8 +156,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const fuzzyRegex = new RegExp(fuzzyPattern, 'ig')
 
     // Split pinned items (not filtered) from regular items.
-    const pinnedItems = baseList.filter((item) => item.alwaysVisible)
-    const normalItems = baseList.filter((item) => !item.alwaysVisible)
+    const pinnedItems = flowItems.filter((item) => item.alwaysVisible)
+    const normalItems = flowItems.filter((item) => !item.alwaysVisible)
 
     // Filter normal items using injected filter function
     const filteredNormalItems = normalItems.filter((item) => {
@@ -164,8 +167,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     // Sort filtered items using injected sort function
     const sortedNormalItems = sortFn(filteredNormalItems, _searchText)
 
-    // Pinned items first, followed by sorted regular items.
-    return [...pinnedItems, ...sortedNormalItems]
+    // Pinned items first, followed by sorted regular items and bottom-fixed actions.
+    return [...pinnedItems, ...sortedNormalItems, ...fixedBottomItems]
   }, [
     ctx.isVisible,
     ctx.symbol,
@@ -176,6 +179,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     filterFn,
     sortFn
   ])
+  const fixedBottomItems = useMemo(() => list.filter((item) => item.fixedToBottom), [list])
+  const scrollableItems = useMemo(() => list.filter((item) => !item.fixedToBottom), [list])
 
   useLayoutEffect(() => {
     if (!ctx.isVisible && !ctx.symbol) {
@@ -324,7 +329,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
-      if (ctx.readOnly) return
+      // Read-only panels (e.g. MCP status) stay non-interactive, except for pinned footer actions
+      // like "open config" which are the panel's one intentional affordance.
+      if (ctx.readOnly && !item.fixedToBottom) return
       if (item.disabled) return
       const cleanSearchText = activeSearchQuery
       const parentPanel = getCurrentPanelOptions(activeIndex)
@@ -567,11 +574,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   useLayoutEffect(() => {
     if (!listRef.current || activeIndex < 0 || scrollTriggerRef.current === 'none') return
 
+    if (activeIndex >= scrollableItems.length) {
+      scrollTriggerRef.current = 'none'
+      return
+    }
+
     const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : activeIndex === 0 ? 'start' : 'center'
     listRef.current?.scrollToIndex(activeIndex, { align: alignment })
 
     scrollTriggerRef.current = 'none'
-  }, [activeIndex])
+  }, [activeIndex, scrollableItems.length])
 
   const handlePanelKeyDown = useCallback(
     (e: QuickPanelKeyDownEvent) => {
@@ -591,20 +603,42 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         e.stopPropagation()
         setIsMouseOver(false)
       }
-      if (
-        ctx.readOnly &&
-        ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter'].includes(e.key)
-      ) {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsMouseOver(false)
-        return true
-      }
-      if (ctx.readOnly && e.key === 'ArrowRight' && assistivePressed) {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsMouseOver(false)
-        return true
+      if (ctx.readOnly) {
+        // Read-only panels are non-interactive except for pinned footer actions (e.g. "Configure
+        // MCP"), which stay keyboard-selectable: ▲▼ moves onto them and Enter/Tab activates the
+        // highlighted one. Everything else is swallowed so the status list stays inert.
+        const footerNavItems = list.map((item) => ({
+          disabled: !(item.fixedToBottom && !!item.action && !item.disabled)
+        }))
+        const hasFooterAction = footerNavItems.some((item) => !item.disabled)
+        if (hasFooterAction && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          const dir = e.key === 'ArrowUp' || e.key === 'PageUp' ? -1 : 1
+          setActiveIndex((prev) => moveQuickPanelSelectableIndex(footerNavItems, prev, dir, { wrap: true }))
+          return true
+        }
+        if (hasFooterAction && !e.shiftKey && ['Enter', 'NumpadEnter', 'Tab'].includes(e.key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          const activeItem = list?.[activeIndex]
+          if (activeItem?.fixedToBottom && activeItem.action) handleItemAction(activeItem, 'enter')
+          return true
+        }
+        if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter'].includes(e.key)) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          return true
+        }
+        if (e.key === 'ArrowRight' && assistivePressed) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          return true
+        }
       }
 
       switch (e.key) {
@@ -648,7 +682,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           setIsMouseOver(false)
 
           const hasSearch = activeSearchQuery.length > 0
-          const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
+          const nonPinnedCount = list.filter((i) => !i.alwaysVisible && !i.fixedToBottom).length
           const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
           if (!isCollapsed && list?.[activeIndex]) {
             handleItemAction(list[activeIndex], 'enter')
@@ -668,7 +702,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
           // Intercept while collapsed/soft-hidden so query input is not sent as a message.
           const hasSearch = activeSearchQuery.length > 0
-          const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
+          const nonPinnedCount = list.filter((i) => !i.alwaysVisible && !i.fixedToBottom).length
           const isCollapsed = !ctx.manageListExternally && hasSearch && nonPinnedCount === 0
           if (isCollapsed) {
             e.preventDefault()
@@ -842,7 +876,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const hasSearchText = useMemo(() => activeSearchQuery.length > 0, [activeSearchQuery])
   // Collapse is based only on regular matches. Pinned-only results still count as no match.
-  const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
+  const visibleNonPinnedCount = useMemo(
+    () => list.filter((item) => !item.alwaysVisible && !item.fixedToBottom).length,
+    [list]
+  )
   const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
   // Read-only panels keep the original fixed height to avoid header offset changes.
   const fillEffective = fill && !ctx.readOnly
@@ -851,12 +888,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     collapsed,
     readOnly: ctx.readOnly ?? false,
     pageSize: ctx.pageSize,
-    itemCount: list.length,
+    fixedItemCount: fixedBottomItems.length,
+    itemCount: scrollableItems.length,
     availableHeight,
     fill: fillEffective,
     chromeHeight: measuredChromeHeight ?? undefined
   })
-  const listContentHeight = Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
+  const listContentHeight =
+    Math.min(Math.max(0, ctx.pageSize - fixedBottomItems.length), scrollableItems.length) * ITEM_HEIGHT
+  const fixedBottomHeight = fixedBottomItems.length * ITEM_HEIGHT
   // Home/fill constrains the body only when content overflows and the list shrinks.
   const constrainBody = fillEffective && !collapsed && ctx.isVisible && listHeight < listContentHeight
 
@@ -877,11 +917,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return (
         <QuickPanelRow
           className={classNames({
-            focused: !ctx.readOnly && itemIndex === activeIndex,
+            // In read-only panels only the pinned footer action can be highlighted (via keyboard).
+            focused: (!ctx.readOnly || item.fixedToBottom) && itemIndex === activeIndex,
             selected: !ctx.readOnly && item.isSelected,
             disabled: item.disabled
           })}
-          active={!ctx.readOnly && itemIndex === activeIndex}
+          active={(!ctx.readOnly || !!item.fixedToBottom) && itemIndex === activeIndex}
           contentClassName="max-w-[60%]"
           dataId={item.id}
           hoverEnabled={isMouseOver}
@@ -927,19 +968,34 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           <div className="p-4 text-center text-[13px] text-muted-foreground">
             {t('settings.quickPanel.noResult', 'No results')}
           </div>
-        ) : (
-          <DynamicVirtualList
-            ref={listRef}
-            list={list}
-            size={listHeight}
-            estimateSize={estimateSize}
-            overscan={5}
-            scrollerStyle={{
-              pointerEvents: isMouseOver ? 'auto' : 'none'
-            }}>
-            {rowRenderer}
-          </DynamicVirtualList>
-        )}
+        ) : null}
+        {!collapsed || fixedBottomItems.length > 0 ? (
+          <div
+            className="relative shrink-0"
+            data-testid="quick-panel-list-region"
+            style={{ height: (collapsed ? 0 : listHeight) + fixedBottomHeight }}>
+            {!collapsed ? (
+              <DynamicVirtualList
+                ref={listRef}
+                list={scrollableItems}
+                size={listHeight}
+                estimateSize={estimateSize}
+                overscan={5}
+                scrollerStyle={{
+                  pointerEvents: isMouseOver ? 'auto' : 'none'
+                }}>
+                {rowRenderer}
+              </DynamicVirtualList>
+            ) : null}
+            {fixedBottomItems.length > 0 ? (
+              <div className="absolute right-0 bottom-0 left-0 bg-popover" data-testid="quick-panel-fixed-bottom">
+                {fixedBottomItems.map((item, index) => (
+                  <div key={item.id ?? index}>{rowRenderer(item, scrollableItems.length + index)}</div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {!ctx.readOnly ? (
           <QuickPanelFooter
             containerRef={footerRef}

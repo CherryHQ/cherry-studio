@@ -15,10 +15,20 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
   useMcpServers: () => ({ mcpServers: [] })
 }))
 
+const editDialogMocks = vi.hoisted(() => ({ openResourceEditDialog: vi.fn() }))
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
+  openResourceEditDialog: editDialogMocks.openResourceEditDialog
+}))
+
 import type { Assistant } from '@renderer/types/assistant'
 
 import { TopicType } from '../../types'
-import { buildMcpStatusItems, createMcpStatusLauncher } from '../mcpStatusTool'
+import {
+  buildMcpConfigFooterItem,
+  buildMcpStatusItems,
+  createMcpStatusLauncher,
+  resolveMcpConfigTarget
+} from '../mcpStatusTool'
 
 const translations: Record<string, string> = {
   'settings.mcp.runtimeStatus.connected': 'Connected',
@@ -224,16 +234,43 @@ describe('mcpStatusTool', () => {
     )
   })
 
-  it('marks the root panel MCP launcher as disabled and non-actionable when assistant MCP mode is disabled', () => {
-    const launcher = createMcpStatusLauncher([], t, 'disabled')
+  it('keeps the MCP launcher openable when disabled so the config entry stays reachable', () => {
+    const footer = buildMcpConfigFooterItem({ kind: 'assistant', id: 'a1', initialTab: 'tools.mcp' }, t)!
+    const launcher = createMcpStatusLauncher([footer], t, 'disabled')
 
-    expect(launcher).toMatchObject({
-      id: 'mcp-status',
-      description: 'Disabled',
-      disabled: true,
-      disabledReason: 'Disabled'
+    expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled' })
+    expect(launcher.disabled).toBeFalsy()
+    expect(launcher.action).toEqual(expect.any(Function))
+
+    const quickPanel = { open: vi.fn() }
+    launcher.action?.({ quickPanel } as any)
+    expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [footer] }))
+  })
+
+  it('resolves the MCP config target from the conversation scope', () => {
+    expect(resolveMcpConfigTarget({ scope: TopicType.Session, agentId: 'agent-1' })).toEqual({
+      kind: 'agent',
+      id: 'agent-1',
+      initialTab: 'tools.mcp'
     })
-    expect(launcher.action).toBeUndefined()
-    expect(launcher.suffix).toBeUndefined()
+    expect(resolveMcpConfigTarget({ scope: TopicType.Chat, assistantId: 'assistant-1' })).toEqual({
+      kind: 'assistant',
+      id: 'assistant-1',
+      initialTab: 'tools.mcp'
+    })
+    // Session ignores the assistant id and vice versa; missing id yields no target.
+    expect(resolveMcpConfigTarget({ scope: TopicType.Session, assistantId: 'assistant-1' })).toBeNull()
+    expect(resolveMcpConfigTarget({ scope: TopicType.Chat })).toBeNull()
+  })
+
+  it('builds a pinned MCP config footer that opens the edit dialog', () => {
+    expect(buildMcpConfigFooterItem(null, t)).toBeNull()
+
+    const target = { kind: 'agent', id: 'agent-1', initialTab: 'tools.mcp' } as const
+    const footer = buildMcpConfigFooterItem(target, t)
+    expect(footer).toMatchObject({ id: 'mcp-status:open-config', fixedToBottom: true })
+
+    footer?.action?.({} as any)
+    expect(editDialogMocks.openResourceEditDialog).toHaveBeenCalledWith(target)
   })
 })

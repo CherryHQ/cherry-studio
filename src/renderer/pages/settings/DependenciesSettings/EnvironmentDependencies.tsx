@@ -38,8 +38,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { gt as semverGt, valid as semverValid } from 'semver'
 
-import LocalModelsSection from './LocalModelsSection'
-
 const logger = loggerService.withContext('EnvironmentDependencies')
 
 const isNewerVersion = (latest?: string, installed?: string): boolean => {
@@ -321,8 +319,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           {t('settings.dependencies.customToolsEmpty')}
         </div>
       )}
-
-      {!mini && <LocalModelsSection />}
 
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
 

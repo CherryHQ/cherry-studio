@@ -22,10 +22,6 @@ vi.mock('@shared/utils/provider', () => ({
     provider?.id === presetId || provider?.presetProviderId === presetId
 }))
 
-vi.mock('../OpenaiAlert', () => ({
-  default: () => <div>openai-alert</div>
-}))
-
 vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderOauth', () => ({
   default: ({ providerId }: any) => <div>{`provider-oauth-${providerId}`}</div>
 }))
@@ -86,8 +82,6 @@ describe('ProviderSpecificSettings', () => {
     const text = container.textContent ?? ''
 
     expect(text).toContain('provider-oauth-openai')
-    expect(text).toContain('openai-alert')
-    expect(text.indexOf('provider-oauth-openai')).toBeLessThan(text.indexOf('openai-alert'))
   })
 
   it.each([

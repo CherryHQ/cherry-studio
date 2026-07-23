@@ -51,7 +51,7 @@ Decision rule: SQLite data → DataApi; user setting → Preference; losable/sha
 | `src/shared/ipc/errors/<domain>.ts` | per-domain error-code maps (`as const`), imported directly by handler + renderer — `errors/` has no aggregating barrel |
 | `src/main/ipc/IpcRouter.ts` | request router (key lookup + zod parse + dispatch) |
 | `src/main/ipc/IpcApiService.ts` | `BeforeReady` coordinator: handler registration + `broadcast`/`send` |
-| `src/main/ipc/validateSender.ts` | source-trust gate (`validateSender` / `isTrustedSenderUrl`) |
+| `src/main/core/security/validateSender.ts` | source-trust gate (`validateSender` / `isTrustedSenderUrl`), shared with the DataApi `IpcAdapter` and the Preference/Cache subsystem handlers |
 | `src/main/ipc/handlers/ipcHandlers.ts` | global `ipcHandlers` (exhaustive, the audited exposure surface) |
 | `src/preload/ipc.ts` | generic forwarder → `window.api.ipcApi` |
 | `src/renderer/ipc/index.ts` | typed facade `ipcApi` |

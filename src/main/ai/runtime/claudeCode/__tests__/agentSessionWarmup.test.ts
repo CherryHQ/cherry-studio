@@ -355,6 +355,47 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
+  it('appends [1m] for a >=1M model on an Anthropic-preset provider repointed at a custom proxy', async () => {
+    // Provider derived from the Anthropic preset (presetProviderId stays 'anthropic') but its Base URL
+    // was changed to a custom proxy — must NOT be treated as first-party, so the 1M suffix still applies.
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'my-anthropic-proxy',
+      presetProviderId: 'anthropic',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.mycorp.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 1_000_000 })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.sdkModelId).toBe('claude-sonnet[1m]')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://anthropic.mycorp.com',
+      ANTHROPIC_MODEL: 'claude-sonnet[1m]',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-sonnet[1m]',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet[1m]',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet[1m]'
+    })
+  })
+
+  it('skips [1m] for a >=1M model on the first-party Anthropic endpoint (Claude Code manages it)', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet-4-5', contextWindow: 1_000_000 })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.sdkModelId).toBe('claude-sonnet-4-5')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
+      ANTHROPIC_MODEL: 'claude-sonnet-4-5'
+    })
+  })
+
   it('injects the Ollama dummy token for direct Anthropic routing when no API key is configured', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'ollama::qwen3:14b' })
     mocks.getProviderByProviderId.mockReturnValue({

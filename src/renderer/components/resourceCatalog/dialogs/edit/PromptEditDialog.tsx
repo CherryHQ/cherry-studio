@@ -9,11 +9,31 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/components/PromptEditorField'
+import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import type { Prompt } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 import { Braces } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const QUICK_PHRASE_POLISH_SYSTEM_PROMPT = [
+  'You are a user-prompt editor. Improve the supplied reusable user message without changing its intent or behavior.',
+  'Keep it as a user-authored request or instruction.',
+  'Do not convert it into a system prompt or introduce an assistant persona.',
+  'Keep the output in the same language as the input.',
+  'Preserve all requirements, constraints, Markdown structure, code, URLs, and output-format instructions.',
+  'Preserve every placeholder token verbatim, including tokens shaped like {{name}} and ${name}; keep duplicate occurrences.',
+  'Return only the polished quick phrase with no explanation, wrapper, or code fence.'
+].join('\n')
+
+const QUICK_PHRASE_GENERATION_SYSTEM_PROMPT = [
+  'You are a user-prompt writer. Create a reusable user message or instruction from the supplied title.',
+  'Do not turn it into a system prompt or describe assistant behavior unless the title explicitly asks for that.',
+  'Keep the output in the same language as the input.',
+  'Preserve all requirements, constraints, Markdown structure, code, URLs, and output-format instructions.',
+  'Preserve every placeholder token verbatim, including tokens shaped like {{name}} and ${name}; keep duplicate occurrences.',
+  'Return only the generated quick phrase with no explanation, wrapper, or code fence.'
+].join('\n')
 
 interface FormData {
   title: string
@@ -83,6 +103,11 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
     [onCancel]
   )
 
+  const handlePromptActionChange = useCallback((content: string) => {
+    setFormData((current) => ({ ...current, content }))
+    setResetPreviewKey((key) => key + 1)
+  }, [])
+
   const appendVariable = useCallback(() => {
     setFormData((current) => {
       const separator = current.content.length > 0 && !/\s$/.test(current.content) ? ' ' : ''
@@ -103,17 +128,27 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
   }, [appendVariable, variablePlaceholder])
 
   const promptActions = (
-    <Tooltip content={t('library.config.prompt.insert_variable')}>
-      <Button
-        type="button"
-        variant="ghost"
-        aria-label={t('library.config.prompt.insert_variable')}
-        onClick={handleInsertVariable}
+    <>
+      <PromptPolishActions
+        value={formData.content}
+        fallbackSource={formData.title}
+        emptyValueSystemPrompt={QUICK_PHRASE_GENERATION_SYSTEM_PROMPT}
+        existingValueSystemPrompt={QUICK_PHRASE_POLISH_SYSTEM_PROMPT}
+        onChange={handlePromptActionChange}
         disabled={isSaving}
-        className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-        <Braces size={10} />
-      </Button>
-    </Tooltip>
+      />
+      <Tooltip content={t('library.config.prompt.insert_variable')}>
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={t('library.config.prompt.insert_variable')}
+          onClick={handleInsertVariable}
+          disabled={isSaving}
+          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+          <Braces size={10} />
+        </Button>
+      </Tooltip>
+    </>
   )
 
   return (

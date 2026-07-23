@@ -888,8 +888,8 @@
           "label": "Agendador"
         },
         "CherryGenerateImage": {
-          "description": "[to be translated]:Generates an image from a text prompt using your configured painting model",
-          "label": "[to be translated]:Generate Image"
+          "description": "Gera uma imagem a partir de um prompt de texto usando o modelo de pintura configurado",
+          "label": "Gerar Imagem"
         },
         "CherryKbManage": {
           "description": "Adiciona, exclui ou atualiza documentos em suas bases de conhecimento",
@@ -1401,7 +1401,7 @@
         "title": "Na fila ({{count}})"
       },
       "generate_image": "Gerar imagem",
-      "generate_image_no_model": "[to be translated]:Configure a painting model in Settings › Default Model",
+      "generate_image_no_model": "Configure um modelo de pintura em Configurações › Modelo Padrão",
       "knowledge_base": "Base de conhecimento",
       "knowledge_base_disabled_by_files": "Remova os arquivos anexados para usar a Base de Conhecimento",
       "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas ou ative o uso de ferramentas no prompt",
@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "O modelo atual não suporta raciocínio ajustável"
       },
+      "toolbar": {
+        "customize": "Personalizar barra de ferramentas",
+        "drag": {
+          "cancelled": "Reordenação cancelada para {{name}}.",
+          "dropped": "{{name}} caiu.",
+          "instructions": "Para reordenar, pressione Espaço ou Enter para pegar uma ferramenta, use as teclas de seta para movê-la, depois Espaço ou Enter para soltá-la, ou Escape para cancelar.",
+          "over": "{{name}} mudou para {{over}}.",
+          "picked_up": "Peguei {{name}}."
+        },
+        "drag_handle": "Arraste para reordenar {{name}}",
+        "restore_default": "Restaurar padrão"
+      },
       "tools": {
         "collapse": "Recolher",
         "collapse_in": "Incluir no recolhimento",
@@ -1476,9 +1488,9 @@
         "expand": "Expandir",
         "file_not_found": "Arquivo não encontrado: {{path}}",
         "generate_image": {
-          "failed": "[to be translated]:Image generation failed",
-          "generating": "[to be translated]:Generating image…",
-          "title": "[to be translated]:Generated image"
+          "failed": "Falha na geração de imagem",
+          "generating": "Gerando imagem…",
+          "title": "Imagem gerada"
         },
         "open_file": "Abrir Arquivo",
         "open_file_error": "Falha ao abrir o arquivo: {{path}}",
@@ -1743,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Gerar nome de tópico",
+      "auto_rename_failed": "Falha ao gerar nome da conversa automaticamente",
       "clear": {
         "title": "Limpar mensagens"
       },
@@ -2441,6 +2454,80 @@
     },
     "user": "Usuário"
   },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Este arquivo HTML não tem conteúdo.",
+        "title": "Arquivo vazio"
+      },
+      "mode": {
+        "label": "Modo de visualização HTML",
+        "preview": "Pré-visualização",
+        "source": "Fonte"
+      },
+      "read_error": {
+        "title": "Não foi possível ler este arquivo"
+      },
+      "too_large": {
+        "description": "Arquivos HTML maiores que {{limit}} MiB não podem ser visualizados.",
+        "title": "O arquivo é muito grande"
+      }
+    },
+    "invalid_path": {
+      "description": "A pré-visualização de arquivo requer um caminho local absoluto válido.",
+      "title": "Não é possível pré-visualizar este arquivo"
+    },
+    "load_error": {
+      "description": "O conteúdo de pré-visualização não pôde ser carregado.",
+      "title": "Falha na pré-visualização"
+    },
+    "loading": "Carregando pré-visualização...",
+    "markdown": {
+      "empty": {
+        "description": "Este arquivo Markdown não tem conteúdo.",
+        "title": "Arquivo vazio"
+      },
+      "mode": {
+        "label": "Modo de visualização Markdown",
+        "preview": "Pré-visualização",
+        "source": "Fonte"
+      },
+      "read_error": {
+        "title": "Não foi possível ler este arquivo"
+      },
+      "too_large": {
+        "description": "Arquivos Markdown maiores que {{limit}} MiB não podem ser visualizados.",
+        "title": "O arquivo é muito grande"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Abrir com aplicação padrão",
+        "description": "Arquivos PDF maiores que {{limit}} MiB não podem ser pré-visualizados.",
+        "open_error": "Não foi possível abrir este arquivo",
+        "title": "O arquivo é muito grande"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Este arquivo de texto não tem conteúdo.",
+        "title": "Arquivo vazio"
+      },
+      "read_error": {
+        "title": "Não foi possível ler este arquivo"
+      },
+      "too_large": {
+        "description": "Arquivos de texto maiores que {{limit}} MiB não podem ser visualizados.",
+        "title": "O arquivo é muito grande"
+      }
+    },
+    "unsupported": {
+      "action": "Abrir com aplicação padrão",
+      "description": "Este tipo de arquivo ainda não pode ser visualizado.",
+      "open_error": "Não foi possível abrir este arquivo",
+      "title": "Visualização indisponível"
+    }
+  },
   "files": {
     "actions": "Ações",
     "all": "Todos os Arquivos",
@@ -2788,6 +2875,7 @@
           "title": "Importar uma única página da web"
         }
       },
+      "back_to_parent": "Voltar",
       "bulk": {
         "delete": "Apagar",
         "delete_confirm_description": "Excluir {{count}} fontes de dados selecionadas? Isso não pode ser desfeito.",
@@ -2815,6 +2903,7 @@
         "title": "Carregue sua primeira fonte de dados"
       },
       "empty_description": "Ainda sem fontes de dados",
+      "empty_folder": "Esta pasta está vazia",
       "filters": {
         "all": "Todos",
         "directory": "Pastas",
@@ -2847,9 +2936,9 @@
           "type": "Tipo",
           "updated_at": "Atualizado"
         },
+        "open_row": "Abrir {{title}}",
         "select_all": "Selecionar todos",
-        "select_row": "Selecionar linha",
-        "view_chunks_row": "Ver chunks para {{title}}"
+        "select_row": "Selecionar linha"
       },
       "toolbar": {
         "add": "Adicionar Fonte de Dados"
@@ -2860,6 +2949,8 @@
     "embedding_model": "Modelo de Incorporação",
     "embedding_model_required": "É necessário um modelo de incorporação da base de conhecimento",
     "empty": "Sem bases de conhecimento",
+    "empty_action": "Criar Base de Conhecimento",
+    "empty_description": "Você ainda não tem nenhuma base de conhecimento. Crie uma para começar a organizar e pesquisar seus documentos.",
     "error": {
       "directory_not_migrated": "Falha na migração da pasta. Por favor, exclua-a e faça o upload novamente.",
       "failed_base_unknown": "Esta base de conhecimento falhou durante a migração. Reconstrua-a e escolha um novo modelo de incorporação.",
@@ -3480,8 +3571,10 @@
       "title": "Biblioteca"
     },
     "skill_add": {
+      "add": "Adicionar Habilidade",
       "local_import": "Importação local",
-      "online_search": "Pesquisa online"
+      "online_search": "Pesquisa online",
+      "system_search": "Pesquisa do sistema"
     },
     "skill_detail": {
       "created_at": "Criado",
@@ -3509,6 +3602,19 @@
       "updated": "Ordenar por atualizado"
     },
     "subtitle": "Gerencie seus assistentes, agentes e habilidades",
+    "system_skill": {
+      "conflict": "Conflito de nome",
+      "description": "Importar habilidades já instaladas neste sistema.",
+      "empty_description": "Nenhuma habilidade importável foi encontrada em outras ferramentas de codificação neste dispositivo.",
+      "empty_title": "Nenhuma habilidade disponível para importar",
+      "enable_success": "Ativado {{name}}",
+      "enabled": "Ativado",
+      "import": "Importar",
+      "import_success": "Importado {{name}}",
+      "imported": "Importado",
+      "search_placeholder": "Pesquisar habilidades do sistema...",
+      "title": "Habilidades do sistema"
+    },
     "tag_picker": {
       "no_tags": "Ainda sem tags",
       "placeholder": "Novo nome da tag..."
@@ -4682,6 +4788,7 @@
     "req_error_text": "O servidor está ocupado ou o prompt contém palavras com \"direitos autorais\" ou \"palavras sensíveis\". Por favor, tente novamente.",
     "req_error_token": "Verifique a validade do token",
     "required_field": "Campo obrigatório",
+    "revealing": "Revelando imagem gerada",
     "safety_tolerance": "Tolerância de Segurança",
     "safety_tolerance_tip": "Mais alto = filtro mais permissivo; 0 é o mais restrito, 6 é o mais permissivo",
     "seed": "Semente Aleatória",
@@ -5340,7 +5447,7 @@
         "icon": {
           "error": "Nome de ícone inválido, verifique a entrada",
           "label": "Ícone",
-          "placeholder": "Insira o nome do ícone Lucide",
+          "placeholder": "Nome do ícone",
           "random": "Ícone aleatório",
           "tooltip": "O nome do ícone Lucide é em letras minúsculas, como arrow-right",
           "view_all": "Ver todos os ícones"
@@ -6085,7 +6192,8 @@
           "downloading": "A descarregar…",
           "ready": "Pronto"
         },
-        "title": "Modelos Locais"
+        "title": "Modelos Locais",
+        "unsupported": "Os modelos locais não são suportados nesta plataforma."
       },
       "notInstalled": "Não instalado",
       "openBinariesDir": "Open binaries directory",
@@ -6559,10 +6667,10 @@
       "user": "Usuário"
     },
     "menuGroups": {
-      "automation": "Automação",
-      "capabilities": "Capacidades e Ferramentas",
+      "automation": "Eficiência",
+      "capabilities": "Ferramentas",
       "models": "Modelos",
-      "personal": "Pessoal",
+      "personal": "Preferências",
       "quickAccess": "Acesso Rápido",
       "system": "Sistema"
     },
@@ -6837,8 +6945,8 @@
       },
       "more_actions": "Mais ações da lista de modelos",
       "not_enabled_models": "Desativados",
-      "painting_model": "[to be translated]:Painting Model",
-      "painting_model_description": "[to be translated]:Model used for image generation",
+      "painting_model": "Modelo de Pintura",
+      "painting_model_description": "Modelo utilizado para geração de imagens",
       "provider_id": "ID do Provedor",
       "provider_key_add_confirm": "Deseja adicionar uma chave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Falha ao adicionar chave API do provedor: dados vazios",
@@ -7719,6 +7827,8 @@
   },
   "tab": {
     "close": "Fechar Aba",
+    "close_others": "Fechar Outras Abas",
+    "close_to_right": "Fechar Guias à Direita",
     "move_to_first": "Mover para o Primeiro",
     "new": "Nova Aba",
     "open_in_new_window": "Abrir em Nova Janela",

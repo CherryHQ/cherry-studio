@@ -9,6 +9,11 @@ const engineMock = vi.hoisted(() => ({
   needsMigration: vi.fn(),
   getLastError: vi.fn()
 }))
+const fsMock = vi.hoisted(() => ({
+  appendFile: vi.fn(),
+  mkdir: vi.fn(),
+  writeFile: vi.fn()
+}))
 const windowSendMock = vi.hoisted(() => vi.fn())
 const windowMinimizeMock = vi.hoisted(() => vi.fn())
 const windowRequestCloseMock = vi.hoisted(() => vi.fn())
@@ -18,6 +23,7 @@ const windowSetQuitRequesterMock = vi.hoisted(() => vi.fn())
 const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../../core/MigrationEngine', () => ({ migrationEngine: engineMock }))
+vi.mock('fs/promises', () => ({ default: fsMock }))
 vi.mock('../MigrationWindowManager', () => ({
   migrationWindowManager: {
     send: windowSendMock,
@@ -67,6 +73,31 @@ describe('MigrationIpcHandler', () => {
     resetMigrationData()
     registerMigrationIpcHandlers('/mock/userData')
     handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+  })
+
+  describe('export file writes', () => {
+    it('overwrites export files by default for existing callers', async () => {
+      await invoke(MigrationIpcChannels.WriteExportFile, '/export', 'localStorage', '[]')
+
+      expect(fsMock.mkdir).toHaveBeenCalledWith('/export', { recursive: true })
+      expect(fsMock.writeFile).toHaveBeenCalledWith('/export/localStorage.json', '[]', 'utf-8')
+      expect(fsMock.appendFile).not.toHaveBeenCalled()
+    })
+
+    it('appends an export chunk when requested', async () => {
+      await invoke(MigrationIpcChannels.WriteExportFile, '/export', 'message_blocks', '{"id":"b1"}', 'append')
+
+      expect(fsMock.appendFile).toHaveBeenCalledWith('/export/message_blocks.json', '{"id":"b1"}', 'utf-8')
+      expect(fsMock.writeFile).not.toHaveBeenCalled()
+    })
+
+    it('propagates append failures to the renderer', async () => {
+      fsMock.appendFile.mockRejectedValueOnce(new Error('disk full'))
+
+      await expect(
+        invoke(MigrationIpcChannels.WriteExportFile, '/export', 'message_blocks', 'chunk', 'append')
+      ).rejects.toThrow('disk full')
+    })
   })
 
   it('flips to the protected migration stage before running the engine', async () => {

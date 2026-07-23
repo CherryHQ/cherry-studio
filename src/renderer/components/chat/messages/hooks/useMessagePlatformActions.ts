@@ -43,8 +43,8 @@ export function useMessagePlatformActions(): MessagePlatformActions {
     }
   }, [])
 
-  const exportTableAsExcel = useCallback<NonNullable<MessageListActions['exportTableAsExcel']>>((markdown) => {
-    return exportTableToExcel(markdown)
+  const exportTableAsExcel = useCallback<NonNullable<MessageListActions['exportTableAsExcel']>>((data) => {
+    return exportTableToExcel(data)
   }, [])
 
   const notifyInfo = useCallback<NonNullable<MessageListActions['notifyInfo']>>((message) => {

@@ -122,7 +122,10 @@ describe('MiniApp launchpad pin menu', () => {
     const enabledApp = { ...calculatorApp, status: 'enabled' as const }
     mocks.miniApps = [enabledApp]
 
-    render(<MiniApp app={enabledApp} variant="launchpad" />)
+    const { container } = render(<MiniApp app={enabledApp} variant="launchpad" />)
+
+    expect(container.querySelector('.mini-app-icon-frame')).not.toHaveClass('overflow-hidden')
+    expect(container.querySelector('.mini-app-icon-clip')).toHaveClass('overflow-hidden')
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.add_to_launchpad' }))
 
     expect(mocks.updateAppStatus).toHaveBeenCalledWith('calculator', 'pinned')
@@ -139,6 +142,19 @@ describe('MiniApp launchpad pin menu', () => {
       { type: 'app', id: 'assistants' },
       { type: 'mini_app', id: 'calculator' }
     ])
+  })
+
+  it('clips the launchpad icon without clipping the opened indicator', () => {
+    mocks.miniApps = [calculatorApp]
+    mocks.openedKeepAliveMiniApps = [calculatorApp]
+
+    const { container } = render(<MiniApp app={calculatorApp} variant="launchpad" />)
+    const frame = container.querySelector('.mini-app-icon-frame')
+    const iconClip = container.querySelector('.mini-app-icon-clip')
+    const indicator = screen.getByTestId('indicator-light')
+
+    expect(frame).toContainElement(indicator)
+    expect(iconClip).not.toContainElement(indicator)
   })
 
   it('removes a mini app from sidebar favorites', () => {

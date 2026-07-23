@@ -5,7 +5,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { isAwsBedrockProvider, isProviderSupportAuth, isVertexProvider, matchesPreset } from '@shared/utils/provider'
 import type { ReactNode } from 'react'
 
-import OpenaiAlert from '../components/OpenaiAlert'
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CherryInOauth from './CherryInOauth'
@@ -44,11 +43,6 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
       key: 'cherryin-oauth',
       when: ({ meta }) => meta.isCherryIN,
       render: (providerId) => <CherryInOauth providerId={providerId} />
-    },
-    {
-      key: 'openai-alert',
-      when: ({ provider }) => matchesPreset(provider, 'openai'),
-      render: () => <OpenaiAlert />
     },
     {
       key: 'ovms-settings',

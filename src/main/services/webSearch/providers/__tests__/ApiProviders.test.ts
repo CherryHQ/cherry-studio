@@ -5,6 +5,7 @@ import type { WebSearchExecutionConfig } from '@shared/data/types/webSearch'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  extractReadableMarkdown: vi.fn(),
   fetch: vi.fn(),
   fetchRemoteText: vi.fn(),
   loggerWarn: vi.fn(),
@@ -30,6 +31,10 @@ vi.mock('electron', () => ({
 
 vi.mock('@main/utils/remoteFetch', () => ({
   fetchRemoteText: mocks.fetchRemoteText
+}))
+
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: mocks.extractReadableMarkdown }
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -162,6 +167,12 @@ describe('main web search API providers', () => {
   })
 
   beforeEach(() => {
+    mocks.extractReadableMarkdown.mockReset()
+    mocks.extractReadableMarkdown.mockImplementation(async (html: string) =>
+      html.includes('<div></div>')
+        ? { title: '', content: '' }
+        : { title: 'Resolved Page Title', content: 'Resolved content from the target page.' }
+    )
     fetchMock.mockReset()
     fetchRemoteTextMock.mockReset()
     mocks.loggerWarn.mockReset()
@@ -1126,7 +1137,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1181,6 +1192,27 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it.each([
+    { apiHost: '', code: 'api_host_missing' },
+    { apiHost: 'not-a-url', code: 'api_host_invalid' }
+  ])('rejects Exa MCP API Host configuration before fetching: $code', async ({ apiHost, code }) => {
+    const provider = createProviderDriver(
+      ExaMcpProvider,
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiHost
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('skips malformed Exa MCP SSE frames and keeps parsing later frames', async () => {
     fetchMock.mockResolvedValue(
       createTextResponse(
@@ -1199,7 +1231,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1230,7 +1262,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1261,7 +1293,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1336,7 +1368,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 

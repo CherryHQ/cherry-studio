@@ -2,9 +2,9 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import { validateSender } from '@main/core/security/validateSender'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
-import { validateSender } from '@main/ipc/validateSender'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -64,7 +64,7 @@ export class SubWindowService extends BaseService {
     // NOT the `this.ipcOn` sugar (slated for removal). Tab_Attach / Tab_Detach / Tab_DragEnd /
     // SubWindow_SetAlwaysOnTop moved to IpcApi (tab.* / window.*).
     const onMoveWindow = (event: IpcMainEvent, payload: { tabId: string; x: number; y: number }) => {
-      if (!validateSender(event, application.getPath('app.root'))) return
+      if (!validateSender(event)) return
       const wm = application.get('WindowManager')
       // Prefer tabId lookup: when the main window sends this IPC, event.sender is the main window,
       // but we want to move the sub window identified by tabId.

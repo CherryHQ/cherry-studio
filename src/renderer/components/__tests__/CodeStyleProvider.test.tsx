@@ -67,6 +67,10 @@ describe('CodeStyleProvider', () => {
     MockUsePreferenceUtils.resetMocks()
   })
 
+  it('throws when useCodeStyle is used outside CodeStyleProvider', () => {
+    expect(() => render(<Probe />)).toThrow('useCodeStyle must be used within a CodeStyleProvider')
+  })
+
   it('provides cm theme names and resolves the saved cm theme when code editor is enabled', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')

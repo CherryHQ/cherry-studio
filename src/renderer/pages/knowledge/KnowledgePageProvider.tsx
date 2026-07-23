@@ -31,7 +31,7 @@ import {
   useUpdateKnowledgeGroup
 } from './hooks/useKnowledgeGroups'
 import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
-import type { KnowledgeTabKey } from './types'
+import type { KnowledgeFilePreviewTarget, KnowledgeTabKey } from './types'
 
 type EditableKnowledgeGroup = Pick<Group, 'id' | 'name'>
 type EditableKnowledgeBase = Pick<KnowledgeBase, 'id' | 'name'>
@@ -45,6 +45,8 @@ interface KnowledgePageContextValue {
   selectedBase: KnowledgeBase | undefined
   selectedBaseId: string
   selectedItemId: string | null
+  filePreview: KnowledgeFilePreviewTarget | null
+  baseNavigationVersion: number
   activeTab: KnowledgeTabKey
   contentRef: RefObject<HTMLDivElement | null>
   editingBase: EditableKnowledgeBase | null
@@ -70,6 +72,8 @@ interface KnowledgePageContextValue {
   setActiveTab: (tab: KnowledgeTabKey) => void
   openItemChunks: (itemId: string) => void
   closeItemChunks: () => void
+  openFilePreview: (target: KnowledgeFilePreviewTarget) => void
+  closeFilePreview: () => void
   openAddSourceDialog: (source?: KnowledgeItemType, files?: File[]) => void
   openRagConfigDrawer: () => void
   openRecallTestDrawer: () => void
@@ -111,6 +115,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const { deleteGroup } = useDeleteKnowledgeGroup()
   const [selectedBaseId, setSelectedBaseId] = useState('')
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [filePreview, setFilePreview] = useState<KnowledgeFilePreviewTarget | null>(null)
+  const [previewNavigationVersion, setPreviewNavigationVersion] = useState(0)
+  const [baseNavigationVersion, setBaseNavigationVersion] = useState(0)
+  const previewNavigationVersionRef = useRef(0)
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
   const pendingSelectedBaseListRef = useRef<KnowledgeBase[] | null>(null)
   const [activeTab, setActiveTab] = useState<KnowledgeTabKey>('data')
@@ -137,6 +145,26 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     return bases.find((base) => base.id === selectedBaseId)
   }, [bases, selectedBaseId])
 
+  const resetFilePreview = useCallback(() => {
+    const nextVersion = previewNavigationVersionRef.current + 1
+    previewNavigationVersionRef.current = nextVersion
+    setPreviewNavigationVersion(nextVersion)
+    setFilePreview(null)
+  }, [])
+
+  const resetBaseNavigation = useCallback(() => {
+    resetFilePreview()
+    setBaseNavigationVersion((version) => version + 1)
+  }, [resetFilePreview])
+
+  const openFilePreview = useCallback(
+    (target: KnowledgeFilePreviewTarget) => {
+      if (previewNavigationVersionRef.current !== previewNavigationVersion) return
+      setFilePreview(target)
+    },
+    [previewNavigationVersion]
+  )
+
   useEffect(() => {
     if (pendingSelectedBaseId) {
       if (bases.some((base) => base.id === pendingSelectedBaseId)) {
@@ -155,6 +183,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
     if (bases.length === 0) {
       if (selectedBaseId) {
+        resetBaseNavigation()
         setSelectedBaseId('')
       }
       setSelectedItemId(null)
@@ -163,13 +192,16 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
     const hasSelectedBase = bases.some((base) => base.id === selectedBaseId)
     if (!selectedBaseId || !hasSelectedBase) {
+      resetBaseNavigation()
       setSelectedBaseId(bases[0].id)
       setSelectedItemId(null)
     }
-  }, [bases, pendingSelectedBaseId, selectedBaseId])
+  }, [bases, pendingSelectedBaseId, resetBaseNavigation, selectedBaseId])
 
   const selectBase = useCallback(
     (baseId: string) => {
+      resetBaseNavigation()
+
       if (bases.some((base) => base.id === baseId)) {
         setPendingSelectedBaseId(null)
         pendingSelectedBaseListRef.current = null
@@ -181,7 +213,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       setSelectedBaseId(baseId)
       setSelectedItemId(null)
     },
-    [bases]
+    [bases, resetBaseNavigation]
   )
 
   useEffect(() => {
@@ -301,16 +333,18 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleCreateBaseCreated = useCallback(
     (createdBase: { id: string }) => {
+      resetBaseNavigation()
       setPendingSelectedBaseId(createdBase.id)
       pendingSelectedBaseListRef.current = bases
       setSelectedBaseId(createdBase.id)
       setSelectedItemId(null)
     },
-    [bases]
+    [bases, resetBaseNavigation]
   )
 
   const handleRestoreBaseRestored = useCallback(
     (restoredBase: { id: string }) => {
+      resetBaseNavigation()
       setRestoringBase(null)
       setRestoreBaseInitialValues(undefined)
       setPendingSelectedBaseId(restoredBase.id)
@@ -318,7 +352,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       setSelectedBaseId(restoredBase.id)
       setSelectedItemId(null)
     },
-    [bases]
+    [bases, resetBaseNavigation]
   )
 
   const moveBase = useCallback(
@@ -413,6 +447,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBase,
       selectedBaseId,
       selectedItemId,
+      filePreview,
+      baseNavigationVersion,
       activeTab,
       contentRef,
       editingBase,
@@ -438,6 +474,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       setActiveTab: handleSetActiveTab,
       openItemChunks,
       closeItemChunks,
+      openFilePreview,
+      closeFilePreview: resetFilePreview,
       openAddSourceDialog,
       openRagConfigDrawer,
       openRecallTestDrawer,
@@ -465,6 +503,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     }),
     [
       activeTab,
+      baseNavigationVersion,
       bases,
       createBase,
       editingBase,
@@ -501,9 +540,11 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isUpdatingBase,
       isUpdatingGroup,
       isRestoringBase,
+      filePreview,
       moveBase,
       openAddSourceDialog,
       closeItemChunks,
+      openFilePreview,
       openItemChunks,
       openCreateBaseDialog,
       openCreateGroupDialog,
@@ -511,6 +552,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       openRenameGroupDialog,
       openRestoreBaseDialog,
       restoreBase,
+      resetFilePreview,
       selectBase,
       selectedBase,
       selectedBaseId,
