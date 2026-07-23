@@ -91,12 +91,11 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
   return (
     <>
       <ApiHostSection>
-        {!isAnthropicPrimaryEndpoint ? (
+        {provider.id === 'cherryin' || !isAnthropicPrimaryEndpoint ? (
           <ApiHostField
             providerIdForSettings={provider.id}
             apiHost={apiHost}
             isCherryIN={meta.isCherryIN}
-            isChineseUser={meta.isChineseUser}
             isVertexAI={provider.id === 'vertexai'}
             isApiHostResettable={hostPreview.isApiHostResettable}
             onApiHostChange={handleApiHostChange}

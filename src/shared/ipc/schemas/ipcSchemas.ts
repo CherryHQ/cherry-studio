@@ -4,7 +4,7 @@ import { apiGatewayRequestSchemas } from './apiGateway'
 import { type AppEventSchemas, appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
-import { cherryinRequestSchemas } from './cherryin'
+import { type CherryInEventSchemas, cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
 import { exportRequestSchemas } from './export'
@@ -87,6 +87,7 @@ export type IpcEventSchemas = AiEventSchemas &
   AppEventSchemas &
   BinaryEventSchemas &
   ChannelEventSchemas &
+  CherryInEventSchemas &
   LocalModelEventSchemas &
   McpEventSchemas &
   NavigationEventSchemas &

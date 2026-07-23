@@ -23,6 +23,7 @@ import {
 import { resolveLogoSrc } from '@data/services/utils/logoSrc'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
+import { getCherryInEndpoints, resolveCherryInHost } from '@shared/config/cherryin'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -140,7 +141,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     ...(row.providerSettings as Partial<ProviderSettings> | null)
   }
 
-  return {
+  const provider: Provider = {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
@@ -165,6 +166,19 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     settings,
     isEnabled: row.isEnabled
   }
+
+  if (row.providerId === 'cherryin') {
+    const baseUrl = Object.values(provider.endpointConfigs ?? {}).find((config) => config.baseUrl)?.baseUrl
+    const endpoints = getCherryInEndpoints(resolveCherryInHost(baseUrl))
+    provider.websites = {
+      official: endpoints.official,
+      apiKey: endpoints.apiKey,
+      docs: endpoints.docs,
+      models: endpoints.models
+    }
+  }
+
+  return provider
 }
 
 /** The provider logo slot for a given providerId. */

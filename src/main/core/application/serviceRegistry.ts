@@ -27,6 +27,7 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { BinaryManager } from '@main/services/BinaryManager'
+import { CherryInEndpointService } from '@main/services/CherryInEndpointService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
@@ -88,6 +89,7 @@ export const services = {
   CodeCliService,
   CommandService,
   CitationPreviewService,
+  CherryInEndpointService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,

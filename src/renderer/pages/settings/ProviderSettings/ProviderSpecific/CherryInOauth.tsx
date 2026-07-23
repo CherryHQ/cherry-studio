@@ -8,6 +8,7 @@ import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import { CHERRYIN_HOSTS, getCherryInEndpoints, resolveCherryInHost } from '@shared/config/cherryin'
 import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
 import type { FC } from 'react'
@@ -15,9 +16,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('CherryInOauth')
-
-const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
-const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
 
 interface CherryInOauthProps {
   providerId: string
@@ -59,11 +57,14 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const hasKeys = provider ? hasApiKeys(provider) : false
   const hasOAuthToken = oauthTokenOverride ?? remoteHasOAuthToken ?? false
   const isOAuthLoggedIn = hasKeys && hasOAuthToken
+  const baseUrl = Object.values(provider?.endpointConfigs ?? {}).find((config) => config.baseUrl)?.baseUrl
+  const endpoints = getCherryInEndpoints(resolveCherryInHost(baseUrl, CHERRYIN_HOSTS.china))
 
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
     try {
-      const balance = await ipcApi.request('cherryin.get_balance', { apiHost: CHERRYIN_OAUTH_SERVER })
+      const selection = await ipcApi.request('cherryin.get_endpoint_selection')
+      const balance = await ipcApi.request('cherryin.get_balance', { apiHost: selection.host })
       setBalanceInfo(balance)
     } catch (error) {
       logger.warn('Failed to fetch balance:', error as Error)
@@ -89,6 +90,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const handleOAuthLogin = useCallback(async () => {
     try {
+      const selection = await ipcApi.request('cherryin.get_endpoint_selection')
       await oauthWithCherryIn(
         async (apiKeys: string) => {
           const keys = apiKeys
@@ -104,7 +106,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
           toast.success(t('auth.get_key_success'))
         },
         {
-          oauthServer: CHERRYIN_OAUTH_SERVER
+          oauthServer: selection.host
         }
       )
     } catch (error) {
@@ -124,7 +126,8 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     setIsLoggingOut(true)
 
     try {
-      await ipcApi.request('cherryin.logout', { apiHost: CHERRYIN_OAUTH_SERVER })
+      const selection = await ipcApi.request('cherryin.get_endpoint_selection')
+      await ipcApi.request('cherryin.logout', { apiHost: selection.host })
       setOauthTokenOverride(false)
       setBalanceInfo(null)
 
@@ -148,8 +151,9 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     }
   }, [deleteApiKey, provider?.apiKeys, refreshHasToken, t])
 
-  const handleTopup = useCallback(() => {
-    window.open(CHERRYIN_TOPUP_URL, '_blank')
+  const handleTopup = useCallback(async () => {
+    const selection = await ipcApi.request('cherryin.get_endpoint_selection')
+    window.open(getCherryInEndpoints(selection.host).topup, '_blank')
   }, [])
 
   if (!provider) {
@@ -245,12 +249,13 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
         <p className={cn(oauthCardClasses.serviceAttribution, 'text-muted-foreground')}>
           <Trans
             i18nKey="settings.provider.oauth.cherryIn.service_attribution"
+            values={{ host: new URL(endpoints.official).hostname }}
             components={{
               link: (
                 <a
                   key="cherryin-service-link"
                   className={cn(oauthCardClasses.serviceLink, 'text-muted-foreground')}
-                  href={CHERRYIN_OAUTH_SERVER}
+                  href={endpoints.official}
                   rel="noreferrer"
                   target="_blank"
                 />

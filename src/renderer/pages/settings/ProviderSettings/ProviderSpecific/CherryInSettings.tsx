@@ -1,62 +1,86 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import {
+  CHERRYIN_HOSTS,
+  type CherryInEndpointSelection,
+  type CherryInHostMode,
+  resolveCherryInHost
+} from '@shared/config/cherryin'
 import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('CherryInSettings')
 
 interface CherryInSettingsProps {
   providerId: string
 }
 
-const API_HOST_OPTIONS = [
+const HOST_MODE_OPTIONS = [
   {
-    value: 'open.cherryin.net',
-    labelKey: 'settings.provider.cherryin.api_host.acceleration',
+    value: 'auto',
+    labelKey: 'settings.provider.cherryin.route.auto',
+    description: 'Auto'
+  },
+  {
+    value: 'china',
+    labelKey: 'settings.provider.cherryin.route.china',
     description: 'open.cherryin.net'
   },
   {
-    value: 'open.cherryin.ai',
-    labelKey: 'settings.provider.cherryin.api_host.international',
+    value: 'global',
+    labelKey: 'settings.provider.cherryin.route.global',
     description: 'open.cherryin.ai'
   }
-]
+] satisfies Array<{ value: CherryInHostMode; labelKey: string; description: string }>
 
 const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
-  const { provider, updateProvider } = useProvider(providerId)
+  const { provider } = useProvider(providerId)
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [selection, setSelection] = useState<CherryInEndpointSelection | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const currentHost = useMemo(() => {
-    if (!provider?.endpointConfigs) return API_HOST_OPTIONS[0].value
-    const firstConfig = Object.values(provider.endpointConfigs)[0]
-    const firstUrl = firstConfig?.baseUrl
-    if (!firstUrl) return API_HOST_OPTIONS[0].value
-    try {
-      const hostname = new URL(firstUrl).hostname
-      const matched = API_HOST_OPTIONS.find((option) => hostname.includes(option.value))
-      return matched?.value ?? API_HOST_OPTIONS[0].value
-    } catch {
-      return API_HOST_OPTIONS[0].value
-    }
+  const fallbackHost = useMemo(() => {
+    const baseUrl = Object.values(provider?.endpointConfigs ?? {}).find((config) => config.baseUrl)?.baseUrl
+    return resolveCherryInHost(baseUrl, CHERRYIN_HOSTS.china)
   }, [provider?.endpointConfigs])
 
+  useEffect(() => {
+    let active = true
+    void ipcApi
+      .request('cherryin.get_endpoint_selection')
+      .then((result) => active && setSelection(result))
+      .catch((error) => logger.warn('Failed to load CherryIN endpoint selection', error as Error))
+      .finally(() => active && setIsLoading(false))
+    return () => {
+      active = false
+    }
+  }, [])
+
   const handleHostChange = useCallback(
-    async (value: string) => {
+    async (mode: CherryInHostMode) => {
       setOpen(false)
-      const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, value)
+      setIsLoading(true)
       try {
-        await updateProvider({ endpointConfigs: newEndpointConfigs })
+        setSelection(await ipcApi.request('cherryin.set_host_mode', { mode }))
       } catch {
-        toast.error(t('settings.provider.save_failed'))
+        toast.error(t('settings.provider.cherryin.route.error'))
+      } finally {
+        setIsLoading(false)
       }
     },
-    [provider?.endpointConfigs, t, updateProvider]
+    [t]
   )
+
+  const currentHost = selection?.host ?? fallbackHost
+  const currentMode = selection?.mode ?? 'auto'
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -67,7 +91,7 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
             fieldClasses.input,
             'block min-h-[1.25em] min-w-0 flex-1 truncate bg-transparent py-0 font-mono tabular-nums'
           )}>
-          {currentHost}
+          {new URL(currentHost).hostname}
         </span>
         <ChevronDown
           size={12}
@@ -80,8 +104,8 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
         sideOffset={4}
         className="w-(--radix-popover-trigger-width) rounded-lg border-[0.5px] border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
         <MenuList>
-          {API_HOST_OPTIONS.map((option) => {
-            const isSelected = option.value === currentHost
+          {HOST_MODE_OPTIONS.map((option) => {
+            const isSelected = option.value === currentMode
             return (
               <MenuItem
                 key={option.value}
@@ -91,6 +115,7 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
                 suffix={isSelected ? <Check size={14} className="text-foreground/70" aria-hidden /> : null}
                 className="rounded-lg px-2.5 text-sm"
                 descriptionClassName="font-mono text-muted-foreground/70 text-xs tabular-nums"
+                disabled={isLoading}
                 onClick={() => void handleHostChange(option.value)}
               />
             )

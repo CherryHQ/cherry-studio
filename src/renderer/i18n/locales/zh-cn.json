@@ -7390,6 +7390,13 @@
         "api_host": {
           "acceleration": "加速域名",
           "international": "国际域名"
+        },
+        "route": {
+          "auto": "自动优选",
+          "china": "加速线路",
+          "error": "CherryIN 访问线路切换失败",
+          "global": "国际线路",
+          "title": "访问线路"
         }
       },
       "claude_code": {
@@ -7552,7 +7559,7 @@
           "logout_button": "退出登录",
           "not_logged_in": "未登录",
           "register_account": "注册账户",
-          "service_attribution": "本服务由 <link>open.cherryin.ai</link> 提供",
+          "service_attribution": "本服务由 <link>{{host}}</link> 提供",
           "tagline": "登录后即可使用所有模型服务",
           "title": "OAuth 登录",
           "use_api_key": "使用 API Key 登录"

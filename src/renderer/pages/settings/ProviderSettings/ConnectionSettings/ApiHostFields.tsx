@@ -61,7 +61,6 @@ interface ApiHostFieldProps {
   providerIdForSettings: string
   apiHost: string
   isCherryIN: boolean
-  isChineseUser: boolean
   isVertexAI: boolean
   isApiHostResettable: boolean
   onApiHostChange: (value: string) => void
@@ -74,7 +73,6 @@ export function ApiHostField({
   providerIdForSettings,
   apiHost,
   isCherryIN,
-  isChineseUser,
   isVertexAI,
   isApiHostResettable,
   onApiHostChange,
@@ -96,13 +94,15 @@ export function ApiHostField({
     <ProviderField
       title={
         <span className={fieldClasses.titleWithHelp}>
-          <span className="font-semibold">{t('settings.provider.api_host')}</span>
+          <span className="font-semibold">
+            {t(isCherryIN ? 'settings.provider.cherryin.route.title' : 'settings.provider.api_host')}
+          </span>
           <ApiHostEndpointButton onClick={onOpenRequestConfig} />
         </span>
       }
       titleClassName="text-foreground"
       help={help}>
-      {isCherryIN && isChineseUser ? (
+      {isCherryIN ? (
         <div className={cn(fieldClasses.inputRow, 'group')}>
           <div className="flex min-w-0 flex-1">
             <CherryInSettings providerId={providerIdForSettings} />

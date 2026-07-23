@@ -209,6 +209,9 @@ export const ProviderSettingsSchema = z.object({
   // User notes
   notes: z.string().optional(),
 
+  // CherryIN route selection
+  cherryInHostMode: z.enum(['auto', 'china', 'global']).optional(),
+
   // GitHub Copilot auth state (stored here because v2 Provider has no isAuthed column)
   isAuthed: z.boolean().optional(),
   oauthUsername: z.string().optional(),
