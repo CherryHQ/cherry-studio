@@ -612,9 +612,13 @@ describe('AgentSelector', () => {
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+    // The close always awaits the dialog's save queue first, so it settles asynchronously.
+    await waitFor(() => expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1))
   })
   it('calls the dialog-close autofocus callback once when saving the edit dialog', async () => {
+    // Echo the submitted name like the real backend does, so the close-time
+    // verification pass sees a converged baseline and terminates.
+    updateAgentMock.mockResolvedValueOnce({ ...AGENTS_RESPONSE.items[0], name: 'Saved Agent' })
     const onDialogCloseAutoFocus = vi.fn()
     render(
       <AgentSelector
@@ -633,7 +637,7 @@ describe('AgentSelector', () => {
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
-    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1))
   })
 
   it('does not show the empty state while the agents query is loading', () => {
