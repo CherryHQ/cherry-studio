@@ -27,6 +27,7 @@ const commandHandlerMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => ({
   props: [] as any[]
 }))
+const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -105,7 +106,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageActivityState', () =
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () => ({
-  useMessageErrorActions: () => ({})
+  useMessageErrorActions: useMessageErrorActionsMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () => ({
@@ -291,6 +292,34 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         },
         mcp: {
           abortTool: vi.fn()
+        }
+      }
+    })
+  })
+
+  it('injects Home-message diagnosis persistence into the shared error UI', async () => {
+    vi.mocked(dataApiService.get).mockResolvedValue({
+      data: { parts: [{ type: 'data-error', data: { name: 'ProviderError', message: 'failed' } }] }
+    } as Awaited<ReturnType<typeof dataApiService.get<'/messages/:id'>>>)
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
+
+    const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+    }
+    await options.persistDiagnosis('message-1-part-0', { summary: 'Provider failed' })
+
+    expect(dataApiService.get).toHaveBeenCalledWith('/messages/message-1')
+    expect(dataApiService.patch).toHaveBeenCalledWith('/messages/message-1', {
+      body: {
+        data: {
+          parts: [
+            expect.objectContaining({
+              providerMetadata: expect.objectContaining({
+                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Provider failed' }) })
+              })
+            })
+          ]
         }
       }
     })

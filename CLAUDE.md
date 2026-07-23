@@ -58,7 +58,7 @@ Project-specific tools, paths, and conventions.
 - **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
 - **Keep history linear**: On shared branches, never use plain `git pull` — it creates merge commits. Always `git pull --rebase` (or `git fetch && git rebase origin/<branch>`). Before `git push`, run `git fetch`; if `origin/<branch>` has advanced, rebase your local commits onto it first. If you notice a merge commit in local history that hasn't been pushed yet, rebase it away — cleaning one up after it's public requires a risky force-push on a shared branch.
-- **Sign commits**: Use `git commit --signoff` as required by contributor guidelines.
+- **Sign commits and sign off**: Every commit must be both cryptographically signed and DCO-signed off. Use `git commit -S --signoff` (not `--signoff` alone), verify the commit object contains a `gpgsig` header with `git cat-file commit HEAD`, and verify the pushed PR commits show `Verified` on GitHub.
 - **Target the right branch**: `main` is the default branch for active development — submit features, refactors, optimizations, and fixes for the current codebase here. v1 maintenance fixes (hotfixes and subsequent v1 releases) must branch from and target the `v1` branch (never `main`); a v1 fix does not auto-carry to `main`, so forward-port it with a separate PR if the bug also exists on `main`. See [v2 Refactoring](#v2-refactoring-in-progress).
 
 ## Development
@@ -211,7 +211,7 @@ Services without long-lived resources or persistent side effects: use **named ex
 
 **MUST READ**: [docs/references/binary-manager/README.md](docs/references/binary-manager/README.md) — scope criterion (in/out), persisted surface, bundled-vs-mise state contract, adding a new tool, China mirror behavior.
 
-All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) goes through `BinaryManager`. Wrap mise's polyglot backends (`npm:`, `pipx:`, `github:`, registry entries) — do NOT shell out to package managers from your own service. Domain services consume via `application.get('BinaryManager').installTool(...)` and keep runtime orchestration (config, spawn, health) on their side.
+All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) goes through `BinaryManager`. Wrap mise's polyglot backends (`npm:`, `pipx:`, `github:`, registry entries) — do NOT shell out to package managers from your own service. Domain services consume via `application.get('BinaryManager').installByName(...)` (or `addCustomTool(...)` for an arbitrary user recipe) and keep runtime orchestration (config, spawn, health) on their side.
 
 ## v2 Refactoring (In Progress)
 
