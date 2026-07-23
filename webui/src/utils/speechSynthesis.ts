@@ -1,6 +1,11 @@
 export type SpeechSynthesisControllerState = {
   readonly messageId?: string
   readonly isSpeaking: boolean
+  readonly isPaused: boolean
+  readonly segmentIndex: number
+  readonly segmentCount: number
+  readonly paragraphIndex: number
+  readonly paragraphCount: number
 }
 
 export type SpeechVoiceOption = {
@@ -18,12 +23,21 @@ export type SpeechPreferences = {
   readonly voiceURI: string
 }
 
+export type SpeechPanelPreferences = {
+  /** When true, message read-aloud opens the right Speech tab. */
+  readonly autoOpenPanel: boolean
+}
+
 export const SPEECH_PREFERENCES_STORAGE_KEY = 'cherry-webui.speech-preferences'
+export const SPEECH_PANEL_PREFERENCES_STORAGE_KEY = 'cherry-webui.speech-panel-preferences'
 export const DEFAULT_SPEECH_PREFERENCES: SpeechPreferences = {
   rate: 1,
   pitch: 1,
   volume: 1,
   voiceURI: ''
+}
+export const DEFAULT_SPEECH_PANEL_PREFERENCES: SpeechPanelPreferences = {
+  autoOpenPanel: true
 }
 
 export const SPEECH_RATE_MIN = 0.5
@@ -35,6 +49,11 @@ export const SPEECH_VOLUME_MAX = 1
 
 /** Keep segments short to reduce Android speechSynthesis mid-utterance drops. */
 const SPEECH_SEGMENT_MAX_CHARS = 220
+
+type SpeechSegment = {
+  readonly text: string
+  readonly paragraphIndex: number
+}
 
 type SpeechSynthesisControllerOptions = {
   readonly onStateChange: (state: SpeechSynthesisControllerState) => void
@@ -64,6 +83,13 @@ export const clampSpeechPreferences = (input: Partial<SpeechPreferences> | null 
   voiceURI: typeof input?.voiceURI === 'string' ? input.voiceURI : DEFAULT_SPEECH_PREFERENCES.voiceURI
 })
 
+export const clampSpeechPanelPreferences = (
+  input: Partial<SpeechPanelPreferences> | null | undefined
+): SpeechPanelPreferences => ({
+  autoOpenPanel:
+    typeof input?.autoOpenPanel === 'boolean' ? input.autoOpenPanel : DEFAULT_SPEECH_PANEL_PREFERENCES.autoOpenPanel
+})
+
 export const loadSpeechPreferences = (): SpeechPreferences => {
   if (typeof window === 'undefined') return DEFAULT_SPEECH_PREFERENCES
   try {
@@ -81,6 +107,29 @@ export const saveSpeechPreferences = (preferences: SpeechPreferences) => {
     window.localStorage.setItem(SPEECH_PREFERENCES_STORAGE_KEY, JSON.stringify(clampSpeechPreferences(preferences)))
   } catch {
     // Ignore quota / private-mode failures; preferences stay in-memory for the session.
+  }
+}
+
+export const loadSpeechPanelPreferences = (): SpeechPanelPreferences => {
+  if (typeof window === 'undefined') return DEFAULT_SPEECH_PANEL_PREFERENCES
+  try {
+    const raw = window.localStorage.getItem(SPEECH_PANEL_PREFERENCES_STORAGE_KEY)
+    if (!raw) return DEFAULT_SPEECH_PANEL_PREFERENCES
+    return clampSpeechPanelPreferences(JSON.parse(raw) as Partial<SpeechPanelPreferences>)
+  } catch {
+    return DEFAULT_SPEECH_PANEL_PREFERENCES
+  }
+}
+
+export const saveSpeechPanelPreferences = (preferences: SpeechPanelPreferences) => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(
+      SPEECH_PANEL_PREFERENCES_STORAGE_KEY,
+      JSON.stringify(clampSpeechPanelPreferences(preferences))
+    )
+  } catch {
+    // Ignore quota / private-mode failures.
   }
 }
 
@@ -122,6 +171,7 @@ export const listSpeechVoices = (): SpeechVoiceOption[] => {
   }
 }
 
+/** Split long text into speakable chunks, preferring sentence boundaries. */
 export const splitSpeechText = (text: string, maxChars = SPEECH_SEGMENT_MAX_CHARS): string[] => {
   const normalized = text.replace(/\s+/g, ' ').trim()
   if (!normalized) return []
@@ -145,6 +195,51 @@ export const splitSpeechText = (text: string, maxChars = SPEECH_SEGMENT_MAX_CHAR
   return segments
 }
 
+/** Sentence split used for prev/next sentence navigation (keeps short chunks for TTS). */
+export const splitSpeechSentences = (text: string, maxChars = SPEECH_SEGMENT_MAX_CHARS): string[] => {
+  const normalized = text.replace(/\r\n/g, '\n').trim()
+  if (!normalized) return []
+
+  const rough = normalized
+    .split(/(?<=[.!?。！？；;])\s+|(?<=[.!?。！？；;])(?=[^\s])|\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (!rough.length) return splitSpeechText(normalized, maxChars)
+
+  const segments: string[] = []
+  for (const part of rough) {
+    if (part.length <= maxChars) {
+      segments.push(part)
+      continue
+    }
+    segments.push(...splitSpeechText(part, maxChars))
+  }
+  return segments
+}
+
+/** Paragraph → sentence segments for navigation. */
+export const buildSpeechSegments = (text: string, maxChars = SPEECH_SEGMENT_MAX_CHARS): SpeechSegment[] => {
+  const normalized = text.replace(/\r\n/g, '\n').trim()
+  if (!normalized) return []
+
+  const paragraphs = normalized
+    .split(/\n{2,}|\n/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (!paragraphs.length) return []
+
+  const segments: SpeechSegment[] = []
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    const sentences = splitSpeechSentences(paragraph, maxChars)
+    for (const sentence of sentences) {
+      segments.push({ text: sentence, paragraphIndex })
+    }
+  })
+  return segments
+}
+
 const pickVoice = (voices: readonly SpeechSynthesisVoice[], voiceURI: string, language: string) => {
   if (voiceURI) {
     const exact = voices.find((voice) => voice.voiceURI === voiceURI)
@@ -161,6 +256,15 @@ const pickVoice = (voices: readonly SpeechSynthesisVoice[], voiceURI: string, la
   )
 }
 
+const emptyState = (): SpeechSynthesisControllerState => ({
+  isSpeaking: false,
+  isPaused: false,
+  segmentIndex: 0,
+  segmentCount: 0,
+  paragraphIndex: 0,
+  paragraphCount: 0
+})
+
 export const createSpeechSynthesisController = ({
   onStateChange,
   getPreferences
@@ -168,64 +272,60 @@ export const createSpeechSynthesisController = ({
   const synth = typeof window === 'undefined' ? undefined : window.speechSynthesis
   let isSupported = detectSpeechSynthesisSupport()
   let currentMessageId: string | undefined
-  let queue: SpeechSynthesisUtterance[] = []
+  let language = 'en-US'
+  let segments: SpeechSegment[] = []
+  let segmentIndex = 0
+  let isPaused = false
   let activeUtterance: SpeechSynthesisUtterance | undefined
   let generation = 0
 
-  const notify = () =>
+  const paragraphCount = () => {
+    if (!segments.length) return 0
+    return Math.max(...segments.map((segment) => segment.paragraphIndex)) + 1
+  }
+
+  const notify = () => {
+    // Session is active while speaking or paused mid-message.
+    const messageActive = Boolean(currentMessageId) && segments.length > 0 && (Boolean(activeUtterance) || isPaused)
     onStateChange({
       messageId: currentMessageId,
-      isSpeaking: Boolean(activeUtterance) || queue.length > 0
+      isSpeaking: messageActive,
+      isPaused,
+      segmentIndex: segments.length ? Math.min(segmentIndex, segments.length - 1) : 0,
+      segmentCount: segments.length,
+      paragraphIndex: segments[segmentIndex]?.paragraphIndex ?? 0,
+      paragraphCount: paragraphCount()
     })
+  }
 
   const refreshSupport = () => {
     isSupported = detectSpeechSynthesisSupport()
     return isSupported
   }
 
-  const clearQueue = () => {
-    queue = []
-    activeUtterance = undefined
+  const hardCancelSynth = () => {
+    if (!synth) return
+    try {
+      synth.cancel()
+    } catch {
+      // Some mobile engines throw on cancel when idle.
+    }
   }
 
   const stop = () => {
     generation += 1
-    clearQueue()
+    activeUtterance = undefined
+    isPaused = false
     currentMessageId = undefined
-    if (synth) {
-      try {
-        synth.cancel()
-      } catch {
-        // Some mobile engines throw on cancel when idle.
-      }
-    }
+    segments = []
+    segmentIndex = 0
+    language = 'en-US'
+    hardCancelSynth()
     notify()
   }
 
-  const speakNext = (token: number) => {
-    if (!synth || token !== generation) return
-    const next = queue.shift()
-    if (!next) {
-      activeUtterance = undefined
-      currentMessageId = undefined
-      notify()
-      return
-    }
-
-    activeUtterance = next
-    notify()
-    try {
-      // Chrome/Android can get stuck after cancel; resume before speaking.
-      if (synth.paused) synth.resume()
-      synth.speak(next)
-    } catch {
-      clearQueue()
-      currentMessageId = undefined
-      notify()
-    }
-  }
-
-  const buildUtterance = (text: string, language: string, preferences: SpeechPreferences) => {
+  const buildUtterance = (text: string, token: number) => {
+    const preferences = clampSpeechPreferences(getPreferences?.() ?? DEFAULT_SPEECH_PREFERENCES)
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = language
     utterance.rate = preferences.rate
@@ -242,50 +342,182 @@ export const createSpeechSynthesisController = ({
         // Keep utterance without an explicit voice.
       }
     }
+    utterance.onend = () => {
+      if (token !== generation || activeUtterance !== utterance) return
+      activeUtterance = undefined
+      isPaused = false
+      const nextIndex = segmentIndex + 1
+      if (nextIndex >= segments.length) {
+        // Finished all segments.
+        currentMessageId = undefined
+        segments = []
+        segmentIndex = 0
+        notify()
+        return
+      }
+      segmentIndex = nextIndex
+      speakCurrent(token)
+    }
+    utterance.onerror = () => {
+      if (token !== generation) return
+      activeUtterance = undefined
+      isPaused = false
+      currentMessageId = undefined
+      segments = []
+      segmentIndex = 0
+      notify()
+    }
     return utterance
   }
 
-  const speakSegments = (messageId: string, text: string, language: string) => {
-    if (!synth || !refreshSupport()) return false
+  const speakCurrent = (token: number) => {
+    if (!synth || token !== generation) return
+    const segment = segments[segmentIndex]
+    if (!segment) {
+      activeUtterance = undefined
+      isPaused = false
+      currentMessageId = undefined
+      segments = []
+      segmentIndex = 0
+      notify()
+      return
+    }
 
+    isPaused = false
+    const utterance = buildUtterance(segment.text, token)
+    activeUtterance = utterance
+    notify()
+    try {
+      if (synth.paused) synth.resume()
+      synth.speak(utterance)
+    } catch {
+      activeUtterance = undefined
+      isPaused = false
+      currentMessageId = undefined
+      segments = []
+      segmentIndex = 0
+      notify()
+    }
+  }
+
+  const beginSession = (messageId: string, text: string, nextLanguage: string, startIndex = 0) => {
+    if (!synth || !refreshSupport()) return false
     const speechText = text.trim()
     if (!speechText) return false
 
-    if (currentMessageId === messageId && (activeUtterance || queue.length > 0)) {
-      stop()
-      return true
-    }
+    const nextSegments = buildSpeechSegments(speechText)
+    if (!nextSegments.length) return false
 
-    const preferences = clampSpeechPreferences(getPreferences?.() ?? DEFAULT_SPEECH_PREFERENCES)
-    const segments = splitSpeechText(speechText)
-    if (!segments.length) return false
-
-    stop()
+    generation += 1
     const token = generation
+    hardCancelSynth()
+    activeUtterance = undefined
+    isPaused = false
     currentMessageId = messageId
-    queue = segments.map((segment) => {
-      const utterance = buildUtterance(segment, language, preferences)
-      utterance.onend = () => {
-        if (token !== generation || activeUtterance !== utterance) return
-        activeUtterance = undefined
-        speakNext(token)
-      }
-      utterance.onerror = () => {
-        if (token !== generation) return
-        // Drop remaining queue on hard error to avoid endless retries.
-        clearQueue()
-        currentMessageId = undefined
-        notify()
-      }
-      return utterance
-    })
-    speakNext(token)
+    language = nextLanguage
+    segments = nextSegments
+    segmentIndex = Math.max(0, Math.min(startIndex, nextSegments.length - 1))
+    speakCurrent(token)
     return true
   }
 
-  const speak = (messageId: string, text: string, language: string) => speakSegments(messageId, text, language)
+  const speak = (messageId: string, text: string, nextLanguage: string) => {
+    // Toggle stop when the same message is already speaking/paused.
+    if (currentMessageId === messageId && (activeUtterance || isPaused)) {
+      stop()
+      return true
+    }
+    return beginSession(messageId, text, nextLanguage, 0)
+  }
 
-  const preview = (text: string, language: string) => speakSegments('__speech_preview__', text, language)
+  const preview = (text: string, nextLanguage: string) => beginSession('__speech_preview__', text, nextLanguage, 0)
+
+  const pause = () => {
+    if (!synth || !activeUtterance || isPaused) return false
+    try {
+      synth.pause()
+      isPaused = true
+      notify()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const resume = () => {
+    if (!synth || !currentMessageId || !segments.length) return false
+    if (isPaused && activeUtterance) {
+      try {
+        synth.resume()
+        isPaused = false
+        notify()
+        return true
+      } catch {
+        // Fall through to re-speak current segment.
+      }
+    }
+    if (!activeUtterance) {
+      generation += 1
+      speakCurrent(generation)
+      return true
+    }
+    return false
+  }
+
+  const play = () => {
+    if (isPaused) return resume()
+    if (activeUtterance) return true
+    if (currentMessageId && segments.length) {
+      generation += 1
+      speakCurrent(generation)
+      return true
+    }
+    return false
+  }
+
+  const jumpToSegment = (index: number) => {
+    if (!currentMessageId || !segments.length) return false
+    if (index < 0 || index >= segments.length) return false
+    generation += 1
+    const token = generation
+    hardCancelSynth()
+    activeUtterance = undefined
+    isPaused = false
+    segmentIndex = index
+    speakCurrent(token)
+    return true
+  }
+
+  const previousSentence = () => {
+    if (!segments.length) return false
+    const target = Math.max(0, segmentIndex - 1)
+    return jumpToSegment(target)
+  }
+
+  const nextSentence = () => {
+    if (!segments.length) return false
+    const target = Math.min(segments.length - 1, segmentIndex + 1)
+    if (target === segmentIndex && segmentIndex >= segments.length - 1) return false
+    return jumpToSegment(target)
+  }
+
+  const previousParagraph = () => {
+    if (!segments.length) return false
+    const currentParagraph = segments[segmentIndex]?.paragraphIndex ?? 0
+    if (currentParagraph <= 0) return jumpToSegment(0)
+    const targetParagraph = currentParagraph - 1
+    const targetIndex = segments.findIndex((segment) => segment.paragraphIndex === targetParagraph)
+    if (targetIndex < 0) return false
+    return jumpToSegment(targetIndex)
+  }
+
+  const nextParagraph = () => {
+    if (!segments.length) return false
+    const currentParagraph = segments[segmentIndex]?.paragraphIndex ?? 0
+    const targetIndex = segments.findIndex((segment) => segment.paragraphIndex > currentParagraph)
+    if (targetIndex < 0) return false
+    return jumpToSegment(targetIndex)
+  }
 
   const applyLivePreferences = (preferences: SpeechPreferences) => {
     const next = clampSpeechPreferences(preferences)
@@ -294,12 +526,17 @@ export const createSpeechSynthesisController = ({
       activeUtterance.pitch = next.pitch
       activeUtterance.volume = next.volume
     }
-    for (const utterance of queue) {
-      utterance.rate = next.rate
-      utterance.pitch = next.pitch
-      utterance.volume = next.volume
-    }
   }
+
+  const getState = (): SpeechSynthesisControllerState => ({
+    messageId: currentMessageId,
+    isSpeaking: Boolean(currentMessageId) && segments.length > 0 && (Boolean(activeUtterance) || isPaused),
+    isPaused,
+    segmentIndex: segments.length ? Math.min(segmentIndex, segments.length - 1) : 0,
+    segmentCount: segments.length,
+    paragraphIndex: segments[segmentIndex]?.paragraphIndex ?? 0,
+    paragraphCount: paragraphCount()
+  })
 
   return {
     get isSupported() {
@@ -308,7 +545,15 @@ export const createSpeechSynthesisController = ({
     refreshSupport,
     speak,
     preview,
+    play,
+    pause,
+    resume,
     stop,
-    applyLivePreferences
+    previousSentence,
+    nextSentence,
+    previousParagraph,
+    nextParagraph,
+    applyLivePreferences,
+    getState
   }
 }

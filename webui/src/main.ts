@@ -61,9 +61,12 @@ import {
   createSpeechSynthesisController,
   DEFAULT_SPEECH_PREFERENCES,
   listSpeechVoices,
+  loadSpeechPanelPreferences,
   loadSpeechPreferences,
+  saveSpeechPanelPreferences,
   saveSpeechPreferences,
   SPEECH_RATE_MAX,
+  type SpeechPanelPreferences,
   type SpeechPreferences,
   type SpeechSynthesisControllerState,
   type SpeechVoiceOption
@@ -198,6 +201,19 @@ const textPacks = {
     speechReset: 'Reset defaults',
     speechEmptyContent: 'This message has no readable text.',
     speechGeneratingBlocked: 'Speech is unavailable while the message is generating.',
+    speechPlay: 'Play',
+    speechPause: 'Pause',
+    speechStop: 'Stop',
+    speechPreviousSentence: 'Previous sentence',
+    speechNextSentence: 'Next sentence',
+    speechPreviousParagraph: 'Previous paragraph',
+    speechNextParagraph: 'Next paragraph',
+    speechAutoOpenPanel: 'Open Speech panel when reading aloud',
+    speechAutoOpenPanelHint: 'When enabled, tapping Read aloud opens the right Speech tab.',
+    speechTransport: 'Playback controls',
+    speechProgress: 'Progress',
+    speechNoActiveReading: 'No active reading session.',
+    speechIdleHint: 'Select Read aloud on a message to start.',
     deleteConversation: 'Delete conversation',
     deleteConversationDescription:
       'This conversation and its messages will be removed from the desktop app and cannot be restored.',
@@ -373,6 +389,19 @@ const textPacks = {
     speechReset: '恢复默认',
     speechEmptyContent: '这条消息没有可朗读的正文。',
     speechGeneratingBlocked: '消息生成中，暂不可朗读。',
+    speechPlay: '播放',
+    speechPause: '暂停',
+    speechStop: '停止',
+    speechPreviousSentence: '上一句',
+    speechNextSentence: '下一句',
+    speechPreviousParagraph: '上一段',
+    speechNextParagraph: '下一段',
+    speechAutoOpenPanel: '朗读时自动打开朗读分组',
+    speechAutoOpenPanelHint: '开启后，点击消息的朗读按钮会自动展开右侧朗读分组。',
+    speechTransport: '朗读控制',
+    speechProgress: '进度',
+    speechNoActiveReading: '当前没有正在朗读的内容。',
+    speechIdleHint: '点击消息上的朗读按钮开始。',
     deleteConversation: '删除会话',
     deleteConversationDescription: '此会话及其消息将从桌面端删除，且无法恢复。',
     delete: '删除',
@@ -542,6 +571,19 @@ const textPacks = {
     speechReset: '恢復預設',
     speechEmptyContent: '這則訊息沒有可朗讀的正文。',
     speechGeneratingBlocked: '訊息生成中，暫不可朗讀。',
+    speechPlay: '播放',
+    speechPause: '暫停',
+    speechStop: '停止',
+    speechPreviousSentence: '上一句',
+    speechNextSentence: '下一句',
+    speechPreviousParagraph: '上一段',
+    speechNextParagraph: '下一段',
+    speechAutoOpenPanel: '朗讀時自動開啟朗讀分組',
+    speechAutoOpenPanelHint: '開啟後，點擊訊息的朗讀按鈕會自動展開右側朗讀分組。',
+    speechTransport: '朗讀控制',
+    speechProgress: '進度',
+    speechNoActiveReading: '目前沒有正在朗讀的內容。',
+    speechIdleHint: '點擊訊息上的朗讀按鈕開始。',
     deleteConversation: '刪除會話',
     deleteConversationDescription: '此會話及其訊息將從桌面端刪除，且無法復原。',
     delete: '刪除',
@@ -1208,6 +1250,7 @@ const App = defineComponent({
     const conversationActionError = ref('')
     const deleteConversationId = ref<string>()
     const speechPreferences = ref<SpeechPreferences>(loadSpeechPreferences())
+    const speechPanelPreferences = ref<SpeechPanelPreferences>(loadSpeechPanelPreferences())
     const speechVoices = ref<readonly SpeechVoiceOption[]>([])
     const speechNotice = ref<{ readonly message: string; readonly messageId: string } | null>(null)
     const workspaceDirectoryEntries = ref<Readonly<Record<string, readonly WebUiWorkspaceFileEntry[]>>>({})
@@ -1247,7 +1290,14 @@ const App = defineComponent({
     const deleteMessageId = ref<string>()
     const messageDeleteState = ref<'idle' | 'deleting' | 'error'>('idle')
     const messageDeleteError = ref('')
-    const speechState = ref<SpeechSynthesisControllerState>({ isSpeaking: false })
+    const speechState = ref<SpeechSynthesisControllerState>({
+      isSpeaking: false,
+      isPaused: false,
+      segmentIndex: 0,
+      segmentCount: 0,
+      paragraphIndex: 0,
+      paragraphCount: 0
+    })
     const speechController = createSpeechSynthesisController({
       onStateChange: (state) => {
         speechState.value = state
@@ -1449,7 +1499,10 @@ const App = defineComponent({
       return (container.textContent ?? value).trim()
     }
     const isReadingMessage = (messageId: string) =>
-      speechState.value.isSpeaking && speechState.value.messageId === messageId
+      Boolean(speechState.value.messageId === messageId && speechState.value.isSpeaking)
+    const hasActiveSpeechSession = computed(() => Boolean(speechState.value.messageId) && speechState.value.isSpeaking)
+    const isSpeechPaused = computed(() => speechState.value.isPaused)
+    const isSpeechPlaying = computed(() => speechState.value.isSpeaking && !speechState.value.isPaused)
     const refreshSpeechVoices = () => {
       speechVoices.value = listSpeechVoices()
       speechController.refreshSupport()
@@ -1464,6 +1517,13 @@ const App = defineComponent({
     }
     const resetSpeechPreferences = () => {
       persistSpeechPreferences({ ...DEFAULT_SPEECH_PREFERENCES })
+    }
+    const persistSpeechPanelPreferences = (next: SpeechPanelPreferences) => {
+      speechPanelPreferences.value = next
+      saveSpeechPanelPreferences(next)
+    }
+    const updateSpeechAutoOpenPanel = (enabled: boolean) => {
+      persistSpeechPanelPreferences({ ...speechPanelPreferences.value, autoOpenPanel: enabled })
     }
     const showSpeechNotice = (message: string, messageId?: string) => {
       const targetMessageId = messageId ?? ''
@@ -1487,11 +1547,116 @@ const App = defineComponent({
       }
       speechController.preview(text('speechPreviewSample'), language.value)
     }
-    const renderSpeechPanel = () =>
-      h('div', { class: 'speech-settings-panel' }, [
+    const handleSpeechPlayPause = () => {
+      if (!speechController.refreshSupport()) {
+        showSpeechNotice(text('speechUnavailable'))
+        return
+      }
+      if (isSpeechPlaying.value) {
+        speechController.pause()
+        return
+      }
+      if (isSpeechPaused.value || hasActiveSpeechSession.value) {
+        speechController.play()
+      }
+    }
+    const handleSpeechStop = () => {
+      speechController.stop()
+    }
+    const handleSpeechPreviousSentence = () => {
+      speechController.previousSentence()
+    }
+    const handleSpeechNextSentence = () => {
+      speechController.nextSentence()
+    }
+    const handleSpeechPreviousParagraph = () => {
+      speechController.previousParagraph()
+    }
+    const handleSpeechNextParagraph = () => {
+      speechController.nextParagraph()
+    }
+    const renderSpeechTransportButton = (
+      label: string,
+      onClick: () => void,
+      options?: { readonly disabled?: boolean; readonly active?: boolean; readonly caution?: boolean }
+    ) =>
+      h(
+        'button',
+        {
+          class: [
+            'speech-transport-button',
+            {
+              'speech-transport-button-active': Boolean(options?.active),
+              'speech-transport-button-caution': Boolean(options?.caution)
+            }
+          ],
+          type: 'button',
+          disabled: Boolean(options?.disabled) || !speechController.isSupported,
+          title: label,
+          'aria-label': label,
+          onClick
+        },
+        label
+      )
+    const renderSpeechPanel = () => {
+      const state = speechState.value
+      const sessionActive = hasActiveSpeechSession.value
+      const progressLabel = sessionActive
+        ? `${text('speechProgress')}: ${state.segmentIndex + 1}/${Math.max(state.segmentCount, 1)} · ${state.paragraphIndex + 1}/${Math.max(state.paragraphCount, 1)}`
+        : text('speechNoActiveReading')
+
+      return h('div', { class: 'speech-settings-panel' }, [
         !speechController.isSupported
           ? h('p', { class: 'speech-settings-warning', role: 'status' }, text('speechUnavailable'))
           : undefined,
+        h('section', { class: 'speech-transport-panel', 'aria-label': text('speechTransport') }, [
+          h('div', { class: 'speech-transport-header' }, [
+            h('h3', { class: 'speech-transport-title' }, text('speechTransport')),
+            h('p', { class: 'speech-transport-progress', role: 'status' }, progressLabel)
+          ]),
+          h('div', { class: 'speech-transport-grid' }, [
+            renderSpeechTransportButton(
+              isSpeechPlaying.value ? text('speechPause') : text('speechPlay'),
+              handleSpeechPlayPause,
+              {
+                disabled: !sessionActive && !isSpeechPaused.value,
+                active: isSpeechPlaying.value
+              }
+            ),
+            renderSpeechTransportButton(text('speechStop'), handleSpeechStop, {
+              disabled: !sessionActive,
+              caution: true
+            }),
+            renderSpeechTransportButton(text('speechPreviousSentence'), handleSpeechPreviousSentence, {
+              disabled: !sessionActive
+            }),
+            renderSpeechTransportButton(text('speechNextSentence'), handleSpeechNextSentence, {
+              disabled: !sessionActive
+            }),
+            renderSpeechTransportButton(text('speechPreviousParagraph'), handleSpeechPreviousParagraph, {
+              disabled: !sessionActive
+            }),
+            renderSpeechTransportButton(text('speechNextParagraph'), handleSpeechNextParagraph, {
+              disabled: !sessionActive
+            })
+          ]),
+          !sessionActive ? h('p', { class: 'speech-transport-hint' }, text('speechIdleHint')) : undefined
+        ]),
+        h('label', { class: 'speech-setting-row speech-auto-open-row' }, [
+          h('div', { class: 'speech-auto-open-copy' }, [
+            h('span', text('speechAutoOpenPanel')),
+            h('span', { class: 'speech-auto-open-hint' }, text('speechAutoOpenPanelHint'))
+          ]),
+          h('input', {
+            class: 'speech-auto-open-switch',
+            type: 'checkbox',
+            checked: speechPanelPreferences.value.autoOpenPanel,
+            'aria-label': text('speechAutoOpenPanel'),
+            onChange: (event: Event) => {
+              updateSpeechAutoOpenPanel((event.target as HTMLInputElement).checked)
+            }
+          })
+        ]),
         h('label', { class: 'speech-setting-row' }, [
           h('span', text('speechRate')),
           h('div', { class: 'speech-setting-control' }, [
@@ -1590,6 +1755,7 @@ const App = defineComponent({
           )
         ])
       ])
+    }
     const localizedSseErrorMessage = (message?: string) =>
       message && isAbortError(message) ? text('requestAborted') : message || text('disconnected')
     const isAbortSseMessage = (message?: string) => Boolean(message && isAbortError(message))
@@ -3539,6 +3705,9 @@ const App = defineComponent({
       if (!message.content.trim()) {
         showSpeechNotice(text('speechEmptyContent'), message.id)
         return
+      }
+      if (speechPanelPreferences.value.autoOpenPanel) {
+        openSpeechPanel()
       }
       speechController.speak(message.id, message.content, language.value)
     }
@@ -7354,6 +7523,124 @@ style.textContent = `
     border-radius: 8px;
   }
 
+  .speech-transport-panel {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+  }
+
+  .speech-transport-header {
+    display: grid;
+    gap: 4px;
+  }
+
+  .speech-transport-title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .speech-transport-progress {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+  }
+
+  .speech-transport-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .speech-transport-button {
+    min-height: 36px;
+    padding: 0 10px;
+    color: #1f2937;
+    font-size: 12px;
+    line-height: 1.2;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .speech-transport-button:hover:not(:disabled) {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+  }
+
+  .speech-transport-button-active {
+    color: #ffffff;
+    background: #111827;
+    border-color: #111827;
+  }
+
+  .speech-transport-button-active:hover:not(:disabled) {
+    background: #1f2937;
+    border-color: #1f2937;
+  }
+
+  .speech-transport-button-caution {
+    color: #b91c1c;
+    border-color: #fecaca;
+    background: #fef2f2;
+  }
+
+  .speech-transport-button-caution:hover:not(:disabled) {
+    background: #fee2e2;
+    border-color: #fca5a5;
+  }
+
+  .speech-transport-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .speech-transport-hint {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .speech-auto-open-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+  }
+
+  .speech-auto-open-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .speech-auto-open-hint {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .speech-auto-open-switch {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: #111827;
+    cursor: pointer;
+  }
+
   .speech-setting-row {
     display: grid;
     gap: 8px;
@@ -8731,6 +9018,63 @@ style.textContent = `
     color: #fde68a;
     background: #422006;
     border-color: #854d0e;
+  }
+
+  :root[data-webui-theme='dark'] .speech-transport-panel {
+    background: #1f2937;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .speech-transport-title {
+    color: #e5e7eb;
+  }
+
+  :root[data-webui-theme='dark'] .speech-transport-progress,
+  :root[data-webui-theme='dark'] .speech-transport-hint,
+  :root[data-webui-theme='dark'] .speech-auto-open-hint {
+    color: #94a3b8;
+  }
+
+  :root[data-webui-theme='dark'] .speech-transport-button {
+    color: #e5e7eb;
+    background: #273449;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .speech-transport-button:hover:not(:disabled) {
+    background: #334155;
+    border-color: #64748b;
+  }
+
+  :root[data-webui-theme='dark'] .speech-transport-button-active {
+    color: #ffffff;
+    background: #3b82f6;
+    border-color: #3b82f6;
+  }
+
+  :root[data-webui-theme='dark'] .speech-transport-button-active:hover:not(:disabled) {
+    background: #2563eb;
+    border-color: #2563eb;
+  }
+
+  :root[data-webui-theme='dark'] .speech-transport-button-caution {
+    color: #fca5a5;
+    background: #450a0a;
+    border-color: #7f1d1d;
+  }
+
+  :root[data-webui-theme='dark'] .speech-transport-button-caution:hover:not(:disabled) {
+    background: #7f1d1d;
+    border-color: #991b1b;
+  }
+
+  :root[data-webui-theme='dark'] .speech-auto-open-row {
+    background: #1f2937;
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .speech-auto-open-switch {
+    accent-color: #3b82f6;
   }
 
   :root[data-webui-theme='dark'] .speech-setting-row,
