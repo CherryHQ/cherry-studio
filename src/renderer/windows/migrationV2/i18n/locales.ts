@@ -4,6 +4,8 @@
  */
 
 export const zhCN = {
+  common: { close: '关闭', error: '错误', loading: '加载中', success: '成功' },
+  error: { unknown: '未知错误' },
   settings: {
     theme: {
       dark: '深色模式',
@@ -46,6 +48,20 @@ export const zhCN = {
       running: '进行中',
       completed: '完成',
       failed: '失败'
+    },
+    diagnostics: {
+      save: '保存诊断包',
+      saving: '正在保存…',
+      privacy:
+        '应用日志可能包含文件路径、错误堆栈、用户内容或凭据，请勿分享到公开渠道或提供给 Cherry Studio 支持团队之外的人员。',
+      saved_local: '诊断包已保存到本地，未自动上传。',
+      logs_not_included: '未能加入应用日志，当前诊断包仅包含系统信息。',
+      open_folder: '打开文件所在位置',
+      contact: '联系我们：support@cherry-ai.com',
+      copy_success: '复制成功',
+      copy_failed: '复制失败',
+      save_failed: '诊断包保存失败',
+      open_folder_failed: '无法打开文件所在位置'
     },
     introduction: {
       title: '将数据迁移到新的架构中',
@@ -131,6 +147,8 @@ export const zhCN = {
 }
 
 export const enUS = {
+  common: { close: 'Close', error: 'Error', loading: 'Loading', success: 'Success' },
+  error: { unknown: 'Unknown error' },
   settings: {
     theme: {
       dark: 'Dark mode',
@@ -174,6 +192,21 @@ export const enUS = {
       running: 'Running',
       completed: 'Completed',
       failed: 'Failed'
+    },
+    diagnostics: {
+      save: 'Save diagnostic bundle',
+      saving: 'Saving…',
+      privacy:
+        'Application logs may contain file paths, error stacks, user content, or credentials. Do not share them publicly or with anyone outside the Cherry Studio support team.',
+      saved_local: 'The diagnostic bundle was saved locally and was not uploaded automatically.',
+      logs_not_included:
+        'Application logs could not be included. This diagnostic bundle contains only system information.',
+      open_folder: 'Open file location',
+      contact: 'Contact us: support@cherry-ai.com',
+      copy_success: 'Copied',
+      copy_failed: 'Copy failed',
+      save_failed: 'Could not save diagnostic bundle',
+      open_folder_failed: 'Could not open file location'
     },
     introduction: {
       title: 'Migrate Data to New Architecture',

@@ -4,6 +4,7 @@
 
 import { loggerService } from '@logger'
 import {
+  type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationStage,
@@ -129,11 +130,27 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SkipMigration)
   }, [])
 
+  const saveDiagnostics = useCallback(
+    (dialogTitle: string, logDate: string): Promise<MigrationDiagnosticSaveResult> => {
+      return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle, {
+        dialogTitle,
+        logDate
+      })
+    },
+    []
+  )
+
+  const showDiagnosticBundleInFolder = useCallback((): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+  }, [])
+
   return {
     startMigration,
     retry,
     cancel,
     restart,
-    skipMigration
+    skipMigration,
+    saveDiagnostics,
+    showDiagnosticBundleInFolder
   }
 }

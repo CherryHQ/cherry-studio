@@ -149,6 +149,10 @@ vi.mock('../components', () => {
           )
         : null,
     Confetti: () => null,
+    MigrationDiagnosticPanel: () =>
+      React.createElement('div', {
+        'data-testid': 'migration-diagnostic-panel'
+      }),
     MigrationWindowControls: () => null,
     MigratorProgressList: () => null,
     SkipMigrationDialog: () => null
@@ -471,6 +475,32 @@ describe('MigrationApp', () => {
 
     expect(await screen.findByText('migration.migration.title')).toBeInTheDocument()
     expect(screen.queryByText('migration.error.title')).not.toBeInTheDocument()
+  })
+
+  it.each(['error', 'version_incompatible'])('mounts diagnostics for the %s stage', (stage) => {
+    migrationHookMock.progress = {
+      currentMessage: stage,
+      migrators: [],
+      overallProgress: 0,
+      stage
+    }
+
+    render(<MigrationApp />)
+
+    expect(screen.getByTestId('migration-diagnostic-panel')).toBeInTheDocument()
+  })
+
+  it.each(['introduction', 'migration', 'completed'])('does not mount diagnostics during the %s stage', (stage) => {
+    migrationHookMock.progress = {
+      currentMessage: stage,
+      migrators: [],
+      overallProgress: 0,
+      stage
+    }
+
+    render(<MigrationApp />)
+
+    expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
   })
 
   describe('theme toggle', () => {

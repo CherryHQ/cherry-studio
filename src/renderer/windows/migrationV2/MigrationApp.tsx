@@ -45,6 +45,7 @@ import { useTranslation } from 'react-i18next'
 import {
   CloseMigrationDialog,
   Confetti,
+  MigrationDiagnosticPanel,
   MigrationWindowControls,
   MigratorProgressList,
   SkipMigrationDialog
@@ -542,6 +543,7 @@ const MigrationApp: React.FC = () => {
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
+            <MigrationDiagnosticPanel />
             <div className="flex items-center gap-2">
               <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}
@@ -577,6 +579,7 @@ const MigrationApp: React.FC = () => {
               <p>{progressMessage}</p>
               <p>{t('migration.version_incompatible.ignore_hint')}</p>
             </div>
+            <MigrationDiagnosticPanel />
             <div className="flex items-center gap-2">
               <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}
