@@ -26,7 +26,7 @@ const { execFileSync } = require('child_process')
 //   sha256    — checksum of the downloaded file (binary itself or archive)
 //
 // Tool fields:
-//   windowsOnly — tool has packages only for win32; non-Windows builds skip it
+//   isWindowsOnly — tool has packages only for win32; non-Windows builds skip it
 //                 (MinGit — other platforms fall back to the user's system git)
 
 const MISE_VERSION = '2026.5.11'
@@ -242,7 +242,7 @@ const TOOLS = [
     name: 'mingit',
     version: MINGIT_VERSION,
     versionFile: '.mingit-version',
-    windowsOnly: true,
+    isWindowsOnly: true,
     packages: {
       'win32-x64': {
         url: mingitUrl(`MinGit-${MINGIT_VERSION}-64-bit.zip`),
@@ -412,16 +412,18 @@ function main() {
  * outage during download would otherwise produce a working build with no rg
  * (search breaks) and no error. Call this from before-pack.js after main().
  */
-function verifyBundledBinaries(platform, arch) {
+function verifyBundledBinaries(platform, arch, options = {}) {
+  // `tools` / `resourcesDir` injectable for tests; production callers pass none.
+  const { tools = TOOLS, resourcesDir = path.join(__dirname, '..', 'resources', 'binaries') } = options
   const platformKey = `${platform}-${arch}`
-  const outputDir = path.join(__dirname, '..', 'resources', 'binaries', platformKey)
+  const outputDir = path.join(resourcesDir, platformKey)
   const missing = []
 
-  for (const tool of TOOLS) {
+  for (const tool of tools) {
     const pkg = tool.packages[platformKey]
     if (!pkg) {
-      // windowsOnly tools (MinGit) legitimately have no package on macOS/Linux.
-      if (!tool.windowsOnly) missing.push(`${tool.name} (no package for ${platformKey})`)
+      // isWindowsOnly tools (MinGit) legitimately have no package on macOS/Linux.
+      if (!tool.isWindowsOnly) missing.push(`${tool.name} (no package for ${platformKey})`)
       continue
     }
     for (const binary of pkg.binaries) {
@@ -437,7 +439,7 @@ function verifyBundledBinaries(platform, arch) {
   console.log(`Verified all bundled binaries exist for ${platformKey}`)
 }
 
-module.exports = { verifyBundledBinaries }
+module.exports = { extract, verifyBundledBinaries }
 
 // Only auto-download when run directly (node scripts/download-binaries.js ...).
 // before-pack.js requires this module for verifyBundledBinaries without
