@@ -9,7 +9,7 @@ import {
 import { Parser } from 'htmlparser2'
 import MagicString from 'magic-string'
 
-import { inferSemanticId } from './semanticId'
+import { inferHandlerAction, inferSemanticId } from './semanticId'
 import type { UiNodeDescriptor, UiSourceTransform } from './types'
 
 const SKIPPED_COMPONENTS = new Set(['Consumer', 'Fragment', 'Provider', 'StrictMode', 'Suspense'])
@@ -33,9 +33,8 @@ const NON_DOM_COMPONENTS = new Set([
   'RadixRoot',
   'SelectPrimitive.Root'
 ])
-const SEMANTIC_ATTRIBUTES = new Set(['data-testid', 'id', 'name', 'role', 'type'])
+const BOUNDARY_ATTRIBUTES = ['data-testid', 'id', 'name', 'role']
 const SVG_OPT_IN_ATTRIBUTES = ['data-testid', 'role']
-const GENERIC_HTML_ELEMENTS = new Set(['div', 'span'])
 const DATA_SLOT_VALUE = /^[A-Za-z0-9][A-Za-z0-9._:~-]*$/
 export const UI_CONTRACT_RUNTIME_MODULE_ID = 'virtual:cherry-ui-contract-runtime'
 
@@ -65,8 +64,8 @@ function hasSvgContractOptIn(info: OpeningElementInfo): boolean {
   return (
     info.attributes.has('data-ui') ||
     info.parts.length > 0 ||
-    SVG_OPT_IN_ATTRIBUTES.some((name) => info.attributes.has(name)) ||
-    [...info.attributes.keys()].some((name) => /^on[A-Z]/.test(name))
+    SVG_OPT_IN_ATTRIBUTES.some((name) => hasStaticAttribute(info.attributes, name)) ||
+    inferHandlerAction(info.handler) !== undefined
   )
 }
 
@@ -74,9 +73,14 @@ function hasSemanticSignal(info: OpeningElementInfo): boolean {
   return (
     info.attributes.has('data-ui') ||
     info.parts.length > 0 ||
-    [...SEMANTIC_ATTRIBUTES].some((name) => info.attributes.has(name)) ||
-    info.handler !== undefined
+    BOUNDARY_ATTRIBUTES.some((name) => hasStaticAttribute(info.attributes, name)) ||
+    inferHandlerAction(info.handler) !== undefined
   )
+}
+
+function hasStaticAttribute(attributes: Map<string, AttributeInfo>, name: string): boolean {
+  const attribute = attributes.get(name)
+  return Boolean(attribute && !attribute.dynamic && attribute.value)
 }
 
 function isRecord(value: unknown): value is AstRecord {
@@ -98,6 +102,18 @@ function expressionIdentifier(value: unknown): string | undefined {
   }
   if ((value.type === 'CallExpression' || value.type === 'OptionalChainingExpression') && isRecord(value.callee)) {
     return expressionIdentifier(value.callee)
+  }
+  return undefined
+}
+
+function directHandlerIdentifier(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined
+  if (value.type === 'Identifier' && typeof value.value === 'string') return value.value
+  if (value.type === 'MemberExpression' && isRecord(value.property)) {
+    return directHandlerIdentifier(value.property)
+  }
+  if (value.type === 'OptionalChainingExpression' && isRecord(value.base)) {
+    return directHandlerIdentifier(value.base)
   }
   return undefined
 }
@@ -148,7 +164,10 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
     const info = staticJsxAttribute(attribute)
     attributes.set(name, info)
     if (/^on[A-Z]/.test(name) && attribute.value?.type === 'JSXExpressionContainer') {
-      handler = expressionIdentifier(attribute.value.expression) ?? name
+      const candidate = directHandlerIdentifier(attribute.value.expression)
+      if (candidate && (handler === undefined || inferHandlerAction(candidate))) {
+        handler = candidate
+      }
     }
   }
 
@@ -340,14 +359,17 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     opening: JSXOpeningElement,
     component: string,
     insideSvg: boolean,
-    hasIntrinsicAncestor: boolean
-  ): void {
+    hasBoundaryAncestor: boolean,
+    nearestSemanticId: string | undefined
+  ): string | undefined {
     const info = openingElementInfo(opening)
     const elementLeaf = info.element.split('.').at(-1) ?? info.element
     if (SKIPPED_COMPONENTS.has(elementLeaf) || NON_DOM_COMPONENTS.has(info.element)) return
     if (SKIPPED_HTML_TAGS.has(info.element)) return
 
     const existingDataUi = info.attributes.get('data-ui')
+    const dynamicSemanticId = dynamicUiSemanticId(existingDataUi)
+    const explicitSemantic = explicitSemanticId(existingDataUi) ?? dynamicSemanticId
     const isIntrinsicElement = /^[a-z]/.test(info.element)
     if (!isIntrinsicElement) {
       if (
@@ -357,13 +379,21 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       ) {
         injectDataUi(opening, existingDataUi, info.authoredDataUi)
       }
-      return
+      if (!explicitSemantic) return
+      descriptors.push({
+        component,
+        element: info.element,
+        kind: 'jsx',
+        semanticId: explicitSemantic,
+        semanticSource: 'explicit',
+        sourceFile: options.sourceFile,
+        sourceOffset: spanToCharacter(opening.span.start)
+      })
+      return explicitSemantic
     }
     if (insideSvg && info.element !== 'svg' && !hasSvgContractOptIn(info)) return
-    if (hasIntrinsicAncestor && GENERIC_HTML_ELEMENTS.has(info.element) && !hasSemanticSignal(info)) return
-    const dynamicSemanticId = dynamicUiSemanticId(existingDataUi)
+    if (hasBoundaryAncestor && !hasSemanticSignal(info)) return
 
-    const explicitSemantic = explicitSemanticId(existingDataUi) ?? dynamicSemanticId
     const semanticId =
       explicitSemantic ??
       inferSemanticId({
@@ -371,12 +401,15 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         element: info.element,
         handler: info.handler,
         htmlId: info.attributes.get('id')?.value,
+        isComponentRoot: !hasBoundaryAncestor,
         name: info.attributes.get('name')?.value,
         part: info.parts[0],
+        role: info.attributes.get('role')?.value,
         sourceFile: options.sourceFile,
         testId: info.attributes.get('data-testid')?.value,
         type: info.attributes.get('type')?.value
       })
+    if (!explicitSemantic && !info.authoredDataUi && semanticId === nearestSemanticId) return undefined
     const descriptor: UiNodeDescriptor = {
       component,
       element: info.element,
@@ -391,6 +424,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     if (options.injectDataUi) {
       injectDataUi(opening, existingDataUi, mergeDataUi(info.authoredDataUi, descriptor.semanticId))
     }
+    return semanticId
   }
 
   function shouldWrapAsChildContent(opening: JSXOpeningElement): boolean {
@@ -408,9 +442,15 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     )
   }
 
-  function walk(value: unknown, component: string, insideSvg = false, hasIntrinsicAncestor = false): void {
+  function walk(
+    value: unknown,
+    component: string,
+    insideSvg = false,
+    hasBoundaryAncestor = false,
+    nearestSemanticId?: string
+  ): void {
     if (Array.isArray(value)) {
-      for (const item of value) walk(item, component, insideSvg, hasIntrinsicAncestor)
+      for (const item of value) walk(item, component, insideSvg, hasBoundaryAncestor, nearestSemanticId)
       return
     }
     if (!isRecord(value)) return
@@ -420,10 +460,17 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       const opening = value.opening as unknown as JSXOpeningElement
       const element = jsxName(opening.name)
       const isIntrinsicElement = /^[a-z]/.test(element)
-      processOpening(opening, nestedComponent, insideSvg, hasIntrinsicAncestor)
+      const semanticId = processOpening(opening, nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId)
       const childrenInsideSvg = element === 'foreignObject' ? false : insideSvg || element === 'svg'
-      const childrenHaveIntrinsicAncestor =
-        element === 'foreignObject' ? false : hasIntrinsicAncestor || isIntrinsicElement
+      const elementLeaf = element.split('.').at(-1) ?? element
+      // Visual component implementations are transformed independently, so their
+      // callers already establish a parent boundary. Transparent primitives are
+      // listed above and deliberately leave their children as new roots.
+      const isComponentBoundary =
+        !isIntrinsicElement && !SKIPPED_COMPONENTS.has(elementLeaf) && !NON_DOM_COMPONENTS.has(element)
+      const childrenHaveBoundaryAncestor =
+        element === 'foreignObject' ? false : hasBoundaryAncestor || isIntrinsicElement || isComponentBoundary
+      const childSemanticId = semanticId ?? nearestSemanticId
       if (
         options.injectDataUi &&
         !/^[a-z]/.test(element) &&
@@ -438,11 +485,17 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         runtimeImports.add('UiDataSlot')
       }
       if (Array.isArray(value.children)) {
-        walk(value.children, nestedComponent, childrenInsideSvg, childrenHaveIntrinsicAncestor)
+        walk(value.children, nestedComponent, childrenInsideSvg, childrenHaveBoundaryAncestor, childSemanticId)
       }
       for (const attribute of opening.attributes) {
         if (attribute.type === 'JSXAttribute' && attribute.value?.type === 'JSXExpressionContainer') {
-          walk(attribute.value.expression, nestedComponent, childrenInsideSvg, childrenHaveIntrinsicAncestor)
+          walk(
+            attribute.value.expression,
+            nestedComponent,
+            childrenInsideSvg,
+            childrenHaveBoundaryAncestor,
+            childSemanticId
+          )
         }
       }
       return
@@ -450,7 +503,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 
     for (const [key, child] of Object.entries(value)) {
       if (key === 'span' || key === 'ctxt' || key === 'type') continue
-      walk(child, nestedComponent, insideSvg, hasIntrinsicAncestor)
+      walk(child, nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId)
     }
   }
 
@@ -556,8 +609,7 @@ function hasHtmlSvgContractOptIn(tag: HtmlTagMatch): boolean {
   return (
     htmlAttribute(tag, 'data-ui') !== undefined ||
     htmlAttribute(tag, 'data-slot') !== undefined ||
-    SVG_OPT_IN_ATTRIBUTES.some((name) => htmlAttribute(tag, name) !== undefined) ||
-    Object.keys(tag.attributes).some((name) => name.startsWith('on'))
+    SVG_OPT_IN_ATTRIBUTES.some((name) => htmlAttribute(tag, name) !== undefined)
   )
 }
 
@@ -565,8 +617,7 @@ function hasHtmlSemanticSignal(tag: HtmlTagMatch): boolean {
   return (
     htmlAttribute(tag, 'data-ui') !== undefined ||
     htmlAttribute(tag, 'data-slot') !== undefined ||
-    [...SEMANTIC_ATTRIBUTES].some((name) => htmlAttribute(tag, name) !== undefined) ||
-    Object.keys(tag.attributes).some((name) => name.startsWith('on'))
+    BOUNDARY_ATTRIBUTES.some((name) => htmlAttribute(tag, name) !== undefined)
   )
 }
 
@@ -585,7 +636,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
     if (tag.insideSvg && tag.name !== 'svg' && !hasHtmlSvgContractOptIn(tag)) continue
     const parent = tag.parentIndex === undefined ? undefined : tags[tag.parentIndex]
     const isBoundaryRoot = parent === undefined || parent.name === 'foreignobject'
-    if (!isBoundaryRoot && GENERIC_HTML_ELEMENTS.has(tag.name) && !hasHtmlSemanticSignal(tag)) continue
+    if (!isBoundaryRoot && !hasHtmlSemanticSignal(tag)) continue
     const existing = htmlAttribute(tag, 'data-ui')
     const parts = [...new Set([...namespaceTokenValues(existing, 'part'), dataSlotPart])].filter(
       (part): part is string => Boolean(part)
@@ -600,8 +651,10 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
             component: options.windowName,
             element: tag.name,
             htmlId: htmlAttribute(tag, 'id'),
+            isComponentRoot: isBoundaryRoot,
             name: htmlAttribute(tag, 'name'),
             part: parts[0],
+            role: htmlAttribute(tag, 'role'),
             sourceFile: options.sourceFile,
             testId: htmlAttribute(tag, 'data-testid'),
             type: htmlAttribute(tag, 'type')

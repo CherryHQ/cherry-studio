@@ -1,32 +1,22 @@
 import { relative, sep } from 'node:path'
 
-const NON_SEMANTIC_PATH_SEGMENTS = new Set([
-  'src',
-  'renderer',
-  'packages',
-  'ui',
-  'components',
-  'component',
-  'pages',
-  'windows',
-  'primitives',
-  'composites',
-  'internal',
-  'base',
-  'index'
+const DOMAIN_ALIASES = new Map([
+  ['composer', 'chat'],
+  ['home', 'app'],
+  ['layout', 'app'],
+  ['main', 'app']
 ])
-
-const NON_SEMANTIC_IDENTIFIERS = new Set([
-  'app',
+const COMPONENT_SUFFIXES = new Set([
   'component',
+  'components',
   'container',
-  'content',
-  'element',
+  'impl',
+  'provider',
+  'renderer',
   'root',
-  'view',
   'wrapper'
 ])
-
+const COMPONENT_TECHNICAL_WORDS = new Set(['impl', 'renderer', 'runtime'])
 const ACTION_WORDS = new Set([
   'accept',
   'add',
@@ -58,10 +48,9 @@ const ACTION_WORDS = new Set([
   'toggle',
   'upload'
 ])
-
-const FIELD_TAGS = new Set(['input', 'select', 'textarea'])
-const MEDIA_TAGS = new Set(['audio', 'canvas', 'img', 'picture', 'svg', 'video'])
-const REGION_TAGS = new Set(['article', 'aside', 'footer', 'header', 'main', 'nav', 'section'])
+const EVENT_PLUMBING_WORDS = new Set(['default', 'event', 'propagation'])
+const LOW_INFORMATION_HINTS = new Set(['component', 'element', 'root'])
+const SOURCE_MARKERS = new Set(['components', 'pages', 'windows'])
 
 export function normalizeSourceFile(root: string, file: string): string {
   return relative(root, file).split(sep).join('/')
@@ -80,19 +69,63 @@ function unique(words: string[]): string[] {
   return words.filter((word, index) => word && words.indexOf(word) === index)
 }
 
-function normalizedHint(value: string | undefined): string[] {
-  if (!value) return []
-  return identifierWords(value).filter((word) => !NON_SEMANTIC_IDENTIFIERS.has(word))
+function normalizedHint(value: string | undefined): string {
+  if (!value) return ''
+  return identifierWords(value)
+    .filter((word) => !LOW_INFORMATION_HINTS.has(word))
+    .slice(0, 4)
+    .join('-')
 }
 
-function sourceDomain(sourceFile: string): string[] {
-  const path = sourceFile.replace(/\.(?:html|jsx|tsx)$/, '').split('/')
-  const meaningful = path.flatMap(identifierWords).filter((word) => !NON_SEMANTIC_PATH_SEGMENTS.has(word))
-  return unique(meaningful).slice(-3)
+function sourceDomain(sourceFile: string): string {
+  const path = sourceFile.split('/')
+  if (sourceFile.startsWith('packages/ui/')) return 'ui'
+
+  const markerIndex = path.findIndex((segment) => SOURCE_MARKERS.has(segment))
+  const candidate = markerIndex === -1 ? undefined : path[markerIndex + 1]
+  if (!candidate || /\.[jt]sx?$|\.html$/.test(candidate) || !/^[a-z]/.test(candidate)) return 'ui'
+
+  const normalized = identifierWords(candidate).join('-')
+  return DOMAIN_ALIASES.get(normalized) ?? normalized
 }
 
-function actionFromHints(hints: string[]): string | undefined {
-  return hints.find((word) => ACTION_WORDS.has(word))
+function componentOwner(component: string, sourceFile: string): string {
+  let words = identifierWords(component).filter((word) => !COMPONENT_TECHNICAL_WORDS.has(word))
+  if (words[0] === 'use') words.shift()
+  while (COMPONENT_SUFFIXES.has(words.at(-1) ?? '')) words.pop()
+  if (words.length === 0) {
+    const filename = sourceFile
+      .split('/')
+      .at(-1)
+      ?.replace(/\.(?:html|jsx|tsx)$/, '')
+    words = identifierWords(filename ?? '')
+  }
+  return unique(words).slice(0, 4).join('-') || 'surface'
+}
+
+function semanticBase(domain: string, owner: string): string {
+  const domainWords = identifierWords(domain)
+  const ownerWords = identifierWords(owner)
+  while (domainWords.length > 0 && ownerWords[0] === domainWords[0]) {
+    domainWords.shift()
+    ownerWords.shift()
+  }
+  return ownerWords.length > 0 ? `${domain}.${ownerWords.join('-')}` : domain
+}
+
+function appendQualifier(base: string, qualifier: string | undefined): string {
+  if (!qualifier) return base
+  const owner = base.split('.').at(-1) ?? ''
+  const ownerWords = new Set(identifierWords(owner))
+  const qualifierWords = identifierWords(qualifier)
+  if (qualifierWords.every((word) => ownerWords.has(word))) return base
+  return `${base}.${qualifierWords.join('-')}`
+}
+
+export function inferHandlerAction(handler: string | undefined): string | undefined {
+  const words = identifierWords(handler ?? '').filter((word) => !['handle', 'handler', 'on'].includes(word))
+  if (words.some((word) => EVENT_PLUMBING_WORDS.has(word))) return undefined
+  return words.find((word) => ACTION_WORDS.has(word))
 }
 
 export interface SemanticIdInput {
@@ -100,46 +133,27 @@ export interface SemanticIdInput {
   element: string
   handler?: string
   htmlId?: string
+  isComponentRoot?: boolean
   name?: string
   part?: string
+  role?: string
   sourceFile: string
   testId?: string
   type?: string
 }
 
 export function inferSemanticId(input: SemanticIdInput): string {
-  const component = normalizedHint(input.component)
-  const part = normalizedHint(input.part)
-  const explicit = normalizedHint(input.testId ?? input.htmlId ?? input.name)
-  const handler = normalizedHint(input.handler).filter((word) => !['handle', 'on'].includes(word))
-  const type = normalizedHint(input.type)
-  const element = identifierWords(input.element).at(-1) ?? 'element'
   const domain = sourceDomain(input.sourceFile)
-  const hints = unique([...part, ...explicit, ...handler, ...component, ...type])
-  const action = actionFromHints(hints)
+  const owner = componentOwner(input.component, input.sourceFile)
+  const base = semanticBase(domain, owner)
+  const action = inferHandlerAction(input.handler)
+  if (action && !input.isComponentRoot) return `${base}.action.${action}`
 
-  let role: string[]
-  if (element === 'button' || action || component.includes('button')) {
-    role = ['action', action ?? explicit.at(-1) ?? handler.at(-1) ?? component.at(-1) ?? 'button']
-  } else if (FIELD_TAGS.has(element) || component.some((word) => ['input', 'select', 'textarea'].includes(word))) {
-    role = ['field', explicit.at(-1) ?? component.at(-1) ?? element]
-  } else if (MEDIA_TAGS.has(element)) {
-    role = ['media', element]
-  } else if (element === 'li') {
-    role = ['item', ...part.slice(-1)]
-  } else if (element === 'ol' || element === 'ul') {
-    role = ['list', ...part.slice(-1)]
-  } else if (/^h[1-6]$/.test(element)) {
-    role = ['heading', element]
-  } else if (REGION_TAGS.has(element)) {
-    role = ['region', ...part.slice(-1), element]
-  } else if (part.length > 0) {
-    role = part
-  } else {
-    role = ['element', element]
-  }
-
-  const entity = component.filter((word) => !role.includes(word)).slice(-2)
-  const prefix = domain.length > 0 ? domain : ['ui']
-  return unique([...prefix, ...entity, ...role]).join('.')
+  const stableAttribute = [input.testId, input.htmlId, input.name].map((value) => normalizedHint(value)).find(Boolean)
+  const authoredRole =
+    normalizedHint(input.part) ||
+    normalizedHint(input.role) ||
+    stableAttribute ||
+    (!input.isComponentRoot ? normalizedHint(input.type) : '')
+  return appendQualifier(base, authoredRole)
 }
