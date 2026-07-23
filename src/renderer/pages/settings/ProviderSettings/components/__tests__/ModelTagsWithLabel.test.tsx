@@ -1,4 +1,4 @@
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -25,6 +25,7 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
             providerId: 'cherryin',
             name: 'BGE M3',
             capabilities: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK],
+            inputModalities: [],
             endpointTypes: []
           } satisfies ModelTagsWithLabelModel
         }
@@ -46,11 +47,8 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
             id: 'openai::omni',
             providerId: 'openai',
             name: 'Omni',
-            capabilities: [
-              MODEL_CAPABILITY.IMAGE_RECOGNITION,
-              MODEL_CAPABILITY.AUDIO_RECOGNITION,
-              MODEL_CAPABILITY.VIDEO_RECOGNITION
-            ],
+            capabilities: [],
+            inputModalities: [MODALITY.IMAGE, MODALITY.AUDIO, MODALITY.VIDEO],
             endpointTypes: []
           } satisfies ModelTagsWithLabelModel
         }

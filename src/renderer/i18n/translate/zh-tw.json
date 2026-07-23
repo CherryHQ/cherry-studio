@@ -1059,12 +1059,18 @@
     "edit": {
       "title": "編輯助手"
     },
+    "groups": {
+      "delete": "[to be translated]:Delete Group",
+      "deleteConfirm": "[to be translated]:Are you sure you want to delete this group?",
+      "group_by": "[to be translated]:Show in groups",
+      "ungroup": "[to be translated]:Stop grouping",
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
     "icon": {
       "type": "助手圖示"
     },
     "list": {
-      "showByList": "列表顯示",
-      "showByTags": "標籤顯示"
+      "showByList": "列表顯示"
     },
     "pin": {
       "title": "圖釘助理"
@@ -1248,20 +1254,6 @@
         "label": "工具呼叫方式",
         "prompt": "提示詞"
       }
-    },
-    "tags": {
-      "add": "新增標籤",
-      "delete": "刪除標籤",
-      "deleteConfirm": "確定要刪除這個標籤嗎？",
-      "group_by": "依標籤分組",
-      "manage": "標籤管理",
-      "modify": "修改標籤",
-      "none": "暫無標籤",
-      "settings": {
-        "title": "標籤設定"
-      },
-      "ungroup": "關閉標籤分組",
-      "untagged": "未分組"
     },
     "title": "助手",
     "unpin": {
@@ -2279,6 +2271,7 @@
     "swap": "交換",
     "topics": "對話",
     "translate_text": "翻譯文字",
+    "undo": "[to be translated]:Undo",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "取消訂閱",
@@ -2317,6 +2310,7 @@
     "image-generation": "影像產生（OpenAI）",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "[to be translated]:Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -3118,7 +3112,7 @@
       "duplicate": "複製",
       "edit": "編輯",
       "enable": "啟用",
-      "manage_tags": "管理標籤",
+      "manage_groups": "[to be translated]:Manage groups",
       "uninstall": "解除安裝"
     },
     "assistant_catalog": {
@@ -3317,6 +3311,9 @@
             "hint": "啟用時限制權杖取樣範圍"
           }
         },
+        "group": "[to be translated]:Group",
+        "group_empty": "[to be translated]:No groups available",
+        "group_placeholder": "[to be translated]:Select group",
         "json_invalid": "無效的 JSON 格式",
         "max_tokens": "最大權杖",
         "max_tool_calls": "最大工具呼叫",
@@ -3415,6 +3412,11 @@
         "insert_variable": "插入變數",
         "label": "系統提示",
         "placeholder": "輸入對助手的要求，例如回答風格、角色設定或背景說明",
+        "polish": "[to be translated]:Polish prompt",
+        "polish_failed_description": "[to be translated]:Check or change the default model, then try again.",
+        "polish_failed_title": "[to be translated]:Failed to polish prompt",
+        "polish_variables_changed_description": "[to be translated]:The polished result changed or removed prompt variables. Try again.",
+        "polish_variables_changed_title": "[to be translated]:Could not apply polished prompt",
         "title": "提示",
         "tokens_label": "代幣：",
         "variables_description": "可在系統提示中插入這些系統變數；每次助手回覆前，系統會按當時的資訊自動填寫。",
@@ -3517,6 +3519,10 @@
       "title": "尚無資源"
     },
     "export_assistant_failed": "匯出助理失敗",
+    "group_picker": {
+      "no_groups": "[to be translated]:No groups yet"
+    },
+    "group_sync_failed": "[to be translated]:Failed to sync groups",
     "import_dialog": {
       "clipboard": {
         "button": "解析並匯入",
@@ -3564,7 +3570,6 @@
     },
     "sidebar": {
       "all_resources": "所有資源",
-      "all_tags": "全部標籤",
       "no_tags": "尚無標籤",
       "subtitle": "管理您的 AI 資源",
       "tags": "標籤",
@@ -3629,11 +3634,11 @@
     },
     "title": "資源庫",
     "toolbar": {
-      "add_tag_placeholder": "標籤名稱...",
-      "all_tags": "全部標籤",
+      "add_group_placeholder": "[to be translated]:Group name...",
+      "all_groups": "[to be translated]:All groups",
+      "group_button": "[to be translated]:Group",
       "new_resource": "新資源",
-      "search_placeholder": "搜尋資源...",
-      "tag_button": "標籤"
+      "search_placeholder": "搜尋資源..."
     },
     "type": {
       "agent": "智能體",
@@ -4205,6 +4210,9 @@
       "selected": "已選標籤"
     },
     "function_calling": "函式呼叫",
+    "group": {
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
     "multi_select": {
@@ -4249,10 +4257,13 @@
       "embedding": "嵌入",
       "free": "免費",
       "function_calling": "工具",
+      "image": "[to be translated]:Image",
       "reasoning": "推理",
       "rerank": "重排",
       "select": "模型類型",
+      "speech": "[to be translated]:Speech",
       "text": "文字",
+      "transcription": "[to be translated]:Transcription",
       "video": "影片",
       "vision": "視覺",
       "websearch": "網路搜尋"
@@ -4713,6 +4724,7 @@
     "inference_steps": "推理步數",
     "inference_steps_tip": "要執行的推理步數 ({{min}}-{{max}})。步數越多，品質越高但耗時越長",
     "input_image": "輸入圖片",
+    "input_image_limit_exceeded": "[to be translated]:Too many reference images for the selected model. Remove some images and try again.",
     "input_parameters": "輸入參數",
     "invalid_image_url": "圖片網址格式無效",
     "learn_more": "了解更多",
@@ -4737,6 +4749,7 @@
     "number_images": "張數",
     "number_images_tip": "一次生成的圖片數量 ({{min}}-{{max}})",
     "operation_failed": "操作失敗，請稍後再試",
+    "output_compression": "[to be translated]:Output Compression",
     "paint_course": "教學",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
@@ -4885,6 +4898,7 @@
     "install": "安裝",
     "install_plugins_from_browser": "瀏覽可用技能以開始使用",
     "installing": "安裝中...",
+    "manage_skills": "[to be translated]:Manage skills",
     "name": "名稱",
     "no_description": "無描述",
     "no_installed_plugins": "尚未安裝任何技能",
@@ -5508,6 +5522,7 @@
       "create_new": "新建助手",
       "empty_text": "暫無助手",
       "filter": "篩選助手",
+      "group_filter": "[to be translated]:Filter by group",
       "multi_hint": "（與多模型互斥）",
       "multi_label": "多助手同時回答",
       "search_placeholder": "搜尋助手…"
@@ -6765,6 +6780,9 @@
       "add": {
         "add_model": "新增模型",
         "batch_add_models": "批次新增模型",
+        "capabilities": {
+          "label": "[to be translated]:Model Capabilities"
+        },
         "context_window": {
           "label": "上下文視窗",
           "placeholder": "例如 128000"
@@ -6780,6 +6798,9 @@
           "label": "群組名稱",
           "placeholder": "例如 ChatGPT",
           "tooltip": "選填，例如 ChatGPT"
+        },
+        "input_modalities": {
+          "label": "[to be translated]:Input Modalities"
         },
         "max_input_tokens": {
           "label": "最大輸入 Token",
@@ -6802,6 +6823,9 @@
           "label": "模型名稱",
           "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
+        },
+        "model_type": {
+          "label": "[to be translated]:Model Type"
         },
         "supported_text_delta": {
           "label": "支援增量文字輸出",
@@ -6861,6 +6885,7 @@
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "docs": "模型文件",
       "empty": "找不到模型",
+      "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
       "enabled_models": "已啟用",
       "expand_all": "全部展開",
       "filter": {
@@ -7358,9 +7383,6 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
-      "openai": {
-        "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
-      },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
       "reorder_failed": "調整服務商順序失敗",
@@ -7436,6 +7458,7 @@
         "autoEmpty": "未啟用任何 MCP 伺服器",
         "description": "檢視目前的 MCP 伺服器狀態",
         "disabled": "此助理已停用 MCP",
+        "open_config": "[to be translated]:Configure MCP servers",
         "unknownServer": "未知的 MCP 伺服器"
       },
       "multiple": "多選",

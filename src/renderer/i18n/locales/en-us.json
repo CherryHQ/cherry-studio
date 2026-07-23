@@ -2310,6 +2310,7 @@
     "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -6785,6 +6786,9 @@
       "add": {
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
+        "capabilities": {
+          "label": "Model Capabilities"
+        },
         "context_window": {
           "label": "Context window",
           "placeholder": "e.g. 128000"
@@ -6800,6 +6804,9 @@
           "label": "Group Name",
           "placeholder": "e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
+        },
+        "input_modalities": {
+          "label": "Input Modalities"
         },
         "max_input_tokens": {
           "label": "Max input tokens",
@@ -6822,6 +6829,9 @@
           "label": "Model Name",
           "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
+        },
+        "model_type": {
+          "label": "Model Type"
         },
         "supported_text_delta": {
           "label": "Support incremental text output",
