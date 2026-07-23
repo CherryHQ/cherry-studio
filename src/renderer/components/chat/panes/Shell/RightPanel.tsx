@@ -414,6 +414,31 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
   )
 }
 
+function RightPanelEntry({
+  active,
+  entry,
+  scope
+}: {
+  active: boolean
+  entry: ResolvedRightPanelEntry
+  scope: unknown
+}) {
+  const [renderFailed, setRenderFailed] = useState(false)
+  const Panel = entry.component
+  const showFallbackHeader = renderFailed && entry.headerMode === 'content'
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      {showFallbackHeader ? <RightPanelHeader canMaximize={entry.canMaximize} title={entry.title} /> : null}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <ErrorBoundary onError={() => setRenderFailed(true)}>
+          <Panel active={active} panelId={entry.id} scope={scope} />
+        </ErrorBoundary>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Renders every panel that has been presented once. Activity preserves hidden
  * panel state and DOM while pausing its effects; unavailable or identity-replaced
@@ -435,15 +460,10 @@ export function RightPanel() {
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {mountedEntries.map((entry) => {
-          const Panel = entry.component
           const active = state.isActive(entry.id)
           return (
             <Activity key={`${entry.id}:${entry.instanceKey}`} mode={active ? 'visible' : 'hidden'}>
-              <div className="h-full min-h-0 overflow-hidden">
-                <ErrorBoundary>
-                  <Panel active={active} panelId={entry.id} scope={context.scope} />
-                </ErrorBoundary>
-              </div>
+              <RightPanelEntry active={active} entry={entry} scope={context.scope} />
             </Activity>
           )
         })}
