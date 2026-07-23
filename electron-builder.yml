@@ -30,7 +30,6 @@ files:
   - "!src"
   - "!config"
   - "!patches"
-  - "!app-upgrade-config.json"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"

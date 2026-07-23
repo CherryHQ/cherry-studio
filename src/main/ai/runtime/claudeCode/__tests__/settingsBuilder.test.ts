@@ -134,7 +134,11 @@ vi.mock('@main/utils/asar', () => ({
 }))
 
 vi.mock('@main/utils/file', () => ({
-  getPathStatus: mocks.getPathStatus
+  getPathStatus: mocks.getPathStatus,
+  isPathInside: (child: string, parent: string) => {
+    const relative = path.relative(path.resolve(parent), path.resolve(child))
+    return relative.length > 0 && !relative.startsWith('..') && !path.isAbsolute(relative)
+  }
 }))
 
 vi.mock('@main/i18n', () => ({
@@ -235,41 +239,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
+    expect(settings.systemPrompt as string).toContain('"/workspace/project"')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
-  })
-
-  it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
-    const materializedServer = {
-      id: 'mcp-1',
-      name: 'Old server',
-      type: 'stdio',
-      command: 'npx old-server'
-    }
-    const editedServer = { ...materializedServer, name: 'New server', command: 'npx new-server' }
-    const agent = {
-      id: 'agent-1',
-      type: 'claude-code',
-      model: 'anthropic::claude-sonnet',
-      mcps: ['mcp-1'],
-      allowedTools: [],
-      configuration: {}
-    }
-    mocks.getAgent.mockReturnValue(agent)
-    mocks.findByIdOrName.mockReturnValue(editedServer)
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    await buildClaudeCodeSessionSettings(
-      session as never,
-      {} as never,
-      { mcpServerSnapshots: new Map([['mcp-1', materializedServer as never]]) },
-      agent as never
-    )
-
-    expect(mocks.createSdkMcpServerInstance).toHaveBeenCalledWith('mcp-1', materializedServer)
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
@@ -429,6 +400,50 @@ describe('buildClaudeCodeSessionSettings', () => {
           'deny'
       )
     ).toBe(true)
+  })
+
+  it('forces file-tool paths outside the session workspace through approval', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const runHooks = (toolName: string, toolInput: Record<string, unknown>) =>
+      Promise.all(
+        hooks.map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+    const permissionDecisions = async (toolName: string, toolInput: Record<string, unknown>) =>
+      (await runHooks(toolName, toolInput)).map(
+        (output) =>
+          (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput?.permissionDecision
+      )
+
+    for (const [toolName, toolInput] of [
+      ['Read', { file_path: '/outside/read.txt' }],
+      ['Write', { file_path: '/outside/write.txt' }],
+      ['Edit', { file_path: '/outside/edit.txt' }],
+      ['NotebookEdit', { notebook_path: '/outside/notebook.ipynb' }],
+      ['Glob', { path: '/outside' }],
+      ['Grep', { path: '../outside' }]
+    ] as const) {
+      await expect(permissionDecisions(toolName, toolInput)).resolves.toContain('ask')
+    }
+
+    await expect(permissionDecisions('Read', { file_path: '/workspace/project/src/index.ts' })).resolves.not.toContain(
+      'ask'
+    )
+    await expect(permissionDecisions('Write', { file_path: 'output.html' })).resolves.not.toContain('ask')
+    await expect(permissionDecisions('Glob', { path: '/workspace/project' })).resolves.not.toContain('ask')
+    await expect(permissionDecisions('Glob', {})).resolves.not.toContain('ask')
+    await expect(permissionDecisions('Bash', { command: 'cat /outside/read.txt' })).resolves.not.toContain('ask')
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
@@ -848,10 +863,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(6)
+    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(7)
 
-    const steerHook = preToolUse![5] as unknown as (input: {
+    const steerHook = preToolUse![6] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
 
@@ -883,7 +898,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse![5] as unknown as (input: {
+    const steerHook = preToolUse![6] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
     const onInjected = vi.fn()
