@@ -371,7 +371,7 @@ function FileTokenPreviewCard({
   if (hasFailedPreview) {
     return (
       <div
-        className="bg-neutral-100 px-5 py-4 text-center text-muted-foreground text-sm dark:bg-neutral-800"
+        className="bg-neutral-100 px-5 py-4 text-center text-foreground-secondary text-sm dark:bg-neutral-800"
         data-file-token-image-preview-error="">
         {t('chat.input.image_preview_failed')}
       </div>
