@@ -139,7 +139,7 @@ const HomePage: FC = () => {
   // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
   const isCreatingTopicRef = useRef(false)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [lastUsedTopicId, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const [, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
@@ -233,6 +233,13 @@ const HomePage: FC = () => {
 
   const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
   const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
+  // Resume target frozen at mount: `last_used_topic_id` is rewritten as soon as any topic
+  // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
+  // targets and assistant deep links take precedence over resume.
+  const [resumeTopicId] = useState<string | null>(() =>
+    shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId ? lastUsedTopicId : null
+  )
+  const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
 
   useEffect(() => {
     setActiveTopicId(routeActiveTopicId)
@@ -590,6 +597,19 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (activeTopic || isActiveTopicLoading) return
+
+    // Resume the last-focused topic before falling back to the most-recently-updated one —
+    // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
+    // what the user was looking at. A deleted (or unfetchable) last-used topic falls through.
+    if (resumeTopicId) {
+      if (isResumeTopicLoading) return
+      if (resumeApiTopic) {
+        initialTopicStartStateRef.current.firstLaunchStarted = true
+        setActiveTopic(mapApiTopicToRendererTopic(resumeApiTopic))
+        return
+      }
+    }
+
     if (!isLatestTopicReady) return
 
     // Resume the globally most-recently-updated topic as soon as `/latest` resolves — the chat center
@@ -616,7 +636,10 @@ const HomePage: FC = () => {
     isActiveTopicLoading,
     isAssistantListResolved,
     isLatestTopicReady,
+    isResumeTopicLoading,
     latestTopic,
+    resumeApiTopic,
+    resumeTopicId,
     routeAssistantId,
     setActiveTopic,
     shouldAutoCreateTopic,
