@@ -459,7 +459,14 @@ function isSafeNonNegativeInt(value: number): boolean {
 
 /** Truncate + strip controls so untrusted entry names cannot inject log/error text. */
 function safeEntryName(name: string): string {
-  const cleaned = name.replace(/[\u0000-\u001f\u007f]/g, '')
+  // Strip C0 controls (U+0000-U+001F) + DEL (U+007F) via charCode - a control-char
+  // regex trips oxlint no-control-regex under --deny-warnings.
+  const cleaned = Array.from(name)
+    .filter((ch) => {
+      const cp = ch.codePointAt(0) ?? 0
+      return cp > 0x1f && cp !== 0x7f
+    })
+    .join('')
   return cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned
 }
 
