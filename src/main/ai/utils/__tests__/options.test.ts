@@ -211,6 +211,7 @@ describe('buildCapabilityProviderOptions', () => {
       },
       {
         aiSdkProviderId: 'openai',
+        runtimeProviderId: 'openai',
         endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
         reasoning: {
           kind: 'effort',
@@ -249,6 +250,7 @@ describe('buildCapabilityProviderOptions', () => {
       },
       {
         aiSdkProviderId: 'openai-compatible',
+        runtimeProviderId: 'openai-compatible',
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         reasoning: {
           kind: 'auto',
@@ -283,6 +285,7 @@ describe('buildCapabilityProviderOptions', () => {
       },
       {
         aiSdkProviderId: 'openai-compatible',
+        runtimeProviderId: 'openai-compatible',
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         reasoning: {
           kind: 'effort',
@@ -319,6 +322,7 @@ describe('buildCapabilityProviderOptions', () => {
       },
       {
         aiSdkProviderId: 'openai-compatible',
+        runtimeProviderId: 'openai-compatible',
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         reasoning: {
           kind: 'budget',
@@ -332,4 +336,48 @@ describe('buildCapabilityProviderOptions', () => {
     expect(result).toMatchObject({ nvidia: { reasoning_budget: 26_214 } })
     expect(result['openai-compatible']).toBeUndefined()
   })
+
+  it.each(['google-vertex', 'google-vertex-anthropic', 'google-vertex-maas'] as const)(
+    'delivers %s options through the Vertex runtime namespace',
+    (runtimeProviderId) => {
+      const endpointType =
+        runtimeProviderId === 'google-vertex-anthropic'
+          ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          : runtimeProviderId === 'google-vertex-maas'
+            ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+            : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      const result = buildCapabilityProviderOptions(
+        { settings: {} } as Assistant,
+        {
+          id: 'vertex::test-model',
+          providerId: 'vertex',
+          name: 'test-model',
+          capabilities: []
+        } as unknown as Model,
+        {
+          id: 'vertex',
+          settings: {},
+          apiFeatures: {}
+        } as Provider,
+        {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        },
+        {
+          aiSdkProviderId: runtimeProviderId,
+          runtimeProviderId,
+          endpointType,
+          reasoning: {
+            kind: 'omit',
+            selection: 'default',
+            emissions: []
+          }
+        }
+      )
+
+      expect(result).toHaveProperty('vertex')
+      expect(result).not.toHaveProperty(runtimeProviderId)
+    }
+  )
 })

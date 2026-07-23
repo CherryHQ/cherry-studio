@@ -14,7 +14,7 @@
       }
     },
     "enabled": true,
-    "includes": ["**/*.json", "!**/package.json", "!coverage/**", "!config/app-upgrade-segments.json"]
+    "includes": ["**/*.json", "!**/package.json", "!coverage/**"]
   },
   "css": {
     "formatter": {

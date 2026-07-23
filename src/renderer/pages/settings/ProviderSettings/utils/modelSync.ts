@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
+import type { ProviderPreset } from '@shared/data/api/schemas/providers'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -24,6 +25,7 @@ export class ModelSyncError extends Error {
 }
 
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
+type ProviderPresetPath = Extract<ConcreteApiPaths, `/providers/${string}/preset`>
 type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
 
 export function resolveCreateModelEndpointTypes(
@@ -154,6 +156,7 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<M
 }
 
 export async function fetchProviderCatalogModels(providerId: string): Promise<Model[]> {
-  const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
-  return (await dataApiService.get(resolveModelsPath)) as Model[]
+  const presetPath: ProviderPresetPath = `/providers/${providerId}/preset`
+  const preset = (await dataApiService.get(presetPath, { query: { fields: 'models' } })) as ProviderPreset
+  return preset.models ?? []
 }

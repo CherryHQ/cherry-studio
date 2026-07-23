@@ -1391,6 +1391,7 @@
       },
       "generate_image": "Generate image",
       "generate_image_no_model": "Configure a painting model in Settings › Default Model",
+      "image_preview_failed": "Image preview failed",
       "knowledge_base": "Knowledge Base",
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
       "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
@@ -1561,6 +1562,23 @@
       "quote": "Quote",
       "regenerate": {
         "model": "Switch Model"
+      },
+      "token_details": {
+        "cache_read": "Cache read",
+        "cache_write": "Cache write",
+        "input": "Input",
+        "input_breakdown": "Input breakdown",
+        "output": "Output",
+        "reasoning": "Reasoning",
+        "reasoning_time": "Reasoning",
+        "request_duration": "Generation timing",
+        "text_generation": "Text generation",
+        "text_output": "Text output",
+        "tokens": "{{value}} Tokens",
+        "tokens_per_second_value": "{{value}} Tokens/s",
+        "uncached": "Uncached",
+        "usage": "Token usage",
+        "waiting_first_token": "Waiting"
       },
       "useful": {
         "label": "Set as context",

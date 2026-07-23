@@ -16,6 +16,7 @@
 import { application } from '@application'
 import type {
   ProtoModelConfig,
+  ProtoProviderConfig,
   ProtoProviderModelOverride,
   ProtoReasoningSupport,
   ProviderModelReasoningContract,
@@ -40,6 +41,7 @@ import {
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
@@ -476,10 +478,38 @@ class ProviderRegistryService {
     this.loader = null
   }
 
-  private findRegistryProvider(providerId: string) {
+  private findRegistryProvider(providerId: string): ProtoProviderConfig | undefined {
     return this.getLoader()
       .loadProviders()
       .find((provider) => provider.id === providerId)
+  }
+
+  /**
+   * Resolve the registry preset that owns defaults for a runtime provider.
+   * Canonical registry providers resolve to themselves; custom providers fall
+   * back through their persisted `presetProviderId`.
+   */
+  private resolveProviderPreset(
+    providerId: string,
+    presetProviderId?: string | null,
+    lookupPersistedPreset = true
+  ): ProtoProviderConfig | null {
+    const direct = this.findRegistryProvider(providerId)
+    if (direct) return direct
+
+    let fallbackId = presetProviderId
+    if (!fallbackId && lookupPersistedPreset) {
+      try {
+        fallbackId = getDataService('ProviderService').getByProviderId(providerId).presetProviderId
+      } catch (error) {
+        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+          return null
+        }
+        throw error
+      }
+    }
+
+    return fallbackId ? (this.findRegistryProvider(fallbackId) ?? null) : null
   }
 
   resolveAdapterFamilies(
@@ -525,9 +555,7 @@ class ProviderRegistryService {
 
   getProviderDisplayMetadata(providerId: string, presetProviderId?: string): ProviderDisplayMetadata {
     try {
-      const provider =
-        this.findRegistryProvider(providerId) ??
-        (presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined)
+      const provider = this.resolveProviderPreset(providerId, presetProviderId, false)
 
       return {
         description: provider?.description,
@@ -540,6 +568,33 @@ class ProviderRegistryService {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
       return {}
     }
+  }
+
+  /**
+   * Return only the requested provider-level preset fields. The effective
+   * registry preset is selected once; models retain the runtime provider ID.
+   */
+  getProviderPreset(
+    providerId: string,
+    fields: readonly ProviderPresetField[],
+    presetProviderId?: string
+  ): ProviderPreset {
+    const presetProvider = this.resolveProviderPreset(providerId, presetProviderId, false)
+    const result: ProviderPreset = {}
+
+    for (const field of new Set(fields)) {
+      if (field === 'endpointConfigs') {
+        result.endpointConfigs = presetProvider
+          ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
+              Record<EndpointType, EndpointConfig>
+            > | null)
+          : null
+      } else if (field === 'models') {
+        result.models = presetProvider ? this.listProviderPresetModels(providerId, presetProvider) : []
+      }
+    }
+
+    return result
   }
 
   private getEffectiveProviderContext(providerId: string): ReasoningProviderContext {
@@ -680,7 +735,9 @@ class ProviderRegistryService {
     reasoningProfile: ResolvedReasoningProfile
   } {
     const loader = this.getLoader()
-    const registryOverride = loader.findOverride(providerId, modelId)
+    const presetProvider = this.resolveProviderPreset(providerId)
+    const registryProviderId = presetProvider?.id ?? providerId
+    const registryOverride = loader.findOverride(registryProviderId, modelId)
     const presetModel =
       loader.findModel(registryOverride?.modelId ?? modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
@@ -719,6 +776,8 @@ class ProviderRegistryService {
    */
   resolveModels(providerId: string, modelIds: string[]): Model[] {
     const loader = this.getLoader()
+    const presetProvider = this.resolveProviderPreset(providerId)
+    const registryProviderId = presetProvider?.id ?? providerId
     const providerContext = this.getEffectiveProviderContext(providerId)
 
     const results: Model[] = []
@@ -729,7 +788,7 @@ class ProviderRegistryService {
       seen.add(modelId)
 
       // O(1) lookup with exact match + normalized fallback
-      const registryOverride = loader.findOverride(providerId, modelId)
+      const registryOverride = loader.findOverride(registryProviderId, modelId)
       const presetModel =
         loader.findModel(registryOverride?.modelId ?? modelId) ??
         (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
@@ -763,12 +822,54 @@ class ProviderRegistryService {
     return results
   }
 
+  private listProviderPresetModels(
+    providerId: string,
+    presetProvider: ProtoProviderConfig,
+    includeDisabled = false
+  ): Model[] {
+    const loader = this.getLoader()
+    const overrides = loader.getOverridesForProvider(presetProvider.id)
+    const providerContext: ReasoningProviderContext = {
+      id: providerId,
+      presetProviderId: presetProvider.id,
+      defaultChatEndpoint: presetProvider.defaultChatEndpoint ?? undefined
+    }
+    const results: Model[] = []
+
+    for (const override of overrides) {
+      if ((override.disabled ?? false) !== includeDisabled) continue
+
+      const presetModel = loader.findModel(override.modelId) ?? synthesizePresetFromOverride(override)
+      const reasoningProfile = this.resolveProfileForModelData(
+        providerContext,
+        presetModel,
+        override,
+        override.apiModelId ?? override.modelId
+      )
+      const model = mergePresetModel(presetModel, override, providerId, reasoningProfile.wire, reasoningProfile.support)
+      const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId
+      results.push({
+        ...model,
+        id: createUniqueModelId(providerId, apiModelId),
+        providerId,
+        apiModelId,
+        presetModelId: presetModel.id
+      })
+    }
+
+    return results
+  }
+
   listProviderRegistryModels(options: ListProviderRegistryModelsOptions = {}): Model[] {
     const loader = this.getLoader()
-    const overrides = options.providerId
-      ? loader.getOverridesForProvider(options.providerId)
-      : loader.loadProviderModels()
     const includeDisabled = options.disabled ?? false
+
+    if (options.providerId) {
+      const presetProvider = this.resolveProviderPreset(options.providerId)
+      return presetProvider ? this.listProviderPresetModels(options.providerId, presetProvider, includeDisabled) : []
+    }
+
+    const overrides = loader.loadProviderModels()
     const providerContextByProvider = new Map<string, ReasoningProviderContext>()
     const results: Model[] = []
 

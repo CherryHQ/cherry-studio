@@ -5,7 +5,7 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
@@ -87,7 +87,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
-  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
+  const runtimeProviderId = sdkConfig.providerId
+  const reasoningEndpointType =
+    runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
+  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
   const invocationModel = reasoningProfile.support
     ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
     : model
@@ -301,6 +304,7 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
     assistant && capabilities
       ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, {
           aiSdkProviderId,
+          runtimeProviderId: sdkConfig.providerId,
           endpointType,
           reasoning
         })
@@ -315,7 +319,7 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
         providerOptions,
         split.providerParams,
         provider.id,
-        aiSdkProviderId
+        sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
     }
   }

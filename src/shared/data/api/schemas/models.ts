@@ -152,9 +152,8 @@ export type ReconcileProviderModelsDto = z.infer<typeof ReconcileProviderModelsS
 export const ResolveProviderModelsQuerySchema = z.strictObject({
   /**
    * Raw model IDs from SDK listModels(), repeated as ?ids=a&ids=b or provided as an array by IPC callers.
-   * Omit ids to list active provider-model pairs from the registry.
    */
-  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional()
+  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])
 })
 export type ResolveProviderModelsQuery = z.infer<typeof ResolveProviderModelsQuerySchema>
 

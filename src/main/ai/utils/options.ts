@@ -29,6 +29,7 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { JSONValue } from 'ai'
 import { merge } from 'es-toolkit/compat'
 
+import { resolveProviderOptionsKey } from '../provider/endpoint'
 import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
@@ -118,21 +119,23 @@ export function buildCapabilityProviderOptions(
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   context: {
     aiSdkProviderId: AppProviderId
+    runtimeProviderId: AppProviderId
     endpointType: EndpointType | undefined
     reasoning: ResolvedReasoningInvocation
   }
 ): Record<string, Record<string, JSONValue>> {
-  const rawProviderId = context.aiSdkProviderId
+  const rawProviderId = context.runtimeProviderId
+  const providerOptionsKey = resolveProviderOptionsKey(rawProviderId)
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
   const resolvedReasoningOptions = capabilities.enableReasoning
     ? encodeReasoningOptions(rawProviderId, context.endpointType, context.reasoning, actualProvider.id)
     : {
-        providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : rawProviderId,
+        providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : providerOptionsKey,
         options: {}
       }
   const reasoningOptions =
-    rawProviderId === 'openai-compatible'
+    rawProviderId === 'openai-compatible' || rawProviderId === 'google-vertex-maas'
       ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
       : resolvedReasoningOptions
 
@@ -155,12 +158,16 @@ export function buildCapabilityProviderOptions(
       break
     case 'anthropic':
     case 'azure-anthropic':
-    case 'google-vertex-anthropic':
       providerSpecificOptions = buildAnthropicProviderOptions(reasoningOptions.options)
       break
+    case 'google-vertex-anthropic':
+      providerSpecificOptions = buildAnthropicProviderOptions(reasoningOptions.options, providerOptionsKey)
+      break
     case 'google':
-    case 'google-vertex':
       providerSpecificOptions = buildGeminiProviderOptions(capabilities, reasoningOptions.options)
+      break
+    case 'google-vertex':
+      providerSpecificOptions = buildGeminiProviderOptions(capabilities, reasoningOptions.options, providerOptionsKey)
       break
     case 'xai':
     case 'xai-responses':
@@ -190,6 +197,7 @@ export function buildCapabilityProviderOptions(
     case 'deepseek':
     case 'openrouter':
     case 'openai-compatible':
+    case 'google-vertex-maas':
     default:
       providerSpecificOptions = buildGenericProviderOptions(
         reasoningOptions.providerId,
@@ -233,12 +241,17 @@ function encodeReasoningOptions(
       break
     case 'anthropic':
     case 'azure-anthropic':
-    case 'google-vertex-anthropic':
       providerId = 'anthropic'
       break
+    case 'google-vertex-anthropic':
+      providerId = resolveProviderOptionsKey(aiSdkProviderId)
+      break
     case 'google':
-    case 'google-vertex':
       providerId = 'google'
+      break
+    case 'google-vertex':
+    case 'google-vertex-maas':
+      providerId = resolveProviderOptionsKey(aiSdkProviderId)
       break
     case 'xai':
     case 'xai-responses':
@@ -413,15 +426,17 @@ function buildOpenAIProviderOptions(
 }
 
 function buildAnthropicProviderOptions(
-  reasoningOptions: Record<string, unknown>
+  reasoningOptions: Record<string, unknown>,
+  providerOptionsKey = 'anthropic'
 ): Record<string, AnthropicProviderOptions> {
   const providerOptions = { ...reasoningOptions } as AnthropicProviderOptions
-  return { anthropic: { ...providerOptions } }
+  return { [providerOptionsKey]: { ...providerOptions } }
 }
 
 function buildGeminiProviderOptions(
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
-  reasoningOptions: Record<string, unknown>
+  reasoningOptions: Record<string, unknown>,
+  providerOptionsKey = 'google'
 ): Record<string, GoogleGenerativeAIProviderOptions> {
   const { enableGenerateImage } = capabilities
   let providerOptions: GoogleGenerativeAIProviderOptions = {
@@ -452,7 +467,7 @@ function buildGeminiProviderOptions(
   if (enableGenerateImage) {
     providerOptions = { ...providerOptions, ...buildGeminiGenerateImageParams() }
   }
-  return { google: { ...providerOptions } }
+  return { [providerOptionsKey]: { ...providerOptions } }
 }
 
 function buildXAIProviderOptions(
