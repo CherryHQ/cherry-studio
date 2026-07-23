@@ -316,6 +316,12 @@ export class SessionService extends BaseService {
       }
     }
 
+    // name_manually_edited is session-specific metadata (not part of AgentBase),
+    // so it is not covered by the loop above and must be applied explicitly.
+    if (updates.name_manually_edited !== undefined) {
+      updateData.name_manually_edited = updates.name_manually_edited
+    }
+
     const database = await this.getDatabase()
     await database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
 

@@ -127,3 +127,36 @@ describe('SessionService deleteSession', () => {
     expect(txUpdate).toHaveBeenCalledWith(taskRunLogsTable)
   })
 })
+
+describe('SessionService updateSession', () => {
+  const service = SessionService.getInstance()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // name_manually_edited is not an AgentBase field, so the generic field-copy loop
+  // skips it; guard against a regression where the flag stops being persisted.
+  it('persists name_manually_edited even though it is not an AgentBase field', async () => {
+    const setWhere = vi.fn().mockResolvedValue(undefined)
+    const updateSet = vi.fn(() => ({ where: setWhere }))
+    const update = vi.fn(() => ({ set: updateSet }))
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue({ update } as never)
+    vi.spyOn(service, 'getSession').mockResolvedValue({
+      id: 'session-1',
+      agent_id: 'agent-1',
+      agent_type: 'claude-code',
+      name: 'Old name'
+    } as never)
+
+    await service.updateSession('agent-1', 'session-1', { name: 'New name', name_manually_edited: true })
+
+    expect(update).toHaveBeenCalledWith(sessionsTable)
+    expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ name: 'New name', name_manually_edited: true }))
+  })
+})
