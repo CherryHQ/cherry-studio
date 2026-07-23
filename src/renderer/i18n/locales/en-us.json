@@ -7216,7 +7216,7 @@
       "base_url": {
         "invalid": "Enter a valid HTTP or HTTPS URL",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL: https://example.com",
         "required": "Please enter the Base URL"
       },
       "basic_auth": {
@@ -7310,12 +7310,9 @@
       "create_custom": {
         "endpoint_fields": {
           "default_chat": "Default",
-          "description": "Enter API root URLs for common protocols; the first text endpoint you fill becomes the default",
           "label": "Endpoint settings",
           "more": "More options",
           "more_configured": "{{count}} configured",
-          "new_api_description": "Text protocols share one root URL by default; override individual protocols under More options",
-          "preset_description": "Enter protocol URLs for this preset; the preset defines the default chat endpoint",
           "set_default_chat": "Set as default",
           "text_endpoint_required": "Configure at least one text endpoint",
           "url_help": "Enter the API root URL to preview the final request path"
@@ -7381,9 +7378,9 @@
       "misc": "Other",
       "more_endpoints": {
         "add": "Add Endpoint",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "More Endpoints"
       },

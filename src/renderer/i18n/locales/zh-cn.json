@@ -7216,7 +7216,7 @@
       "base_url": {
         "invalid": "请输入有效的 HTTP 或 HTTPS 地址",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL：https://example.com",
         "required": "请输入 Base URL"
       },
       "basic_auth": {
@@ -7310,12 +7310,9 @@
       "create_custom": {
         "endpoint_fields": {
           "default_chat": "默认",
-          "description": "填写常用协议的 API 根地址；首个填写的文本端点将作为默认对话端点",
           "label": "端点设置",
           "more": "更多设置",
           "more_configured": "已配置 {{count}} 项",
-          "new_api_description": "文本协议默认共用同一根地址，可在更多设置中单独覆盖",
-          "preset_description": "填写此预设使用的协议地址；默认对话端点由预设决定",
           "set_default_chat": "设为默认",
           "text_endpoint_required": "请至少配置一个文本端点",
           "url_help": "填写 API 根地址后会显示实际请求路径"
@@ -7381,9 +7378,9 @@
       "misc": "其他",
       "more_endpoints": {
         "add": "添加端点",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "更多端点"
       },

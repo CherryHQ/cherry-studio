@@ -67,8 +67,15 @@ vi.mock('@cherrystudio/ui', async () => {
         </span>
       )
     },
-    Button: ({ children, onClick, disabled, loading, ...props }: any) => (
-      <button type="button" onClick={onClick} disabled={disabled || loading} {...props}>
+    Button: ({ children, onClick, disabled, loading, variant, size, ...props }: any) => (
+      <button
+        type="button"
+        data-slot="button"
+        data-variant={variant}
+        data-size={size}
+        onClick={onClick}
+        disabled={disabled || loading}
+        {...props}>
         {children}
       </button>
     ),
@@ -127,7 +134,18 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
     Popover: ({ children }: any) => <div>{children}</div>,
     PopoverContent: ({ children }: any) => <div>{children}</div>,
-    PopoverTrigger: ({ children }: any) => <div>{children}</div>
+    PopoverTrigger: ({ children }: any) => <div>{children}</div>,
+    Scrollbar: ({ children, ...props }: any) => (
+      <div data-slot="scrollbar" {...props}>
+        {children}
+      </div>
+    ),
+    Separator: (props: any) => {
+      const domProps = { ...props }
+      delete domProps.decorative
+      delete domProps.orientation
+      return <div data-slot="separator" {...domProps} />
+    }
   }
 })
 
@@ -376,6 +394,7 @@ describe('ProviderEditorDrawer', () => {
 
     expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'xl')
+    expect(screen.getByTestId('provider-editor-scrollbar')).toHaveAttribute('data-slot', 'scrollbar')
     expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
 
     const source = {
@@ -510,6 +529,12 @@ describe('ProviderEditorDrawer', () => {
     expect(nameInput.compareDocumentPosition(apiKeyInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(nameInput.parentElement).toHaveClass('gap-2')
     expect(apiKeyInput.parentElement?.parentElement).toHaveClass('gap-2')
+    expect(apiKeyInput).toHaveClass('pr-10')
+    expect(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' })).toHaveAttribute(
+      'data-slot',
+      'button'
+    )
+    expect(screen.queryByText('settings.provider.create_custom.endpoint_fields.description')).not.toBeInTheDocument()
     expect(apiKeyInput.compareDocumentPosition(chatInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(chatInput.compareDocumentPosition(anthropicInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(anthropicInput.compareDocumentPosition(moreTrigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -533,6 +558,7 @@ describe('ProviderEditorDrawer', () => {
     expect(moreTrigger.compareDocumentPosition(responsesInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(responsesInput.closest('.text-foreground')).toBeInTheDocument()
     expect(imageEditInput.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(document.querySelector('[data-slot="separator"]')).toBeInTheDocument()
     expect(screen.queryByText('settings.provider.create_custom.compatibility.label')).not.toBeInTheDocument()
   })
 

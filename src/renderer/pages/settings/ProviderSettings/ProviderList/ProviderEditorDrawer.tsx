@@ -18,7 +18,9 @@ import {
   Input,
   Popover,
   PopoverContent,
-  PopoverTrigger
+  PopoverTrigger,
+  Scrollbar,
+  Separator
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
@@ -574,11 +576,6 @@ export default function ProviderEditorDrawer({
                   invalidUrl={null}
                   moreOpen={moreEndpointsOpen}
                   additionalConfiguredCount={duplicateAdditionalConfiguredCount}
-                  descriptionKey={
-                    duplicateSource?.presetProviderId === 'new-api'
-                      ? 'settings.provider.create_custom.endpoint_fields.new_api_description'
-                      : 'settings.provider.create_custom.endpoint_fields.preset_description'
-                  }
                   onMoreOpenChange={setMoreEndpointsOpen}
                   onEndpointUrlChange={(endpointType, value) => {
                     if (endpointType === urlForm.primary) {
@@ -649,7 +646,9 @@ export default function ProviderEditorDrawer({
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-base leading-5">{title}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 overflow-y-auto px-6 py-2">{formContent}</div>
+        <Scrollbar data-testid="provider-editor-scrollbar" className="min-h-0 px-6 py-2">
+          {formContent}
+        </Scrollbar>
         <DialogFooter className="mt-4 border-border border-t px-6 py-4">{footerActions}</DialogFooter>
       </DialogContent>
     </Dialog>
@@ -672,7 +671,6 @@ interface CustomProviderEndpointFieldsProps {
   moreOpen: boolean
   additionalConfiguredCount: number
   additionalContent?: ReactNode
-  descriptionKey?: string
   onMoreOpenChange: (open: boolean) => void
   onEndpointUrlChange: (endpointType: CustomProviderEndpoint, value: string) => void
   onPreferredChatEndpointChange?: (endpointType: CustomProviderTextEndpoint) => void
@@ -685,7 +683,6 @@ function CustomProviderEndpointFields({
   moreOpen,
   additionalConfiguredCount,
   additionalContent,
-  descriptionKey = 'settings.provider.create_custom.endpoint_fields.description',
   onMoreOpenChange,
   onEndpointUrlChange,
   onPreferredChatEndpointChange
@@ -747,12 +744,9 @@ function CustomProviderEndpointFields({
 
   return (
     <section className="flex flex-col gap-3" aria-labelledby="custom-provider-endpoints-title">
-      <div className="flex flex-col gap-1">
-        <h3 id="custom-provider-endpoints-title" className="font-medium text-[13px] text-foreground">
-          {t('settings.provider.create_custom.endpoint_fields.label')}
-        </h3>
-        <p className="text-foreground-muted text-xs">{t(descriptionKey)}</p>
-      </div>
+      <h3 id="custom-provider-endpoints-title" className="font-medium text-[13px] text-foreground">
+        {t('settings.provider.create_custom.endpoint_fields.label')}
+      </h3>
 
       <div className="flex flex-col gap-5">{COMMON_CUSTOM_PROVIDER_ENDPOINTS.map(renderEndpointControl)}</div>
 
@@ -778,7 +772,7 @@ function CustomProviderEndpointFields({
             {ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.map(renderEndpointControl)}
             {additionalContent && (
               <>
-                <div className="border-border-muted border-t" />
+                <Separator className="bg-border-muted" />
                 {additionalContent}
               </>
             )}
@@ -1110,17 +1104,20 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
           type={visible ? 'text' : 'password'}
           value={value}
           placeholder={t('settings.provider.api_key.placeholder')}
+          className="pr-10"
           autoComplete="off"
           spellCheck={false}
           onChange={(event) => onChange(event.target.value)}
         />
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-lg"
           aria-label={t(visible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}
           onClick={() => setVisible((v) => !v)}
-          className="-translate-y-1/2 absolute top-1/2 right-0 flex size-10 items-center justify-center rounded-md text-muted-foreground/70 transition-colors duration-150 hover:bg-accent/40 hover:text-foreground">
-          {visible ? <EyeOff size={14} /> : <Eye size={14} />}
-        </button>
+          className="-translate-y-1/2 absolute top-1/2 right-0 text-muted-foreground/70 hover:text-foreground">
+          {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+        </Button>
       </div>
     </Field>
   )
