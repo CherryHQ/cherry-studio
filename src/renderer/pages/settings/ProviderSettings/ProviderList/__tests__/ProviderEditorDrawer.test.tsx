@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string, values?: Record<string, string>) => (values?.path ? `${key}:${values.path}` : key)
   }),
   initReactI18next: { type: '3rdParty', init: () => {} }
 }))
@@ -36,6 +36,8 @@ vi.mock('@cherrystudio/ui', () => ({
     />
   ),
   Field: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  FieldSet: ({ children, ...props }: any) => <fieldset {...props}>{children}</fieldset>,
+  FieldLegend: ({ children, ...props }: any) => <legend {...props}>{children}</legend>,
   FieldLabel: ({ children, required, ...props }: any) => (
     <label {...props}>
       {children}
@@ -51,6 +53,60 @@ vi.mock('@cherrystudio/ui', () => ({
       </div>
     )
   },
+  RadioGroup: ({ children, onValueChange, ...props }: any) => (
+    <div
+      role="radiogroup"
+      onChange={(event: any) => {
+        onValueChange?.(event.target.value)
+      }}
+      {...props}>
+      {children}
+    </div>
+  ),
+  RadioGroupItem: ({ value, ...props }: any) => <input type="radio" value={value} {...props} />,
+  Combobox: ({ options = [], onChange, placeholder, value }: any) => (
+    <select
+      aria-label={placeholder}
+      value={Array.isArray(value) ? (value[0] ?? '') : (value ?? '')}
+      onChange={(event) => onChange?.(event.target.value)}>
+      <option value="">{placeholder}</option>
+      {options.map((option: any) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
+  Select: ({ children, onValueChange }: any) => (
+    <div
+      onClick={(event) => {
+        const option = (event.target as HTMLElement).closest<HTMLElement>('[data-select-value]')
+        if (option?.dataset.selectValue) {
+          onValueChange?.(option.dataset.selectValue)
+        }
+      }}>
+      {children}
+    </div>
+  ),
+  SelectTrigger: ({ children, ...props }: any) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
+  SelectContent: ({ children }: any) => <div>{children}</div>,
+  SelectItem: ({ children, value }: any) => (
+    <button type="button" data-select-value={value} aria-label={children}>
+      {children}
+    </button>
+  ),
+  Accordion: ({ children }: any) => <div>{children}</div>,
+  AccordionItem: ({ children }: any) => <div>{children}</div>,
+  AccordionTrigger: ({ children }: any) => <button type="button">{children}</button>,
+  AccordionContent: () => null,
+  Switch: ({ checked, onCheckedChange, ...props }: any) => (
+    <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange?.(event.target.checked)} {...props} />
+  ),
   Popover: ({ children }: any) => <div>{children}</div>,
   PopoverContent: ({ children }: any) => <div>{children}</div>,
   PopoverTrigger: ({ children }: any) => <div>{children}</div>
@@ -96,6 +152,12 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }
 }))
 
+function selectCompatibility(type: 'new_api' | 'openai' | 'anthropic' | 'gemini' | 'custom' = 'openai') {
+  fireEvent.click(
+    screen.getByLabelText(new RegExp(`settings\\.provider\\.create_custom\\.compatibility\\.${type}\\.label`))
+  )
+}
+
 describe('ProviderEditorDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -110,7 +172,14 @@ describe('ProviderEditorDrawer', () => {
     render(
       <ProviderEditorDrawer
         open
-        mode={{ kind: 'create-custom' }}
+        mode={{
+          kind: 'edit',
+          provider: {
+            id: 'custom-provider',
+            name: 'Custom Provider',
+            defaultChatEndpoint: 'openai-chat-completions'
+          } as any
+        }}
         initialLogo={undefined}
         onClose={vi.fn()}
         onSubmit={vi.fn()}
@@ -133,7 +202,14 @@ describe('ProviderEditorDrawer', () => {
     render(
       <ProviderEditorDrawer
         open
-        mode={{ kind: 'create-custom' }}
+        mode={{
+          kind: 'edit',
+          provider: {
+            id: 'custom-provider',
+            name: 'Custom Provider',
+            defaultChatEndpoint: 'openai-chat-completions'
+          } as any
+        }}
         initialLogo={undefined}
         onClose={vi.fn()}
         onSubmit={vi.fn()}
@@ -267,7 +343,7 @@ describe('ProviderEditorDrawer', () => {
     })
   })
 
-  it('submits a create-custom payload with api-key auth and OPENAI_CHAT_COMPLETIONS as the default endpoint', () => {
+  it('submits an OpenAI-compatible payload with Chat Completions as the default endpoint', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <ProviderEditorDrawer
@@ -280,6 +356,7 @@ describe('ProviderEditorDrawer', () => {
     )
 
     expect(screen.getByText('settings.provider.create_custom.title')).toBeInTheDocument()
+    selectCompatibility()
 
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'My Custom' }
@@ -300,6 +377,197 @@ describe('ProviderEditorDrawer', () => {
     )
     const callArg = onSubmit.mock.calls[0]?.[0] as { presetProviderId?: string } | undefined
     expect(callArg?.presetProviderId).toBeUndefined()
+  })
+
+  it('places provider identity before compatibility and does not show a recommendation badge', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const avatar = screen.getByTestId('provider-avatar-preview')
+    const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
+    const compatibilitySelect = screen.getByRole('button', {
+      name: 'settings.provider.create_custom.compatibility.label'
+    })
+
+    expect(avatar.compareDocumentPosition(nameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(nameInput.compareDocumentPosition(compatibilitySelect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      screen.queryByText('settings.provider.create_custom.compatibility.new_api.recommended')
+    ).not.toBeInTheDocument()
+  })
+
+  it('requires an explicit compatibility type before showing connection fields', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    expect(screen.queryByLabelText('settings.provider.base_url.label')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('settings.provider.create_custom.compatibility.required')).toBeInTheDocument()
+  })
+
+  it('submits New API with its preset and all canonical text endpoints', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    selectCompatibility('new_api')
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+      target: { value: 'https://new-api.example.com' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'New API' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presetProviderId: 'new-api',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://new-api.example.com' },
+          'openai-responses': { baseUrl: 'https://new-api.example.com' },
+          'anthropic-messages': { baseUrl: 'https://new-api.example.com' },
+          'google-generate-content': { baseUrl: 'https://new-api.example.com' }
+        }
+      })
+    )
+  })
+
+  it('preserves connection values while switching compatibility and updates the request preview', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    selectCompatibility('anthropic')
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+      target: { value: 'https://api.example.com' }
+    })
+    fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), {
+      target: { value: 'secret' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Compatible API' }
+    })
+
+    expect(
+      screen.getByText('settings.provider.create_custom.request_preview:https://api.example.com/v1/messages')
+    ).toBeInTheDocument()
+
+    selectCompatibility('gemini')
+
+    expect(screen.getByPlaceholderText('settings.provider.base_url.placeholder')).toHaveValue('https://api.example.com')
+    expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue('secret')
+    expect(screen.getByPlaceholderText('settings.provider.add.name.placeholder')).toHaveValue('Compatible API')
+    expect(
+      screen.getByText(
+        'settings.provider.create_custom.request_preview:https://api.example.com/v1beta/models/{model}:generateContent'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('switches Advanced Custom to a preset instance while preserving identity and basic connection fields', () => {
+    const onSelectPreset = vi.fn()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const source = {
+      id: 'anthropic',
+      name: 'Anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: 'https://api.anthropic.com' }
+      },
+      authType: 'api-key'
+    } as any
+    const sharedProps = {
+      open: true,
+      initialLogo: undefined,
+      presetSources: [source],
+      onClose: vi.fn(),
+      onSelectPreset,
+      onSubmit
+    }
+
+    const { rerender } = render(<ProviderEditorDrawer {...sharedProps} mode={{ kind: 'create-custom' }} />)
+
+    selectCompatibility('custom')
+    fireEvent.click(screen.getByRole('button', { name: 'pick-openai' }))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Claude Gateway' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+      target: { value: 'https://gateway.example.com' }
+    })
+    fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), {
+      target: { value: 'secret' }
+    })
+    fireEvent.change(
+      screen.getByRole('combobox', {
+        name: 'settings.provider.create_custom.preset_instance.placeholder'
+      }),
+      { target: { value: 'anthropic' } }
+    )
+
+    expect(onSelectPreset).toHaveBeenCalledWith(source)
+
+    rerender(<ProviderEditorDrawer {...sharedProps} mode={{ kind: 'duplicate', source }} />)
+
+    const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
+    expect(nameInput).toHaveValue('Claude Gateway')
+    expect(screen.getByPlaceholderText('settings.provider.base_url.placeholder')).toHaveValue(
+      'https://gateway.example.com'
+    )
+    expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue('secret')
+    expect(mocks.providerAvatarPrimitive).toHaveBeenCalledWith(
+      expect.objectContaining({ logo: 'icon:openai', providerName: 'Claude Gateway' })
+    )
+    expect(
+      nameInput.compareDocumentPosition(screen.getByText('anthropic')) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      mode: 'create',
+      name: 'Claude Gateway',
+      defaultChatEndpoint: 'anthropic-messages',
+      presetProviderId: 'anthropic',
+      authConfig: { type: 'api-key' },
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: 'https://gateway.example.com' }
+      },
+      apiKeys: [{ id: 'api-key-id', key: 'secret', isEnabled: true }],
+      logo: { kind: 'key', key: 'icon:openai' }
+    })
   })
 
   it('uses a duplicate-specific submit label when mode is duplicate', () => {
@@ -484,6 +752,7 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={onSubmit}
       />
     )
+    selectCompatibility()
 
     // Fill the base URL so the button is enabled, but leave the name empty.
     fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
@@ -507,6 +776,7 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
+    selectCompatibility()
 
     fireEvent.blur(screen.getByPlaceholderText('settings.provider.add.name.placeholder'))
 
@@ -523,6 +793,7 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
+    selectCompatibility()
 
     const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
     fireEvent.blur(nameInput)
@@ -543,6 +814,7 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={onSubmit}
       />
     )
+    selectCompatibility()
 
     // Fill the name so the only thing missing is the base URL.
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
@@ -566,6 +838,7 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
+    selectCompatibility()
 
     fireEvent.blur(screen.getByPlaceholderText('settings.provider.base_url.placeholder'))
 
@@ -582,6 +855,7 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
+    selectCompatibility()
 
     const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
     fireEvent.blur(baseUrlInput)
@@ -601,6 +875,7 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
+    selectCompatibility()
 
     const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
 
@@ -627,6 +902,7 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
+    selectCompatibility()
 
     const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
 

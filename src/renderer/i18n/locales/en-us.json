@@ -6822,6 +6822,23 @@
           "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
         },
+        "purpose": {
+          "chat": {
+            "description": "Use the provider's text API",
+            "label": "Chat"
+          },
+          "chat_protocol": "Chat protocol",
+          "description": "Choose how this model is used",
+          "image_edit": {
+            "description": "Accept an input image and return an edited image",
+            "label": "Image editing"
+          },
+          "image_generation": {
+            "description": "Generate images from a prompt",
+            "label": "Image generation"
+          },
+          "label": "Model purpose"
+        },
         "supported_text_delta": {
           "label": "Support incremental text output",
           "tooltip": "The model returns text incrementally, rather than all at once. Enabled by default, if the model does not support it, please disable this option"
@@ -7197,6 +7214,7 @@
       },
       "balance": "Balance",
       "base_url": {
+        "invalid": "Enter a valid HTTP or HTTPS URL",
         "label": "Base URL",
         "placeholder": "https://api.example.com",
         "required": "Please enter the Base URL"
@@ -7290,6 +7308,60 @@
         "toggle_headers_editor_list": "Switch to header list"
       },
       "create_custom": {
+        "advanced": {
+          "description": "Optional protocol-specific URLs and appearance",
+          "extra_text_urls": "Additional text protocol URLs",
+          "extra_text_urls_help": "Leave blank to use only the compatibility type selected above",
+          "label": "Advanced settings"
+        },
+        "compatibility": {
+          "anthropic": {
+            "description": "Uses the Anthropic Messages API",
+            "label": "Anthropic compatible"
+          },
+          "custom": {
+            "description": "Choose the exact protocol and configure independent URLs",
+            "label": "Advanced custom"
+          },
+          "description": "Choose the API family supported by this service",
+          "gemini": {
+            "description": "Uses Gemini Generate Content",
+            "label": "Gemini compatible"
+          },
+          "label": "API compatibility type",
+          "new_api": {
+            "description": "One root URL for OpenAI, Anthropic, Responses, and Gemini routes",
+            "label": "New API / One API"
+          },
+          "openai": {
+            "description": "Uses an OpenAI-compatible text API",
+            "label": "OpenAI compatible"
+          },
+          "placeholder": "Select an API compatibility type",
+          "required": "Select an API compatibility type"
+        },
+        "custom_protocol": {
+          "label": "Primary protocol"
+        },
+        "openai_protocol": {
+          "chat": {
+            "description": "For most OpenAI-compatible services",
+            "label": "Chat Completions"
+          },
+          "label": "OpenAI API",
+          "responses": {
+            "description": "For services that explicitly support the Responses API",
+            "label": "Responses API"
+          }
+        },
+        "preset_instance": {
+          "description": "For Coding Plan services, multiple accounts, or project isolation; configure each Base URL and API key independently",
+          "empty": "No matching Provider presets",
+          "placeholder": "Create from a Provider preset…",
+          "search_placeholder": "Search Provider presets",
+          "title": "Need Provider-specific configuration?"
+        },
+        "request_preview": "Request path: {{path}}",
         "title": "Add Custom Provider"
       },
       "delete": {
@@ -7328,6 +7400,20 @@
         "sign_in_failed": "Sign-in failed. Please try again.",
         "sign_in_success": "Signed in to Grok CLI",
         "signing_in": "Waiting for browser…"
+      },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "Used only for image editing",
+          "label": "Image Edit Base URL"
+        },
+        "images_base_url": {
+          "help": "Used for image generation and editing; leave blank to inherit the main Base URL",
+          "label": "Images Base URL"
+        },
+        "separate_edit": {
+          "help": "Override the image editing address",
+          "label": "Use a different address for image editing"
+        }
       },
       "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",

@@ -16,7 +16,6 @@ import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { isNewApiProvider } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,6 +35,15 @@ import {
 import { ModelBasicFields } from './ModelBasicFields'
 import { ModelCapabilityToggles } from './ModelCapabilityToggles'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
+import {
+  applyModelPurpose,
+  getInitialChatEndpointType,
+  getModelDrawerMode,
+  getProviderChatEndpointTypes,
+  inferModelPurpose,
+  type ModelPurposeFields
+} from './modelPurpose'
+import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
 import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
 
 interface EditModelDrawerProps {
@@ -49,6 +57,7 @@ interface BuildPatchOverrides {
   name?: string
   group?: string
   endpointTypes?: EndpointType[]
+  purposeFields?: ModelPurposeFields
   caps?: Set<ModelCapabilityToggle>
   supportsStreaming?: boolean
   currencySymbol?: ModelDrawerCurrencySymbol
@@ -98,6 +107,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
+  const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
   const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [selectedCaps, setSelectedCaps] = useState<Set<ModelCapabilityToggle>>(new Set())
   const [hasUserModified, setHasUserModified] = useState(false)
@@ -111,7 +121,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
-  const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
+  const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
+  const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
+  const defaultChatEndpoint = providerChatEndpointTypes[0]
+  const modelPurpose = inferModelPurpose(purposeFields)
+  const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
   const savedCaps = useMemo(
     () => (model ? getInitialSelectedCapabilities(model) : new Set<ModelCapabilityToggle>()),
@@ -129,6 +143,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setName(model.name)
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
+    setPurposeFields({
+      endpointTypes: model.endpointTypes,
+      capabilities: model.capabilities,
+      inputModalities: model.inputModalities,
+      outputModalities: model.outputModalities
+    })
     setShowMoreSettings(true)
     setSelectedCaps(getInitialSelectedCapabilities(model))
     setHasUserModified(false)
@@ -147,6 +167,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         name: patch.name,
         group: patch.group,
         capabilities: patch.capabilities,
+        inputModalities: patch.inputModalities,
+        outputModalities: patch.outputModalities,
         supportsStreaming: patch.supportsStreaming,
         endpointTypes: patch.endpointTypes,
         contextWindow: patch.contextWindow,
@@ -170,15 +192,22 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextName = overrides?.name ?? name
       const nextGroup = overrides?.group ?? group
       const nextEndpointTypes = overrides?.endpointTypes ?? endpointTypes
+      const nextPurposeFields = overrides?.purposeFields ?? purposeFields
+      const capabilitySource =
+        mode === 'purpose' ? [...(nextPurposeFields.capabilities ?? [])] : (model.capabilities ?? [])
 
       return {
         name: nextName || model.name,
         group: nextGroup || model.group,
-        endpointTypes: mode === 'new-api' && nextEndpointTypes.length ? [...nextEndpointTypes] : undefined,
-        capabilities: toggleSetToCaps(
-          model.capabilities ?? [],
-          overrides?.caps ?? selectedCaps
-        ) as Model['capabilities'],
+        endpointTypes:
+          mode === 'purpose'
+            ? [...(nextPurposeFields.endpointTypes ?? [])]
+            : mode === 'endpoint-types' && nextEndpointTypes.length
+              ? [...nextEndpointTypes]
+              : undefined,
+        capabilities: toggleSetToCaps(capabilitySource, overrides?.caps ?? selectedCaps) as Model['capabilities'],
+        inputModalities: mode === 'purpose' ? nextPurposeFields.inputModalities?.slice() : undefined,
+        outputModalities: mode === 'purpose' ? nextPurposeFields.outputModalities?.slice() : undefined,
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
@@ -207,6 +236,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       model,
       name,
       outputPrice,
+      purposeFields,
       selectedCaps,
       supportsStreaming
     ]
@@ -300,7 +330,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 maxOutputTokens,
                 endpointTypes
               }}
-              showEndpointType={mode === 'new-api'}
+              showEndpointType={mode === 'endpoint-types'}
               endpointTypeControl="chips"
               modelIdDisabled
               modelIdAction={
@@ -329,6 +359,31 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 autoSave({ endpointTypes: nextEndpointTypes })
               }}
             />
+            {mode === 'purpose' && (
+              <ModelPurposeFieldsControl
+                purpose={modelPurpose}
+                chatEndpointType={chatEndpointType}
+                chatEndpointTypes={providerChatEndpointTypes}
+                onPurposeChange={(nextPurpose) => {
+                  const nextPurposeFields = applyModelPurpose(purposeFields, nextPurpose, {
+                    previousPurpose: modelPurpose,
+                    chatEndpointType
+                  })
+                  setPurposeFields(nextPurposeFields)
+                  setEndpointTypes(nextPurposeFields.endpointTypes)
+                  autoSave({ purposeFields: nextPurposeFields })
+                }}
+                onChatEndpointTypeChange={(nextEndpointType) => {
+                  const nextPurposeFields = applyModelPurpose(purposeFields, 'chat', {
+                    previousPurpose: modelPurpose,
+                    chatEndpointType: nextEndpointType
+                  })
+                  setPurposeFields(nextPurposeFields)
+                  setEndpointTypes(nextPurposeFields.endpointTypes)
+                  autoSave({ purposeFields: nextPurposeFields })
+                }}
+              />
+            )}
           </div>
         </ProviderSection>
 

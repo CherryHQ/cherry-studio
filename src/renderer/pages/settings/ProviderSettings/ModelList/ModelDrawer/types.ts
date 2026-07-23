@@ -1,6 +1,6 @@
 import { type EndpointType, type Model, MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
 
-export type ModelDrawerMode = 'legacy' | 'new-api'
+export type ModelDrawerMode = 'legacy' | 'endpoint-types' | 'purpose'
 
 export type ModelDrawerEndpointType = EndpointType
 

@@ -4,6 +4,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
+  isProviderPresetInstanceSource,
   isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
@@ -128,6 +129,13 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   )
 
   const groupedPresetIds = useMemo(() => getGroupedPresetIds(filteredProviders), [filteredProviders])
+  const presetSources = useMemo(
+    () =>
+      providers.filter(
+        (provider) => isProviderPresetInstanceSource(provider) && isProviderSettingsListVisibleProvider(provider)
+      ),
+    [providers]
+  )
 
   const setProviderItemRef = useCallback((providerId: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -306,7 +314,9 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         open={editorOpen}
         mode={editorMode}
         initialLogo={initialLogo}
+        presetSources={presetSources}
         onClose={cancelEditor}
+        onSelectPreset={startAddFrom}
         onSubmit={handleSubmitEditor}
       />
     </aside>

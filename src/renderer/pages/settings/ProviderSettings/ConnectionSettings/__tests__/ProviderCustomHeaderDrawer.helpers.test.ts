@@ -71,6 +71,21 @@ describe('resolveEndpointTypes', () => {
     expect(types[0]).toBe(PRIMARY)
     expect(types.slice(1)).toEqual(['anthropic-messages', 'gemini-generate-content'])
   })
+
+  it('excludes image endpoint types from the text endpoint list', () => {
+    const types = resolveEndpointTypes(
+      {
+        endpointConfigs: {
+          [PRIMARY]: {},
+          'openai-image-generation': { baseUrl: 'https://images.example.com' },
+          'openai-image-edit': { baseUrl: 'https://edits.example.com' }
+        } as any
+      },
+      PRIMARY
+    )
+
+    expect(types).toEqual([PRIMARY])
+  })
 })
 
 describe('findInvalidSecondaryEndpointUrl', () => {
