@@ -32,6 +32,11 @@ const shellEnvMock = vi.hoisted(() => ({
   getShellEnv: vi.fn(),
   getRawShellEnv: vi.fn()
 }))
+// Default null = no bundled MinGit, matching a build/host without the Windows bundle.
+const bundledGitMock = vi.hoisted(() => ({
+  getBundledGitPath: vi.fn(),
+  getBundledGitDir: vi.fn()
+}))
 const childProcessMock = vi.hoisted(() => ({
   exec: vi.fn(),
   execFile: vi.fn(),
@@ -61,6 +66,11 @@ vi.mock('@main/utils/processRunner', () => ({
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: shellEnvMock.getShellEnv,
   getRawShellEnv: shellEnvMock.getRawShellEnv
+}))
+
+vi.mock('@main/utils/bundledGit', () => ({
+  getBundledGitPath: bundledGitMock.getBundledGitPath,
+  getBundledGitDir: bundledGitMock.getBundledGitDir
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -122,6 +132,8 @@ describe('CodeCliService', () => {
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
     shellEnvMock.getRawShellEnv.mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
+    bundledGitMock.getBundledGitPath.mockReturnValue(null)
+    bundledGitMock.getBundledGitDir.mockReturnValue(null)
     binaryManagerMock.getToolSnapshots.mockImplementation(async (names: string[]) =>
       Object.fromEntries(
         names.map((name) => [
@@ -655,6 +667,72 @@ describe('CodeCliService', () => {
         expect(launch![0]).toBe('cmd')
         expect(launch![1]).toEqual(['/c', batPath])
         expect(launch![2]).toMatchObject({ shell: true, detached: true })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
+      // Regression (PR #16402 review): the launch env must carry the bundled
+      // git dir at the very tail so a terminal-launched CLI resolves a bare
+      // `git` on a machine without system git, while any real git ahead wins.
+      const gitDir = 'C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
+      bundledGitMock.getBundledGitDir.mockReturnValue(gitDir)
+      shellEnvMock.getRawShellEnv.mockResolvedValue({ Path: 'C:\\Windows\\System32' })
+
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\proj'
+        })
+
+        expect(result.success).toBe(true)
+        const spawnEnv = (vi.mocked(spawn).mock.calls.at(-1)![2] as { env: Record<string, string> }).env
+        expect(spawnEnv.Path.split(';').at(-1)).toBe(gitDir)
+        expect(spawnEnv.Path).toContain('C:\\Windows\\System32')
+        // The bat rewrites PATH inside the terminal, so the tail must be in the
+        // env prefix too, not only in the spawn env.
+        const batContent = vi.mocked(fs.writeFileSync).mock.calls.at(-1)![1] as string
+        expect(batContent).toContain(gitDir)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('gives a system CLI only the git tail — no Cherry MISE_* redirection', async () => {
+      const gitDir = 'C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
+      bundledGitMock.getBundledGitDir.mockReturnValue(gitDir)
+      shellEnvMock.getRawShellEnv.mockResolvedValue({
+        Path: 'C:\\Windows\\System32',
+        MISE_DATA_DIR: 'C:\\Users\\me\\mise-data'
+      })
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: { name: 'claude', availability: { source: 'system', path: 'C:\\Tools\\claude.exe' } }
+      })
+
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\proj'
+        })
+
+        expect(result.success).toBe(true)
+        const spawnEnv = (vi.mocked(spawn).mock.calls.at(-1)![2] as { env: Record<string, string> }).env
+        expect(spawnEnv.Path.split(';').at(-1)).toBe(gitDir)
+        // The user's own mise settings pass through untouched; Cherry's isolated
+        // MISE_DATA_DIR must never redirect a system CLI's shims.
+        expect(spawnEnv.MISE_DATA_DIR).toBe('C:\\Users\\me\\mise-data')
       } finally {
         vi.useRealTimers()
       }

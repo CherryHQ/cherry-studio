@@ -25,7 +25,15 @@ vi.mock('@application', () => ({
 
 vi.mock('child_process')
 
+// Control the bundled-git resolution; default null so most tests see no bundled
+// git appended (matching a build/host without the Windows MinGit bundle).
+vi.mock('../bundledGit', () => ({
+  getBundledGitPath: vi.fn(() => null),
+  getBundledGitDir: vi.fn(() => null)
+}))
+
 // Import AFTER mocks are registered so the module binds to mocked values.
+import { getBundledGitDir } from '../bundledGit'
 import { getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
@@ -218,6 +226,23 @@ describe('shellEnv – Windows registry PATH', () => {
 
     const shimsCount = env.Path.split(';').filter((seg) => seg.endsWith('shims')).length
     expect(shimsCount).toBe(1)
+  })
+
+  it('appends the bundled MinGit dir to the PATH tail as a last-resort git', async () => {
+    const bundledGitDir = 'C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
+    vi.mocked(getBundledGitDir).mockReturnValue(bundledGitDir)
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Git\\cmd;C:\\Windows')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    const segments = env.Path.split(';')
+    // Present, and dead last so system git (C:\Git\cmd) and the managed tool dirs win ahead of it.
+    expect(segments[segments.length - 1]).toBe(bundledGitDir)
+    expect(segments.indexOf('C:\\Git\\cmd')).toBeLessThan(segments.length - 1)
   })
 
   // -- does not spawn cmd.exe -----------------------------------------------

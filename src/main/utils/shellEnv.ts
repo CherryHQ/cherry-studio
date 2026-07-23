@@ -4,6 +4,7 @@ import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 
 import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
+import { getBundledGitDir } from './bundledGit'
 
 const logger = loggerService.withContext('ShellEnv')
 
@@ -17,15 +18,18 @@ const SHELL_ENV_TIMEOUT_MS = 15_000
 const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const pathSeparator = isWin ? ';' : ':'
   const cherryToolDirs = getBinarySearchDirs()
+  // Bundled MinGit as a last-resort git: appended after the managed tool dirs so
+  // it lands at the very tail, letting any spawned process (agent, CLI) resolve a
+  // bare `git` with no system git — while system/mise/PATH git always win ahead.
+  const bundledGitDir = getBundledGitDir()
+  const tailDirs = bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
 
   // Existing segments first, tool dirs appended — dedup keeps an already-present
   // tool dir at its original position instead of moving it to the tail.
-  const updatedPath = dedupePathSegments([...existingPathValue.split(pathSeparator), ...cherryToolDirs]).join(
-    pathSeparator
-  )
+  const updatedPath = dedupePathSegments([...existingPathValue.split(pathSeparator), ...tailDirs]).join(pathSeparator)
 
   if (pathKeys.length > 0) {
     pathKeys.forEach((key) => {
