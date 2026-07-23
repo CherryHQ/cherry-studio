@@ -1523,6 +1523,7 @@
         "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
         "multiple_tools": "存在多个匹配的MCP工具，已选择 {{tool}}",
         "no_tool": "未匹配到所需的MCP工具 {{tool}}",
+        "tools_stale": "MCP 服务器 '{{serverName}}' 无法连接 — 正在使用 {{toolCount}} 个缓存的工具定义。部分工具可能已过期。请前往设置重新连接。",
         "url_context": "Gemini 不支持同时使用网页上下文与函数调用"
       }
     },
