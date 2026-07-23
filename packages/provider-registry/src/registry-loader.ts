@@ -14,7 +14,7 @@ import type { ProviderConfig } from './schemas/provider'
 import { ProviderListSchema } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
 import { ProviderModelListSchema } from './schemas/provider-models'
-import { normalizeModelId } from './utils/normalize'
+import { colonVariantTagToHyphen, normalizeModelId } from './utils/normalize'
 
 function readAndParse<T>(jsonPath: string, schema: { parse: (data: unknown) => T }): T {
   try {
@@ -65,6 +65,7 @@ export class RegistryLoader {
 
   private modelById: Map<string, ModelConfig> | null = null
   private modelByNormId: Map<string, ModelConfig> | null = null
+  private modelBySizedNorm: Map<string, ModelConfig> | null = null
   private overrideByKey: Map<string, ProviderModelOverride> | null = null
   private overrideByNormKey: Map<string, ProviderModelOverride> | null = null
   private overrideByApiKey: Map<string, ProviderModelOverride> | null = null
@@ -140,11 +141,18 @@ export class RegistryLoader {
   private buildModelIndex(): void {
     this.modelById = new Map()
     this.modelByNormId = new Map()
+    this.modelBySizedNorm = new Map()
     for (const m of this.models!) {
       this.modelById.set(m.id, m)
       const nid = normalizeModelId(m.id)
       if (!this.modelByNormId.has(nid)) {
         this.modelByNormId.set(nid, m)
+      }
+      // Size-preserving key: `gpt-oss-20b` and `gpt-oss-120b` stay distinct here (they collapse to the
+      // same `gpt-oss` key above), so a registry-tagged `:20b`/`:120b` pull resolves to its own row.
+      const sid = normalizeModelId(m.id, { keepParameterSize: true })
+      if (!this.modelBySizedNorm.has(sid)) {
+        this.modelBySizedNorm.set(sid, m)
       }
     }
   }
@@ -187,7 +195,17 @@ export class RegistryLoader {
 
   findModel(modelId: string): ModelConfig | null {
     this.loadModels()
-    return this.modelById!.get(modelId) ?? this.modelByNormId!.get(normalizeModelId(modelId)) ?? null
+    const exact = this.modelById!.get(modelId)
+    if (exact) return exact
+    // A registry-tag id (`gpt-oss:20b`) carries its size/quant AFTER a colon. Match it size-first so
+    // `:20b` lands on `gpt-oss-20b`, never collapsing onto the `gpt-oss-120b` sibling that shares the
+    // size-agnostic key. If no exact-size catalog row exists (`qwen2.5:7b` → the catalog only has
+    // `qwen2-5-*-instruct`), return null rather than a size-agnostic guess — a wrong sibling's pricing,
+    // limits, and presetModelId are worse than no metadata.
+    if (colonVariantTagToHyphen(modelId) !== modelId) {
+      return this.modelBySizedNorm!.get(normalizeModelId(modelId, { keepParameterSize: true })) ?? null
+    }
+    return this.modelByNormId!.get(normalizeModelId(modelId)) ?? null
   }
 
   findProvider(providerId: string): ProviderConfig | null {
@@ -229,6 +247,7 @@ export class RegistryLoader {
     this.providerModelsVersion = null
     this.modelById = null
     this.modelByNormId = null
+    this.modelBySizedNorm = null
     this.overrideByKey = null
     this.overrideByNormKey = null
     this.overrideByApiKey = null

@@ -1,3 +1,4 @@
+import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsCard'
@@ -9,10 +10,12 @@ import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
+import type { InlineHtmlPreviewMode } from './ChatMarkdown'
 
 interface Props {
   children: string
   className?: string
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   node?: Omit<Node, 'type'>
   blockId: string // Message block id
   isStreaming?: boolean
@@ -25,7 +28,14 @@ const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} max-w-full align-middl
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 
-const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStreaming = false }) => {
+const CodeBlock: React.FC<Props> = ({
+  children,
+  className,
+  inlineHtmlPreviewMode,
+  node,
+  blockId,
+  isStreaming = false
+}) => {
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = children?.includes('\n')
   const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
@@ -76,13 +86,19 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStre
   if (language !== null) {
     // Fancy code block
     if (codeFancyBlock) {
-      if (language === 'html') {
+      if (language.toLowerCase() === 'html') {
+        const isHtmlArtifactStreaming = inlineHtmlPreviewMode === 'generating' || isStreaming || isIncomplete
+
+        if (inlineHtmlPreviewMode) {
+          return <MessageHtmlArtifact html={children} isStreaming={isHtmlArtifactStreaming} />
+        }
+
         return (
           <HtmlArtifactsCard
             html={children}
             onSave={handleSave}
             editable={canSaveCodeBlock}
-            isStreaming={isIncomplete}
+            isStreaming={isHtmlArtifactStreaming}
           />
         )
       }

@@ -1105,6 +1105,16 @@ export function Topics({
           }),
     [filteredTopics, isRightPanel, topicExpansion, topicGroupBy]
   )
+  const topicAssistantSectionIds = useMemo(
+    () =>
+      isGroupGrouping
+        ? [
+            TOPIC_ASSISTANT_UNGROUPED_SECTION_ID,
+            ...assistantGroups.map((group) => `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}${group.id}`)
+          ]
+        : [TOPIC_ASSISTANT_SECTION_ID],
+    [assistantGroups, isGroupGrouping]
+  )
   const handleTopicCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
       if (isRightPanel) return
@@ -1323,7 +1333,7 @@ export function Topics({
                       onChange={handleTopicDisplayModeChange}
                       onManageAssistants={manageAssistantsMenuItem?.onSelect}
                       onOpenHistoryRecords={onOpenHistoryRecords}
-                      sectionId={isAssistantDisplayMode ? TOPIC_ASSISTANT_SECTION_ID : undefined}
+                      sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
                     />
                   </>
                 }
@@ -1337,7 +1347,7 @@ export function Topics({
               onChange={handleTopicDisplayModeChange}
               onManageAssistants={manageAssistantsMenuItem?.onSelect}
               onOpenHistoryRecords={onOpenHistoryRecords}
-              sectionId={TOPIC_ASSISTANT_SECTION_ID}
+              sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
             />
           )}
         </ResourceList.Header>
