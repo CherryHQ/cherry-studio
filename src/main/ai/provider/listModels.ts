@@ -15,12 +15,11 @@ import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
-import type { EndpointType, Modality, Model, ModelCapability } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
-  MODALITY,
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -50,7 +49,6 @@ import {
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
-  JinaModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
@@ -662,25 +660,6 @@ const anthropicFetcher: ModelFetcher = {
   }
 }
 
-const JINA_MODALITY: Record<string, Modality> = {
-  text: MODALITY.TEXT,
-  image: MODALITY.IMAGE,
-  embeddings: MODALITY.VECTOR
-}
-
-function mapJinaModalities(values: string[] | undefined): Modality[] {
-  if (!values?.length) return []
-  return dedup(
-    values.map((v) => JINA_MODALITY[v]).filter((v): v is Modality => Boolean(v)),
-    (v) => v
-  )
-}
-
-// Jina's /v1/models lists ids as `jina-ai/<name>` (e.g. `jina-ai/jina-embeddings-v2-base-zh`), but
-// its embeddings/rerank/chat endpoints accept only the bare `<name>` and reject the prefixed form
-// with `422 union_tag_invalid` — so strip the prefix. Jina has no registry catalog, so this fetch
-// is the sole metadata source: derive `embedding` from the `embeddings` output modality and `rerank`
-// from the id (reranker/colbert), and carry over modalities / context / description.
 const jinaFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.jina),
   fetch: async (provider, signal) => {
@@ -688,25 +667,12 @@ const jinaFetcher: ModelFetcher = {
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
-      responseSchema: JinaModelsResponseSchema,
+      responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
     return dedup(response.data, (m) => m.id).map((m) => {
       const apiModelId = m.id.replace(/^jina-ai\//, '')
-      const inputModalities = mapJinaModalities(m.input_modalities)
-      const outputModalities = mapJinaModalities(m.output_modalities)
-      const capabilities: ModelCapability[] = []
-      if (outputModalities.includes(MODALITY.VECTOR)) capabilities.push(MODEL_CAPABILITY.EMBEDDING)
-      if (/rerank|colbert/i.test(apiModelId)) capabilities.push(MODEL_CAPABILITY.RERANK)
-      return toModel(apiModelId, provider, {
-        name: m.name || apiModelId,
-        description: m.description,
-        ownedBy: 'jina-ai',
-        capabilities,
-        ...(inputModalities.length ? { inputModalities } : {}),
-        ...(outputModalities.length ? { outputModalities } : {}),
-        ...(m.context_length ? { contextWindow: m.context_length } : {})
-      })
+      return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
     })
   }
 }
