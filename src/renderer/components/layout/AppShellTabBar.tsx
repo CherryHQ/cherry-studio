@@ -98,6 +98,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass,
+          drag.isDragging && 'bg-popover shadow-md dark:bg-popover',
           rest.className
         )}>
         <TabIcon tab={tab} size={14} />
@@ -243,6 +244,7 @@ const NormalTabButton = ({
           : isActive
             ? tone.activeClass
             : tone.hoverClass,
+        drag.isDragging && 'bg-popover shadow-md dark:bg-popover',
         isClosing && 'min-w-0 overflow-hidden px-0'
       )}>
       <TabIcon tab={tab} size={14} className="shrink-0" />
