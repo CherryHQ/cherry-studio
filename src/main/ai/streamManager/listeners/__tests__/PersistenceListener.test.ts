@@ -55,6 +55,7 @@ function makeListener(modelId?: UniqueModelId) {
     modelId,
     backend: new TemporaryChatBackend({
       topicId: 'abc',
+      messageId: 'assistant-message-id',
       modelId,
       messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
     })
@@ -73,13 +74,15 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success', modelId: 'openai::gpt-4o' })
 
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
-    const [topicId, payload] = appendMessageMock.mock.calls[0]
+    const [topicId, payload, messageId] = appendMessageMock.mock.calls[0]
     expect(topicId).toBe('abc')
     expect(payload.role).toBe('assistant')
     expect(payload.status).toBe('success')
     expect(payload.modelId).toBe('openai::gpt-4o')
-    // The service allocates the DB id; the listener/backend must not leak the UIMessage id.
+    // The payload stays a CreateMessageDto while the stable stream id is passed
+    // through the service's explicit internal id parameter.
     expect(payload.id).toBeUndefined()
+    expect(messageId).toBe('assistant-message-id')
   })
 
   it('strips empty text/reasoning parts before the backend write', async () => {

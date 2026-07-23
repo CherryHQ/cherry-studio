@@ -49,10 +49,9 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DAY_MS, DEFAULT_COST_CURRENCY, formatCost, parseDateKey, startOfLocalDay, toDateKey } from './usageDisplay'
 import UsageHeatmap, { type UsageHeatmapMetric } from './UsageHeatmap'
 
-const DAY_MS = 24 * 60 * 60 * 1000
-const DEFAULT_COST_CURRENCY = 'USD'
 const ENTRY_PAGE_SIZE = 25
 
 const WINDOW_KEYS = ['30d', '90d', '365d', 'all'] as const
@@ -122,26 +121,8 @@ interface TimeRange {
   to?: number
 }
 
-function startOfLocalDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
-}
-
 function endOfLocalDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
-}
-
-function parseDateKey(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number)
-
-  return new Date(year, month - 1, day)
-}
-
-function toDateKey(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-
-  return `${year}-${month}-${day}`
 }
 
 function getWindowDays(windowKey: WindowKey): number | undefined {
@@ -198,14 +179,6 @@ function rangeFromDateKey(value: string): TimeRange {
     from: startOfLocalDay(date).getTime(),
     to: endOfLocalDay(date).getTime()
   }
-}
-
-function formatCost(value: number, currency: string | null | undefined): string {
-  const normalizedCurrency = currency?.toUpperCase() ?? DEFAULT_COST_CURRENCY
-  const symbol = normalizedCurrency === 'CNY' ? '¥' : '$'
-  const fractionDigits = value > 0 && value < 1 ? 4 : 2
-
-  return `${symbol}${value.toFixed(fractionDigits)}`
 }
 
 function displayModelId(modelId: string | null | undefined): string {
@@ -444,7 +417,7 @@ function getCacheUsageMetrics(
 }
 
 function getBucketKey(bucket: UsageLedgerStatsBucket): string {
-  return `${bucket.providerId}-${bucket.sourceType ?? ''}-${bucket.sourceId ?? ''}-${bucket.apiKeyId ?? ''}-${bucket.modelId ?? ''}-${bucket.costCurrency ?? ''}`
+  return `${bucket.providerId ?? ''}-${bucket.sourceType ?? ''}-${bucket.sourceId ?? ''}-${bucket.apiKeyId ?? ''}-${bucket.modelId ?? ''}-${bucket.costCurrency ?? ''}`
 }
 
 function getMetricValue(bucket: UsageLedgerStatsBucket, metric: UsageMetricKey): number {
@@ -972,7 +945,7 @@ function UsageSettings() {
   }
   const getBucketLabel = (bucket: UsageLedgerStatsBucket): string => {
     if (groupBy === 'provider') {
-      return getProviderName(bucket.providerId, bucket.providerName)
+      return getProviderName(bucket.providerId ?? '', bucket.providerName)
     }
 
     if (groupBy === 'model') {
@@ -1030,7 +1003,7 @@ function UsageSettings() {
 
     if (groupBy === 'model') {
       return (
-        <UsageModelLabel modelId={bucket.modelId} providerId={bucket.providerId}>
+        <UsageModelLabel modelId={bucket.modelId} providerId={bucket.providerId ?? ''}>
           {label}
         </UsageModelLabel>
       )
@@ -1045,7 +1018,7 @@ function UsageSettings() {
     }
 
     return (
-      <UsageProviderLabel provider={getProviderInfo(bucket.providerId, bucket.providerName)}>
+      <UsageProviderLabel provider={getProviderInfo(bucket.providerId ?? '', bucket.providerName)}>
         {label}
       </UsageProviderLabel>
     )
@@ -1278,7 +1251,7 @@ function UsageSettings() {
                 className="min-w-1"
                 style={{
                   flexBasis: 0,
-                  flexGrow: Math.max(entry.value, 1),
+                  flexGrow: entry.value,
                   backgroundColor: entry.color
                 }}
               />
@@ -1445,7 +1418,7 @@ function UsageSettings() {
                 label={t('settings.usage.cards.topModel')}
                 value={
                   topModel?.modelId ? (
-                    <UsageModelLabel modelId={topModel.modelId} providerId={topModel.providerId} size={16}>
+                    <UsageModelLabel modelId={topModel.modelId} providerId={topModel.providerId ?? ''} size={16}>
                       {displayModelId(topModel.modelId)}
                     </UsageModelLabel>
                   ) : (

@@ -151,7 +151,7 @@ describe('ClaudeCodeStreamAdapter', () => {
     )
   })
 
-  it('maps thinking token estimates to message metadata', () => {
+  it('maps thinking token estimates to a full cumulative metadata snapshot', () => {
     const { adapter, parts } = createAdapter()
 
     const result = adapter.handleMessage({
@@ -167,9 +167,44 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts).toEqual([
       {
         type: 'message-metadata',
-        messageMetadata: { stats: { outputTokenDetails: { reasoningTokens: 100 } } }
+        messageMetadata: {
+          modelId: 'sonnet',
+          stats: {
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+            outputTokenDetails: { reasoningTokens: 100 }
+          }
+        }
       }
     ])
+  })
+
+  it('preserves the latest thinking estimate in final usage metadata', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'thinking_tokens',
+      session_id: 'sdk-thinking',
+      uuid: crypto.randomUUID(),
+      estimated_tokens: 100
+    } as any)
+    adapter.handleMessage(successResult())
+
+    expect(parts.at(-1)).toMatchObject({
+      type: 'finish',
+      messageMetadata: {
+        modelId: 'sonnet',
+        stats: {
+          inputTokens: 3,
+          outputTokens: 5,
+          totalTokens: 26,
+          outputTokenDetails: { reasoningTokens: 100 }
+        }
+      }
+    })
   })
 
   it('maps SDK task system messages to hidden task event data parts', () => {

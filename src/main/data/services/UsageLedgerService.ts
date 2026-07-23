@@ -438,8 +438,6 @@ export class UsageLedgerService {
     const offset = (page - 1) * limit
 
     const filterConditions: SQL[] = []
-    if (query.providerId !== undefined) filterConditions.push(eq(usageLedgerTable.providerId, query.providerId))
-    if (query.apiKeyId !== undefined) filterConditions.push(eq(usageLedgerTable.apiKeyId, query.apiKeyId))
     if (query.from !== undefined) filterConditions.push(gte(usageLedgerTable.createdAt, query.from))
     if (query.to !== undefined) filterConditions.push(lte(usageLedgerTable.createdAt, query.to))
     const where = filterConditions.length > 0 ? and(...filterConditions) : undefined
@@ -499,7 +497,6 @@ export class UsageLedgerService {
     const db = application.get('DbService').getDb()
 
     const conditions: SQL[] = []
-    if (query.providerId !== undefined) conditions.push(eq(usageLedgerTable.providerId, query.providerId))
     if (query.from !== undefined) conditions.push(gte(usageLedgerTable.createdAt, query.from))
     if (query.to !== undefined) conditions.push(lte(usageLedgerTable.createdAt, query.to))
     const where = conditions.length > 0 ? and(...conditions) : undefined
@@ -517,14 +514,23 @@ export class UsageLedgerService {
 
     const rows = await db
       .select({
-        providerId: usageLedgerTable.providerId,
-        providerName: sql<string | null>`max(${usageLedgerTable.providerName})`,
-        sourceType: usageLedgerTable.sourceType,
-        sourceId: usageLedgerTable.sourceId,
-        sourceName: sql<string | null>`max(${usageLedgerTable.sourceName})`,
-        sourceIcon: sql<string | null>`max(${usageLedgerTable.sourceIcon})`,
-        apiKeyId: usageLedgerTable.apiKeyId,
-        modelId: usageLedgerTable.modelId,
+        providerId: query.groupBy === 'source' ? sql<string | null>`NULL` : usageLedgerTable.providerId,
+        providerName:
+          query.groupBy === 'source'
+            ? sql<string | null>`NULL`
+            : sql<string | null>`max(${usageLedgerTable.providerName})`,
+        sourceType: query.groupBy === 'source' ? usageLedgerTable.sourceType : sql<UsageLedgerSourceType | null>`NULL`,
+        sourceId: query.groupBy === 'source' ? usageLedgerTable.sourceId : sql<string | null>`NULL`,
+        sourceName:
+          query.groupBy === 'source'
+            ? sql<string | null>`max(${usageLedgerTable.sourceName})`
+            : sql<string | null>`NULL`,
+        sourceIcon:
+          query.groupBy === 'source'
+            ? sql<string | null>`max(${usageLedgerTable.sourceIcon})`
+            : sql<string | null>`NULL`,
+        apiKeyId: query.groupBy === 'apiKey' ? usageLedgerTable.apiKeyId : sql<string | null>`NULL`,
+        modelId: query.groupBy === 'model' ? usageLedgerTable.modelId : sql<string | null>`NULL`,
         costCurrency: usageLedgerTable.costCurrency,
         // Representative display fields (rows in one key bucket share them in
         // practice; max() just picks a stable value if labels changed).
@@ -545,10 +551,8 @@ export class UsageLedgerService {
       .groupBy(...groupColumns)
       .orderBy(sql`coalesce(sum(${usageLedgerTable.cost}), 0) desc`)
 
-    const providerNames = await readProviderNameMap()
+    const providerNames = query.groupBy === 'source' ? new Map<string, string>() : await readProviderNameMap()
     const buckets: UsageLedgerStatsBucket[] = rows.map((row) => ({
-      providerId: row.providerId,
-      providerName: resolveProviderNameSnapshot(row.providerId, row.providerName, providerNames),
       costCurrency: row.costCurrency,
       totalCost: row.totalCost,
       totalInputTokens: row.totalInputTokens,
@@ -565,7 +569,10 @@ export class UsageLedgerService {
             sourceName: row.sourceName,
             sourceIcon: row.sourceIcon
           }
-        : {}),
+        : {
+            providerId: row.providerId as string,
+            providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames)
+          }),
       ...(query.groupBy === 'apiKey'
         ? {
             apiKeyId: row.apiKeyId,

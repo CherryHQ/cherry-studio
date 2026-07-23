@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { usageLedgerService } from '@main/data/services/UsageLedgerService'
 import type { Model } from '@shared/data/types/model'
-import { extractProviderCost } from '@shared/utils/cost'
+import { computeImageCost, extractProviderCost } from '@shared/utils/cost'
 import type { LanguageModelUsage } from 'ai'
 
 import type { AgentLoopHooks } from '../runtime/aiSdk'
@@ -40,5 +40,30 @@ export function createBillingHook(model: Model, requestMessageId?: string): Part
           logger.warn('usage ledger record failed', { id, modelId: model.id, err })
         })
     }
+  }
+}
+
+/** Record a completed image request under a caller-owned stable id. */
+export async function recordImageUsage(id: string, model: Model, imageCount: number): Promise<void> {
+  if (imageCount <= 0) return
+
+  const imageCost = model.pricing ? computeImageCost(imageCount, model.pricing) : undefined
+  try {
+    await usageLedgerService.recordRequest({
+      id,
+      modelId: model.id,
+      modality: 'image',
+      imageCount,
+      stats: imageCost
+        ? {
+            cost: imageCost.cost,
+            costSource: 'computed',
+            costCurrency: imageCost.currency,
+            costBreakdown: { image: imageCost.cost }
+          }
+        : {}
+    })
+  } catch (err) {
+    logger.warn('usage ledger record failed', { id, modelId: model.id, err })
   }
 }

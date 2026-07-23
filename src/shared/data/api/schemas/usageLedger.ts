@@ -1,14 +1,13 @@
 /**
  * Usage Ledger API Schema definitions
  *
- * Usage reporting endpoints plus explicit maintenance operations. Normal
- * ledger rows are written internally by the main process; renderer-initiated
- * writes are limited to user-triggered maintenance such as historical cost
- * backfill.
+ * Read-only usage reporting endpoints. Ledger rows are written internally by
+ * the main process and exposed here for renderer reporting.
  *
  * Contains endpoints for:
- * - Listing ledger entries with page pagination and provider/key/time filters
- * - Aggregated usage/cost rollups grouped by provider, API key, or model
+ * - Listing ledger entries with pagination, sorting, and time filters
+ * - Usage/cost rollups grouped by provider, API key, model, or source
+ * - Daily usage/cost timeline buckets
  *
  * Entity schemas and types live in `@shared/data/types/usageLedger`.
  */
@@ -48,10 +47,6 @@ export const UsageLedgerListQuerySchema = z
     page: z.int().positive().default(1),
     /** Positive integer, max {@link USAGE_LEDGER_MAX_LIMIT}, defaults to {@link USAGE_LEDGER_DEFAULT_LIMIT} */
     limit: z.int().positive().max(USAGE_LEDGER_MAX_LIMIT).default(USAGE_LEDGER_DEFAULT_LIMIT),
-    /** Filter by provider id */
-    providerId: z.string().optional(),
-    /** Filter by attributed API key id */
-    apiKeyId: z.string().optional(),
     sortBy: UsageLedgerListSortBySchema.default('createdAt'),
     sortDirection: UsageLedgerSortDirectionSchema.default('desc'),
     ...TimeRangeFields
@@ -66,8 +61,6 @@ export const UsageLedgerStatsQuerySchema = z
   .object({
     /** Aggregation dimension */
     groupBy: z.enum(['provider', 'apiKey', 'model', 'source']),
-    /** Restrict aggregation to one provider */
-    providerId: z.string().optional(),
     ...TimeRangeFields
   })
   .strict()
@@ -91,11 +84,12 @@ export interface UsageLedgerListResponse extends OffsetPaginationResponse<UsageL
 /**
  * One aggregation bucket. Group identity fields are populated according to
  * `groupBy` (provider → providerId; apiKey → providerId+apiKey fields;
- * model → providerId+modelId). `costCurrency` always participates in the
- * group key so different currencies are never summed together.
+ * model → providerId+modelId; source → source fields, without a provider).
+ * `costCurrency` always participates in the group key so different
+ * currencies are never summed together.
  */
 export interface UsageLedgerStatsBucket {
-  providerId: string
+  providerId?: string
   providerName?: string | null
   sourceType?: UsageLedgerEntry['sourceType']
   sourceId?: string | null
@@ -142,7 +136,7 @@ export interface UsageLedgerTimelineResponse {
 
 export type UsageLedgerSchemas = {
   '/usage-ledger/entries': {
-    /** List usage ledger entries (newest first) with pagination and filters */
+    /** List usage ledger entries with pagination, sorting, and time filters */
     GET: {
       query?: UsageLedgerListQueryParams
       response: UsageLedgerListResponse
@@ -150,7 +144,7 @@ export type UsageLedgerSchemas = {
   }
 
   '/usage-ledger/stats': {
-    /** Aggregate usage/cost grouped by provider, API key, or model */
+    /** Aggregate usage/cost grouped by provider, API key, model, or source */
     GET: {
       query: UsageLedgerStatsQuery
       response: UsageLedgerStatsResponse

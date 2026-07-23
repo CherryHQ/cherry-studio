@@ -98,7 +98,7 @@ export class TemporaryChatService {
     logger.info('Deleted temporary topic', { id })
   }
 
-  appendMessage(topicId: string, dto: CreateMessageDto): Message {
+  appendMessage(topicId: string, dto: CreateMessageDto, messageId?: string): Message {
     if (!this.topics.has(topicId)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
@@ -106,7 +106,7 @@ export class TemporaryChatService {
 
     const now = Date.now()
     const row: TemporaryMessageRow = {
-      id: uuidv7(),
+      id: messageId ?? uuidv7(),
       topicId,
       parentId: null,
       role: dto.role,
@@ -235,10 +235,9 @@ export class TemporaryChatService {
       throw err
     }
 
-    // Usage ledger: the raw inserts above bypass `MessageService.update`, so
-    // record promoted assistant usage here (post-commit, fire-and-forget) —
-    // otherwise a kept temp chat would show per-message stats but contribute
-    // nothing to the billing ledger.
+    // Usage ledger: the generation was already captured under this stable
+    // message id. Upsert it after promotion to add persistent topic/source
+    // attribution without creating a second charge.
     for (const m of msgs) {
       if (m.role !== 'assistant' || !m.stats) continue
       void usageLedgerService

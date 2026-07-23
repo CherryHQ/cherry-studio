@@ -14,6 +14,7 @@ import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceB
 
 export interface TemporaryChatBackendOptions {
   topicId: string
+  messageId: string
   modelId?: string
   messageSnapshot?: MessageSnapshot
   /** Explicit stats override; wins over listener-composed `input.stats`. Usually undefined. */
@@ -28,13 +29,17 @@ export class TemporaryChatBackend implements PersistenceBackend {
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, stats } = input
     const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
-    temporaryChatService.appendMessage(this.opts.topicId, {
-      role: 'assistant',
-      data: { parts },
-      status,
-      modelId: this.opts.modelId,
-      messageSnapshot: this.opts.messageSnapshot,
-      stats: this.opts.stats ?? stats
-    })
+    temporaryChatService.appendMessage(
+      this.opts.topicId,
+      {
+        role: 'assistant',
+        data: { parts },
+        status,
+        modelId: this.opts.modelId,
+        messageSnapshot: this.opts.messageSnapshot,
+        stats: this.opts.stats ?? stats
+      },
+      this.opts.messageId
+    )
   }
 }

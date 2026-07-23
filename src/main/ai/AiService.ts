@@ -23,7 +23,6 @@ import type { FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String, UrlString } from '@shared/types/file'
-import { computeImageCost } from '@shared/utils/cost'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -35,7 +34,7 @@ import {
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
-import { createBillingHook } from './hooks/billingHook'
+import { createBillingHook, recordImageUsage } from './hooks/billingHook'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
@@ -101,6 +100,10 @@ export interface AiRequestOptions extends AiTransportOptions {
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
 export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
+}
+
+interface UsageRecordingOptions {
+  recordUsage?: boolean
 }
 
 /** Non-streaming text generation request — pure transport data. */
@@ -427,7 +430,8 @@ export class AiService extends BaseService {
 
   async generateText(
     request: AsInProcess<AiGenerateRequest>,
-    extraFeatures: readonly RequestFeature[] = []
+    extraFeatures: readonly RequestFeature[] = [],
+    usageOptions: UsageRecordingOptions = {}
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
@@ -448,7 +452,7 @@ export class AiService extends BaseService {
       options,
       hookParts: [
         createAnalyticsHook(model, (m, usage) => this.trackUsage(m, usage)),
-        createBillingHook(model),
+        ...(usageOptions.recordUsage === false ? [] : [createBillingHook(model)]),
         ...hookParts
       ]
     })
@@ -582,29 +586,7 @@ export class AiService extends BaseService {
     const fileManager = application.get('FileManager')
     const files = await Promise.all(dataUrls.map((data) => fileManager.createInternalEntry({ source: 'base64', data })))
 
-    // Usage ledger: image generation is priced per image (`pricing.perImage`),
-    // not tokens — cost is computed here where the resolved model is in scope.
-    if (files.length > 0) {
-      const imageCost = model.pricing ? computeImageCost(files.length, model.pricing) : undefined
-      void usageLedgerService
-        .recordRequest({
-          id: crypto.randomUUID(),
-          modelId: model.id,
-          modality: 'image',
-          imageCount: files.length,
-          stats: imageCost
-            ? {
-                cost: imageCost.cost,
-                costSource: 'computed',
-                costCurrency: imageCost.currency,
-                costBreakdown: { image: imageCost.cost }
-              }
-            : {}
-        })
-        .catch((err) => {
-          logger.warn('usage ledger record failed', { modelId: model.id, err })
-        })
-    }
+    void recordImageUsage(crypto.randomUUID(), model, files.length)
 
     return { files }
   }
@@ -709,7 +691,10 @@ export class AiService extends BaseService {
 
   // ── Embedding ──
 
-  async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
+  async embedMany(
+    request: AsInProcess<AiEmbedRequest>,
+    usageOptions: UsageRecordingOptions = {}
+  ): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
@@ -725,7 +710,7 @@ export class AiService extends BaseService {
 
     // Usage ledger: embeddings are token-priced (input rate only); cost is
     // enriched inside recordRequest from the model's pricing.
-    if (result.usage?.tokens) {
+    if (usageOptions.recordUsage !== false && result.usage?.tokens) {
       const tokens = result.usage.tokens
       void usageLedgerService
         .recordRequest({
@@ -843,9 +828,9 @@ export class AiService extends BaseService {
         return result
       })
     } else if (isEmbeddingModel(model)) {
-      probe = this.embedMany({ ...probeRequest, values: ['test'] })
+      probe = this.embedMany({ ...probeRequest, values: ['test'] }, { recordUsage: false })
     } else {
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
+      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' }, [], { recordUsage: false })
     }
 
     try {

@@ -479,7 +479,7 @@ describe('UsageLedgerService', () => {
   })
 
   describe('list', () => {
-    it('filters by provider/key/time and paginates newest-first', async () => {
+    it('filters by time and paginates newest-first', async () => {
       const base = {
         modelId: 'p::m',
         apiKeyAttribution: 'exact',
@@ -494,13 +494,6 @@ describe('UsageLedgerService', () => {
         { ...base, messageId: 'm2', providerId: 'openai', apiKeyId: 'key-b', createdAt: 2000, updatedAt: 2000 },
         { ...base, messageId: 'm3', providerId: 'anthropic', apiKeyId: 'key-c', createdAt: 3000, updatedAt: 3000 }
       ])
-
-      const byProvider = await usageLedgerService.list({ page: 1, limit: 50, providerId: 'openai' })
-      expect(byProvider.items.map((i) => i.messageId)).toEqual(['m2', 'm1'])
-      expect(byProvider.total).toBe(2)
-
-      const byKey = await usageLedgerService.list({ page: 1, limit: 50, apiKeyId: 'key-c' })
-      expect(byKey.items.map((i) => i.messageId)).toEqual(['m3'])
 
       const byTime = await usageLedgerService.list({ page: 1, limit: 50, from: 1500, to: 2500 })
       expect(byTime.items.map((i) => i.messageId)).toEqual(['m2'])
@@ -775,6 +768,8 @@ describe('UsageLedgerService', () => {
         totalCacheWriteTokens: 30,
         entryCount: 2
       })
+      expect(assistant).not.toHaveProperty('providerId')
+      expect(assistant).not.toHaveProperty('providerName')
       expect(agent).toMatchObject({
         sourceId: 'agent-1',
         sourceName: 'Agent One',

@@ -833,8 +833,31 @@ describe('AiService tool approval', () => {
         apiKeyOverride: 'sk-selected',
         system: 'test',
         prompt: 'hi'
-      })
+      }),
+      [],
+      { recordUsage: false }
     )
+  })
+
+  it('does not record usage for embedding health checks', async () => {
+    const service = createService()
+    const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-embedding',
+      providerId: 'test-provider',
+      apiModelId: 'test-embedding',
+      name: 'Test Embedding',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'test-provider::test-embedding'
+    })
+
+    expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }), { recordUsage: false })
   })
 
   it('fails rerank health checks when the probe returns an empty ranking', async () => {

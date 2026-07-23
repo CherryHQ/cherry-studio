@@ -5,15 +5,12 @@ import type { UsageLedgerTimelineBucket } from '@shared/data/api/schemas/usageLe
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DAY_MS, formatCost, parseDateKey, startOfLocalDay, toDateKey } from './usageDisplay'
+
 export type UsageHeatmapMetric = 'tokens' | 'cost'
 
-const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_CELL_SIZE = 12
 const MIN_CELL_SIZE = 1
-
-function startOfLocalDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
-}
 
 function startOfLocalWeek(date: Date): Date {
   const day = startOfLocalDay(date)
@@ -25,19 +22,6 @@ function endOfLocalWeek(date: Date): Date {
   const day = startOfLocalDay(date)
   day.setDate(day.getDate() + (6 - day.getDay()))
   return day
-}
-
-function dateKey(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-
-  return `${year}-${month}-${day}`
-}
-
-function parseDateKey(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Date(year, month - 1, day)
 }
 
 function buildHeatmapDays(
@@ -68,7 +52,7 @@ function buildHeatmapDays(
     const date = new Date(firstWeekDay.getTime() + index * DAY_MS)
     return {
       date,
-      key: dateKey(date),
+      key: toDateKey(date),
       isFuture: date.getTime() > today.getTime()
     }
   })
@@ -106,14 +90,6 @@ function getIntensity(value: number, thresholds: [number, number, number]): 0 | 
   }
 
   return 4
-}
-
-function formatCost(value: number, currency: string | null | undefined): string {
-  const normalizedCurrency = currency?.toUpperCase() ?? 'USD'
-  const symbol = normalizedCurrency === 'CNY' ? '¥' : '$'
-  const fractionDigits = value > 0 && value < 1 ? 4 : 2
-
-  return `${symbol}${value.toFixed(fractionDigits)}`
 }
 
 function useElementWidth() {

@@ -139,6 +139,18 @@ describe('TemporaryChatService', () => {
       expect(msg.stats).toEqual({ totalTokens: 42 })
       expect(typeof msg.createdAt).toBe('string')
     })
+
+    it('uses a caller-provided stable message id', () => {
+      const topic = service.createTopic({ name: 'T' })
+      const msg = service.appendMessage(
+        topic.id,
+        { role: 'assistant', data: mainText('world') },
+        'assistant-message-id'
+      )
+
+      expect(msg.id).toBe('assistant-message-id')
+      expect(service.listMessages(topic.id)[0].id).toBe('assistant-message-id')
+    })
   })
 
   describe('listMessages — deep-clone isolation', () => {
@@ -227,11 +239,28 @@ describe('TemporaryChatService', () => {
 
       const topic = service.createTopic({ name: 'billed' })
       service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
-      const assistant = service.appendMessage(topic.id, {
-        role: 'assistant',
-        data: mainText('yo'),
+      const assistant = service.appendMessage(
+        topic.id,
+        {
+          role: 'assistant',
+          data: mainText('yo'),
+          modelId: 'openai::gpt-4o',
+          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        },
+        'assistant-message-id'
+      )
+
+      // Simulate the generation-time billing hook. Promotion must enrich this
+      // same row with topic attribution instead of inserting a second charge.
+      await dbh.db.insert(usageLedgerTable).values({
+        messageId: assistant.id,
+        providerId: 'openai',
         modelId: 'openai::gpt-4o',
-        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        modality: 'language',
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        updatedAt: Date.now()
       })
 
       service.persist(topic.id)

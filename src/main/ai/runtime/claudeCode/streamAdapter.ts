@@ -851,7 +851,14 @@ export class ClaudeCodeStreamAdapter {
       `Stream completed - Session: ${message.session_id}, Cost: $${message.total_cost_usd?.toFixed(4) ?? 'N/A'}, Duration: ${message.duration_ms ?? 'N/A'}ms`
     )
 
-    ctx.usage = convertClaudeCodeUsage(message.usage)
+    const finalUsage = convertClaudeCodeUsage(message.usage)
+    ctx.usage = {
+      ...finalUsage,
+      outputTokens: {
+        ...finalUsage.outputTokens,
+        reasoning: ctx.usage.outputTokens.reasoning
+      }
+    }
     const finishReason = mapClaudeCodeFinishReason(message.subtype, message.stop_reason)
     this.setSessionId(message.session_id)
 
@@ -962,15 +969,16 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleThinkingTokensSystemMessage(message: SDKThinkingTokensMessage, ctx: StreamContext): void {
+    ctx.usage = {
+      ...ctx.usage,
+      outputTokens: {
+        ...ctx.usage.outputTokens,
+        reasoning: message.estimated_tokens
+      }
+    }
     ctx.sink.enqueue({
       type: 'message-metadata',
-      messageMetadata: {
-        stats: {
-          outputTokenDetails: {
-            reasoningTokens: message.estimated_tokens
-          }
-        }
-      }
+      messageMetadata: this.buildMessageMetadata(ctx.usage)
     })
   }
 

@@ -8,6 +8,7 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
+import { recordImageUsage } from '../../../hooks/billingHook'
 import { providerToAiSdkConfig } from '../../config'
 import type {
   ImageGenerationSubmitInput,
@@ -90,6 +91,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       }
 
       const files = await downloadAndPersistImageUrls(urls, ctx.signal)
+      await recordImageUsage(ctx.jobId, model, files.length)
       ctx.reportProgress(100, { stage: 'done' })
       return { files } satisfies ImageGenerationJobOutput
     } finally {

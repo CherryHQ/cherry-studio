@@ -15,7 +15,7 @@ import { parseUniqueModelId, type RuntimeModelPricing, type UniqueModelId } from
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import type { UsageLedgerSourceType } from '@shared/data/types/usageLedger'
 import { maskApiKeyForSnapshot } from '@shared/utils/api'
-import { and, eq, isNotNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, or, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -134,59 +134,75 @@ async function countCandidateRows(db: DbType): Promise<number> {
   return (chat?.count ?? 0) + (agentSession?.count ?? 0)
 }
 
-async function readCandidateRows(db: DbType): Promise<UsageLedgerSourceRow[]> {
-  const [chatRows, agentSessionRows] = await Promise.all([
-    db
-      .select({
-        id: messageTable.id,
-        topicId: messageTable.topicId,
-        sourceType: sql<UsageLedgerSourceType | null>`CASE WHEN ${topicTable.assistantId} IS NOT NULL THEN 'assistant' ELSE NULL END`,
-        sourceId: topicTable.assistantId,
-        sourceName: assistantTable.name,
-        sourceIcon: assistantTable.emoji,
-        modelId: messageTable.modelId,
-        messageSnapshot: messageTable.messageSnapshot,
-        stats: messageTable.stats,
-        createdAt: messageTable.createdAt
-      })
-      .from(messageTable)
-      .leftJoin(topicTable, eq(messageTable.topicId, topicTable.id))
-      .leftJoin(assistantTable, eq(topicTable.assistantId, assistantTable.id))
-      .where(
-        and(
-          eq(messageTable.role, 'assistant'),
-          isNotNull(messageTable.stats),
-          or(isNotNull(messageTable.modelId), isNotNull(messageTable.messageSnapshot))
-        )
-      ),
-    db
-      .select({
-        id: agentSessionMessageTable.id,
-        topicId: sql<string | null>`NULL`,
-        sourceType: sql<UsageLedgerSourceType | null>`CASE WHEN ${agentSessionTable.agentId} IS NOT NULL THEN 'agent' ELSE NULL END`,
-        sourceId: agentSessionTable.agentId,
-        sourceName: agentTable.name,
-        sourceIcon: agentTable.configuration,
-        modelId: agentSessionMessageTable.modelId,
-        messageSnapshot: agentSessionMessageTable.messageSnapshot,
-        stats: agentSessionMessageTable.stats,
-        createdAt: agentSessionMessageTable.createdAt
-      })
-      .from(agentSessionMessageTable)
-      .leftJoin(agentSessionTable, eq(agentSessionMessageTable.sessionId, agentSessionTable.id))
-      .leftJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
-      .where(
-        and(
-          eq(agentSessionMessageTable.role, 'assistant'),
-          isNotNull(agentSessionMessageTable.stats),
-          or(isNotNull(agentSessionMessageTable.modelId), isNotNull(agentSessionMessageTable.messageSnapshot))
-        )
+async function readChatCandidateRows(db: DbType, offset: number, limit: number): Promise<UsageLedgerSourceRow[]> {
+  const rows = await db
+    .select({
+      id: messageTable.id,
+      topicId: messageTable.topicId,
+      sourceType: sql<UsageLedgerSourceType | null>`CASE WHEN ${topicTable.assistantId} IS NOT NULL THEN 'assistant' ELSE NULL END`,
+      sourceId: topicTable.assistantId,
+      sourceName: assistantTable.name,
+      sourceIcon: assistantTable.emoji,
+      modelId: messageTable.modelId,
+      messageSnapshot: messageTable.messageSnapshot,
+      stats: messageTable.stats,
+      createdAt: messageTable.createdAt
+    })
+    .from(messageTable)
+    .leftJoin(topicTable, eq(messageTable.topicId, topicTable.id))
+    .leftJoin(assistantTable, eq(topicTable.assistantId, assistantTable.id))
+    .where(
+      and(
+        eq(messageTable.role, 'assistant'),
+        isNotNull(messageTable.stats),
+        or(isNotNull(messageTable.modelId), isNotNull(messageTable.messageSnapshot))
       )
-  ])
+    )
+    .orderBy(asc(messageTable.id))
+    .limit(limit)
+    .offset(offset)
+
+  return rows.map(({ messageSnapshot, ...rest }) => ({
+    ...rest,
+    modelSnapshot: messageSnapshot?.model ?? null
+  }))
+}
+
+async function readAgentSessionCandidateRows(
+  db: DbType,
+  offset: number,
+  limit: number
+): Promise<UsageLedgerSourceRow[]> {
+  const rows = await db
+    .select({
+      id: agentSessionMessageTable.id,
+      topicId: sql<string | null>`NULL`,
+      sourceType: sql<UsageLedgerSourceType | null>`CASE WHEN ${agentSessionTable.agentId} IS NOT NULL THEN 'agent' ELSE NULL END`,
+      sourceId: agentSessionTable.agentId,
+      sourceName: agentTable.name,
+      sourceIcon: agentTable.configuration,
+      modelId: agentSessionMessageTable.modelId,
+      messageSnapshot: agentSessionMessageTable.messageSnapshot,
+      stats: agentSessionMessageTable.stats,
+      createdAt: agentSessionMessageTable.createdAt
+    })
+    .from(agentSessionMessageTable)
+    .leftJoin(agentSessionTable, eq(agentSessionMessageTable.sessionId, agentSessionTable.id))
+    .leftJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
+    .where(
+      and(
+        eq(agentSessionMessageTable.role, 'assistant'),
+        isNotNull(agentSessionMessageTable.stats),
+        or(isNotNull(agentSessionMessageTable.modelId), isNotNull(agentSessionMessageTable.messageSnapshot))
+      )
+    )
+    .orderBy(asc(agentSessionMessageTable.id))
+    .limit(limit)
+    .offset(offset)
 
   // The producing author's snapshot now nests the model it ran; the ledger only
   // needs that model identity, so project it back onto `modelSnapshot`.
-  return [...chatRows, ...agentSessionRows].map(({ messageSnapshot, ...rest }) => ({
+  return rows.map(({ messageSnapshot, ...rest }) => ({
     ...rest,
     modelSnapshot: messageSnapshot?.model ?? null
   }))
@@ -326,41 +342,54 @@ export class UsageLedgerMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
-    const candidates = await readCandidateRows(ctx.db)
     const [providerSnapshots, pricingSnapshots] = await Promise.all([
       readProviderSnapshots(ctx.db),
       readModelPricingSnapshots(ctx.db)
     ])
     const capturedAt = new Date().toISOString()
-    this.sourceCount = candidates.length
+    this.sourceCount = 0
+    this.skippedCount = 0
+    this.insertedCount = 0
 
-    const rows: InsertUsageLedgerRow[] = []
-    for (const candidate of candidates) {
-      const row = toLedgerRow(candidate, providerSnapshots, pricingSnapshots, capturedAt)
-      if (row) {
-        rows.push(row)
-      } else {
-        this.skippedCount++
+    const CANDIDATE_BATCH_SIZE = 500
+    const INSERT_CHUNK_SIZE = 100
+    const readers = [readChatCandidateRows, readAgentSessionCandidateRows]
+
+    for (const readBatch of readers) {
+      let offset = 0
+      while (true) {
+        const candidates = await readBatch(ctx.db, offset, CANDIDATE_BATCH_SIZE)
+        if (candidates.length === 0) break
+
+        this.sourceCount += candidates.length
+        const rows: InsertUsageLedgerRow[] = []
+        for (const candidate of candidates) {
+          const row = toLedgerRow(candidate, providerSnapshots, pricingSnapshots, capturedAt)
+          if (row) {
+            rows.push(row)
+          } else {
+            this.skippedCount++
+          }
+        }
+
+        if (rows.length > 0) {
+          ctx.db.transaction((tx) => {
+            for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+              tx.insert(usageLedgerTable)
+                .values(rows.slice(i, i + INSERT_CHUNK_SIZE))
+                .onConflictDoNothing({ target: usageLedgerTable.messageId })
+                .run()
+            }
+          })
+          this.insertedCount += rows.length
+        }
+
+        offset += candidates.length
+        if (candidates.length < CANDIDATE_BATCH_SIZE) break
       }
     }
 
-    if (rows.length === 0) {
-      this.insertedCount = 0
-      return { success: true, processedCount: 0 }
-    }
-
-    const CHUNK_SIZE = 100
-    ctx.db.transaction((tx) => {
-      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-        tx.insert(usageLedgerTable)
-          .values(rows.slice(i, i + CHUNK_SIZE))
-          .onConflictDoNothing({ target: usageLedgerTable.messageId })
-          .run()
-      }
-    })
-
-    this.insertedCount = rows.length
-    return { success: true, processedCount: rows.length }
+    return { success: true, processedCount: this.insertedCount }
   }
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {

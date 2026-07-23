@@ -186,6 +186,13 @@ describe('UsageLedgerMigrator', () => {
       createdAt: 2000,
       updatedAt: 2000
     })
+
+    // Rerunning the migrator is safe: the unique messageId key and conflict
+    // target converge on the existing records instead of duplicating usage.
+    expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 2 })
+    const rowsAfterRerun = await dbh.db.select().from(usageLedgerTable)
+    expect(rowsAfterRerun).toHaveLength(2)
+    expect(rowsAfterRerun.map((row) => row.messageId).sort()).toEqual(['agent-message-ledger', 'chat-message-ledger'])
   })
 
   it('skips stats without usage signal and invalid model ids', async () => {
