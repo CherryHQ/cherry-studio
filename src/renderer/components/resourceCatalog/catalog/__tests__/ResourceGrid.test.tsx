@@ -33,7 +33,7 @@ vi.mock('react-i18next', () => ({
           'library.assistant_catalog.title': '助手库',
           'library.assistant_catalog.go_to_chat': '去对话',
           'library.create_menu.create': '新建助手',
-          'library.skill_add.add': '添加 Skill',
+          'library.skill_add.add': '添加技能',
           'library.skill_add.local_import': '本地导入',
           'library.skill_add.online_search': '在线搜索',
           'library.skill_add.system_search': '系统搜索',
@@ -463,6 +463,15 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
+  it('uses the standalone resource toolbar spacing', () => {
+    renderResourceGrid()
+
+    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
+    const toolbar = searchInput.parentElement?.parentElement
+
+    expect(toolbar).toHaveClass('h-12', 'px-5')
+  })
+
   it('renders the optional toolbar leading slot before the search box', () => {
     renderResourceGrid({
       toolbarLeading: <button type="button">Toggle sidebar</button>
@@ -547,10 +556,9 @@ describe('ResourceGrid skill add actions', () => {
       onOpenSystemSkills
     })
 
-    expect(screen.getByRole('button', { name: '添加 Skill' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /添加技能/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加技能' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '添加 Skill' }))
+    await user.click(screen.getByRole('button', { name: '添加技能' }))
 
     expect(screen.getByRole('menuitem', { name: '在线搜索' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: '本地导入' })).toBeInTheDocument()
@@ -573,7 +581,7 @@ describe('ResourceGrid skill add actions', () => {
   it('hides system search when no current agent is available', () => {
     renderResourceGrid({ activeResourceType: 'skill' })
 
-    fireEvent.click(screen.getByRole('button', { name: '添加 Skill' }))
+    fireEvent.click(screen.getByRole('button', { name: '添加技能' }))
 
     expect(screen.queryByRole('menuitem', { name: '系统搜索' })).not.toBeInTheDocument()
   })

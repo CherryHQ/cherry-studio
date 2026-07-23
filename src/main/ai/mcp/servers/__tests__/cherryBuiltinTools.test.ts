@@ -1,3 +1,4 @@
+import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -159,7 +160,10 @@ describe('cherryBuiltinTools', () => {
 
   it('steers away from retrying when no web search provider is configured', async () => {
     searchKeywords.mockRejectedValue(
-      new Error('Default web search provider is not configured for capability searchKeywords')
+      new WebSearchConfigError(
+        'provider_not_configured',
+        'Default web search provider is not configured for capability searchKeywords'
+      )
     )
 
     const result = await callCherryBuiltinTool('web_search', { query: 'hello' }, signal)
@@ -171,7 +175,12 @@ describe('cherryBuiltinTools', () => {
 
   it('steers away from retrying when the configured provider lacks the capability', async () => {
     // The second permanent failure from getProviderForCapability — equally non-retryable.
-    searchKeywords.mockRejectedValue(new Error('Web search provider tavily does not support capability searchKeywords'))
+    searchKeywords.mockRejectedValue(
+      new WebSearchConfigError(
+        'capability_unsupported',
+        'Web search provider tavily does not support capability searchKeywords'
+      )
+    )
 
     const result = await callCherryBuiltinTool('web_search', { query: 'hello' }, signal)
 
@@ -182,12 +191,12 @@ describe('cherryBuiltinTools', () => {
 
   it('treats an unknown provider id and an unimplemented capability as permanent too', async () => {
     // The other two permanent throws (config getProviderById / WebSearchService) — both non-retryable.
-    for (const message of [
-      'Unknown web search provider: stale-id',
-      'Web search provider tavily does not implement capability searchKeywords'
-    ]) {
+    for (const [code, message] of [
+      ['provider_unknown', 'Unknown web search provider: stale-id'],
+      ['capability_unsupported', 'Web search provider tavily does not implement capability searchKeywords']
+    ] satisfies Array<[WebSearchConfigErrorCode, string]>) {
       searchKeywords.mockReset()
-      searchKeywords.mockRejectedValue(new Error(message))
+      searchKeywords.mockRejectedValue(new WebSearchConfigError(code, message))
       const result = await callCherryBuiltinTool('web_search', { query: 'hello' }, signal)
       expect(textOf(result)).toContain('No usable web search provider')
       expect(textOf(result)).toContain('do not retry')
