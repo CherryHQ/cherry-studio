@@ -3437,6 +3437,13 @@
         "polish_failed_title": "润色提示词失败",
         "polish_variables_changed_description": "润色结果修改或遗漏了提示词变量，请重试。",
         "polish_variables_changed_title": "无法应用润色结果",
+        "runtime_context": {
+          "configure": "配置运行环境 Prompt",
+          "description": "将当前日期、时间、设备、语言、模型和用户信息追加到系统提示词。",
+          "label": "运行环境感知",
+          "prompt_label": "运行环境 Prompt",
+          "reset": "恢复 preset"
+        },
         "title": "提示词",
         "tokens_label": "Tokens: ",
         "variables_description": "可在系统提示词中插入这些系统变量；每次助手回复前，系统会按当时的信息自动填写。",

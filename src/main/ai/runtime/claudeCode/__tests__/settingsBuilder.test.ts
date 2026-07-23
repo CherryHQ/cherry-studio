@@ -243,6 +243,40 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
 
+  it('captures the selected model name for runtime context and falls back for direct callers', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: {
+        runtime_context_enabled: true,
+        runtime_context_prompt: 'Current time: {{time}}'
+      }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, {
+      runtimeContextModelName: 'Pinned Claude Opus'
+    })
+
+    expect(settings.runtimeContext).toEqual({
+      template: 'Current time: {{time}}',
+      modelName: 'Pinned Claude Opus'
+    })
+    expect(settings.systemPrompt as string).not.toContain('Current time:')
+
+    const directSettings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    expect(directSettings.runtimeContext?.modelName).toBe('Claude Sonnet')
+  })
+
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
     const materializedServer = {
       id: 'mcp-1',

@@ -168,24 +168,26 @@ export function PromptPolishActions({
         <Tooltip content={t('common.undo')}>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
+            size="icon-sm"
             aria-label={t('common.undo')}
             aria-disabled={undoDisabled}
             onClick={handleUndo}
-            className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
-            <Undo2 size={10} />
+            className="text-foreground-muted hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
+            <Undo2 className="size-4" />
           </Button>
         </Tooltip>
       ) : null}
       <Tooltip content={actionLabel}>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
+          size="icon-sm"
           aria-label={actionLabel}
           aria-disabled={actionDisabled}
           onClick={() => void handlePolish()}
-          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
-          {running ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+          className="text-foreground-muted hover:text-foreground aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
+          {running ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
         </Button>
       </Tooltip>
     </>

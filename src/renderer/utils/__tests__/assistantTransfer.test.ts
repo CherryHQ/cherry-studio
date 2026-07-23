@@ -1,4 +1,4 @@
-import type { Assistant } from '@shared/data/types/assistant'
+import { type Assistant, LEGACY_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { describe, expect, it } from 'vitest'
 
 import { AssistantTransferError, parseAssistantImportContent, serializeAssistantForExport } from '../assistantTransfer'
@@ -24,6 +24,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
       enableMaxToolCalls: true,
       enableWebSearch: false,
       enableGenerateImage: false,
+      enableRuntimeContext: false,
       customParameters: []
     },
     modelId: 'openai::gpt-4o',
@@ -75,6 +76,7 @@ describe('assistantTransfer', () => {
     // modelId is intentionally not part of the DTO — the backend fills it from
     // the `chat.default_model_id` preference during create.
     expect(draft.dto).not.toHaveProperty('modelId')
+    expect(draft.dto.settings).toEqual(LEGACY_ASSISTANT_SETTINGS)
     expect(draft.groupName).toBe('写作')
   })
 

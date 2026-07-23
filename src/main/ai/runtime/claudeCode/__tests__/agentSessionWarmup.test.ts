@@ -153,9 +153,19 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('routes with the connection-scoped model override instead of the agent latest model', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Latest model'
+    })
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
-      apiModelId: `${modelId}-api`
+      apiModelId: `${modelId}-api`,
+      name: modelId === 'model-2' ? 'Pinned model' : 'Latest model'
+    }))
+    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
+      env: {},
+      runtimeContext: { modelName: options?.runtimeContextModelName }
     }))
 
     // A live turn's connection pins the model captured at turn creation; the agent may have been
@@ -167,6 +177,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
 
     expect(request?.sdkModelId).toBe('model-2-api')
+    expect(request?.settings.runtimeContext?.modelName).toBe('Pinned model')
     // The whole route follows the override — the unset plan/small defaults must pin to the captured
     // model too, not fall back to the agent's latest `provider-1::model-1`.
     expect(request?.settings.env).toMatchObject({
@@ -204,6 +215,28 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(current.ok).toBe(true)
     if (!request || !current.ok) throw new Error('expected request and current config')
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
+  it('signs the same runtime-context model name at connect and reconcile time', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { runtime_context_enabled: true }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      name: 'Claude Sonnet'
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
   })
 
   it('captures the channel binding that materializes the request and rebuilds after a later binding', async () => {
@@ -687,6 +720,26 @@ describe('deriveConnectionConfig', () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { runtime_context_enabled: true }
+    })
+    const runtimeContextChanged = await deriveSignature()
+    expect(runtimeContextChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { runtime_context_prompt: 'Custom runtime context' }
+    })
+    const runtimeContextPromptChanged = await deriveSignature()
+    expect(runtimeContextPromptChanged.rebuildSignature).not.toBe(base.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
       disabledTools: ['WebSearch'],
       mcps: [],
       configuration: {}
@@ -719,6 +772,41 @@ describe('deriveConnectionConfig', () => {
     })
     const mcpDefinitionChanged = await deriveSignature()
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+  })
+
+  it('rebuilds for model display-name changes only when runtime context is enabled', async () => {
+    let modelName = 'Claude Sonnet'
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      name: modelName
+    }))
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { runtime_context_enabled: true }
+    })
+
+    const enabledBeforeRename = await deriveSignature()
+    modelName = 'Renamed Claude Sonnet'
+    const enabledAfterRename = await deriveSignature()
+
+    expect(enabledAfterRename.rebuildSignature).not.toBe(enabledBeforeRename.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    const disabledAfterRename = await deriveSignature()
+    modelName = 'Renamed Again'
+    const disabledAfterSecondRename = await deriveSignature()
+
+    expect(disabledAfterSecondRename.rebuildSignature).toBe(disabledAfterRename.rebuildSignature)
   })
 
   it('keeps permission mode live-only while disabled tools also require a rebuild', async () => {

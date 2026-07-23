@@ -59,6 +59,7 @@ const DEFAULT_TEST_SETTINGS = {
   enableGenerateImage: false,
   enableMaxToolCalls: true,
   enableMaxTokens: false,
+  enableRuntimeContext: false,
   enableTemperature: false,
   enableTopP: false,
   enableWebSearch: false,

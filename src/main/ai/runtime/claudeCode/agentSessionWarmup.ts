@@ -62,6 +62,7 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
 
 interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
+  runtimeContextModelName: string
   mcp: unknown[]
   skills: string[]
   linkedChannelId: string | null
@@ -176,10 +177,12 @@ async function deriveConnectionConfigFromSnapshot(
   const cwd = session.workspace?.path
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
   let routeFacts = materialized?.route
+  let runtimeContextModelName = materialized?.runtimeContextModelName
   if (!routeFacts) {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     const provider = providerService.getByProviderId(providerId)
     const model = modelService.getByKey(providerId, modelId)
+    runtimeContextModelName = model.name
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
     // Same pinning semantics as the query-request builder (see its comment).
     const pinSubModelsToPrimary = uniqueModelId !== agent.model
@@ -204,6 +207,9 @@ async function deriveConnectionConfigFromSnapshot(
     instructions: agent.instructions ?? null,
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
+    runtimeContextEnabled: agent.configuration?.runtime_context_enabled ?? null,
+    runtimeContextPrompt: agent.configuration?.runtime_context_prompt ?? null,
+    runtimeContextModelName: agent.configuration?.runtime_context_enabled ? runtimeContextModelName : null,
     skills: [...skills].sort(),
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
@@ -294,6 +300,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         lastAgentSessionId: resumeSessionId,
+        runtimeContextModelName: model.name,
         mcpServerSnapshots,
         linkedChannelSnapshot,
         thinkingOptions
@@ -307,6 +314,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // already persisted and the connect-time fingerprint matches later pure reconciles.
   const connectionConfig = await deriveConnectionConfigFromSnapshot(session, agent, uniqueModelId, reasoningEffort, {
     route: toConnectionRouteFacts(route),
+    runtimeContextModelName: model.name,
     mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
     skills: settings.skills ?? [],
     linkedChannelId: linkedChannelSnapshot?.id ?? null

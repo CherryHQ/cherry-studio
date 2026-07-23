@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import { ImportAssistantSchema } from '../assistants'
+import { DEFAULT_ASSISTANT_SETTINGS } from '../../../types/assistant'
+import { CreateAssistantSchema, ImportAssistantSchema } from '../assistants'
+
+describe('CreateAssistantSchema', () => {
+  it('accepts a duplicate payload whose legacy settings predate runtime context', () => {
+    const legacySettings = { ...DEFAULT_ASSISTANT_SETTINGS }
+    delete legacySettings.enableRuntimeContext
+
+    const duplicate = CreateAssistantSchema.parse({
+      name: 'Legacy assistant (copy)',
+      settings: legacySettings
+    })
+
+    expect(duplicate.settings?.enableRuntimeContext).toBeUndefined()
+  })
+})
 
 describe('ImportAssistantSchema', () => {
   it('accepts and normalizes a v1 group name beyond the current edit limit', () => {

@@ -54,6 +54,14 @@ export const AssistantSettingsSchema = z.object({
   enableWebSearch: z.boolean(),
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),
+  /**
+   * Append current time and environment details to the system prompt.
+   * Optional so assistants persisted before this setting existed remain valid;
+   * consumers interpret a missing value as disabled.
+   */
+  enableRuntimeContext: z.boolean().optional(),
+  /** Optional per-assistant override for the runtime context prompt preset. */
+  runtimeContextPrompt: z.string().optional(),
 
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:
@@ -87,7 +95,19 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableMaxToolCalls: true,
   enableWebSearch: false,
   enableGenerateImage: false,
+  enableRuntimeContext: true,
+  runtimeContextPrompt: '',
   customParameters: []
+}
+
+/**
+ * Complete defaults for assistants created from legacy data.
+ * Runtime context did not exist in that data, so importing or migrating it
+ * must preserve the historical disabled behavior.
+ */
+export const LEGACY_ASSISTANT_SETTINGS: AssistantSettings = {
+  ...DEFAULT_ASSISTANT_SETTINGS,
+  enableRuntimeContext: false
 }
 
 // ============================================================================

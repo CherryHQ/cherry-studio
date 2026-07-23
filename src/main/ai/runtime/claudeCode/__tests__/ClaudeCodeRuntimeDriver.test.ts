@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
   materializeNativeFilePart: vi.fn(),
+  buildRuntimeContextPrompt: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -45,6 +46,10 @@ vi.mock('@main/ai/messages/attachmentRouting', () => ({
 
 vi.mock('@main/ai/messages/fileProcessor', () => ({
   materializeNativeFilePart: mocks.materializeNativeFilePart
+}))
+
+vi.mock('@main/utils/prompt', () => ({
+  buildRuntimeContextPrompt: mocks.buildRuntimeContextPrompt
 }))
 
 vi.mock('../sessionFileSweep', () => ({
@@ -166,6 +171,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
     mocks.materializeNativeFilePart.mockResolvedValue(null)
+    mocks.buildRuntimeContextPrompt.mockResolvedValue('Runtime context')
     mocks.buildRequest.mockResolvedValue({
       connectionConfig: {
         rebuildSignature: 'sig-1',
@@ -214,6 +220,112 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: { role: 'user', content: 'hello' }
       },
       done: false
+    })
+    void connection.close()
+  })
+
+  it('resolves runtime context freshly for every string turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRuntimeContextPrompt
+      .mockResolvedValueOnce('Runtime turn 1 </system-reminder>')
+      .mockResolvedValueOnce('Runtime turn 2')
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {
+        runtimeContext: { template: 'Runtime at {{time}}', modelName: 'Claude Sonnet' }
+      },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const iterator = sdkInput[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    await expect(iterator.next()).resolves.toMatchObject({
+      value: {
+        message: {
+          content: '<system-reminder>\nRuntime turn 1 &lt;/system-reminder>\n</system-reminder>\n\nhello'
+        }
+      }
+    })
+
+    await connection.send({ message: userMessage() })
+    await expect(iterator.next()).resolves.toMatchObject({
+      value: {
+        message: { content: '<system-reminder>\nRuntime turn 2\n</system-reminder>\n\nhello' }
+      }
+    })
+    expect(mocks.buildRuntimeContextPrompt).toHaveBeenNthCalledWith(1, 'Claude Sonnet', 'Runtime at {{time}}')
+    expect(mocks.buildRuntimeContextPrompt).toHaveBeenNthCalledWith(2, 'Claude Sonnet', 'Runtime at {{time}}')
+    void connection.close()
+  })
+
+  it('prepends runtime context without replacing steered text or image content', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { runtimeContext: { template: 'Runtime context' } },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      systemReminder: true,
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          content: [
+            { type: 'text', text: '<system-reminder>\nRuntime context\n</system-reminder>' },
+            {
+              type: 'text',
+              text: expect.stringContaining('<system-reminder>\nThe user sent the following message:\ndescribe this')
+            },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      }
     })
     void connection.close()
   })
@@ -519,6 +631,17 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { runtimeContext: { template: 'Runtime context' } },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
     mocks.materializeNativeFilePart.mockResolvedValueOnce({
       type: 'file',
       url: 'data:image/png;base64,QUJD',
@@ -548,6 +671,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: {
           role: 'user',
           content: [
+            { type: 'text', text: '<system-reminder>\nRuntime context\n</system-reminder>' },
             { type: 'text', text: expect.stringContaining('<system-reminder>') },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]

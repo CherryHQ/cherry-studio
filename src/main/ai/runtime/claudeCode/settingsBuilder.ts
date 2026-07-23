@@ -228,6 +228,8 @@ function buildAssistantContext(): string {
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  /** Display name of the exact connection-scoped model selected by the request builder. */
+  runtimeContextModelName?: string
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
@@ -380,6 +382,14 @@ export async function buildClaudeCodeSessionSettings(
     steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
+    ...(agentConfig?.runtime_context_enabled
+      ? {
+          runtimeContext: {
+            template: agentConfig.runtime_context_prompt,
+            modelName: options?.runtimeContextModelName ?? agent.modelName ?? agent.model ?? undefined
+          }
+        }
+      : {}),
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),

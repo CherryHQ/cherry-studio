@@ -64,6 +64,12 @@ const promptEditorHighlighting = syntaxHighlighting(
   ])
 )
 
+const promptEditorActionsInset = EditorView.theme({
+  '.cm-content': {
+    paddingRight: 'calc(var(--spacing) * 20)'
+  }
+})
+
 const promptEditorThemes = {
   light: [EditorView.theme(promptEditorThemeSpec), promptEditorHighlighting],
   dark: [EditorView.theme(promptEditorThemeSpec, { dark: true }), promptEditorHighlighting]
@@ -81,6 +87,7 @@ interface PromptEditorFieldProps {
   placeholder?: string
   error?: string
   actions?: ReactNode
+  editorActions?: ReactNode
   labelAddon?: ReactNode
   previewValue?: string
   resetPreviewKey?: unknown
@@ -98,6 +105,7 @@ export function PromptEditorField({
   placeholder,
   error,
   actions,
+  editorActions,
   labelAddon,
   previewValue,
   resetPreviewKey,
@@ -115,7 +123,11 @@ export function PromptEditorField({
   const codeEditorRef = useRef<CodeEditorHandles | null>(null)
   const hasError = Boolean(error)
   const effectiveShowPreview = showPreview && value.length > 0
-  const promptEditorTheme = theme === ThemeMode.dark ? promptEditorThemes.dark : promptEditorThemes.light
+  const hasEditorActions = Boolean(editorActions)
+  const promptEditorTheme = useMemo(() => {
+    const baseTheme = theme === ThemeMode.dark ? promptEditorThemes.dark : promptEditorThemes.light
+    return hasEditorActions ? [...baseTheme, promptEditorActionsInset] : baseTheme
+  }, [hasEditorActions, theme])
   const tokenCount = useMemo(() => estimateTextTokens(value), [value])
 
   useImperativeHandle(ref, () => ({
@@ -167,15 +179,27 @@ export function PromptEditorField({
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
+            'relative overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
             fill && 'flex min-h-0 flex-1 flex-col',
             hasError
               ? 'border-destructive/50 focus-within:border-destructive/60'
               : 'border-border focus-within:border-border-hover'
           )}>
+          {editorActions ? (
+            <div
+              data-slot="prompt-editor-actions"
+              className="absolute top-2 right-2 z-10 flex items-center gap-1"
+              onMouseDown={(event) => event.stopPropagation()}>
+              {editorActions}
+            </div>
+          ) : null}
           {effectiveShowPreview ? (
             <div
-              className={cn('markdown overflow-auto p-3 text-foreground text-xs', fill && 'min-h-0 flex-1')}
+              className={cn(
+                'markdown overflow-auto p-3 text-foreground text-xs',
+                hasEditorActions && 'pr-20',
+                fill && 'min-h-0 flex-1'
+              )}
               style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => setShowPreview(false)}>
               <Markdown id={previewId}>{previewValue || value}</Markdown>

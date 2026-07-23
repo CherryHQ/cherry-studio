@@ -27,7 +27,15 @@ const cacheProviderOptions = {
 
 function hasVolatilePromptVariables(assistant: Assistant | undefined): boolean {
   const prompt = assistant?.prompt
-  return Boolean(prompt && VOLATILE_PROMPT_VARIABLES.some((variable) => prompt.includes(variable)))
+  const runtimeContextPrompt = assistant?.settings?.runtimeContextPrompt
+  const hasVolatileRuntimeContext =
+    assistant?.settings?.enableRuntimeContext &&
+    (!runtimeContextPrompt?.trim() ||
+      VOLATILE_PROMPT_VARIABLES.some((variable) => runtimeContextPrompt.includes(variable)))
+
+  return Boolean(
+    hasVolatileRuntimeContext || (prompt && VOLATILE_PROMPT_VARIABLES.some((variable) => prompt.includes(variable)))
+  )
 }
 
 function estimateContentTokens(content: LanguageModelV3Message['content']): number {

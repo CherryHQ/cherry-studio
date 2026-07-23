@@ -83,6 +83,7 @@ const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
 const RUNTIME_MARKER = '## Available Runtimes'
+const RUNTIME_CONTEXT_MARKER = '## Runtime Context'
 const WORKSPACE_MARKER = '## Current Workspace'
 
 beforeEach(() => {
@@ -192,6 +193,32 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
     })
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(JSON.stringify(result)).not.toContain(RUNTIME_MARKER)
+  })
+})
+
+describe('buildSystemPrompt — runtime context', () => {
+  it('keeps runtime context out of the connection-level system prompt when enabled', async () => {
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent({
+        instructions: 'Do the task.',
+        modelName: 'Claude Sonnet',
+        configuration: {
+          runtime_context_enabled: true,
+          runtime_context_prompt: 'Active model: {{model_name}}'
+        }
+      }),
+      '/tmp/cwd'
+    )
+
+    expect(result as string).not.toContain(RUNTIME_CONTEXT_MARKER)
+    expect(result as string).not.toContain('Active model: Claude Sonnet')
+  })
+
+  it('does not append current environment details by default', async () => {
+    const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
+
+    expect(result as string).not.toContain(RUNTIME_CONTEXT_MARKER)
   })
 })
 
