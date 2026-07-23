@@ -379,15 +379,18 @@ steer queue/continuation, persistence-triggering, never "what is text /
 what is reasoning". AI SDK chunk type changes (vNext renames) only touch
 `PersistenceListener`; the manager stays stable.
 
-**Final projection.** `statsFromTerminal(finalMessage, mergedTimings)`
-is one function; the listener merges its `SemanticTimings` with
-`result.timings` (transport) before calling it:
+**Final projection.** The listener first terminalizes interrupted parts so
+their stabilized reasoning duration is available, then calls
+`statsFromTerminal(finalMessage, mergedTimings)`. It merges its
+`SemanticTimings` with `result.timings` (transport) before calling it:
 
 ```typescript
 // inside PersistenceListener
+const parts = finalizeInterruptedParts(finalMessage.parts, status)
+const finalMessageForPersistence = { ...finalMessage, parts }
 const mergedTimings = { ...result.timings, ...this.semanticTimings }
-const stats = statsFromTerminal(finalMessage, mergedTimings)
-await this.opts.backend.persistAssistant({ finalMessage, status, modelId, stats })
+const stats = statsFromTerminal(finalMessageForPersistence, mergedTimings)
+await this.opts.backend.persistAssistant({ finalMessage: finalMessageForPersistence, status, modelId, stats })
 ```
 
 Projected `MessageStats` fields:
@@ -397,10 +400,11 @@ Projected `MessageStats` fields:
 | `totalTokens / promptTokens / completionTokens / thoughtsTokens` | `finalMessage.metadata.*` |
 | `timeFirstTokenMs` | `round(firstTextAt - startedAt)` |
 | `timeCompletionMs` | `round(completedAt - startedAt)` |
-| `timeThinkingMs` | **not projected** — wall-clock `reasoningEndedAt - reasoningStartedAt` can include interleaved tool exec; see the `TODO(message-stats-redesign)` note in `PersistenceBackend.ts` |
+| `timeThinkingMs` | Sum of stabilized `providerMetadata.cherry.thinkingMs` values from persisted reasoning parts; does not use the reasoning wall-clock, which can include interleaved tool execution |
 
-Backends never derive stats themselves; they just write `input.stats`.
-One projection path, four backends, no duplication.
+Backends never terminalize parts or derive stats themselves; they write the
+listener-normalized `finalMessage` and `input.stats`. One projection path, four
+backends, no duplication.
 
 ## Public API
 
