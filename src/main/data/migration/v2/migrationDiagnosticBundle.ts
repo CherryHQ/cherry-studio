@@ -1,0 +1,229 @@
+import { type FileHandle, lstat, open, readdir } from 'node:fs/promises'
+import { release } from 'node:os'
+import path from 'node:path'
+import { type Readable, Transform } from 'node:stream'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { createAtomicWriteStream, isSameFile } from '@main/utils/file'
+import type { MigrationStage } from '@shared/data/migration/v2/types'
+import type { FilePath } from '@shared/types/file'
+import { ZipArchive } from 'archiver'
+import { app } from 'electron'
+
+const logger = loggerService.withContext('migrationDiagnosticBundle')
+const LOG_NAME = /^app\.(\d{4}-\d{2}-\d{2})\.log(?:\.(\d+))?$/
+
+interface SaveMigrationDiagnosticBundleInput {
+  destination: string
+  stage: MigrationStage
+  logDate: string
+}
+
+interface MigrationDiagnosticBundleDependencies {
+  readonly clock?: () => Date
+  readonly openLogFile?: (filePath: FilePath) => Promise<FileHandle>
+  readonly createLogReadStream?: (handle: FileHandle, snapshotBytes: number) => Readable
+}
+
+interface LogSnapshot {
+  readonly fileName: string
+  readonly filePath: FilePath
+  readonly handle: FileHandle
+  readonly snapshotBytes: number
+}
+
+class LogReadFailure extends Error {}
+
+function validateDestination(value: string): FilePath | undefined {
+  if (typeof value !== 'string' || !path.isAbsolute(value)) return undefined
+  const terminal = value.split(path.sep).at(-1)
+  if (!terminal || terminal === '.' || terminal === '..') return undefined
+  const normalized = path.normalize(value)
+  if (normalized === path.parse(normalized).root) return undefined
+  return value as FilePath
+}
+
+function validLocalDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return false
+  const [year, month, day] = match.slice(1).map(Number)
+  const date = new Date(0)
+  date.setHours(0, 0, 0, 0)
+  date.setFullYear(year, month - 1, day)
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+}
+
+async function createSnapshots(
+  logDate: string,
+  handles: FileHandle[],
+  openLogFile: (filePath: FilePath) => Promise<FileHandle>
+): Promise<LogSnapshot[]> {
+  const entries = await readdir(application.getPath('app.logs'), { withFileTypes: true })
+  const eligible = entries.flatMap((entry) => {
+    if (!entry.isFile()) return []
+    const match = LOG_NAME.exec(entry.name)
+    return match && validLocalDate(match[1]) ? [{ fileName: entry.name, date: match[1] }] : []
+  })
+  const selectedDate = eligible.some(({ date }) => date === logDate)
+    ? logDate
+    : eligible
+        .map(({ date }) => date)
+        .sort()
+        .at(-1)
+  if (!selectedDate) return []
+
+  const snapshots: LogSnapshot[] = []
+  const selected = eligible
+    .filter(({ date }) => date === selectedDate)
+    .sort(({ fileName: a }, { fileName: b }) => (a < b ? -1 : a > b ? 1 : 0))
+  for (const { fileName } of selected) {
+    const filePath = application.getPath('app.logs', fileName) as FilePath
+    const pathStat = await lstat(filePath)
+    if (!pathStat.isFile()) throw new Error('Selected log path is not a regular file')
+    const handle = await openLogFile(filePath)
+    handles.push(handle)
+    const handleStat = await handle.stat()
+    if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
+      throw new Error('Selected log changed before it could be opened')
+    }
+    snapshots.push({ fileName, filePath, handle, snapshotBytes: handleStat.size })
+  }
+  return snapshots
+}
+
+function exactLengthStream(expectedBytes: number, onFailure: (error: Error) => void): Transform {
+  let bytesRead = 0
+  const fail = (message: string, callback: (error?: Error | null) => void) => {
+    const error = new Error(message)
+    onFailure(error)
+    callback(error)
+  }
+  return new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      bytesRead += chunk.length
+      if (bytesRead > expectedBytes) {
+        fail('Log stream exceeded its fixed snapshot', callback)
+      } else {
+        callback(null, chunk)
+      }
+    },
+    flush(callback) {
+      if (bytesRead !== expectedBytes) {
+        fail('Log stream ended before its fixed snapshot', callback)
+      } else {
+        callback()
+      }
+    }
+  })
+}
+
+async function writeZip(
+  destination: FilePath,
+  metadata: string,
+  snapshots: LogSnapshot[],
+  createLogReadStream: (handle: FileHandle, snapshotBytes: number) => Readable
+): Promise<void> {
+  const output = createAtomicWriteStream(destination)
+  const archive = new ZipArchive({ zlib: { level: 1 }, zip64: true })
+  const activeStreams = new Set<Readable>()
+  let logReadFailed = false
+  let rejectCompletion: (error: unknown) => void = () => undefined
+  const completion = new Promise<void>((resolve, reject) => {
+    rejectCompletion = reject
+    output.once('finish', resolve)
+    output.once('error', reject)
+    archive.once('error', reject)
+    archive.once('warning', reject)
+  })
+  const failLogRead = (error: Error) => {
+    logReadFailed = true
+    rejectCompletion(error)
+  }
+
+  try {
+    archive.pipe(output)
+    archive.append(metadata, { name: 'migration-diagnostics.json' })
+    for (const snapshot of snapshots) {
+      if (snapshot.snapshotBytes === 0) {
+        archive.append(Buffer.alloc(0), { name: `logs/${snapshot.fileName}` })
+        continue
+      }
+      let source: Readable
+      try {
+        source = createLogReadStream(snapshot.handle, snapshot.snapshotBytes)
+      } catch (error) {
+        logReadFailed = true
+        throw error
+      }
+      const counted = exactLengthStream(snapshot.snapshotBytes, failLogRead)
+      activeStreams.add(source)
+      activeStreams.add(counted)
+      source.once('error', (error) => {
+        failLogRead(error)
+        counted.destroy(error)
+      })
+      counted.once('error', failLogRead)
+      source.pipe(counted)
+      archive.append(counted, { name: `logs/${snapshot.fileName}` })
+    }
+    await Promise.all([archive.finalize(), completion])
+  } catch (error) {
+    for (const stream of activeStreams) stream.destroy()
+    archive.abort()
+    if (!output.closed) await output.abort().catch(() => undefined)
+    if (logReadFailed) throw new LogReadFailure()
+    throw error
+  }
+}
+
+export async function saveMigrationDiagnosticBundle(
+  input: SaveMigrationDiagnosticBundleInput,
+  dependencies: MigrationDiagnosticBundleDependencies = {}
+): Promise<'included' | 'not_included' | false> {
+  const destination = validateDestination(input.destination)
+  if (!destination) return false
+
+  const clock = dependencies.clock ?? (() => new Date())
+  const openLogFile = dependencies.openLogFile ?? ((filePath) => open(filePath, 'r'))
+  const createLogReadStream =
+    dependencies.createLogReadStream ??
+    ((handle, snapshotBytes) => handle.createReadStream({ start: 0, end: snapshotBytes - 1, autoClose: false }))
+  const metadata = JSON.stringify({
+    formatVersion: 1,
+    generatedAt: clock().toISOString(),
+    application: { version: app.getVersion() },
+    system: { platform: process.platform, arch: process.arch, release: release() },
+    migration: { stage: input.stage }
+  })
+  const handles: FileHandle[] = []
+
+  try {
+    let snapshots: LogSnapshot[] = []
+    try {
+      snapshots = await createSnapshots(input.logDate, handles, openLogFile)
+    } catch (error) {
+      logger.warn('Application logs could not be snapshotted; saving metadata only', error as Error)
+    }
+    for (const snapshot of snapshots) {
+      if (await isSameFile(destination, snapshot.filePath)) return false
+    }
+    if (snapshots.length === 0) {
+      await writeZip(destination, metadata, [], createLogReadStream)
+      return 'not_included'
+    }
+    try {
+      await writeZip(destination, metadata, snapshots, createLogReadStream)
+      return 'included'
+    } catch (error) {
+      if (!(error instanceof LogReadFailure)) throw error
+      await writeZip(destination, metadata, [], createLogReadStream)
+      return 'not_included'
+    }
+  } catch (error) {
+    logger.error('Failed to save migration diagnostic bundle', error as Error)
+    return false
+  } finally {
+    await Promise.allSettled(handles.map((handle) => handle.close()))
+  }
+}
