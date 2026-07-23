@@ -375,8 +375,9 @@ export async function buildClaudeCodeSessionSettings(
   // is maintained by SkillService (install/uninstall/startup), not here.
   recorder?.begin('skills')
   const skills = await buildSkillWhitelist(agent.id, cwd)
-  // Settings assembly below is trivial (no I/O); close the last stage so its window doesn't absorb it.
-  recorder?.end()
+  // Keep route/configuration/trace setup out of `skills`; the driver closes this explicit stage when
+  // it starts warm-query consumption, so no part of the host prepare window is unassigned.
+  recorder?.begin('request-setup')
 
   // 10. Build settings
   const settings: ClaudeCodeSettings = {

@@ -19,7 +19,6 @@ export interface PrepareTimelineRecorderContext {
   sessionId: string
   agentId: string
   runtimeType: string
-  onStage?: PrepareProgressSink
 }
 
 /**
@@ -35,23 +34,22 @@ export class PrepareTimelineRecorder {
   private readonly stages: PrepareTimelineStageEntry[] = []
   private openStage?: { stage: PrepareTimelineStage; detail?: PrepareStageDetail }
   private markAt: number
+  private progressSink?: PrepareProgressSink
   private finalized = false
   private mcpServerNames: string[] = []
 
   constructor(
     private readonly context: PrepareTimelineRecorderContext,
-    now: number = performance.now()
+    private readonly startedAt: number = performance.now(),
+    onStage?: PrepareProgressSink
   ) {
-    this.markAt = now
+    this.markAt = startedAt
+    this.progressSink = onStage
   }
 
-  /**
-   * Record the `dispatch` stage that elapsed before this recorder existed (host turn-stream open →
-   * driver connect start). No-op for a non-positive span (e.g. a prime connect with no waiting turn).
-   */
-  recordDispatch(elapsedMs: number): void {
-    if (this.finalized || elapsedMs <= 0) return
-    this.stages.push({ stage: 'dispatch', ms: round(elapsedMs) })
+  /** Replace the live sink when a reusable connection admits its next turn. */
+  setProgressSink(onStage: PrepareProgressSink): void {
+    if (!this.finalized) this.progressSink = onStage
   }
 
   /** Open a stage: closes the previously open one, then emits its coarse phase live. */
@@ -89,8 +87,8 @@ export class PrepareTimelineRecorder {
     if (this.finalized) return undefined
     this.closeOpen(now)
     this.finalized = true
-    const timeline = this.buildTimeline()
-    this.context.onStage?.({ phase: 'waiting-first-response', timeline })
+    const timeline = this.buildTimeline(now)
+    this.progressSink?.({ phase: 'waiting-first-response', timeline })
     logger.info('agent turn prepare timeline', {
       sessionId: this.context.sessionId,
       agentId: this.context.agentId,
@@ -105,6 +103,10 @@ export class PrepareTimelineRecorder {
     return this.finalized
   }
 
+  get currentStage(): PrepareTimelineStage | undefined {
+    return this.openStage?.stage
+  }
+
   private closeOpen(now: number): void {
     if (!this.openStage) return
     this.stages.push({
@@ -115,22 +117,31 @@ export class PrepareTimelineRecorder {
     this.openStage = undefined
   }
 
-  private buildTimeline(): PrepareTimeline {
-    const totalMs = this.stages.reduce((sum, entry) => sum + entry.ms, 0)
+  private buildTimeline(now: number): PrepareTimeline {
+    const totalMs = round(Math.max(0, now - this.startedAt))
+    const stages = this.stages.map((stage) => ({ ...stage }))
+    // Durations are rounded independently for display. Assign the rounding remainder to the final
+    // contiguous stage so diagnostics still add up exactly to the observed wall-clock window.
+    let remainder = totalMs - stages.reduce((sum, entry) => sum + entry.ms, 0)
+    for (let index = stages.length - 1; remainder !== 0 && index >= 0; index -= 1) {
+      const adjustment = remainder < 0 ? Math.max(remainder, -stages[index].ms) : remainder
+      stages[index].ms += adjustment
+      remainder -= adjustment
+    }
     return {
-      totalMs: round(totalMs),
-      stages: this.stages,
+      totalMs,
+      stages,
       runtimeType: this.context.runtimeType,
       ...(this.mcpServerNames.length > 0 ? { mcpServerNames: this.mcpServerNames } : {})
     }
   }
 
   private emit(stage: PrepareTimelineStage, detail?: PrepareStageDetail): void {
-    if (!this.context.onStage) return
+    if (!this.progressSink) return
     const phase = stageToPhase(stage)
     const update: PrepareProgressPartData = { phase }
     if (phase === 'connecting-mcp' && detail?.mcpServerName) update.mcpServerName = detail.mcpServerName
-    this.context.onStage(update)
+    this.progressSink(update)
   }
 }
 

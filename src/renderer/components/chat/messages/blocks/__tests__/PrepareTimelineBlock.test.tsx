@@ -67,7 +67,16 @@ describe('PrepareTimelineBlock', () => {
 
     const copied = mockWriteText.mock.calls[0][0] as string
     expect(JSON.parse(copied)).toMatchObject({ totalMs: 6200, appVersion: '2.0.0', agentType: 'claude-code' })
-    for (const forbidden of ['apikey', 'token', 'baseurl', 'secret', 'http']) {
+    for (const forbidden of [
+      'filesystem',
+      'mcpservername',
+      'mcpservernames',
+      'apikey',
+      'token',
+      'baseurl',
+      'secret',
+      'http'
+    ]) {
       expect(copied.toLowerCase()).not.toContain(forbidden)
     }
     expect(mockToastSuccess).toHaveBeenCalledOnce()

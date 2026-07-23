@@ -224,6 +224,112 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('records a fresh prepare timeline for each turn on a warm connection', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const firstUpdates: any[] = []
+    const secondUpdates: any[] = []
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // Prime/init first: this connection is warm before either user turn is admitted.
+    queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-1' })
+    await events.next()
+
+    connection.prepareTurn?.({
+      turnId: 'turn-1',
+      startedAt: performance.now(),
+      onStage: (update) => firstUpdates.push(update)
+    })
+    await connection.send({ message: userMessage() })
+    await events.next() // init metadata is control-only
+    expect(firstUpdates.some((update) => update.timeline)).toBe(false)
+    queryQueue.push({ type: 'stream_event', event: { type: 'content_block_delta' } })
+    await events.next()
+    expect(firstUpdates.filter((update) => update.timeline)).toHaveLength(1)
+
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-1', usage: {} })
+    let event = await events.next()
+    while (event.value?.type !== 'turn-complete') event = await events.next()
+
+    connection.prepareTurn?.({
+      turnId: 'turn-2',
+      startedAt: performance.now(),
+      onStage: (update) => secondUpdates.push(update)
+    })
+    await connection.send({ message: { ...userMessage(), id: 'user-2' } })
+    queryQueue.push({ type: 'stream_event', event: { type: 'content_block_delta' } })
+    await events.next()
+
+    expect(firstUpdates.filter((update) => update.timeline)).toHaveLength(1)
+    expect(secondUpdates.filter((update) => update.timeline)).toHaveLength(1)
+    expect(secondUpdates.at(-1)?.timeline?.stages.map((stage: any) => stage.stage)).toEqual([
+      'dispatch',
+      'init-to-first-chunk'
+    ])
+    void connection.close()
+  })
+
+  it.each(['before send', 'after send'] as const)('does not finalize on init metadata %s', async (initOrder) => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const updates: any[] = []
+    const prepare = { turnId: 'turn-1', startedAt: performance.now(), onStage: (update: any) => updates.push(update) }
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      prepare
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    if (initOrder === 'before send') {
+      queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-1' })
+      await events.next()
+      connection.prepareTurn?.(prepare)
+      await connection.send({ message: userMessage() })
+      await events.next()
+    } else {
+      connection.prepareTurn?.(prepare)
+      await connection.send({ message: userMessage() })
+      queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-1' })
+      await events.next()
+      await events.next()
+    }
+
+    expect(updates.some((update) => update.timeline)).toBe(false)
+    queryQueue.push({ type: 'stream_event', event: { type: 'content_block_delta' } })
+    await events.next()
+    expect(updates.filter((update) => update.timeline)).toHaveLength(1)
+    void connection.close()
+  })
+
+  it('finalizes the pending timeline when setup fails before the query loop starts', async () => {
+    mocks.buildRequest.mockRejectedValueOnce(new Error('settings failed'))
+    const updates: any[] = []
+
+    await expect(
+      new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet' as any,
+        prepare: { turnId: 'turn-1', startedAt: performance.now(), onStage: (update) => updates.push(update) }
+      })
+    ).rejects.toThrow('settings failed')
+
+    expect(updates.filter((update) => update.timeline)).toHaveLength(1)
+    expect(mockMainLoggerService.info).toHaveBeenCalledWith(
+      'agent turn prepare timeline',
+      expect.objectContaining({ sessionId: 'session-1' })
+    )
+  })
+
   it('sends supported image attachments as native Claude SDK image blocks', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

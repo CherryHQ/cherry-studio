@@ -1241,7 +1241,7 @@ describe('AgentSessionRuntimeService', () => {
     // own queue it could not reach the renderer until connect resolved — this proves the host-side
     // controller path bypasses that queue.
     const connect = vi.fn((input: any) => {
-      input.onPrepareStage?.({ phase: 'connecting-mcp', mcpServerName: 'filesystem' })
+      input.prepare?.onStage({ phase: 'connecting-mcp', mcpServerName: 'filesystem' })
       return connectDeferred.promise
     })
     runtimeDriverRegistry.register({
@@ -1270,9 +1270,115 @@ describe('AgentSessionRuntimeService', () => {
       },
       done: false
     })
-    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ prepareStartedAt: expect.any(Number) }))
+    expect(connect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prepare: expect.objectContaining({ startedAt: expect.any(Number), onStage: expect.any(Function) })
+      })
+    )
 
     connectDeferred.resolve(connection)
+    await reader.cancel().catch(() => undefined)
+  })
+
+  it('passes fresh prepare contexts at each send on a warm connection', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      prepareTurn: vi.fn(),
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+
+    const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: new AbortController().signal })
+      .getReader()
+    await firstReader.read()
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+    const secondReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: second.turnId, signal: new AbortController().signal })
+      .getReader()
+    await secondReader.read()
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+
+    const firstPrepare = connection.prepareTurn.mock.calls[0][0]
+    const secondPrepare = connection.prepareTurn.mock.calls[1][0]
+    expect(firstPrepare).toMatchObject({
+      turnId: first.turnId,
+      startedAt: expect.any(Number),
+      onStage: expect.any(Function)
+    })
+    expect(secondPrepare).toMatchObject({
+      turnId: second.turnId,
+      startedAt: expect.any(Number),
+      onStage: expect.any(Function)
+    })
+    expect(secondPrepare).not.toBe(firstPrepare)
+    expect(connect).toHaveBeenCalledOnce()
+
+    service.closeSession('session-1')
+    await Promise.all([firstReader.cancel().catch(() => undefined), secondReader.cancel().catch(() => undefined)])
+  })
+
+  it('passes a fresh turn context after attaching to an in-flight prime connection', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      prepareTurn: vi.fn(),
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const deferred = createDeferred<any>()
+    const connect = vi.fn().mockReturnValue(deferred.promise)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const priming = service.primeConnection('session-1')
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+    expect(connect.mock.calls[0][0].prepare).toBeUndefined()
+
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+      .getReader()
+    await reader.read()
+    await expect(reader.read()).resolves.toMatchObject({
+      value: { type: 'data-prepare-progress', data: { phase: 'starting-runtime' } },
+      done: false
+    })
+
+    deferred.resolve(connection)
+    await priming
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+    expect(connection.prepareTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ turnId: handle.turnId, onStage: expect.any(Function) })
+    )
+
+    service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
 
@@ -1900,9 +2006,12 @@ describe('AgentSessionRuntimeService', () => {
           turnId: handle.turnId,
           modelName: 'claude-sonnet-4-5'
         },
-        // A turn-attached connect also carries the prepare-timeline hooks.
-        prepareStartedAt: expect.any(Number),
-        onPrepareStage: expect.any(Function)
+        // A turn-attached connect receives this turn's prepare context.
+        prepare: expect.objectContaining({
+          turnId: handle.turnId,
+          startedAt: expect.any(Number),
+          onStage: expect.any(Function)
+        })
       })
     )
 
@@ -1955,9 +2064,12 @@ describe('AgentSessionRuntimeService', () => {
           turnId: handle.turnId,
           modelName: 'claude-sonnet-4-5'
         },
-        // A turn-attached connect also carries the prepare-timeline hooks.
-        prepareStartedAt: expect.any(Number),
-        onPrepareStage: expect.any(Function)
+        // A turn-attached connect receives this turn's prepare context.
+        prepare: expect.objectContaining({
+          turnId: handle.turnId,
+          startedAt: expect.any(Number),
+          onStage: expect.any(Function)
+        })
       })
     )
 

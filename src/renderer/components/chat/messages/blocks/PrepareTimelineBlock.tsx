@@ -63,8 +63,8 @@ interface PrepareTimelineBlockProps {
  * The prepare segment of the turn's activity timeline, rendered as the first row inside the process
  * group ("Processed · Ns"). Styled after its process-group siblings: a ThinkingBlock-like title row
  * (hover-revealed chevron, 13px secondary text) collapsing a ThinkingBlock-like muted panel with the
- * per-stage table and a "copy diagnostics" button. Diagnostics carry only non-sensitive fields
- * (stage breakdown, app version, agent type, MCP server names) — never env vars, keys, or base URLs.
+ * per-stage table and a "copy diagnostics" button. Diagnostics carry timings/counts, app version,
+ * and agent type only; live MCP labels are intentionally excluded from copied payloads.
  */
 const PrepareTimelineBlock: React.FC<PrepareTimelineBlockProps> = ({ timeline }) => {
   const { t } = useTranslation()

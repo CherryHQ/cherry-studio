@@ -4060,6 +4060,7 @@
               "init-to-first-chunk": "First model response",
               "mcp-metadata": "MCP metadata",
               "mcp-warm": "MCP warm-up",
+              "request-setup": "Request setup",
               "shell-env": "Shell environment",
               "skills": "Skills",
               "spawn-to-init": "Runtime startup",

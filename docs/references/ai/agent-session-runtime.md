@@ -182,29 +182,38 @@ running under the old policy.
 
 ## Prepare timeline
 
-The window between turn dispatch and the first streamed chunk is
-recorded per turn. `AgentSessionRuntimeService` captures
-`prepareStartedAt` when it opens the turn stream and passes it to
-`connect()` together with an `onPrepareStage` callback (both on
-`AgentRuntimeConnectInput`). The Claude Code driver owns a
-`PrepareTimelineRecorder` that tiles the window into contiguous stages
-(settings build steps, warm-query consume, spawn-to-init,
-init-to-first-chunk) and logs the breakdown on finalize.
+The window between turn dispatch and the first qualifying model response
+is recorded per turn. `AgentSessionRuntimeService` captures the turn's
+start timestamp when it opens the stream, and passes the resulting
+`AgentRuntimeTurnPrepare` context both to a newly-created connection
+and through `prepareTurn()` immediately before every `send()`. This
+prevents a reusable connection from retaining an earlier turn's recorder
+or progress sink. A turn that
+attaches while a turn-less prime is still connecting receives a fresh
+recorder at `send()`; its `dispatch` stage covers that wait.
+
+The Claude Code driver owns a `PrepareTimelineRecorder` that tiles the
+whole host window contiguously (including dispatch and request setup),
+with `totalMs` equal to observed wall-clock end minus start. It finalizes
+on the first assistant content-bearing chunk (`text-delta`,
+`reasoning-delta`, or tool-input output), not init metadata/control
+chunks; failures before the query loop finalize too. A turn-less prime
+still records and logs its timeline but has no progress sink.
 
 Live progress cannot ride the connection's event queue — the queue is
 only drained after `connect()` resolves, which is after most of the
-prepare window. `onPrepareStage` therefore goes host-side:
-`AgentSessionRuntimeService` enqueues a `data-prepare-progress` part
-(stable id, reconciled in place) directly into the turn's stream
-controller. The finalized timeline lands on the same part; the
-renderer shows a live phase label past 3s and a post-hoc stage
-breakdown inside the process group past 5s. Persistence mirrors that
-display rule: `dropSubThresholdPrepareParts` strips the part at persist
-time unless it carries a finalized timeline above the 5s threshold
-(fast and never-finalized timelines stay log-only), so no message row
-stores a breakdown the renderer would never show. Diagnostics built from the
-timeline carry only stage timings, app version, agent type, and MCP
-server names — never env values, keys, or base URLs.
+prepare window. The turn-owned `onStage` callback therefore goes
+host-side: `AgentSessionRuntimeService` enqueues a
+`data-prepare-progress` part (stable id, reconciled in place) directly
+into that turn's stream controller. The finalized timeline lands on the
+same part; the renderer shows a live phase label past 3s and a post-hoc
+stage breakdown inside the process group past 5s. Persistence mirrors
+that display rule: `dropSubThresholdPrepareParts` strips the part at
+persist time unless it carries a finalized timeline above the 5s
+threshold (fast and never-finalized timelines stay log-only), so no
+message row stores a breakdown the renderer would never show.
+Diagnostics copy only stage timings/counts, app version, and agent type;
+user-controlled MCP labels remain in the live UI and are never copied.
 
 `ClaudeCodeWarmQueryManager.consume(...)` reports its outcome
 (`hit` / `miss-no-entry` / `miss-signature`) so the timeline records

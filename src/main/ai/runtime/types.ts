@@ -23,6 +23,18 @@ export interface AgentRuntimeTraceContext {
   rootSpanId: string
 }
 
+export interface AgentRuntimeTurnPrepare {
+  /** Stable host turn identity; prevents a reusable connection from reusing a prior turn's recorder. */
+  turnId: string
+  /** `performance.now()` captured when the host opened this turn's stream. */
+  startedAt: number
+  /**
+   * Live stage updates for THIS turn. The host routes them straight to this turn's stream controller
+   * because a connection's event queue is not drained while it is connecting.
+   */
+  onStage: (update: PrepareProgressPartData) => void
+}
+
 export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
@@ -30,18 +42,10 @@ export interface AgentRuntimeConnectInput {
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
   /**
-   * `performance.now()` captured when the host began opening a turn's stream. Its presence marks this
-   * connect as turn-attached (a waiting turn will stream through it) vs. a turn-less prime; the driver
-   * attributes the pre-connect `dispatch` stage from it. Absent for prime connects.
+   * The turn that caused this connection to be created. Absent for a turn-less prime. A reusable
+   * connection receives later turn instrumentation through {@link AgentRuntimeConnection.prepareTurn}.
    */
-  prepareStartedAt?: number
-  /**
-   * Live prepare-stage updates emitted WHILE the connection is still being built (the connection's own
-   * event queue is not drained until connect resolves, so it cannot carry live progress). The host
-   * forwards each update to the current turn's stream as a `data-prepare-progress` part. Absent ⇒ the
-   * driver still records + logs the timeline, but emits no live progress.
-   */
-  onPrepareStage?: (update: PrepareProgressPartData) => void
+  prepare?: AgentRuntimeTurnPrepare
 }
 
 export interface AgentRuntimeUserInput {
@@ -86,6 +90,11 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /**
+   * Bind a fresh prepare recorder immediately before this turn is sent. Optional so runtimes that do
+   * not support prepare instrumentation retain their existing send contract.
+   */
+  prepareTurn?(prepare: AgentRuntimeTurnPrepare): void
   send(input: AgentRuntimeUserInput): void | Promise<void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true

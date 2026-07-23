@@ -12,16 +12,17 @@ const { PrepareTimelineRecorder } = await import('../PrepareTimelineRecorder')
 function makeRecorder(now: number) {
   const updates: PrepareProgressPartData[] = []
   const recorder = new PrepareTimelineRecorder(
-    { sessionId: 's1', agentId: 'a1', runtimeType: 'claude-code', onStage: (u) => updates.push(u) },
-    now
+    { sessionId: 's1', agentId: 'a1', runtimeType: 'claude-code' },
+    now,
+    (u) => updates.push(u)
   )
   return { recorder, updates }
 }
 
 describe('PrepareTimelineRecorder', () => {
   it('tiles stages contiguously so totalMs is the sum of stage durations', () => {
-    const { recorder } = makeRecorder(1000)
-    recorder.recordDispatch(50)
+    const { recorder } = makeRecorder(950)
+    recorder.begin('dispatch', undefined, 950)
     recorder.begin('mcp-warm', { serverCount: 2 }, 1000)
     recorder.begin('spawn-to-init', undefined, 1300) // closes mcp-warm at 300ms
     recorder.begin('init-to-first-chunk', undefined, 1900) // closes spawn-to-init at 600ms
@@ -92,12 +93,24 @@ describe('PrepareTimelineRecorder', () => {
     expect(timeline?.mcpServerNames).toEqual(['filesystem', 'memory'])
   })
 
-  it('ignores a non-positive dispatch span (a prime connect with no waiting turn)', () => {
-    const { recorder } = makeRecorder(0)
-    recorder.recordDispatch(0)
-    recorder.begin('spawn-to-init', undefined, 0)
-    const timeline = recorder.finalize(100)
+  it('uses wall-clock end minus start as totalMs and preserves contiguous accounting after rounding', () => {
+    const { recorder } = makeRecorder(0.4)
+    recorder.begin('dispatch', undefined, 0.4)
+    recorder.begin('spawn-to-init', undefined, 10.6)
+    const timeline = recorder.finalize(20.4)
 
-    expect(timeline?.stages.map((s) => s.stage)).toEqual(['spawn-to-init'])
+    expect(timeline?.totalMs).toBe(20)
+    expect(timeline?.stages.reduce((sum, stage) => sum + stage.ms, 0)).toBe(20)
+  })
+
+  it('routes later updates to a replacement turn sink', () => {
+    const updates: PrepareProgressPartData[] = []
+    const { recorder } = makeRecorder(0)
+    recorder.begin('dispatch', undefined, 0)
+    recorder.setProgressSink((update) => updates.push(update))
+    recorder.begin('init-to-first-chunk', undefined, 10)
+    recorder.finalize(20)
+
+    expect(updates.map((update) => update.phase)).toEqual(['waiting-first-response', 'waiting-first-response'])
   })
 })

@@ -251,6 +251,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
    *  Absent on the prewarm path (that build happens off the turn's critical path). */
   recorder?: PrepareTimelineRecorder
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
+  // Own the request's route/configuration reads explicitly instead of leaving them inside dispatch.
+  // The settings builder closes this stage when MCP warm-up begins; it opens it again for the final
+  // materialization/trace gap before the driver starts warm-query consumption.
+  recorder?.begin('request-setup')
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 

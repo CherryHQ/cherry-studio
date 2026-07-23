@@ -25,6 +25,7 @@ describe('stageToPhase', () => {
       'system-prompt',
       'mcp-metadata',
       'skills',
+      'request-setup',
       'warm-query',
       'spawn-to-init'
     ]
@@ -47,23 +48,39 @@ describe('buildPrepareDiagnostics', () => {
     mcpServerNames: ['filesystem']
   }
 
-  it('forwards only the non-sensitive fields', () => {
+  it('forwards only timings and non-sensitive detail counts', () => {
     const diagnostics = buildPrepareDiagnostics({ timeline, appVersion: '2.0.0' })
 
     expect(diagnostics).toEqual({
       totalMs: 6200,
-      stages: timeline.stages,
-      mcpServerNames: ['filesystem'],
+      stages: [
+        { stage: 'dispatch', ms: 200 },
+        { stage: 'mcp-warm', ms: 3000, detail: { serverCount: 1, completedInTime: true } },
+        { stage: 'spawn-to-init', ms: 1500 },
+        { stage: 'init-to-first-chunk', ms: 1500 }
+      ],
       appVersion: '2.0.0',
       agentType: 'claude-code'
     })
   })
 
-  it('never leaks env vars, API keys, or base URLs', () => {
+  it('never leaks user-controlled labels, env vars, API keys, or base URLs', () => {
     const diagnostics = buildPrepareDiagnostics({ timeline, appVersion: '2.0.0', agentType: 'claude-code' })
     const serialized = JSON.stringify(diagnostics).toLowerCase()
 
-    for (const forbidden of ['env', 'apikey', 'api_key', 'token', 'baseurl', 'base_url', 'secret', 'http']) {
+    for (const forbidden of [
+      'filesystem',
+      'mcpservername',
+      'mcpservernames',
+      'env',
+      'apikey',
+      'api_key',
+      'token',
+      'baseurl',
+      'base_url',
+      'secret',
+      'http'
+    ]) {
       expect(serialized).not.toContain(forbidden)
     }
   })

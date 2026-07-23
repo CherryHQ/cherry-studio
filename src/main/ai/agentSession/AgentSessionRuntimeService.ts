@@ -41,6 +41,7 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
+  AgentRuntimeTurnPrepare,
   AgentRuntimeUserInput,
   AgentSessionLiveIndex
 } from '../runtime/types'
@@ -109,6 +110,8 @@ type AgentSessionTurn = {
   abortController: AbortController
   terminalStatus?: AgentSessionRuntimeTerminalStatus
   controller?: ReadableStreamDefaultController<UIMessageChunk>
+  /** Turn-owned timing + live sink; never retained as connection-wide state. */
+  prepare?: AgentRuntimeTurnPrepare
   activeToolIds: Set<string>
   headless?: boolean
 }
@@ -543,6 +546,11 @@ export class AgentSessionRuntimeService extends BaseService {
           const prepareStartedAt = performance.now()
           this.clearIdleTimer(entry)
           turn.controller = controller
+          turn.prepare = {
+            turnId: turn.turnId,
+            startedAt: prepareStartedAt,
+            onStage: (update) => this.emitPrepareProgress(turn, update)
+          }
 
           // A user Stop is the only abort source now (steer no longer interrupts) — tear the
           // session down so `connection.close()` kills the warm query and its subagent.
@@ -558,7 +566,7 @@ export class AgentSessionRuntimeService extends BaseService {
           // Roll continuation: replay the post-steer chunks captured while A2's stream was opening, as
           // soon as the controller exists (before the connection round-trip). No-op for normal turns.
           this.flushRollBuffer(entry, turn)
-          const connected = await this.ensureConnection(entry, prepareStartedAt)
+          const connected = await this.ensureConnection(entry, turn.prepare)
           if (!connected || !this.isCurrentEntry(entry) || turn.terminalStatus) return
           await this.admitTurn(entry, turn)
         } catch (error) {
@@ -769,7 +777,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return live ? turn.modelId : entry.modelId
   }
 
-  private async ensureConnection(entry: AgentSessionRuntimeEntry, prepareStartedAt?: number): Promise<boolean> {
+  private async ensureConnection(entry: AgentSessionRuntimeEntry, prepare?: AgentRuntimeTurnPrepare): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
       const targetModelId = this.connectionTargetModelId(entry)
       const connection = entry.connection
@@ -824,12 +832,12 @@ export class AgentSessionRuntimeService extends BaseService {
       if (entry.connecting) {
         // A turn opened while a prime/other connect is in flight (pitfall: no per-turn recorder yet).
         // Surface the generic "starting runtime" progress so the waiting turn isn't a silent gap.
-        this.emitPrepareProgress(entry, { phase: 'starting-runtime' })
+        prepare?.onStage({ phase: 'starting-runtime' })
         await entry.connecting.catch(() => false)
         continue
       }
 
-      const connecting = this.connect(entry, targetModelId, prepareStartedAt).finally(() => {
+      const connecting = this.connect(entry, targetModelId, prepare).finally(() => {
         if (entry.connecting === connecting) entry.connecting = undefined
       })
       entry.connecting = connecting
@@ -843,7 +851,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private async connect(
     entry: AgentSessionRuntimeEntry,
     modelId: UniqueModelId,
-    prepareStartedAt?: number
+    prepare?: AgentRuntimeTurnPrepare
   ): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
@@ -857,8 +865,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, modelId),
-      ...(prepareStartedAt !== undefined ? { prepareStartedAt } : {}),
-      onPrepareStage: (update) => this.emitPrepareProgress(entry, update)
+      ...(prepare ? { prepare } : {})
     })
     if (!this.isCurrentEntry(entry) || this.connectionTargetModelId(entry) !== modelId) {
       void Promise.resolve(connection.close()).catch((error) =>
@@ -1079,19 +1086,19 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.status = 'active'
     // `Set.delete` returns whether it was queued as a steer — consume the flag as we admit the turn.
     const systemReminder = entry.steerMessageIds?.delete(turn.userMessage.id) ?? false
+    if (turn.prepare) entry.connection?.prepareTurn?.(turn.prepare)
     await entry.connection?.send({ message: turn.userMessage, systemReminder })
   }
 
   /**
    * Stream a prepare-progress update to the current turn as a hidden `data-prepare-progress` part
-   * (stable id ⇒ reconciled in place). Invoked from the driver's `onPrepareStage` callback DURING
-   * prepare — the connection's own event queue is not drained until connect resolves, so this
-   * host-side controller path is the only way live progress reaches the renderer while it waits.
-   * No-op without a live turn controller (a turn-less prime just logs its timeline).
+   * (stable id ⇒ reconciled in place). Invoked from this turn's `onStage` callback during prepare —
+   * the connection's own event queue is not drained until connect resolves, so this host-side
+   * controller path is the only way live progress reaches the renderer while it waits. No-op without
+   * a live turn controller (a turn-less prime just logs its timeline).
    */
-  private emitPrepareProgress(entry: AgentSessionRuntimeEntry, update: PrepareProgressPartData): void {
-    const turn = entry.currentTurn
-    if (!turn?.controller || turn.terminalStatus) return
+  private emitPrepareProgress(turn: AgentSessionTurn, update: PrepareProgressPartData): void {
+    if (!turn.controller || turn.terminalStatus) return
     this.enqueueTurnChunk(turn, {
       type: 'data-prepare-progress',
       id: PREPARE_PROGRESS_PART_ID,

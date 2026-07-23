@@ -21,6 +21,7 @@ export type PrepareTimelineStage =
   | 'system-prompt'
   | 'mcp-metadata'
   | 'skills'
+  | 'request-setup'
   | 'warm-query'
   | 'spawn-to-init'
   | 'init-to-first-chunk'
@@ -47,7 +48,7 @@ export interface PrepareTimelineStageEntry {
   detail?: PrepareStageDetail
 }
 
-/** Finalized breakdown of one prepare window. `totalMs` is the sum of the recorded stages. */
+/** Finalized breakdown of one prepare window. `totalMs` is the observed wall-clock end minus start. */
 export interface PrepareTimeline {
   totalMs: number
   stages: PrepareTimelineStageEntry[]
@@ -92,6 +93,7 @@ const STARTING_RUNTIME_STAGES: ReadonlySet<PrepareTimelineStage> = new Set([
   'system-prompt',
   'mcp-metadata',
   'skills',
+  'request-setup',
   'warm-query',
   'spawn-to-init'
 ])
@@ -105,14 +107,12 @@ export function stageToPhase(stage: PrepareTimelineStage): PreparePhase {
 }
 
 /**
- * Copyable diagnostics — deliberately restricted to non-sensitive fields: stage breakdown, app
- * version, agent type, and MCP server NAMES only. It carries no env vars, API keys, or base URLs;
- * the timeline shape has no place to hold them, and this builder only forwards those three extras.
+ * Copyable diagnostics — deliberately restricted to non-sensitive timings, counts, app version,
+ * and agent type. User-controlled labels (including MCP server names) remain live-UI-only.
  */
 export interface PrepareDiagnostics {
   totalMs: number
   stages: PrepareTimelineStageEntry[]
-  mcpServerNames: string[]
   appVersion: string
   agentType: string
 }
@@ -125,12 +125,15 @@ export function buildPrepareDiagnostics(input: {
   const { timeline, appVersion } = input
   return {
     totalMs: timeline.totalMs,
-    stages: timeline.stages.map((entry) => ({
-      stage: entry.stage,
-      ms: entry.ms,
-      ...(entry.detail ? { detail: entry.detail } : {})
-    })),
-    mcpServerNames: timeline.mcpServerNames ?? [],
+    stages: timeline.stages.map((entry) => {
+      const detail = { ...entry.detail }
+      delete detail.mcpServerName
+      return {
+        stage: entry.stage,
+        ms: entry.ms,
+        ...(Object.keys(detail).length > 0 ? { detail } : {})
+      }
+    }),
     appVersion,
     agentType: input.agentType ?? timeline.runtimeType ?? 'unknown'
   }

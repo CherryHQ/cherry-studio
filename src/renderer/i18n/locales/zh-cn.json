@@ -4060,6 +4060,7 @@
               "init-to-first-chunk": "模型首个响应",
               "mcp-metadata": "MCP 元数据",
               "mcp-warm": "MCP 预热",
+              "request-setup": "请求配置",
               "shell-env": "Shell 环境",
               "skills": "技能",
               "spawn-to-init": "运行时启动",
