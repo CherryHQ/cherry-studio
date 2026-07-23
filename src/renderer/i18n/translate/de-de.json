@@ -7814,31 +7814,31 @@
       },
       "title": "System-Titelleiste verwenden (Linux)"
     },
-    "zoom": {
-      "reset": "Zurücksetzen",
-      "title": "Zoom"
-    },
     "webui": {
-      "title": "WebUI",
+      "access_key": "Zugangsschlüssel",
+      "access_key_generated": "Neuer Zugangsschlüssel wurde erzeugt",
+      "access_key_placeholder": "Zum Starten erforderlich",
+      "access_key_required": "Vor dem Aktivieren der WebUI einen Zugangsschlüssel festlegen",
       "description": "Setzen Sie Desktop-Agent-Sitzungen im Browser fort. Lauscht an der gewählten Adresse, Zugangsschlüssel erforderlich, Dateivorschau nur lesend.",
       "enable_lan_access": "LAN-Zugriff aktivieren",
-      "service_status": "Dienststatus",
-      "running": "Läuft",
-      "stopped": "Gestoppt",
-      "listen_host": "Listen-Adresse",
-      "host_loopback": "Nur dieses Gerät (127.0.0.1)",
-      "host_lan": "LAN (0.0.0.0)",
+      "generate_access_key": "Schlüssel erzeugen",
+      "hide_access_key": "Schlüssel verbergen",
       "host_custom": "Benutzerdefinierte IP",
       "host_custom_placeholder": "IPv4-Adresse eingeben",
       "host_invalid": "Gültige IPv4-Adresse eingeben",
-      "access_key": "Zugangsschlüssel",
-      "access_key_placeholder": "Zum Starten erforderlich",
-      "access_key_required": "Vor dem Aktivieren der WebUI einen Zugangsschlüssel festlegen",
-      "access_key_generated": "Neuer Zugangsschlüssel wurde erzeugt",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_loopback": "Nur dieses Gerät (127.0.0.1)",
+      "listen_host": "Listen-Adresse",
+      "port": "Port",
+      "running": "Läuft",
+      "service_status": "Dienststatus",
       "show_access_key": "Schlüssel anzeigen",
-      "hide_access_key": "Schlüssel verbergen",
-      "generate_access_key": "Schlüssel erzeugen",
-      "port": "Port"
+      "stopped": "Gestoppt",
+      "title": "WebUI"
+    },
+    "zoom": {
+      "reset": "Zurücksetzen",
+      "title": "Zoom"
     }
   },
   "subWindow": {

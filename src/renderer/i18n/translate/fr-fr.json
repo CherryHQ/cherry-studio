@@ -7814,31 +7814,31 @@
       },
       "title": "Utiliser la barre de titre du système (Linux)"
     },
-    "zoom": {
-      "reset": "Réinitialiser",
-      "title": "Zoom"
-    },
     "webui": {
-      "title": "WebUI",
+      "access_key": "Clé d'accès",
+      "access_key_generated": "Une nouvelle clé d'accès a été générée",
+      "access_key_placeholder": "Requis pour démarrer le service",
+      "access_key_required": "Définissez une clé d'accès avant d'activer WebUI",
       "description": "Poursuivez les sessions Agent du bureau dans le navigateur. Écoute sur l'adresse choisie, clé d'accès obligatoire, aperçus de fichiers en lecture seule.",
       "enable_lan_access": "Activer l'accès LAN",
-      "service_status": "État du service",
-      "running": "En cours",
-      "stopped": "Arrêté",
-      "listen_host": "Adresse d'écoute",
-      "host_loopback": "Cet appareil uniquement (127.0.0.1)",
-      "host_lan": "LAN (0.0.0.0)",
+      "generate_access_key": "Générer une clé",
+      "hide_access_key": "Masquer la clé",
       "host_custom": "IP personnalisée",
       "host_custom_placeholder": "Saisir une adresse IPv4",
       "host_invalid": "Saisir une adresse IPv4 valide",
-      "access_key": "Clé d'accès",
-      "access_key_placeholder": "Requis pour démarrer le service",
-      "access_key_required": "Définissez une clé d'accès avant d'activer WebUI",
-      "access_key_generated": "Une nouvelle clé d'accès a été générée",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_loopback": "Cet appareil uniquement (127.0.0.1)",
+      "listen_host": "Adresse d'écoute",
+      "port": "Port",
+      "running": "En cours",
+      "service_status": "État du service",
       "show_access_key": "Afficher la clé",
-      "hide_access_key": "Masquer la clé",
-      "generate_access_key": "Générer une clé",
-      "port": "Port"
+      "stopped": "Arrêté",
+      "title": "WebUI"
+    },
+    "zoom": {
+      "reset": "Réinitialiser",
+      "title": "Zoom"
     }
   },
   "subWindow": {

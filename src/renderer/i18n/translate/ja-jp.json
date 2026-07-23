@@ -7814,31 +7814,31 @@
       },
       "title": "システムタイトルバーを使用（Linux）"
     },
-    "zoom": {
-      "reset": "リセット",
-      "title": "ページズーム"
-    },
     "webui": {
-      "title": "WebUI",
+      "access_key": "アクセスキー",
+      "access_key_generated": "新しいアクセスキーを生成しました",
+      "access_key_placeholder": "サービス開始前に必須",
+      "access_key_required": "WebUI を有効にする前にアクセスキーを設定してください",
       "description": "ブラウザでデスクトップ Agent セッションを継続します。選択したアドレスで待ち受け、アクセスキー必須、ファイルプレビューは読み取り専用です。",
       "enable_lan_access": "LAN アクセスを有効化",
-      "service_status": "サービス状態",
-      "running": "稼働中",
-      "stopped": "停止中",
-      "listen_host": "待受アドレス",
-      "host_loopback": "このデバイスのみ (127.0.0.1)",
-      "host_lan": "LAN (0.0.0.0)",
+      "generate_access_key": "キーを生成",
+      "hide_access_key": "キーを隠す",
       "host_custom": "カスタム IP",
       "host_custom_placeholder": "IPv4 アドレスを入力",
       "host_invalid": "有効な IPv4 アドレスを入力してください",
-      "access_key": "アクセスキー",
-      "access_key_placeholder": "サービス開始前に必須",
-      "access_key_required": "WebUI を有効にする前にアクセスキーを設定してください",
-      "access_key_generated": "新しいアクセスキーを生成しました",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_loopback": "このデバイスのみ (127.0.0.1)",
+      "listen_host": "待受アドレス",
+      "port": "ポート",
+      "running": "稼働中",
+      "service_status": "サービス状態",
       "show_access_key": "キーを表示",
-      "hide_access_key": "キーを隠す",
-      "generate_access_key": "キーを生成",
-      "port": "ポート"
+      "stopped": "停止中",
+      "title": "WebUI"
+    },
+    "zoom": {
+      "reset": "リセット",
+      "title": "ページズーム"
     }
   },
   "subWindow": {

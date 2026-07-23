@@ -7814,31 +7814,31 @@
       },
       "title": "Sử dụng thanh tiêu đề hệ thống (Linux)"
     },
-    "zoom": {
-      "reset": "Đặt lại",
-      "title": "Zoom de página"
-    },
     "webui": {
-      "title": "WebUI",
+      "access_key": "Khóa truy cập",
+      "access_key_generated": "Đã tạo khóa truy cập mới",
+      "access_key_placeholder": "Bắt buộc để khởi động dịch vụ",
+      "access_key_required": "Hãy đặt khóa truy cập trước khi bật WebUI",
       "description": "Tiếp tục phiên Agent máy tính trong trình duyệt. Lắng nghe địa chỉ đã chọn, bắt buộc khóa truy cập, xem trước tệp ở chế độ chỉ đọc.",
       "enable_lan_access": "Bật truy cập LAN",
-      "service_status": "Trạng thái dịch vụ",
-      "running": "Đang chạy",
-      "stopped": "Đã dừng",
-      "listen_host": "Địa chỉ lắng nghe",
-      "host_loopback": "Chỉ thiết bị này (127.0.0.1)",
-      "host_lan": "LAN (0.0.0.0)",
+      "generate_access_key": "Tạo khóa ngẫu nhiên",
+      "hide_access_key": "Ẩn khóa",
       "host_custom": "IP tùy chỉnh",
       "host_custom_placeholder": "Nhập địa chỉ IPv4",
       "host_invalid": "Nhập địa chỉ IPv4 hợp lệ",
-      "access_key": "Khóa truy cập",
-      "access_key_placeholder": "Bắt buộc để khởi động dịch vụ",
-      "access_key_required": "Hãy đặt khóa truy cập trước khi bật WebUI",
-      "access_key_generated": "Đã tạo khóa truy cập mới",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_loopback": "Chỉ thiết bị này (127.0.0.1)",
+      "listen_host": "Địa chỉ lắng nghe",
+      "port": "Cổng",
+      "running": "Đang chạy",
+      "service_status": "Trạng thái dịch vụ",
       "show_access_key": "Hiện khóa",
-      "hide_access_key": "Ẩn khóa",
-      "generate_access_key": "Tạo khóa ngẫu nhiên",
-      "port": "Cổng"
+      "stopped": "Đã dừng",
+      "title": "WebUI"
+    },
+    "zoom": {
+      "reset": "Đặt lại",
+      "title": "Zoom de página"
     }
   },
   "subWindow": {

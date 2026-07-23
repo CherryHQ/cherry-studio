@@ -7814,31 +7814,31 @@
       },
       "title": "Usar Barra de Título do Sistema (Linux)"
     },
-    "zoom": {
-      "reset": "Redefinir",
-      "title": "Escala"
-    },
     "webui": {
-      "title": "WebUI",
+      "access_key": "Chave de acesso",
+      "access_key_generated": "Foi gerada uma nova chave de acesso",
+      "access_key_placeholder": "Obrigatória para iniciar o serviço",
+      "access_key_required": "Defina uma chave de acesso antes de ativar a WebUI",
       "description": "Continue sessões do Agent de ambiente de trabalho no browser. Escuta no endereço escolhido, chave de acesso obrigatória e pré-visualizações só de leitura.",
       "enable_lan_access": "Ativar acesso LAN",
-      "service_status": "Estado do serviço",
-      "running": "Em execução",
-      "stopped": "Parado",
-      "listen_host": "Endereço de escuta",
-      "host_loopback": "Apenas este dispositivo (127.0.0.1)",
-      "host_lan": "LAN (0.0.0.0)",
+      "generate_access_key": "Gerar chave",
+      "hide_access_key": "Ocultar chave",
       "host_custom": "IP personalizado",
       "host_custom_placeholder": "Introduza um endereço IPv4",
       "host_invalid": "Introduza um endereço IPv4 válido",
-      "access_key": "Chave de acesso",
-      "access_key_placeholder": "Obrigatória para iniciar o serviço",
-      "access_key_required": "Defina uma chave de acesso antes de ativar a WebUI",
-      "access_key_generated": "Foi gerada uma nova chave de acesso",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_loopback": "Apenas este dispositivo (127.0.0.1)",
+      "listen_host": "Endereço de escuta",
+      "port": "Porta",
+      "running": "Em execução",
+      "service_status": "Estado do serviço",
       "show_access_key": "Mostrar chave",
-      "hide_access_key": "Ocultar chave",
-      "generate_access_key": "Gerar chave",
-      "port": "Porta"
+      "stopped": "Parado",
+      "title": "WebUI"
+    },
+    "zoom": {
+      "reset": "Redefinir",
+      "title": "Escala"
     }
   },
   "subWindow": {

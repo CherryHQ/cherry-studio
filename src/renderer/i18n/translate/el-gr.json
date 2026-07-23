@@ -7814,31 +7814,31 @@
       },
       "title": "Χρήση γραμμής τίτλου συστήματος (Linux)"
     },
-    "zoom": {
-      "reset": "Επαναφορά",
-      "title": "Κλίμακα"
-    },
     "webui": {
-      "title": "WebUI",
+      "access_key": "Κλειδί πρόσβασης",
+      "access_key_generated": "Δημιουργήθηκε νέο κλειδί πρόσβασης",
+      "access_key_placeholder": "Απαιτείται για εκκίνηση",
+      "access_key_required": "Ορίστε κλειδί πρόσβασης πριν ενεργοποιήσετε το WebUI",
       "description": "Συνεχίστε τις συνεδρίες Agent της επιφάνειας εργασίας στο πρόγραμμα περιήγησης. Ακρόαση στη επιλεγμένη διεύθυνση, απαιτείται κλειδί πρόσβασης, προεπισκοπήσεις αρχείων μόνο για ανάγνωση.",
       "enable_lan_access": "Ενεργοποίηση πρόσβασης LAN",
-      "service_status": "Κατάσταση υπηρεσίας",
-      "running": "Ενεργό",
-      "stopped": "Διακοπή",
-      "listen_host": "Διεύθυνση ακρόασης",
-      "host_loopback": "Μόνο αυτή η συσκευή (127.0.0.1)",
-      "host_lan": "LAN (0.0.0.0)",
+      "generate_access_key": "Δημιουργία κλειδιού",
+      "hide_access_key": "Απόκρυψη κλειδιού",
       "host_custom": "Προσαρμοσμένη IP",
       "host_custom_placeholder": "Εισαγάγετε διεύθυνση IPv4",
       "host_invalid": "Εισαγάγετε έγκυρη διεύθυνση IPv4",
-      "access_key": "Κλειδί πρόσβασης",
-      "access_key_placeholder": "Απαιτείται για εκκίνηση",
-      "access_key_required": "Ορίστε κλειδί πρόσβασης πριν ενεργοποιήσετε το WebUI",
-      "access_key_generated": "Δημιουργήθηκε νέο κλειδί πρόσβασης",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_loopback": "Μόνο αυτή η συσκευή (127.0.0.1)",
+      "listen_host": "Διεύθυνση ακρόασης",
+      "port": "Θύρα",
+      "running": "Ενεργό",
+      "service_status": "Κατάσταση υπηρεσίας",
       "show_access_key": "Εμφάνιση κλειδιού",
-      "hide_access_key": "Απόκρυψη κλειδιού",
-      "generate_access_key": "Δημιουργία κλειδιού",
-      "port": "Θύρα"
+      "stopped": "Διακοπή",
+      "title": "WebUI"
+    },
+    "zoom": {
+      "reset": "Επαναφορά",
+      "title": "Κλίμακα"
     }
   },
   "subWindow": {

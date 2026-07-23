@@ -7814,31 +7814,31 @@
       },
       "title": "Usar la barra de título del sistema (Linux)"
     },
-    "zoom": {
-      "reset": "Restablecer",
-      "title": "Escala"
-    },
     "webui": {
-      "title": "WebUI",
+      "access_key": "Clave de acceso",
+      "access_key_generated": "Se ha generado una nueva clave de acceso",
+      "access_key_placeholder": "Obligatoria para iniciar el servicio",
+      "access_key_required": "Configura una clave de acceso antes de activar WebUI",
       "description": "Continúa las sesiones del Agent de escritorio en el navegador. Escucha en la dirección elegida, requiere clave de acceso y las vistas previas de archivos son de solo lectura.",
       "enable_lan_access": "Activar acceso LAN",
-      "service_status": "Estado del servicio",
-      "running": "En ejecución",
-      "stopped": "Detenido",
-      "listen_host": "Dirección de escucha",
-      "host_loopback": "Solo este dispositivo (127.0.0.1)",
-      "host_lan": "LAN (0.0.0.0)",
+      "generate_access_key": "Generar clave",
+      "hide_access_key": "Ocultar clave",
       "host_custom": "IP personalizada",
       "host_custom_placeholder": "Introduce una dirección IPv4",
       "host_invalid": "Introduce una dirección IPv4 válida",
-      "access_key": "Clave de acceso",
-      "access_key_placeholder": "Obligatoria para iniciar el servicio",
-      "access_key_required": "Configura una clave de acceso antes de activar WebUI",
-      "access_key_generated": "Se ha generado una nueva clave de acceso",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_loopback": "Solo este dispositivo (127.0.0.1)",
+      "listen_host": "Dirección de escucha",
+      "port": "Puerto",
+      "running": "En ejecución",
+      "service_status": "Estado del servicio",
       "show_access_key": "Mostrar clave",
-      "hide_access_key": "Ocultar clave",
-      "generate_access_key": "Generar clave",
-      "port": "Puerto"
+      "stopped": "Detenido",
+      "title": "WebUI"
+    },
+    "zoom": {
+      "reset": "Restablecer",
+      "title": "Escala"
     }
   },
   "subWindow": {
