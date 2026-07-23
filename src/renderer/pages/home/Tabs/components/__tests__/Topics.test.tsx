@@ -36,6 +36,36 @@ const dndMocks = vi.hoisted(() => ({
   sortableData: new Map<string, unknown>()
 }))
 
+const groupWindowMocks = vi.hoisted(() => ({
+  ensureGroup: vi.fn().mockResolvedValue(undefined),
+  items: [] as unknown[],
+  loadMoreGroup: vi.fn().mockResolvedValue(undefined),
+  options: undefined as
+    | {
+        expandedGroupIds: readonly string[]
+        fetchPage: (groupId: string, cursor?: string) => Promise<{ items: unknown[]; nextCursor?: string }>
+        groupIds: readonly string[]
+        queryKey: string
+      }
+    | undefined,
+  retryGroup: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@renderer/hooks/useCursorGroupWindows', () => ({
+  useCursorGroupWindows: vi.fn((options) => {
+    groupWindowMocks.options = options
+    return {
+      ensureGroup: groupWindowMocks.ensureGroup,
+      items: groupWindowMocks.items,
+      loadMoreGroup: groupWindowMocks.loadMoreGroup,
+      retryGroup: groupWindowMocks.retryGroup,
+      windows: Object.fromEntries(
+        options.groupIds.map((groupId: string) => [groupId, { items: [], status: 'idle' as const }])
+      )
+    }
+  })
+}))
+
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: virtualMocks.useVirtualizer,
   defaultRangeExtractor: vi.fn((range) =>
@@ -399,6 +429,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.copy_failed') return 'Copy failed'
         if (key === 'common.name') return 'Name'
         if (key === 'common.required_field') return 'Required field'
+        if (key === 'common.retry') return 'Retry'
         if (key === 'common.save') return 'Save'
         if (key === 'common.select_all') return 'Select All'
         if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
@@ -424,6 +455,7 @@ import type * as TopicDataApiModule from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types/topic'
 import {
   applyOptimisticTopicDisplayMove,
+  getTopicAssistantDisplayGroupId,
   TOPIC_ASSISTANT_SECTION_ID,
   TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
@@ -772,6 +804,7 @@ function withPinnedTopics(topics: readonly PagedTopic[], pinnedIds: readonly str
 }
 
 function setTopicInfiniteQueryPages(topics: readonly PagedTopic[]) {
+  groupWindowMocks.items = topics.filter((topic) => !topic.pinned)
   mockUseInfiniteQuery.mockReturnValue({
     pages: [{ items: [...topics] }],
     isLoading: false,
@@ -2690,6 +2723,35 @@ describe('Topics', () => {
     expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
     expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
+  })
+
+  it('uses assistant-scoped windows instead of the global ordinary stream in grouped mode', async () => {
+    const firstPageTopic = createApiTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
+    const offPageTopic = createApiTopic({ id: 'topic-b', assistantId: 'assistant-2', name: 'Beta topic' })
+    const fullFixture = [firstPageTopic, offPageTopic]
+    setTopicInfiniteQueryPages([firstPageTopic])
+    applyTopicStats(fullFixture)
+    vi.mocked(dataApiService.get).mockResolvedValueOnce({ items: [offPageTopic] } as never)
+
+    renderTopicList({ assistantTopicsSource: createAssistantTopicsSource(fullFixture) })
+
+    const groupId = getTopicAssistantDisplayGroupId({ assistantId: 'assistant-2' })
+    const page = await groupWindowMocks.options?.fetchPage(groupId)
+
+    expect(page?.items).toEqual([expect.objectContaining({ id: 'topic-b' })])
+    expect(dataApiService.get).toHaveBeenCalledWith('/topics', {
+      query: expect.objectContaining({
+        assistantId: 'assistant-2',
+        pinned: false
+      })
+    })
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/topics',
+      expect.objectContaining({
+        enabled: false,
+        query: expect.objectContaining({ pinned: false })
+      })
+    )
   })
 
   it('focuses a history-selected topic in the flat creation stream', async () => {

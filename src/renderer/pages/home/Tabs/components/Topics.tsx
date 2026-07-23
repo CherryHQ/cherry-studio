@@ -39,6 +39,7 @@ import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useCursorGroupWindows } from '@renderer/hooks/useCursorGroupWindows'
 import { useDebouncedValue } from '@renderer/hooks/useDebouncedValue'
 import { useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
@@ -314,7 +315,7 @@ export function Topics({
   const { loadNext: loadNextPinnedTopics, refetch: refetchPinnedTopics, topics: pinnedTopicRows } = pinnedTopicsSource
   const ordinaryTopicsSource = useTopics({
     assistantId: rightPanelOwnerScope,
-    enabled: isTopicListEnabled,
+    enabled: isTopicListEnabled && !isAssistantDisplayMode,
     pageSize: TOPIC_PAGE_SIZE,
     pinned: false,
     q: debouncedRemoteQuery,
@@ -553,6 +554,58 @@ export function Topics({
     activeTopic && activeTopic.pinned !== true && !pinnedTopicRows.some((topic) => topic.id === activeTopic.id)
       ? getTopicAssistantDisplayGroupId(activeTopic)
       : undefined
+  const collapsedAssistantTopicGroupIds = useMemo(
+    () =>
+      topicExpansionAssistant ??
+      orderedAssistantTopicGroupIds.filter((groupId) => groupId !== activeOrdinaryAssistantGroupId),
+    [activeOrdinaryAssistantGroupId, orderedAssistantTopicGroupIds, topicExpansionAssistant]
+  )
+  const expandedAssistantTopicGroupIds = useMemo(
+    () =>
+      isAssistantDisplayMode
+        ? orderedAssistantTopicGroupIds.filter((groupId) => !collapsedAssistantTopicGroupIds.includes(groupId))
+        : [],
+    [collapsedAssistantTopicGroupIds, isAssistantDisplayMode, orderedAssistantTopicGroupIds]
+  )
+  const fetchAssistantTopicPage = useCallback(
+    async (groupId: string, cursor?: string) => {
+      const assistantId = getAssistantIdFromTopicGroupId(groupId)
+      const ownerScope = groupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? 'unlinked' : assistantId
+      if (!ownerScope) return { items: [] }
+
+      const page = await dataApiService.get('/topics', {
+        query: {
+          assistantId: ownerScope,
+          cursor,
+          limit: TOPIC_PAGE_SIZE,
+          pinned: false,
+          ...(debouncedRemoteQuery ? { q: debouncedRemoteQuery } : {}),
+          sortBy: topicSortBy
+        }
+      })
+      return { ...page, items: page.items.map(mapApiTopicListItem) }
+    },
+    [debouncedRemoteQuery, topicSortBy]
+  )
+  const getTopicResourceItemId = useCallback((topic: TopicResourceItem) => topic.id, [])
+  const {
+    ensureGroup: ensureAssistantTopicGroup,
+    items: assistantWindowTopics,
+    loadMoreGroup: loadMoreAssistantTopicGroup,
+    retryGroup: retryAssistantTopicGroup,
+    windows: assistantTopicWindows
+  } = useCursorGroupWindows<TopicResourceItem>({
+    enabled: isTopicListEnabled && isAssistantDisplayMode,
+    expandedGroupIds: expandedAssistantTopicGroupIds,
+    fetchPage: fetchAssistantTopicPage,
+    getItemId: getTopicResourceItemId,
+    groupIds: orderedAssistantTopicGroupIds,
+    queryKey: JSON.stringify({
+      mode: displayMode,
+      q: debouncedRemoteQuery,
+      sortBy: topicSortBy
+    })
+  })
   const pinnedTopics = useMemo(() => pinnedTopicRows.map(mapApiTopicListItem), [pinnedTopicRows])
   const ordinaryTopics = useMemo(() => ordinaryTopicRows.map(mapApiTopicListItem), [ordinaryTopicRows])
   const commitTopicPin = useCallback(
@@ -567,10 +620,11 @@ export function Topics({
   )
   const sourceTopics = useMemo(() => {
     const byId = new Map<string, TopicResourceItem>()
-    for (const topic of ordinaryTopics) byId.set(topic.id, topic)
+    const ordinarySource = isAssistantDisplayMode ? assistantWindowTopics : ordinaryTopics
+    for (const topic of ordinarySource) byId.set(topic.id, topic)
     for (const topic of pinnedTopics) byId.set(topic.id, topic)
     return [...byId.values()]
-  }, [ordinaryTopics, pinnedTopics])
+  }, [assistantWindowTopics, isAssistantDisplayMode, ordinaryTopics, pinnedTopics])
   const { items: projectedTopics, togglePinned: togglePinnedTopicItem } = useResourceListPinnedItems({
     disabled: isPinsMutating,
     items: sourceTopics,
@@ -938,9 +992,7 @@ export function Topics({
     topicStats,
     ordinaryTopicsSource.error
   ])
-  const topicFlatGroupStates = useMemo(() => {
-    if (isAssistantDisplayMode) return undefined
-
+  const topicGroupStates = useMemo(() => {
     const loadedTopicCountByGroupId = new Map<string, number>()
     for (const topic of topics) {
       const groupId = topicGroupBy(topic)?.id
@@ -966,6 +1018,16 @@ export function Topics({
         continue
       }
 
+      if (isAssistantDisplayMode) {
+        const window = assistantTopicWindows[seed.id]
+        result[seed.id] = {
+          totalCount,
+          hasMore: window ? !!window.nextCursor || window.status === 'error' : totalCount > 0,
+          status: window?.status ?? (expandedAssistantTopicGroupIds.includes(seed.id) ? 'loading' : 'idle')
+        }
+        continue
+      }
+
       result[seed.id] = {
         totalCount,
         hasMore: hasMoreOrdinaryTopics || !!ordinaryTopicsSource.error,
@@ -980,7 +1042,9 @@ export function Topics({
     }
     return result
   }, [
+    assistantTopicWindows,
     ordinaryTopicsSource.error,
+    expandedAssistantTopicGroupIds,
     hasMoreOrdinaryTopics,
     isAssistantDisplayMode,
     isOrdinaryTopicsLoading,
@@ -1114,6 +1178,10 @@ export function Topics({
         loadNextPinnedTopics()
         return
       }
+      if (isAssistantDisplayMode) {
+        await loadMoreAssistantTopicGroup(groupId)
+        return
+      }
       if (groupId !== TOPIC_ORDINARY_GROUP_ID) return
       if (ordinaryTopicsSource.error) {
         await refetchOrdinaryTopics()
@@ -1123,6 +1191,8 @@ export function Topics({
     },
     [
       ordinaryTopicsSource.error,
+      isAssistantDisplayMode,
+      loadMoreAssistantTopicGroup,
       loadNextOrdinaryTopics,
       loadNextPinnedTopics,
       pinnedTopicsSource.error,
@@ -1130,29 +1200,47 @@ export function Topics({
       refetchPinnedTopics
     ]
   )
+  const retryTopicGroup = useCallback(
+    async (groupId: string) => {
+      if (groupId === TOPIC_PINNED_GROUP_ID) {
+        await refetchPinnedTopics()
+        return
+      }
+      if (isAssistantDisplayMode) {
+        await retryAssistantTopicGroup(groupId)
+        return
+      }
+      await refetchOrdinaryTopics()
+    },
+    [isAssistantDisplayMode, refetchOrdinaryTopics, refetchPinnedTopics, retryAssistantTopicGroup]
+  )
   const topicListRemoteData = useMemo<ResourceListRemoteData>(
     () => ({
-      ...(topicFlatGroupStates ? { groupStates: topicFlatGroupStates, loadMoreGroup: loadMoreTopicGroup } : {}),
+      groupStates: topicGroupStates,
+      ...(isAssistantDisplayMode ? { ensureGroup: ensureAssistantTopicGroup } : {}),
+      loadMoreGroup: loadMoreTopicGroup,
       onQueryChange: setRemoteQuery,
-      query: remoteQuery
+      query: remoteQuery,
+      retryGroup: retryTopicGroup
     }),
-    [loadMoreTopicGroup, remoteQuery, topicFlatGroupStates]
+    [
+      ensureAssistantTopicGroup,
+      isAssistantDisplayMode,
+      loadMoreTopicGroup,
+      remoteQuery,
+      retryTopicGroup,
+      topicGroupStates
+    ]
   )
-  // Flat stream failures are recoverable at their real pinned/ordinary group footer.
-  // Grouped mode has no independent remote group windows, so surface its global stream failure.
+  // Stream failures remain recoverable at the group that owns the failed window.
   const listError =
     topicStatsError ||
-    (isAssistantDisplayMode
-      ? (pinnedTopicsSource.error ??
-        ordinaryTopicsSource.error ??
-        assistantsError ??
-        (isGroupGrouping ? assistantGroupsError : undefined))
-      : undefined)
+    (isAssistantDisplayMode ? (assistantsError ?? (isGroupGrouping ? assistantGroupsError : undefined)) : undefined)
   const listLoading =
     topics.length === 0 &&
     (isTopicStatsLoading ||
       pinnedTopicsSource.isLoading ||
-      isOrdinaryTopicsLoading ||
+      (!isAssistantDisplayMode && isOrdinaryTopicsLoading) ||
       (isAssistantDisplayMode && (isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading))))
   const visibleFilteredTopics = filteredTopics
   const listStatus =
@@ -1498,14 +1586,8 @@ export function Topics({
   )
 
   const collapsedTopicState = useMemo(
-    () =>
-      isAssistantDisplayMode
-        ? (topicExpansionAssistant ??
-          topicGroupSeeds
-            .filter((group) => group.label && group.id !== activeOrdinaryAssistantGroupId)
-            .map((group) => group.id))
-        : undefined,
-    [activeOrdinaryAssistantGroupId, isAssistantDisplayMode, topicExpansionAssistant, topicGroupSeeds]
+    () => (isAssistantDisplayMode ? collapsedAssistantTopicGroupIds : undefined),
+    [collapsedAssistantTopicGroupIds, isAssistantDisplayMode]
   )
   const topicAssistantSectionIds = useMemo(
     () =>
@@ -1544,12 +1626,15 @@ export function Topics({
   const topicItemDragReady =
     !isRightPanel &&
     topicSortBy === 'orderKey' &&
-    !ordinaryTopicsSource.error &&
-    !isOrdinaryTopicsLoading &&
-    !isOrdinaryTopicsRefreshing
+    (isAssistantDisplayMode || (!ordinaryTopicsSource.error && !isOrdinaryTopicsLoading && !isOrdinaryTopicsRefreshing))
+  const isTopicItemGroupStable = useCallback(
+    (groupId: string) => topicGroupStates[groupId]?.status === 'idle',
+    [topicGroupStates]
+  )
   const canDragTopicItem = useCallback(
-    ({ item }: { item: Topic; group: ResourceListGroup }) => topicItemDragReady && !item.pinned,
-    [topicItemDragReady]
+    ({ item, group }: { item: Topic; group: ResourceListGroup }) =>
+      topicItemDragReady && !item.pinned && isTopicItemGroupStable(group.id),
+    [isTopicItemGroupStable, topicItemDragReady]
   )
 
   const canDropTopicItem = useCallback(
@@ -1564,7 +1649,14 @@ export function Topics({
       sourceGroupId: string
       targetGroupId: string
     }) => {
-      if (!topicItemDragReady || overType !== 'item' || !overItem || targetGroupId === TOPIC_PINNED_GROUP_ID) {
+      if (
+        !topicItemDragReady ||
+        overType !== 'item' ||
+        !overItem ||
+        targetGroupId === TOPIC_PINNED_GROUP_ID ||
+        !isTopicItemGroupStable(sourceGroupId) ||
+        !isTopicItemGroupStable(targetGroupId)
+      ) {
         return false
       }
       if (!isAssistantDisplayMode) {
@@ -1573,7 +1665,7 @@ export function Topics({
       if (targetGroupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return sourceGroupId === targetGroupId
       return resolveAssistantIdForTopicGroup(targetGroupId, assistantById) !== undefined
     },
-    [assistantById, isAssistantDisplayMode, topicItemDragReady]
+    [assistantById, isAssistantDisplayMode, isTopicItemGroupStable, topicItemDragReady]
   )
 
   const canDragTopicGroup = useCallback(
@@ -1658,7 +1750,13 @@ export function Topics({
         return
       }
 
-      if (!topicItemDragReady) return
+      if (
+        !topicItemDragReady ||
+        !isTopicItemGroupStable(payload.sourceGroupId) ||
+        !isTopicItemGroupStable(payload.targetGroupId)
+      ) {
+        return
+      }
 
       if (payload.sourceGroupId === TOPIC_PINNED_GROUP_ID || payload.targetGroupId === TOPIC_PINNED_GROUP_ID) return
 
@@ -1704,6 +1802,7 @@ export function Topics({
     [
       assistantById,
       isAssistantDisplayMode,
+      isTopicItemGroupStable,
       moveTopic,
       orderedAssistants,
       refreshAssistants,
@@ -1748,6 +1847,7 @@ export function Topics({
         canDropItem={canDropTopicItem}
         groupShowMoreLabel={t('chat.topics.group.show_more')}
         groupCollapseLabel={isRightPanel ? undefined : t('chat.topics.group.collapse')}
+        groupRetryLabel={isAssistantDisplayMode ? t('common.retry') : undefined}
         onRenameItem={handleRenameTopic}
         onReorder={handleTopicReorder}
         onCollapsedStateChange={isAssistantDisplayMode ? handleTopicCollapsedStateChange : undefined}>

@@ -14,6 +14,7 @@ import {
   createSessionWorkdirDisplayMaps,
   createSessionWorkdirLabelMap,
   getPrimarySessionWorkdir,
+  getSessionWorkdirGroupId,
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
@@ -331,6 +332,18 @@ describe('SessionList helpers', () => {
     expect(display.groupIdByPath.get('/Users/jd/project-a')).toBe('session:workspace:ws-a')
     expect(display.labelByGroupId.get('session:workspace:ws-a')).toBe('Project A')
     expect(display.groupIdByPath.get('/Users/jd/unregistered')).toBe('session:workdir:%2FUsers%2Fjd%2Funregistered')
+  })
+
+  it('keeps stats workspace ids canonical before workspace metadata loads', () => {
+    const display = createSessionWorkdirDisplayMaps([], [], [], ['ws-pending'])
+    const session = createSession({
+      workspaceId: 'ws-pending',
+      workspace: makeWorkspace('/Users/jd/pending', { id: 'ws-pending' })
+    })
+
+    expect(display.groupIdByWorkspaceId.get('ws-pending')).toBe('session:workspace:ws-pending')
+    expect(display.workspaceIdByGroupId.get('session:workspace:ws-pending')).toBe('ws-pending')
+    expect(getSessionWorkdirGroupId(session, display)).toBe('session:workspace:ws-pending')
   })
 
   it('keeps session-derived fallback workdirs after known workspace rows', () => {

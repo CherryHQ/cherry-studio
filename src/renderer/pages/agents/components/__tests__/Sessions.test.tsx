@@ -10,6 +10,36 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const groupWindowMocks = vi.hoisted(() => ({
+  ensureGroup: vi.fn().mockResolvedValue(undefined),
+  items: [] as unknown[],
+  loadMoreGroup: vi.fn().mockResolvedValue(undefined),
+  options: undefined as
+    | {
+        expandedGroupIds: readonly string[]
+        fetchPage: (groupId: string, cursor?: string) => Promise<{ items: unknown[]; nextCursor?: string }>
+        groupIds: readonly string[]
+        queryKey: string
+      }
+    | undefined,
+  retryGroup: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@renderer/hooks/useCursorGroupWindows', () => ({
+  useCursorGroupWindows: vi.fn((options) => {
+    groupWindowMocks.options = options
+    return {
+      ensureGroup: groupWindowMocks.ensureGroup,
+      items: groupWindowMocks.items,
+      loadMoreGroup: groupWindowMocks.loadMoreGroup,
+      retryGroup: groupWindowMocks.retryGroup,
+      windows: Object.fromEntries(
+        options.groupIds.map((groupId: string) => [groupId, { items: [], status: 'idle' as const }])
+      )
+    }
+  })
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const React = await import('react')
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -653,7 +683,10 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { dataApiService } from '@renderer/data/DataApiService'
 import {
+  getSessionAgentGroupId,
+  getWorkspaceSessionGroupId,
   SESSION_AGENT_SECTION_ID,
   SESSION_PINNED_SECTION_ID,
   SESSION_SYSTEM_WORKSPACE_SECTION_ID,
@@ -828,6 +861,7 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
   }
   sessionDataMocks.listSource = listSource
   const sessions = listSource.sessions as AgentSessionListItem[]
+  groupWindowMocks.items = sessions.filter((session) => !session.pinned)
   const pinnedListSource = { ...listSource, sessions: sessions.filter((session) => session.pinned) }
   const ordinaryListSource = { ...listSource, sessions: sessions.filter((session) => !session.pinned) }
   sessionDataMocks.useSessions.mockImplementation((_agentId, options: { pinned?: boolean }) =>
@@ -1868,6 +1902,63 @@ describe('Sessions', () => {
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
     expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
+  })
+
+  it('uses workspace-scoped windows instead of the global ordinary stream in workdir mode', async () => {
+    const projectA = createSession({ id: 'session-a', name: 'Project A', workspaceId: 'ws-a' })
+    const projectB = createSession({
+      id: 'session-b',
+      name: 'Project B',
+      workspaceId: 'ws-b',
+      workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace' })
+    })
+    setupSessions({ sessions: [projectA, projectB] })
+    vi.mocked(dataApiService.get).mockResolvedValueOnce({ items: [projectB] } as never)
+
+    render(<SessionsForTest />)
+
+    const page = await groupWindowMocks.options?.fetchPage(getWorkspaceSessionGroupId('ws-b'))
+
+    expect(page?.items).toEqual([expect.objectContaining({ id: 'session-b' })])
+    expect(dataApiService.get).toHaveBeenCalledWith('/agent-sessions', {
+      query: expect.objectContaining({
+        pinned: false,
+        workspaceId: 'ws-b'
+      })
+    })
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ enabled: false, pinned: false })
+    )
+  })
+
+  it('uses agent-scoped windows in agent mode', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    const agentA = createSession({ id: 'session-a', agentId: 'agent-a', name: 'Agent A session' })
+    const agentB = createSession({ id: 'session-b', agentId: 'agent-b', name: 'Agent B session' })
+    setupSessions({ sessions: [agentA, agentB] })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'provider-a::model-a', modelName: 'Model A', name: 'Alpha agent' },
+        { id: 'agent-b', model: 'provider-a::model-a', modelName: 'Model A', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    vi.mocked(dataApiService.get).mockResolvedValueOnce({ items: [agentB] } as never)
+
+    render(<SessionsForTest />)
+
+    const page = await groupWindowMocks.options?.fetchPage(getSessionAgentGroupId('agent-b'))
+
+    expect(page?.items).toEqual([expect.objectContaining({ id: 'session-b' })])
+    expect(dataApiService.get).toHaveBeenCalledWith('/agent-sessions', {
+      query: expect.objectContaining({
+        agentId: 'agent-b',
+        pinned: false
+      })
+    })
   })
 
   it('keeps workdir sessions visible while workspace rows refresh', () => {

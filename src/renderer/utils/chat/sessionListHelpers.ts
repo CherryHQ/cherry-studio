@@ -243,6 +243,17 @@ export function createSessionWorkdirDisplayMaps(
     rankByGroupId.set(groupId, rankByGroupId.size)
   }
 
+  // Stats can identify a workspace before its metadata row is available. Keep
+  // that id as the canonical group key so fetched sessions attach to the same
+  // server-backed group instead of falling back to a path-derived key.
+  for (const workspaceId of knownWorkspaceIds) {
+    if (groupIdByWorkspaceId.has(workspaceId)) continue
+    const groupId = getWorkspaceSessionGroupId(workspaceId)
+    groupIdByWorkspaceId.set(workspaceId, groupId)
+    workspaceIdByGroupId.set(groupId, workspaceId)
+    rankByGroupId.set(groupId, rankByGroupId.size)
+  }
+
   for (const [path, label] of createFallbackWorkdirLabelEntries(
     Array.from(
       new Set([

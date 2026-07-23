@@ -44,7 +44,10 @@ export type ResourceListRemoteData = {
   query: string
   groupStates?: Readonly<Record<string, ResourceListRemoteGroupState | undefined>>
   onQueryChange: (query: string) => void
+  /** Ensure an expanded server-backed group has loaded its first page. */
+  ensureGroup?: (groupId: string) => Promise<void>
   loadMoreGroup?: (groupId: string) => Promise<void>
+  retryGroup?: (groupId: string) => Promise<void>
 }
 
 export type ResourceListSection = {
@@ -152,6 +155,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   groupLoadStep: number
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
+  groupRetryLabel?: string
   revealRequest?: ResourceListRevealRequest
   dragCapabilities: ResourceListDragCapabilities
   canDragGroup?: (group: ResourceListGroup, groupIndex: number) => boolean

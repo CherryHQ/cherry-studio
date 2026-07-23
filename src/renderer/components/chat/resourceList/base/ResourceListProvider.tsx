@@ -44,6 +44,26 @@ const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
 const estimateDefaultItemSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
 const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '' }
 const UNSECTIONED_RESOURCE_SECTION: ResourceListSection = { id: 'resource-list:section:unsectioned', label: '' }
+const REMOTE_GROUP_LOAD_CONCURRENCY = 3
+
+async function runRemoteGroupLoadsWithConcurrency(
+  groupIds: readonly string[],
+  load: (groupId: string) => Promise<void>
+): Promise<void> {
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.min(REMOTE_GROUP_LOAD_CONCURRENCY, groupIds.length) }, async () => {
+    while (nextIndex < groupIds.length) {
+      const groupId = groupIds[nextIndex]
+      nextIndex += 1
+      try {
+        await load(groupId)
+      } catch {
+        // Each remote group presents its own failure state.
+      }
+    }
+  })
+  await Promise.all(workers)
+}
 
 type ResourceListGroupHeaderClickBehaviorResolver =
   | ResourceListGroupHeaderClickBehavior
@@ -387,6 +407,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   groupLoadStep?: number
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
+  groupRetryLabel?: string
   estimateItemSize?: (index: number) => number
   onSelectItem?: (id: string) => void
   onRenameItem?: (id: string, name: string) => void
@@ -582,6 +603,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   groupLoadStep = 5,
   groupShowMoreLabel,
   groupCollapseLabel,
+  groupRetryLabel,
   estimateItemSize = estimateDefaultItemSize,
   onSelectItem,
   onRenameItem,
@@ -864,6 +886,26 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     }
   }, [])
 
+  const ensureRemoteGroups = useCallback(
+    (groupIds: readonly string[]) => {
+      if (!remoteData?.ensureGroup) return
+      const unloadedGroupIds = groupIds.filter((groupId) => {
+        const group = viewGroupsRef.current.find((candidate) => candidate.group.id === groupId)
+        return (
+          group &&
+          group.totalCount > 0 &&
+          group.allItems.length === 0 &&
+          group.status !== 'loading' &&
+          !pendingGroupLoadsRef.current.has(groupId)
+        )
+      })
+      void runRemoteGroupLoadsWithConcurrency(unloadedGroupIds, (groupId) =>
+        runRemoteGroupLoad(groupId, () => remoteData.ensureGroup?.(groupId) ?? Promise.resolve()).then(() => undefined)
+      )
+    },
+    [remoteData, runRemoteGroupLoad]
+  )
+
   const actions = useMemo(
     () => ({
       setQuery: (query: string) => {
@@ -916,13 +958,16 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
           dispatch({ type: 'setGroupVisibleCount', groupId, visibleCount: nextVisibleCount })
           return
         }
-        if (!group.hasMore || !remoteData.loadMoreGroup) return
-        await runRemoteGroupLoad(groupId, () => remoteData.loadMoreGroup?.(groupId) ?? Promise.resolve())
+        if (!group.hasMore) return
+        const load = group.status === 'error' ? remoteData.retryGroup : remoteData.loadMoreGroup
+        if (!load) return
+        await runRemoteGroupLoad(groupId, () => load(groupId))
         dispatch({ type: 'setGroupVisibleCount', groupId, visibleCount: nextVisibleCount })
       },
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
       expandGroups: (groupIds: readonly string[]) => {
+        ensureRemoteGroups(groupIds)
         if (isControlled) {
           const removeSet = new Set(groupIds)
           notifyControlledCollapsedStateChange(collapsedStateRef.current.filter((id) => !removeSet.has(id)))
@@ -941,6 +986,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         dispatch({ type: 'collapseGroups', groupIds, defaultCount: defaultGroupVisibleCount })
       },
       toggleGroup: (groupId: string) => {
+        if (collapsedStateRef.current.includes(groupId)) ensureRemoteGroups([groupId])
         if (isControlled) {
           const nextCollapsedIds = collapsedStateRef.current.includes(groupId)
             ? collapsedStateRef.current.filter((id) => id !== groupId)
@@ -958,6 +1004,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupLoadStep,
       isControlled,
       isSelectedControlled,
+      ensureRemoteGroups,
       notifyControlledCollapsedStateChange,
       onOpenContextMenu,
       onRenameItem,
@@ -1013,6 +1060,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupLoadStep,
       groupShowMoreLabel,
       groupCollapseLabel,
+      groupRetryLabel,
       revealRequest,
       dragCapabilities: {
         groups: false,
@@ -1047,6 +1095,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getItemId,
       getItemLabel,
       groupCollapseLabel,
+      groupRetryLabel,
       groupLoadStep,
       groupShowMoreLabel,
       onGroupHeaderActivate,

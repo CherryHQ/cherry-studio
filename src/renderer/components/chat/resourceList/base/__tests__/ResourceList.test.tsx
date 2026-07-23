@@ -2101,6 +2101,62 @@ describe('ResourceList', () => {
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'match' })
   })
 
+  it('ensures an unloaded remote group when it is expanded', async () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const ensureGroup = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <Provider
+        items={[]}
+        groupBy={() => ({ id: 'remote', label: 'Remote' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
+        collapsedState={['remote']}
+        onCollapsedStateChange={vi.fn()}
+        remoteData={{
+          query: '',
+          groupStates: { remote: { totalCount: 1, hasMore: true, status: 'idle' } },
+          onQueryChange: vi.fn(),
+          ensureGroup
+        }}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={() => null} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remote' }))
+
+    await waitFor(() => expect(ensureGroup).toHaveBeenCalledWith('remote'))
+  })
+
+  it('uses the remote retry operation and label for a failed group window', async () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const retryGroup = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <Provider
+        items={[]}
+        groupBy={() => ({ id: 'remote', label: 'Remote' })}
+        groupRetryLabel="Retry"
+        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
+        groupShowMoreLabel="Show more"
+        remoteData={{
+          query: '',
+          groupStates: { remote: { totalCount: 1, hasMore: true, status: 'error' } },
+          onQueryChange: vi.fn(),
+          retryGroup
+        }}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={() => null} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(retryGroup).toHaveBeenCalledWith('remote'))
+  })
+
   it('toggles every group in a section from a menu item without collapsing the section', () => {
     const Provider = ResourceList.Provider<TestItem & { groupId: string }>
     const items = [

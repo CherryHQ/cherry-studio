@@ -271,7 +271,12 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
   const groupState = useResourceListGroupState(groupId)
   const canCollapseToDefault = groupState.canCollapseToDefault
   const isLoading = groupState.status === 'loading'
-  const label = canCollapseToDefault ? meta.groupCollapseLabel : meta.groupShowMoreLabel
+  const label =
+    groupState.status === 'error'
+      ? (meta.groupRetryLabel ?? meta.groupShowMoreLabel)
+      : canCollapseToDefault
+        ? meta.groupCollapseLabel
+        : meta.groupShowMoreLabel
 
   if (!label) return null
 
