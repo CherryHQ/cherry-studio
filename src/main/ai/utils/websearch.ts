@@ -62,6 +62,13 @@ export function buildProviderBuiltinWebSearchConfig(
   switch (providerId) {
     case 'azure-responses':
     case 'openai': {
+      // Doubao (Volcengine Ark) rides the openai Responses adapter, but its
+      // built-in web_search tool only accepts the bare `{type:'web_search'}`
+      // shape — openai-only knobs like search_context_size are not documented
+      // and must not be sent.
+      if (model?.providerId === 'doubao') {
+        return { openai: {} }
+      }
       const searchContextSize =
         model && isOpenAIDeepResearchModel(model)
           ? 'medium'
