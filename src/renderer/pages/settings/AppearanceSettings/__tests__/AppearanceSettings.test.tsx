@@ -273,6 +273,7 @@ describe('AppearanceSettings menu presentation mode', () => {
 describe('AppearanceSettings selectors', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css_v1', '')
     i18nMock.language = 'zh-CN'
     i18nMock.resolvedLanguage = 'zh-CN'
     mocks.request.mockReset()
