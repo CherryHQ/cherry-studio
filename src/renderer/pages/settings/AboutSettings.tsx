@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
+import { StaticMarkdown } from '@renderer/components/markdown'
 import {
   SettingGroup,
   SettingRow,
@@ -23,7 +24,6 @@ import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss 
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Streamdown } from 'streamdown'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -291,11 +291,11 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-foreground-secondary text-sm [&_p]:m-0">
-            <Streamdown mode="static">
+            <StaticMarkdown id="about-release-notes">
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
-                : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
-            </Streamdown>
+                : (appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n') ?? '')}
+            </StaticMarkdown>
           </div>
         </SettingGroup>
       )}

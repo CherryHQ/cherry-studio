@@ -2,6 +2,7 @@ import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystu
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -34,9 +35,13 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { type MarkdownHost, MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
+import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
+import { joinPath } from '@renderer/utils/path'
 import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import {
@@ -401,6 +406,7 @@ function AgentResourceRightPanel({ scope }: RightPanelComponentProps<AgentRightP
 }
 
 function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const { t } = useTranslation()
   const state = useAgentRightPaneFileState()
   const actions = useAgentRightPaneActions()
   const meta = useAgentRightPaneMeta()
@@ -440,23 +446,61 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
     actions.setSelectedFile(null)
   }, [actions, meta.workspacePath, model.hasLoaded, model.nodeById, state.previewFileSelection, state.selectedFile])
 
+  // Make file paths inside a previewed markdown file (inline paths and `[..](./x)` links)
+  // clickable and open in this same right pane. The preview is not inside a MessageListProvider,
+  // so the host supplies a routed opener directly: directories open in the system file manager,
+  // files in the artifact preview — mirroring ClickableFilePath's routing (openFileTarget).
+  const workspacePath = meta.workspacePath
+  const openFilePath = useCallback(
+    (path: string) => {
+      const toAbsolute = (p: string): string | null => {
+        if (!workspacePath) return null
+        const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(p))
+        return selection ? joinPath(selection.workspacePath, selection.filePath) : null
+      }
+      return openFileTarget(path, {
+        openArtifactFile: actions.openArtifactFile,
+        openPath: (p) => {
+          const absolute = toAbsolute(p)
+          return absolute ? window.api.file.openPath(absolute) : undefined
+        },
+        isDirectory: async (p) => {
+          const absolute = toAbsolute(p)
+          return absolute ? window.api.file.isDirectory(absolute) : false
+        },
+        onError: () => toast.error(t('chat.input.tools.open_file_error', { path }))
+      })
+    },
+    [actions.openArtifactFile, workspacePath, t]
+  )
+  const markdownHost = useMemo<MarkdownHost>(
+    () => ({
+      codeFancyBlock: true,
+      openFilePath,
+      renderInlineFilePath: (path) => <ClickableFilePath path={path} onOpen={openFilePath} />
+    }),
+    [openFilePath]
+  )
+
   return (
-    <ArtifactPaneView
-      headerVariant="pane"
-      paneTitle={scope.filesTitle}
-      paneActions={<RightPanelHeaderControls canMaximize />}
-      workspacePath={meta.workspacePath}
-      previewFileSelection={state.previewFileSelection}
-      onPreviewClose={actions.closeFilePreview}
-      pdfLayoutPending={panelState.pdfLayoutPending}
-      pdfLayoutRefreshKey={panelState.pdfLayoutRefreshKey}
-      enableFileSearch
-      model={model}
-      selectedFile={state.selectedFile}
-      onSelectedFileChange={actions.setSelectedFile}
-      searchKeyword={state.fileTreeSearchKeyword}
-      onSearchKeywordChange={actions.setFileTreeSearchKeyword}
-    />
+    <MarkdownHostContext value={markdownHost}>
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle={scope.filesTitle}
+        paneActions={<RightPanelHeaderControls canMaximize />}
+        workspacePath={meta.workspacePath}
+        previewFileSelection={state.previewFileSelection}
+        onPreviewClose={actions.closeFilePreview}
+        pdfLayoutPending={panelState.pdfLayoutPending}
+        pdfLayoutRefreshKey={panelState.pdfLayoutRefreshKey}
+        enableFileSearch
+        model={model}
+        selectedFile={state.selectedFile}
+        onSelectedFileChange={actions.setSelectedFile}
+        searchKeyword={state.fileTreeSearchKeyword}
+        onSearchKeywordChange={actions.setFileTreeSearchKeyword}
+      />
+    </MarkdownHostContext>
   )
 }
 

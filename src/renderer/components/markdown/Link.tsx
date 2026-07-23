@@ -1,4 +1,6 @@
 import Favicon from '@renderer/components/icons/FallbackFavicon'
+import { useMarkdownHost } from '@renderer/hooks/useMarkdownHost'
+import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { parseJSON } from '@renderer/utils/json'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { cn } from '@renderer/utils/style'
@@ -36,10 +38,32 @@ const Link: React.FC<LinkProps> = (props) => {
   }, [props.children])
   const hostname = useMemo(() => getWebHostname(props.href), [props.href])
   const containsFaviconChild = useMemo(() => hasFaviconChild(props.children), [props.children])
+  const { openFilePath } = useMarkdownHost()
 
   // 处理内部链接
   if (props.href?.startsWith('#')) {
     return <span className="link">{props.children}</span>
+  }
+
+  // File-path links (e.g. `[SKILL.md](.agents/skills/gh-create-pr/SKILL.md)`, `[Design](./DESIGN.md)`,
+  // `[README](README.md)`): the href is a workspace file, not a web page. Keep the link's own text but
+  // route the click to the host's file opener, which resolves the path against the caller-supplied
+  // workspace and routes directories vs files, instead of a browser navigation.
+  const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null
+  if (fileLinkPath && openFilePath) {
+    return (
+      <a
+        {...omit(props, ['node'])}
+        href={props.href}
+        className={cn('text-primary', !props.className && 'hover:underline', props.className)}
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          void Promise.resolve(openFilePath(fileLinkPath)).catch(() => {})
+        }}>
+        {props.children}
+      </a>
+    )
   }
 
   // 包含<sup>标签表示是一个引用链接

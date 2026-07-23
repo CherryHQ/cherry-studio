@@ -1,12 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import MarqueeText from '@renderer/components/MarqueeText'
+import { useMarkdownHost } from '@renderer/hooks/useMarkdownHost'
 import { fetchXOEmbed, isXPostUrl, xOembedKey } from '@renderer/utils/fetch'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import useSWRImmutable from 'swr/immutable'
 import * as z from 'zod'
-
-import { useOptionalMessageListActions } from '../MessageListProvider'
 
 export const CitationSchema = z.object({
   url: z.url(),
@@ -20,7 +19,7 @@ interface CitationTooltipProps {
 }
 
 const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation }) => {
-  const openExternalUrl = useOptionalMessageListActions()?.openExternalUrl
+  const openExternalUrl = useMarkdownHost().openExternalUrl
   const hostname = useMemo(() => {
     try {
       return new URL(citation.url).hostname

@@ -117,4 +117,33 @@ describe('Markdown sanitize schema', () => {
     expect(output).toContain('<span data-composer-token-index="0" data-composer-token-block="block-1"></span>')
     expect(output).not.toContain('onclick')
   })
+
+  it('keeps schemeless workspace file links through sanitize while blocking file:/drive/unsafe protocols', async () => {
+    // Callers that render links through their own safety-aware `<a>` (e.g. the renderer's
+    // file-link opener) disable Streamdown's rehype-harden, so relative hrefs must survive
+    // sanitize alone — harden would otherwise origin-resolve `./x` → `/x`. Sanitize's
+    // protocol allow-list is the only link gate left, so it must still drop unsafe schemes.
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+    const run = (html: string) =>
+      unified()
+        .use(rehypeParse, { fragment: true })
+        .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
+        .use(rehypeStringify)
+        .process(html)
+        .then(String)
+
+    // Relative + POSIX-absolute workspace file links survive sanitize unchanged —
+    // this is exactly what the markdown file-link (open-in-preview) feature relies on.
+    expect(await run('<a href="./README.md">x</a>')).toContain('href="./README.md"')
+    expect(await run('<a href=".agents/skills/gh-create-pr/SKILL.md">x</a>')).toContain(
+      'href=".agents/skills/gh-create-pr/SKILL.md"'
+    )
+    expect(await run('<a href="/Users/alice/notes.md">x</a>')).toContain('href="/Users/alice/notes.md"')
+    // Drive paths (`c:`), file: URLs and unsafe protocols are dropped by sanitize's protocol
+    // allow-list, so absolute drive/file: markdown links are unsupported by design.
+    expect(await run('<a href="C:/Users/Alice/README.md">x</a>')).not.toContain('C:/Users')
+    expect(await run('<a href="file:///C:/Users/x.md">x</a>')).not.toContain('file:///C:/Users/x.md')
+    expect(await run('<a href="javascript:alert(1)">x</a>')).not.toContain('javascript:')
+  })
 })

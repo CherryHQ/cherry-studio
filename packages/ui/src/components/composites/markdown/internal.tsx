@@ -76,6 +76,13 @@ export interface MarkdownCoreProps {
   disallowedElements?: readonly string[]
   /** Override the default 'Footnotes' label (for i18n). */
   footnoteLabel?: string
+  /**
+   * Skip Streamdown's `rehype-harden` link/image pass. Harden origin-resolves every
+   * link href (`./x` → `/x`), which destroys relative file paths a caller may want to
+   * recover in a custom `<a>` component. Disable it only when the caller renders links
+   * through its own safety-aware component; sanitization (protocol allow-list) still runs.
+   */
+  disableLinkHardening?: boolean
 }
 
 export function MarkdownCore({
@@ -90,7 +97,8 @@ export function MarkdownCore({
   parseIncompleteMarkdown,
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
-  footnoteLabel = 'Footnotes'
+  footnoteLabel = 'Footnotes',
+  disableLinkHardening = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
 
@@ -108,12 +116,12 @@ export function MarkdownCore({
       [sanitizeFn, extendedSchema] as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
       [rehypePrefixSvgReferences, (extendedSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
-      harden,
+      ...(disableLinkHardening ? [] : [harden]),
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
     )
     if (extraRehypePlugins?.length) result.push(...extraRehypePlugins)
     return result
-  }, [hasSvgElement, id, extraRehypePlugins])
+  }, [hasSvgElement, id, extraRehypePlugins, disableLinkHardening])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value

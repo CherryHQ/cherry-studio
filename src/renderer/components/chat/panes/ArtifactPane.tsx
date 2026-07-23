@@ -1,4 +1,4 @@
-import { Button, Markdown, Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import ImagePreviewPanel from '@renderer/components/ArtifactPreview/image/ImagePreviewPanel'
@@ -10,6 +10,7 @@ import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
+import { StaticMarkdown } from '@renderer/components/markdown'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
@@ -405,7 +406,7 @@ export function ArtifactFilePreview({
   if (isMarkdownFile(filePath)) {
     return (
       <div className="min-w-0 px-5 py-4">
-        <Markdown id={`md-${filePath}-${contentRefreshKey}`}>{fileContent ?? ''}</Markdown>
+        <StaticMarkdown id={`md-${filePath}-${contentRefreshKey}`}>{fileContent ?? ''}</StaticMarkdown>
       </div>
     )
   }

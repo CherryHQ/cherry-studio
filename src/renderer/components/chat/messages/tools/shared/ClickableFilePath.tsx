@@ -4,6 +4,7 @@ import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
 import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { FolderOpen, MoreHorizontal } from 'lucide-react'
@@ -16,12 +17,21 @@ interface ClickableFilePathProps {
   path: string
   displayName?: string
   interactive?: boolean
+  /**
+   * Explicit open handler. When provided it takes over the primary click
+   * (receiving the resolved path) instead of the message-list actions — lets
+   * surfaces without a `MessageListProvider` (e.g. the artifact file preview)
+   * route the click to their own open logic. The "more actions" popover still
+   * derives from the message-list context and is simply absent off-context.
+   */
+  onOpen?: (path: string) => void
 }
 
 export const ClickableFilePath = memo(function ClickableFilePath({
   path,
   displayName,
-  interactive = true
+  interactive = true,
+  onOpen
 }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const displayPath = useMemo(() => normalizeInlineFilePath(path), [path])
@@ -35,7 +45,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const showInFolder = interactive ? actions?.showInFolder : undefined
   const openInExternalApp = interactive ? actions?.openInExternalApp : undefined
   const notifyError = actions?.notifyError
-  const canOpen = Boolean(openArtifactFile || openPath)
+  const canOpen = Boolean(onOpen || openArtifactFile || openPath)
   const availableEditors = ui?.externalCodeEditors ?? []
   const hasEditorActions = Boolean(openInExternalApp && availableEditors.length > 0)
   const hasMoreActions = Boolean(showInFolder) || hasEditorActions
@@ -64,30 +74,18 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     async (e: React.MouseEvent | React.KeyboardEvent) => {
       if (!canOpen) return
       e.stopPropagation()
-      // Resolve directory-ness authoritatively (single stat on the clicked
-      // path) and route accordingly: directories open in the system file
-      // manager, files open in the in-app preview pane. The preview pane is
-      // file-only — handing it a directory just renders a "can't display"
-      // dead end. `isDirectory` is fs.stat-backed and resolves false on a
-      // missing path, so a vanished file still falls through to the preview
-      // pane, which reports its own missing / unreadable state (no TOCTOU
-      // preflight, no error interpretation in the renderer).
-      //
-      // Some surfaces (e.g. Home chat) wire only `openPath` and no preview
-      // pane — there, route everything through the system file manager so the
-      // link is never a silent dead end.
-      try {
-        const directory = isDirectory ? await isDirectory(targetPath) : false
-        if (directory || !openArtifactFile) {
-          await openPath?.(targetPath)
-        } else {
-          await openArtifactFile(targetPath)
-        }
-      } catch {
-        notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
+      if (onOpen) {
+        onOpen(targetPath)
+        return
       }
+      await openFileTarget(targetPath, {
+        openArtifactFile,
+        openPath,
+        isDirectory,
+        onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
+      })
     },
-    [canOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath]
+    [canOpen, onOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath]
   )
 
   const handleKeyDown = useCallback(

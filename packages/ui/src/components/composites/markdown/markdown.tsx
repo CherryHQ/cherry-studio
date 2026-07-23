@@ -31,6 +31,8 @@ export interface MarkdownProps {
   className?: string
   /** Override the default 'Footnotes' label for i18n. */
   footnoteLabel?: string
+  /** Skip Streamdown's `rehype-harden` link pass so relative hrefs reach a custom `<a>` intact. */
+  disableLinkHardening?: boolean
 }
 
 export function Markdown({
@@ -42,7 +44,8 @@ export function Markdown({
   remarkPlugins,
   disallowedElements,
   className,
-  footnoteLabel
+  footnoteLabel,
+  disableLinkHardening
 }: MarkdownProps): ReactElement {
   return (
     <MarkdownCore
@@ -54,7 +57,8 @@ export function Markdown({
       extraRemarkPlugins={remarkPlugins}
       disallowedElements={disallowedElements}
       className={className}
-      footnoteLabel={footnoteLabel}>
+      footnoteLabel={footnoteLabel}
+      disableLinkHardening={disableLinkHardening}>
       {children}
     </MarkdownCore>
   )
