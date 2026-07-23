@@ -117,10 +117,20 @@ const composerDefaultHeight = 92
 const composerMinHeight = 76
 const composerMaxHeight = 220
 const composerKeyboardStep = 12
+// Align with desktop LanguageVarious (src/shared/data/preference/preferenceTypes.ts).
 const webUiLanguages = [
   { id: 'en-US', label: 'English' },
   { id: 'zh-CN', label: '中文' },
-  { id: 'zh-TW', label: '繁體中文' }
+  { id: 'zh-TW', label: '繁體中文' },
+  { id: 'de-DE', label: 'Deutsch' },
+  { id: 'el-GR', label: 'Ελληνικά' },
+  { id: 'es-ES', label: 'Español' },
+  { id: 'fr-FR', label: 'Français' },
+  { id: 'ja-JP', label: '日本語' },
+  { id: 'pt-PT', label: 'Português' },
+  { id: 'ro-RO', label: 'Română' },
+  { id: 'ru-RU', label: 'Русский' },
+  { id: 'vi-VN', label: 'Tiếng Việt' }
 ] as const
 
 const normalizeLanguage = (language?: string | null) => {
@@ -159,7 +169,7 @@ const textPacks = {
     cancel: 'Cancel',
     checkingBridge: 'Checking desktop bridge',
     close: 'Close',
-    connected: 'Win11 desktop bridge connected',
+    connected: 'Desktop bridge connected',
     context: 'Context',
     copy: 'Copy',
     copyMarkdown: 'Copy Markdown',
@@ -332,7 +342,7 @@ const textPacks = {
     cancel: '取消',
     checkingBridge: '正在检查桌面桥接服务',
     close: '关闭',
-    connected: 'Win11 桌面桥接已连接',
+    connected: '桌面桥接已连接',
     context: '上下文',
     copy: '复制',
     copyMarkdown: '复制 Markdown',
@@ -499,7 +509,7 @@ const textPacks = {
     cancel: '取消',
     checkingBridge: '正在檢查桌面橋接服務',
     close: '關閉',
-    connected: 'Win11 桌面橋接已連線',
+    connected: '桌面橋接已連線',
     context: '上下文',
     copy: '複製',
     copyMarkdown: '複製 Markdown',

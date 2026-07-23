@@ -1,4 +1,4 @@
-// WebUI远程扩展，仅Win11启用，最小侵入
+// WebUI desktop bridge SSE relay
 import type { ServerResponse } from 'node:http'
 
 export type WebUiSseEvent = {

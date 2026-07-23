@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@11.8.0",
   "type": "module",
-  "description": "Cherry Studio Win11 remote WebUI static frontend.",
+  "description": "Cherry Studio desktop bridge WebUI static frontend.",
   "scripts": {
     "build": "vite build",
     "typecheck": "vue-tsc --noEmit"

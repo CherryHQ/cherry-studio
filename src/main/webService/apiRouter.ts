@@ -1,4 +1,4 @@
-// WebUI远程扩展，仅Win11启用，最小侵入
+// WebUI desktop bridge
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
@@ -129,7 +129,8 @@ const normalizeAuthKey = (key: string) => key.trim()
 
 export const isWebUiRequestAuthorized = (request: IncomingMessage, url: URL, authKey: string) => {
   const expectedKey = normalizeAuthKey(authKey)
-  if (!expectedKey) return true
+  // Access key is mandatory — empty key rejects all requests.
+  if (!expectedKey) return false
 
   const headerValue = request.headers[authHeaderName]
   const providedKey =
@@ -279,7 +280,7 @@ const parseToolApprovalBody = (value: unknown): WebUiToolApprovalBody | undefine
 }
 
 const listWebUiChatModelGroups = () => {
-  // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+  // WebUI desktop bridge
   const providers = providerService.list({ enabled: true }).filter((provider) => !isExternalCliProvider(provider))
   const providerById = new Map(providers.map((provider) => [provider.id, provider]))
   const models = modelService
@@ -393,7 +394,7 @@ class WebUiStreamListener implements StreamListener {
   }
 
   onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
-    // WebUI远程扩展，仅Win11启用，最小侵入
+    // WebUI desktop bridge
     // Forward the upstream-normalized UI message chunk unchanged so the WebUI
     // can render tool activity without maintaining a second stream protocol.
     const chunkMessageId = 'id' in chunk && typeof chunk.id === 'string' ? chunk.id : undefined
@@ -552,7 +553,7 @@ export const createWebUiApiRouter = ({
         body: {
           authRequired: Boolean(normalizeAuthKey(getAuthKey())),
           language: getLanguage(),
-          // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+          // WebUI desktop bridge
           userName: application.get('PreferenceService').get('app.user.name'),
           timestamp: new Date().toISOString()
         }
@@ -650,7 +651,7 @@ export const createWebUiApiRouter = ({
       let usage = cacheService.getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
 
       if (!usage) {
-        // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+        // WebUI desktop bridge
         await application.get('AgentSessionRuntimeService').primeConnection(sessionId)
         for (let attempt = 0; attempt < 8 && !usage; attempt += 1) {
           await new Promise<void>((resolve) => setTimeout(resolve, 50))
@@ -667,7 +668,7 @@ export const createWebUiApiRouter = ({
       if (!encodedSessionId)
         return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
       const sessionId = decodeURIComponent(encodedSessionId)
-      // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+      // WebUI desktop bridge
       const commands =
         application.get('CacheService').getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)) ?? []
       return { status: 200, body: { commands } }
@@ -699,7 +700,7 @@ export const createWebUiApiRouter = ({
           }
         }
 
-        // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+        // WebUI desktop bridge
         const agent = agentService.updateAgent(session.agentId, { model: body.model })
         if (!agent)
           return { status: 404, body: { code: 'WEBUI_AGENT_NOT_FOUND', message: 'Desktop Agent was not found' } }
@@ -716,7 +717,7 @@ export const createWebUiApiRouter = ({
       }
     }
 
-    // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+    // WebUI desktop bridge
     // 权限模式写在 Agent.configuration.permission_mode，与桌面 Composer 一致。
     if (sessionPermissionModeMatch) {
       if (method !== 'PATCH') return methodNotAllowed(['PATCH'])
@@ -767,7 +768,7 @@ export const createWebUiApiRouter = ({
       }
     }
 
-    // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+    // WebUI desktop bridge
     // Agent 快路径：复用 ToolApprovalRegistry，与桌面 ai.respond_tool_approval 同决策入口。
     if (sessionToolApprovalsMatch) {
       if (method !== 'POST') return methodNotAllowed(['POST'])
@@ -860,7 +861,7 @@ export const createWebUiApiRouter = ({
         const encodedSessionId = sendMatch[1]
         if (!encodedSessionId) throw new Error('Desktop conversation id is missing')
         const sessionId = decodeURIComponent(encodedSessionId)
-        // WebUI 远程扩展，仅 Win11 启用，最小侵入。
+        // WebUI desktop bridge
         // Browser files are promoted into Cherry's native file store before the
         // canonical agent-session send path receives them.
         const fileManager = application.get('FileManager')

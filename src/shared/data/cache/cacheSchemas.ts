@@ -263,7 +263,7 @@ export type SharedCacheSchema = {
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
   'feature.binary.latest_versions': Record<string, string>
-  // WebUI remote extension Win11 availability and runtime state.
+  // WebUI desktop bridge availability and runtime state.
   'feature.webui.running': boolean
   'feature.webui.supported': boolean
   // API key rotation state (cross-window, tracks last used key per provider)

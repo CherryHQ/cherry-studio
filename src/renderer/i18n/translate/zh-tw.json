@@ -7820,13 +7820,25 @@
       "title": "縮放"
     },
     "webui": {
-      "title": "WebUI 遠端存取",
-      "enable_remote_access": "啟用遠端存取",
+      "title": "WebUI",
+      "description": "在瀏覽器中繼續使用本機 Agent 工作階段。依所選位址監聽，必須設定存取金鑰，檔案預覽保持唯讀。",
+      "enable_lan_access": "開啟區域網路存取",
       "service_status": "服務狀態",
       "running": "執行中",
       "stopped": "已停止",
+      "listen_host": "監聽位址",
+      "host_loopback": "僅本機 (127.0.0.1)",
+      "host_lan": "區域網路 (0.0.0.0)",
+      "host_custom": "自訂 IP",
+      "host_custom_placeholder": "請輸入 IPv4 位址",
+      "host_invalid": "請輸入有效的 IPv4 位址",
       "access_key": "安全驗證 KEY",
-      "access_key_placeholder": "留空則不啟用驗證",
+      "access_key_placeholder": "啟用服務前必須設定",
+      "access_key_required": "請先設定安全驗證 KEY 再啟用 WebUI",
+      "access_key_generated": "已產生新的安全驗證 KEY",
+      "show_access_key": "顯示 KEY",
+      "hide_access_key": "隱藏 KEY",
+      "generate_access_key": "隨機產生 KEY",
       "port": "連接埠"
     }
   },

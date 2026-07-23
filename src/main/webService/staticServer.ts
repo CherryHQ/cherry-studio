@@ -1,4 +1,4 @@
-// WebUI远程扩展，仅Win11启用，最小侵入
+// WebUI desktop bridge static HTTP server
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
