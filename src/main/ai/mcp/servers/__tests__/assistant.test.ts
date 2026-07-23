@@ -3,15 +3,38 @@
  * dotenv variants and private-key/cert material, not just `.env`/`.env.local`.
  */
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   agentCreate: vi.fn(),
+  applicationGetPath: vi.fn(),
+  getPublishedRelease: vi.fn(),
   setLaunchOnBoot: vi.fn(),
   mcpList: vi.fn(),
   providerGetById: vi.fn()
 }))
+
+vi.mock('@application', async () => {
+  const base = (await import('@test-mocks/main/application')).mockApplicationFactory()
+  const fallbackGet = base.application.get
+  return {
+    ...base,
+    application: {
+      ...base.application,
+      get: vi.fn((name: string) =>
+        name === 'AppUpdaterService' ? { getPublishedRelease: mocks.getPublishedRelease } : fallbackGet(name)
+      ),
+      getPath: mocks.applicationGetPath
+    }
+  }
+})
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { createAgent: mocks.agentCreate }
@@ -31,14 +54,45 @@ vi.mock('@data/services/ProviderService', () => ({
 
 import AssistantServer, { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'
 
+const temporaryDirectories: string[] = []
+
+function writeProductManifest(content: string): string {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-assistant-manifest-'))
+  temporaryDirectories.push(directory)
+  const manifestPath = path.join(directory, 'product-manifest.json')
+  fs.writeFileSync(manifestPath, content, 'utf-8')
+  mocks.applicationGetPath.mockReturnValue(manifestPath)
+  return manifestPath
+}
+
+async function connectAssistantClient() {
+  const server = new AssistantServer()
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const client = new Client({ name: 'assistant-test-client', version: '1.0.0' }, { capabilities: {} })
+  await server.mcpServer.connect(serverTransport)
+  await client.connect(clientTransport)
+  return client
+}
+
+function toolResultText(result: unknown): string {
+  const content = (result as { content: Array<{ type: string; text?: string }> }).content
+  return content[0]?.type === 'text' ? (content[0].text ?? '') : ''
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  for (const directory of temporaryDirectories.splice(0)) {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
 })
 
 beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   mocks.agentCreate.mockReset()
+  mocks.applicationGetPath.mockReset()
+  mocks.applicationGetPath.mockReturnValue('/mock/product-manifest.json')
+  mocks.getPublishedRelease.mockReset()
   mocks.setLaunchOnBoot.mockReset()
   mocks.mcpList.mockReset()
   mocks.providerGetById.mockReset()
@@ -47,6 +101,242 @@ beforeEach(() => {
     id: 'agent-created',
     name: 'Reviewer',
     model: 'anthropic::claude-sonnet'
+  })
+})
+
+describe('product_info', () => {
+  it('removes release lookup from the diagnose contract', async () => {
+    const client = await connectAssistantClient()
+
+    const listed = await client.listTools()
+    const diagnose = listed.tools.find((tool) => tool.name === 'diagnose')
+    const properties = diagnose?.inputSchema.properties as Record<string, { enum?: string[] }>
+
+    expect(properties.action.enum).not.toContain('check_update')
+    await client.close()
+  })
+
+  it('returns a compact current-package manifest index through its registered path', async () => {
+    const manifest = {
+      schemaVersion: 1,
+      package: { name: 'CherryStudio', version: '2.0.0-dev' },
+      routes: { primary: [], all: [] },
+      extraFutureField: { preserved: true }
+    }
+    const manifestPath = writeProductManifest(JSON.stringify(manifest))
+    const client = await connectAssistantClient()
+
+    const listed = await client.listTools()
+    const result = await client.callTool({ name: 'product_info', arguments: { source: 'manifest' } })
+
+    expect(listed.tools.map((tool) => tool.name)).toContain('product_info')
+    expect(mocks.applicationGetPath).toHaveBeenCalledWith('feature.agents.assistant.manifest.file')
+    expect(manifestPath).toContain('product-manifest.json')
+    expect(JSON.parse(toolResultText(result))).toEqual({
+      runtimeVersion: '1.0.0',
+      manifestVersion: '2.0.0-dev',
+      sections: ['package', 'routes', 'extraFutureField']
+    })
+    await client.close()
+  })
+
+  it('reads one requested manifest section and supports an explicit full-manifest fallback', async () => {
+    const manifest = {
+      schemaVersion: 1,
+      package: { name: 'CherryStudio', version: '2.0.0-dev' },
+      routes: { primary: [{ id: 'agents', path: '/app/agents' }], all: ['/app/agents'] }
+    }
+    writeProductManifest(JSON.stringify(manifest))
+    const client = await connectAssistantClient()
+
+    const routes = await client.callTool({
+      name: 'product_info',
+      arguments: { source: 'manifest', section: 'routes' }
+    })
+    const all = await client.callTool({
+      name: 'product_info',
+      arguments: { source: 'manifest', section: 'all' }
+    })
+
+    expect(JSON.parse(toolResultText(routes))).toEqual({
+      runtimeVersion: '1.0.0',
+      manifestVersion: '2.0.0-dev',
+      section: 'routes',
+      data: manifest.routes
+    })
+    expect(JSON.parse(toolResultText(all))).toEqual({
+      runtimeVersion: '1.0.0',
+      manifestVersion: '2.0.0-dev',
+      section: 'all',
+      manifest
+    })
+    await client.close()
+  })
+
+  it('rejects a manifest section that is not present in the installed package', async () => {
+    writeProductManifest(JSON.stringify({ schemaVersion: 1, package: { version: '2.0.0-dev' } }))
+    const client = await connectAssistantClient()
+
+    const result = await client.callTool({
+      name: 'product_info',
+      arguments: { source: 'manifest', section: 'removed-feature' }
+    })
+
+    expect(result.isError).toBe(true)
+    expect(toolResultText(result)).toContain('Unknown product manifest section')
+    await client.close()
+  })
+
+  it('rejects a package manifest containing invalid JSON', async () => {
+    writeProductManifest('{not-json')
+    const client = await connectAssistantClient()
+
+    const result = await client.callTool({ name: 'product_info', arguments: { source: 'manifest' } })
+
+    expect(result.isError).toBe(true)
+    expect(toolResultText(result)).toContain('Product manifest contains invalid JSON')
+    await client.close()
+  })
+
+  it('does not expose the installed manifest path when the package asset is unavailable', async () => {
+    mocks.applicationGetPath.mockReturnValue('/private/install/resources/product-manifest.json')
+    const client = await connectAssistantClient()
+
+    const result = await client.callTool({ name: 'product_info', arguments: { source: 'manifest' } })
+
+    expect(result.isError).toBe(true)
+    expect(toolResultText(result)).toContain('Product manifest is unavailable')
+    expect(toolResultText(result)).not.toContain('/private/install')
+    await client.close()
+  })
+
+  it('rejects manifests that do not satisfy the supported schema', async () => {
+    const client = await connectAssistantClient()
+
+    for (const manifest of [null, { schemaVersion: 2, package: { version: '2.0.0' } }, { schemaVersion: 1 }]) {
+      writeProductManifest(JSON.stringify(manifest))
+      const result = await client.callTool({ name: 'product_info', arguments: { source: 'manifest' } })
+      expect(result.isError).toBe(true)
+      expect(toolResultText(result)).toContain('Product manifest schema is invalid')
+    }
+
+    writeProductManifest(JSON.stringify({ schemaVersion: 1, package: { version: '  ' } }))
+    const emptyVersionResult = await client.callTool({ name: 'product_info', arguments: { source: 'manifest' } })
+    expect(emptyVersionResult.isError).toBe(true)
+    expect(toolResultText(emptyVersionResult)).toContain('Product manifest schema is invalid')
+    await client.close()
+  })
+
+  it('returns the updater service result for the installed release', async () => {
+    const publishedRelease = {
+      status: 'unreleased',
+      target: 'current',
+      currentVersion: '2.0.0-dev',
+      versionRelation: 'unknown',
+      release: null
+    }
+    mocks.getPublishedRelease.mockResolvedValue(publishedRelease)
+    const client = await connectAssistantClient()
+
+    const result = await client.callTool({
+      name: 'product_info',
+      arguments: { source: 'release_notes', release: 'current' }
+    })
+
+    expect(mocks.getPublishedRelease).toHaveBeenCalledWith('current')
+    expect(JSON.parse(toolResultText(result))).toEqual(publishedRelease)
+    await client.close()
+  })
+
+  it('returns the updater service result for the latest release', async () => {
+    const publishedRelease = {
+      status: 'published',
+      target: 'latest',
+      currentVersion: '2.0.0-dev',
+      versionRelation: 'behind',
+      release: { version: '2.0.0', notes: { kind: 'external-data', content: 'Release notes' } }
+    }
+    mocks.getPublishedRelease.mockResolvedValue(publishedRelease)
+    const client = await connectAssistantClient()
+
+    const result = await client.callTool({
+      name: 'product_info',
+      arguments: { source: 'release_notes', release: 'latest' }
+    })
+
+    expect(mocks.getPublishedRelease).toHaveBeenCalledWith('latest')
+    expect(JSON.parse(toolResultText(result))).toEqual(publishedRelease)
+    await client.close()
+  })
+
+  it('rejects arbitrary path and URL arguments', async () => {
+    writeProductManifest(JSON.stringify({ schemaVersion: 1, package: { version: '2.0.0-dev' } }))
+    const client = await connectAssistantClient()
+
+    for (const extra of [{ path: '/tmp/secret' }, { url: 'https://example.com' }]) {
+      const result = await client.callTool({
+        name: 'product_info',
+        arguments: { source: 'manifest', ...extra }
+      })
+      expect(result.isError).toBe(true)
+      expect(toolResultText(result)).toContain('Unsupported product_info argument')
+    }
+
+    await client.close()
+  })
+
+  it('enforces release and section on their respective sources', async () => {
+    writeProductManifest(JSON.stringify({ schemaVersion: 1, package: { version: '2.0.0-dev' } }))
+    const client = await connectAssistantClient()
+
+    const missingRelease = await client.callTool({
+      name: 'product_info',
+      arguments: { source: 'release_notes' }
+    })
+    const releaseOnManifest = await client.callTool({
+      name: 'product_info',
+      arguments: { source: 'manifest', release: 'latest' }
+    })
+    const sectionOnRelease = await client.callTool({
+      name: 'product_info',
+      arguments: { source: 'release_notes', release: 'latest', section: 'routes' }
+    })
+
+    expect(missingRelease.isError).toBe(true)
+    expect(releaseOnManifest.isError).toBe(true)
+    expect(sectionOnRelease.isError).toBe(true)
+    expect(mocks.getPublishedRelease).not.toHaveBeenCalled()
+    await client.close()
+  })
+})
+
+describe('navigate', () => {
+  it('uses current package routes instead of a duplicated route table', async () => {
+    writeProductManifest(
+      JSON.stringify({
+        schemaVersion: 1,
+        package: { version: '2.0.0-dev' },
+        routes: {
+          all: ['/settings', '/settings/provider', '/settings/mcp/$', '/app/code', '/app/mini-app/$appId']
+        }
+      })
+    )
+    const client = await connectAssistantClient()
+
+    const currentRoute = await client.callTool({ name: 'navigate', arguments: { path: '/app/code' } })
+    const dynamicRoute = await client.callTool({ name: 'navigate', arguments: { path: '/app/mini-app/example' } })
+    const removedRoute = await client.callTool({ name: 'navigate', arguments: { path: '/app/openclaw' } })
+    const unknownSettingsRoute = await client.callTool({
+      name: 'navigate',
+      arguments: { path: '/settings/not-in-this-package' }
+    })
+
+    expect(currentRoute.isError).not.toBe(true)
+    expect(toolResultText(currentRoute)).toContain('/app/code')
+    expect(dynamicRoute.isError).not.toBe(true)
+    expect(removedRoute.isError).toBe(true)
+    expect(unknownSettingsRoute.isError).toBe(true)
+    await client.close()
   })
 })
 
@@ -154,23 +444,38 @@ describe('isBlockedSourceFile', () => {
 })
 
 describe('isAllowedAssistantNavigationPath', () => {
-  it('allows exact routes and nested routes only', () => {
-    expect(isAllowedAssistantNavigationPath('/app/agents')).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/app/agents/assistant-1')).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/app/mini-app/example')).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/app/chat')).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/settings/provider')).toBe(true)
+  const allowedRoutes = [
+    '/settings',
+    '/settings/provider',
+    '/settings/mcp/$',
+    '/settings/mcp/settings/$serverId',
+    '/app/agents',
+    '/app/mini-app/$appId',
+    '/app/chat'
+  ]
+
+  it('allows exact routes and manifest-declared dynamic routes', () => {
+    expect(isAllowedAssistantNavigationPath('/app/agents', allowedRoutes)).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/app/mini-app/example', allowedRoutes)).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/app/chat', allowedRoutes)).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/settings/provider', allowedRoutes)).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/settings/mcp/example/details', allowedRoutes)).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/settings/mcp/settings/server-1', allowedRoutes)).toBe(true)
   })
 
-  it('blocks removed routes and prefix lookalikes', () => {
-    expect(isAllowedAssistantNavigationPath('/')).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/store')).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/app')).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/app/library')).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/app/openclaw')).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/openclaw')).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/agents')).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/agents-legacy')).toBe(false)
+  it('blocks undeclared descendants, removed routes, and prefix lookalikes', () => {
+    expect(isAllowedAssistantNavigationPath('/', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/store', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/app', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/app/agents/assistant-1', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/app/mini-app/example/details', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/app/library', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/app/openclaw', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/settings/not-in-this-package', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/openclaw', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/agents', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/agents-legacy', allowedRoutes)).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/settings/provider?tab=models', allowedRoutes)).toBe(false)
   })
 })
 

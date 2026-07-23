@@ -1,0 +1,716 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "CherryStudio",
+    "version": "2.0.0-dev",
+    "description": "A powerful AI assistant for producer.",
+    "homepage": "https://github.com/CherryHQ/cherry-studio"
+  },
+  "routes": {
+    "primary": [
+      {
+        "id": "assistants",
+        "path": "/app/chat"
+      },
+      {
+        "id": "agents",
+        "path": "/app/agents"
+      },
+      {
+        "id": "paintings",
+        "path": "/app/paintings"
+      },
+      {
+        "id": "translate",
+        "path": "/app/translate"
+      },
+      {
+        "id": "mini_app",
+        "path": "/app/mini-app"
+      },
+      {
+        "id": "knowledge",
+        "path": "/app/knowledge"
+      },
+      {
+        "id": "files",
+        "path": "/app/files"
+      },
+      {
+        "id": "code_tools",
+        "path": "/app/code"
+      },
+      {
+        "id": "notes",
+        "path": "/app/notes"
+      }
+    ],
+    "all": [
+      "/app",
+      "/settings",
+      "/app/agents",
+      "/app/chat",
+      "/app/code",
+      "/app/file-preview",
+      "/app/files",
+      "/app/knowledge",
+      "/app/launchpad",
+      "/app/notes",
+      "/app/translate",
+      "/settings/about",
+      "/settings/api-gateway",
+      "/settings/appearance",
+      "/settings/channels",
+      "/settings/code-execution",
+      "/settings/data",
+      "/settings/dependencies",
+      "/settings/file-processing",
+      "/settings/local-models",
+      "/settings/mcp",
+      "/settings/model",
+      "/settings/notifications",
+      "/settings/ocr",
+      "/settings/provider",
+      "/settings/quick-assistant",
+      "/settings/scheduled-tasks",
+      "/settings/selection-assistant",
+      "/settings/shortcut",
+      "/settings/skills",
+      "/settings/system",
+      "/settings/websearch",
+      "/app/mini-app/$appId",
+      "/app/paintings/$",
+      "/settings/mcp/$",
+      "/settings/mcp/builtin",
+      "/settings/mcp/marketplaces",
+      "/settings/mcp/mcp-install",
+      "/settings/mcp/npx-search",
+      "/settings/mcp/servers",
+      "/app/mini-app",
+      "/app/paintings",
+      "/settings/mcp/settings/$serverId"
+    ]
+  },
+  "commands": [
+    {
+      "id": "app.fullscreen.exit",
+      "titleKey": "settings.shortcuts.exit_fullscreen",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "Escape"
+        ],
+        "editable": false
+      }
+    },
+    {
+      "id": "app.search",
+      "titleKey": "settings.shortcuts.search_message",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "F"
+        ]
+      }
+    },
+    {
+      "id": "app.print",
+      "titleKey": "settings.shortcuts.print",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "P"
+        ]
+      }
+    },
+    {
+      "id": "app.sidebar.toggle",
+      "titleKey": "settings.shortcuts.toggle_left_sidebar",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "["
+        ]
+      }
+    },
+    {
+      "id": "app.settings.open",
+      "titleKey": "settings.shortcuts.show_settings",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "main",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          ","
+        ],
+        "editable": false
+      }
+    },
+    {
+      "id": "app.window.show",
+      "titleKey": "settings.shortcuts.show_app",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "main",
+      "keybinding": {
+        "defaultBinding": [],
+        "global": true
+      }
+    },
+    {
+      "id": "app.zoom.in",
+      "titleKey": "settings.shortcuts.zoom_in",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "main",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "="
+        ],
+        "additionalBindings": [
+          [
+            "CommandOrControl",
+            "numadd"
+          ]
+        ],
+        "editable": false
+      }
+    },
+    {
+      "id": "app.zoom.out",
+      "titleKey": "settings.shortcuts.zoom_out",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "main",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "-"
+        ],
+        "additionalBindings": [
+          [
+            "CommandOrControl",
+            "numsub"
+          ]
+        ],
+        "editable": false
+      }
+    },
+    {
+      "id": "app.zoom.reset",
+      "titleKey": "settings.shortcuts.zoom_reset",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "main",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "0"
+        ],
+        "editable": false
+      }
+    },
+    {
+      "id": "chat.message.copy_last",
+      "titleKey": "settings.shortcuts.copy_last_message",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "C"
+        ]
+      }
+    },
+    {
+      "id": "chat.message.edit_last_user",
+      "titleKey": "settings.shortcuts.edit_last_user_message",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "E"
+        ]
+      }
+    },
+    {
+      "id": "chat.message.search",
+      "titleKey": "settings.shortcuts.search_message_in_chat",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "F"
+        ]
+      }
+    },
+    {
+      "id": "chat.model.select",
+      "titleKey": "settings.shortcuts.select_model",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "M"
+        ]
+      }
+    },
+    {
+      "id": "quick_assistant.toggle",
+      "titleKey": "settings.shortcuts.quick_assistant",
+      "categoryKey": "settings.shortcuts.feature.quick_assistant",
+      "scope": "main",
+      "enablement": "feature.quick_assistant.enabled",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "E"
+        ],
+        "global": true,
+        "when": "feature.quick_assistant.enabled"
+      }
+    },
+    {
+      "id": "selection.capture_text",
+      "titleKey": "settings.shortcuts.selection_assistant_select_text",
+      "categoryKey": "settings.shortcuts.feature.selection",
+      "scope": "main",
+      "enablement": "feature.selection.enabled",
+      "keybinding": {
+        "defaultBinding": [],
+        "global": true,
+        "when": "feature.selection.enabled",
+        "supportedPlatforms": [
+          "darwin",
+          "win32",
+          "linux"
+        ]
+      }
+    },
+    {
+      "id": "selection.toggle",
+      "titleKey": "settings.shortcuts.selection_assistant_toggle",
+      "categoryKey": "settings.shortcuts.feature.selection",
+      "scope": "main",
+      "enablement": "feature.selection.enabled",
+      "keybinding": {
+        "defaultBinding": [],
+        "global": true,
+        "when": "feature.selection.enabled",
+        "supportedPlatforms": [
+          "darwin",
+          "win32",
+          "linux"
+        ]
+      }
+    },
+    {
+      "id": "topic.create",
+      "titleKey": "settings.shortcuts.new_topic",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "N"
+        ]
+      }
+    },
+    {
+      "id": "topic.rename",
+      "titleKey": "settings.shortcuts.rename_topic",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "T"
+        ]
+      }
+    },
+    {
+      "id": "topic.sidebar.toggle",
+      "titleKey": "settings.shortcuts.toggle_right_sidebar",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "]"
+        ]
+      }
+    }
+  ],
+  "providers": {
+    "version": "bb6e9936637563cd",
+    "count": 66,
+    "entries": [
+      {
+        "id": "cherryin",
+        "name": "CherryIN"
+      },
+      {
+        "id": "silicon",
+        "name": "Silicon"
+      },
+      {
+        "id": "aihubmix",
+        "name": "AiHubMix"
+      },
+      {
+        "id": "ovms",
+        "name": "OpenVINO Model Server"
+      },
+      {
+        "id": "ocoolai",
+        "name": "ocoolAI"
+      },
+      {
+        "id": "zhipu",
+        "name": "ZhiPu"
+      },
+      {
+        "id": "deepseek",
+        "name": "deepseek"
+      },
+      {
+        "id": "alayanew",
+        "name": "AlayaNew"
+      },
+      {
+        "id": "dmxapi",
+        "name": "DMXAPI"
+      },
+      {
+        "id": "aionly",
+        "name": "AIOnly"
+      },
+      {
+        "id": "burncloud",
+        "name": "BurnCloud"
+      },
+      {
+        "id": "302ai",
+        "name": "302.AI"
+      },
+      {
+        "id": "lanyun",
+        "name": "LANYUN"
+      },
+      {
+        "id": "ph8",
+        "name": "PH8"
+      },
+      {
+        "id": "sophnet",
+        "name": "SophNet"
+      },
+      {
+        "id": "ppio",
+        "name": "PPIO"
+      },
+      {
+        "id": "qiniu",
+        "name": "Qiniu"
+      },
+      {
+        "id": "openrouter",
+        "name": "OpenRouter"
+      },
+      {
+        "id": "ollama",
+        "name": "Ollama"
+      },
+      {
+        "id": "new-api",
+        "name": "New API"
+      },
+      {
+        "id": "lmstudio",
+        "name": "LM Studio"
+      },
+      {
+        "id": "anthropic",
+        "name": "Anthropic"
+      },
+      {
+        "id": "claude-code",
+        "name": "Claude Code"
+      },
+      {
+        "id": "openai-codex",
+        "name": "OpenAI Codex"
+      },
+      {
+        "id": "grok-cli",
+        "name": "Grok CLI"
+      },
+      {
+        "id": "openai",
+        "name": "OpenAI"
+      },
+      {
+        "id": "opencode",
+        "name": "OpenCode Go"
+      },
+      {
+        "id": "azure-openai",
+        "name": "Azure OpenAI"
+      },
+      {
+        "id": "gemini",
+        "name": "Gemini"
+      },
+      {
+        "id": "vertexai",
+        "name": "VertexAI"
+      },
+      {
+        "id": "github",
+        "name": "Github Models"
+      },
+      {
+        "id": "copilot",
+        "name": "Github Copilot"
+      },
+      {
+        "id": "yi",
+        "name": "Yi"
+      },
+      {
+        "id": "moonshot",
+        "name": "Moonshot AI"
+      },
+      {
+        "id": "baichuan",
+        "name": "BAICHUAN AI"
+      },
+      {
+        "id": "dashscope",
+        "name": "Bailian"
+      },
+      {
+        "id": "stepfun",
+        "name": "StepFun"
+      },
+      {
+        "id": "doubao",
+        "name": "doubao"
+      },
+      {
+        "id": "infini",
+        "name": "Infini"
+      },
+      {
+        "id": "minimax",
+        "name": "MiniMax"
+      },
+      {
+        "id": "groq",
+        "name": "Groq"
+      },
+      {
+        "id": "together",
+        "name": "Together"
+      },
+      {
+        "id": "fireworks",
+        "name": "Fireworks"
+      },
+      {
+        "id": "nvidia",
+        "name": "nvidia"
+      },
+      {
+        "id": "grok",
+        "name": "Grok"
+      },
+      {
+        "id": "hyperbolic",
+        "name": "Hyperbolic"
+      },
+      {
+        "id": "mistral",
+        "name": "Mistral"
+      },
+      {
+        "id": "jina",
+        "name": "Jina"
+      },
+      {
+        "id": "perplexity",
+        "name": "Perplexity"
+      },
+      {
+        "id": "modelscope",
+        "name": "ModelScope"
+      },
+      {
+        "id": "xirang",
+        "name": "Xirang"
+      },
+      {
+        "id": "hunyuan",
+        "name": "hunyuan"
+      },
+      {
+        "id": "tencent-cloud-ti",
+        "name": "Tencent Cloud TI"
+      },
+      {
+        "id": "tokenhub",
+        "name": "TokenHub"
+      },
+      {
+        "id": "baidu-cloud",
+        "name": "Baidu Cloud"
+      },
+      {
+        "id": "gpustack",
+        "name": "GPUStack"
+      },
+      {
+        "id": "voyageai",
+        "name": "VoyageAI"
+      },
+      {
+        "id": "aws-bedrock",
+        "name": "AWS Bedrock"
+      },
+      {
+        "id": "poe",
+        "name": "Poe"
+      },
+      {
+        "id": "longcat",
+        "name": "LongCat"
+      },
+      {
+        "id": "huggingface",
+        "name": "Hugging Face"
+      },
+      {
+        "id": "gateway",
+        "name": "Vercel AI Gateway"
+      },
+      {
+        "id": "cerebras",
+        "name": "Cerebras AI"
+      },
+      {
+        "id": "mimo",
+        "name": "Xiaomi MiMo"
+      },
+      {
+        "id": "zai",
+        "name": "zai"
+      },
+      {
+        "id": "minimax-global",
+        "name": "minimax-global"
+      }
+    ]
+  },
+  "locales": [
+    {
+      "value": "zh-CN",
+      "label": "中文",
+      "flag": "🇨🇳"
+    },
+    {
+      "value": "zh-TW",
+      "label": "中文（繁体）",
+      "flag": "🇭🇰"
+    },
+    {
+      "value": "en-US",
+      "label": "English",
+      "flag": "🇺🇸"
+    },
+    {
+      "value": "de-DE",
+      "label": "Deutsch",
+      "flag": "🇩🇪"
+    },
+    {
+      "value": "ja-JP",
+      "label": "日本語",
+      "flag": "🇯🇵"
+    },
+    {
+      "value": "ru-RU",
+      "label": "Русский",
+      "flag": "🇷🇺"
+    },
+    {
+      "value": "el-GR",
+      "label": "Ελληνικά",
+      "flag": "🇬🇷"
+    },
+    {
+      "value": "es-ES",
+      "label": "Español",
+      "flag": "🇪🇸"
+    },
+    {
+      "value": "fr-FR",
+      "label": "Français",
+      "flag": "🇫🇷"
+    },
+    {
+      "value": "pt-PT",
+      "label": "Português",
+      "flag": "🇵🇹"
+    },
+    {
+      "value": "ro-RO",
+      "label": "Română",
+      "flag": "🇷🇴"
+    },
+    {
+      "value": "vi-VN",
+      "label": "Tiếng Việt",
+      "flag": "🇻🇳"
+    }
+  ],
+  "agents": {
+    "channelTypes": [
+      "telegram",
+      "feishu",
+      "qq",
+      "wechat",
+      "discord",
+      "slack"
+    ],
+    "scheduleTriggerKinds": [
+      "cron",
+      "interval",
+      "once"
+    ],
+    "codeCli": {
+      "route": "/app/code",
+      "tools": [
+        "claude-code",
+        "openai-codex",
+        "opencode",
+        "openclaw",
+        "gemini-cli",
+        "qwen-code",
+        "kimi-code",
+        "qoder-cli",
+        "github-copilot-cli"
+      ]
+    }
+  }
+}

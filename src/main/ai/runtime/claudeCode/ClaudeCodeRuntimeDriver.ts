@@ -52,6 +52,11 @@ import type {
   AgentSessionRuntimeDriver
 } from '../types'
 import {
+  type AgentSessionAttachmentHolder,
+  createAgentSessionAttachmentHolder,
+  listPersistedAgentSessionAttachments
+} from './agentSessionAttachments'
+import {
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
   deriveConnectionConfig,
@@ -157,6 +162,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
+  private attachmentHolder?: AgentSessionAttachmentHolder
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
@@ -173,62 +179,71 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
-    // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
-    // the model captured when that turn was created, even if the agent was edited since.
-    const request = await buildClaudeCodeQueryRequestForAgentSession(
-      this.input.sessionId,
-      this.resumeToken,
-      this.input.modelId,
-      this.input.reasoningEffort ?? 'default'
-    )
-    if (!request) {
-      throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
-    }
-    this.connectionConfig = request.connectionConfig
+    const attachmentHolder = createAgentSessionAttachmentHolder(this.input.sessionId)
+    this.attachmentHolder = attachmentHolder
 
-    const traceEnv = await this.prepareTraceEnv()
-    const options: Options = {
-      ...request.options,
-      ...(traceEnv
-        ? {
-            env: {
-              ...request.options.env,
-              ...traceEnv
-            }
-          }
-        : {}),
-      abortController: this.abortController
-    }
-    const warmQuery = traceEnv
-      ? undefined
-      : await application.get('ClaudeCodeWarmQueryManager').consume({
-          key: request.key,
-          options,
-          initializeTimeoutMs: request.initializeTimeoutMs,
-          credentialsFingerprint: request.credentialsFingerprint
-        })
-
-    this.query = warmQuery
-      ? warmQuery.query(this.sdkInputQueue)
-      : createClaudeQuery({ prompt: this.sdkInputQueue, options })
-    this.adapterModelId = request.sdkModelId
-    this.approvalEmitter = request.settings.approvalEmitter
-    // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
-    // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
-    // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
-    this.bindApprovalEmitter()
-    this.mcpToolMetadata = request.settings.mcpToolMetadata
-    this.toolPolicySnapshot = request.settings.toolPolicySnapshot
-    this.steerHolder = request.settings.steerHolder
-    // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
-    // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
-    if (this.steerHolder) {
-      this.steerHolder.onInjected = (inputs) => {
-        this.steerBoundaryPending = inputs
+    try {
+      attachmentHolder.register(listPersistedAgentSessionAttachments(this.input.sessionId))
+      // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
+      // the model captured when that turn was created, even if the agent was edited since.
+      const request = await buildClaudeCodeQueryRequestForAgentSession(
+        this.input.sessionId,
+        this.resumeToken,
+        this.input.modelId,
+        this.input.reasoningEffort ?? 'default'
+      )
+      if (!request) {
+        throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
       }
+      this.connectionConfig = request.connectionConfig
+
+      const traceEnv = await this.prepareTraceEnv()
+      const options: Options = {
+        ...request.options,
+        ...(traceEnv
+          ? {
+              env: {
+                ...request.options.env,
+                ...traceEnv
+              }
+            }
+          : {}),
+        abortController: this.abortController
+      }
+      const warmQuery = traceEnv
+        ? undefined
+        : await application.get('ClaudeCodeWarmQueryManager').consume({
+            key: request.key,
+            options,
+            initializeTimeoutMs: request.initializeTimeoutMs,
+            credentialsFingerprint: request.credentialsFingerprint
+          })
+
+      this.query = warmQuery
+        ? warmQuery.query(this.sdkInputQueue)
+        : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+      this.adapterModelId = request.sdkModelId
+      this.approvalEmitter = request.settings.approvalEmitter
+      // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
+      // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
+      // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
+      this.bindApprovalEmitter()
+      this.mcpToolMetadata = request.settings.mcpToolMetadata
+      this.toolPolicySnapshot = request.settings.toolPolicySnapshot
+      this.steerHolder = request.settings.steerHolder
+      // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
+      // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
+      if (this.steerHolder) {
+        this.steerHolder.onInjected = (inputs) => {
+          this.steerBoundaryPending = inputs
+        }
+      }
+      void this.runQueryLoop()
+      return this
+    } catch (error) {
+      attachmentHolder.dispose()
+      throw error
     }
-    void this.runQueryLoop()
-    return this
   }
 
   private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
@@ -238,6 +253,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
+    this.attachmentHolder ??= createAgentSessionAttachmentHolder(this.input.sessionId)
 
     if (this.pendingInitMessage) {
       this.adapter.handleMessage(this.pendingInitMessage)
@@ -245,7 +261,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
 
     this.sdkInputQueue.push(
-      await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, this.attachmentHolder, {
         supportsImages: resolveModelImageSupport(this.input.modelId)
       })
     )
@@ -482,6 +498,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.sessionTornDown = true
     this.approvalEmitter?.dispose?.()
     this.steerHolder?.dispose()
+    this.attachmentHolder?.dispose()
     disposeToolPolicySnapshot(this.input.sessionId)
   }
 
@@ -591,9 +608,10 @@ async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false,
+  attachmentHolder?: AgentSessionAttachmentHolder,
   { supportsImages = true }: { supportsImages?: boolean } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages)
+  let content = await materializeUserContent(message, attachmentHolder, supportsImages)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -635,6 +653,7 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  */
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
+  attachmentHolder: AgentSessionAttachmentHolder | undefined,
   supportsImages: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
@@ -652,12 +671,17 @@ async function materializeUserContent(
   )
 
   let routedParts = firstPartyParts
+  let registeredTurnAttachments: ReturnType<typeof collectFileAttachments> = []
   if (firstPartyParts.some((part) => part.type === 'file')) {
     const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
+    const turnAttachments = collectFileAttachments([userMessage])
+    const attachments = attachmentHolder?.register(turnAttachments) ?? turnAttachments
+    const turnEntryIds = new Set(turnAttachments.map(({ fileEntryId }) => fileEntryId))
+    registeredTurnAttachments = attachments.filter(({ fileEntryId }) => turnEntryIds.has(fileEntryId))
     const [prepared] = await prepareChatMessages([userMessage], {
-      attachments: collectFileAttachments([userMessage]),
+      attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
-      isToolCapable: false
+      isToolCapable: true
     })
     routedParts = prepared.parts
   }
@@ -716,6 +740,7 @@ async function materializeUserContent(
 
   const paths = extractAttachmentPaths(fallbackParts)
   let textContent = appendAttachmentPaths(text, paths)
+  textContent = appendAttachmentManifest(textContent, registeredTurnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
@@ -724,6 +749,19 @@ async function materializeUserContent(
   }
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
+}
+
+function appendAttachmentManifest(
+  text: string,
+  attachments: ReadonlyArray<{ displayName: string; handle: string }>
+): string {
+  if (attachments.length === 0) return text
+
+  const list = attachments
+    .map(({ displayName, handle }) => `- ${JSON.stringify(displayName)} (handle: ${handle})`)
+    .join('\n')
+  const section = `Attachment manifest:\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
 }
 
 function appendAttachmentPaths(text: string, paths: string[]): string {

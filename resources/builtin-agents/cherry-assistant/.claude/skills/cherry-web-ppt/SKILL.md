@@ -1,195 +1,45 @@
 ---
 name: cherry-web-ppt
-description: 生成单文件 HTML 网页 PPT — 左右滑动翻页 + 封面 / 章节 / 数据 / 正文 / 引用模板。一次写出可直接用浏览器打开的演示文稿。当用户说"做个 PPT"、"做演示文稿"、"做分享文档"、"生成幻灯片"、"做个 keynote"、"create a deck"、"make slides"、"design a presentation"、"做个发布会页"时触发。Cherry Studio 内置轻量版；要更精致的「电子杂志」/「电子墨水」风格 → 走 `cherry-skill-marketplace` 找 `magazine-web-ppt`。
+description: 从主题、提纲或文档制作演示文稿，默认输出真实 PPTX，用户明确选择时输出单文件 HTML；“修改 PPT”只能根据附件提取文本重做，不保留原版式。不要处理普通文档转换或 Excel 分析。
 ---
 
-# Cherry Web PPT
+# Cherry Presentation
 
-输出**一个 HTML 文件**，浏览器打开就是 PPT，支持键盘 ← → 翻页、移动端左右滑动、自动响应式。**不依赖任何后端 / CDN，可离线打开。**
+把用户材料变成简洁、可讲、可继续编辑的演示文稿。信息足够时直接生成初稿；只有主题或来源缺失时，才问 **1 个**阻塞问题。
 
-## 工作方式
+## 默认值
 
-### Step 1: 三问
+- 输出：`.pptx`；只有用户明确说网页、HTML 或浏览器演示时才输出 `.html`。
+- 篇幅：8 页、约 10 分钟；风格：白底、深色正文、单一强调色。
+- 结构：封面、问题、结论、2-4 页论据或方案、行动项、结束页。
 
-| 问 | 默认 |
-|----|------|
-| 主题 + 主要受众？ | 必填 |
-| 大致几页？多少分钟讲？ | 默认 8-12 页 |
-| 风格倾向？ | 默认「极简专业」(白底 + 单一品牌色) |
+## 工作流
 
-风格可选：极简专业 / 杂志风（衬线 + 大图） / 暗黑科技 / 暖色生活 / 极客极简（等宽字体）。
+1. **提取目标**：确定受众、场合和一句话主张。用户给了文档时，只读取与演示目标有关的内容。
+2. **生成页纲**：每页一个主张，标题能单独表达结论；正文最多 3 个短要点。数据保留口径和来源。
+3. **生成成品**：先写中间 Markdown 文件，再导出 PPTX；HTML 模式直接写单文件，内联必要的 CSS/JS，不使用 CDN，支持方向键翻页。
+4. **校验交付**：检查页数、标题、关键数字、来源和扩展名；调用 `mcp__cherry-tools__report_artifacts` 登记最终文件。没有渲染预览时只声明结构校验，不声称视觉效果已验证。
 
-### Step 2: 大纲先行
+## Office / PDF 输入
 
-按 7 段法或 3 幕法给大纲，让用户确认或调整：
+Office/PDF 只能使用附件提取文本或分页读取结果。提醒用户文本框、图表、图片、备注和版式可能丢失。无法提取时报告 `unsupported`，不要猜测内容。
 
-**7 段法**（适合产品发布 / 项目汇报）：
-1. 开场（封面 + 一句话主张）
-2. 现状（问题 / 痛点 / 数据）
-3. 转折（变化 / 机会）
-4. 方案（我们的解）
-5. 证据（demo / 案例 / 数据）
-6. 路线图（未来 12 个月）
-7. 收尾（CTA + Q&A）
+## PPTX 导出
 
-**3 幕法**（适合演讲 / 分享）：
-1. 是什么（设定）
-2. 为什么（冲突）
-3. 怎么办（解决 + 启示）
+中间 Markdown 使用简单、稳定的页结构：
 
-### Step 3: 出 HTML
+- 第一个一级标题是封面标题，紧随其后的短段落是副标题。
+- 用 `---` 分隔幻灯片；每页以二级标题开头，后接一段主张和最多 3 个列表项。
+- 不嵌入无法访问的本地图片，不伪造图表或数据。
 
-**目标**：一个文件、可离线打开、无依赖。
+调用 `mcp__cherry-tools__export_office`，使用 `operation = markdown_to_pptx`，按 schema 传入 Markdown 源路径和新 `.pptx` 目标路径。失败时保留页纲并说明错误，不把 HTML 冒充 PPTX。
 
-**核心模板**（往这个骨架里塞内容，**不要每次现写 CSS**）：
+## HTML 模式
 
-```html
-<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{{TITLE}}</title>
-  <style>
-    :root {
-      --brand: #d04a3a;             /* 品牌色，按风格换 */
-      --bg: #ffffff;
-      --fg: #1a1a1a;
-      --muted: #888;
-      --serif: "Source Han Serif", Georgia, serif;
-      --sans: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); font-family: var(--sans); }
-    .deck { display: flex; height: 100vh; transition: transform .4s cubic-bezier(.2,.8,.2,1); }
-    .slide { flex: 0 0 100vw; height: 100vh; padding: 8vh 10vw; display: flex; flex-direction: column; justify-content: center; }
-    .slide h1 { font-family: var(--serif); font-size: clamp(2.5rem, 6vw, 5rem); line-height: 1.15; margin-bottom: 1rem; }
-    .slide h2 { font-size: clamp(1.5rem, 3vw, 2.5rem); margin-bottom: 1.5rem; color: var(--brand); }
-    .slide p { font-size: clamp(1rem, 1.5vw, 1.3rem); line-height: 1.7; max-width: 70ch; color: #333; }
-    .slide ul { font-size: clamp(1rem, 1.4vw, 1.2rem); line-height: 2; max-width: 70ch; }
-    .cover { background: var(--brand); color: #fff; }
-    .cover h1 { color: #fff; }
-    .cover .meta { margin-top: 2rem; opacity: .8; font-family: var(--serif); }
-    .chapter { background: var(--fg); color: var(--bg); justify-content: center; align-items: center; text-align: center; }
-    .chapter h1 { font-size: clamp(4rem, 10vw, 8rem); }
-    .stat { text-align: center; }
-    .stat .num { font-family: var(--serif); font-size: clamp(5rem, 14vw, 12rem); color: var(--brand); line-height: 1; }
-    .stat .label { font-size: 1.2rem; color: var(--muted); margin-top: 1rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
-    .progress { position: fixed; bottom: 2vh; left: 0; right: 0; text-align: center; font-size: .8rem; color: var(--muted); }
-    .nav-hint { position: fixed; top: 2vh; right: 2vh; font-size: .8rem; color: var(--muted); }
-  </style>
-</head>
-<body>
-  <div class="deck" id="deck">
-    <!-- SLIDES_GO_HERE -->
-  </div>
-  <div class="progress" id="progress"></div>
-  <div class="nav-hint">← → 翻页</div>
-  <script>
-    const deck = document.getElementById('deck');
-    const progress = document.getElementById('progress');
-    let idx = 0;
-    const total = deck.children.length;
-    function go(n) {
-      idx = Math.max(0, Math.min(total - 1, n));
-      deck.style.transform = `translateX(-${idx * 100}vw)`;
-      progress.textContent = `${idx + 1} / ${total}`;
-    }
-    document.addEventListener('keydown', e => {
-      if (e.key === 'ArrowRight' || e.key === ' ') go(idx + 1);
-      if (e.key === 'ArrowLeft') go(idx - 1);
-    });
-    let touchX = 0;
-    document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
-    document.addEventListener('touchend', e => {
-      const dx = e.changedTouches[0].clientX - touchX;
-      if (Math.abs(dx) > 50) go(idx + (dx < 0 ? 1 : -1));
-    });
-    go(0);
-  </script>
-</body>
-</html>
-```
+仅在用户明确选择时使用。每页一个 `<section>`，固定为一个视口，提供页码、方向键和触摸翻页；内容不得溢出。检查 section 数量和导航脚本。
 
-**Slide 模板**（往 `<!-- SLIDES_GO_HERE -->` 处替换）：
+## 边界
 
-```html
-<!-- 封面 -->
-<section class="slide cover">
-  <h1>主标题（不超 12 个字）</h1>
-  <p>副标题：一句话讲清楚要说什么</p>
-  <div class="meta">演讲人 · 日期 · 场合</div>
-</section>
-
-<!-- 章节封 -->
-<section class="slide chapter">
-  <h1>第一章</h1>
-</section>
-
-<!-- 数据大字报 -->
-<section class="slide stat">
-  <div class="num">63</div>
-  <div class="label">支持的 AI Provider</div>
-</section>
-
-<!-- 正文页 -->
-<section class="slide">
-  <h2>这一页要讲的事</h2>
-  <p>开宗明义一句话。</p>
-  <ul>
-    <li>要点一：具体到事</li>
-    <li>要点二：带数据</li>
-    <li>要点三：可验证</li>
-  </ul>
-</section>
-
-<!-- 左图右文 -->
-<section class="slide">
-  <div class="grid">
-    <div>
-      <h2>标题</h2>
-      <p>正文</p>
-    </div>
-    <div>
-      <img src="https://placehold.co/600x400" alt="" style="width:100%;border-radius:.5rem;">
-    </div>
-  </div>
-</section>
-
-<!-- 引用 / Closing -->
-<section class="slide chapter">
-  <h1>谢谢</h1>
-</section>
-```
-
-### Step 4: 落盘 + 验证
-
-- 文件名：`{topic}-deck.html`，写到 `#{PROJECT_ROOT}` 或用户指定路径
-- 告诉用户：直接双击打开 / `open <file>` 即可
-- 用 `mcp__cherry__browser` 工具打开预览给用户确认（如果可用）
-
-## 风格变体
-
-| 风格 | `--brand` | `--bg` / `--fg` | `--serif` 用途 |
-|------|-----------|-----------------|---------------|
-| 极简专业（默认） | `#d04a3a` | 白底黑字 | 标题 |
-| 杂志风 | `#1a1a1a` | 米黄底深色 | 全文 |
-| 暗黑科技 | `#00ff88` | 深黑荧光 | 仅数据页 |
-| 暖色生活 | `#f4a261` | 米色 | 全文 |
-| 极客极简 | `#0066ff` | 白底 | 仅引用 |
-
-## 不要
-
-- 不要堆 emoji（除非用户偏好里要）
-- 不要在 PPT 里写整页文字（信息密度 → 拆页）
-- 不要用 base64 嵌入大图（>100KB 用 placeholder 占位让用户后续替换）
-- 不要做"会自动播放音乐"的彩蛋（用户体验糟糕）
-
-## 限制
-
-- 不导出 PPT/Keynote 二进制文件（要的话用 marketplace 的导出 skill）
-- 复杂动画 / 视频嵌入 → 走 `magazine-web-ppt` 等更专业 skill
-- 多语言并行 PPT → 自己复制改语言；本 skill 一次出一种语言
-
-要更深的 → `cherry-skill-marketplace` 搜 `magazine-web-ppt`、`slide-deck` 等。
+- 不承诺复刻输入 PPT/PDF 的字体、动画、母版或版式。
+- 不编造图片、引用或业务数据；素材缺失时用明确占位说明。
+- 复杂母版、动画或高保真复刻先报告 `unsupported`，再交给 `cherry-skill-marketplace` 搜索恰好缺少的能力；安装第三方 Skill 仍需用户明确确认。

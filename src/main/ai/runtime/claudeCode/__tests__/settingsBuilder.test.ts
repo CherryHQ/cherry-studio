@@ -5,7 +5,7 @@ import {
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
-import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { EXPORT_OFFICE_TOOL_NAME, KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -213,6 +213,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
       if (name === 'McpCatalogService') {
         return { listTools: vi.fn(async () => []), warmToolsCache: mocks.warmToolsCache }
+      }
+      if (name === 'AgentSessionRuntimeService') {
+        return { isCurrentTurnHeadless: vi.fn(() => false) }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -449,6 +452,47 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(permissionDecisions('Bash', { command: 'cat /outside/read.txt' })).resolves.not.toContain('ask')
   })
 
+  it('forces approval-required runtime tools through PreToolUse under bypassPermissions', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const permissionDecisions = async (toolName: string) =>
+      Promise.all(
+        hooks.map(async (hook) => {
+          const output = await hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+          return (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+            ?.permissionDecision
+        })
+      )
+
+    expect(settings.permissionMode).toBe('bypassPermissions')
+    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(EXPORT_OFFICE_TOOL_NAME)
+    for (const toolName of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)) {
+      await expect(permissionDecisions(toolName)).resolves.toContain('ask')
+    }
+
+    for (const toolName of ['Bash', toCherryBuiltinRuntimeName('kb_read'), 'mcp__server__ordinary_tool']) {
+      await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
+    }
+  })
+
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -556,7 +600,14 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    for (const toolName of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree']) {
+    const toolsRequiringAResponder = [
+      'AskUserQuestion',
+      'EnterPlanMode',
+      'ExitPlanMode',
+      'EnterWorktree',
+      ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+    ]
+    for (const toolName of toolsRequiringAResponder) {
       const result = await settings.canUseTool?.(toolName, {}, {
         signal: { aborted: false },
         toolUseID: 'tool-use-1'
@@ -601,6 +652,23 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
       expect(results).toContainEqual(
         expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+      )
+    }
+    for (const toolName of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)) {
+      const results = await Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+      expect(results).toContainEqual(
+        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+      )
+      expect(results).not.toContainEqual(
+        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'ask' }) })
       )
     }
     expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
@@ -793,12 +861,14 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant__apply_setting')
     expect(settings.allowedTools).toContain('mcp__assistant__create_agent')
+    expect(settings.allowedTools).toContain('mcp__assistant__product_info')
     expect(settings.allowedTools).not.toContain('mcp__assistant__*')
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__apply_setting')
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__create_agent')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__product_info')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
   })
@@ -870,10 +940,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(7)
+    // Four session/tool policy hooks + workspace/dependency/rtk handling + the final steer hook.
+    expect(preToolUse).toHaveLength(8)
 
-    const steerHook = preToolUse![6] as unknown as (input: {
+    const steerHook = preToolUse!.at(-1) as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
 
@@ -905,7 +975,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse![6] as unknown as (input: {
+    const steerHook = preToolUse!.at(-1) as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
     const onInjected = vi.fn()

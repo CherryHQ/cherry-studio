@@ -3,6 +3,8 @@
 
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
+import { atomicWriteFile } from '@main/utils/file'
+import type { FilePath } from '@shared/types/file'
 import {
   AlignmentType,
   BorderStyle,
@@ -20,7 +22,6 @@ import {
   WidthType
 } from 'docx'
 import { dialog } from 'electron'
-import fs from 'fs'
 import MarkdownIt from 'markdown-it'
 
 const logger = loggerService.withContext('ExportService')
@@ -96,6 +97,15 @@ export class ExportService {
             italicStack--
             break
           case 'text':
+            runs.push(
+              new TextRun({
+                text: token.content,
+                bold: isHeaderRow || boldStack > 0,
+                italics: italicStack > 0
+              })
+            )
+            break
+          case 'image':
             runs.push(
               new TextRun({
                 text: token.content,
@@ -363,33 +373,41 @@ export class ExportService {
     return elements
   }
 
-  public exportToWord = async (markdown: string, fileName: string): Promise<void> => {
-    try {
-      const elements = this.convertMarkdownToDocxElements(markdown)
+  private renderWord = async (markdown: string): Promise<Buffer> => {
+    const elements = this.convertMarkdownToDocxElements(markdown)
 
-      const doc = new Document({
-        styles: {
-          paragraphStyles: [
-            {
-              id: 'Normal',
-              name: 'Normal',
-              run: {
-                size: 24,
-                font: 'Arial'
-              }
-            }
-          ]
-        },
-        sections: [
+    const doc = new Document({
+      styles: {
+        paragraphStyles: [
           {
-            properties: {},
-            children: elements
+            id: 'Normal',
+            name: 'Normal',
+            run: {
+              size: 24,
+              font: 'Arial'
+            }
           }
         ]
-      })
+      },
+      sections: [
+        {
+          properties: {},
+          children: elements
+        }
+      ]
+    })
 
-      const buffer = await Packer.toBuffer(doc)
+    return Packer.toBuffer(doc)
+  }
 
+  public exportToWordPath = async (markdown: string, filePath: FilePath, signal?: AbortSignal): Promise<void> => {
+    const buffer = await this.renderWord(markdown)
+    signal?.throwIfAborted()
+    await atomicWriteFile(filePath, buffer, signal ? { signal } : undefined)
+  }
+
+  public exportToWord = async (markdown: string, fileName: string): Promise<void> => {
+    try {
       const filePath = dialog.showSaveDialogSync({
         title: t('dialog.save_file'),
         filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
@@ -397,7 +415,7 @@ export class ExportService {
       })
 
       if (filePath) {
-        await fs.promises.writeFile(filePath, buffer)
+        await this.exportToWordPath(markdown, filePath as FilePath)
         logger.debug('Document exported successfully')
       }
     } catch (error) {

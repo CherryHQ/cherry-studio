@@ -10,6 +10,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -62,7 +63,15 @@ type ListSessionMessagesOptions = {
   messageId?: string
 }
 
+export interface AgentSessionMessageDeletedEvent {
+  sessionId: string
+  messageId: string
+}
+
 export class AgentSessionMessageService {
+  private readonly _onSessionMessageDeleted = new Emitter<AgentSessionMessageDeletedEvent>()
+  readonly onSessionMessageDeleted: Event<AgentSessionMessageDeletedEvent> = this._onSessionMessageDeleted.event
+
   search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
@@ -218,6 +227,7 @@ export class AgentSessionMessageService {
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
+    this._onSessionMessageDeleted.fire({ sessionId, messageId })
   }
 
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {

@@ -26,6 +26,7 @@ vi.mock('../attachmentTextExtraction', () => ({
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
+import { createFileAttachmentHandle } from '../attachmentHandle'
 import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
@@ -59,6 +60,8 @@ const run = (
 
 const textOf = (parts: UIMessage['parts']) =>
   parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text)
+const attachmentLabel = (displayName: string, entryId = 'e1') =>
+  `Attached file "${displayName}" (handle: ${createFileAttachmentHandle(entryId)})`
 
 afterEach(() => vi.clearAllMocks())
 
@@ -78,21 +81,23 @@ describe('prepareChatMessages — routing', () => {
     ocrMock.mockResolvedValueOnce('ocr body')
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
     expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.png":\nocr body')
+    expect(textOf(out.parts)[0]).toBe(`${attachmentLabel('a.png')}:\nocr body`)
   })
 
   it('inlines extracted text for office docs', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     extractMock.mockResolvedValueOnce('word body')
-    const [out] = await run([fileWithEntry('e1', 'a.docx', 'application/octet-stream')], ALL)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.docx":\nword body')
+    const [out] = await run([fileWithEntry('entry-secret', 'a.docx', 'application/octet-stream')], ALL)
+    const text = textOf(out.parts)[0]
+    expect(text).toMatch(/^Attached file "a\.docx" \(handle: file_[a-f0-9]{16}\):\nword body$/)
+    expect(text).not.toContain('entry-secret')
   })
 
   it('inlines extracted text for an extensionless text file', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
     extractMock.mockResolvedValueOnce('license body')
     const [out] = await run([fileWithEntry('e1', 'LICENSE', 'application/octet-stream')], NONE)
-    expect(textOf(out.parts)[0]).toBe('Attached file "LICENSE":\nlicense body')
+    expect(textOf(out.parts)[0]).toBe(`${attachmentLabel('LICENSE')}:\nlicense body`)
   })
 
   it('keeps an extensionless binary file unsupported', async () => {
@@ -100,7 +105,7 @@ describe('prepareChatMessages — routing', () => {
     extractMock.mockResolvedValueOnce(null)
     const [out] = await run([fileWithEntry('e1', 'payload', 'application/octet-stream')], NONE)
     expect(textOf(out.parts)[0]).toBe(
-      'Attached file "payload":\nCannot read the attached file "payload" as text (unsupported file type).'
+      `${attachmentLabel('payload')}:\nCannot read the attached file "payload" as text (unsupported file type).`
     )
   })
 
@@ -113,7 +118,7 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'pdf' })
     extractMock.mockResolvedValueOnce('pdf body')
     const [textOut] = await run([fileWithEntry('e1', 'a.pdf', 'application/pdf')], NONE)
-    expect(textOf(textOut.parts)[0]).toBe('Attached file "a.pdf":\npdf body')
+    expect(textOf(textOut.parts)[0]).toBe(`${attachmentLabel('a.pdf')}:\npdf body`)
   })
 
   it('notes audio it cannot read', async () => {
@@ -126,7 +131,7 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'zip' })
     const [out] = await run([fileWithEntry('e1', 'a.zip', 'application/zip')], NONE)
     expect(textOf(out.parts)[0]).toBe(
-      'Attached file "a.zip":\nCannot read the attached file "a.zip" as text (unsupported file type).'
+      `${attachmentLabel('a.zip')}:\nCannot read the attached file "a.zip" as text (unsupported file type).`
     )
     expect(extractMock).not.toHaveBeenCalled()
   })
@@ -136,14 +141,14 @@ describe('prepareChatMessages — routing', () => {
     resolveMock.mockResolvedValueOnce(null)
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], ALL)
     expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
+    expect(textOf(out.parts)[0]).toBe(`${attachmentLabel('a.png')}: [could not read this file].`)
   })
 
   it('uses the empty-extraction note', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'pdf' })
     extractMock.mockResolvedValueOnce('   ')
     const [out] = await run([fileWithEntry('e1', 'a.pdf', 'application/pdf')], NONE)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.pdf":\nNo text in a.pdf')
+    expect(textOf(out.parts)[0]).toBe(`${attachmentLabel('a.pdf')}:\nNo text in a.pdf`)
   })
 
   it('caps long text with a read_file pointer for tool models', async () => {
@@ -152,7 +157,7 @@ describe('prepareChatMessages — routing', () => {
     const [out] = await run([fileWithEntry('e1', 'a.txt', 'text/plain')], NONE, { isToolCapable: true, cap: 5 })
     const text = textOf(out.parts)[0]
     expect(text).toContain('01234')
-    expect(text).toContain('read_file("a.txt", offset=5)')
+    expect(text).toContain(`read_file("${createFileAttachmentHandle('e1')}", offset=5)`)
   })
 
   it('caps long text without a read_file pointer for non-tool models', async () => {
@@ -169,7 +174,7 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
+    expect(textOf(out.parts)[0]).toBe(`${attachmentLabel('a.png')}: [could not read this file].`)
   })
 
   it('rethrows on abort instead of degrading', async () => {
@@ -200,25 +205,29 @@ describe('prepareChatMessages — routing', () => {
 })
 
 describe('collectFileAttachments', () => {
-  it('flattens fileEntry attachments with unique handles, preserving the display name', () => {
+  it('flattens fileEntry attachments with stable opaque handles, preserving the display name', () => {
     const messages = [
       userMessage([fileWithEntry('e1', 'report.pdf', 'application/pdf')]),
       userMessage([fileWithEntry('e2', 'report.pdf', 'application/pdf')])
     ] as UIMessage[]
     expect(collectFileAttachments(messages)).toEqual([
-      { fileEntryId: 'e1', handle: 'report.pdf', displayName: 'report.pdf' },
-      { fileEntryId: 'e2', handle: 'report.pdf (2)', displayName: 'report.pdf' }
+      { fileEntryId: 'e1', handle: createFileAttachmentHandle('e1'), displayName: 'report.pdf' },
+      { fileEntryId: 'e2', handle: createFileAttachmentHandle('e2'), displayName: 'report.pdf' }
     ])
   })
 
-  it('disambiguates a generated alias that would collide with a real name', () => {
+  it('derives handles from entry ids rather than potentially colliding display names', () => {
     const messages = [
       userMessage([fileWithEntry('e1', 'a.txt', 'text/plain')]),
       userMessage([fileWithEntry('e2', 'a.txt (2)', 'text/plain')]),
       userMessage([fileWithEntry('e3', 'a.txt', 'text/plain')])
     ] as UIMessage[]
     const handles = collectFileAttachments(messages).map((a) => a.handle)
-    expect(handles).toEqual(['a.txt', 'a.txt (2)', 'a.txt (3)'])
+    expect(handles).toEqual([
+      createFileAttachmentHandle('e1'),
+      createFileAttachmentHandle('e2'),
+      createFileAttachmentHandle('e3')
+    ])
     expect(new Set(handles).size).toBe(3)
   })
 

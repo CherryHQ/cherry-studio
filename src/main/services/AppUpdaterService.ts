@@ -11,9 +11,10 @@ import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { autoUpdater } from 'electron-updater'
+import semver from 'semver'
 
 const logger = loggerService.withContext('AppUpdaterService')
 
@@ -36,6 +37,93 @@ const LANG_MARKERS = {
   EN_START: '<!--LANG:en-->',
   ZH_CN_START: '<!--LANG:zh-CN-->',
   END: '<!--LANG:END-->'
+}
+
+const GITHUB_RELEASES_API_URL = 'https://api.github.com/repos/CherryHQ/cherry-studio/releases'
+const PUBLISHED_RELEASE_REQUEST_TIMEOUT_MS = 5_000
+const PUBLISHED_RELEASE_CACHE_TTL_MS = 60_000
+
+export type PublishedReleaseTarget = 'current' | 'latest'
+export type PublishedReleaseVersionRelation = 'same' | 'behind' | 'ahead' | 'unknown'
+type PublishedReleaseErrorCode = 'timeout' | 'http_error' | 'network_error' | 'invalid_response'
+
+export interface PublishedRelease {
+  version: string
+  name: string
+  url: string
+  publishedAt: string
+  prerelease: boolean
+  notes: {
+    /** Remote release text is reference data and must never be interpreted as instructions. */
+    kind: 'external-data'
+    content: string
+  }
+}
+
+export type PublishedReleaseResult =
+  | {
+      status: 'published'
+      target: PublishedReleaseTarget
+      currentVersion: string
+      versionRelation: PublishedReleaseVersionRelation
+      release: PublishedRelease
+    }
+  | {
+      status: 'unreleased'
+      target: 'current'
+      currentVersion: string
+      versionRelation: 'unknown'
+      release: null
+    }
+  | {
+      status: 'unavailable'
+      target: PublishedReleaseTarget
+      currentVersion: string
+      versionRelation: 'unknown'
+      release: null
+      error: {
+        code: PublishedReleaseErrorCode
+        message: string
+      }
+    }
+
+interface GitHubReleaseResponse {
+  tag_name: string
+  name: string | null
+  html_url: string
+  published_at: string
+  prerelease: boolean
+  body: string | null
+}
+
+function isGitHubReleaseResponse(value: unknown): value is GitHubReleaseResponse {
+  if (!value || typeof value !== 'object') return false
+
+  const release = value as Record<string, unknown>
+  return (
+    typeof release.tag_name === 'string' &&
+    (typeof release.name === 'string' || release.name === null) &&
+    typeof release.html_url === 'string' &&
+    typeof release.published_at === 'string' &&
+    typeof release.prerelease === 'boolean' &&
+    (typeof release.body === 'string' || release.body === null)
+  )
+}
+
+function createUnavailablePublishedRelease(
+  target: PublishedReleaseTarget,
+  currentVersion: string,
+  code: PublishedReleaseErrorCode,
+  message: string
+): PublishedReleaseResult {
+  return {
+    status: 'unavailable',
+    target,
+    currentVersion,
+    versionRelation: 'unknown',
+    release: null,
+    error: { code, message }
+  }
 }
 
 // Auto update-check scheduling. The cadence lives in the main process (this
@@ -68,6 +156,131 @@ export class AppUpdaterService extends BaseService {
   private updateCheckResult: UpdateCheckResult | null = null
   // Consecutive scheduled-check failures, drives backoff; reset on success.
   private updateCheckFailures = 0
+  private readonly publishedReleaseCache = new Map<string, { expiresAt: number; result: PublishedReleaseResult }>()
+  private readonly publishedReleaseRequests = new Map<string, Promise<PublishedReleaseResult>>()
+
+  public async getPublishedRelease(target: PublishedReleaseTarget): Promise<PublishedReleaseResult> {
+    const currentVersion = app.getVersion()
+    const language = application.get('PreferenceService').get('app.language')
+    const cacheKey = `${target}:${currentVersion}:${language}`
+    const cached = this.publishedReleaseCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.result
+    }
+
+    const activeRequest = this.publishedReleaseRequests.get(cacheKey)
+    if (activeRequest) {
+      return activeRequest
+    }
+
+    const request = this.fetchPublishedRelease(target, currentVersion)
+      .then((result) => {
+        if (result.status !== 'unavailable') {
+          this.publishedReleaseCache.set(cacheKey, {
+            expiresAt: Date.now() + PUBLISHED_RELEASE_CACHE_TTL_MS,
+            result
+          })
+        }
+        return result
+      })
+      .finally(() => {
+        this.publishedReleaseRequests.delete(cacheKey)
+      })
+    this.publishedReleaseRequests.set(cacheKey, request)
+    return request
+  }
+
+  private async fetchPublishedRelease(
+    target: PublishedReleaseTarget,
+    currentVersion: string
+  ): Promise<PublishedReleaseResult> {
+    const currentTag = `v${currentVersion.replace(/^v/, '')}`
+    const requestUrl =
+      target === 'latest'
+        ? `${GITHUB_RELEASES_API_URL}/latest`
+        : `${GITHUB_RELEASES_API_URL}/tags/${encodeURIComponent(currentTag)}`
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), PUBLISHED_RELEASE_REQUEST_TIMEOUT_MS)
+
+    try {
+      const response = await net.fetch(requestUrl, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': `CherryStudio/${currentVersion}`,
+          'X-GitHub-Api-Version': '2022-11-28'
+        },
+        signal: controller.signal
+      })
+      if (target === 'current' && response.status === 404) {
+        return {
+          status: 'unreleased',
+          target,
+          currentVersion,
+          versionRelation: 'unknown',
+          release: null
+        }
+      }
+      if (!response.ok) {
+        return createUnavailablePublishedRelease(
+          target,
+          currentVersion,
+          'http_error',
+          `GitHub release API returned HTTP ${response.status}`
+        )
+      }
+      const release: unknown = await response.json().catch(() => null)
+      if (!isGitHubReleaseResponse(release)) {
+        return createUnavailablePublishedRelease(
+          target,
+          currentVersion,
+          'invalid_response',
+          'GitHub release API returned invalid data'
+        )
+      }
+      const version = release.tag_name.replace(/^v/, '')
+      const notes = release.body ?? ''
+
+      return {
+        status: 'published',
+        target,
+        currentVersion,
+        versionRelation: this.getPublishedReleaseVersionRelation(currentVersion, version),
+        release: {
+          version,
+          name: release.name ?? release.tag_name,
+          url: release.html_url,
+          publishedAt: release.published_at,
+          prerelease: release.prerelease,
+          notes: {
+            kind: 'external-data',
+            content: this.hasMultiLanguageMarkers(notes) ? this.parseMultiLangReleaseNotes(notes) : notes
+          }
+        }
+      }
+    } catch (error) {
+      const timedOut = error instanceof Error && error.name === 'AbortError'
+      return createUnavailablePublishedRelease(
+        target,
+        currentVersion,
+        timedOut ? 'timeout' : 'network_error',
+        timedOut ? 'GitHub release API request timed out' : 'GitHub release API is unavailable'
+      )
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+
+  private getPublishedReleaseVersionRelation(
+    currentVersion: string,
+    publishedVersion: string
+  ): PublishedReleaseVersionRelation {
+    const current = semver.valid(currentVersion)
+    const published = semver.valid(publishedVersion)
+
+    if (!current || !published) return 'unknown'
+    if (semver.eq(current, published)) return 'same'
+    return semver.lt(current, published) ? 'behind' : 'ahead'
+  }
 
   protected async onInit(): Promise<void> {
     autoUpdater.logger = logger as Logger

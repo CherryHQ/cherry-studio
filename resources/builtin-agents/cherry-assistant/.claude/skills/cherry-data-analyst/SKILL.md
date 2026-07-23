@@ -1,155 +1,44 @@
 ---
 name: cherry-data-analyst
-description: 分析 CSV / JSON / Excel 数据文件，输出含交互图表的 HTML 报告（关键指标 + 趋势 + 异常 + 行动建议）。自动识别列类型、选合适的图表（折线 / 柱状 / 饼图 / 散点 / 热力）。当用户说"分析这个数据"、"看看这个 CSV"、"做数据报告"、"画个趋势图"、"做个 dashboard"、"analyze this data"、"data report"、"summarize this dataset"时触发。Cherry Studio 内置轻量版；要更深的能力（多文件联合分析 / 实时大盘 / 时序异常检测 / 客户分群）→ 走 `cherry-skill-marketplace` 找 `data-analyst` 重型版本。
+description: 读取、清洗、合并和汇总 CSV、TSV、JSON；聊天附件经用户批准保存到 workspace 后由本地脚本处理，避免全量数据进入模型上下文。Excel 附件仅做提取文本概览，逐单元格处理需先导出 CSV。支持去重、同比环比、轻量报表和 CSV 转 XLSX。不要处理普通文档或 PPT。
 ---
 
 # Cherry Data Analyst
 
-输入一份结构化数据 → 输出一份**让人五分钟看懂**的 HTML 报告：**结论先行**，图表跟着结论。
+面向日常表格整理和轻量分析。信息足够时直接做；只有业务口径或目标工作表不明确且会改变结果时，才问 **1 个**阻塞问题。
 
-## 工作方式
+## 输入规则
 
-### Step 1: 读懂数据（不抢着做图）
+- CSV、TSV、JSON：使用本地脚本计算，不把全量原始行放进模型上下文。聊天附件先按下一节落盘，不能用分页结果重建源文件。
+- Excel：只能用附件提取文本或分页读取结果做概览。逐单元格清洗、公式或合并需用户先导出目标工作表为 CSV，并报告 `unsupported: cell-accurate Excel input requires CSV`。
+- 先保留原文件，所有清洗和转换写到新路径。
 
-1. 用 `Read` 工具读文件前 50 行 + 末 10 行（CSV / JSON / Excel 同理）
-2. 用 `Bash` 跑一两个探测命令：
-   ```bash
-   wc -l data.csv               # 总行数
-   head -1 data.csv             # 列名
-   awk -F, '{print NF}' data.csv | sort -u | head  # 列数一致性
-   ```
-3. **报告给用户**：识别到 N 列、M 行、列类型猜测（时间 / 数值 / 类别 / 文本）
-4. **问用户**（至多 2 个）：
-   - 想看什么角度？（趋势 / 对比 / 分布 / 关联 / 异常）
-   - 有时间列吗？粒度（日 / 周 / 月）？
-   - 有关键指标 / KPI 吗？
+## 附件落盘与 Token 控制
 
-### Step 2: 分析框架（按用户角度对应）
+1. 对要完整分析的 CSV、TSV 或 JSON 附件，使用对话中显示的附件句柄调用 `mcp__cherry-tools__save_attachment`。默认保存为 workspace 根目录下的新文件；若使用子目录，该目录必须已存在。不得传 FileEntry ID、绝对路径或 `..`，不得覆盖文件。
+2. 该调用会请求用户批准。批准并返回相对路径后，才用 `uv run python <script>` 和 Python 标准库 `csv` / `json` 处理原始字节。拒绝或失败时，只能基于已内联片段做明确标注的样本分析；不要循环调用 `read_file` 把全量数据送进上下文。
+3. 脚本把完整清洗结果直接写入 workspace 文件；标准输出只返回行列数、列名、类型、缺失/重复统计、最多 20 行样例和任务所需聚合，控制在 4KB 内。模型只读取这份摘要和必要的异常样本。
 
-| 用户想看 | 主图 | 配套统计 |
-|---------|------|---------|
-| 趋势 | 折线 / 面积图 | 同比环比 / 移动平均 |
-| 对比 | 柱状 / 条形 | Top-N / 排名变化 |
-| 分布 | 直方 / 箱线 | 均值 / 中位数 / P90 / 标准差 |
-| 关联 | 散点 / 热力 | 相关系数 / 趋势线 |
-| 异常 | 折线 + 阈值带 | Z-score / 3σ 标记点 |
+## 工作流
 
-**结论写在前面，图表写在后面**。
+1. **概览**：按上述落盘流程取得附件路径，再计算文件名、行列数、列名、推断类型、缺失数、重复数和最多 20 行样例。
+2. **确认口径**：按目标选择清洗、去重、合并、汇总、同比环比或异常检查；无明确目标则做质量检查、关键汇总和 3 个发现。
+3. **处理**：使用确定性脚本生成 UTF-8 CSV。合并前核对键的唯一性；日期、货币和百分比先标准化；删除或填补数据必须记录规则和影响行数。
+4. **校验**：比较输入输出行数，复算关键合计，检查空值、重复键和列顺序；调用 `mcp__cherry-tools__report_artifacts` 登记最终文件，并附一段“做了哪些修改”的审计摘要。
 
-### Step 3: 出报告（单 HTML，Plotly CDN）
+## XLSX 导出
 
-**文件骨架**：
+Excel 输出先生成最终 CSV，再调用 `mcp__cherry-tools__export_office`，使用 `operation = csv_to_xlsx`，按 schema 传入 CSV 源路径和新 `.xlsx` 目标路径。
 
-```html
-<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <title>{{TITLE}}</title>
-  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-  <style>
-    body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; color: #1a1a1a; }
-    h1 { border-bottom: 3px solid #d04a3a; padding-bottom: .5rem; }
-    h2 { color: #d04a3a; margin-top: 3rem; }
-    .tldr { background: #fef9f6; border-left: 4px solid #d04a3a; padding: 1rem 1.5rem; margin: 1.5rem 0; }
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
-    .kpi { background: #f7f7f7; padding: 1rem; border-radius: .5rem; text-align: center; }
-    .kpi .num { font-size: 2rem; font-weight: 700; color: #d04a3a; }
-    .kpi .label { font-size: .9rem; color: #666; margin-top: .25rem; }
-    .chart { margin: 2rem 0; }
-    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-    th, td { padding: .5rem 1rem; text-align: left; border-bottom: 1px solid #ddd; }
-    th { background: #f7f7f7; }
-    .action { background: #f0f9ff; border-left: 4px solid #0284c7; padding: 1rem 1.5rem; margin: 2rem 0; }
-  </style>
-</head>
-<body>
-  <h1>{{TITLE}}</h1>
-  <p style="color: #666;">分析时间: {{DATETIME}} · 数据范围: {{RANGE}} · 样本量: {{N}} 行</p>
+该操作只把 CSV 内容写入 XLSX，不承诺保留输入 Excel 的公式、图表、宏、样式、合并单元格或多工作表结构。工具失败时保留 CSV 成品并说明错误，不能声称 XLSX 已生成。
 
-  <div class="tldr">
-    <strong>结论</strong>: <!-- 一句话结论，最重要的发现 -->
-  </div>
+## 输出标准
 
-  <h2>关键指标</h2>
-  <div class="kpi-grid">
-    <!-- KPI 卡片：3-6 个，每个 <div class="kpi"><div class="num">123</div><div class="label">XXX</div></div> -->
-  </div>
+- 结论先行，每个结论附指标、时间范围和计算口径。
+- 排名和异常默认只展示 Top 10；图表只服务于明确结论，最多 3 张。
+- HTML 报告仅在明确要求时生成，包含摘要、指标、发现、异常、建议和方法；不嵌入原始全表。
+- 样本不足、字段含义不清或关联不代表因果时明确标注，不编造解释。
 
-  <h2>主图</h2>
-  <div class="chart" id="chart1"></div>
+## 边界
 
-  <h2>次要分析</h2>
-  <!-- 1-3 个补充图 -->
-
-  <h2>异常 / 关注点</h2>
-  <!-- 表格列出值得追问的点 -->
-
-  <div class="action">
-    <strong>行动建议</strong>:
-    <ol>
-      <!-- 2-4 条可执行建议，每条带「为什么这么建议」 -->
-    </ol>
-  </div>
-
-  <h2>方法说明</h2>
-  <ul>
-    <!-- 数据清洗规则、过滤了什么、口径定义 -->
-  </ul>
-
-  <script>
-    Plotly.newPlot('chart1', [{
-      x: [...],
-      y: [...],
-      type: 'scatter',
-      mode: 'lines+markers',
-      line: { color: '#d04a3a', width: 3 }
-    }], {
-      title: '',
-      xaxis: { title: '...' },
-      yaxis: { title: '...' },
-      margin: { t: 20, r: 20, b: 60, l: 60 },
-      hovermode: 'x unified'
-    }, { responsive: true });
-  </script>
-</body>
-</html>
-```
-
-**写作原则**：
-- **结论先行**：第一段就告诉用户最重要的发现
-- **图能传达结论**：每个图配一句"这张图说明..."
-- **建议可执行**：不要写"应该优化"，写"把 X 从 Y 改成 Z，预期节省 N"
-- **诚实标注边界**：样本不足 / 数据缺失 / 口径模糊 → 在「方法说明」明说
-
-### Step 4: 落盘 + 后续
-
-- 文件名：`{topic}-report.html` 写到 `#{PROJECT_ROOT}`
-- 告诉用户：双击打开 / `open <file>`
-- 数据有持续更新需求 → 提议用 `cherry-skill-marketplace` 找 `data-analyst` 重型版（支持脚本化重跑）
-
-## 列类型识别启发
-
-| 列名 / 内容特征 | 类型 |
-|---------------|------|
-| `date` / `time` / 含日期格式 | 时间 |
-| 全为数字 / 含小数 / 有单位字符 | 数值 |
-| 重复值 < 50 个 / 字符串短 | 类别 |
-| 高基数字符串 / 含空格 | 文本（一般不入图） |
-| 全为 0/1 或 true/false | 布尔 |
-
-## 不要
-
-- 不要"先做个简单分析" — 要么不做，要做就一次出完整报告
-- 不要堆图表（5-8 张已经多）
-- 不要把整列原始数据贴在报告里
-- 不要忽略数据质量问题就出结论（先汇报问题，再分析）
-
-## 限制
-
-- 单文件 < 10 万行；大文件先抽样
-- 不做机器学习模型（聚类 / 预测 / 异常检测的模型版） — 用 marketplace 重型版
-- 不支持流式数据 / 实时大盘 — 用 marketplace 重型版
-- 多文件联合分析 → 一次只处理一个文件 + 简单 join；复杂 join 用 marketplace 重型版
-
-要更深的 → `cherry-skill-marketplace` 搜 `data-analyst`。
+实时大盘、机器学习、复杂多表模型、宏和高保真 Excel 编辑先报告 `unsupported`，再交给 `cherry-skill-marketplace` 搜索恰好缺少的能力；安装第三方 Skill 仍需用户明确确认。

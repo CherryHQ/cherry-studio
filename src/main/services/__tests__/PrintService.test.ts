@@ -13,11 +13,7 @@ vi.mock('@main/i18n', () => ({
   t: (key: string) => key
 }))
 
-vi.mock('node:fs/promises', () => ({
-  default: {
-    writeFile
-  }
-}))
+vi.mock('@main/utils/file', () => ({ atomicWriteFile: writeFile }))
 
 const windowId = 'print-window-1'
 const loadURL = vi.fn()
@@ -103,6 +99,28 @@ describe('PrintService', () => {
     expect(html).toContain('"Noto Sans CJK SC"')
   })
 
+  it('can omit image resources while preserving their alt text', () => {
+    const html = buildPrintableHtml(
+      { title: 'Restricted', markdown: '![Payroll chart](https://example.com/private.png)' },
+      { allowImages: false }
+    )
+
+    expect(html).toContain('Payroll chart')
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('example.com/private.png')
+  })
+
+  it.each([
+    '# Meeting brief\n\nDecisions and actions.',
+    '## Meeting brief\n\nDecisions and actions.',
+    'Context first.\n\n# Meeting brief\n\nDecisions and actions.'
+  ])('does not repeat a Markdown heading already promoted to the printable title', (markdown) => {
+    const html = buildPrintableHtml({ title: 'Meeting brief', markdown })
+
+    expect(html.match(/<h1\b/g)).toHaveLength(1)
+    expect(html).toContain('<p>Decisions and actions.</p>')
+  })
+
   it('reports success after exporting a printable document to PDF through a WindowManager-owned print window', async () => {
     const service = new PrintService()
 
@@ -127,6 +145,32 @@ describe('PrintService', () => {
       printBackground: true
     })
     expect(writeFile).toHaveBeenCalledWith('/tmp/Meeting Notes.pdf', Buffer.from('pdf-data'))
+    expect(close).toHaveBeenCalledWith(windowId)
+  })
+
+  it('exports directly to a provided path without opening a save dialog', async () => {
+    const service = new PrintService()
+
+    await service.exportToPdfPath(payload, '/tmp/direct.pdf')
+
+    expect(dialog.showSaveDialog).not.toHaveBeenCalled()
+    expect(writeFile).toHaveBeenCalledWith('/tmp/direct.pdf', Buffer.from('pdf-data'))
+    expect(close).toHaveBeenCalledWith(windowId)
+  })
+
+  it('does not write a rendered PDF when the operation is canceled before the atomic write', async () => {
+    const service = new PrintService()
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      service.exportToPdfPath(payload, '/tmp/canceled.pdf', { signal: controller.signal })
+    ).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+
+    expect(printToPDF).toHaveBeenCalledOnce()
+    expect(writeFile).not.toHaveBeenCalled()
     expect(close).toHaveBeenCalledWith(windowId)
   })
 

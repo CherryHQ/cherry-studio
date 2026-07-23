@@ -12,7 +12,12 @@ import {
   CHERRY_BUILTIN_MCP_SERVER,
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
-import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  EXPORT_OFFICE_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME,
+  READ_FILE_TOOL_NAME,
+  SAVE_ATTACHMENT_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -254,6 +259,18 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.some((name) => autoApproved.has(name))).toBe(false)
     // The derived prefix matches the fully-qualified runtime name, pinning the two helpers in sync.
     expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
+  })
+
+  it('auto-approves only the attachment-scoped read_file tool', () => {
+    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).toContain(READ_FILE_TOOL_NAME)
+    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).not.toContain(READ_FILE_TOOL_NAME)
+  })
+
+  it('keeps workspace file writes approval-gated', () => {
+    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(EXPORT_OFFICE_TOOL_NAME)
+    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(EXPORT_OFFICE_TOOL_NAME)
+    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(SAVE_ATTACHMENT_TOOL_NAME)
+    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(SAVE_ATTACHMENT_TOOL_NAME)
   })
 
   it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {

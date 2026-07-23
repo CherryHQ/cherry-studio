@@ -7,7 +7,8 @@
  * bases. Injected by `settingsBuilder` as an `sdk`-type MCP server; Claude calls
  * these tools as `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__kb_search`,
  * `…__kb_read`, `…__kb_list`, `…__kb_manage`, `…__report_artifacts`, and
- * `…__generate_image`.
+ * `…__generate_image`, attachment paging via `…__read_file`, and approved
+ * attachment staging via `…__save_attachment`.
  *
  * KB scope is unscoped (`allowedIds: []`) because agents have no per-assistant
  * knowledge selection — the agent sees all of the user's knowledge bases. The
@@ -21,6 +22,9 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import { exportOfficeArtifact } from '@main/ai/tools/exportOffice'
+import { READ_FILE_DESCRIPTION, readFile, readFileModelOutput } from '@main/ai/tools/fileLookup'
 import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '@main/ai/tools/generateImageTool'
 import {
   KNOWLEDGE_LIST_DESCRIPTION,
@@ -44,6 +48,7 @@ import {
   paintingModelOutput,
   resolveConfiguredPaintingModel
 } from '@main/ai/tools/painting'
+import { saveAttachmentToWorkspace } from '@main/ai/tools/saveAttachment'
 import {
   fetchWeb,
   searchWeb,
@@ -60,6 +65,9 @@ import {
   type Tool
 } from '@modelcontextprotocol/sdk/types.js'
 import {
+  EXPORT_OFFICE_DESCRIPTION,
+  EXPORT_OFFICE_TOOL_NAME,
+  exportOfficeInputSchema,
   GENERATE_IMAGE_TOOL_NAME,
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
@@ -69,9 +77,14 @@ import {
   kbManageInputSchema,
   kbReadInputSchema,
   kbSearchInputSchema,
+  READ_FILE_TOOL_NAME,
+  readFileInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
+  SAVE_ATTACHMENT_DESCRIPTION,
+  SAVE_ATTACHMENT_TOOL_NAME,
+  saveAttachmentInputSchema,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
   webFetchInputSchema,
@@ -100,6 +113,11 @@ interface ToolHandler {
   // `signal` is honoured only by handlers whose core supports cancellation (web → WebSearchService).
   // The kb handlers ignore it: KnowledgeService exposes no AbortSignal plumbing (see knowledgeLookup).
   run: (args: unknown, signal: AbortSignal) => Promise<ToolModelOutput>
+}
+
+export interface CherryBuiltinToolContext {
+  attachments?: ReadonlyArray<FileAttachmentRef>
+  workspacePath?: string
 }
 
 // Agents have no per-assistant knowledge scope, so KB lookups run unscoped.
@@ -187,17 +205,62 @@ function createGenerateImageHandler(configuredModel: ConfiguredPaintingModel | n
   }
 }
 
-function resolveHandlers(): Record<string, ToolHandler> {
+function createReadFileHandler(context?: CherryBuiltinToolContext): ToolHandler {
+  return {
+    description: READ_FILE_DESCRIPTION,
+    inputSchema: readFileInputSchema,
+    run: async (args, signal) => {
+      const input = readFileInputSchema.parse(args)
+      const output = readFileModelOutput(await readFile(input, { attachments: context?.attachments ?? [] }, signal))
+      if (output.type !== 'text') throw new Error('read_file returned an unexpected output type')
+      return { type: 'text', value: output.value }
+    }
+  }
+}
+
+function createExportOfficeHandler(context?: CherryBuiltinToolContext): ToolHandler {
+  return {
+    description: EXPORT_OFFICE_DESCRIPTION,
+    inputSchema: exportOfficeInputSchema,
+    run: async (args, signal) => {
+      if (!context?.workspacePath) throw new Error('export_office requires a session workspace')
+      const input = exportOfficeInputSchema.parse(args)
+      return { type: 'json', value: await exportOfficeArtifact(context.workspacePath, input, signal) }
+    }
+  }
+}
+
+function createSaveAttachmentHandler(context?: CherryBuiltinToolContext): ToolHandler {
+  return {
+    description: SAVE_ATTACHMENT_DESCRIPTION,
+    inputSchema: saveAttachmentInputSchema,
+    run: async (args, signal) => {
+      if (!context?.workspacePath) throw new Error('save_attachment requires a session workspace')
+      const input = saveAttachmentInputSchema.parse(args)
+      return {
+        type: 'json',
+        value: await saveAttachmentToWorkspace(context.workspacePath, input, context.attachments ?? [], signal)
+      }
+    }
+  }
+}
+
+function resolveHandlers(context?: CherryBuiltinToolContext): Record<string, ToolHandler> {
   return {
     ...HANDLERS,
+    [EXPORT_OFFICE_TOOL_NAME]: createExportOfficeHandler(context),
+    [SAVE_ATTACHMENT_TOOL_NAME]: createSaveAttachmentHandler(context),
+    [READ_FILE_TOOL_NAME]: createReadFileHandler(context),
     [GENERATE_IMAGE_TOOL_NAME]: createGenerateImageHandler(resolveConfiguredPaintingModel())
   }
 }
 
-function resolveHandler(name: string): ToolHandler | undefined {
-  return name === GENERATE_IMAGE_TOOL_NAME
-    ? createGenerateImageHandler(resolveConfiguredPaintingModel())
-    : HANDLERS[name]
+function resolveHandler(name: string, context?: CherryBuiltinToolContext): ToolHandler | undefined {
+  if (name === GENERATE_IMAGE_TOOL_NAME) return createGenerateImageHandler(resolveConfiguredPaintingModel())
+  if (name === EXPORT_OFFICE_TOOL_NAME) return createExportOfficeHandler(context)
+  if (name === SAVE_ATTACHMENT_TOOL_NAME) return createSaveAttachmentHandler(context)
+  if (name === READ_FILE_TOOL_NAME) return createReadFileHandler(context)
+  return HANDLERS[name]
 }
 
 /**
@@ -250,8 +313,13 @@ export function listCherryBuiltinTools(): Tool[] {
   }))
 }
 
-export async function callCherryBuiltinTool(name: string, args: unknown, signal: AbortSignal): Promise<CallToolResult> {
-  const handler = resolveHandler(name)
+export async function callCherryBuiltinTool(
+  name: string,
+  args: unknown,
+  signal: AbortSignal,
+  context?: CherryBuiltinToolContext
+): Promise<CallToolResult> {
+  const handler = resolveHandler(name, context)
   if (!handler) {
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
   }
@@ -269,7 +337,7 @@ export async function callCherryBuiltinTool(name: string, args: unknown, signal:
 export class CherryBuiltinToolsServer {
   public mcpServer: McpServer
 
-  constructor(agentContext: CherryAgentContext) {
+  constructor(agentContext: CherryAgentContext, getAttachments?: () => ReadonlyArray<FileAttachmentRef>) {
     const autonomy = new CherryAutonomyTools(agentContext)
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -280,7 +348,10 @@ export class CherryBuiltinToolsServer {
       if (autonomy.handles(name)) {
         return autonomy.call(name, (request.params.arguments ?? {}) as Record<string, string | undefined>)
       }
-      return callCherryBuiltinTool(name, request.params.arguments, extra.signal)
+      return callCherryBuiltinTool(name, request.params.arguments, extra.signal, {
+        attachments: getAttachments?.() ?? [],
+        workspacePath: agentContext.workspacePath
+      })
     })
   }
 }

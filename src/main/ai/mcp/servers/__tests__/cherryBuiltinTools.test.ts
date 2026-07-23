@@ -3,6 +3,8 @@ import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getImageGenerationSupport = vi.hoisted(() => vi.fn())
+const exportOfficeArtifact = vi.hoisted(() => vi.fn())
+const saveAttachmentToWorkspace = vi.hoisted(() => vi.fn())
 
 const searchKeywords = vi.fn()
 const fetchUrls = vi.fn()
@@ -18,6 +20,8 @@ const listRootItems = vi.fn()
 const getPreference = vi.fn()
 const generateImage = vi.fn()
 const fileRead = vi.fn()
+const fileGetById = vi.fn()
+const extractDocumentText = vi.fn()
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: { getImageGenerationSupport }
@@ -28,6 +32,14 @@ vi.mock('@logger', () => ({
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
   }
 }))
+
+vi.mock('@main/ai/messages/attachmentTextExtraction', () => ({
+  extractDocumentText,
+  noExtractableTextNote: (filename: string) => `No text in ${filename}`
+}))
+
+vi.mock('@main/ai/tools/exportOffice', () => ({ exportOfficeArtifact }))
+vi.mock('@main/ai/tools/saveAttachment', () => ({ saveAttachmentToWorkspace }))
 
 vi.mock('@application', () => ({
   application: {
@@ -48,7 +60,7 @@ vi.mock('@application', () => ({
       }
       if (name === 'PreferenceService') return { get: getPreference }
       if (name === 'AiService') return { generateImage }
-      if (name === 'FileManager') return { read: fileRead }
+      if (name === 'FileManager') return { read: fileRead, getById: fileGetById }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -58,6 +70,7 @@ const { callCherryBuiltinTool, listCherryBuiltinTools, CherryBuiltinToolsServer 
   '../cherryBuiltinTools'
 )
 const { WEB_LOOKUP_ERROR_NOTE } = await import('@main/ai/tools/webLookup')
+const { createFileAttachmentHandle } = await import('@main/ai/messages/attachmentHandle')
 
 const signal = new AbortController().signal
 
@@ -91,6 +104,10 @@ describe('cherryBuiltinTools', () => {
     getPreference.mockReset()
     generateImage.mockReset()
     fileRead.mockReset()
+    fileGetById.mockReset()
+    extractDocumentText.mockReset()
+    exportOfficeArtifact.mockReset()
+    saveAttachmentToWorkspace.mockReset()
     getImageGenerationSupport.mockReset()
     getImageGenerationSupport.mockReturnValue(null)
   })
@@ -98,12 +115,15 @@ describe('cherryBuiltinTools', () => {
   it('advertises builtin tools with object input schemas and no $schema marker', () => {
     const tools = listCherryBuiltinTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
+      'export_office',
       'generate_image',
       'kb_list',
       'kb_manage',
       'kb_read',
       'kb_search',
+      'read_file',
       'report_artifacts',
+      'save_attachment',
       'web_fetch',
       'web_search'
     ])
@@ -112,6 +132,21 @@ describe('cherryBuiltinTools', () => {
       expect(tool.description).toBeTruthy()
       expect((tool.inputSchema as Record<string, unknown>).$schema).toBeUndefined()
     }
+  })
+
+  it('pages an attached file through the session allow-list without exposing its entry id', async () => {
+    fileGetById.mockResolvedValueOnce({ ext: 'txt' })
+    extractDocumentText.mockResolvedValueOnce('0123456789')
+
+    const handle = createFileAttachmentHandle('entry-secret')
+    const result = await callCherryBuiltinTool('read_file', { filename: handle, offset: 2, limit: 3 }, signal, {
+      attachments: [{ fileEntryId: 'entry-secret', handle, displayName: 'report.txt' }]
+    })
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('234')
+    expect(textOf(result)).toContain('offset=5')
+    expect(textOf(result)).not.toContain('entry-secret')
   })
 
   it('routes web_search through WebSearchService and returns mapped json content', async () => {
@@ -463,6 +498,38 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toContain('Error:')
   })
 
+  it('routes export_office through the session workspace and returns the generated relative path', async () => {
+    const input = {
+      operation: 'markdown_to_docx',
+      source_path: 'report.md',
+      output_path: 'report.docx'
+    }
+    exportOfficeArtifact.mockResolvedValue({ path: 'report.docx' })
+
+    const result = await callCherryBuiltinTool('export_office', input, signal, { workspacePath: '/tmp/workspace' })
+
+    expect(exportOfficeArtifact).toHaveBeenCalledWith('/tmp/workspace', input, signal)
+    expect(result.isError).toBeFalsy()
+    expect(JSON.parse(textOf(result))).toEqual({ path: 'report.docx' })
+  })
+
+  it('saves only an allow-listed attachment handle into the session workspace', async () => {
+    const handle = createFileAttachmentHandle('entry-secret')
+    const input = { filename: handle, output_path: 'inputs/sales.csv' }
+    const attachments = [{ fileEntryId: 'entry-secret', handle, displayName: 'sales.csv' }]
+    saveAttachmentToWorkspace.mockResolvedValue({ path: 'inputs/sales.csv' })
+
+    const result = await callCherryBuiltinTool('save_attachment', input, signal, {
+      attachments,
+      workspacePath: '/tmp/workspace'
+    })
+
+    expect(saveAttachmentToWorkspace).toHaveBeenCalledWith('/tmp/workspace', input, attachments, signal)
+    expect(result.isError).toBeFalsy()
+    expect(JSON.parse(textOf(result))).toEqual({ path: 'inputs/sales.csv' })
+    expect(textOf(result)).not.toContain('entry-secret')
+  })
+
   it('routes generate_image through AiService, summarizes it, and attaches the image inline', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
     generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image-1.png' }] })
@@ -588,5 +655,42 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const names = result.tools.map((t: any) => t.name)
     expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
     expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools().map((t) => t.name)))
+  })
+
+  it('passes the session workspace to export_office calls', async () => {
+    exportOfficeArtifact.mockReset()
+    exportOfficeArtifact.mockResolvedValue({ path: 'report.docx' })
+    const server = new CherryBuiltinToolsServer(agentContext)
+    const handlers = (server.mcpServer.server as any)._requestHandlers
+    const input = {
+      operation: 'markdown_to_docx',
+      source_path: 'report.md',
+      output_path: 'report.docx'
+    }
+
+    await handlers.get('tools/call')(
+      { method: 'tools/call', params: { name: 'export_office', arguments: input } },
+      { signal }
+    )
+
+    expect(exportOfficeArtifact).toHaveBeenCalledWith('/tmp/workspace', input, signal)
+  })
+
+  it('passes the live session attachment allow-list to save_attachment calls', async () => {
+    saveAttachmentToWorkspace.mockReset()
+    saveAttachmentToWorkspace.mockResolvedValue({ path: 'sales.csv' })
+    const handle = createFileAttachmentHandle('entry-secret')
+    const attachments = [{ fileEntryId: 'entry-secret', handle, displayName: 'sales.csv' }]
+    const server = new CherryBuiltinToolsServer(agentContext, () => attachments)
+    const handlers = (server.mcpServer.server as any)._requestHandlers
+    const input = { filename: handle, output_path: 'sales.csv' }
+
+    const result = await handlers.get('tools/call')(
+      { method: 'tools/call', params: { name: 'save_attachment', arguments: input } },
+      { signal }
+    )
+
+    expect(saveAttachmentToWorkspace).toHaveBeenCalledWith('/tmp/workspace', input, attachments, signal)
+    expect(textOf(result)).not.toContain('entry-secret')
   })
 })

@@ -73,6 +73,7 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { getAgentSessionAttachments } from './agentSessionAttachments'
 import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
@@ -94,6 +95,8 @@ const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
   'remove_channel',
   'reconnect_channel'
 ])
+const CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES =
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
 const WORKSPACE_PATH_FIELDS = {
   Edit: 'file_path',
   Glob: 'path',
@@ -732,8 +735,8 @@ async function buildToolPermissions(
       // per-call approval — see ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES for the threat model.
       ...(assistantMcpEnabled ? ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES : [])
     ],
-    // Mutating cherry-tools (kb_manage) must still prompt for approval.
-    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+    // Side-effecting cherry-tools must still prompt for approval.
+    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES,
     conditionContext
   })
 
@@ -743,11 +746,14 @@ async function buildToolPermissions(
     }
 
     // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
-    // headless interactive-tool denial at fire time. Mirrored by `headlessInteractiveToolHook` so the
-    // denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`; this
-    // branch stays so an interactive follow-up on a warm connection can still reach the approval path.
+    // no-responder denial at fire time for interactive and approval-required tools. The PreToolUse
+    // hooks mirror both groups for bypassPermissions/acceptEdits, where the SDK skips `canUseTool`;
+    // this branch stays so an interactive follow-up on a warm connection can still reach approval.
+    const requiresInteractiveResponder =
+      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
+      CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES.includes(toolName)
     if (
-      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
+      requiresInteractiveResponder &&
       application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
     ) {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
@@ -887,6 +893,32 @@ async function buildToolPermissions(
     }
   }
 
+  // `canUseTool` is skipped by the SDK under bypassPermissions and other auto-approved paths.
+  // Mirror the explicit per-call approval list into PreToolUse so those tools can never inherit the
+  // session's blanket permission mode. Interactive turns route through `ask`; headless turns deny
+  // because no renderer exists to answer the request.
+  const approvalRequiredToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (!CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES.includes(toolName)) return {}
+    if (application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: HEADLESS_INTERACTIVE_TOOL_DENIAL
+        }
+      }
+    }
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'ask',
+        permissionDecisionReason: `The ${toolName} tool requires per-call user approval.`
+      }
+    }
+  }
+
   // `cwd` establishes the default SDK working directory but does not itself prevent an absolute
   // path from reaching a built-in file tool. Force any workspace escape back through the approval
   // path, including under acceptEdits / bypassPermissions where `canUseTool` may be skipped. This is
@@ -960,6 +992,7 @@ async function buildToolPermissions(
             headlessInteractiveToolHook,
             headlessConfigMutationHook,
             disabledToolHook,
+            approvalRequiredToolHook,
             workspacePathHook,
             dependencyIsolationHook,
             rtkRewriteHook,
@@ -1121,12 +1154,15 @@ export function buildMcpServers(
   mcpList['cherry-tools'] = {
     type: 'sdk',
     name: 'cherry-tools',
-    instance: new CherryBuiltinToolsServer({
-      agentId: agent.id,
-      workspaceSource,
-      workspacePath: session.workspace.path,
-      sourceChannelId
-    }).mcpServer
+    instance: new CherryBuiltinToolsServer(
+      {
+        agentId: agent.id,
+        workspaceSource,
+        workspacePath: session.workspace.path,
+        sourceChannelId
+      },
+      () => getAgentSessionAttachments(session.id)
+    ).mcpServer
   }
 
   // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the

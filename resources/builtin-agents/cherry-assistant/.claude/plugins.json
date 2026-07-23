@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": 1774918800000,
+  "lastUpdated": 1784791029000,
   "plugins": [
     {
       "filename": "cherry-assistant-guide",
@@ -9,11 +9,81 @@
         "sourcePath": "skills/cherry-assistant-guide",
         "filename": "cherry-assistant-guide",
         "name": "cherry-assistant-guide",
-        "description": "Cherry Studio 产品知识库、源码路径索引、故障排查和页面导航。当用户询问 Cherry Studio 的功能、配置、报错、使用方法时触发。也适用于用户提到 provider、模型、知识库、Agent、MCP、OpenClaw、PDF、快捷短语等关键词的场景。",
+        "description": "从当前安装包和 CherryHQ 官方发布源查询 Cherry Studio 产品信息。当用户询问功能、路由、快捷键、Provider、语言、Agent、频道、定时任务、Code CLI、当前版本或更新内容时触发。",
         "category": "skills",
         "type": "skill",
-        "size": 7318,
-        "contentHash": "994922bc4cc0280b1fa6d316e5cb8ebe5a292572c131fcc68b9d7ca80d70d2db"
+        "size": 8044,
+        "contentHash": "133413154f6cefd9d51f36c6feb6f4d033dd72fd4194c92c4e2827b75f042625"
+      }
+    },
+    {
+      "filename": "cherry-skill-marketplace",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-skill-marketplace",
+        "filename": "cherry-skill-marketplace",
+        "name": "cherry-skill-marketplace",
+        "description": "仅在用户明确要求搜索、安装、卸载或创建 Skill，或匹配的内置 Skill 已报告 unsupported 时触发。通过 `mcp__skills__skills` 管理 Skill。不要为普通文档、PPT 或表格任务预先搜索市场。",
+        "category": "skills",
+        "type": "skill",
+        "size": 2612,
+        "contentHash": "8f508a171928c5f52855ef9129e511b3e2ad82882bc25b040e1769c36c910d72"
+      }
+    },
+    {
+      "filename": "cherry-doc-writer",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-doc-writer",
+        "filename": "cherry-doc-writer",
+        "name": "cherry-doc-writer",
+        "description": "创建、改写、总结、翻译、比较或转换办公文档，处理 Markdown、TXT、HTML、DOCX 和可提取文本的 PDF。用户说“写周报/纪要/方案”“润色/总结文档”“比较版本”“转成 Word/PDF/Markdown”“PDF 转 Word”或“Word 转 PDF”时触发。Office/PDF 转换基于可提取文本重建内容，不保留原版式。不要处理 PPT 或数据表分析。",
+        "category": "skills",
+        "type": "skill",
+        "size": 3032,
+        "contentHash": "1d4085af468bb9103bbe22d7572878cf2a7b0777bab0183d4a363040ef1dedd1"
+      }
+    },
+    {
+      "filename": "cherry-web-ppt",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-web-ppt",
+        "filename": "cherry-web-ppt",
+        "name": "cherry-web-ppt",
+        "description": "从主题、提纲或文档制作演示文稿，默认输出真实 PPTX，用户明确选择时输出单文件 HTML；“修改 PPT”只能根据附件提取文本重做，不保留原版式。不要处理普通文档转换或 Excel 分析。",
+        "category": "skills",
+        "type": "skill",
+        "size": 2771,
+        "contentHash": "f390ca97056c4342ba1e1834bcaa581702c2c2c900ef1c060e0e89eaa4043e9a"
+      }
+    },
+    {
+      "filename": "cherry-data-analyst",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-data-analyst",
+        "filename": "cherry-data-analyst",
+        "name": "cherry-data-analyst",
+        "description": "读取、清洗、合并和汇总 CSV、TSV、JSON；聊天附件经用户批准保存到 workspace 后由本地脚本处理，避免全量数据进入模型上下文。Excel 附件仅做提取文本概览，逐单元格处理需先导出 CSV。支持去重、同比环比、轻量报表和 CSV 转 XLSX。不要处理普通文档或 PPT。",
+        "category": "skills",
+        "type": "skill",
+        "size": 3764,
+        "contentHash": "384bb7f7612df918dabba5c785c0199dfd7a8326cd140e0cbb9c0d5f84057ccd"
+      }
+    },
+    {
+      "filename": "claude-automation-recommender",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/claude-automation-recommender",
+        "filename": "claude-automation-recommender",
+        "name": "claude-automation-recommender",
+        "description": "Analyze a codebase and recommend Claude Code automations (hooks, subagents, skills, plugins, MCP servers). Use when user asks for automation recommendations, wants to optimize their Claude Code setup, mentions improving Claude Code workflows, asks how to first set up Claude Code for a project, or wants to know what Claude Code features they should use.",
+        "category": "skills",
+        "type": "skill",
+        "size": 57231,
+        "contentHash": "cf9f1eaea34c0bfd22506b88df30883cc35f9d620c5dd512eb0dd20e90195fe1"
       }
     },
     {
@@ -37,11 +107,11 @@
         "sourcePath": "skills/issue-reporter",
         "filename": "issue-reporter",
         "name": "issue-reporter",
-        "description": "帮助用户提交 Bug Report 或 Feature Request。支持 GitHub Issue（有账户）和本地存档（无账户）两种模式。当诊断发现是代码 Bug 时主动提议，或当用户说\"帮我提 issue\"、\"这是个 bug\"、\"我想要这个功能\"、\"submit a bug\"、\"feature request\"时触发。",
+        "description": "帮助用户提交 Bug Report 或 Feature Request。三种路径：GitHub Issue（已登录 gh）、飞书反馈表单（GitHub 不通或不愿登录 gh）、本地存档（先放着稍后提交）。当诊断发现是代码 Bug 时主动提议，或当用户说\"帮我提 issue\"、\"这是个 bug\"、\"我想要这个功能\"、\"提交反馈\"、\"submit a bug\"、\"feature request\"时触发。",
         "category": "skills",
         "type": "skill",
-        "size": 1656,
-        "contentHash": "95725d616981ecf7276210d875b046c55883b570ff1eb712d910442014159125"
+        "size": 4717,
+        "contentHash": "48888179115d3bd388d6c203f378afde5c8b74aafd1e1ac0fc198f116b53cb30"
       }
     },
     {
@@ -51,11 +121,11 @@
         "sourcePath": "skills/skills-manager",
         "filename": "skills-manager",
         "name": "skills-manager",
-        "description": "搜索、安装和创建 Claude Code Agent Skills。当用户想要搜索技能、安装工具、创建自定义 Skill，或者说\"find a skill\"、\"搜索技能\"、\"帮我做个 skill\"、\"create a skill\"时触发。也适用于用户说\"有没有做 X 的工具\"、\"我想扩展 Agent 能力\"的场景。",
+        "description": "当 Cherry Studio 的 mcp__skills__skills 不可用，或用户明确要求使用 npx 时，通过 npx CLI 搜索、安装或创建 Claude Code Agent Skills。正常情况下优先使用 cherry-skill-marketplace。",
         "category": "skills",
         "type": "skill",
-        "size": 1632,
-        "contentHash": "7aa285f334acf318b23ef0f1d3126cd5d55c2a47ad0daa360ddd7321dfc6e5c6"
+        "size": 1731,
+        "contentHash": "ee93ad096946082f961dd8959835f89a4b8d5acb31d6f34e8f0894c7f80b0db5"
       }
     }
   ]

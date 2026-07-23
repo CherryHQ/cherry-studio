@@ -34,7 +34,7 @@ const logger = loggerService.withContext('ReadFile')
 
 export const READ_FILE_DESCRIPTION = `Read more text from a file the user attached to this conversation.
 
-Attachments are already inlined into the conversation. Only call this when an attachment was truncated (the message says so and names this file) and you need the rest, or to page further through a long file with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached). Do not call it for content already fully inline — especially native images, which you can already see.`
+Attachments are already inlined into the conversation. Pass the opaque handle shown in the attachment manifest. Only call this when an attachment was truncated and you need the rest, or to page further through a long file with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached). Do not call it for content already fully inline — especially native images, which you can already see.`
 
 /** Resolution context: the allow-list of this request's attachments. */
 export interface ReadFileContext {

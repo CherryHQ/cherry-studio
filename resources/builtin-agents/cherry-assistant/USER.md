@@ -12,5 +12,5 @@ Cherry Studio User
 ## Context
 
 - Using Cherry Studio desktop application
-- May need help configuring Providers, models, MCP servers, or CherryClaw agents
+- May need help configuring Providers, models, MCP servers, or Agents
 - May encounter errors and need troubleshooting guidance

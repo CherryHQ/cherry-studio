@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import {
+  EXPORT_OFFICE_TOOL_NAME,
+  exportOfficeInputSchema,
   KB_LIST_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
@@ -12,6 +14,8 @@ import {
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
+  SAVE_ATTACHMENT_TOOL_NAME,
+  saveAttachmentInputSchema,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
   webFetchInputSchema
@@ -24,6 +28,8 @@ describe('builtin tool contracts', () => {
     expect(WEB_SEARCH_TOOL_NAME).toBe('web_search')
     expect(WEB_FETCH_TOOL_NAME).toBe('web_fetch')
     expect(REPORT_ARTIFACTS_TOOL_NAME).toBe('report_artifacts')
+    expect(EXPORT_OFFICE_TOOL_NAME).toBe('export_office')
+    expect(SAVE_ATTACHMENT_TOOL_NAME).toBe('save_attachment')
   })
 
   it('references the public knowledge list tool name from search input metadata', () => {
@@ -109,5 +115,31 @@ describe('builtin tool contracts', () => {
     expect(reportArtifactsInputSchema.safeParse({ artifacts: [] }).success).toBe(false)
     expect(reportArtifactsInputSchema.safeParse({ artifacts: [{ path: '   ' }] }).success).toBe(false)
     expect(REPORT_ARTIFACTS_DESCRIPTION).toContain('final deliverable')
+  })
+
+  it('keeps the office export contract limited to the four supported conversions and three inputs', () => {
+    expect(
+      exportOfficeInputSchema.parse({
+        operation: 'markdown_to_pptx',
+        source_path: 'slides.md',
+        output_path: 'slides.pptx'
+      })
+    ).toEqual({ operation: 'markdown_to_pptx', source_path: 'slides.md', output_path: 'slides.pptx' })
+    expect(
+      exportOfficeInputSchema.safeParse({ operation: 'docx_to_pdf', source_path: 'a.docx', output_path: 'a.pdf' })
+        .success
+    ).toBe(false)
+  })
+
+  it('accepts only an attachment handle and a new workspace output path', () => {
+    expect(saveAttachmentInputSchema.parse({ filename: 'sales.csv', output_path: 'inputs/sales.csv' })).toEqual({
+      filename: 'sales.csv',
+      output_path: 'inputs/sales.csv'
+    })
+    expect(saveAttachmentInputSchema.safeParse({ fileEntryId: 'secret', output_path: 'sales.csv' }).success).toBe(false)
+    expect(saveAttachmentInputSchema.safeParse({ filename: 'sales.csv', output_path: '   ' }).success).toBe(false)
+    expect(saveAttachmentInputSchema.safeParse({ filename: 'sales.csv', output_path: 'C:relative.csv' }).success).toBe(
+      false
+    )
   })
 })

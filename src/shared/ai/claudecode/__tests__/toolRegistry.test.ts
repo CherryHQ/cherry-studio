@@ -46,11 +46,22 @@ describe('claudeUserFacingTools', () => {
     expect(byName.has('mcp__cherry-tools__config')).toBe(true)
     expect(byName.get('mcp__cherry-tools__config')?.label).toBe('Configuration')
     expect(byName.has('mcp__cherry-tools__kb_read')).toBe(false) // internal — follows kb capability
+    expect(byName.has('mcp__cherry-tools__read_file')).toBe(false) // internal — attachment-scoped
   })
 
   it('exposes generate_image as a user-facing media tool', () => {
     const tool = byName.get('mcp__cherry-tools__generate_image')
     expect(tool?.label).toBe('Generate Image')
     expect(tool?.category).toBe('media')
+  })
+
+  it('exposes workspace file writers as user-facing file tools', () => {
+    const exportTool = byName.get('mcp__cherry-tools__export_office')
+    expect(exportTool?.label).toBe('Export Office File')
+    expect(exportTool?.category).toBe('file')
+
+    const saveAttachmentTool = byName.get('mcp__cherry-tools__save_attachment')
+    expect(saveAttachmentTool?.label).toBe('Save Attachment')
+    expect(saveAttachmentTool?.category).toBe('file')
   })
 })

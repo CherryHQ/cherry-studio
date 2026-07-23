@@ -102,6 +102,17 @@ describe('BuiltinAgentProvisioner', () => {
     ).toBe('SKILL_V2')
   })
 
+  it('adds newly bundled skills when provisioning an existing workspace', async () => {
+    await provisionBuiltinAgent(workspace, 'assistant')
+    writeFile(path.join(templateDir, '.claude', 'skills', 'cherry-doc-writer', 'SKILL.md'), 'DOC_WRITER')
+
+    await provisionBuiltinAgent(workspace, 'assistant')
+
+    expect(fs.readFileSync(path.join(workspace, '.claude', 'skills', 'cherry-doc-writer', 'SKILL.md'), 'utf-8')).toBe(
+      'DOC_WRITER'
+    )
+  })
+
   it('preserves user-owned persona and memory files across provisioning', async () => {
     await provisionBuiltinAgent(workspace, 'assistant')
     fs.writeFileSync(path.join(workspace, 'SOUL.md'), 'CUSTOM_SOUL')
