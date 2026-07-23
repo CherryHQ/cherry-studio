@@ -566,7 +566,7 @@
       },
       "prompt": "提示词设置",
       "skills": {
-        "addMore": "添加更多技能",
+        "addMore": "管理技能",
         "builtin": "内置",
         "noFilterResults": "没有匹配的技能",
         "noSkills": "暂无已安装的技能。前往 设置 > 技能 安装技能。",
@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "智能体",
-    "skill": {
-      "manage": {
-        "title": "管理技能"
-      }
-    },
     "tasks": {
       "add": "添加任务",
       "cancel": "取消",
@@ -1590,8 +1585,7 @@
     "resource_view": {
       "menu": {
         "agent": "智能体",
-        "assistant": "助手",
-        "skill": "技能"
+        "assistant": "助手"
       }
     },
     "save": {
@@ -3260,7 +3254,7 @@
             "skills_require_save": "保存后才能启用技能",
             "tab": {
               "mcp": "MCP",
-              "skills": "Skills",
+              "skills": "技能",
               "tools": "内置工具"
             },
             "title": "能力扩展"
@@ -3588,7 +3582,7 @@
       "title": "资源库"
     },
     "skill_add": {
-      "add": "添加 Skill",
+      "add": "添加技能",
       "local_import": "本地导入",
       "online_search": "在线搜索",
       "system_search": "系统搜索"
