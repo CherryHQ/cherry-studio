@@ -10,6 +10,7 @@ const installSettingsRef = vi.hoisted(() => ({
   value: { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
 }))
 const setInstallSettingsMock = vi.hoisted(() => vi.fn())
+const usePreferenceMock = vi.hoisted(() => vi.fn())
 const snapshotRecords = vi.hoisted(() => ({ value: {} as Record<string, BinaryToolSnapshot> }))
 const ipcMocks = vi.hoisted(() => ({
   snapshots: vi.fn(),
@@ -79,7 +80,7 @@ vi.mock('react-i18next', () => ({
 }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('@data/hooks/usePreference', () => ({
-  useMultiplePreferences: () => [installSettingsRef.value, setInstallSettingsMock]
+  usePreference: usePreferenceMock
 }))
 vi.mock('semver', () => ({
   gt: vi.fn(() => true),
@@ -179,9 +180,10 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.removeTool.mockResolvedValue({ status: 'removed' })
     ipcMocks.searchRegistry.mockResolvedValue([])
     setInstallSettingsMock.mockResolvedValue(undefined)
+    usePreferenceMock.mockImplementation(() => [installSettingsRef.value, setInstallSettingsMock])
   })
 
-  it('auto-saves each advanced install field independently on blur or toggle', async () => {
+  it('serializes whole-setting auto-saves without losing earlier field changes', async () => {
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
     const mirror = screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder')
@@ -189,8 +191,22 @@ describe('EnvironmentDependencies', () => {
     fireEvent.blur(mirror)
     fireEvent.click(screen.getByText('settings.dependencies.installSettings.verifySignatures.label'))
 
-    expect(setInstallSettingsMock).toHaveBeenCalledWith({ githubMirror: 'https://ghfast.top' })
-    expect(setInstallSettingsMock).toHaveBeenCalledWith({ verifySignatures: false })
+    expect(usePreferenceMock).toHaveBeenCalledWith('feature.binary.install_settings', { optimistic: false })
+    await waitFor(() => expect(setInstallSettingsMock).toHaveBeenCalledTimes(2))
+    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(1, {
+      githubMirror: 'https://ghfast.top',
+      githubToken: '',
+      npmRegistry: '',
+      pipIndexUrl: '',
+      verifySignatures: true
+    })
+    expect(setInstallSettingsMock).toHaveBeenNthCalledWith(2, {
+      githubMirror: 'https://ghfast.top',
+      githubToken: '',
+      npmRegistry: '',
+      pipIndexUrl: '',
+      verifySignatures: false
+    })
   })
 
   it('surfaces a failed field write as a toast without closing the dialog', async () => {
@@ -569,7 +585,15 @@ describe('EnvironmentDependencies', () => {
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
     fireEvent.click(screen.getAllByText('settings.dependencies.installSettings.presetLabels.default')[0])
 
-    expect(setInstallSettingsMock).toHaveBeenCalledWith({ githubMirror: '' })
+    await waitFor(() =>
+      expect(setInstallSettingsMock).toHaveBeenCalledWith({
+        githubMirror: '',
+        githubToken: '',
+        npmRegistry: '',
+        pipIndexUrl: '',
+        verifySignatures: true
+      })
+    )
   })
 
   it('masks the token again when the settings dialog is reopened', async () => {

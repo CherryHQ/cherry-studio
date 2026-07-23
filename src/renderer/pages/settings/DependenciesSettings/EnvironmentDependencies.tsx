@@ -19,7 +19,7 @@ import {
   InputGroupInput,
   SelectDropdown
 } from '@cherrystudio/ui'
-import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import {
@@ -33,9 +33,9 @@ import { toast } from '@renderer/services/toast'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
+import type { BinaryInstallSettings, CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
-  BINARY_INSTALL_PREFERENCE_KEYS,
+  BINARY_INSTALL_PREFERENCE_KEY,
   type BinaryToolPreset,
   isRuntimeDependency,
   PRESETS_BINARY_TOOLS,
@@ -1064,12 +1064,12 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
   onOpenChange
 }) => {
   const { t } = useTranslation()
-  // Pessimistic updates: these carry a credential (github_token) and a security
+  // Pessimistic updates: these carry a credential (githubToken) and a security
   // toggle (signature verification), so persisted state must reflect a write only
   // after it confirms — never an optimistic value a failed write would roll back.
   // Auto-save (no save/cancel buttons): each field commits itself — URLs and the
   // token on blur, the toggle on change — and commit() surfaces write failures.
-  const [settings, setSettings] = useMultiplePreferences(BINARY_INSTALL_PREFERENCE_KEYS, { optimistic: false })
+  const [settings, setSettings] = usePreference(BINARY_INSTALL_PREFERENCE_KEY, { optimistic: false })
   // Local editing buffer for the text fields so pessimistic round-trips don't lag
   // typing. Seeded from settings only on open (warm from preloadAll), never
   // resynced mid-session, so one field's commit can't clobber another field's
@@ -1079,10 +1079,21 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
   const tokenId = useId()
   const tokenDescriptionId = useId()
   const settingsRef = useRef(settings)
+  const draftRef = useRef(settings)
+  const commitQueueRef = useRef(Promise.resolve())
   settingsRef.current = settings
+
+  const updateDraft = <K extends keyof BinaryInstallSettings>(key: K, value: BinaryInstallSettings[K]) => {
+    setDraft((current) => {
+      const next = { ...current, [key]: value }
+      draftRef.current = next
+      return next
+    })
+  }
 
   useEffect(() => {
     if (open) {
+      draftRef.current = settingsRef.current
       setDraft(settingsRef.current)
       setShowToken(false)
     }
@@ -1092,18 +1103,21 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
     if (!nextOpen) setShowToken(false)
     onOpenChange(nextOpen)
   }
-  const commit = async (updates: Partial<typeof settings>) => {
-    try {
-      await setSettings(updates)
-    } catch (error) {
-      toast.error(formatErrorMessage(error))
-    }
+  const commit = (updates: Partial<BinaryInstallSettings>) => {
+    const next = { ...draftRef.current, ...updates }
+    draftRef.current = next
+    setDraft(next)
+    commitQueueRef.current = commitQueueRef.current
+      .then(() => setSettings(next))
+      .catch((error) => {
+        toast.error(formatErrorMessage(error))
+      })
   }
   const commitUrl = (key: 'githubMirror' | 'npmRegistry' | 'pipIndexUrl', value: string) => {
     const trimmed = value.trim()
     if (trimmed && !isValidUrl(trimmed)) return // invalid stays in the draft, never persisted
-    setDraft((current) => ({ ...current, [key]: trimmed }))
-    if (trimmed !== settingsRef.current[key]) void commit({ [key]: trimmed })
+    updateDraft(key, trimmed)
+    if (trimmed !== settingsRef.current[key]) commit({ [key]: trimmed })
   }
 
   return (
@@ -1122,7 +1136,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             presetLabel={t('settings.dependencies.installSettings.presets')}
             value={draft.githubMirror}
             presets={GITHUB_MIRROR_PRESETS}
-            onChange={(githubMirror) => setDraft((current) => ({ ...current, githubMirror }))}
+            onChange={(githubMirror) => updateDraft('githubMirror', githubMirror)}
             onCommit={(value) => commitUrl('githubMirror', value)}
           />
           <UrlPresetField
@@ -1133,7 +1147,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             presetLabel={t('settings.dependencies.installSettings.presets')}
             value={draft.npmRegistry}
             presets={NPM_REGISTRY_PRESETS}
-            onChange={(npmRegistry) => setDraft((current) => ({ ...current, npmRegistry }))}
+            onChange={(npmRegistry) => updateDraft('npmRegistry', npmRegistry)}
             onCommit={(value) => commitUrl('npmRegistry', value)}
           />
           <UrlPresetField
@@ -1144,7 +1158,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             presetLabel={t('settings.dependencies.installSettings.presets')}
             value={draft.pipIndexUrl}
             presets={PIP_INDEX_PRESETS}
-            onChange={(pipIndexUrl) => setDraft((current) => ({ ...current, pipIndexUrl }))}
+            onChange={(pipIndexUrl) => updateDraft('pipIndexUrl', pipIndexUrl)}
             onCommit={(value) => commitUrl('pipIndexUrl', value)}
           />
           <Field>
@@ -1157,10 +1171,10 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
                 placeholder={t('settings.dependencies.installSettings.githubToken.placeholder')}
                 aria-describedby={tokenDescriptionId}
                 value={draft.githubToken}
-                onChange={(event) => setDraft((current) => ({ ...current, githubToken: event.target.value }))}
+                onChange={(event) => updateDraft('githubToken', event.target.value)}
                 onBlur={() => {
-                  if (draft.githubToken !== settingsRef.current.githubToken) {
-                    void commit({ githubToken: draft.githubToken })
+                  if (draftRef.current.githubToken !== settingsRef.current.githubToken) {
+                    commit({ githubToken: draftRef.current.githubToken })
                   }
                 }}
               />
@@ -1185,8 +1199,8 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             size="sm"
             label={t('settings.dependencies.installSettings.verifySignatures.label')}
             description={t('settings.dependencies.installSettings.verifySignatures.help')}
-            checked={settings.verifySignatures}
-            onCheckedChange={(verifySignatures) => void commit({ verifySignatures })}
+            checked={draft.verifySignatures}
+            onCheckedChange={(verifySignatures) => commit({ verifySignatures })}
           />
         </div>
       </DialogContent>

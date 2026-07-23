@@ -4,19 +4,8 @@
 export const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 export const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@][a-zA-Z0-9@:/_.-]*$/
 
-/**
- * Advanced install settings that shape the isolated mise subprocess. The single
- * source of truth for both the renderer settings dialog that persists them and
- * BinaryManager's `buildIsolatedEnv` that reads them — keeping the two ends from
- * drifting when a setting is added or renamed.
- */
-export const BINARY_INSTALL_PREFERENCE_KEYS = {
-  githubMirror: 'feature.binary.install.github_mirror',
-  githubToken: 'feature.binary.install.github_token',
-  npmRegistry: 'feature.binary.install.npm_registry',
-  pipIndexUrl: 'feature.binary.install.pip_index_url',
-  verifySignatures: 'feature.binary.install.signature_verification.enabled'
-} as const
+/** Advanced settings for BinaryManager's isolated mise install environment. */
+export const BINARY_INSTALL_PREFERENCE_KEY = 'feature.binary.install_settings' as const
 
 /**
  * The interpreters mise auto-installs for package backends (npm → node,

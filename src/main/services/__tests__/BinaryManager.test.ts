@@ -117,19 +117,11 @@ const DEFAULT_INSTALL_PREFERENCES = {
 }
 
 const mockInstallPreferences = (values = DEFAULT_INSTALL_PREFERENCES) => {
-  const preferenceValues = {
-    'feature.binary.install.github_mirror': values.githubMirror,
-    'feature.binary.install.github_token': values.githubToken,
-    'feature.binary.install.npm_registry': values.npmRegistry,
-    'feature.binary.install.pip_index_url': values.pipIndexUrl,
-    'feature.binary.install.signature_verification.enabled': values.verifySignatures
-  }
-  mockPreferenceService.get.mockImplementation((key: string) =>
-    key === 'feature.binary.tools' ? manifestRef.value : (preferenceValues[key as keyof typeof preferenceValues] ?? [])
-  )
-  mockPreferenceService.getMultiple.mockImplementation((keys: Record<string, string>) =>
-    Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, mockPreferenceService.get(key)]))
-  )
+  mockPreferenceService.get.mockImplementation((key: string) => {
+    if (key === 'feature.binary.tools') return manifestRef.value
+    if (key === 'feature.binary.install_settings') return values
+    return []
+  })
 }
 
 describe('binary execution env split', () => {
@@ -187,17 +179,13 @@ describe('BinaryManager', () => {
 
   describe('install preference subscriptions', () => {
     const EXPECTED_KEYS = [
-      'feature.binary.install.github_mirror',
-      'feature.binary.install.github_token',
-      'feature.binary.install.npm_registry',
-      'feature.binary.install.pip_index_url',
-      'feature.binary.install.signature_verification.enabled',
+      'feature.binary.install_settings',
       'app.proxy.mode',
       'app.proxy.url',
       'app.proxy.bypass_rules'
     ]
 
-    it('registers the invalidation for every atomic install preference at system-wide readiness', async () => {
+    it('registers install-setting invalidation at system-wide readiness', async () => {
       const service = new BinaryManager()
 
       await runAllReadyTasks(service)
@@ -2300,13 +2288,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       const env = await (service as any).buildIsolatedEnv()
 
-      expect(mockPreferenceService.getMultiple).toHaveBeenCalledWith({
-        githubMirror: 'feature.binary.install.github_mirror',
-        githubToken: 'feature.binary.install.github_token',
-        npmRegistry: 'feature.binary.install.npm_registry',
-        pipIndexUrl: 'feature.binary.install.pip_index_url',
-        verifySignatures: 'feature.binary.install.signature_verification.enabled'
-      })
+      expect(mockPreferenceService.get).toHaveBeenCalledWith('feature.binary.install_settings')
       expect(env['NPM_CONFIG_REGISTRY']).toBe('https://registry.example')
       expect(env['PIP_INDEX_URL']).toBe('https://pypi.example/simple')
       expect(env['MISE_PIPX_REGISTRY_URL']).toBe('https://pypi.example/simple/{}/')

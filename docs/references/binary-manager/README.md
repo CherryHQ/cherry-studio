@@ -96,8 +96,6 @@ A tool visible through `mise`, the system PATH, or a bundled binary but carrying
 
 The request routes and events are the IpcApi schema in `src/shared/ipc/schemas/binary.ts` — the `binaryRequestSchemas` keys (renderer→main routes) and the `BinaryEventSchemas` type (main→renderer events). Read them there rather than a hand-copied list here, which would drift. Their handlers live in `src/main/ipc/handlers/binary.ts`.
 
-The side-effecting routes (`binary.install_tool` / `binary.add_custom_tool` / `binary.remove_tool`) refuse a `senderId: null` caller — one that cleared the source-trust gate but is not a WindowManager-managed window — because `install_tool` / `add_custom_tool` can run arbitrary package postinstall code (see [IpcApi — Caller Identity](../ipc/ipc-overview.md#caller-identity--ipccontext)). The query routes have no such side effect and are ungated.
-
 `binary.availability_changed` tells consumers to refresh their snapshots and invalidates displayed latest-version hints. The internal `isBinaryExists()` helper remains for main-process callers that only need Cherry-directory existence; it is not a renderer route.
 
 ## Custom registry collision invariant
@@ -108,7 +106,7 @@ The side-effecting routes (`binary.install_tool` / `binary.add_custom_tool` / `b
 
 mise's `github:` backend hits the GitHub releases API to resolve versions. The unauthenticated limit is 60 requests per hour per IP, which is easy to exhaust behind shared NAT.
 
-`BinaryManager.buildIsolatedEnv()` does not forward ambient `GITHUB_TOKEN` or `GH_TOKEN` values. Users can explicitly opt in through the `feature.binary.install.github_token` preference or by setting `CHERRY_GITHUB_TOKEN`; BinaryManager forwards the selected explicit value to mise as `GITHUB_TOKEN`.
+`BinaryManager.buildIsolatedEnv()` does not forward ambient `GITHUB_TOKEN` or `GH_TOKEN` values. Users can explicitly opt in through the `githubToken` field of the `feature.binary.install_settings` preference or by setting `CHERRY_GITHUB_TOKEN`; BinaryManager forwards the selected explicit value to mise as `GITHUB_TOKEN`.
 
 ```bash
 export CHERRY_GITHUB_TOKEN=ghp_xxx
@@ -118,7 +116,7 @@ export CHERRY_GITHUB_TOKEN=ghp_xxx
 
 When the region service identifies China, BinaryManager supplies npm and pip mirror defaults to its isolated mise subprocess. An explicit user value wins over a regional default.
 
-Settings → Dependencies → Advanced install settings persists the GitHub mirror, GitHub token, npm registry, pip index URL, and signature-verification preferences under `feature.binary.install.*`. These values affect only the isolated install subprocess, never the execution environment of installed CLIs. Empty URL/token values retain default behavior, and signature verification defaults to enabled.
+Settings → Dependencies → Advanced install settings persists the GitHub mirror, GitHub token, npm registry, pip index URL, and signature-verification fields together under `feature.binary.install_settings`. These values affect only the isolated install subprocess, never the execution environment of installed CLIs. Empty URL/token values retain default behavior, and signature verification defaults to enabled.
 
 ## Adding a tool
 

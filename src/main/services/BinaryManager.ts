@@ -16,7 +16,7 @@ import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolv
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
-  BINARY_INSTALL_PREFERENCE_KEYS,
+  BINARY_INSTALL_PREFERENCE_KEY,
   isRuntimeDependency,
   PRESETS_BINARY_TOOLS,
   type RuntimeInterpreter,
@@ -282,16 +282,7 @@ export class BinaryManager extends BaseService {
     const prefService = application.get('PreferenceService')
     this.registerDisposable(
       prefService.subscribeMultipleChanges(
-        [
-          BINARY_INSTALL_PREFERENCE_KEYS.githubMirror,
-          BINARY_INSTALL_PREFERENCE_KEYS.githubToken,
-          BINARY_INSTALL_PREFERENCE_KEYS.npmRegistry,
-          BINARY_INSTALL_PREFERENCE_KEYS.pipIndexUrl,
-          BINARY_INSTALL_PREFERENCE_KEYS.verifySignatures,
-          'app.proxy.mode',
-          'app.proxy.url',
-          'app.proxy.bypass_rules'
-        ],
+        [BINARY_INSTALL_PREFERENCE_KEY, 'app.proxy.mode', 'app.proxy.url', 'app.proxy.bypass_rules'],
         () => {
           this.isolatedEnv = null
           this.isolatedEnvPromise = null
@@ -648,7 +639,7 @@ export class BinaryManager extends BaseService {
       }
     }
 
-    const installSettings = application.get('PreferenceService').getMultiple(BINARY_INSTALL_PREFERENCE_KEYS)
+    const installSettings = application.get('PreferenceService').get(BINARY_INSTALL_PREFERENCE_KEY)
     const githubMirror = parseInstallUrl(installSettings.githubMirror, 'GitHub mirror')
     const npmRegistry = parseInstallUrl(installSettings.npmRegistry, 'npm registry')
     const pipIndexUrl =
