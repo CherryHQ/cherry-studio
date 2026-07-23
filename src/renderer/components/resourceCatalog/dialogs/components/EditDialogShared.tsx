@@ -130,6 +130,8 @@ export type AutoSaveOutcome = 'saved' | 'noop' | 'failed'
  * Saves are serialized: only one runs at a time. If `flush` is called while a
  * save is in flight, one trailing pass is queued and runs (with the latest
  * `onSave`) once the current save settles — so the last edit is never dropped.
+ * A `'failed'` pass is terminal: the queue stops instead of auto-retrying the
+ * same failed edit, and `flushAll` surfaces the failure to keep the dialog open.
  *
  * `flushAll()` keeps flushing until a pass observes `'noop'` (queue genuinely
  * quiescent — safe to close) or `'failed'` (stay open). After a `'saved'` pass
@@ -158,8 +160,9 @@ export function useDebouncedAutoSave({
 
   const flush = useCallback((): Promise<void> => {
     if (savingRef.current) {
-      // A save is already running; queue one trailing pass unconditionally —
-      // it recomputes the diff from refs, so a redundant pass is a cheap noop.
+      // A save is already running; queue one trailing pass — it recomputes the
+      // diff from refs, so a redundant pass is a cheap noop. A failed pass is
+      // terminal though (see the loop condition), so this never auto-retries.
       pendingRef.current = true
       return inFlightRef.current
     }
@@ -169,7 +172,11 @@ export function useDebouncedAutoSave({
         do {
           pendingRef.current = false
           lastOutcomeRef.current = await onSaveRef.current()
-        } while (pendingRef.current)
+          // A failed save is terminal: stop and let flushAll surface it instead
+          // of immediately re-sending the same failed edit. A late edit that
+          // arrived during the failure stays on the debounce timer (or the
+          // user's next close) — this transaction does not auto-retry it.
+        } while (pendingRef.current && lastOutcomeRef.current !== 'failed')
       } finally {
         savingRef.current = false
       }

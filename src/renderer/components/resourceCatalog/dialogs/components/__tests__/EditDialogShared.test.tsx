@@ -310,4 +310,28 @@ describe('useDebouncedAutoSave', () => {
     await waitFor(() => expect(settled).toBe('failed'))
     expect(onSave).toHaveBeenCalledTimes(1)
   })
+
+  it('does not retry a failed save whose trailing pass was already queued', async () => {
+    const { onSave, resolvers } = deferredOnSave()
+    const { result } = renderHook(() => useDebouncedAutoSave({ enabled: true, changeKey: 'B', onSave, delay: 0 }))
+
+    // The debounce timer starts the first save on its own.
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+
+    let settled: string | null = null
+    act(() => {
+      void result.current.flushAll().then((outcome) => {
+        settled = outcome
+      })
+    })
+    // Joining the in-flight save queues a trailing pass (pendingRef = true).
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    // The in-flight save fails. A failed pass is terminal: the queued trailing
+    // pass must NOT re-send the same failed edit, so onSave stays at one call
+    // and flushAll surfaces 'failed' to keep the dialog open.
+    resolvers[0]?.('failed')
+    await waitFor(() => expect(settled).toBe('failed'))
+    expect(onSave).toHaveBeenCalledTimes(1)
+  })
 })
