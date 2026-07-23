@@ -99,9 +99,13 @@ describe('ComplexPreferenceMappings', () => {
       const onboardingMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'onboarding_completed_migrate')
 
       expect(onboardingMapping).toBeDefined()
-      expect(onboardingMapping?.targetKeys).toEqual(['app.onboarding.completed'])
-      expect(onboardingMapping?.transform({ completed: 'true' })).toEqual({ 'app.onboarding.completed': true })
-      expect(onboardingMapping?.transform({ completed: 'false' })).toEqual({ 'app.onboarding.completed': false })
+      expect(onboardingMapping?.targetKeys).toEqual(['app.onboarding.provider_setup.completed'])
+      expect(onboardingMapping?.transform({ completed: 'true' })).toEqual({
+        'app.onboarding.provider_setup.completed': true
+      })
+      expect(onboardingMapping?.transform({ completed: 'false' })).toEqual({
+        'app.onboarding.provider_setup.completed': false
+      })
       expect(onboardingMapping?.transform({ completed: undefined })).toEqual({})
     })
 

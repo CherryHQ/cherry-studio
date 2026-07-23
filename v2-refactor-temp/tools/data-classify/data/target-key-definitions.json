@@ -13,7 +13,7 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
-      "targetKey": "app.onboarding.completed",
+      "targetKey": "app.onboarding.provider_setup.completed",
       "type": "boolean",
       "defaultValue": false,
       "status": "classified",

@@ -46,7 +46,7 @@ describe('MainWindowContent', () => {
   })
 
   it('renders onboarding before the user completes first-run setup', () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.completed', false)
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.completed', false)
 
     render(<MainWindowContent />)
 
@@ -55,13 +55,13 @@ describe('MainWindowContent', () => {
   })
 
   it('marks onboarding complete when the flow completes', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.completed', false)
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.completed', false)
 
     const { rerender } = render(<MainWindowContent />)
     fireEvent.click(screen.getByTestId('onboarding-page'))
 
     await waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.completed')).toBe(true)
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.completed')).toBe(true)
     })
 
     rerender(<MainWindowContent />)
@@ -69,7 +69,7 @@ describe('MainWindowContent', () => {
   })
 
   it('renders the normal app shell after onboarding is completed', () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.completed', true)
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.completed', true)
 
     render(<MainWindowContent />)
 

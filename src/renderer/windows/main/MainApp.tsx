@@ -55,7 +55,7 @@ function MainWindowRuntime(): null {
 }
 
 export function MainWindowContent(): React.ReactElement {
-  const [onboardingCompleted, setOnboardingCompleted] = usePreference('app.onboarding.completed')
+  const [onboardingCompleted, setOnboardingCompleted] = usePreference('app.onboarding.provider_setup.completed')
 
   if (!onboardingCompleted) {
     return (

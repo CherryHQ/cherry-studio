@@ -143,10 +143,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     sources: {
       completed: { source: 'localStorage', key: 'onboarding-completed' }
     },
-    targetKeys: ['app.onboarding.completed'],
+    targetKeys: ['app.onboarding.provider_setup.completed'],
     transform: (sources) => {
       if (sources.completed === undefined || sources.completed === null) return {}
-      return { 'app.onboarding.completed': sources.completed === true || sources.completed === 'true' }
+      return { 'app.onboarding.provider_setup.completed': sources.completed === true || sources.completed === 'true' }
     }
   },
 
