@@ -3176,6 +3176,13 @@
     "generate_failed": "Échec de la génération de l'image",
     "generated_image": "Image générée",
     "go_to_settings": "Aller aux paramètres",
+    "gpt_image_custom_size_divisible": "La largeur et la hauteur doivent être divisibles par 16",
+    "gpt_image_custom_size_experimental": "Les résolutions supérieures à 2560x1440 sont expérimentales et peuvent être plus lentes ou moins stables",
+    "gpt_image_custom_size_hint": "La largeur et la hauteur doivent être divisibles par 16, le ratio doit être compris entre 1:3 et 3:1, le total de pixels entre 655 360 et 8 294 400, et chaque côté ne doit pas dépasser 3840 px.",
+    "gpt_image_custom_size_pixels": "Le total de pixels doit être compris entre 655 360 et 8 294 400",
+    "gpt_image_custom_size_range": "La largeur et la hauteur doivent être des entiers positifs ne dépassant pas 3840 px",
+    "gpt_image_custom_size_ratio": "Le ratio doit être compris entre 1:3 et 3:1",
+    "gpt_image_custom_size_required": "Veuillez définir une largeur et une hauteur personnalisées",
     "guidance_scale": "Échelle de guidance",
     "guidance_scale_tip": "Aucune guidance du classificateur. Contrôle le niveau d'obéissance du modèle aux mots-clés lors de la recherche d'images pertinentes",
     "image": {

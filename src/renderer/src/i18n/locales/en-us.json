@@ -3177,6 +3177,13 @@
     "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
     "go_to_settings": "Go to Settings",
+    "gpt_image_custom_size_divisible": "Width and height must be divisible by 16",
+    "gpt_image_custom_size_experimental": "Resolutions above 2560x1440 are experimental and may be slower or less stable",
+    "gpt_image_custom_size_hint": "Width and height must be divisible by 16, aspect ratio must be 1:3 to 3:1, total pixels must be 655,360 to 8,294,400, and each side must be at most 3840px.",
+    "gpt_image_custom_size_pixels": "Total pixels must be between 655,360 and 8,294,400",
+    "gpt_image_custom_size_range": "Width and height must be positive integers no greater than 3840px",
+    "gpt_image_custom_size_ratio": "Aspect ratio must be between 1:3 and 3:1",
+    "gpt_image_custom_size_required": "Please set custom width and height",
     "guidance_scale": "Guidance Scale",
     "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
     "image": {
