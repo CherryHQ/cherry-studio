@@ -88,6 +88,17 @@ describe('dataReset ↔ pathRegistry conformance', () => {
     expect(USER_DATA_KEPT).toContain(firstSegment(registry['feature.ocr.tesseract'], userData))
   })
 
+  it('the data-reset marker survives its own wipe (a deliberate third category)', () => {
+    // The pending marker is neither wiped user state nor a kept machine
+    // artifact: it must outlive the wipe pass so runDataReset can remove it
+    // LAST and prove the reset completed. It is therefore excluded from the
+    // classification loop below and pinned here instead.
+    const markerEntry = firstSegment(registry['feature.data_reset.marker_file'], userData)
+    expect(markerEntry).toBe('data-reset.pending.json')
+    expect(isWiped(markerEntry)).toBe(false)
+    expect(USER_DATA_KEPT).not.toContain(markerEntry)
+  })
+
   it('classifies every userData registry entry as wiped user state or a kept machine artifact', () => {
     // A NEW registry key under userData must be classified deliberately:
     // user state → add its entry name to USER_DATA_WIPE in dataReset;
@@ -96,6 +107,9 @@ describe('dataReset ↔ pathRegistry conformance', () => {
       // process.resourcesPath ('app.extra_resources') is undefined outside Electron
       if (typeof value !== 'string') continue
       if (key === 'app.userdata' || !value.startsWith(userData + path.sep)) continue
+      // The pending-marker file is a deliberate third category — see the test
+      // above; it survives its own wipe and is removed separately.
+      if (key === 'feature.data_reset.marker_file') continue
       const entry = firstSegment(value, userData)
       expect(
         isWiped(entry) || USER_DATA_KEPT.includes(entry),

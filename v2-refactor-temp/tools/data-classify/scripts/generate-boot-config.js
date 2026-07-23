@@ -93,65 +93,6 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '',
       'Consumer: src/main/services/userDataRelocation'
     ]
-  },
-  {
-    source: 'preboot',
-    sourceCategory: 'transient',
-    originalKey: 'dataReset',
-    targetKey: 'temp.data_reset',
-    zodType:
-      'z\n' +
-      '    .object({\n' +
-      "      status: z.literal('pending'),\n" +
-      '      userDataPath: z.string(),\n' +
-      '      requestedAt: z.string(),\n' +
-      '      attempts: z.number().optional(),\n' +
-      '      canonicalPath: z.string().optional()\n' +
-      '    })\n' +
-      '    .nullable()',
-    defaultValue: null,
-    jsdoc: [
-      'Pending data reset of the app (issue #17131): on the next boot,',
-      'runDataReset (invoked at preboot) deletes the whitelisted Cherry-owned',
-      "entries from userData (USER_DATA_WIPE — there is no whole-tree mode),",
-      "resets BootConfig's other keys to defaults, and relaunches so the app",
-      'boots a fresh-install state in a clean process. ~/.cherrystudio is',
-      'machine domain and untouched.',
-      '',
-      'Lives under the `temp.*` top-level namespace — reserved for ephemeral',
-      'runtime state: single in-flight operations meant to be cleared once',
-      'consumed. **Never** backed up or synced.',
-      '',
-      'Lifecycle:',
-      '  - null: no data reset pending (default).',
-      "  - { status: 'pending', userDataPath, requestedAt, attempts?,",
-      "    canonicalPath? }: requestDataReset (the 'app.data_reset.request'",
-      '    IpcApi route) wrote this request and the next preboot should execute',
-      "    the wipe. `userDataPath` is the requesting instance's resolved userData",
-      '    directory; a pass whose resolution differs leaves the marker',
-      '    untouched for the owning instance (boot-config.json is shared',
-      '    between dev and packaged instances). `canonicalPath` pins the',
-      '    realpath-resolved physical directory: a pass whose re-resolution',
-      '    disagrees refuses to wipe, so a replaced symlink/junction cannot',
-      '    redirect a recorded authorization onto a new directory.',
-      '',
-      'Retry semantics: runDataReset durably increments `attempts` (treating',
-      'absence as 0) before each destructive pass — if that write fails it',
-      'quits rather than boot a writable app over a pending marker.',
-      'A failing pass with attempts left relaunches straight back into',
-      'preboot. At the cap it gives up: marker cleared, failure',
-      "surfaced in a dialog, boot continues over the leftovers. There's no",
-      "'failed' state in this marker.",
-      '',
-      'Concurrent instances: boot-config.json is one shared file written',
-      'whole-file. BootConfigService reconciles this key at persist time —',
-      'an instance never writes a marker it does not own from memory; it',
-      're-reads the on-disk value instead. This prevents both losing a',
-      "sibling instance's pending marker and resurrecting one it already",
-      'consumed (#17138 review).',
-      '',
-      'Consumer: src/main/services/dataReset.ts'
-    ]
   }
 ]
 

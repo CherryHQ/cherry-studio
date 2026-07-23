@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -12,6 +13,7 @@ import { t } from '@main/i18n'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { app, dialog, session } from 'electron'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('DataReset')
 
@@ -19,12 +21,20 @@ const logger = loggerService.withContext('DataReset')
  * Data Reset (#17131): erase Cherry's user data and boot a fresh-install
  * state. One capability, two faces sharing this module:
  *
- * - {@link requestDataReset} — the running app confirms the request, stages
- *   the BootConfig `temp.data_reset` marker, clears live Chromium storage,
- *   and relaunches through a graceful shutdown.
+ * - {@link requestDataReset} — the running app confirms the request, writes
+ *   the pending-marker file into userData, clears live Chromium storage, and
+ *   relaunches through a graceful shutdown.
  * - {@link runDataReset} — the next process consumes the marker at preboot
  *   timing (called from main.ts before any other gate reads user data),
  *   because a running process cannot delete files it still holds open.
+ *
+ * The marker is a small JSON file at the userData root
+ * ({@link DATA_RESET_MARKER_FILENAME}, registered as
+ * `feature.data_reset.marker_file`): its presence arms a wipe, and its
+ * *location* — the userData directory that physically contains it — is the
+ * authorization. There is no cross-instance "which userData" field; a marker
+ * only ever wipes the tree it sits in. // whitelist wipe only; a whole-tree
+ * wipe mode requires redesigning this marker first
  *
  * Preboot is only the *caller* of the execution face; the capability is a
  * removable application feature and lives here in services/ (see
@@ -47,6 +57,12 @@ const MAX_WIPE_ATTEMPTS = 2
  * below. There is no whole-tree mode and no ownership inference: deleting
  * only explicitly-named entries is what makes the reset safe in any
  * directory a marker can legitimately point at (#17138 review).
+ *
+ * NOTE: the pending-marker file itself ({@link DATA_RESET_MARKER_FILENAME})
+ * is deliberately NOT listed — it must survive its own wipe pass so the
+ * success path can prove it removed the marker LAST (a wiped-then-missing
+ * marker is indistinguishable from a never-armed one). runDataReset deletes
+ * it explicitly after a clean pass.
  *
  * Cherry user state:
  * - `cherrystudio.sqlite` (+ `-wal`/`-shm`) — the app database and its WAL
@@ -133,6 +149,131 @@ export const USER_DATA_KEPT = ['logs', 'Crashpad', 'Runtime', 'Toolchain', 'tess
 const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 100 } as const
 
 /**
+ * The marker's on-disk shape. Module-private — nothing outside this file
+ * reads it, so it does not belong in @shared.
+ *
+ * `canonicalPath` is REQUIRED (unlike a plain userData string): a pass whose
+ * realpath re-resolution disagrees with it refuses to wipe, so a replaced
+ * symlink/junction cannot redirect a recorded authorization onto a new
+ * directory (#17138 review). There is no `userDataPath` field — the marker
+ * file's own location is the "which userData" answer.
+ */
+const dataResetMarkerSchema = z.object({
+  status: z.literal('pending'),
+  requestedAt: z.string(),
+  attempts: z.number().optional(),
+  canonicalPath: z.string()
+})
+type DataResetMarker = z.infer<typeof dataResetMarkerSchema>
+
+/** Absolute path of the pending-marker file (parent dir auto-ensured). */
+function markerPath(): string {
+  return application.getPath('feature.data_reset.marker_file')
+}
+
+/**
+ * Read and validate the pending marker.
+ *   - absent (ENOENT) → null (no reset pending; boot normally).
+ *   - present but corrupt (unreadable, bad JSON, or failing the schema) →
+ *     log, rename it aside to `data-reset.pending.invalid`, return null.
+ *
+ * Renaming rather than refusing to boot is deliberate: a corrupt marker
+ * cannot drive a wipe anyway (there is no trusted canonicalPath to authorize
+ * one), and treating "unparseable marker" as a permanent boot failure would
+ * brick the app. The rename keeps the evidence for diagnosis while letting
+ * the next boot proceed as if nothing were pending.
+ */
+function readMarker(): DataResetMarker | null {
+  const file = markerPath()
+  let raw: string
+  try {
+    raw = fs.readFileSync(file, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    logger.error('Data reset marker could not be read — renaming aside and ignoring', { error: String(error) })
+    renameMarkerAside(file)
+    return null
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (error) {
+    logger.error('Data reset marker is not valid JSON — renaming aside and ignoring', { error: String(error) })
+    renameMarkerAside(file)
+    return null
+  }
+
+  const result = dataResetMarkerSchema.safeParse(parsed)
+  if (!result.success) {
+    logger.error('Data reset marker failed schema validation — renaming aside and ignoring', {
+      error: result.error.message
+    })
+    renameMarkerAside(file)
+    return null
+  }
+  return result.data
+}
+
+/** Best-effort: move a corrupt marker to `data-reset.pending.invalid`. */
+function renameMarkerAside(file: string): void {
+  try {
+    fs.renameSync(file, path.join(path.dirname(file), 'data-reset.pending.invalid'))
+  } catch (error) {
+    logger.error('Could not rename the corrupt data reset marker aside — leaving it in place', {
+      error: String(error)
+    })
+  }
+}
+
+/**
+ * Durable atomic write: a unique temp file in the marker's directory,
+ * fsync'd through its descriptor, then rename'd over the marker. Throws on
+ * any failure — the rename is the commit point, so a partial write never
+ * becomes a live marker.
+ */
+function writeMarker(marker: DataResetMarker): void {
+  const file = markerPath()
+  const tmp = `${file}.tmp-${process.pid}-${randomUUID()}`
+  try {
+    const fd = fs.openSync(tmp, 'w')
+    try {
+      fs.writeFileSync(fd, JSON.stringify(marker))
+      fs.fsyncSync(fd)
+    } finally {
+      fs.closeSync(fd)
+    }
+    fs.renameSync(tmp, file)
+  } catch (error) {
+    // Best-effort cleanup so a failed write does not litter userData with an
+    // orphan temp file; the original error is what the caller must see.
+    try {
+      fs.unlinkSync(tmp)
+    } catch {
+      // ignore — the temp file may never have been created
+    }
+    throw error
+  }
+}
+
+/**
+ * Remove the marker. ENOENT is success (already gone — matches the old
+ * "a lost clear is re-cleared by the cap path" tolerance). Any other error
+ * throws: the marker provably still exists, and the caller decides whether
+ * that is critical (a clean wipe must not boot writable over it) or
+ * tolerable (a give-up pass runs no wipe, so a survivor is harmlessly
+ * re-abandoned next boot).
+ */
+function deleteMarker(): void {
+  try {
+    fs.unlinkSync(markerPath())
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw error
+  }
+}
+
+/**
  * Request face: stage a data reset and relaunch; {@link runDataReset} wipes
  * on the next boot. Called by the `app.data_reset.request` IpcApi handler.
  *
@@ -142,8 +283,9 @@ const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 10
  * call. Declining resolves without staging anything — a silent no-op, since
  * the user just cancelled.
  *
- * The marker is staged with persist() (not flush) so a failed write rejects
- * the request instead of relaunching without a staged marker.
+ * The marker is written durably (atomic temp-file + rename) before the
+ * shutdown sequence starts, so a failed write rejects the request instead of
+ * relaunching without a staged marker.
  */
 export async function requestDataReset(): Promise<void> {
   const { response } = await dialog.showMessageBox({
@@ -158,25 +300,15 @@ export async function requestDataReset(): Promise<void> {
   if (response !== 1) return
 
   const userDataPath = application.getPath('app.userdata')
-  const previous = bootConfigService.get('temp.data_reset')
-  bootConfigService.set('temp.data_reset', {
+  // Pin the physical directory the user confirmed: the wipe refuses a pass
+  // whose realpath resolution has changed since this moment. A write failure
+  // throws out of here and rejects the request — the atomic write is
+  // all-or-nothing, so there is nothing partial to roll back.
+  writeMarker({
     status: 'pending',
-    userDataPath,
-    // Pin the physical directory the user confirmed: the wipe refuses a
-    // pass whose realpath resolution has changed since this moment.
-    canonicalPath: canonicalize(userDataPath),
-    requestedAt: new Date().toISOString()
+    requestedAt: new Date().toISOString(),
+    canonicalPath: canonicalize(userDataPath)
   })
-  try {
-    bootConfigService.persist()
-  } catch (error) {
-    // Roll back the in-memory marker (same pattern as userDataRelocation):
-    // persist() keeps the dirty flag on failure, so a later flush — e.g.
-    // during shutdown — would otherwise stage the wipe the user was just
-    // told had failed.
-    bootConfigService.set('temp.data_reset', previous)
-    throw error
-  }
 
   // Semantic Chromium clear while the sessions are alive — the layer the
   // preboot pass cannot provide (it can only rm the storage directories it
@@ -208,10 +340,10 @@ export async function requestDataReset(): Promise<void> {
 }
 
 /**
- * Execution face (#17131). Consumes the BootConfig `temp.data_reset` marker
- * written by {@link requestDataReset}: deletes the {@link USER_DATA_WIPE}
- * entries from userData, resets BootConfig to defaults, then relaunches so
- * the app boots a fresh-install state in a clean process.
+ * Execution face (#17131). Consumes the pending-marker file written by
+ * {@link requestDataReset}: deletes the {@link USER_DATA_WIPE} entries from
+ * userData, resets BootConfig's other keys to defaults, removes the marker,
+ * then relaunches so the app boots a fresh-install state in a clean process.
  *
  * Scope: userData only. `~/.cherrystudio` is machine domain (tool binaries,
  * models, OVMS registry, config/mcp/trace) and is deliberately untouched
@@ -225,73 +357,57 @@ export async function requestDataReset(): Promise<void> {
  * the wipe removes the restore journal and staging tree).
  *
  * Failure semantics — bounded retry, no journal:
- * - `attempts` is durably incremented (hard persist) before each destructive
- *   pass. If that write fails runDataReset QUITS: a pending marker must never
- *   coexist with a writable app, or data the user creates would be deleted
- *   by a later pass (#17138 review).
+ * - `attempts` is durably re-written (atomic marker rewrite) before each
+ *   destructive pass. If that write fails runDataReset QUITS: a pending
+ *   marker must never coexist with a writable app, or data the user creates
+ *   would be deleted by a later pass (#17138 review).
  * - The physical identity of the target is pinned in the marker
- *   (`canonicalPath`, realpath-resolved) by the same durable write; a pass
- *   whose re-resolution disagrees refuses to wipe — a replaced
- *   symlink/junction must not redirect a recorded authorization onto a new
- *   directory (#17138 review).
+ *   (`canonicalPath`, realpath-resolved); a pass whose re-resolution
+ *   disagrees refuses to wipe — a replaced symlink/junction must not
+ *   redirect a recorded authorization onto a new directory (#17138 review).
  * - Deletion failures are critical. With attempts left, the pass relaunches
  *   straight back into preboot to retry. At the cap it gives up: marker
- *   cleared, failure surfaced in a dialog, boot continues over whatever
+ *   removed, failure surfaced in a dialog, boot continues over whatever
  *   remains.
- * - After a clean pass the marker is cleared via a HARD persist (quit on
- *   failure — see above), then it relaunches: the reset session must
- *   not keep running in the process that wiped it (stale Chromium flags,
- *   cached ensured paths); the next boot starts fresh with no marker.
- * - A marker recorded for a different userData directory is left untouched
- *   for the owning instance (boot-config.json is shared between dev and
- *   packaged instances).
+ * - After a clean pass the marker file is removed LAST (quit on failure —
+ *   never boot writable over a marker that provably survived), then it
+ *   relaunches: the reset session must not keep running in the process that
+ *   wiped it (stale Chromium flags, cached ensured paths); the next boot
+ *   starts fresh with no marker.
  * Anything unexpected is logged and boot continues — a half-wiped state is
  * acceptable for a reset; refusing to start over it is not.
  */
 export function runDataReset(): void {
   try {
-    const marker = bootConfigService.get('temp.data_reset')
-    if (marker?.status !== 'pending') return
+    const marker = readMarker()
+    // No marker file in this userData → nothing pending, boot normally. The
+    // marker's location IS the ownership, so there is no cross-instance check.
+    if (!marker) return
 
-    // Same source as the write side (requestDataReset) — the marker path
-    // check below is a strict string comparison, so both sides must read
-    // the registry, not raw Electron.
     const userData = application.getPath('app.userdata')
-    if (marker.userDataPath !== userData) {
-      logger.warn('Data reset marker belongs to a different userData directory — leaving it for that instance', {
-        markerPath: marker.userDataPath,
-        currentPath: userData
-      })
-      return
-    }
 
     // Physical identity check: the wipe follows the path the filesystem
     // resolves, so authorization must be bound to that resolution, not to
     // the string. A mismatch means a symlink/junction/mount changed between
     // the request (or a previous pass) and now — refuse and clear.
     const actualCanonical = canonicalize(userData)
-    if (marker.canonicalPath !== undefined && marker.canonicalPath !== actualCanonical) {
+    if (marker.canonicalPath !== actualCanonical) {
       logger.error('Data reset refused: userData resolves to a different physical directory than recorded', {
         recorded: marker.canonicalPath,
         actual: actualCanonical
       })
-      resetBootConfigToDefaults()
-      bootConfigService.flush()
-      showIncompleteResetWarning()
+      abandonReset()
       return
     }
 
-    // boot-config.json is hand-editable and `attempts` feeds arithmetic, so a
-    // corrupted value (say "x") would disable the cap entirely — coerce
-    // instead of trusting the shape.
+    // zod guarantees `attempts` is a number or absent (a non-number marker is
+    // rejected as corrupt in readMarker), so this just maps absence to 0.
     const attempts = Number(marker.attempts) || 0
     if (attempts >= MAX_WIPE_ATTEMPTS) {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
-      resetBootConfigToDefaults()
-      bootConfigService.flush()
-      showIncompleteResetWarning()
+      abandonReset()
       return
     }
 
@@ -302,15 +418,13 @@ export function runDataReset(): void {
     })
 
     // Arm the retry accounting BEFORE the destructive pass, so a crash
-    // mid-wipe still counts against the cap. Must be a durable persist(), not
-    // flush(): an increment that never reaches disk voids the cap. If the
-    // count cannot be recorded, QUIT — booting on would leave a pending
-    // marker coexisting with a writable app, and a later pass would delete
-    // whatever the user created in between (#17138 review). The canonical
-    // identity rides the same durable write.
+    // mid-wipe still counts against the cap. If the count cannot be durably
+    // recorded, QUIT — booting on would leave a pending marker coexisting
+    // with a writable app, and a later pass would delete whatever the user
+    // created in between (#17138 review). The canonical identity rides the
+    // same durable write.
     try {
-      bootConfigService.set('temp.data_reset', { ...marker, attempts: attempts + 1, canonicalPath: actualCanonical })
-      bootConfigService.persist()
+      writeMarker({ ...marker, attempts: attempts + 1, canonicalPath: actualCanonical })
     } catch (error) {
       logger.error('Data reset halted: the attempt count could not be durably recorded — refusing to boot', {
         error: String(error)
@@ -318,7 +432,7 @@ export function runDataReset(): void {
       dialog.showErrorBox(
         'Data Reset Failed',
         'Cherry Studio could not record the data reset state ' +
-          `in ${bootConfigService.getFilePath()}.\n\n` +
+          `in ${markerPath()}.\n\n` +
           'Starting now could erase data you create later, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
@@ -351,36 +465,37 @@ export function runDataReset(): void {
         return
       }
       // Out of attempts: give up NOW instead of leaving the marker pending.
-      // The clear rides flush() — a lost write is re-cleared by the cap
-      // path on the next boot without another destructive pass.
+      // The marker removal is best-effort here — a survivor is re-read and
+      // re-abandoned by the cap path on the next boot without another
+      // destructive pass.
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
-      resetBootConfigToDefaults()
-      bootConfigService.flush()
-      showIncompleteResetWarning()
+      abandonReset()
       return
     }
 
-    // Reset BootConfig to defaults — which also clears the marker
-    // (DefaultBootConfig['temp.data_reset'] is null). Deliberately keeps
-    // `app.user_data_path`: the custom data-directory *location* is machine
-    // configuration — the reset wipes the data at that location, not the
-    // choice of location.
+    // Reset BootConfig's other keys to defaults — best-effort (the marker no
+    // longer lives in BootConfig, so this write's durability is not
+    // critical). Deliberately keeps `app.user_data_path`: the custom
+    // data-directory *location* is machine configuration — the reset wipes
+    // the data at that location, not the choice of location.
     resetBootConfigToDefaults()
+    bootConfigService.flush()
+
+    // Remove the marker LAST. If it cannot be removed the marker provably
+    // still exists: booting on would let the user rebuild data that the next
+    // start wipes again, so quitting is the only honest option.
     try {
-      bootConfigService.persist()
+      deleteMarker()
     } catch (error) {
-      // The wipe succeeded but the pending marker could not be durably
-      // cleared: booting on would let the user rebuild data that the next
-      // start wipes again. Quitting is the only honest option.
-      logger.error('Data reset wiped successfully but the marker could not be cleared — refusing to boot', {
+      logger.error('Data reset wiped successfully but the marker could not be removed — refusing to boot', {
         error: String(error)
       })
       dialog.showErrorBox(
         'Data Reset Incomplete',
-        'Cherry Studio erased its data but could not save the reset completion ' +
-          `to ${bootConfigService.getFilePath()}.\n\n` +
+        'Cherry Studio erased its data but could not remove the reset marker ' +
+          `at ${markerPath()}.\n\n` +
           'Starting now would erase anything you create on the next launch, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
@@ -390,8 +505,8 @@ export function runDataReset(): void {
       return
     }
 
-    // Relaunch instead of continuing: the marker is durably cleared, so the
-    // next boot is a normal fresh-install boot — in a clean process whose
+    // Relaunch instead of continuing: the marker is removed, so the next boot
+    // is a normal fresh-install boot — in a clean process whose
     // module-top-level Chromium flags read the post-reset BootConfig values
     // (#17138 suggestion). No loop: no marker, no action on the next pass.
     logger.info('Data reset completed — relaunching into a fresh state')
@@ -400,6 +515,26 @@ export function runDataReset(): void {
   } catch (error) {
     logger.error('Data reset failed — continuing boot', error as Error)
   }
+}
+
+/**
+ * Give-up cleanup shared by the refusal paths (identity mismatch, attempt
+ * cap): reset BootConfig's other keys, then remove the marker best-effort.
+ * No destructive pass runs on these paths, so a marker that survives the
+ * delete is simply re-read and re-abandoned on the next boot — the same
+ * tolerance the old flush()-based clear had.
+ */
+function abandonReset(): void {
+  resetBootConfigToDefaults()
+  bootConfigService.flush()
+  try {
+    deleteMarker()
+  } catch (error) {
+    logger.warn('Could not remove the data reset marker on the give-up path — leaving it for the next boot', {
+      error: String(error)
+    })
+  }
+  showIncompleteResetWarning()
 }
 
 /** Whitelist membership: exact names only. */

@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { DATA_RESET_MARKER_FILENAME } from '@main/core/paths/constants'
 import { isWin } from '@main/core/platform'
 import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
@@ -280,7 +281,16 @@ async function executeRelocation(
       filter: async (source, target) => {
         const isSourceRootEntry = normalizeForCompare(path.dirname(source)) === normalizeForCompare(pending.from)
         const name = path.basename(source)
-        if (isSourceRootEntry && (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER)) return false
+        // Exclude the data-reset pending marker: a copy carried into the
+        // relocated profile could never be consumed there (its canonicalPath
+        // pins the ORIGINAL userData, so runDataReset would forever refuse the
+        // mismatch) and must not ride along.
+        if (
+          isSourceRootEntry &&
+          (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER || name === DATA_RESET_MARKER_FILENAME)
+        ) {
+          return false
+        }
 
         let stat: Awaited<ReturnType<typeof fsp.lstat>>
         try {

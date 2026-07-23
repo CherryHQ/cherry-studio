@@ -15,7 +15,7 @@ import path from 'node:path'
 import { isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 
-import { CHERRY_HOME, LOGS_DIR } from './constants'
+import { CHERRY_HOME, DATA_RESET_MARKER_FILENAME, LOGS_DIR } from './constants'
 
 /**
  * Build the frozen path registry. Called once during preboot (after
@@ -150,6 +150,13 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+
+    // Data-reset pending marker (#17131) — a userData-root file whose presence
+    // (and location) authorizes the next preboot to wipe THIS userData. The
+    // `_file` suffix marks it a file key so auto-ensure ensures its parent dir
+    // (userData) rather than mkdir'ing a directory at the marker's own path.
+    // Owned by src/main/services/dataReset.ts; survives its own wipe by design.
+    'feature.data_reset.marker_file': path.join(appUserData, DATA_RESET_MARKER_FILENAME),
 
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),

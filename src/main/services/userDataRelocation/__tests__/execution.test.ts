@@ -317,6 +317,27 @@ describe('userDataRelocation execution', () => {
     expectCommitted(target)
   })
 
+  it('excludes the data-reset pending marker when copying the userData root', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    // A pending data-reset marker in the source profile must not ride along:
+    // its canonicalPath pins the ORIGINAL userData, so the relocated copy
+    // could never consume it (permanent mismatch refusal).
+    fs.writeFileSync(path.join(source, 'data-reset.pending.json'), JSON.stringify({ status: 'pending' }))
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocation } = await loadDomain()
+    await expect(runUserDataRelocation()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
+    expect(fs.existsSync(path.join(target, 'data-reset.pending.json'))).toBe(false)
+    expectCommitted(target)
+  })
+
   it('rewrites an absolute symlink that points inside the copied source tree', async () => {
     if (process.platform === 'win32') return
     const root = makeRoot()

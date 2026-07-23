@@ -22,6 +22,15 @@ export const CHERRY_HOME = path.join(os.homedir(), CHERRY_HOME_DIRNAME)
 export const BOOT_CONFIG_PATH = path.join(CHERRY_HOME, 'boot-config.json')
 
 /**
+ * Basename of the data-reset pending marker file, living at the userData root
+ * (registered as `feature.data_reset.marker_file`). Exported here — the
+ * earliest, dependency-free path layer — so consumers that must know only the
+ * basename (e.g. userDataRelocation's copy filter) can import it without
+ * depending on the services layer that owns the marker protocol.
+ */
+export const DATA_RESET_MARKER_FILENAME = 'data-reset.pending.json'
+
+/**
  * Logs directory. Resolves to Electron's platform-standard location:
  *   - macOS:   ~/Library/Logs/<App>/
  *   - Windows: %APPDATA%/<App>/logs
