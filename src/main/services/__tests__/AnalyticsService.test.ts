@@ -2,8 +2,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * Exercises the privacy gate and reconcile-after-settle convergence. Analytics may run only when
- * data collection is enabled and the latest privacy policy has been acknowledged. The reachable
+ * Exercises the data-collection preference and reconcile-after-settle convergence. The reachable
  * race lives in async deactivation: a re-enable that lands while client.destroy() is pending must
  * still be honoured.
  */
@@ -56,7 +55,6 @@ vi.mock('@application', async () => {
 
 import { AnalyticsService } from '../AnalyticsService'
 
-const LATEST_POLICY_VERSION = '20260531'
 let destroyResolvers: Array<() => void>
 
 function changePreference(key: string, value: boolean | string): void {
@@ -70,7 +68,6 @@ beforeEach(() => {
     delete captured.prefHandlers[key]
   }
   captured.preferenceValues['app.privacy.data_collection.enabled'] = true
-  captured.preferenceValues['app.privacy.policy_version'] = LATEST_POLICY_VERSION
   destroyResolvers = []
   mockTrackAppLaunch.mockReset()
   mockTrackTokenUsage.mockReset()
@@ -80,23 +77,19 @@ beforeEach(() => {
   mockDestroy.mockImplementation(() => new Promise<void>((resolve) => destroyResolvers.push(resolve)))
 })
 
-describe('AnalyticsService privacy gate', () => {
-  it('stays inactive until the latest privacy policy is acknowledged', async () => {
+describe('AnalyticsService data collection preference', () => {
+  it('activates when data collection is enabled regardless of the policy version', async () => {
     captured.preferenceValues['app.privacy.policy_version'] = ''
 
     const service = new AnalyticsService()
     await service._doInit()
 
-    expect(service.isActivated).toBe(false)
-    expect(MockAnalyticsClient).not.toHaveBeenCalled()
-
-    await service.trackAppUpdate()
-    expect(mockTrackAppUpdate).not.toHaveBeenCalled()
-
-    changePreference('app.privacy.policy_version', LATEST_POLICY_VERSION)
-
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
+    expect(captured.prefHandlers['app.privacy.policy_version']).toBeUndefined()
+
+    await service.trackAppUpdate()
+    expect(mockTrackAppUpdate).toHaveBeenCalledTimes(1)
   })
 
   it('deactivates when data collection is disabled', async () => {
@@ -112,23 +105,11 @@ describe('AnalyticsService privacy gate', () => {
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
   })
 
-  it('deactivates when the acknowledged policy version becomes outdated', async () => {
-    const service = new AnalyticsService()
-    await service._doInit()
-    await vi.waitFor(() => expect(service.isActivated).toBe(true))
-
-    changePreference('app.privacy.policy_version', '20240101')
-    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
-
-    destroyResolvers[0]()
-    await vi.waitFor(() => expect(service.isActivated).toBe(false))
-  })
-
   it('re-activates when re-enabled during an in-flight async deactivate', async () => {
     const service = new AnalyticsService()
     await service._doInit()
     expect(captured.prefHandlers['app.privacy.data_collection.enabled']).toBeDefined()
-    expect(captured.prefHandlers['app.privacy.policy_version']).toBeDefined()
+    expect(captured.prefHandlers['app.privacy.policy_version']).toBeUndefined()
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
 
