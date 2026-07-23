@@ -21,9 +21,43 @@ vi.mock('@renderer/i18n/label', () => ({
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
-  const TabsContext = React.createContext<{ value: string; onValueChange?: (value: string) => void }>({ value: '' })
+  const AccordionContext = React.createContext<{ value: string; onValueChange?: (value: string) => void }>({
+    value: ''
+  })
+  const AccordionItemContext = React.createContext('')
 
   return {
+    Accordion: ({ children, value, onValueChange }: any) => (
+      <AccordionContext value={{ value, onValueChange }}>
+        <div>{children}</div>
+      </AccordionContext>
+    ),
+    AccordionItem: ({ children, value, ...props }: any) => (
+      <AccordionItemContext value={value}>
+        <div {...props}>{children}</div>
+      </AccordionItemContext>
+    ),
+    AccordionTrigger: ({ children, ...props }: any) => {
+      const accordion = React.use(AccordionContext)
+      const itemValue = React.use(AccordionItemContext)
+      const expanded = accordion.value === itemValue
+      return (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => accordion.onValueChange?.(expanded ? '' : itemValue)}
+          {...props}>
+          {children}
+        </button>
+      )
+    },
+    AccordionContent: ({ children, ...props }: any) => {
+      const accordion = React.use(AccordionContext)
+      const itemValue = React.use(AccordionItemContext)
+      const domProps = { ...props }
+      delete domProps.contentClassName
+      return accordion.value === itemValue ? <div {...domProps}>{children}</div> : null
+    },
     Button: ({ children, onClick, disabled, loading, ...props }: any) => (
       <button type="button" onClick={onClick} disabled={disabled || loading} {...props}>
         {children}
@@ -82,33 +116,6 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogFooter: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     DialogHeader: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
-    Tabs: ({ children, value, onValueChange }: any) => (
-      <TabsContext value={{ value, onValueChange }}>
-        <div>{children}</div>
-      </TabsContext>
-    ),
-    TabsList: ({ children, ...props }: any) => (
-      <div role="tablist" {...props}>
-        {children}
-      </div>
-    ),
-    TabsTrigger: ({ children, value, ...props }: any) => {
-      const context = React.use(TabsContext)
-      return (
-        <button
-          type="button"
-          role="tab"
-          aria-selected={context.value === value}
-          onClick={() => context.onValueChange?.(value)}
-          {...props}>
-          {children}
-        </button>
-      )
-    },
-    TabsContent: ({ children, value, ...props }: any) => {
-      const context = React.use(TabsContext)
-      return context.value === value ? <div {...props}>{children}</div> : null
-    },
     Popover: ({ children }: any) => <div>{children}</div>,
     PopoverContent: ({ children }: any) => <div>{children}</div>,
     PopoverTrigger: ({ children }: any) => <div>{children}</div>
@@ -155,8 +162,12 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }
 }))
 
-function selectEndpointTab(name: 'openai_chat' | 'openai_responses' | 'anthropic' | 'gemini' | 'other') {
-  fireEvent.click(screen.getByRole('tab', { name: `settings.provider.create_custom.endpoint_tabs.${name}` }))
+function toggleMoreSettings() {
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: /settings\.provider\.create_custom\.endpoint_fields\.more/
+    })
+  )
 }
 
 describe('ProviderEditorDrawer', () => {
@@ -368,10 +379,13 @@ describe('ProviderEditorDrawer', () => {
     rerender(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'duplicate', source }} />)
     expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'xl')
-    expect(screen.getAllByRole('tab')).toHaveLength(5)
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_chat')).toBeInTheDocument()
+    expect(screen.getByLabelText('settings.provider.more_endpoints.anthropic')).toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.provider.more_endpoints.openai_responses')).not.toBeInTheDocument()
     expect(
-      screen.getByRole('tab', { name: 'settings.provider.create_custom.endpoint_tabs.openai_chat' })
-    ).toHaveAttribute('aria-selected', 'true')
+      screen.getByRole('button', { name: /settings\.provider\.create_custom\.endpoint_fields\.more/ })
+    ).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'settings.provider.more_endpoints.toggle' })).not.toBeInTheDocument()
 
     rerender(
@@ -422,7 +436,7 @@ describe('ProviderEditorDrawer', () => {
     expect(callArg?.presetProviderId).toBeUndefined()
   })
 
-  it('treats the initial Chat tab as navigation rather than a configured default endpoint', () => {
+  it('uses the first configured common text endpoint as the default', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <ProviderEditorDrawer
@@ -434,13 +448,7 @@ describe('ProviderEditorDrawer', () => {
       />
     )
 
-    const endpointTabs = screen.getAllByRole('tab')
-    expect(endpointTabs).toHaveLength(5)
-    for (const tab of endpointTabs) {
-      expect(tab).toHaveClass('h-10', 'cursor-pointer')
-    }
-
-    selectEndpointTab('anthropic')
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'Anthropic Gateway' }
     })
@@ -459,7 +467,7 @@ describe('ProviderEditorDrawer', () => {
     )
   })
 
-  it('places identity and the optional preset before endpoint tabs without a compatibility selector', () => {
+  it('shows common endpoints first and keeps the optional preset inside More options', () => {
     const source = {
       id: 'anthropic',
       name: 'Anthropic',
@@ -482,14 +490,36 @@ describe('ProviderEditorDrawer', () => {
 
     const avatar = screen.getByTestId('provider-avatar-preview')
     const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
+    const apiKeyInput = screen.getByLabelText('settings.provider.api_key.label')
+    const chatInput = screen.getByLabelText('settings.provider.more_endpoints.openai_chat')
+    const anthropicInput = screen.getByLabelText('settings.provider.more_endpoints.anthropic')
+    const moreTrigger = screen.getByRole('button', {
+      name: /settings\.provider\.create_custom\.endpoint_fields\.more/
+    })
+
+    expect(avatar.compareDocumentPosition(nameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(nameInput.compareDocumentPosition(apiKeyInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(apiKeyInput.compareDocumentPosition(chatInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(chatInput.compareDocumentPosition(anthropicInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(anthropicInput.compareDocumentPosition(moreTrigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(moreTrigger).toHaveClass('min-h-10', 'cursor-pointer')
+    expect(moreTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByLabelText('settings.provider.more_endpoints.openai_responses')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('combobox', {
+        name: 'settings.provider.create_custom.preset_instance.placeholder'
+      })
+    ).not.toBeInTheDocument()
+
+    toggleMoreSettings()
+
     const presetPicker = screen.getByRole('combobox', {
       name: 'settings.provider.create_custom.preset_instance.placeholder'
     })
-    const tabs = screen.getByRole('tablist')
-
-    expect(avatar.compareDocumentPosition(nameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(nameInput.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(presetPicker.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const responsesInput = screen.getByLabelText('settings.provider.more_endpoints.openai_responses')
+    expect(moreTrigger).toHaveAttribute('aria-expanded', 'true')
+    expect(moreTrigger.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(presetPicker.compareDocumentPosition(responsesInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText('settings.provider.create_custom.compatibility.label')).not.toBeInTheDocument()
   })
 
@@ -508,17 +538,18 @@ describe('ProviderEditorDrawer', () => {
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'Images Only' }
     })
-    selectEndpointTab('other')
+    toggleMoreSettings()
     fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_generation_base_url.label'), {
       target: { value: 'https://images.example.com' }
     })
+    toggleMoreSettings()
     fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
 
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(screen.getByText('settings.provider.create_custom.endpoint_tabs.text_endpoint_required')).toBeInTheDocument()
     expect(
-      screen.getByRole('tab', { name: 'settings.provider.create_custom.endpoint_tabs.openai_chat' })
-    ).toHaveAttribute('aria-selected', 'true')
+      screen.getByText('settings.provider.create_custom.endpoint_fields.text_endpoint_required')
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_chat')).toBeInTheDocument()
   })
 
   it('submits multiple independent text and image endpoints with an explicit default chat endpoint', () => {
@@ -539,14 +570,13 @@ describe('ProviderEditorDrawer', () => {
     fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
       target: { value: 'https://chat.example.com' }
     })
-    selectEndpointTab('anthropic')
     fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.anthropic'), {
       target: { value: 'https://anthropic.example.com' }
     })
     fireEvent.click(
-      screen.getByRole('button', { name: 'settings.provider.create_custom.endpoint_tabs.set_default_chat' })
+      screen.getByRole('button', { name: 'settings.provider.create_custom.endpoint_fields.set_default_chat' })
     )
-    selectEndpointTab('other')
+    toggleMoreSettings()
     fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_generation_base_url.label'), {
       target: { value: 'https://images.example.com' }
     })
@@ -568,7 +598,7 @@ describe('ProviderEditorDrawer', () => {
     )
   })
 
-  it('preserves connection values while switching endpoint tabs and updates request previews', () => {
+  it('preserves advanced endpoint values while collapsing More options and updates request previews', () => {
     render(
       <ProviderEditorDrawer
         open
@@ -593,7 +623,7 @@ describe('ProviderEditorDrawer', () => {
       screen.getByText('settings.provider.create_custom.request_preview:https://chat.example.com/v1/chat/completions')
     ).toBeInTheDocument()
 
-    selectEndpointTab('gemini')
+    toggleMoreSettings()
     fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.gemini'), {
       target: { value: 'https://gemini.example.com' }
     })
@@ -606,7 +636,11 @@ describe('ProviderEditorDrawer', () => {
       )
     ).toBeInTheDocument()
 
-    selectEndpointTab('openai_chat')
+    toggleMoreSettings()
+    expect(screen.queryByLabelText('settings.provider.more_endpoints.gemini')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.provider.create_custom.endpoint_fields.more_configured')).toBeInTheDocument()
+    toggleMoreSettings()
+    expect(screen.getByLabelText('settings.provider.more_endpoints.gemini')).toHaveValue('https://gemini.example.com')
     expect(screen.getByLabelText('settings.provider.more_endpoints.openai_chat')).toHaveValue(
       'https://chat.example.com'
     )
@@ -646,6 +680,7 @@ describe('ProviderEditorDrawer', () => {
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), {
       target: { value: 'secret' }
     })
+    toggleMoreSettings()
     fireEvent.change(
       screen.getByRole('combobox', {
         name: 'settings.provider.create_custom.preset_instance.placeholder'
@@ -659,16 +694,15 @@ describe('ProviderEditorDrawer', () => {
 
     const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
     expect(nameInput).toHaveValue('Claude Gateway')
-    expect(screen.getAllByRole('tab')).toHaveLength(5)
-    expect(
-      screen.getByRole('tab', { name: 'settings.provider.create_custom.endpoint_tabs.anthropic' })
-    ).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_chat')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.provider.more_endpoints.anthropic')).toHaveValue(
       'https://gateway.example.com'
     )
     expect(
-      screen.queryByRole('button', { name: 'settings.provider.create_custom.endpoint_tabs.set_default_chat' })
+      screen.queryByRole('button', { name: 'settings.provider.create_custom.endpoint_fields.set_default_chat' })
     ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.provider.more_endpoints.openai_responses')).not.toBeInTheDocument()
     expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue('secret')
     expect(mocks.providerAvatarPrimitive).toHaveBeenCalledWith(
       expect.objectContaining({ logo: 'icon:openai', providerName: 'Claude Gateway' })
@@ -748,14 +782,13 @@ describe('ProviderEditorDrawer', () => {
     fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
       target: { value: 'https://new-api.example.com' }
     })
-    selectEndpointTab('openai_responses')
+    toggleMoreSettings()
     expect(screen.getByLabelText('settings.provider.more_endpoints.openai_responses')).toHaveValue(
       'https://new-api.example.com'
     )
     fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_responses'), {
       target: { value: 'https://responses.example.com' }
     })
-    selectEndpointTab('other')
     fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_generation_base_url.label'), {
       target: { value: 'https://images.example.com' }
     })
@@ -985,7 +1018,7 @@ describe('ProviderEditorDrawer', () => {
     expect(screen.queryByText('settings.provider.add.name.required')).not.toBeInTheDocument()
   })
 
-  it('shows an invalid URL error for the active endpoint and does not submit', () => {
+  it('expands More options to reveal an invalid advanced endpoint and does not submit', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <ProviderEditorDrawer
@@ -1000,14 +1033,25 @@ describe('ProviderEditorDrawer', () => {
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'My Custom' }
     })
-    const endpointInput = screen.getByLabelText('settings.provider.more_endpoints.openai_chat')
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
+      target: { value: 'https://chat.example.com' }
+    })
+    toggleMoreSettings()
+    const endpointInput = screen.getByLabelText('settings.provider.more_endpoints.openai_responses')
     fireEvent.change(endpointInput, { target: { value: 'not-a-url' } })
+    toggleMoreSettings()
 
     fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
 
     expect(onSubmit).not.toHaveBeenCalled()
     expect(screen.getByText('settings.provider.base_url.invalid')).toBeInTheDocument()
-    expect(endpointInput).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_responses')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    expect(
+      screen.getByRole('button', { name: /settings\.provider\.create_custom\.endpoint_fields\.more/ })
+    ).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('clears an endpoint URL error once a valid URL is entered', () => {
@@ -1079,7 +1123,7 @@ describe('ProviderEditorDrawer', () => {
       />
     )
 
-    fireEvent.blur(screen.getByPlaceholderText('settings.provider.base_url.placeholder'))
+    fireEvent.blur(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'))
 
     expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
   })

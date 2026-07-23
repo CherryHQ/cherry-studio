@@ -7308,17 +7308,14 @@
         "toggle_headers_editor_list": "Switch to header list"
       },
       "create_custom": {
-        "endpoint_tabs": {
-          "anthropic": "Anthropic",
+        "endpoint_fields": {
           "default_chat": "Default chat endpoint",
-          "description": "Switch tabs to configure each protocol; the first text endpoint you fill becomes the default",
-          "gemini": "Gemini",
+          "description": "Enter API root URLs for common protocols; the first text endpoint you fill becomes the default",
           "label": "Endpoint settings",
-          "new_api_description": "Switch tabs to configure each protocol; text protocols share one root URL by default",
-          "openai_chat": "Chat",
-          "openai_responses": "Responses",
-          "other": "Other",
-          "preset_description": "Switch tabs to configure this preset's endpoints; the preset defines the default chat endpoint",
+          "more": "More options",
+          "more_configured": "{{count}} configured",
+          "new_api_description": "Text protocols share one root URL by default; override individual protocols under More options",
+          "preset_description": "Enter protocol URLs for this preset; the preset defines the default chat endpoint",
           "set_default_chat": "Set as default chat endpoint",
           "text_endpoint_required": "Configure at least one text endpoint",
           "url_help": "Enter the API root URL to preview the final request path"

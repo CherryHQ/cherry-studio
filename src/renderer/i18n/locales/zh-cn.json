@@ -7308,17 +7308,14 @@
         "toggle_headers_editor_list": "切换为键值列表"
       },
       "create_custom": {
-        "endpoint_tabs": {
-          "anthropic": "Anthropic",
+        "endpoint_fields": {
           "default_chat": "默认对话端点",
-          "description": "切换标签配置对应协议；首个填写的文本端点将作为默认对话端点",
-          "gemini": "Gemini",
+          "description": "填写常用协议的 API 根地址；首个填写的文本端点将作为默认对话端点",
           "label": "端点设置",
-          "new_api_description": "切换标签配置各协议地址；文本协议默认共用同一根地址",
-          "openai_chat": "Chat",
-          "openai_responses": "Responses",
-          "other": "其他",
-          "preset_description": "切换标签配置此预设的端点地址；默认对话端点由预设决定",
+          "more": "更多设置",
+          "more_configured": "已配置 {{count}} 项",
+          "new_api_description": "文本协议默认共用同一根地址，可在更多设置中单独覆盖",
+          "preset_description": "填写此预设使用的协议地址；默认对话端点由预设决定",
           "set_default_chat": "设为默认对话端点",
           "text_endpoint_required": "请至少配置一个文本端点",
           "url_help": "填写 API 根地址后会显示实际请求路径"

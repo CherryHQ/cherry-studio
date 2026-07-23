@@ -1,4 +1,8 @@
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Button,
   Combobox,
   type ComboboxOption,
@@ -13,11 +17,7 @@ import {
   Input,
   Popover,
   PopoverContent,
-  PopoverTrigger,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
+  PopoverTrigger
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
@@ -33,7 +33,7 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'es-toolkit/compat'
 import { ChevronRight, Eye, EyeOff, ImagePlus, RotateCcw } from 'lucide-react'
-import { type ChangeEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -55,33 +55,17 @@ const logger = loggerService.withContext('ProviderEditorDrawer')
 
 type ProviderEditorSubmit = SubmitProviderEditorParams
 
-type CustomProviderEndpointTab = CustomProviderTextEndpoint | 'other'
+const COMMON_CUSTOM_PROVIDER_ENDPOINTS = [
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+] as const
 
-const CUSTOM_PROVIDER_ENDPOINT_TABS: Array<{
-  value: CustomProviderEndpointTab
-  labelKey: string
-}> = [
-  {
-    value: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-    labelKey: 'settings.provider.create_custom.endpoint_tabs.openai_chat'
-  },
-  {
-    value: ENDPOINT_TYPE.OPENAI_RESPONSES,
-    labelKey: 'settings.provider.create_custom.endpoint_tabs.openai_responses'
-  },
-  {
-    value: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-    labelKey: 'settings.provider.create_custom.endpoint_tabs.anthropic'
-  },
-  {
-    value: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-    labelKey: 'settings.provider.create_custom.endpoint_tabs.gemini'
-  },
-  {
-    value: 'other',
-    labelKey: 'settings.provider.create_custom.endpoint_tabs.other'
-  }
-]
+const ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS = [
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+] as const
 
 interface ProviderEditorDrawerProps {
   open: boolean
@@ -170,9 +154,6 @@ export default function ProviderEditorDrawer({
   const [preferredChatEndpoint, setPreferredChatEndpoint] = useState<CustomProviderTextEndpoint>(
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   )
-  const [activeEndpointTab, setActiveEndpointTab] = useState<CustomProviderEndpointTab>(
-    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-  )
   const [invalidCreationUrl, setInvalidCreationUrl] = useState<CustomProviderCreationInvalidUrl | null>(null)
   // `logo` is the preview value only (a preset id / url / object URL for a
   // staged upload). When the user uploads, `stagedFile` holds the raw file whose
@@ -209,7 +190,7 @@ export default function ProviderEditorDrawer({
       requireBaseUrl: false
     }
   })()
-  const duplicateUsesEndpointTabs = Boolean(
+  const duplicateUsesEndpointFields = Boolean(
     duplicateSource &&
       urlForm &&
       (duplicateSource.presetProviderId === 'new-api' || isCustomProviderTextEndpoint(urlForm.primary))
@@ -217,7 +198,7 @@ export default function ProviderEditorDrawer({
   const duplicateDefaultTextEndpoint =
     urlForm && isCustomProviderTextEndpoint(urlForm.primary) ? urlForm.primary : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   const duplicateEndpointUrls = useMemo<CustomProviderEndpointUrls>(() => {
-    if (!duplicateUsesEndpointTabs || !urlForm) {
+    if (!duplicateUsesEndpointFields || !urlForm) {
       return {}
     }
 
@@ -244,7 +225,7 @@ export default function ProviderEditorDrawer({
     baseUrl,
     duplicateDefaultTextEndpoint,
     duplicateSource?.presetProviderId,
-    duplicateUsesEndpointTabs,
+    duplicateUsesEndpointFields,
     secondaryUrls,
     urlForm
   ])
@@ -267,12 +248,11 @@ export default function ProviderEditorDrawer({
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
     setEndpointUrls({})
-    const initialEndpointTab =
+    const initialDefaultEndpoint =
       duplicateSource?.defaultChatEndpoint && isCustomProviderTextEndpoint(duplicateSource.defaultChatEndpoint)
         ? duplicateSource.defaultChatEndpoint
         : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    setPreferredChatEndpoint(initialEndpointTab)
-    setActiveEndpointTab(initialEndpointTab)
+    setPreferredChatEndpoint(initialDefaultEndpoint)
     setInvalidCreationUrl(null)
     setLogoDirty(false)
     setLogoPickerOpen(false)
@@ -346,12 +326,11 @@ export default function ProviderEditorDrawer({
     if (defaultEndpointUrl) {
       setBaseUrl(defaultEndpointUrl)
     }
-    const presetDefaultEndpoint =
+    setPreferredChatEndpoint(
       source.defaultChatEndpoint && isCustomProviderTextEndpoint(source.defaultChatEndpoint)
         ? source.defaultChatEndpoint
         : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    setPreferredChatEndpoint(presetDefaultEndpoint)
-    setActiveEndpointTab(presetDefaultEndpoint)
+    )
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
     setEndpointUrls({})
@@ -459,14 +438,11 @@ export default function ProviderEditorDrawer({
       })
       setInvalidCreationUrl(invalidUrl)
       if (invalidUrl) {
-        if (invalidUrl.field === 'textEndpointRequired') {
-          setActiveEndpointTab(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-        } else {
-          setActiveEndpointTab(
-            CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((endpointType) => endpointType === invalidUrl.endpointType)
-              ? (invalidUrl.endpointType as CustomProviderTextEndpoint)
-              : 'other'
-          )
+        if (
+          invalidUrl.field === 'endpointUrl' &&
+          ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.some((endpointType) => endpointType === invalidUrl.endpointType)
+        ) {
+          setMoreEndpointsOpen(true)
         }
         return
       }
@@ -552,6 +528,12 @@ export default function ProviderEditorDrawer({
       disableEnter={isSubmitting}
     />
   )
+  const customAdditionalConfiguredCount = ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.filter((endpointType) =>
+    endpointUrls[endpointType]?.trim()
+  ).length
+  const duplicateAdditionalConfiguredCount = ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.filter((endpointType) =>
+    endpointType === urlForm?.primary ? baseUrl.trim() : secondaryUrls[endpointType]?.trim()
+  ).length
 
   const formContent = (
     <div className="flex flex-col gap-5">
@@ -560,16 +542,19 @@ export default function ProviderEditorDrawer({
 
       {mode?.kind === 'create-custom' ? (
         <>
-          {onSelectPreset && presetSources.length > 0 && (
-            <PresetInstancePicker sources={presetSources} onSelect={handleSelectPreset} />
-          )}
           <ApiKeyField value={apiKey} onChange={setApiKey} />
-          <CustomProviderEndpointTabs
-            value={activeEndpointTab}
+          <CustomProviderEndpointFields
             endpointUrls={endpointUrls}
             preferredChatEndpoint={preferredChatEndpoint}
             invalidUrl={invalidCreationUrl}
-            onValueChange={setActiveEndpointTab}
+            moreOpen={moreEndpointsOpen}
+            additionalConfiguredCount={customAdditionalConfiguredCount}
+            additionalContent={
+              onSelectPreset && presetSources.length > 0 ? (
+                <PresetInstancePicker sources={presetSources} onSelect={handleSelectPreset} />
+              ) : undefined
+            }
+            onMoreOpenChange={setMoreEndpointsOpen}
             onEndpointUrlChange={handleEndpointUrlChange}
             onPreferredChatEndpointChange={setPreferredChatEndpoint}
           />
@@ -579,20 +564,21 @@ export default function ProviderEditorDrawer({
           {duplicateSource?.presetProviderId && <DuplicateHeader source={duplicateSource} />}
 
           {urlForm &&
-            (duplicateUsesEndpointTabs ? (
+            (duplicateUsesEndpointFields ? (
               <>
                 <ApiKeyField value={apiKey} onChange={setApiKey} />
-                <CustomProviderEndpointTabs
-                  value={activeEndpointTab}
+                <CustomProviderEndpointFields
                   endpointUrls={duplicateEndpointUrls}
                   preferredChatEndpoint={duplicateDefaultTextEndpoint}
                   invalidUrl={null}
+                  moreOpen={moreEndpointsOpen}
+                  additionalConfiguredCount={duplicateAdditionalConfiguredCount}
                   descriptionKey={
                     duplicateSource?.presetProviderId === 'new-api'
-                      ? 'settings.provider.create_custom.endpoint_tabs.new_api_description'
-                      : 'settings.provider.create_custom.endpoint_tabs.preset_description'
+                      ? 'settings.provider.create_custom.endpoint_fields.new_api_description'
+                      : 'settings.provider.create_custom.endpoint_fields.preset_description'
                   }
-                  onValueChange={setActiveEndpointTab}
+                  onMoreOpenChange={setMoreEndpointsOpen}
                   onEndpointUrlChange={(endpointType, value) => {
                     if (endpointType === urlForm.primary) {
                       setBaseUrl(value)
@@ -678,27 +664,31 @@ const CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS: Record<CustomProviderEndpoint, string
   [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: 'settings.provider.image_endpoints.image_edit_base_url.label'
 }
 
-interface CustomProviderEndpointTabsProps {
-  value: CustomProviderEndpointTab
+interface CustomProviderEndpointFieldsProps {
   endpointUrls: CustomProviderEndpointUrls
   preferredChatEndpoint: CustomProviderTextEndpoint
   invalidUrl: CustomProviderCreationInvalidUrl | null
+  moreOpen: boolean
+  additionalConfiguredCount: number
+  additionalContent?: ReactNode
   descriptionKey?: string
-  onValueChange: (value: CustomProviderEndpointTab) => void
+  onMoreOpenChange: (open: boolean) => void
   onEndpointUrlChange: (endpointType: CustomProviderEndpoint, value: string) => void
   onPreferredChatEndpointChange?: (endpointType: CustomProviderTextEndpoint) => void
 }
 
-function CustomProviderEndpointTabs({
-  value,
+function CustomProviderEndpointFields({
   endpointUrls,
   preferredChatEndpoint,
   invalidUrl,
-  descriptionKey = 'settings.provider.create_custom.endpoint_tabs.description',
-  onValueChange,
+  moreOpen,
+  additionalConfiguredCount,
+  additionalContent,
+  descriptionKey = 'settings.provider.create_custom.endpoint_fields.description',
+  onMoreOpenChange,
   onEndpointUrlChange,
   onPreferredChatEndpointChange
-}: CustomProviderEndpointTabsProps) {
+}: CustomProviderEndpointFieldsProps) {
   const { t } = useTranslation()
   const textEndpointRequired = invalidUrl?.field === 'textEndpointRequired'
 
@@ -707,7 +697,7 @@ function CustomProviderEndpointTabs({
     const invalidEndpoint = invalidUrl?.field === 'endpointUrl' && invalidUrl.endpointType === endpointType
     const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType)
     const emptyValueHelp = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
-      ? t('settings.provider.create_custom.endpoint_tabs.url_help')
+      ? t('settings.provider.create_custom.endpoint_fields.url_help')
       : t(
           endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
             ? 'settings.provider.image_endpoints.image_generation_base_url.help'
@@ -730,72 +720,74 @@ function CustomProviderEndpointTabs({
     )
   }
 
+  const renderEndpointControl = (endpointType: CustomProviderEndpoint) => (
+    <div key={endpointType} className="flex flex-col gap-1">
+      {renderEndpointField(endpointType)}
+      {CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType) &&
+        endpointUrls[endpointType]?.trim() &&
+        (preferredChatEndpoint === endpointType ? (
+          <p className="text-foreground-muted text-xs">
+            {t('settings.provider.create_custom.endpoint_fields.default_chat')}
+          </p>
+        ) : onPreferredChatEndpointChange ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="min-h-10 self-start px-2"
+            onClick={() => onPreferredChatEndpointChange(endpointType as CustomProviderTextEndpoint)}>
+            {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
+          </Button>
+        ) : null)}
+    </div>
+  )
+
   return (
     <section className="flex flex-col gap-3" aria-labelledby="custom-provider-endpoints-title">
       <div className="flex flex-col gap-1">
         <h3 id="custom-provider-endpoints-title" className="font-medium text-[13px] text-foreground">
-          {t('settings.provider.create_custom.endpoint_tabs.label')}
+          {t('settings.provider.create_custom.endpoint_fields.label')}
         </h3>
         <p className="text-foreground-muted text-xs">{t(descriptionKey)}</p>
       </div>
 
-      <Tabs
-        variant="underline"
-        value={value}
-        onValueChange={(nextValue) => onValueChange(nextValue as CustomProviderEndpointTab)}>
-        <TabsList className="grid h-10 w-full grid-cols-5 border-border border-b">
-          {CUSTOM_PROVIDER_ENDPOINT_TABS.map((tab) => {
-            const configured =
-              tab.value === 'other'
-                ? CUSTOM_PROVIDER_ENDPOINTS.filter(
-                    (endpointType) => !CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
-                  ).some((endpointType) => endpointUrls[endpointType]?.trim())
-                : Boolean(endpointUrls[tab.value]?.trim())
+      <div className="flex flex-col gap-5">{COMMON_CUSTOM_PROVIDER_ENDPOINTS.map(renderEndpointControl)}</div>
 
-            return (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="h-10 min-w-0 cursor-pointer gap-1.5 px-2 text-xs transition-[color,background-color,transform] duration-150 active:scale-[0.96] disabled:cursor-not-allowed">
-                <span className="truncate">{t(tab.labelKey)}</span>
-                {configured && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />}
-              </TabsTrigger>
-            )
-          })}
-        </TabsList>
-
-        {CUSTOM_PROVIDER_TEXT_ENDPOINTS.map((endpointType) => (
-          <TabsContent key={endpointType} value={endpointType} className="mt-4 flex flex-col gap-3">
-            {renderEndpointField(endpointType)}
-            {endpointUrls[endpointType]?.trim() &&
-              (preferredChatEndpoint === endpointType ? (
-                <p className="text-foreground-muted text-xs">
-                  {t('settings.provider.create_custom.endpoint_tabs.default_chat')}
-                </p>
-              ) : onPreferredChatEndpointChange ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="min-h-10 self-start px-2"
-                  onClick={() => onPreferredChatEndpointChange(endpointType)}>
-                  {t('settings.provider.create_custom.endpoint_tabs.set_default_chat')}
-                </Button>
-              ) : null)}
-          </TabsContent>
-        ))}
-
-        <TabsContent value="other" className="mt-4 flex flex-col gap-5">
-          {renderEndpointField(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)}
-          {renderEndpointField(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)}
-        </TabsContent>
-      </Tabs>
+      <Accordion
+        type="single"
+        collapsible
+        value={moreOpen ? 'more-settings' : ''}
+        onValueChange={(value) => onMoreOpenChange(value === 'more-settings')}>
+        <AccordionItem value="more-settings" className="border-0">
+          <AccordionTrigger className="min-h-10 cursor-pointer py-0 font-normal text-muted-foreground text-xs hover:text-foreground disabled:cursor-not-allowed">
+            <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+              <span>{t('settings.provider.create_custom.endpoint_fields.more')}</span>
+              {additionalConfiguredCount > 0 && (
+                <span className="truncate text-foreground-muted">
+                  {t('settings.provider.create_custom.endpoint_fields.more_configured', {
+                    count: additionalConfiguredCount
+                  })}
+                </span>
+              )}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="flex flex-col gap-5 pt-3 pb-0">
+            {additionalContent && (
+              <>
+                {additionalContent}
+                <div className="border-border-muted border-t" />
+              </>
+            )}
+            {ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.map(renderEndpointControl)}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <FieldError
         className="text-xs"
         errors={
           textEndpointRequired
-            ? [{ message: t('settings.provider.create_custom.endpoint_tabs.text_endpoint_required') }]
+            ? [{ message: t('settings.provider.create_custom.endpoint_fields.text_endpoint_required') }]
             : undefined
         }
       />
