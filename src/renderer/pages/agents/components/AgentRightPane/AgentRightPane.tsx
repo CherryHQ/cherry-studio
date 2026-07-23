@@ -160,6 +160,7 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
   onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
+  userOpenIntentSeq?: number
   revealRequest?: ResourceListRevealRequest
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -241,7 +242,7 @@ function AgentRightPaneActionsProvider({
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
       replaceFlowTab(input)
-      panelActions.requestOpen(getFlowTabValue(input.toolCallId))
+      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
     },
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
@@ -251,7 +252,7 @@ function AgentRightPaneActionsProvider({
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
       if (!selection) return
       requestFileSelection(selection)
-      panelActions.tryOpen('files')
+      panelActions.tryOpen('files', { userInitiated: true })
     },
     [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
   )
@@ -301,6 +302,7 @@ function AgentRightPaneStateProvider({
   defaultOpen = false,
   onOpenChange,
   onFileNavigationRequestChange,
+  userOpenIntentSeq,
   revealRequest
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
@@ -487,6 +489,7 @@ function AgentRightPaneStateProvider({
                 defaultPanelId={RESOURCE_PANE_TAB}
                 defaultOpen={defaultOpen}
                 onOpenChange={onOpenChange}
+                userOpenIntentSeq={userOpenIntentSeq}
                 present={present}>
                 <ResourcePaneLocateOpener revealRequest={revealRequest} />
                 <AgentRightPaneActionsProvider
