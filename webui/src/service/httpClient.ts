@@ -72,8 +72,7 @@ export const createWebUiHttpClient = ({
     try {
       const response = await fetchImpl(`${baseUrl}${path}`, {
         headers: {
-          Accept:
-            'image/*, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          Accept: '*/*',
           ...(authKey ? { 'X-Cherry-Webui-Key': authKey } : {})
         },
         signal: controller.signal

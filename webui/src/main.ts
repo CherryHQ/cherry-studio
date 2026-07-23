@@ -112,7 +112,8 @@ const fallbackLanguage = 'en-US'
 const webUiLogoPath = './icon.png'
 const webUiVersion = '0.1.0'
 const projectRepositoryUrl = 'https://github.com/EasongChung/cherry-studio'
-const messagePageSize = 50
+/** First page + each older page size. Keep small so multi-turn chats (≈5 rounds) paginate early. */
+const messagePageSize = 10
 const maxAttachmentCount = 5
 const maxAttachmentBytes = 10 * 1024 * 1024
 const maxAttachmentsBytes = 25 * 1024 * 1024
@@ -214,6 +215,9 @@ const textPacks = {
     speechProgress: 'Progress',
     speechNoActiveReading: 'No active reading session.',
     speechIdleHint: 'Select Read aloud on a message to start.',
+    attachmentPreview: 'Preview attachment',
+    attachmentPreviewUnavailable: 'This attachment cannot be previewed.',
+    attachmentPreviewOpenFailed: 'Unable to open the attachment.',
     deleteConversation: 'Delete conversation',
     deleteConversationDescription:
       'This conversation and its messages will be removed from the desktop app and cannot be restored.',
@@ -402,6 +406,9 @@ const textPacks = {
     speechProgress: '进度',
     speechNoActiveReading: '当前没有正在朗读的内容。',
     speechIdleHint: '点击消息上的朗读按钮开始。',
+    attachmentPreview: '预览附件',
+    attachmentPreviewUnavailable: '此附件无法预览。',
+    attachmentPreviewOpenFailed: '无法打开附件。',
     deleteConversation: '删除会话',
     deleteConversationDescription: '此会话及其消息将从桌面端删除，且无法恢复。',
     delete: '删除',
@@ -584,6 +591,9 @@ const textPacks = {
     speechProgress: '進度',
     speechNoActiveReading: '目前沒有正在朗讀的內容。',
     speechIdleHint: '點擊訊息上的朗讀按鈕開始。',
+    attachmentPreview: '預覽附件',
+    attachmentPreviewUnavailable: '此附件無法預覽。',
+    attachmentPreviewOpenFailed: '無法開啟附件。',
     deleteConversation: '刪除會話',
     deleteConversationDescription: '此會話及其訊息將從桌面端刪除，且無法復原。',
     delete: '刪除',
@@ -1166,11 +1176,19 @@ const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessag
   const agentStatusEvents = toAgentStatusEvents(parts)
   const attachments = parts
     .filter((part) => part.type === 'file')
-    .map((part) => ({ name: part.filename || 'Attachment', ...(part.mediaType ? { mediaType: part.mediaType } : {}) }))
+    .map((part) => {
+      const fileEntryId = part.providerMetadata?.cherry?.fileEntryId
+      return {
+        name: part.filename || 'Attachment',
+        ...(part.mediaType ? { mediaType: part.mediaType } : {}),
+        ...(fileEntryId ? { fileEntryId } : {})
+      }
+    })
   const processingTimeMs =
     message.stats?.timeCompletionMs ??
     message.stats?.timeThinkingMs ??
     parts.find((part) => part.type === 'reasoning')?.providerMetadata?.cherry?.thinkingMs
+  const modelId = typeof message.modelId === 'string' && message.modelId.trim() ? message.modelId : undefined
 
   return {
     id: message.id,
@@ -1181,6 +1199,7 @@ const toMessageSnapshot = (message: WebUiAgentSessionMessageEntity): WebUiMessag
     ...(toolCalls.length ? { toolCalls } : {}),
     ...(agentStatusEvents.length ? { agentStatusEvents } : {}),
     ...(attachments.length ? { attachments } : {}),
+    ...(modelId ? { modelId } : {}),
     status: message.status,
     ...(processingTimeMs ? { processingTimeMs } : {}),
     createdAt: message.createdAt
@@ -1451,6 +1470,25 @@ const App = defineComponent({
       if (role === 'user') return userName.value || role
       if (role === 'assistant') return selectedAgentName.value || role
       return role
+    }
+    /** Resolve display model name for an assistant message (session snapshot → live agent). */
+    const messageModelLabel = (message: WebUiMessageSnapshot) => {
+      if (message.role !== 'assistant') return ''
+      if (message.modelId) {
+        const fromCatalog = models.value.find((model) => model.id === message.modelId)
+        if (fromCatalog?.name) return fromCatalog.name
+        const bareId = message.modelId.includes('::')
+          ? (message.modelId.split('::').pop() ?? message.modelId)
+          : message.modelId
+        return bareId
+      }
+      return selectedModel.value?.name ?? selectedAgent.value?.modelName ?? selectedAgent.value?.model ?? ''
+    }
+    const messageHeaderLabel = (message: WebUiMessageSnapshot) => {
+      const author = messageAuthorName(message.role)
+      if (message.role !== 'assistant') return author
+      const modelLabel = messageModelLabel(message)
+      return modelLabel ? `${author} · ${modelLabel}` : author
     }
     const conversationAgentName = (agentId: string | null) =>
       agents.value.find((agent) => agent.id === agentId)?.name ?? text('agent')
@@ -2360,6 +2398,86 @@ const App = defineComponent({
       URL.revokeObjectURL(url)
     }
 
+    const openMessageAttachment = async (attachment: {
+      readonly name: string
+      readonly mediaType?: string
+      readonly fileEntryId?: string
+    }) => {
+      const fileEntryId = attachment.fileEntryId?.trim()
+      if (!fileEntryId) {
+        submitError.value = text('attachmentPreviewUnavailable')
+        return
+      }
+      try {
+        const blob = await httpClient.getBlob(`/api/files/${encodeURIComponent(fileEntryId)}`)
+        const mediaType = attachment.mediaType || blob.type || 'application/octet-stream'
+        const isTextLike =
+          mediaType.startsWith('text/') ||
+          mediaType.includes('json') ||
+          mediaType.includes('xml') ||
+          mediaType.includes('javascript') ||
+          mediaType.includes('markdown') ||
+          /\.(txt|md|json|csv|log|xml|yml|yaml|ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|css|html|sh|bat|ps1)$/i.test(
+            attachment.name
+          )
+        const isImage = mediaType.startsWith('image/')
+        const isPdf = mediaType === 'application/pdf' || attachment.name.toLowerCase().endsWith('.pdf')
+
+        if (isTextLike) {
+          const content = await blob.text()
+          clearStatusPreviewTimers()
+          statusPreviewOpen.value = false
+          statusPanelOpen.value = true
+          rightPanelTab.value = 'files'
+          releaseWorkspacePreview()
+          workspacePreviewMode.value = 'preview'
+          workspacePreviewWrap.value = true
+          selectedWorkspaceFile.value = attachment.name
+          workspaceFilePreview.value = {
+            status: 'text',
+            path: attachment.name,
+            name: attachment.name,
+            content
+          }
+          return
+        }
+
+        const objectUrl = URL.createObjectURL(blob)
+        if (isImage || isPdf) {
+          clearStatusPreviewTimers()
+          statusPreviewOpen.value = false
+          statusPanelOpen.value = true
+          rightPanelTab.value = 'files'
+          releaseWorkspacePreview()
+          workspacePreviewMode.value = 'preview'
+          selectedWorkspaceFile.value = attachment.name
+          workspaceFilePreview.value = {
+            status: isImage ? 'image' : 'pdf',
+            path: attachment.name,
+            name: attachment.name,
+            url: objectUrl
+          }
+          return
+        }
+
+        const link = document.createElement('a')
+        link.href = objectUrl
+        link.download = attachment.name || 'attachment'
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500)
+        showCopiedHint(text('downloadSource'))
+      } catch (error) {
+        submitError.value =
+          error instanceof WebUiHttpError
+            ? error.payload?.code === 'WEBUI_FILE_AUTH_REQUIRED'
+              ? text('fileAuthRequired')
+              : error.payload?.message || text('attachmentPreviewOpenFailed')
+            : text('attachmentPreviewOpenFailed')
+      }
+    }
+
     const handleMarkdownContentClick = (event: MouseEvent) => {
       const target =
         event.target instanceof Element
@@ -3068,7 +3186,15 @@ const App = defineComponent({
         messageLoadState.value = 'ready'
         messageLoadMessage.value = messages.value.length ? '' : text('emptyConversation')
         refreshComposerInfo(conversationId)
-        if (mode === 'replace') scrollMessagesToEnd()
+        if (mode === 'replace') {
+          scrollMessagesToEnd()
+          // If the first page does not fill the viewport, keep loading older pages.
+          await nextTick()
+          const stack = messageStack.value
+          if (olderMessagesCursor.value && stack && stack.scrollHeight <= stack.clientHeight + 8) {
+            void loadOlderMessages()
+          }
+        }
       } catch (error) {
         if (requestId !== latestMessageRequest || selectedConversationId.value !== conversationId) return
 
@@ -3095,6 +3221,12 @@ const App = defineComponent({
         olderMessagesCursor.value = page.nextCursor
         await nextTick()
         if (stack) stack.scrollTop += stack.scrollHeight - previousScrollHeight
+        // Keep filling the viewport while older pages remain (button + scroll-to-top still work).
+        if (olderMessagesCursor.value && stack && stack.scrollHeight <= stack.clientHeight + 8) {
+          olderMessagesLoading.value = false
+          await loadOlderMessages()
+          return
+        }
       } catch (error) {
         submitError.value = localizedErrorMessage(error)
       } finally {
@@ -3578,6 +3710,10 @@ const App = defineComponent({
       const stack = messageStack.value
       if (!stack) return
       showScrollToBottom.value = stack.scrollHeight - stack.scrollTop - stack.clientHeight > 96
+      // Auto-load older pages when the user scrolls near the top (keep manual button too).
+      if (stack.scrollTop <= 72 && olderMessagesCursor.value && !olderMessagesLoading.value) {
+        void loadOlderMessages()
+      }
     }
 
     const beginComposerResize = (event: PointerEvent) => {
@@ -4410,7 +4546,7 @@ const App = defineComponent({
                         },
                         [
                           h('header', { class: 'message-header' }, [
-                            h('p', { class: 'message-role' }, messageAuthorName(message.role))
+                            h('p', { class: 'message-role' }, messageHeaderLabel(message))
                           ]),
                           renderProcessDetails(message),
                           message.attachments?.length
@@ -4418,11 +4554,25 @@ const App = defineComponent({
                                 'div',
                                 { class: 'message-attachments' },
                                 message.attachments.map((attachment) =>
-                                  h(
-                                    'span',
-                                    { class: 'message-attachment', title: attachment.mediaType },
-                                    attachment.name
-                                  )
+                                  attachment.fileEntryId
+                                    ? h(
+                                        'button',
+                                        {
+                                          class: ['message-attachment', 'message-attachment-link'],
+                                          type: 'button',
+                                          title: attachment.mediaType || attachment.name,
+                                          onClick: () => void openMessageAttachment(attachment)
+                                        },
+                                        attachment.name
+                                      )
+                                    : h(
+                                        'span',
+                                        {
+                                          class: 'message-attachment',
+                                          title: attachment.mediaType || attachment.name
+                                        },
+                                        attachment.name
+                                      )
                                 )
                               )
                             : undefined,
@@ -5353,21 +5503,21 @@ style.textContent = `
   .status-panel {
     min-height: 0;
     padding: 14px 12px;
-    background: #ffffff;
-    border-color: #e5e7eb;
+    background: #f8fafc;
+    border-color: #e2e8f0;
   }
 
   .conversation-list {
     display: grid;
     grid-template-rows: auto auto auto minmax(0, 1fr);
     overflow: hidden;
-    border-right: 1px solid #e5e7eb;
+    border-right: 1px solid #e2e8f0;
   }
 
   .status-panel {
     overflow-y: auto;
     padding-top: 20px;
-    border-left: 1px solid #e5e7eb;
+    border-left: 1px solid #e2e8f0;
   }
 
   .panel-header {
@@ -5437,12 +5587,14 @@ style.textContent = `
 
   .language-menu-wrap {
     position: relative;
+    z-index: 50;
   }
 
   .language-picker-menu {
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
+    z-index: 60;
     display: grid;
     min-width: 112px;
     padding: 4px;
@@ -5560,6 +5712,7 @@ style.textContent = `
   .conversation-nav {
     display: grid;
     gap: 6px;
+    align-content: start;
     min-height: 0;
     margin-top: 6px;
     padding-right: 4px;
@@ -5570,17 +5723,21 @@ style.textContent = `
   .conversation-item-wrap {
     position: relative;
     display: grid;
+    align-self: start;
+    height: fit-content;
   }
 
   .conversation-item {
     display: grid;
     width: 100%;
     min-height: 52px;
+    height: fit-content;
     padding: 8px 10px;
     text-align: left;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     border-radius: 8px;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
     cursor: pointer;
   }
 
@@ -6837,6 +6994,7 @@ style.textContent = `
     display: block;
     margin-bottom: 8px;
     font-size: 12px;
+    line-height: 1.45;
     opacity: 0.78;
   }
 
@@ -6845,6 +7003,8 @@ style.textContent = `
     gap: 12px;
     align-items: center;
     justify-content: space-between;
+    margin-bottom: 2px;
+    min-height: 22px;
   }
 
   .message-footer {
@@ -7211,25 +7371,49 @@ style.textContent = `
 
 
   .markdown-content table {
-    display: block;
+    width: 100%;
     max-width: 100%;
-    overflow-x: auto;
-    border-collapse: collapse;
-    border: 1px solid #d1d5db;
+    margin: 0.75em 0;
+    overflow: hidden;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 0.5px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.92em;
   }
 
   .markdown-content th,
   .markdown-content td {
     min-width: 88px;
-    padding: 8px 10px;
+    padding: 0.5em 0.75em;
     text-align: left;
     vertical-align: top;
-    border: 1px solid #d1d5db;
+    border-right: 0.5px solid #d1d5db;
+    border-bottom: 0.5px solid #d1d5db;
+  }
+
+  .markdown-content th:last-child,
+  .markdown-content td:last-child {
+    border-right: none;
+  }
+
+  .markdown-content tr:last-child td {
+    border-bottom: none;
   }
 
   .markdown-content th {
     font-weight: 600;
     background: #f3f4f6;
+  }
+
+  .markdown-content tr:hover {
+    background: #f8fafc;
+  }
+
+  .markdown-content .table-wrapper,
+  .markdown-content table {
+    display: block;
+    overflow-x: auto;
   }
 
   .process-block {
@@ -7245,8 +7429,9 @@ style.textContent = `
     display: flex;
     gap: 8px;
     align-items: center;
-    min-height: 36px;
-    padding: 0 12px;
+    min-height: 40px;
+    padding: 4px 12px;
+    line-height: 1.45;
     cursor: pointer;
     list-style: none;
   }
@@ -7735,11 +7920,26 @@ style.textContent = `
     padding: 4px 8px;
   }
 
+  .message-attachment-link {
+    color: #1d4ed8;
+    text-decoration: underline;
+    text-decoration-color: rgb(29 78 216 / 35%);
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .message-attachment-link:hover,
+  .message-attachment-link:focus-visible {
+    color: #1e40af;
+    text-decoration-color: currentColor;
+    outline: 0;
+  }
+
   .composer {
     margin-top: 8px;
     padding-top: 8px;
-    background: #f6f7fb;
-    border-top: 1px solid #e5e7eb;
+    background: #eef2f7;
+    border-top: 1px solid #dbe1ea;
   }
 
   .permission-request-panel {
@@ -8897,6 +9097,30 @@ style.textContent = `
     color: #e5e7eb;
     background: #273449;
     border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .markdown-content table {
+    border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .markdown-content th,
+  :root[data-webui-theme='dark'] .markdown-content td {
+    border-right-color: #475569;
+    border-bottom-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .markdown-content tr:hover {
+    background: #1e293b;
+  }
+
+  :root[data-webui-theme='dark'] .message-attachment-link {
+    color: #93c5fd;
+    text-decoration-color: rgb(147 197 253 / 40%);
+  }
+
+  :root[data-webui-theme='dark'] .message-attachment-link:hover,
+  :root[data-webui-theme='dark'] .message-attachment-link:focus-visible {
+    color: #bfdbfe;
   }
 
   :root[data-webui-theme='dark'] .conversation-item:hover,

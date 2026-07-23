@@ -62,6 +62,8 @@ export type WebUiMessageSnapshot = {
   readonly toolCalls?: readonly WebUiToolCallSnapshot[]
   readonly agentStatusEvents?: readonly WebUiAgentStatusEvent[]
   readonly attachments?: readonly WebUiMessageAttachmentSnapshot[]
+  /** Unique model id (`providerId::modelId`) when the assistant turn was created. */
+  readonly modelId?: string
   readonly status: 'pending' | 'success' | 'error' | 'paused'
   readonly processingTimeMs?: number
   readonly createdAt: string
@@ -97,6 +99,8 @@ export type WebUiAgentStatusEvent =
 export type WebUiMessageAttachmentSnapshot = {
   readonly name: string
   readonly mediaType?: string
+  /** FileManager entry id — enables preview/download via WebUI file API. */
+  readonly fileEntryId?: string
 }
 
 export type WebUiSendAttachment = {
@@ -254,6 +258,7 @@ export type WebUiMessagePart = {
   readonly errorText?: string
   readonly filename?: string
   readonly mediaType?: string
+  readonly url?: string
   /** ToolUIPart approval payload — `id` is the live registry key. */
   readonly approval?: {
     readonly id?: string
@@ -263,6 +268,7 @@ export type WebUiMessagePart = {
   readonly providerMetadata?: {
     readonly cherry?: {
       readonly thinkingMs?: number
+      readonly fileEntryId?: string
     }
   }
 }
@@ -276,6 +282,7 @@ export type WebUiAgentSessionMessageEntity = {
   }
   readonly searchableText: string
   readonly status: 'pending' | 'success' | 'error' | 'paused'
+  readonly modelId?: string | null
   readonly stats?: {
     readonly timeCompletionMs?: number
     readonly timeThinkingMs?: number

@@ -169,6 +169,7 @@ const sessionGenerateTitlePath = /^\/api\/agent-sessions\/([^/]+)\/generate-titl
 const sessionWorkspaceFilesPath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/files$/
 const sessionWorkspaceFilePath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/file$/
 const sessionWorkspacePreviewPath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/preview$/
+const fileEntryPath = /^\/api\/files\/([^/]+)$/
 const readableDataApiPatterns = [
   /^\/agents$/,
   /^\/models$/,
@@ -561,6 +562,57 @@ export const createWebUiApiRouter = ({
     }
 
     if (!isWebUiRequestAuthorized(request, url, getAuthKey())) return unauthorized()
+
+    const fileEntryMatch = pathname.match(fileEntryPath)
+    if (fileEntryMatch) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+      if (!normalizeAuthKey(getAuthKey())) {
+        return {
+          status: 403,
+          body: {
+            code: 'WEBUI_FILE_AUTH_REQUIRED',
+            message: 'Configure a WebUI access key before enabling message file access'
+          }
+        }
+      }
+
+      try {
+        const encodedFileId = fileEntryMatch[1]
+        if (!encodedFileId) {
+          return { status: 400, body: { code: 'WEBUI_INVALID_FILE', message: 'File id is missing' } }
+        }
+        const fileId = decodeURIComponent(encodedFileId)
+        const fileManager = application.get('FileManager')
+        const entry = await fileManager.getById(fileId as never)
+        const downloadName =
+          typeof entry.name === 'string' && entry.name.trim()
+            ? entry.name
+            : entry.ext
+              ? `file.${entry.ext}`
+              : 'attachment'
+        const result = await fileManager.read(fileId as never, { encoding: 'binary' })
+        const mimeType = (typeof result.mime === 'string' && result.mime.trim()) || 'application/octet-stream'
+        const body = Buffer.isBuffer(result.content) ? result.content : Buffer.from(result.content as Uint8Array)
+        return {
+          status: 200,
+          rawBody: body,
+          headers: {
+            'Content-Type': mimeType,
+            'Content-Length': body.byteLength,
+            'Cache-Control': 'private, max-age=60',
+            'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(downloadName)}`
+          }
+        }
+      } catch (error) {
+        return {
+          status: 404,
+          body: {
+            code: 'WEBUI_FILE_NOT_FOUND',
+            message: error instanceof Error ? error.message : 'File is unavailable'
+          }
+        }
+      }
+    }
 
     const workspaceMatch = workspaceFilesMatch ?? workspaceFileMatch ?? workspacePreviewMatch
     if (workspaceMatch) {
