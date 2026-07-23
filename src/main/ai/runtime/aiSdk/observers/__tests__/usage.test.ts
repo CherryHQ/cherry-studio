@@ -1,47 +1,178 @@
-import type { LanguageModelUsage, UIMessageChunk } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
+import type { LanguageModelUsage } from 'ai'
+import { describe, expect, it } from 'vitest'
 
-import type { Agent } from '../../Agent'
 import { attachUsageObserver } from '../usage'
 
-type ObserverCallback = (payload?: unknown) => void
+// ──────────────────────────────────────────────────────────────────────────────
+// Minimal fake Agent that records write() calls and lets tests fire registered
+// on() callbacks.
+// ──────────────────────────────────────────────────────────────────────────────
+
+type HandlerMap = Record<string, ((...args: unknown[]) => void)[]>
+
+function makeFakeAgent() {
+  const handlers: HandlerMap = {}
+  const written: CherryUIMessageChunk[] = []
+
+  const agent = {
+    on(key: string, fn: (...args: unknown[]) => void) {
+      ;(handlers[key] ??= []).push(fn)
+      return () => {
+        const list = handlers[key]
+        if (list) {
+          const i = list.indexOf(fn)
+          if (i >= 0) list.splice(i, 1)
+        }
+      }
+    },
+    write(chunk: CherryUIMessageChunk) {
+      written.push(chunk)
+    },
+    fire(key: string, ...args: unknown[]) {
+      for (const fn of handlers[key] ?? []) fn(...args)
+    }
+  }
+
+  return { agent, written }
+}
+
+function makeStep(usage: LanguageModelUsage) {
+  return { usage }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 describe('attachUsageObserver', () => {
-  it('emits accumulated cache token details in message metadata', () => {
-    const callbacks: Record<string, ObserverCallback> = {}
-    const chunks: UIMessageChunk[] = []
-    const agent = {
-      on: vi.fn((name: string, cb: ObserverCallback) => {
-        callbacks[name] = cb
-      }),
-      write: vi.fn((chunk: UIMessageChunk) => chunks.push(chunk))
-    } as unknown as Agent
+  it('emits totalTokens as running sum and contextTokens as last-step value', () => {
+    const { agent, written } = makeFakeAgent()
 
-    attachUsageObserver(agent)
-    callbacks.onStart()
-    callbacks.onStepFinish({
-      usage: {
+    attachUsageObserver(agent as any)
+
+    agent.fire('onStart')
+
+    // Step A
+    agent.fire(
+      'onStepFinish',
+      makeStep({ inputTokens: 10, outputTokens: 5, totalTokens: 15, outputTokenDetails: {} } as LanguageModelUsage)
+    )
+
+    // Step B
+    agent.fire(
+      'onStepFinish',
+      makeStep({ inputTokens: 20, outputTokens: 8, totalTokens: 28, outputTokenDetails: {} } as LanguageModelUsage)
+    )
+
+    expect(written).toHaveLength(2)
+
+    const lastChunk = written[1]
+    expect(lastChunk.type).toBe('message-metadata')
+    const meta = (lastChunk as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
+
+    // totalTokens must be the running SUM (15 + 28 = 43)
+    expect(meta?.totalTokens).toBe(43)
+
+    // contextTokens must be the LAST step's totalTokens (28), not the sum
+    expect(meta?.contextTokens).toBe(28)
+  })
+
+  it('emits contextTokens as undefined when inputTokens is absent (output-only provider shape)', () => {
+    const { agent, written } = makeFakeAgent()
+
+    attachUsageObserver(agent as any)
+
+    agent.fire('onStart')
+
+    // Final step with output-only usage: provider omits inputTokens.
+    // AI SDK derives totalTokens = addTokenCounts(undefined, 200) === 200.
+    // That tiny value must NOT be recorded as contextTokens anchor.
+    agent.fire(
+      'onStepFinish',
+      makeStep({
+        inputTokens: undefined,
+        outputTokens: 200,
+        totalTokens: 200,
+        outputTokenDetails: {}
+      } as unknown as LanguageModelUsage)
+    )
+
+    expect(written).toHaveLength(1)
+    const meta = (written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
+
+    // completionTokens must still be summed (200)
+    expect(meta?.completionTokens).toBe(200)
+    // contextTokens must be undefined — no bogus output-only anchor
+    expect(meta?.contextTokens).toBeUndefined()
+  })
+
+  it('resets contextTokens on onStart so a new turn does not carry forward the previous value', () => {
+    const { agent, written } = makeFakeAgent()
+
+    attachUsageObserver(agent as any)
+
+    // First turn
+    agent.fire('onStart')
+    agent.fire(
+      'onStepFinish',
+      makeStep({ inputTokens: 10, outputTokens: 5, totalTokens: 15, outputTokenDetails: {} } as LanguageModelUsage)
+    )
+    agent.fire(
+      'onStepFinish',
+      makeStep({ inputTokens: 20, outputTokens: 8, totalTokens: 28, outputTokenDetails: {} } as LanguageModelUsage)
+    )
+    // After two steps, contextTokens should be 28.
+    const afterSecondStep = written[1]
+    expect(
+      (afterSecondStep as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata?.contextTokens
+    ).toBe(28)
+
+    // Second turn — onStart resets everything
+    agent.fire('onStart')
+    agent.fire(
+      'onStepFinish',
+      makeStep({ inputTokens: 5, outputTokens: 4, totalTokens: 9, outputTokenDetails: {} } as LanguageModelUsage)
+    )
+
+    const lastChunk = written[written.length - 1]
+    const meta = (lastChunk as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
+
+    // totalTokens resets: only step C = 9
+    expect(meta?.totalTokens).toBe(9)
+    // contextTokens resets: should be 9, not 28 + 9
+    expect(meta?.contextTokens).toBe(9)
+  })
+
+  it('emits accumulated cache token details in message metadata', () => {
+    const { agent, written } = makeFakeAgent()
+
+    attachUsageObserver(agent as any)
+
+    agent.fire('onStart')
+    agent.fire(
+      'onStepFinish',
+      makeStep({
         inputTokens: 10,
         outputTokens: 4,
         totalTokens: 14,
         inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 5, cacheWriteTokens: 2 },
         outputTokenDetails: { textTokens: undefined, reasoningTokens: 1 }
-      } satisfies LanguageModelUsage
-    })
+      } as LanguageModelUsage)
+    )
 
-    expect(chunks).toEqual([
-      {
-        type: 'message-metadata',
-        messageMetadata: {
-          totalTokens: 14,
-          promptTokens: 10,
-          completionTokens: 4,
-          thoughtsTokens: 1,
-          noCacheTokens: 3,
-          cacheReadTokens: 5,
-          cacheWriteTokens: 2
-        }
-      }
-    ])
+    expect(written).toHaveLength(1)
+    const meta = (written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
+
+    // inputTokens is present → contextTokens anchors on the last-step totalTokens (14);
+    // cache-token details accumulate alongside the base counters.
+    expect(meta).toEqual({
+      totalTokens: 14,
+      promptTokens: 10,
+      completionTokens: 4,
+      thoughtsTokens: 1,
+      contextTokens: 14,
+      noCacheTokens: 3,
+      cacheReadTokens: 5,
+      cacheWriteTokens: 2
+    })
   })
 })

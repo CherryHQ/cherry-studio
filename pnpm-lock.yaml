@@ -1313,6 +1313,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.2.4
         version: 2.2.4
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
       oxlint:
         specifier: ^1.36.0
         version: 1.56.0(oxlint-tsgolint@0.17.4)
@@ -15729,7 +15732,7 @@ snapshots:
       '@eslint-react/eff': 1.53.1
       '@typescript-eslint/utils': 8.51.0(eslint@9.39.2(jiti@2.7.0))(typescript@5.8.3)
       ts-pattern: 5.9.0
-      zod: 4.3.6
+      zod: 4.4.3
     transitivePeerDependencies:
       - eslint
       - supports-color
@@ -15741,7 +15744,7 @@ snapshots:
       '@eslint-react/kit': 1.53.1(eslint@9.39.2(jiti@2.7.0))(typescript@5.8.3)
       '@typescript-eslint/utils': 8.51.0(eslint@9.39.2(jiti@2.7.0))(typescript@5.8.3)
       ts-pattern: 5.9.0
-      zod: 4.3.6
+      zod: 4.4.3
     transitivePeerDependencies:
       - eslint
       - supports-color

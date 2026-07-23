@@ -135,6 +135,7 @@ export function statsFromTerminal(
     if (typeof meta.promptTokens === 'number') stats.promptTokens = meta.promptTokens
     if (typeof meta.completionTokens === 'number') stats.completionTokens = meta.completionTokens
     if (typeof meta.thoughtsTokens === 'number') stats.thoughtsTokens = meta.thoughtsTokens
+    if (typeof meta.contextTokens === 'number') stats.contextTokens = meta.contextTokens
     if (typeof meta.noCacheTokens === 'number') stats.noCacheTokens = meta.noCacheTokens
     if (typeof meta.cacheReadTokens === 'number') stats.cacheReadTokens = meta.cacheReadTokens
     if (typeof meta.cacheWriteTokens === 'number') stats.cacheWriteTokens = meta.cacheWriteTokens

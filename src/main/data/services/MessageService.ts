@@ -130,6 +130,7 @@ function rowToMessage(row: MessageRow): Message {
     modelId: (row.modelId ?? null) as UniqueModelId | null,
     messageSnapshot: parseJson(row.messageSnapshot),
     stats: parseJson(row.stats),
+    compactionSummary: row.compactionSummary ?? null,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -763,6 +764,14 @@ export class MessageService {
     if (ids.length === 0) return
     const db = application.get('DbService').getDb()
     db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
+  }
+
+  /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */
+  setCompactionSummary(id: string, summary: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(messageTable).set({ compactionSummary: summary }).where(eq(messageTable.id, id)).run()
+    })
+    logger.info('Set message compactionSummary', { id, length: summary.length })
   }
 
   search(query: MessageContentSearchInput) {

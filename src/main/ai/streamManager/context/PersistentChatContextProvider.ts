@@ -6,16 +6,27 @@
  */
 
 import { application } from '@application'
+import { ContextPrompts, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
+import { loggerService } from '@logger'
+import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
-import { type Message as SharedMessage, type MessageSnapshot, toContentRole } from '@shared/data/types/message'
+import {
+  type Message as SharedMessage,
+  type MessageRole,
+  type MessageSnapshot,
+  toContentRole
+} from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { ModelMessage } from 'ai'
 
+import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
+import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
 import type { AiStreamRequest } from '../../types'
@@ -24,8 +35,18 @@ import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
+import {
+  applyDeepestMarker,
+  type CompactionRow,
+  estimateRowTokens,
+  findDeepestMarker,
+  planKeepBoundary,
+  summaryRow
+} from './compaction'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
+
+const logger = loggerService.withContext('PersistentChatContextProvider')
 
 /** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
 function resolveAssistantIdentity(assistantId: string | undefined) {
@@ -50,6 +71,10 @@ function buildAssistantMessageSnapshot(
   }
 }
 
+/**
+ * One OTel root span per execution. Stream-manager sets the span active
+ * around `runExecutionLoop` so AI SDK spans become children.
+ */
 function startTurnRootSpans(
   topicId: string,
   trigger: string,
@@ -287,7 +312,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const history = this.buildHistory(userMessage.id)
+      const history = await this.resolveCompactedHistory(
+        userMessage.id,
+        req.topicId,
+        assistantPlaceholders.map((p) => p.model)
+      )
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
         request: this.buildStreamRequest(
@@ -345,7 +374,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'continue-conversation' anchor does not belong to topic ${req.topicId}`)
     }
 
-    // Apply decisions to DB parts and flip status to `pending` so buildHistory sees the approved state.
+    // Apply decisions to DB parts and flip status to `pending` so resolveCompactedHistory sees the approved state.
     const beforeParts = anchor.data.parts ?? []
     const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
@@ -376,7 +405,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const history = this.buildHistory(anchor.id)
+      const history = await this.resolveCompactedHistory(anchor.id, req.topicId, [model])
       return {
         topicId: req.topicId,
         models: [
@@ -443,7 +472,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const history = withSteerReminder(this.buildHistory(req.userMessageId))
+      const history = withSteerReminder(await this.resolveCompactedHistory(req.userMessageId, req.topicId, [model]))
       return {
         topicId: req.topicId,
         models: [
@@ -463,18 +492,114 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
   }
 
+  private toRow(m: SharedMessage): CompactionRow {
+    return {
+      id: m.id,
+      role: m.role,
+      parts: (m.data?.parts ?? []) as CompactionRow['parts'],
+      compactionSummary: m.compactionSummary ?? undefined,
+      contextTokens: m.stats?.contextTokens ?? undefined
+    }
+  }
+
+  private toServed(row: CompactionRow): CherryUIMessage {
+    // Route the role through toContentRole to keep the virtual-root guard that the
+    // rest of this file relies on (a `root` row must never reach model history).
+    return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
+  }
+
+  private estimateTotal(rows: CompactionRow[]): number {
+    return rows.reduce((s, r) => s + estimateRowTokens(r), 0)
+  }
+
   /**
-   * Path from root → anchor. Anchor: user msg for submit/regenerate, or
-   * assistant msg for continue-conversation (so the model sees the
-   * approval-responded state).
+   * Trigger estimate for the served history. Anchors on the most recent assistant
+   * row in the served view that carries a real contextTokens (prior turn's last-step
+   * totalTokens), adding a tokenx estimate of only the rows after it. Falls back to a
+   * full tokenx estimate when no anchor exists or it was folded out by the marker.
    */
-  private buildHistory(anchorMessageId: string): CherryUIMessage[] {
-    const messagePath = messageService.getPathToNode(anchorMessageId)
-    return messagePath.map((msg) => ({
-      id: msg.id,
-      role: toContentRole(msg.role),
-      parts: msg.data.parts ?? []
-    }))
+  private estimateContext(effective: CompactionRow[]): number {
+    let anchorIdx = -1
+    for (let i = effective.length - 1; i >= 0; i--) {
+      if (effective[i].role === 'assistant' && typeof effective[i].contextTokens === 'number') {
+        anchorIdx = i
+        break
+      }
+    }
+    if (anchorIdx < 0) return this.estimateTotal(effective)
+    const base = effective[anchorIdx].contextTokens as number
+    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r), 0)
+    return base + tail
+  }
+
+  /**
+   * Build the model-facing history for a turn, applying durable compaction.
+   * 1. Load the full path as raw rows (with ids/roles/compactionSummary).
+   * 2. Apply the DEEPEST marker on the path (a marker not on this path is ignored
+   *    → branch switches stay correct).
+   * 3. If over the trigger budget AND compression is enabled, snap a new keep
+   *    boundary to a `user` row, summarize everything older (folding the prior
+   *    summary), persist the summary onto the new boundary row, and serve the
+   *    compacted view. The tree is never structurally mutated; only a column is set.
+   */
+  private async resolveCompactedHistory(
+    anchorMessageId: string,
+    topicId: string,
+    models: Model[]
+  ): Promise<CherryUIMessage[]> {
+    // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
+    // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
+    const rawMsgs = messageService.getPathToNode(anchorMessageId)
+    const rows = rawMsgs.map((m) => this.toRow(m))
+    const effective = applyDeepestMarker(rows)
+
+    const { contextSettings, compressionModel } = await resolveRequestContextSettings(models[0])
+    const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
+    if (!on) return effective.map((r) => this.toServed(r))
+    if (!compressionModel) return effective.map((r) => this.toServed(r))
+
+    // contextWindow is a required input — the model layer's contract guarantees it;
+    // this layer never fabricates or defaults it.
+    const minContextWindow = Math.min(...models.map((m) => m.contextWindow as number))
+    if (this.estimateContext(effective) <= Math.floor(minContextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+      return effective.map((r) => this.toServed(r))
+    }
+
+    const d = findDeepestMarker(rows)
+    const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
+    const keepIdx = planKeepBoundary(recent, Math.floor(minContextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO))
+    // Over-budget-without-compacting edge: when everything in `recent` fits the keep
+    // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
+    // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
+    // missed compaction — the in-loop `prepareStep` hook owns this case as the second
+    // safety net (see inLoopCompaction; the no-double-compact test pins the interaction).
+    if (keepIdx === null) return effective.map((r) => this.toServed(r))
+
+    const boundary = recent[keepIdx - 1] // real row before the kept user row
+
+    const oldSummary = d >= 0 ? rows[d].compactionSummary : undefined
+    try {
+      // Fold = the older slice of `recent` (before the keep boundary). Convert those rows
+      // to served UIMessages, then to ModelMessages via the shared pipeline. (messageConverter
+      // + its prepareModelMessages were removed in main #16257; toModelMessages is the successor.)
+      const realModelMessages = await toModelMessages(recent.slice(0, keepIdx).map((r) => this.toServed(r)))
+      const modelMessages: ModelMessage[] = [
+        ...(oldSummary
+          ? [{ role: 'user' as const, content: ContextPrompts.getCompactSummaryWrapper(oldSummary) }]
+          : []),
+        ...realModelMessages
+      ]
+      const summary = await summarizeModelMessages(modelMessages, compressionModel)
+      if (!summary) {
+        logger.warn('durable compaction yielded empty summary; serving marker-applied history', { topicId })
+        return effective.map((r) => this.toServed(r))
+      }
+      messageService.setCompactionSummary(boundary.id, summary)
+      return [summaryRow(boundary.id, summary), ...recent.slice(keepIdx)].map((r) => this.toServed(r))
+    } catch (error) {
+      logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
+      return effective.map((r) => this.toServed(r))
+    }
   }
 
   private buildStreamRequest(

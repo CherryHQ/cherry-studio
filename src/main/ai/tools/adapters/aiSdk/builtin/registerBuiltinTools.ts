@@ -10,6 +10,7 @@
  */
 
 import { registry, type ToolRegistry } from '../registry'
+import { createFsReadToolEntry } from './FsReadTool'
 import { createKbListToolEntry } from './KnowledgeListTool'
 import { createKbManageToolEntry } from './KnowledgeManageTool'
 import { createKbReadToolEntry } from './KnowledgeReadTool'
@@ -20,6 +21,11 @@ import { createWebFetchToolEntry } from './WebFetchTool'
 import { createWebSearchToolEntry } from './WebSearchTool'
 
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
+  // fs_read is intentionally always registered (no `applies` gate). Even when truncation
+  // is off it stays reachable, but confined to the VfsBlobService temp dir (realpath-
+  // confined, read-only, size-capped, content-addressed filenames). The persisted-output
+  // system-prompt section is keyed on its presence, so it stays available too.
+  reg.register(createFsReadToolEntry())
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())
   reg.register(createKbReadToolEntry())
