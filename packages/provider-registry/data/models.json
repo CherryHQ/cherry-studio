@@ -2735,11 +2735,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       }
     },
@@ -4637,7 +4637,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "file-input"],
-      "contextWindow": 524288,
+      "contextWindow": 1048576,
       "family": "ling",
       "id": "inkling",
       "inputModalities": ["text", "image", "audio"],
@@ -4731,6 +4731,28 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.03
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 262144,
+      "family": "ling",
+      "id": "ling-3-0-flash",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 256000,
+      "metadata": {},
+      "name": "Ling 3.0 Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "bailing",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
         }
       }
     },
@@ -7848,7 +7870,7 @@
         "web-search"
       ],
       "contextWindow": 1048576,
-      "family": "gemini",
+      "family": "gemini-flash-lite",
       "id": "gemini-3-5-flash-lite",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
@@ -7900,7 +7922,7 @@
         "file-input"
       ],
       "contextWindow": 1048576,
-      "family": "gemini",
+      "family": "gemini-flash",
       "id": "gemini-3-6-flash",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
@@ -10568,6 +10590,15 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "Microsoft: MAI-Image-2.5",
+      "outputModalities": ["image"],
+      "ownedBy": "microsoft"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "mai-image-2-5-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Microsoft: MAI-Image-2.5 Pro",
       "outputModalities": ["image"],
       "ownedBy": "microsoft"
     },
@@ -17317,15 +17348,21 @@
     {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
+      "family": "hy3",
       "id": "hy3",
       "inputModalities": ["text"],
       "maxInputTokens": 196608,
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Hunyuan 3",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "tencent",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.035
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.14
@@ -17334,6 +17371,15 @@
           "currency": "USD",
           "perMillionTokens": 0.58
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "high"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "high"]
       }
     },
     {
@@ -17557,6 +17603,41 @@
           }
         ],
         "supportedEfforts": ["low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1048576,
+      "family": "laguna-s",
+      "id": "laguna-s-2-1",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Laguna S 2.1",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "vercel",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -19858,5 +19939,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "96e79ec0a16c027e"
+  "version": "8466cb2b9b5a1970"
 }
