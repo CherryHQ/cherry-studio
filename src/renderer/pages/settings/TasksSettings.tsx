@@ -101,6 +101,7 @@ type ScheduleCommitPatch = {
   timeoutMinutes?: number | null
 }
 type TaskDraftField = 'name' | 'prompt' | 'schedule' | 'channelIds' | 'workspace'
+type TaskDraftVersions = Record<TaskDraftField, number>
 type TaskDraftSnapshot = {
   name: string
   prompt: string
@@ -111,6 +112,16 @@ type TaskDraftSnapshot = {
 type TaskUpdateResult = {
   succeeded: boolean
   task: ScheduledTaskEntity
+}
+
+function createTaskDraftVersions(): TaskDraftVersions {
+  return {
+    name: 0,
+    prompt: 0,
+    schedule: 0,
+    channelIds: 0,
+    workspace: 0
+  }
 }
 
 function triggerToFormState(trigger: Trigger): { kind: ScheduleKind; value: string } {
@@ -136,14 +147,6 @@ function taskToDraftSnapshot(task: ScheduledTaskEntity): TaskDraftSnapshot {
     channelIds: task.channelIds ?? [],
     workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
   }
-}
-
-function scheduleDraftsEqual(left: ScheduleFormState, right: ScheduleFormState): boolean {
-  return left.kind === right.kind && left.value === right.value && left.timeoutMinutes === right.timeoutMinutes
-}
-
-function channelDraftsEqual(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
 function draftFieldsForUpdate(updates: UpdateTaskRequest): TaskDraftField[] {
@@ -177,11 +180,9 @@ function formStateToTrigger(kind: ScheduleKind, value: string): Trigger | null {
 const TaskScheduleControls: FC<{
   value: ScheduleFormState
   disabled?: boolean
-  committedTrigger?: Trigger
-  committedTimeoutMinutes?: number | null
   onChange: (value: ScheduleFormState) => void
   onCommit?: (patch: ScheduleCommitPatch) => void
-}> = ({ value, disabled, committedTrigger, committedTimeoutMinutes, onChange, onCommit }) => {
+}> = ({ value, disabled, onChange, onCommit }) => {
   const { t } = useTranslation()
 
   const scheduleTypeOptions = [
@@ -194,15 +195,13 @@ const TaskScheduleControls: FC<{
     if (!onCommit) return
     const trigger = formStateToTrigger(kind, scheduleValue)
     if (!trigger) return
-    if (committedTrigger && JSON.stringify(trigger) === JSON.stringify(committedTrigger)) return
     onCommit({ trigger })
   }
 
   const commitTimeoutMinutes = () => {
     if (!onCommit) return
     const nextTimeout = value.timeoutMinutes.trim() ? parseInt(value.timeoutMinutes, 10) : null
-    const previousTimeout = committedTimeoutMinutes ?? null
-    if (nextTimeout !== previousTimeout) onCommit({ timeoutMinutes: nextTimeout })
+    onCommit({ timeoutMinutes: nextTimeout })
   }
 
   return (
@@ -386,14 +385,9 @@ const TaskDetail: FC<{
     return channelIds.filter((channelId) => ownedChannelIds.has(channelId))
   }, [channelIds, taskChannels])
   const [workspaceId, setWorkspaceId] = useState<string | null>(initialDraft.workspaceId)
-  const draftBaselineRef = useRef(initialDraft)
-  const draftVersionsRef = useRef<Record<TaskDraftField, number>>({
-    name: 0,
-    prompt: 0,
-    schedule: 0,
-    channelIds: 0,
-    workspace: 0
-  })
+  const draftVersionsRef = useRef<TaskDraftVersions>(createTaskDraftVersions())
+  const submittedDraftVersionsRef = useRef<TaskDraftVersions>(createTaskDraftVersions())
+  const appliedDraftVersionsRef = useRef<TaskDraftVersions>(createTaskDraftVersions())
   const { data: workspaces } = useQuery('/agent-workspaces')
 
   const isSystemWorkspace = workspaceId === null
@@ -419,41 +413,42 @@ const TaskDetail: FC<{
     if (selectedFields.has('schedule')) setSchedule(next.schedule)
     if (selectedFields.has('channelIds')) setChannelIds(next.channelIds)
     if (selectedFields.has('workspace')) setWorkspaceId(next.workspaceId)
-
-    const currentBaseline = draftBaselineRef.current
-    draftBaselineRef.current = {
-      name: selectedFields.has('name') ? next.name : currentBaseline.name,
-      prompt: selectedFields.has('prompt') ? next.prompt : currentBaseline.prompt,
-      schedule: selectedFields.has('schedule') ? next.schedule : currentBaseline.schedule,
-      channelIds: selectedFields.has('channelIds') ? next.channelIds : currentBaseline.channelIds,
-      workspaceId: selectedFields.has('workspace') ? next.workspaceId : currentBaseline.workspaceId
-    }
   }, [])
 
   useEffect(() => {
-    const previous = draftBaselineRef.current
     const next = taskToDraftSnapshot(task)
+    const draftVersions = draftVersionsRef.current
+    const appliedVersions = appliedDraftVersionsRef.current
 
-    setName((current) => (current === previous.name ? next.name : current))
-    setPrompt((current) => (current === previous.prompt ? next.prompt : current))
-    setSchedule((current) => (scheduleDraftsEqual(current, previous.schedule) ? next.schedule : current))
-    setChannelIds((current) => (channelDraftsEqual(current, previous.channelIds) ? next.channelIds : current))
-    setWorkspaceId((current) => (current === previous.workspaceId ? next.workspaceId : current))
-    draftBaselineRef.current = next
+    setName((current) => (draftVersions.name === appliedVersions.name ? next.name : current))
+    setPrompt((current) => (draftVersions.prompt === appliedVersions.prompt ? next.prompt : current))
+    setSchedule((current) => (draftVersions.schedule === appliedVersions.schedule ? next.schedule : current))
+    setChannelIds((current) => (draftVersions.channelIds === appliedVersions.channelIds ? next.channelIds : current))
+    setWorkspaceId((current) => (draftVersions.workspace === appliedVersions.workspace ? next.workspaceId : current))
   }, [task])
 
   const saveField = useCallback(
     (updates: UpdateTaskRequest) => {
-      const submittedVersions = draftFieldsForUpdate(updates).map(
-        (field) => [field, draftVersionsRef.current[field]] as const
+      const fields = draftFieldsForUpdate(updates)
+      const hasUnsubmittedDraft = fields.some(
+        (field) => draftVersionsRef.current[field] !== submittedDraftVersionsRef.current[field]
       )
+      if (!hasUnsubmittedDraft) return
+
+      const submittedVersions = fields.map((field) => [field, draftVersionsRef.current[field]] as const)
+      for (const [field, version] of submittedVersions) {
+        submittedDraftVersionsRef.current[field] = version
+      }
 
       void onUpdate(task.id, updates).then((result) => {
         if (!result) return
-        const unchangedFields = submittedVersions
+        const applicableFields = submittedVersions
           .filter(([field, version]) => draftVersionsRef.current[field] === version)
-          .map(([field]) => field)
-        applyPersistedTaskFields(result.task, unchangedFields)
+          .map(([field, version]) => {
+            appliedDraftVersionsRef.current[field] = version
+            return field
+          })
+        applyPersistedTaskFields(result.task, applicableFields)
       })
     },
     [applyPersistedTaskFields, onUpdate, task.id]
@@ -461,12 +456,12 @@ const TaskDetail: FC<{
 
   const handlePromptModalOpenChange = useCallback(
     (open: boolean) => {
-      if (!open && prompt.trim() && prompt !== task.prompt) {
+      if (!open && prompt.trim()) {
         saveField({ prompt: prompt.trim() })
       }
       setPromptModalOpen(open)
     },
-    [prompt, saveField, task.prompt]
+    [prompt, saveField]
   )
 
   const handleRunNow = useCallback(() => {
@@ -596,7 +591,7 @@ const TaskDetail: FC<{
                 markDraftChanged('name')
                 setName(e.target.value)
               }}
-              onBlur={() => name.trim() && name !== task.name && saveField({ name: name.trim() })}
+              onBlur={() => name.trim() && saveField({ name: name.trim() })}
               disabled={isCompleted}
             />
           </SettingRow>
@@ -624,7 +619,7 @@ const TaskDetail: FC<{
                 markDraftChanged('prompt')
                 setPrompt(e.target.value)
               }}
-              onBlur={() => prompt.trim() && prompt !== task.prompt && saveField({ prompt: prompt.trim() })}
+              onBlur={() => prompt.trim() && saveField({ prompt: prompt.trim() })}
               disabled={isCompleted}
               rows={4}
               className="min-h-22 resize-y px-3 py-2"
@@ -633,8 +628,6 @@ const TaskDetail: FC<{
           <TaskScheduleControls
             value={schedule}
             disabled={isCompleted}
-            committedTrigger={task.trigger}
-            committedTimeoutMinutes={task.timeoutMinutes}
             onChange={(nextSchedule) => {
               markDraftChanged('schedule')
               setSchedule(nextSchedule)

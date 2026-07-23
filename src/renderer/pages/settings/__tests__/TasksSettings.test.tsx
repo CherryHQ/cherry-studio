@@ -621,6 +621,87 @@ describe('TasksSettings task logs', () => {
     expect(dataApiMock.get).not.toHaveBeenCalled()
   })
 
+  it('persists a same-field name revert made while an earlier save is pending', async () => {
+    const firstSave = createDeferred<typeof taskDataMock.task>()
+    const secondSave = createDeferred<typeof taskDataMock.task>()
+    taskMutationMocks.updateTask.mockReturnValueOnce(firstSave.promise).mockReturnValueOnce(secondSave.promise)
+
+    render(<TasksSettings />)
+
+    const nameInput = await screen.findByDisplayValue('Daily task')
+    fireEvent.change(nameInput, { target: { value: 'First edit' } })
+    fireEvent.blur(nameInput)
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(1, 'agent-1', 'task-1', {
+        name: 'First edit'
+      })
+    )
+
+    fireEvent.change(nameInput, { target: { value: 'Daily task' } })
+    fireEvent.blur(nameInput)
+
+    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      firstSave.resolve({ ...taskDataMock.task, name: 'First edit' })
+    })
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', {
+        name: 'Daily task'
+      })
+    )
+    expect(screen.getByDisplayValue('Daily task')).toBeInTheDocument()
+
+    await act(async () => {
+      secondSave.resolve(taskDataMock.task)
+    })
+
+    await waitFor(() => expect(screen.getByDisplayValue('Daily task')).toBeInTheDocument())
+  })
+
+  it('persists a same-field schedule revert made while an earlier save is pending', async () => {
+    const firstSave = createDeferred<typeof taskDataMock.task>()
+    const secondSave = createDeferred<typeof taskDataMock.task>()
+    taskMutationMocks.updateTask.mockReturnValueOnce(firstSave.promise).mockReturnValueOnce(secondSave.promise)
+
+    render(<TasksSettings />)
+
+    const intervalInput = await screen.findByPlaceholderText('agent.tasks.intervalPlaceholder')
+    fireEvent.change(intervalInput, { target: { value: '2' } })
+    fireEvent.blur(intervalInput)
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(1, 'agent-1', 'task-1', {
+        trigger: { kind: 'interval', ms: 120000 }
+      })
+    )
+
+    fireEvent.change(intervalInput, { target: { value: '1' } })
+    fireEvent.blur(intervalInput)
+
+    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      firstSave.resolve({
+        ...taskDataMock.task,
+        trigger: { kind: 'interval', ms: 120000 }
+      })
+    })
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', {
+        trigger: { kind: 'interval', ms: 60000 }
+      })
+    )
+    expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toHaveValue(1)
+
+    await act(async () => {
+      secondSave.resolve(taskDataMock.task)
+    })
+
+    await waitFor(() => expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toHaveValue(1))
+  })
+
   it('waits for a pending channel save before running the task', async () => {
     const save = createDeferred<typeof taskDataMock.task>()
     channelDataMock.channels = [
