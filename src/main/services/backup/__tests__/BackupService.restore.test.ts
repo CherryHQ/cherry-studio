@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { importBackup, readRestoreJournalMock, clearRestoreJournalMock, getRegistry, jobManagerPause, relaunchMock } =
-  vi.hoisted(() => ({
-    importBackup: vi.fn(),
-    readRestoreJournalMock: vi.fn(),
-    clearRestoreJournalMock: vi.fn(),
-    getRegistry: vi.fn(() => ({ domains: [] })),
-    jobManagerPause: vi.fn(() => ({ dispose: vi.fn() })),
-    relaunchMock: vi.fn()
-  }))
+const {
+  importBackup,
+  readRestoreJournalMock,
+  clearRestoreJournalMock,
+  getRegistry,
+  jobManagerPause,
+  drainInFlight,
+  relaunchMock
+} = vi.hoisted(() => ({
+  importBackup: vi.fn(),
+  readRestoreJournalMock: vi.fn(),
+  clearRestoreJournalMock: vi.fn(),
+  getRegistry: vi.fn(() => ({ domains: [] })),
+  jobManagerPause: vi.fn(() => ({ dispose: vi.fn() })),
+  drainInFlight: vi.fn(async () => ({ stragglerIds: [] as string[], startupRecoveryPending: false })),
+  relaunchMock: vi.fn()
+}))
 
 vi.mock('../ImportOrchestrator', () => ({
   ImportOrchestrator: vi.fn().mockImplementation(() => ({ importBackup }))
@@ -33,7 +41,7 @@ vi.mock('@application', async () => {
   const innerGet = mocked.application.get as ReturnType<typeof vi.fn>
   mocked.application.get = vi.fn((name: string) => {
     if (name === 'JobManager') {
-      return { pause: jobManagerPause, drainInFlight: vi.fn(async () => ({ stragglerIds: [] })) }
+      return { pause: jobManagerPause, drainInFlight }
     }
     return innerGet(name)
   })
@@ -42,9 +50,11 @@ vi.mock('@application', async () => {
 })
 
 import { BaseService } from '@main/core/lifecycle'
+import { isBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { BackupService } from '../BackupService'
+import { ImportOrchestrator } from '../ImportOrchestrator'
 
 // Loosely-typed journal fixture — the mock readRestoreJournal returns this verbatim (no schema parse).
 const baseJournal = {
@@ -59,6 +69,14 @@ function okJournal(state: string, step?: string) {
   return { kind: 'ok' as const, journal: { ...baseJournal, state, ...(step ? { step } : {}) } }
 }
 
+/** Drive quiesceWriters through the ImportOrchestrator deps injected by startRestore. */
+async function runQuiesceViaImportBackupMock(): Promise<void> {
+  const deps = (ImportOrchestrator as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+    quiesceWriters: () => Promise<void>
+  }
+  await deps.quiesceWriters()
+}
+
 describe('BackupService restore journal lifecycle (A7)', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -68,6 +86,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     importBackup.mockResolvedValue(undefined)
     getRegistry.mockReturnValue({ domains: [] })
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
+    drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
     relaunchMock.mockImplementation(() => {})
   })
 
@@ -156,6 +175,62 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       await service.startRestore({ archivePath: '/x.cbu' })
       expect(clearRestoreJournalMock).toHaveBeenCalledTimes(1)
       expect(importBackup).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('startRestore drain verdict (vaayne A7 unclean abort)', () => {
+    const afterQuiesce = vi.fn()
+
+    beforeEach(() => {
+      afterQuiesce.mockClear()
+      // importBackup drives quiesceWriters (real ImportOrchestrator calls it first).
+      // afterQuiesce marks "proceed past quiesce" — unclean must never reach it.
+      importBackup.mockImplementation(async () => {
+        await runQuiesceViaImportBackupMock()
+        afterQuiesce()
+      })
+    })
+
+    it('aborts on stragglerIds — BACKUP_RESTORE_DRAIN_UNCLEAN, no proceed / relaunch', async () => {
+      drainInFlight.mockResolvedValue({ stragglerIds: ['j1'], startupRecoveryPending: false })
+      const holdDispose = vi.fn()
+      jobManagerPause.mockReturnValue({ dispose: holdDispose })
+      const service = new BackupService()
+
+      await expect(service.startRestore({ archivePath: '/x.cbu' })).rejects.toSatisfy(
+        (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_DRAIN_UNCLEAN'
+      )
+
+      expect(afterQuiesce).not.toHaveBeenCalled()
+      expect(relaunchMock).not.toHaveBeenCalled()
+      expect(isBackupInProgress()).toBe(false)
+      expect(holdDispose).toHaveBeenCalledTimes(1)
+    })
+
+    it('aborts on startupRecoveryPending — BACKUP_RESTORE_DRAIN_UNCLEAN, no proceed / relaunch', async () => {
+      drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: true })
+      const holdDispose = vi.fn()
+      jobManagerPause.mockReturnValue({ dispose: holdDispose })
+      const service = new BackupService()
+
+      await expect(service.startRestore({ archivePath: '/x.cbu' })).rejects.toSatisfy(
+        (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_DRAIN_UNCLEAN'
+      )
+
+      expect(afterQuiesce).not.toHaveBeenCalled()
+      expect(relaunchMock).not.toHaveBeenCalled()
+      expect(isBackupInProgress()).toBe(false)
+      expect(holdDispose).toHaveBeenCalledTimes(1)
+    })
+
+    it('proceeds on clean verdict — import past quiesce + relaunch', async () => {
+      drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+      const service = new BackupService()
+
+      await service.startRestore({ archivePath: '/x.cbu' })
+
+      expect(afterQuiesce).toHaveBeenCalledTimes(1)
+      expect(relaunchMock).toHaveBeenCalledTimes(1)
     })
   })
 

@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { exportBackup, getRegistry, importBackup, readRestoreJournalMock, clearRestoreJournalMock, jobManagerPause } =
-  vi.hoisted(() => ({
-    exportBackup: vi.fn(),
-    getRegistry: vi.fn(() => ({ domains: [] })),
-    importBackup: vi.fn(),
-    readRestoreJournalMock: vi.fn(() => ({ kind: 'none' as const })),
-    clearRestoreJournalMock: vi.fn(),
-    jobManagerPause: vi.fn(() => ({ dispose: vi.fn() }))
-  }))
+const {
+  exportBackup,
+  getRegistry,
+  importBackup,
+  readRestoreJournalMock,
+  clearRestoreJournalMock,
+  jobManagerPause,
+  drainInFlight
+} = vi.hoisted(() => ({
+  exportBackup: vi.fn(),
+  getRegistry: vi.fn(() => ({ domains: [] })),
+  importBackup: vi.fn(),
+  readRestoreJournalMock: vi.fn(() => ({ kind: 'none' as const })),
+  clearRestoreJournalMock: vi.fn(),
+  jobManagerPause: vi.fn(() => ({ dispose: vi.fn() })),
+  drainInFlight: vi.fn(async () => ({ stragglerIds: [] as string[], startupRecoveryPending: false }))
+}))
 
 vi.mock('../ExportOrchestrator', () => ({
   ExportOrchestrator: vi.fn().mockImplementation(() => ({
@@ -43,7 +51,7 @@ vi.mock('@application', async () => {
   const innerGet = mocked.application.get as ReturnType<typeof vi.fn>
   mocked.application.get = vi.fn((name: string) => {
     if (name === 'JobManager') {
-      return { pause: jobManagerPause, drainInFlight: vi.fn(async () => ({ stragglerIds: [] })) }
+      return { pause: jobManagerPause, drainInFlight }
     }
     return innerGet(name)
   })
@@ -70,6 +78,7 @@ describe('BackupService packaged export path', () => {
     // Map import-side failures through toIpcError (quiesce is JobManager.pause, not a throw stub).
     importBackup.mockRejectedValue(new IpcError('BACKUP_ARCHIVE_CORRUPT', 'test corrupt archive'))
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
+    drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
     Object.defineProperty(app, 'isPackaged', { configurable: true, value: true })
   })
 

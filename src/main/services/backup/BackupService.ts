@@ -373,28 +373,36 @@ export class BackupService extends BaseService {
         journalPath: application.getPath('feature.backup.restore.file'),
         // Archive admission (admitArchive.ts §9 step 0) + merge (MergeEngine — FIELD_MERGE/
         // SKIP + junction + FTS + fileId disclosure) are wired. quiesce is PARTIAL
-        // (BACKUP_IN_PROGRESS flag + JobManager.pause + best-effort drain; full quiesce
-        // a1/#17014 is follow-up). File/KB/Notes blob staging is deferred — empty
-        // fileResources so the preboot gate promotes only the DB (DB-only restore).
+        // (BACKUP_IN_PROGRESS flag + JobManager.pause + drain; full quiesce a1/#17014
+        // is follow-up). Unclean drain aborts restore (vaayne A7) — do not proceed into
+        // createSnapshot. File/KB/Notes blob staging is deferred — empty fileResources
+        // so the preboot gate promotes only the DB (DB-only / LITE restore).
         admitArchive,
         quiesceWriters: async () => {
-          // PARTIAL quiesce (this PR): set BACKUP_IN_PROGRESS so IPC mutations reject
+          // PARTIAL quiesce: set BACKUP_IN_PROGRESS so IPC mutations reject
           // (DataApi/Preference/IpcApi gates), then pause JobManager (#16925) and DRAIN
           // its in-flight executions before createSnapshot. Pause alone gates NEW dispatch
           // + croner but lets already-running handlers finish their writes, so
           // drainInFlight MUST precede the snapshot (ImportOrchestrator §9 / #16850 Q3c /
           // #16925). AI/channel in-flight drain needs #17014 (deferred); this covers
-          // scheduled jobs only. On drain timeout we log + proceed — partial quiesce is
-          // best-effort and the promotion gate (#16884) is the correctness backstop for
-          // any write that slipped past. Full quiesce (a1 WindowManager hold) is follow-up.
+          // scheduled jobs only. Unclean drain (stragglers or startupRecoveryPending)
+          // aborts restore — promotion is NOT a backstop for writes that slip past
+          // (vaayne A7). Full quiesce (a1 WindowManager hold) is follow-up.
           setBackupInProgress(true)
           const jobManager = application.get('JobManager')
           this.restoreQuiesceHold = jobManager.pause('restore-quiesce')
           const verdict = await jobManager.drainInFlight({ timeoutMs: 5000 })
-          if (verdict.stragglerIds.length > 0) {
-            logger.warn(
-              `restore quiesce drain timed out with ${verdict.stragglerIds.length} unsettled job(s); proceeding (promotion backstop)`,
-              { stragglerIds: verdict.stragglerIds }
+          if (verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending) {
+            logger.error(
+              `restore quiesce drain returned unclean verdict; aborting restore: stragglerIds=${verdict.stragglerIds.length} startupRecoveryPending=${verdict.startupRecoveryPending}`,
+              { stragglerIds: verdict.stragglerIds, startupRecoveryPending: verdict.startupRecoveryPending }
+            )
+            // ABORT: do NOT proceed into createSnapshot. Caller's try/catch → toIpcError
+            // returns IPC error to renderer; the finally clause releases the quiesce hold +
+            // BACKUP_IN_PROGRESS so the write window reopens.
+            throw new IpcError(
+              'BACKUP_RESTORE_DRAIN_UNCLEAN',
+              `restore aborted: JobManager drain returned unclean verdict (stragglerIds=${verdict.stragglerIds.length}, startupRecoveryPending=${verdict.startupRecoveryPending})`
             )
           }
         },

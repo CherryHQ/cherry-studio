@@ -22,6 +22,8 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { Readable, Writable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 
 import { applyMigrations } from '@main/data/db/applyMigrations'
@@ -31,15 +33,38 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { admitArchive, type ArchiveContext, assertWithin } from '../admitArchive'
+import {
+  admitArchive,
+  admitArchiveWithLimits,
+  type ArchiveAdmissionLimits,
+  type ArchiveContext,
+  assertCompressionRatio,
+  assertSafeSizeMetadata,
+  assertWithin,
+  createByteLimitTransform,
+  DEFAULT_ARCHIVE_ADMISSION_LIMITS,
+  reserveDeclaredBytes
+} from '../admitArchive'
 import { assembleArchive } from '../archive'
 import {
   BackupArchiveCorruptError,
   BackupIntegrityError,
+  DiskFullError,
   NewerOrDivergedBackupError,
   UnsupportedBackupFormatError
 } from '../errors'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
+
+/** Tiny injectable limits for resource-budget tests (no GiB fixtures). */
+const tinyLimits = (overrides: Partial<ArchiveAdmissionLimits> = {}): ArchiveAdmissionLimits =>
+  Object.freeze({
+    maxManifestBytes: 64 * 1024,
+    maxEntryCount: 100,
+    maxEntryUncompressedBytes: 64 * 1024 * 1024,
+    maxTotalUncompressedBytes: 64 * 1024 * 1024,
+    maxCompressionRatio: 1_000,
+    ...overrides
+  })
 
 // Production drizzle migrations folder (full 20-migration chain + bundled-chain source).
 const MIGRATIONS_FOLDER = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../migrations/sqlite-drizzle')
@@ -369,5 +394,274 @@ describe('admitArchive', () => {
 
     expect(ctx.manifest.backupFormatVersion).toBe(BACKUP_FORMAT_VERSION)
     expect(existsSync(ctx.backupDbPath)).toBe(true)
+  })
+
+  it('production defaults freeze the vaayne A3 budget', () => {
+    expect(DEFAULT_ARCHIVE_ADMISSION_LIMITS).toEqual({
+      maxManifestBytes: 1 * 1024 * 1024,
+      maxEntryCount: 100_000,
+      maxEntryUncompressedBytes: 8 * 1024 * 1024 * 1024,
+      maxTotalUncompressedBytes: 32 * 1024 * 1024 * 1024,
+      maxCompressionRatio: 1_000
+    })
+    expect(Object.isFrozen(DEFAULT_ARCHIVE_ADMISSION_LIMITS)).toBe(true)
+  })
+
+  it('entry count over injected limit → BackupArchiveCorruptError before staging payload', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'too-many.cbu')
+    // manifest + backup.sqlite + one unknown = 3 entries; limit 2 rejects before extract.
+    await packCustomArchive(archivePath, [
+      { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
+      { file: dbCopy, name: 'backup.sqlite' },
+      { content: 'x', name: 'unknown-future/x.txt' }
+    ])
+    const workDir = join(tmpDir, 'work')
+
+    await expect(
+      admitArchiveWithLimits(archivePath, workDir, MIGRATIONS_FOLDER, tinyLimits({ maxEntryCount: 2 }))
+    ).rejects.toThrow(BackupArchiveCorruptError)
+    expect(existsSync(workDir)).toBe(false)
+  })
+
+  it('entry count exactly at injected limit is allowed', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'count-ok.cbu')
+    await packCustomArchive(archivePath, [
+      { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
+      { file: dbCopy, name: 'backup.sqlite' }
+    ])
+    const workDir = join(tmpDir, 'work')
+
+    const ctx = await admitArchiveWithLimits(archivePath, workDir, MIGRATIONS_FOLDER, tinyLimits({ maxEntryCount: 2 }))
+    expect(ctx.backupDbPath).toBe(join(workDir, 'backup.sqlite'))
+  })
+
+  it('oversized manifest metadata → BackupArchiveCorruptError + workDir cleaned', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'big-manifest.cbu')
+    const bigManifest = JSON.stringify({ ...MANIFEST, producerAppVersion: 'x'.repeat(200) })
+    expect(Buffer.byteLength(bigManifest)).toBeGreaterThan(64)
+    await packCustomArchive(archivePath, [
+      { content: bigManifest, name: 'manifest.json' },
+      { file: dbCopy, name: 'backup.sqlite' }
+    ])
+    const workDir = join(tmpDir, 'work')
+
+    await expect(
+      admitArchiveWithLimits(archivePath, workDir, MIGRATIONS_FOLDER, tinyLimits({ maxManifestBytes: 64 }))
+    ).rejects.toThrow(/manifest\.json uncompressed size exceeds limit/)
+    expect(existsSync(workDir)).toBe(false)
+  })
+
+  it('per-entry uncompressed size over limit → reject before full extract + cleanup', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const dbBytes = readFileSync(dbCopy).byteLength
+    expect(dbBytes).toBeGreaterThan(100)
+    const archivePath = join(tmpDir, 'big-entry.cbu')
+    await packArchive(archivePath, dbCopy, MANIFEST)
+    const workDir = join(tmpDir, 'work')
+
+    await expect(
+      admitArchiveWithLimits(
+        archivePath,
+        workDir,
+        MIGRATIONS_FOLDER,
+        tinyLimits({ maxEntryUncompressedBytes: 100, maxTotalUncompressedBytes: 64 * 1024 * 1024 })
+      )
+    ).rejects.toThrow(/uncompressed size exceeds limit/)
+    expect(existsSync(workDir)).toBe(false)
+  })
+
+  it('declared total uncompressed over limit → reject + cleanup', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const dbBytes = readFileSync(dbCopy).byteLength
+    const manifestBytes = Buffer.byteLength(JSON.stringify(MANIFEST))
+    const archivePath = join(tmpDir, 'total.cbu')
+    await packArchive(archivePath, dbCopy, MANIFEST)
+    const workDir = join(tmpDir, 'work')
+
+    await expect(
+      admitArchiveWithLimits(
+        archivePath,
+        workDir,
+        MIGRATIONS_FOLDER,
+        tinyLimits({
+          maxEntryUncompressedBytes: dbBytes + 1,
+          maxTotalUncompressedBytes: manifestBytes + dbBytes - 1
+        })
+      )
+    ).rejects.toThrow(/archive total uncompressed size exceeds limit/)
+    expect(existsSync(workDir)).toBe(false)
+  })
+
+  it('compression ratio over injected limit → reject + cleanup', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'ratio.cbu')
+    // Highly compressible payload under files/ — zlib level 9 yields ratio >> 2.
+    const zeros = Buffer.alloc(64 * 1024, 0)
+    const zerosPath = join(tmpDir, 'zeros.bin')
+    writeFileSync(zerosPath, zeros)
+    await packCustomArchive(archivePath, [
+      { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
+      { file: dbCopy, name: 'backup.sqlite' },
+      { file: zerosPath, name: 'files/zeros.bin' }
+    ])
+    const workDir = join(tmpDir, 'work')
+
+    await expect(
+      admitArchiveWithLimits(
+        archivePath,
+        workDir,
+        MIGRATIONS_FOLDER,
+        tinyLimits({ maxCompressionRatio: 2, maxEntryUncompressedBytes: 64 * 1024 * 1024 })
+      )
+    ).rejects.toThrow(/compression ratio exceeds limit/)
+    expect(existsSync(workDir)).toBe(false)
+  })
+
+  it('unknown huge entry does not count toward byte budget (forward-compat)', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'unknown-huge.cbu')
+    const huge = Buffer.alloc(8 * 1024, 0x41)
+    const hugePath = join(tmpDir, 'huge.bin')
+    writeFileSync(hugePath, huge)
+    await packCustomArchive(archivePath, [
+      { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
+      { file: dbCopy, name: 'backup.sqlite' },
+      { file: hugePath, name: 'future-addon/blob.bin' }
+    ])
+    const workDir = join(tmpDir, 'work')
+    const dbBytes = readFileSync(dbCopy).byteLength
+    const manifestBytes = Buffer.byteLength(JSON.stringify(MANIFEST))
+
+    // Total budget fits only manifest+sqlite; unknown payload would overflow if counted.
+    const ctx = await admitArchiveWithLimits(
+      archivePath,
+      workDir,
+      MIGRATIONS_FOLDER,
+      tinyLimits({ maxTotalUncompressedBytes: manifestBytes + dbBytes })
+    )
+    expect(ctx.backupDbPath).toBe(join(workDir, 'backup.sqlite'))
+    expect(existsSync(join(workDir, 'future-addon'))).toBe(false)
+  })
+
+  it('zip-slip on unknown entry still rejected under resource limits', async () => {
+    const workDir = join(tmpDir, 'work')
+    expect(() => assertWithin(workDir, '../escape.txt')).toThrow(BackupArchiveCorruptError)
+  })
+})
+
+describe('admitArchive resource-limit helpers', () => {
+  it('assertSafeSizeMetadata rejects negative / fractional / NaN / unsafe integers', () => {
+    const bad = [
+      { size: -1, compressedSize: 0 },
+      { size: 1.5, compressedSize: 1 },
+      { size: Number.NaN, compressedSize: 0 },
+      { size: Number.POSITIVE_INFINITY, compressedSize: 0 },
+      { size: Number.MAX_SAFE_INTEGER + 1, compressedSize: 1 },
+      { size: 1, compressedSize: -1 }
+    ]
+    for (const meta of bad) {
+      expect(() => assertSafeSizeMetadata({ name: 'files/x', ...meta })).toThrow(/invalid size metadata/)
+    }
+    expect(() => assertSafeSizeMetadata({ name: 'files/x', size: 0, compressedSize: 0 })).not.toThrow()
+  })
+
+  it('assertCompressionRatio allows empty and exact limit; rejects zero compressed / over limit', () => {
+    expect(() => assertCompressionRatio({ name: 'files/empty', size: 0, compressedSize: 0 }, 1000)).not.toThrow()
+    expect(() => assertCompressionRatio({ name: 'files/exact', size: 1000, compressedSize: 1 }, 1000)).not.toThrow()
+    expect(() => assertCompressionRatio({ name: 'files/bomb', size: 1001, compressedSize: 1 }, 1000)).toThrow(
+      /compression ratio exceeds limit/
+    )
+    expect(() => assertCompressionRatio({ name: 'files/z', size: 10, compressedSize: 0 }, 1000)).toThrow(
+      /compression ratio exceeds limit/
+    )
+  })
+
+  it('reserveDeclaredBytes uses remaining-budget semantics (exact ok, +1 reject)', () => {
+    expect(reserveDeclaredBytes(0, 10, 10)).toBe(10)
+    expect(() => reserveDeclaredBytes(0, 11, 10)).toThrow(/total uncompressed size exceeds limit/)
+    expect(reserveDeclaredBytes(5, 5, 10)).toBe(10)
+    expect(() => reserveDeclaredBytes(5, 6, 10)).toThrow(/total uncompressed size exceeds limit/)
+  })
+
+  it('createByteLimitTransform aborts on per-entry overrun and closes the pipeline', async () => {
+    const budget = { actualTotal: 0 }
+    const limiter = createByteLimitTransform({
+      entryName: 'files/x',
+      entryByteLimit: 4,
+      totalByteLimit: 100,
+      budget,
+      declaredSize: 4
+    })
+    const sinkChunks: Buffer[] = []
+    const sink = new Writable({
+      write(chunk, _enc, cb) {
+        sinkChunks.push(Buffer.from(chunk))
+        cb()
+      }
+    })
+    await expect(pipeline(Readable.from([Buffer.from('abc'), Buffer.from('de')]), limiter, sink)).rejects.toThrow(
+      /produced more bytes than declared/
+    )
+    expect(budget.actualTotal).toBe(3)
+  })
+
+  it('createByteLimitTransform aborts on shared cumulative overrun', async () => {
+    const budget = { actualTotal: 8 }
+    const limiter = createByteLimitTransform({
+      entryName: 'files/y',
+      entryByteLimit: 100,
+      totalByteLimit: 10,
+      budget,
+      declaredSize: 100
+    })
+    const sink = new Writable({
+      write(_chunk, _enc, cb) {
+        cb()
+      }
+    })
+    await expect(pipeline(Readable.from([Buffer.from('abcd')]), limiter, sink)).rejects.toThrow(
+      /archive total uncompressed size exceeds limit/
+    )
+  })
+
+  it('createByteLimitTransform allows exact entry boundary', async () => {
+    const budget = { actualTotal: 0 }
+    const limiter = createByteLimitTransform({
+      entryName: 'manifest.json',
+      entryByteLimit: 5,
+      totalByteLimit: 5,
+      budget,
+      declaredSize: 5
+    })
+    const out: Buffer[] = []
+    const sink = new Writable({
+      write(chunk, _enc, cb) {
+        out.push(Buffer.from(chunk))
+        cb()
+      }
+    })
+    await pipeline(Readable.from([Buffer.from('hello')]), limiter, sink)
+    expect(Buffer.concat(out).toString()).toBe('hello')
+    expect(budget.actualTotal).toBe(5)
+  })
+
+  it('DiskFullError remains a distinct admission error class from limit failures', () => {
+    // Policy rejections are BackupArchiveCorruptError; operational ENOSPC maps to DiskFullError
+    // in normalizeAdmissionError — keep the two classes distinct for IPC mapping.
+    const limitErr = new BackupArchiveCorruptError('archive total uncompressed size exceeds limit')
+    const diskErr = new DiskFullError('ENOSPC')
+    expect(limitErr).toBeInstanceOf(BackupArchiveCorruptError)
+    expect(diskErr).toBeInstanceOf(DiskFullError)
+    expect(diskErr).not.toBeInstanceOf(BackupArchiveCorruptError)
   })
 })

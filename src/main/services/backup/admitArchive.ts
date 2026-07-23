@@ -4,17 +4,20 @@
 // quiesce/snapshot: format gate (backupFormatVersion major) → unpack (recognized entries,
 // ignore unknown for forward-compat, zip-slip guard on ALL entries) → schema comparison
 // (backup.sqlite applied chain vs bundled, 3 states) → migrate-forward on an independent
-// connection → integrity_check → ArchiveContext. Trusted-backup model: the archive is the
-// user's own .cbu (possibly cross-version/cross-build, NOT malicious); DoS-bound +
-// DDL-equality hardening for the malicious-archive threat model is a separate task.
+// connection → integrity_check → ArchiveContext.
+//
+// External .cbu is untrusted input (vaayne A3): immutable admission limits bound manifest
+// size, entry count, per-entry / cumulative uncompressed bytes, and compression ratio.
+// Central-directory metadata is fail-fast advisory; actual stream bytes are authoritative.
 //
 // Failure cleanup (architecture §9 step 0): every SQLite/StreamZip handle is closed in a
 // finally; any gate failure rm -rf's workDir and re-throws a normalized admission error.
 // The live DB is NEVER touched (D-model restore — only the staging subtree is written).
 
 import { createWriteStream, mkdirSync } from 'node:fs'
-import { rm, writeFile } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
+import { Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { applyMigrations } from '@main/data/db/applyMigrations'
@@ -43,6 +46,44 @@ const RECOGNIZED_TOP_LEVEL = new Set(['backup.sqlite'])
 /** Directory-prefixed trees extracted recursively (forward-compat: unknown top-levels ignored). */
 const RECOGNIZED_DIR_PREFIXES = ['files/', 'knowledge/', 'notes/', 'skills/'] as const
 
+const MANIFEST_ENTRY = 'manifest.json'
+
+const MiB = 1024 * 1024
+const GiB = 1024 * 1024 * 1024
+
+/**
+ * Immutable production admission budget for external .cbu archives.
+ * Units are bytes (except maxEntryCount / maxCompressionRatio). Values are code-owned —
+ * never overridden by user settings or manifest self-report.
+ */
+export interface ArchiveAdmissionLimits {
+  /** Hard cap on manifest.json uncompressed bytes (declared + actual). */
+  readonly maxManifestBytes: number
+  /** Cap on central-directory entry count (file + directory + unknown). */
+  readonly maxEntryCount: number
+  /** Cap on a single recognized non-manifest file entry's uncompressed bytes. */
+  readonly maxEntryUncompressedBytes: number
+  /** Cap on cumulative uncompressed bytes of manifest + recognized file entries. */
+  readonly maxTotalUncompressedBytes: number
+  /** Max size/compressedSize for non-empty extracted entries (inclusive). */
+  readonly maxCompressionRatio: number
+}
+
+/**
+ * Production restore safety limits (vaayne A3).
+ * - 1 MiB manifest: JSON parse must stay bounded in the main process.
+ * - 100k entries: bounds CD walk / path checks after library parse.
+ * - 8 GiB / 32 GiB: absolute per-entry and cumulative staging write budget.
+ * - 1000:1 ratio: soft ZIP-bomb gate; absolute size caps remain authoritative.
+ */
+export const DEFAULT_ARCHIVE_ADMISSION_LIMITS: ArchiveAdmissionLimits = Object.freeze({
+  maxManifestBytes: 1 * MiB,
+  maxEntryCount: 100_000,
+  maxEntryUncompressedBytes: 8 * GiB,
+  maxTotalUncompressedBytes: 32 * GiB,
+  maxCompressionRatio: 1_000
+})
+
 /**
  * Result of admitting an archive — the validated, migrated backup DB + manifest-derived
  * metadata the downstream merge/stage steps consume. `backupDbPath` points at the
@@ -64,6 +105,20 @@ export interface ArchiveContext {
   }
 }
 
+/** Shared mutable cumulative byte counter for one admission attempt (serial extraction). */
+interface CumulativeBudget {
+  actualTotal: number
+}
+
+/**
+ * One-shot classification of the ZIP central-directory snapshot. Built once after
+ * `entries()` so manifest + bulk extract share the same plan (no second catalog read).
+ */
+interface AdmissionPlan {
+  readonly manifestEntry: StreamZip.ZipEntry
+  readonly recognizedFiles: readonly StreamZip.ZipEntry[]
+}
+
 /**
  * Admit a .cbu archive into the restore staging subtree (backup-architecture §9 step 0).
  *
@@ -78,6 +133,22 @@ export async function admitArchive(
   workDir: string,
   migrationsFolder: string
 ): Promise<ArchiveContext> {
+  return admitArchiveWithLimits(archivePath, workDir, migrationsFolder, DEFAULT_ARCHIVE_ADMISSION_LIMITS)
+}
+
+/**
+ * Admission implementation with injectable limits. Production always uses
+ * {@link DEFAULT_ARCHIVE_ADMISSION_LIMITS} via {@link admitArchive}; tests inject tiny
+ * budgets so GiB-scale fixtures are unnecessary.
+ *
+ * @internal
+ */
+export async function admitArchiveWithLimits(
+  archivePath: string,
+  workDir: string,
+  migrationsFolder: string,
+  limits: ArchiveAdmissionLimits
+): Promise<ArchiveContext> {
   // mkdir FIRST — the orchestrator calls admission before its own mkdirSync, so StreamZip
   // extract would otherwise target a nonexistent dir.
   mkdirSync(workDir, { recursive: true })
@@ -87,16 +158,20 @@ export async function admitArchive(
   try {
     zip = new StreamZip.async({ file: archivePath })
 
+    // Catalog once → full preflight (count / zip-slip / declared sizes / ratio) BEFORE any
+    // staging write. Manifest is still streamed before bulk payload so format gate stays first.
+    const entries = await zip.entries()
+    const plan = buildAdmissionPlan(entries, workDir, limits)
+    const budget: CumulativeBudget = { actualTotal: 0 }
+
     // --- Format gate BEFORE bulk extract (architecture §9 step 0) ---
-    // Extract ONLY manifest.json, validate the major version, reject BEFORE pulling payload
-    // so a large trusted-but-incompatible archive can't exhaust staging disk.
-    const manifest = await extractAndReadManifest(zip, workDir)
+    const manifest = await extractAndReadManifest(zip, workDir, plan.manifestEntry, limits, budget)
     if (manifest.backupFormatVersion !== BACKUP_FORMAT_VERSION) {
       throw new UnsupportedBackupFormatError(manifest.backupFormatVersion, BACKUP_FORMAT_VERSION)
     }
 
-    // --- Unpack recognized entries (ignore unknown; zip-slip guard on ALL entries) ---
-    await unpackRecognized(zip, workDir)
+    // --- Unpack recognized entries (ignore unknown; zip-slip already ran on ALL entries) ---
+    await unpackRecognized(zip, workDir, plan.recognizedFiles, limits, budget)
 
     // --- Schema comparison (architecture §9 step 0): backup chain vs bundled ---
     const backupDbPath = join(workDir, 'backup.sqlite')
@@ -147,23 +222,82 @@ export async function admitArchive(
   }
 }
 
-/** Extract only manifest.json, then read + validate it. Rejects (corrupt) if missing/invalid. */
-async function extractAndReadManifest(zip: StreamZip.StreamZipAsync, workDir: string): Promise<BackupManifest> {
-  const manifestName = 'manifest.json'
-  assertWithin(workDir, manifestName)
-  let data: Buffer
-  try {
-    data = await zip.entryData(manifestName)
-  } catch (e) {
-    throw new BackupArchiveCorruptError(
-      `missing or unreadable manifest.json: ${e instanceof Error ? e.message : String(e)}`
-    )
+/**
+ * Classify + preflight the central-directory snapshot: entry-count, zip-slip on every name,
+ * manifest presence, declared size/ratio/cumulative budget for extracted payloads.
+ */
+function buildAdmissionPlan(
+  entries: Record<string, StreamZip.ZipEntry>,
+  workDir: string,
+  limits: ArchiveAdmissionLimits
+): AdmissionPlan {
+  const names = Object.keys(entries)
+  if (names.length > limits.maxEntryCount) {
+    throw new BackupArchiveCorruptError(`archive entry count exceeds limit (${names.length} > ${limits.maxEntryCount})`)
   }
-  // writeFile ENOSPC/EIO propagates as-is → normalizeAdmissionError maps it to DiskFullError
-  // (a valid archive on a full disk is not corrupt) — do NOT wrap as BackupArchiveCorruptError.
-  await writeFile(join(workDir, manifestName), data)
+
+  let manifestEntry: StreamZip.ZipEntry | undefined
+  const recognizedFiles: StreamZip.ZipEntry[] = []
+  let declaredTotal = 0
+
+  for (const name of names) {
+    const entry = entries[name]
+    assertWithin(workDir, name)
+
+    if (name === MANIFEST_ENTRY) {
+      if (entry.isDirectory || name.endsWith('/')) {
+        throw new BackupArchiveCorruptError('manifest.json is a directory entry')
+      }
+      assertSafeSizeMetadata(entry)
+      assertUncompressedWithin(entry.size, limits.maxManifestBytes, 'manifest.json uncompressed size exceeds limit')
+      assertCompressionRatio(entry, limits.maxCompressionRatio)
+      declaredTotal = reserveDeclaredBytes(declaredTotal, entry.size, limits.maxTotalUncompressedBytes)
+      manifestEntry = entry
+      continue
+    }
+
+    // Directory entries: count + path guard only (no byte/ratio budget, no extract).
+    if (entry.isDirectory || name.endsWith('/')) {
+      continue
+    }
+
+    if (!isRecognized(name)) {
+      // Unknown file: count + zip-slip only — payload ignored (same-major forward-compat).
+      continue
+    }
+
+    assertSafeSizeMetadata(entry)
+    assertUncompressedWithin(
+      entry.size,
+      limits.maxEntryUncompressedBytes,
+      `entry '${safeEntryName(name)}' uncompressed size exceeds limit`
+    )
+    assertCompressionRatio(entry, limits.maxCompressionRatio)
+    declaredTotal = reserveDeclaredBytes(declaredTotal, entry.size, limits.maxTotalUncompressedBytes)
+    recognizedFiles.push(entry)
+  }
+
+  if (!manifestEntry) {
+    throw new BackupArchiveCorruptError('missing or unreadable manifest.json')
+  }
+
+  return { manifestEntry, recognizedFiles }
+}
+
+/** Extract only manifest.json via bounded stream, then read + validate it. */
+async function extractAndReadManifest(
+  zip: StreamZip.StreamZipAsync,
+  workDir: string,
+  manifestEntry: StreamZip.ZipEntry,
+  limits: ArchiveAdmissionLimits,
+  budget: CumulativeBudget
+): Promise<BackupManifest> {
+  const dest = join(workDir, MANIFEST_ENTRY)
+  // Manifest uses the tighter of declared size and maxManifestBytes; also shares total budget.
+  const entryCap = Math.min(manifestEntry.size, limits.maxManifestBytes)
+  await extractEntryBounded(zip, manifestEntry, dest, entryCap, limits.maxTotalUncompressedBytes, budget)
   try {
-    return await readManifest(join(workDir, manifestName))
+    return await readManifest(dest)
   } catch (e) {
     throw new BackupArchiveCorruptError(
       `manifest.json failed validation: ${e instanceof Error ? e.message : String(e)}`
@@ -172,48 +306,161 @@ async function extractAndReadManifest(zip: StreamZip.StreamZipAsync, workDir: st
 }
 
 /**
- * Extract recognized entries (backup.sqlite / files/* / knowledge/* / notes/*). Unknown
- * top-level entries are ignored (forward-compat). Zip-slip guard runs on ALL entries
- * (recognized + ignored) so an escape attempt via an unknown name is still rejected.
+ * Extract recognized file entries from the preflight plan (serial). Unknown / directory /
+ * manifest are already handled — no second `entries()` call.
  */
-async function unpackRecognized(zip: StreamZip.StreamZipAsync, workDir: string): Promise<void> {
-  const entries = await zip.entries()
-  for (const name of Object.keys(entries)) {
-    assertWithin(workDir, name)
-    if (name === 'manifest.json') continue // already extracted
-    // Skip directory entries: node-stream-zip's extract(dirEntry) recursively extracts
-    // descendants, and the loop would then extract each child file again (duplicate writes).
-    // Each file under files/ knowledge/ notes/ is extracted individually below (codex R1 medium-4).
-    if (name.endsWith('/')) continue
-    if (!isRecognized(name)) continue // ignore unknown (same-major forward-compat)
-    const dest = join(workDir, name)
+async function unpackRecognized(
+  zip: StreamZip.StreamZipAsync,
+  workDir: string,
+  recognizedFiles: readonly StreamZip.ZipEntry[],
+  limits: ArchiveAdmissionLimits,
+  budget: CumulativeBudget
+): Promise<void> {
+  for (const entry of recognizedFiles) {
+    const dest = join(workDir, entry.name)
     mkdirSync(dirname(dest), { recursive: true })
-    await extractEntry(zip, name, dest)
+    // Runtime cap = min(declared size, absolute per-entry): forged-small headers abort on the
+    // first byte past declared size rather than waiting for the absolute GiB ceiling.
+    const entryCap = Math.min(entry.size, limits.maxEntryUncompressedBytes)
+    await extractEntryBounded(zip, entry, dest, entryCap, limits.maxTotalUncompressedBytes, budget)
   }
 }
 
 /**
- * Extract one entry by streaming to dest (NOT zip.extract() and NOT entryData()).
- * node-stream-zip's extract() does not attach an error handler to its internal write stream,
- * so ENOSPC/EIO can surface as an UNHANDLED stream error that bypasses this await + the outer
- * cleanup (descriptor leak, workDir not removed) — codex R1 high-1. entryData() would buffer
- * the entire uncompressed entry (~2× DB size with Buffer.concat) → fatal OOM on a large
- * trusted backup before the outer finally can clean up — codex R2 high. pipeline over an
- * awaited zip.stream() propagates source + destination errors as a normal rejected promise
- * (the outer catch + finally clean up) without buffering.
+ * Stream one entry to dest through a byte-limit Transform. NOT zip.extract() / entryData():
+ * extract() lacks write-stream error handling (ENOSPC unhandled); entryData() buffers the
+ * full uncompressed payload. pipeline propagates source + destination errors as a normal
+ * rejection so outer catch + finally clean up without unbounded buffering.
  */
-async function extractEntry(zip: StreamZip.StreamZipAsync, name: string, dest: string): Promise<void> {
+async function extractEntryBounded(
+  zip: StreamZip.StreamZipAsync,
+  entry: StreamZip.ZipEntry,
+  dest: string,
+  entryByteLimit: number,
+  totalByteLimit: number,
+  budget: CumulativeBudget
+): Promise<void> {
   let src: NodeJS.ReadableStream
   try {
-    // zip.stream is async (returns Promise<Readable>) — MUST await before pipeline.
-    src = await zip.stream(name)
+    src = await zip.stream(entry)
   } catch (e) {
-    throw new BackupArchiveCorruptError(`failed to open entry '${name}': ${e instanceof Error ? e.message : String(e)}`)
+    throw new BackupArchiveCorruptError(
+      `failed to open entry '${safeEntryName(entry.name)}': ${e instanceof Error ? e.message : String(e)}`
+    )
   }
-  // pipeline error (ENOSPC/EIO on the write side, or a zip read failure) propagates to the
-  // outer catch, where normalizeAdmissionError maps ENOSPC/SQLITE_FULL → DiskFullError and
-  // anything else → BackupArchiveCorruptError.
-  await pipeline(src, createWriteStream(dest))
+  const limiter = createByteLimitTransform({
+    entryName: entry.name,
+    entryByteLimit,
+    totalByteLimit,
+    budget,
+    declaredSize: entry.size
+  })
+  await pipeline(src, limiter, createWriteStream(dest))
+}
+
+/**
+ * Transform that passes chunks through while enforcing per-entry and shared cumulative
+ * uncompressed byte hard caps. Mutable budget is admission-scoped (serial extraction).
+ *
+ * @internal
+ */
+export function createByteLimitTransform(options: {
+  entryName: string
+  entryByteLimit: number
+  totalByteLimit: number
+  budget: CumulativeBudget
+  /** When set, actual bytes past declared size are rejected as metadata mismatch. */
+  declaredSize?: number
+}): Transform {
+  let entryActual = 0
+  const label = safeEntryName(options.entryName)
+
+  return new Transform({
+    transform(chunk: Buffer | string, _encoding: BufferEncoding, callback: TransformCallback) {
+      const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
+      const chunkBytes = buf.byteLength
+
+      if (entryActual + chunkBytes > options.entryByteLimit) {
+        callback(
+          new BackupArchiveCorruptError(
+            options.declaredSize !== undefined && entryActual + chunkBytes > options.declaredSize
+              ? `entry '${label}' produced more bytes than declared`
+              : options.entryName === MANIFEST_ENTRY
+                ? 'manifest.json uncompressed size exceeds limit'
+                : `entry '${label}' uncompressed size exceeds limit`
+          )
+        )
+        return
+      }
+      if (options.budget.actualTotal + chunkBytes > options.totalByteLimit) {
+        callback(new BackupArchiveCorruptError('archive total uncompressed size exceeds limit'))
+        return
+      }
+
+      entryActual += chunkBytes
+      options.budget.actualTotal += chunkBytes
+      callback(null, buf)
+    }
+  })
+}
+
+/**
+ * Validate size/compressedSize are finite non-negative safe integers (fail-closed).
+ *
+ * @internal
+ */
+export function assertSafeSizeMetadata(entry: Pick<StreamZip.ZipEntry, 'name' | 'size' | 'compressedSize'>): void {
+  if (!isSafeNonNegativeInt(entry.size) || !isSafeNonNegativeInt(entry.compressedSize)) {
+    throw new BackupArchiveCorruptError(`entry '${safeEntryName(entry.name)}' has invalid size metadata`)
+  }
+}
+
+/**
+ * Compression-ratio gate for an extracted non-empty file entry.
+ * Empty (`size === 0`) skips ratio (avoids 0/0). `size > 0 && compressedSize === 0` rejects.
+ * Exact ratio limit is allowed (`BigInt` compare avoids float edge cases).
+ *
+ * @internal
+ */
+export function assertCompressionRatio(
+  entry: Pick<StreamZip.ZipEntry, 'name' | 'size' | 'compressedSize'>,
+  maxRatio: number
+): void {
+  if (entry.size === 0) return
+  if (entry.compressedSize === 0) {
+    throw new BackupArchiveCorruptError(`entry '${safeEntryName(entry.name)}' compression ratio exceeds limit`)
+  }
+  if (BigInt(entry.size) > BigInt(entry.compressedSize) * BigInt(maxRatio)) {
+    throw new BackupArchiveCorruptError(`entry '${safeEntryName(entry.name)}' compression ratio exceeds limit`)
+  }
+}
+
+/**
+ * Remaining-budget reservation: reject before add when `entrySize` would exceed remaining.
+ *
+ * @internal
+ */
+export function reserveDeclaredBytes(declaredTotal: number, entrySize: number, maxTotal: number): number {
+  if (entrySize > maxTotal - declaredTotal) {
+    throw new BackupArchiveCorruptError('archive total uncompressed size exceeds limit')
+  }
+  return declaredTotal + entrySize
+}
+
+function assertUncompressedWithin(size: number, limit: number, message: string): void {
+  if (size > limit) {
+    throw new BackupArchiveCorruptError(message)
+  }
+}
+
+function isSafeNonNegativeInt(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 0
+}
+
+/** Truncate + strip controls so untrusted entry names cannot inject log/error text. */
+function safeEntryName(name: string): string {
+  const cleaned = name.replace(/[\u0000-\u001f\u007f]/g, '')
+  return cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned
 }
 
 /** A recognized top-level entry: exact `backup.sqlite`, or any path under files/ knowledge/ notes/ skills/. */
