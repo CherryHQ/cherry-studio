@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import {
   createRecentSessionEntryFromSession,
@@ -344,9 +345,18 @@ const AgentPage = () => {
   const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
     setAutoCollapsedResourceList(collapsed)
   }, [])
+  const [paneManualToggle, setPaneManualToggle] = useState<PaneManualToggleSignal | undefined>()
+  const markManualPaneToggle = useCallback(
+    (open: boolean) => {
+      setPaneManualToggle((previous) => ({ seq: (previous?.seq ?? 0) + 1, open }))
+      setResourceListOpen(open)
+    },
+    [setResourceListOpen]
+  )
+  const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
   const toggleResourceListOpen = useCallback(() => {
-    setResourceListOpen(!effectiveShowSidebar)
-  }, [effectiveShowSidebar, setResourceListOpen])
+    markManualPaneToggle(!effectiveShowSidebar)
+  }, [effectiveShowSidebar, markManualPaneToggle])
   useCommandHandler(
     'app.sidebar.toggle',
     () => {
@@ -900,6 +910,7 @@ const AgentPage = () => {
         onSelectSession={handleResourceSessionSelect}
         onSelectedAgentClick={() => {
           closeSurface()
+          if (!sessionPaneOpen) setSessionPaneUserOpenIntentSeq((seq) => seq + 1)
           setSessionPaneOpen(!sessionPaneOpen)
         }}
         onCreateSession={handleCreateSessionForAgent}
@@ -1010,8 +1021,9 @@ const AgentPage = () => {
           lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
           paneOpen={effectiveShowSidebar}
           panePosition={shellPanePosition}
-          onPaneCollapse={() => setResourceListOpen(false)}
+          onPaneCollapse={() => markManualPaneToggle(false)}
           onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+          paneManualToggle={paneManualToggle}
           showResourceListControls={!isMessageOnlyView}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
@@ -1030,6 +1042,7 @@ const AgentPage = () => {
           resourcePaneRevealRequest={sessionRevealRequest}
           sessionPaneOpen={isClassicSessionLayout ? sessionPaneOpen : undefined}
           onSessionPaneOpenChange={isClassicSessionLayout ? setSessionPaneOpen : undefined}
+          sessionPaneUserOpenIntentSeq={sessionPaneUserOpenIntentSeq}
         />
       </div>
       <AgentCreateDialog
