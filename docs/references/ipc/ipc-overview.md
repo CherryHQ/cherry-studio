@@ -108,7 +108,7 @@ export interface IpcContext {
 
 Caller identity **must** be derived by main from the real `event.sender` (`WindowManager.getWindowIdByWebContents`). It is never put in `input` — a renderer could forge a window id and operate another window (privilege escalation). Continuous push-back to the caller (streams) does **not** go through `ctx`; a service holds a listener registry and directs `send` by topic.
 
-**`senderId: null` semantics.** `null` means the trusted caller is **not a managed WindowManager window**. Handlers use `senderId` only when the capability is functionally scoped to the caller window—for example, controlling that window or directing a response to it. Do not add a second trust check merely because a route has side effects: `validateSender` already gates every IpcApi request at the transport entry.
+**`senderId: null` semantics.** `null` means the caller passed the source-trust gate (`validateSender`) but is **not a managed WindowManager window**. `validateSender` (frame-URL allowlist) and `senderId` (WindowManager registry) are two independent trust sources that are not cross-checked — so a side-effecting handler must **decide how to treat `senderId: null`** (refuse, or fall back to a non-window-scoped path) rather than assume a window is present. Today no trusted-but-unmanaged window reaches a sensitive route, but that is held by per-window configuration, not by a check here; new side-effecting routes should gate on `senderId` explicitly.
 
 > DataApi handlers have no caller-window concept (it must be remotable). IpcApi has `IpcContext` precisely because it is local and bound to main window capabilities — another reason the two cannot merge.
 
