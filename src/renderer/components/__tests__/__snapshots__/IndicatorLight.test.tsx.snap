@@ -3,7 +3,7 @@
 exports[`IndicatorLight > should match snapshot 1`] = `
 <div
   class="rounded-full"
-  data-ui="indicator.light.element.div"
+  data-ui="ui.indicator-light"
   style="width: 8px; height: 8px; background-color: rgb(34, 197, 94); box-shadow: 0 0 6px #22c55e; animation: pulse 2s infinite;"
 />
 `;

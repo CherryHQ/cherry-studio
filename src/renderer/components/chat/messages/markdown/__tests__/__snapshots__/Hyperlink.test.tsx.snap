@@ -7,7 +7,7 @@ exports[`Hyperlink > should match snapshot for normal url 1`] = `
   >
     <div
       data-testid="hover-card-trigger"
-      data-ui="messages.markdown.hyperlink.action.close"
+      data-ui="chat.hyperlink.action.close"
     >
       <span
         class="inline"
