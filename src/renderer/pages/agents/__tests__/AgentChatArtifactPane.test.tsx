@@ -400,7 +400,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false],
   useSharedCache: () => [null, vi.fn()],
   useSharedCacheValue: () => undefined,
-  usePersistCache: (key: string) => [key === 'ui.agent.context_usage_snapshots' ? {} : undefined, vi.fn()]
+  usePersistCache: () => [undefined, vi.fn()]
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({

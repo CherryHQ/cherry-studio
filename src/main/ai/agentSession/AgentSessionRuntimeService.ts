@@ -17,6 +17,7 @@ import {
 } from '@shared/ai/agentSessionCompaction'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
+  AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -24,6 +25,10 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type {
+  AgentSessionContextUsageSnapshotStore,
+  AgentSessionContextUsageSummary
+} from '@shared/data/cache/cacheValueTypes'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -54,6 +59,7 @@ import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } 
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+const MAX_CONTEXT_USAGE_SNAPSHOTS = 100
 const SESSION_FILE_SWEEP_INTERVAL_MS = 30 * 60 * 1000
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -368,6 +374,8 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
+    this.restoreContextUsageSnapshot(sessionId)
+
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1010,7 +1018,24 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
     if (!this.isCurrentEntry(entry)) return
-    application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
+
+    const cache = application.get('CacheService')
+    const snapshot = createContextUsageSnapshot(usage)
+    const snapshots = cache.getPersist(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY)
+    cache.setPersist(
+      AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY,
+      upsertContextUsageSnapshot(snapshots, entry.sessionId, snapshot)
+    )
+    cache.setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), snapshot)
+  }
+
+  private restoreContextUsageSnapshot(sessionId: string): void {
+    const cache = application.get('CacheService')
+    const sharedKey = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId)
+    if (cache.getShared(sharedKey)) return
+
+    const snapshot = cache.getPersist(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY)[sessionId]
+    if (snapshot) cache.setShared(sharedKey, snapshot)
   }
 
   // The initial slash command catalog read (`query.supportedCommands()`) once the connection is live.
@@ -1482,6 +1507,26 @@ export class AgentSessionRuntimeService extends BaseService {
       logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
     )
   }
+}
+
+function createContextUsageSnapshot(usage: AgentSessionContextUsage): AgentSessionContextUsageSummary {
+  return {
+    categories: usage.categories.map(({ name, tokens }) => ({ name, tokens })),
+    totalTokens: usage.totalTokens,
+    maxTokens: usage.maxTokens,
+    percentage: usage.percentage,
+    model: usage.model
+  }
+}
+
+function upsertContextUsageSnapshot(
+  snapshots: AgentSessionContextUsageSnapshotStore,
+  sessionId: string,
+  snapshot: AgentSessionContextUsageSummary
+): AgentSessionContextUsageSnapshotStore {
+  const entries = Object.entries(snapshots).filter(([existingSessionId]) => existingSessionId !== sessionId)
+  entries.push([sessionId, snapshot])
+  return Object.fromEntries(entries.slice(-MAX_CONTEXT_USAGE_SNAPSHOTS))
 }
 
 function isAbortError(error: unknown): boolean {

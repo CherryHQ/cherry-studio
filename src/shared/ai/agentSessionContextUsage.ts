@@ -5,5 +5,7 @@ import type { SDKControlGetContextUsageResponse } from '@anthropic-ai/claude-age
 // instead of silently diverging the cached contract.
 export type AgentSessionContextUsage = SDKControlGetContextUsageResponse
 
+export const AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY = 'agent.session.context_usage_snapshots' as const
+
 export const AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY = (sessionId: string) =>
   `agent.session.context_usage.${sessionId}` as const

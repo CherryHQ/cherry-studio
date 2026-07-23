@@ -134,11 +134,7 @@ export type CachePaintingGenerationState = {
   progress: number | null
 }
 
-export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
-export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
-export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
-
-// Renderer-persisted view model: intentionally excludes SDK details such as local memory-file paths,
+// Persisted and shared view model: intentionally excludes SDK details such as local memory-file paths,
 // MCP tool metadata, agents, skills, and message breakdowns that the UI does not render.
 export type AgentSessionContextUsageSummary = Pick<
   AgentSessionContextUsage,
@@ -148,6 +144,10 @@ export type AgentSessionContextUsageSummary = Pick<
 }
 
 export type AgentSessionContextUsageSnapshotStore = Record<string, AgentSessionContextUsageSummary>
+
+export type CacheAgentSessionContextUsage = AgentSessionContextUsageSummary | null
+export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
+export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
 
 /**
  * Persisted window geometry for the WindowManager "remember bounds" capability.
