@@ -12,7 +12,6 @@ import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '..
 const {
   agentTools,
   fetchGenerateMock,
-  getDefaultRouteTitleMock,
   installedSkillsState,
   ipcRequestMock,
   mcpStatusState,
@@ -22,8 +21,7 @@ const {
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
-  useQueryMock,
-  uuidMock
+  useQueryMock
 } = vi.hoisted(() => ({
   agentTools: [
     { id: 'Bash', name: 'Bash', description: 'Run shell commands', origin: 'builtin', approval: 'prompt' },
@@ -53,7 +51,6 @@ const {
     { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
   ],
   fetchGenerateMock: vi.fn(),
-  getDefaultRouteTitleMock: vi.fn(),
   installedSkillsState: {
     current: {
       skills: [
@@ -76,8 +73,7 @@ const {
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
-  useQueryMock: vi.fn(),
-  uuidMock: vi.fn()
+  useQueryMock: vi.fn()
 }))
 
 const MODEL = vi.hoisted(
@@ -267,14 +263,6 @@ vi.mock('@renderer/hooks/usePromptProcessor', () => ({
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: fetchGenerateMock
-}))
-
-vi.mock('@renderer/utils/routeTitle', () => ({
-  getDefaultRouteTitle: getDefaultRouteTitleMock
-}))
-
-vi.mock('@renderer/utils/uuid', () => ({
-  uuid: uuidMock
 }))
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
@@ -525,8 +513,6 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  getDefaultRouteTitleMock.mockReturnValue('Settings')
-  uuidMock.mockReturnValue('detached-tab-id')
   installedSkillsState.current = {
     skills: [
       {
@@ -1048,7 +1034,7 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Skill One')).toBeInTheDocument()
   })
 
-  it('opens Skill settings in a detached window without closing the agent edit dialog', () => {
+  it('opens Skill settings in an app tab without closing the agent edit dialog', () => {
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
@@ -1061,13 +1047,8 @@ describe('edit dialogs', () => {
 
     fireEvent.click(manageSkillsButton)
 
-    expect(ipcRequestMock).toHaveBeenCalledWith('tab.detach', {
-      id: 'detached-tab-id',
-      url: '/settings/skills',
-      title: 'Settings',
-      type: 'route'
-    })
-    expect(openSettingsTabMock).not.toHaveBeenCalledWith('/settings/skills')
+    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/skills')
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('tab.detach', expect.anything())
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 

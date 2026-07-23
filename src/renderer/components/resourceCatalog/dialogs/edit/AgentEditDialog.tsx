@@ -21,7 +21,7 @@ import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
-import { ipcApi } from '@renderer/ipc'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { permissionModeCards } from '@renderer/utils/agent'
 import {
@@ -31,8 +31,6 @@ import {
   diffAgentSaveIntent,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { uuid } from '@renderer/utils/uuid'
 import {
   CLAUDE_TOOL_CATEGORIES,
   type ClaudeToolCategory,
@@ -91,13 +89,8 @@ const logger = loggerService.withContext('AgentEditDialog')
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
 const SKILLS_SETTINGS_PATH = '/settings/skills'
 
-function openSkillsSettingsWindow() {
-  void ipcApi.request('tab.detach', {
-    id: uuid(),
-    url: SKILLS_SETTINGS_PATH,
-    title: getDefaultRouteTitle(SKILLS_SETTINGS_PATH),
-    type: 'route'
-  })
+function openSkillsSettingsTab() {
+  openSettingsTab(SKILLS_SETTINGS_PATH)
 }
 
 const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
@@ -779,7 +772,7 @@ function AgentToolsFields({
             <Button
               type="button"
               variant="ghost"
-              onClick={openSkillsSettingsWindow}
+              onClick={openSkillsSettingsTab}
               className="h-full min-h-11 w-full rounded-lg border border-border-muted border-dashed px-2.5 py-1.5 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:border-border-hover hover:bg-accent/50 hover:text-foreground">
               <ToolCase size={14} strokeWidth={1.7} />
               {t('agent.settings.skills.addMore')}
