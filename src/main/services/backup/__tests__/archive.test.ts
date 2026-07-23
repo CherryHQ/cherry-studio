@@ -252,6 +252,34 @@ describe('assembleArchive', () => {
     }
   })
 
+  it('post-publish durability fsync failure does not fail the export', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
+    try {
+      const dbCopy = join(dir, 'backup.sqlite')
+      await writeFile(dbCopy, Buffer.from('ok'))
+      const out = join(dir, 'published.cherrybackup')
+
+      const realFsync = archiveMod.archiveDurability.fsyncPath.bind(archiveMod.archiveDurability)
+      const fsyncSpy = vi
+        .spyOn(archiveMod.archiveDurability, 'fsyncPath')
+        .mockImplementation(async (target: string) => {
+          // Pre-publish tmp fsync must still succeed (durability gate before rename/link).
+          if (target.endsWith('.tmp')) return realFsync(target)
+          throw new Error('simulated post-publish fsync failure')
+        })
+      const parentSpy = vi
+        .spyOn(archiveMod.archiveDurability, 'fsyncParentDir')
+        .mockRejectedValue(new Error('simulated parent fsync failure'))
+
+      await expect(assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })).resolves.toBeUndefined()
+      expect(existsSync(out)).toBe(true)
+      fsyncSpy.mockRestore()
+      parentSpy.mockRestore()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it.skipIf(process.platform === 'win32')('published archive is mode 0600 (owner read/write only)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
     try {

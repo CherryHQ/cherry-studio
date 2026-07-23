@@ -23,10 +23,13 @@ import { chmod, copyFile, link, open as fsOpen, rename, stat, unlink } from 'nod
 import { basename, dirname, join } from 'node:path'
 import { finished } from 'node:stream/promises'
 
+import { loggerService } from '@logger'
 import { ZipArchive } from 'archiver'
 
 import { BackupCancelledError, DiskFullError, OutputPathExistsError } from './errors'
 import type { BackupManifest } from './manifest'
+
+const logger = loggerService.withContext('backup/archive')
 
 export interface ArchiveInputs {
   /** Serialized to `manifest.json` at the archive root. */
@@ -195,16 +198,23 @@ export async function assembleArchive(
         }
       }
     }
-    // copyFile creates a new inode with default umask permissions — chmod to 0600
-    // (hard-link/rename preserve the tmp inode mode). Then fsync the new inode and
-    // parent dir so the directory entry is durable on POSIX.
-    if (publishedViaCopy) {
-      await chmod(outPath, 0o600)
-      await archiveDurability.fsyncPath(outPath)
+    // Publish (rename/link/copyFile success) is the commit point — outPath holds the
+    // archive (overwrite may already have replaced the prior file). Post-publish
+    // durability fsync is best-effort: failure must NOT report export failure (retry
+    // would hit BACKUP_OUTPUT_PATH_EXISTS on the already-written archive).
+    try {
+      // copyFile creates a new inode with default umask permissions — chmod to 0600
+      // (hard-link/rename preserve the tmp inode mode). Then fsync the new inode and
+      // parent dir so the directory entry is durable on POSIX.
+      if (publishedViaCopy) {
+        await chmod(outPath, 0o600)
+        await archiveDurability.fsyncPath(outPath)
+      }
+      await archiveDurability.fsyncParentDir(outPath)
+    } catch (e) {
+      logger.warn('archive published but durability fsync failed', e as Error)
     }
-    await archiveDurability.fsyncParentDir(outPath)
-    // Commit point reached (link/copy/rename succeeded) — outPath holds the archive. tmp
-    // cleanup is best-effort (rename already consumed tmp; unlink is a no-op then): a
+    // tmp cleanup is best-effort (rename already consumed tmp; unlink is a no-op then): a
     // cleanup failure must NOT turn a successful export into a reported failure (the outer
     // catch would otherwise rethrow, and a retry would then hit BACKUP_OUTPUT_PATH_EXISTS
     // on the already-written archive).
