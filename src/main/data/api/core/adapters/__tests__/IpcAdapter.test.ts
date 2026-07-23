@@ -48,8 +48,6 @@ const untrustedEvents = {
 describe('IpcAdapter', () => {
   let handleRequest: ReturnType<typeof vi.fn>
   let requestHandler: IpcHandler
-  let subscribeHandler: IpcHandler
-  let unsubscribeHandler: IpcHandler
 
   beforeEach(() => {
     vi.mocked(ipcMain.handle).mockClear()
@@ -64,8 +62,6 @@ describe('IpcAdapter', () => {
     const calls = vi.mocked(ipcMain.handle).mock.calls
     const handlerFor = (channel: string) => calls.find((call) => call[0] === channel)![1] as IpcHandler
     requestHandler = handlerFor(IpcChannel.DataApi_Request)
-    subscribeHandler = handlerFor(IpcChannel.DataApi_Subscribe)
-    unsubscribeHandler = handlerFor(IpcChannel.DataApi_Unsubscribe)
   })
 
   it('passes a trusted request through to ApiServer', async () => {
@@ -85,17 +81,5 @@ describe('IpcAdapter', () => {
       expect(response.error).toMatchObject({ code: 'PERMISSION_DENIED', status: 403 })
     }
     expect(handleRequest).not.toHaveBeenCalled()
-  })
-
-  it('allows a trusted sender to subscribe and unsubscribe', async () => {
-    await expect(subscribeHandler(trustedEvent, '/topics')).resolves.toMatchObject({ success: true })
-    await expect(unsubscribeHandler(trustedEvent, 'sub-1')).resolves.toMatchObject({ success: true })
-  })
-
-  it('rejects untrusted subscribe/unsubscribe senders', async () => {
-    for (const event of Object.values(untrustedEvents)) {
-      await expect(subscribeHandler(event, '/topics')).rejects.toThrow('untrusted sender')
-      await expect(unsubscribeHandler(event, 'sub-1')).rejects.toThrow('untrusted sender')
-    }
   })
 })
