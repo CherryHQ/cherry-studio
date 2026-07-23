@@ -1,1 +1,1 @@
-export { getAppLanguage, getI18n, t, tFor } from './resolver'
+export { getAppLanguage, getI18n, t } from './resolver'

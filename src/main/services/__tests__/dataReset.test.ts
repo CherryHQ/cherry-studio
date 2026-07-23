@@ -139,11 +139,7 @@ function stubApplication(userData: string = USER_DATA) {
 }
 
 function stubI18n() {
-  vi.doMock('@main/i18n', () => ({
-    t: (key: string) => key,
-    tFor: (_locale: string, key: string) => key,
-    getAppLanguage: () => 'zh-CN'
-  }))
+  vi.doMock('@main/i18n', () => ({ t: (key: string) => key }))
 }
 
 function stubBootConfig(marker: DataResetMarker) {
@@ -452,9 +448,7 @@ describe('requestDataReset', () => {
         status: 'pending',
         userDataPath: USER_DATA,
         // realpath resolves to the lexical path in the fs stub.
-        canonicalPath: USER_DATA,
-        // The execution side renders its dialogs in the requesting user's language.
-        locale: 'zh-CN'
+        canonicalPath: USER_DATA
       })
     )
     // Durability ordering: the marker must be on disk before the relaunch fires.

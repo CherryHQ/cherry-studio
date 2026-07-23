@@ -4,10 +4,10 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
-// tFor, not t, on the execution side: t resolves the language through
-// PreferenceService, which does not exist at preboot. The marker carries the
-// requesting user's language. The request side runs in a live app and uses t.
-import { getAppLanguage, t, tFor } from '@main/i18n'
+// Request side only: t resolves the language through PreferenceService,
+// which exists in the live app but NOT at preboot — the execution side's
+// dialogs below are deliberately hardcoded en-US instead.
+import { t } from '@main/i18n'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { app, dialog, session } from 'electron'
@@ -164,10 +164,6 @@ export async function requestDataReset(): Promise<void> {
     // Pin the physical directory the user confirmed: the wipe refuses a
     // pass whose realpath resolution has changed since this moment.
     canonicalPath: canonicalize(userDataPath),
-    // The execution side renders its dialogs in this language — the
-    // preference store holding the live value is exactly what the wipe
-    // deletes.
-    locale: getAppLanguage(),
     requestedAt: new Date().toISOString()
   })
   try {
@@ -264,7 +260,7 @@ export function runDataReset(): void {
       })
       resetBootConfigToDefaults()
       bootConfigService.flush()
-      showIncompleteResetWarning(marker.locale)
+      showIncompleteResetWarning()
       return
     }
 
@@ -278,7 +274,7 @@ export function runDataReset(): void {
       })
       resetBootConfigToDefaults()
       bootConfigService.flush()
-      showIncompleteResetWarning(marker.locale)
+      showIncompleteResetWarning()
       return
     }
 
@@ -303,8 +299,11 @@ export function runDataReset(): void {
         error: String(error)
       })
       dialog.showErrorBox(
-        tFor(marker.locale ?? '', 'dialog.data_reset.arm_failed_title'),
-        tFor(marker.locale ?? '', 'dialog.data_reset.arm_failed_message', { path: bootConfigService.getFilePath() })
+        'Data Reset Failed',
+        'Cherry Studio could not record the data reset state ' +
+          `in ${bootConfigService.getFilePath()}.\n\n` +
+          'Starting now could erase data you create later, so the app will quit instead.\n\n' +
+          'Please check disk space and file permissions, then start Cherry Studio again.'
       )
       app.exit(1)
       return
@@ -342,7 +341,7 @@ export function runDataReset(): void {
       })
       resetBootConfigToDefaults()
       bootConfigService.flush()
-      showIncompleteResetWarning(marker.locale)
+      showIncompleteResetWarning()
       return
     }
 
@@ -362,10 +361,11 @@ export function runDataReset(): void {
         error: String(error)
       })
       dialog.showErrorBox(
-        tFor(marker.locale ?? '', 'dialog.data_reset.clear_failed_title'),
-        tFor(marker.locale ?? '', 'dialog.data_reset.clear_failed_message', {
-          path: bootConfigService.getFilePath()
-        })
+        'Data Reset Incomplete',
+        'Cherry Studio erased its data but could not save the reset completion ' +
+          `to ${bootConfigService.getFilePath()}.\n\n` +
+          'Starting now would erase anything you create on the next launch, so the app will quit instead.\n\n' +
+          'Please check disk space and file permissions, then start Cherry Studio again.'
       )
       // Deliberately app.exit(), not application.quit(): non-zero exit code,
       // and no before-quit handlers — nothing may write files after the wipe.
@@ -426,15 +426,18 @@ function canonicalize(p: string): string {
 }
 
 /**
- * Tell the user the reset gave up with data left behind, in the language the
- * request captured in the marker (undefined — hand-written marker — falls
- * back to en-US inside tFor). Shown synchronously before any window exists —
- * Electron supports showErrorBox pre-ready.
+ * Tell the user the reset gave up with data left behind. Shown
+ * synchronously before any window exists — Electron supports showErrorBox
+ * pre-ready. Hardcoded en-US like the other execution-side dialogs: the
+ * i18n resolver needs PreferenceService for the language, which does not
+ * exist at preboot (and whose store is exactly what the wipe deletes).
  */
-function showIncompleteResetWarning(locale: string | undefined): void {
+function showIncompleteResetWarning(): void {
   dialog.showErrorBox(
-    tFor(locale ?? '', 'dialog.data_reset.incomplete_title'),
-    tFor(locale ?? '', 'dialog.data_reset.incomplete_message')
+    'Data Reset Incomplete',
+    'Cherry Studio could not remove some of its data during the data reset.\n\n' +
+      'The app will start with whatever remains. ' +
+      'Please check file permissions (or antivirus locks) and run Data Reset again from Settings.'
   )
 }
 

@@ -106,8 +106,7 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '      userDataPath: z.string(),\n' +
       '      requestedAt: z.string(),\n' +
       '      attempts: z.number().optional(),\n' +
-      '      canonicalPath: z.string().optional(),\n' +
-      '      locale: z.string().optional()\n' +
+      '      canonicalPath: z.string().optional()\n' +
       '    })\n' +
       '    .nullable()',
     defaultValue: null,
@@ -126,7 +125,7 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       'Lifecycle:',
       '  - null: no data reset pending (default).',
       "  - { status: 'pending', userDataPath, requestedAt, attempts?,",
-      "    canonicalPath?, locale? }: requestDataReset (the 'app.data_reset.request'",
+      "    canonicalPath? }: requestDataReset (the 'app.data_reset.request'",
       '    IpcApi route) wrote this request and the next preboot should execute',
       "    the wipe. `userDataPath` is the requesting instance's resolved userData",
       '    directory; a pass whose resolution differs leaves the marker',
@@ -134,10 +133,7 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '    between dev and packaged instances). `canonicalPath` pins the',
       '    realpath-resolved physical directory: a pass whose re-resolution',
       '    disagrees refuses to wipe, so a replaced symlink/junction cannot',
-      '    redirect a recorded authorization onto a new directory. `locale`',
-      "    captures the requesting user's app language so the wipe pass can render",
-      '    its dialogs in it — the preference store holding the live value is',
-      '    exactly what the wipe deletes.',
+      '    redirect a recorded authorization onto a new directory.',
       '',
       'Retry semantics: runDataReset durably increments `attempts` (treating',
       'absence as 0) before each destructive pass — if that write fails it',

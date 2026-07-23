@@ -57,15 +57,9 @@
   "dialog": {
     "all_files": "Все файлы",
     "data_reset": {
-      "arm_failed_message": "[to be translated]:Cherry Studio could not record the data reset state in {{path}}.\n\nStarting now could erase data you create later, so the app will quit instead.\n\nPlease check disk space and file permissions, then start Cherry Studio again.",
-      "arm_failed_title": "[to be translated]:Data Reset Failed",
       "cancel": "[to be translated]:Cancel",
-      "clear_failed_message": "[to be translated]:Cherry Studio erased its data but could not save the reset completion to {{path}}.\n\nStarting now would erase anything you create on the next launch, so the app will quit instead.\n\nPlease check disk space and file permissions, then start Cherry Studio again.",
-      "clear_failed_title": "[to be translated]:Data Reset Incomplete",
       "confirm": "[to be translated]:Erase Everything",
       "detail": "[to be translated]:This cannot be undone. The app will relaunch immediately and erase all chats, assistants, knowledge bases, files, and settings on startup.",
-      "incomplete_message": "[to be translated]:Cherry Studio could not remove some of its data during the data reset.\n\nThe app will start with whatever remains. Please check file permissions (or antivirus locks) and run Data Reset again from Settings.",
-      "incomplete_title": "[to be translated]:Data Reset Incomplete",
       "message": "[to be translated]:All data will be lost, do you want to continue?",
       "title": "[to be translated]:Data Reset"
     },
