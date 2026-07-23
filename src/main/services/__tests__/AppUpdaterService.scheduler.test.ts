@@ -14,7 +14,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { regionService } from '@main/services/RegionService'
-import { app, net } from 'electron'
+import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,7 +29,7 @@ vi.mock('@logger', () => ({
 vi.mock('@main/core/platform', () => ({ isWin: false }))
 
 vi.mock('@main/services/RegionService', () => ({
-  regionService: { getCountry: vi.fn(() => 'US') }
+  regionService: { getCountry: vi.fn(async () => 'US') }
 }))
 
 vi.mock('@main/utils/systemInfo', () => ({
@@ -43,7 +43,6 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0'),
     getPath: vi.fn(() => '/test/path')
   },
-  net: { fetch: vi.fn() },
   // Real BaseService.ipcHandle calls ipcMain.handle, so the mock must provide it.
   ipcMain: { handle: vi.fn(), removeHandler: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
   BrowserWindow: vi.fn()
@@ -58,7 +57,6 @@ vi.mock('electron-updater', () => ({
     requestHeaders: {},
     on: vi.fn(),
     removeListener: vi.fn(),
-    setFeedURL: vi.fn(),
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),
     quitAndInstall: vi.fn(),
@@ -93,6 +91,7 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
   let prefValues: Record<string, unknown>
 
   beforeEach(async () => {
+    vi.clearAllMocks()
     BaseService.resetInstances()
     setPackaged(true)
 
@@ -131,11 +130,12 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
       }
     })
 
-    vi.mocked(regionService.getCountry).mockReturnValue('US' as never)
-    // Remote config fetch fails → falls back to the default feed URL (the check
-    // itself still runs); keeps these tests off the network.
-    vi.mocked(net.fetch).mockRejectedValue(new Error('no remote config'))
+    vi.mocked(regionService.getCountry).mockResolvedValue('US')
     vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue(null)
+    autoUpdater.requestHeaders = {}
+    autoUpdater.channel = ''
+    autoUpdater.allowDowngrade = false
+    autoUpdater.disableDifferentialDownload = false
     // Center the jitter so the normal cadence is exactly CHECK_INTERVAL_MS.
     vi.spyOn(Math, 'random').mockReturnValue(0.5)
 

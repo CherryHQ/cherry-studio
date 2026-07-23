@@ -1,4 +1,4 @@
-import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
+import { useProvider, useProviderMutations, useProviderPreset } from '@renderer/hooks/useProvider'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useState } from 'react'
@@ -9,6 +9,8 @@ import { useProviderHostPreview } from '../hooks/providerSetting/useProviderHost
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { AnthropicApiHostField, ApiHostField, ApiHostSection, AzureApiVersionField } from './ApiHostFields'
 import ProviderCustomHeaderDrawer from './ProviderCustomHeaderDrawer'
+
+const ENDPOINT_CONFIG_PRESET_FIELDS = ['endpointConfigs'] as const
 
 interface ApiHostProps {
   providerId: string
@@ -25,11 +27,15 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
   const { primaryEndpoint, apiHost, setApiHost, anthropicApiHost, setAnthropicApiHost, apiVersion, setApiVersion } =
     useProviderEndpoints(provider)
   const topology = getProviderHostTopology(provider)
+  const { data: preset } = useProviderPreset(providerId, ENDPOINT_CONFIG_PRESET_FIELDS)
+  // Factory-default host for the primary endpoint (registry-sourced); '' for custom providers.
+  const defaultApiHost = preset?.endpointConfigs?.[topology.primaryEndpoint]?.baseUrl ?? ''
   const isAnthropicPrimaryEndpoint = primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
   const hostPreview = useProviderHostPreview({
     provider,
     apiHost,
-    anthropicApiHost
+    anthropicApiHost,
+    defaultApiHost
   })
   const endpointActions = useProviderEndpointActions({
     provider,
@@ -40,6 +46,7 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
     anthropicApiHost,
     setAnthropicApiHost,
     apiVersion,
+    defaultApiHost,
     patchProvider: updateProvider
   })
   const handleApiHostChange = (value: string) => {
