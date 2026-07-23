@@ -17,7 +17,7 @@ import {
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
-import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
+import { getMessageListItemModel } from '../utils/messageListItem'
 import MessageAvatar, { MESSAGE_MODEL_AVATAR_ICON_CLASS, MessageAvatarFrame } from './MessageAvatar'
 import MessageTokens from './MessageTokens'
 
@@ -59,19 +59,15 @@ const MessageHeader: FC<Props> = memo(
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
     const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
-    const modelName = getMessageListItemModelName(message)
-
     const getUserName = useCallback(() => {
       if (message.role === 'assistant') {
-        return authorName || modelName || model?.name || model?.id || ''
+        return authorName || displayModel?.name || displayModel?.id || ''
       }
 
       return userName || t('common.you')
-    }, [authorName, modelName, message.role, model, t, userName])
+    }, [authorName, displayModel, message.role, t, userName])
 
     const isAssistantMessage = message.role === 'assistant'
-    // When the author is named, demote the model to a muted secondary label.
-    const secondaryModelName = isAssistantMessage && authorName ? modelName : undefined
     const hiddenContentHoverClass = isAssistantMessage
       ? 'group-hover/header:opacity-100'
       : 'group-hover/message:opacity-100'
@@ -121,11 +117,6 @@ const MessageHeader: FC<Props> = memo(
               }}>
               {username}
             </span>
-            {secondaryModelName && (
-              <span className="min-w-0 max-w-[160px] shrink truncate text-foreground-muted text-xs leading-5">
-                {secondaryModelName}
-              </span>
-            )}
             {isGroupContextMessage && (
               <Tooltip content={t('chat.message.useful.tip')}>
                 <Sparkle className="shrink-0" fill="var(--color-primary)" strokeWidth={0} size={16} />
