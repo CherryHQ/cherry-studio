@@ -503,8 +503,8 @@ class ModelService {
   }
 
   /**
-   * Read-time registry enrichment shared by every row-serving read path
-   * (`list`, `getByKey`): recompute capabilities / imageGeneration and the
+   * Registry enrichment shared by every row-serving path
+   * (`list`, `getByKey`, mutation results): recompute capabilities / imageGeneration and the
    * reasoning descriptor (#16598) from the CURRENT registry. Capability
    * enrichment honors `userOverrides`; reasoning is no longer user-editable
    * and is always re-projected. Nothing is written back. Single-model consumers (the
@@ -780,7 +780,7 @@ class ModelService {
     }
 
     if (Object.keys(updates).length === 0) {
-      return rowToRuntimeModel(existing)
+      return this.enrichRowsFromRegistry([existing])[0]
     }
 
     const [row] = db
@@ -792,7 +792,7 @@ class ModelService {
 
     logger.info('Updated model', { providerId, modelId, changes: Object.keys(dto) })
 
-    return rowToRuntimeModel(row)
+    return this.enrichRowsFromRegistry([row])[0]
   }
 
   /**
@@ -820,8 +820,8 @@ class ModelService {
       return mapping && Array.isArray(mapping) ? mapping[1] : key
     }
 
-    return db.transaction((tx) => {
-      const results: Model[] = []
+    const rows = db.transaction((tx) => {
+      const results: UserModelRow[] = []
 
       for (const { providerId, modelId, patch } of items) {
         const [existing] = tx
@@ -849,7 +849,7 @@ class ModelService {
         }
 
         if (Object.keys(updates).length === 0) {
-          results.push(rowToRuntimeModel(existing))
+          results.push(existing)
           continue
         }
 
@@ -860,16 +860,18 @@ class ModelService {
           .returning()
           .all()
 
-        results.push(rowToRuntimeModel(row))
+        results.push(row)
       }
-
-      logger.info('Bulk updated models', {
-        count: results.length,
-        providers: [...new Set(items.map((item) => item.providerId))]
-      })
 
       return results
     })
+
+    logger.info('Bulk updated models', {
+      count: rows.length,
+      providers: [...new Set(items.map((item) => item.providerId))]
+    })
+
+    return this.enrichRowsFromRegistry(rows)
   }
 
   /**

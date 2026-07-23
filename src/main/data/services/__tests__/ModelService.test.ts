@@ -872,6 +872,35 @@ describe('ModelService.list — registry enrichment', () => {
 describe('ModelService — reasoning descriptor enrichment', () => {
   const dbh = setupTestDatabase()
 
+  async function seedStalePresetReasoningModel(modelId: string) {
+    await dbh.db.insert(userProviderTable).values(providerRow('aihubmix', 'AiHubMix'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('aihubmix', modelId, {
+        presetModelId: modelId,
+        name: modelId,
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          type: 'openai-chat',
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max']
+        } as never
+      })
+    )
+
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: modelId,
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max', 'auto'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max', 'auto']
+        }
+      } as any,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+  }
+
   beforeEach(() => {
     lookupModelMock.mockReset()
     lookupModelMock.mockReturnValue({
@@ -945,6 +974,24 @@ describe('ModelService — reasoning descriptor enrichment', () => {
     const model = modelService.getByKey('aihubmix', 'claude-sonnet-5')
 
     expect(model.reasoning?.selectableEfforts).toContain('auto')
+  })
+
+  it('update returns the current registry reasoning descriptor instead of the stale stored value', async () => {
+    await seedStalePresetReasoningModel('claude-sonnet-5-update')
+
+    const model = modelService.update('aihubmix', 'claude-sonnet-5-update', { group: 'Updated' })
+
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'max', 'auto'])
+  })
+
+  it('bulkUpdate returns current registry reasoning descriptors after committing the transaction', async () => {
+    await seedStalePresetReasoningModel('claude-sonnet-5-bulk-update')
+
+    const [model] = modelService.bulkUpdate([
+      { providerId: 'aihubmix', modelId: 'claude-sonnet-5-bulk-update', patch: { group: 'Updated' } }
+    ])
+
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'max', 'auto'])
   })
 
   it('ignores a legacy user reasoning override and reprojects registry data', async () => {
