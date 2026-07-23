@@ -61,7 +61,7 @@ patchedDependencies:
   '@ai-sdk/anthropic': 9dde59c089aeae80977fd751f494cf0c1c25d04af2aaa6c527d5d1628011e8fc
   '@ai-sdk/deepseek@2.0.30': db4c4c1e60c18e61952ec4432de7a401adf44420bdbfe4bb6f726a8958642790
   '@ai-sdk/google@3.0.64': 8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312
-  '@ai-sdk/openai-compatible@2.0.37': 363512fcab5b030cf6a7f6327f8ef038eb76dabf71ffb6689e4fe7f9c461780a
+  '@ai-sdk/openai-compatible@2.0.37': 20b8c52d33e9d185dd48174a2aa3cf18b9686d5f1b30ac900e318ba498803d70
   '@ai-sdk/openai@3.0.53': 83a4d486601eff47ad8b5e22024878be2ced05b5b86e09884199a3f47fd53530
   '@ai-sdk/xai@3.0.111': 14ac373f04d53e60b277485bdcc1e590b2a2e17dfbe28575f5098c108a32977e
   '@napi-rs/system-ocr@1.1.0': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
@@ -220,7 +220,7 @@ importers:
         version: 3.0.53(patch_hash=83a4d486601eff47ad8b5e22024878be2ced05b5b86e09884199a3f47fd53530)(zod@4.3.4)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.37
-        version: 2.0.37(patch_hash=363512fcab5b030cf6a7f6327f8ef038eb76dabf71ffb6689e4fe7f9c461780a)(zod@4.3.4)
+        version: 2.0.37(patch_hash=20b8c52d33e9d185dd48174a2aa3cf18b9686d5f1b30ac900e318ba498803d70)(zod@4.3.4)
       '@ai-sdk/perplexity':
         specifier: ^3.0.29
         version: 3.0.29(zod@4.3.4)
@@ -1253,7 +1253,7 @@ importers:
         version: 3.0.53(patch_hash=83a4d486601eff47ad8b5e22024878be2ced05b5b86e09884199a3f47fd53530)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.37
-        version: 2.0.37(patch_hash=363512fcab5b030cf6a7f6327f8ef038eb76dabf71ffb6689e4fe7f9c461780a)(zod@4.4.3)
+        version: 2.0.37(patch_hash=20b8c52d33e9d185dd48174a2aa3cf18b9686d5f1b30ac900e318ba498803d70)(zod@4.4.3)
       '@ai-sdk/provider':
         specifier: ^3.0.14
         version: 3.0.14
@@ -1290,7 +1290,7 @@ importers:
         version: 3.0.53(patch_hash=83a4d486601eff47ad8b5e22024878be2ced05b5b86e09884199a3f47fd53530)(zod@4.3.4)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.37
-        version: 2.0.37(patch_hash=363512fcab5b030cf6a7f6327f8ef038eb76dabf71ffb6689e4fe7f9c461780a)(zod@4.3.4)
+        version: 2.0.37(patch_hash=20b8c52d33e9d185dd48174a2aa3cf18b9686d5f1b30ac900e318ba498803d70)(zod@4.3.4)
       '@ai-sdk/provider':
         specifier: ^3.0.14
         version: 3.0.14
@@ -14049,13 +14049,13 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/openai-compatible@2.0.37(patch_hash=363512fcab5b030cf6a7f6327f8ef038eb76dabf71ffb6689e4fe7f9c461780a)(zod@4.3.4)':
+  '@ai-sdk/openai-compatible@2.0.37(patch_hash=20b8c52d33e9d185dd48174a2aa3cf18b9686d5f1b30ac900e318ba498803d70)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/openai-compatible@2.0.37(patch_hash=363512fcab5b030cf6a7f6327f8ef038eb76dabf71ffb6689e4fe7f9c461780a)(zod@4.4.3)':
+  '@ai-sdk/openai-compatible@2.0.37(patch_hash=20b8c52d33e9d185dd48174a2aa3cf18b9686d5f1b30ac900e318ba498803d70)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.40(zod@4.4.3)
@@ -16792,7 +16792,7 @@ snapshots:
 
   '@opeoginni/github-copilot-openai-compatible@1.0.0(patch_hash=4bea0e526136ed32d0be4849ec5cbb41bd5de7b7418dd6920598357438cfef25)(zod@4.3.4)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.37(patch_hash=363512fcab5b030cf6a7f6327f8ef038eb76dabf71ffb6689e4fe7f9c461780a)(zod@4.3.4)
+      '@ai-sdk/openai-compatible': 2.0.37(patch_hash=20b8c52d33e9d185dd48174a2aa3cf18b9686d5f1b30ac900e318ba498803d70)(zod@4.3.4)
       '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
     transitivePeerDependencies:
