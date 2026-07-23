@@ -279,6 +279,83 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(row.api_keys).toContain('from-backup')
   })
 
+  it('local-priority tags: local empty fills from backup; non-empty local wins', async () => {
+    const now = Date.now()
+    const insertSkill = (
+      db: Database.Database,
+      id: string,
+      folder: string,
+      tags: string,
+      name: string
+    ): void => {
+      db.prepare(
+        `INSERT INTO agent_global_skill (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
+         VALUES (?, ?, ?, 'builtin', ?, ?, 0, ?, ?)`
+      ).run(id, name, folder, tags, `h-${id}`, now, now)
+    }
+
+    // Case A: local=[] (NOT NULL DEFAULT) + backup=[tags] → backup fills
+    insertSkill(dbh.sqlite, 'skill-empty', 'f-empty', '[]', 'empty-local')
+    seedBackup((db) => {
+      insertSkill(db, 'skill-empty', 'f-empty', JSON.stringify(['from-backup']), 'empty-backup')
+    })
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['SKILLS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+    const filled = dbh.sqlite.prepare(`SELECT tags FROM agent_global_skill WHERE folder_name = 'f-empty'`).get() as {
+      tags: string
+    }
+    expect(JSON.parse(filled.tags)).toEqual(['from-backup'])
+
+    // Case B: local=[a] + backup=[b] → local wins
+    await rm(tmpDir, { recursive: true, force: true })
+    tmpDir = await mkdtemp(join(tmpdir(), 'cs-merge-'))
+    backupPath = join(tmpDir, 'backup.sqlite')
+    await dbh.sqlite.backup(backupPath)
+    dbh.sqlite.prepare(`DELETE FROM agent_global_skill`).run()
+
+    insertSkill(dbh.sqlite, 'skill-keep', 'f-keep', JSON.stringify(['local-tag']), 'keep-local')
+    seedBackup((db) => {
+      insertSkill(db, 'skill-keep', 'f-keep', JSON.stringify(['backup-tag']), 'keep-backup')
+    })
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['SKILLS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+    const kept = dbh.sqlite.prepare(`SELECT tags FROM agent_global_skill WHERE folder_name = 'f-keep'`).get() as {
+      tags: string
+    }
+    expect(JSON.parse(kept.tags)).toEqual(['local-tag'])
+
+    // Case C: local='' (empty string — also empty under isEmptyForRemoteFill; tags is NOT NULL
+    // so SQL NULL is unrepresentable) + backup=[tags] → backup fills
+    await rm(tmpDir, { recursive: true, force: true })
+    tmpDir = await mkdtemp(join(tmpdir(), 'cs-merge-'))
+    backupPath = join(tmpDir, 'backup.sqlite')
+    await dbh.sqlite.backup(backupPath)
+    dbh.sqlite.prepare(`DELETE FROM agent_global_skill`).run()
+
+    insertSkill(dbh.sqlite, 'skill-blank', 'f-blank', '', 'blank-local')
+    seedBackup((db) => {
+      insertSkill(db, 'skill-blank', 'f-blank', JSON.stringify(['from-backup-blank']), 'blank-backup')
+    })
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['SKILLS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+    const fromBlank = dbh.sqlite
+      .prepare(`SELECT tags FROM agent_global_skill WHERE folder_name = 'f-blank'`)
+      .get() as { tags: string }
+    expect(JSON.parse(fromBlank.tags)).toEqual(['from-backup-blank'])
+  })
+
   it('deep-merge authConfig: seeder skeleton keeps type, backup fills empty credential fields', async () => {
     // M1 regression: seeded {type:'iam-gcp',project:'',location:''} is NOT empty under
     // remote-fills-local-empty (type is non-empty). deep-merge must fill project/location.

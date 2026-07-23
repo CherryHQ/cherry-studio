@@ -19,7 +19,6 @@
 //
 // See `docs/references/backup/backup-architecture.md` §3/§9.
 
-import { loggerService } from '@logger'
 import type { AggregateBoundary, FieldMergePolicy, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import { DB_FTS_VIRTUAL_TABLES, DB_UNIQUE_KEYS } from '@main/data/db/backup/dbSchemaRefs'
@@ -36,8 +35,6 @@ import {
   POLYMORPHIC_ENTITY_TYPE_ROOT_TABLE
 } from './polymorphicAssociationDeriver'
 import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult } from './types'
-
-const logger = loggerService.withContext('MergeEngine')
 
 /**
  * Convert a Drizzle logical (camelCase) column name to its physical (snake_case)
@@ -897,12 +894,8 @@ export class MergeEngine {
         const serialized = serializeMergedCell(merged, localVal, backupVal)
         if (!cellEqualForMerge(serialized, localVal)) nextVal = serialized
       } else if (policy.strategy === 'local-priority') {
-        // Not implemented: keep null-only so we never silently overwrite non-null local.
-        logger.warn('fieldMergePolicy local-priority not implemented; falling back to remote-fills-local-null', {
-          table,
-          column: phys
-        })
-        if (isSqlNull(localVal) && !isSqlNull(backupVal)) nextVal = backupVal
+        // local non-empty wins; local empty (null/''/[]/{}) fills from backup
+        if (isEmptyForRemoteFill(localVal) && !isEmptyForRemoteFill(backupVal)) nextVal = backupVal
       }
       if (nextVal === undefined) continue
       sets.push(`${quoteIdent(phys)} = ?`)
