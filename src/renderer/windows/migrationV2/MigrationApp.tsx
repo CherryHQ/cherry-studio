@@ -19,6 +19,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import AppLogo from '@renderer/assets/images/logo.png'
+import ToastHost from '@renderer/components/ToastHost'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
@@ -597,100 +598,103 @@ const MigrationApp: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-card text-card-foreground">
-      <header className="relative flex h-11 shrink-0 items-center justify-center border-border border-b [-webkit-app-region:drag]">
-        <div
-          data-migration-language-select=""
-          className={cn(
-            '-translate-y-1/2 absolute top-1/2 z-10 flex items-center gap-1 [-webkit-app-region:no-drag]',
-            isMac ? 'right-3' : 'left-3'
-          )}>
-          <Select value={i18n.language} onValueChange={(lang) => void i18n.changeLanguage(lang)}>
-            <SelectTrigger
-              aria-label={t('migration.language.select')}
-              size="sm"
-              className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-foreground-muted text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="zh-CN">中文</SelectItem>
-              <SelectItem value="en-US">English</SelectItem>
-            </SelectContent>
-          </Select>
-          <Tooltip content={t(themeLabelKey[themeMode] ?? themeLabelKey.system)} delay={800}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t(themeLabelKey[themeMode] ?? themeLabelKey.system)}
-              onClick={toggleTheme}
-              className="text-foreground-muted hover:bg-muted/40 hover:text-foreground">
-              <ThemeIcon className="size-3.5" strokeWidth={1.6} />
-            </Button>
-          </Tooltip>
-        </div>
-        <div className="flex items-center gap-2">
-          <img src={AppLogo} alt="Cherry Studio" className="h-4.5 w-4.5 rounded-full object-cover" />
-          <span className="font-medium text-foreground text-sm">Cherry Studio</span>
-          <span className="text-foreground-muted">·</span>
-          <span className="text-foreground-muted text-xs">{t('migration.title')}</span>
-        </div>
-        <MigrationWindowControls />
-      </header>
+    <>
+      <div className="flex h-screen w-screen flex-col bg-card text-card-foreground">
+        <header className="relative flex h-11 shrink-0 items-center justify-center border-border border-b [-webkit-app-region:drag]">
+          <div
+            data-migration-language-select=""
+            className={cn(
+              '-translate-y-1/2 absolute top-1/2 z-10 flex items-center gap-1 [-webkit-app-region:no-drag]',
+              isMac ? 'right-3' : 'left-3'
+            )}>
+            <Select value={i18n.language} onValueChange={(lang) => void i18n.changeLanguage(lang)}>
+              <SelectTrigger
+                aria-label={t('migration.language.select')}
+                size="sm"
+                className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-foreground-muted text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="zh-CN">中文</SelectItem>
+                <SelectItem value="en-US">English</SelectItem>
+              </SelectContent>
+            </Select>
+            <Tooltip content={t(themeLabelKey[themeMode] ?? themeLabelKey.system)} delay={800}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t(themeLabelKey[themeMode] ?? themeLabelKey.system)}
+                onClick={toggleTheme}
+                className="text-foreground-muted hover:bg-muted/40 hover:text-foreground">
+                <ThemeIcon className="size-3.5" strokeWidth={1.6} />
+              </Button>
+            </Tooltip>
+          </div>
+          <div className="flex items-center gap-2">
+            <img src={AppLogo} alt="Cherry Studio" className="h-4.5 w-4.5 rounded-full object-cover" />
+            <span className="font-medium text-foreground text-sm">Cherry Studio</span>
+            <span className="text-foreground-muted">·</span>
+            <span className="text-foreground-muted text-xs">{t('migration.title')}</span>
+          </div>
+          <MigrationWindowControls />
+        </header>
 
-      <div className="flex min-h-0 flex-1">
-        {showRail && <StepRail stage={stage} />}
-        <main
-          className={cn(
-            'relative min-w-0 flex-1 overflow-y-auto',
-            progress.stage === 'completed' && 'overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-          )}>
-          {progress.stage === 'introduction' && (
-            <div className="absolute top-2 right-3 z-10">
-              <MigrationToolsMenu
-                open={skipMenuOpen}
-                onOpenChange={setSkipMenuOpen}
-                onSkipMigration={() => setSkipOpen(true)}
-                disabled={isLoading}
-              />
-            </div>
-          )}
-          <div className="flex min-h-full w-full flex-col justify-center px-16 py-8">{renderStage()}</div>
-        </main>
+        <div className="flex min-h-0 flex-1">
+          {showRail && <StepRail stage={stage} />}
+          <main
+            className={cn(
+              'relative min-w-0 flex-1 overflow-y-auto',
+              progress.stage === 'completed' && 'overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+            )}>
+            {progress.stage === 'introduction' && (
+              <div className="absolute top-2 right-3 z-10">
+                <MigrationToolsMenu
+                  open={skipMenuOpen}
+                  onOpenChange={setSkipMenuOpen}
+                  onSkipMigration={() => setSkipOpen(true)}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+            <div className="flex min-h-full w-full flex-col justify-center px-16 py-8">{renderStage()}</div>
+          </main>
+        </div>
+
+        <SkipMigrationDialog open={skipOpen} onOpenChange={setSkipOpen} onConfirm={() => actions.skipMigration()} />
+        <CloseMigrationDialog
+          open={closeConfirmOpen}
+          onOpenChange={(open) => {
+            setCloseConfirmOpen(open)
+            // Dismissed via Continue / Esc / backdrop — tell main to drop its pending-close flag so a
+            // later close re-prompts instead of force-quitting. (The Quit path closes via the
+            // controlled prop in onConfirm, which doesn't fire onOpenChange, so this never runs on quit.)
+            if (!open) {
+              void window.electron.ipcRenderer.invoke(MigrationIpcChannels.CancelClose)
+            }
+          }}
+          onConfirm={async () => {
+            setCloseConfirmOpen(false)
+            // Main returns false when it defers the quit until an in-flight migration
+            // write settles; show a notice instead of quitting right away.
+            const quitting = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ConfirmQuit)
+            if (!quitting) {
+              setQuitDeferred(true)
+            }
+          }}
+        />
+        {quitDeferred && (
+          <div className="pointer-events-none fixed inset-x-0 top-16 z-20 flex justify-center px-4">
+            <Alert
+              type="info"
+              showIcon
+              message={t('migration.window.confirm_close.quit_pending')}
+              className="pointer-events-auto w-auto shadow-md"
+            />
+          </div>
+        )}
       </div>
-
-      <SkipMigrationDialog open={skipOpen} onOpenChange={setSkipOpen} onConfirm={() => actions.skipMigration()} />
-      <CloseMigrationDialog
-        open={closeConfirmOpen}
-        onOpenChange={(open) => {
-          setCloseConfirmOpen(open)
-          // Dismissed via Continue / Esc / backdrop — tell main to drop its pending-close flag so a
-          // later close re-prompts instead of force-quitting. (The Quit path closes via the
-          // controlled prop in onConfirm, which doesn't fire onOpenChange, so this never runs on quit.)
-          if (!open) {
-            void window.electron.ipcRenderer.invoke(MigrationIpcChannels.CancelClose)
-          }
-        }}
-        onConfirm={async () => {
-          setCloseConfirmOpen(false)
-          // Main returns false when it defers the quit until an in-flight migration
-          // write settles; show a notice instead of quitting right away.
-          const quitting = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ConfirmQuit)
-          if (!quitting) {
-            setQuitDeferred(true)
-          }
-        }}
-      />
-      {quitDeferred && (
-        <div className="pointer-events-none fixed inset-x-0 top-16 z-20 flex justify-center px-4">
-          <Alert
-            type="info"
-            showIcon
-            message={t('migration.window.confirm_close.quit_pending')}
-            className="pointer-events-auto w-auto shadow-md"
-          />
-        </div>
-      )}
-    </div>
+      <ToastHost />
+    </>
   )
 }
 

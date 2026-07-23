@@ -139,7 +139,7 @@ Does this R→M channel go through IpcApi?
 | Item | Stays in |
 |---|---|
 | `Tab_MoveWindow` (per-frame R→M drag; native `ipcMain.on` + own `validateSender`) | `SubWindowService` (escape hatch) |
-| `MigrationIpcChannels.SaveDiagnosticBundle` / `ShowDiagnosticBundleInFolder` (pre-bootstrap R→M; native `ipcMain.handle` + own `validateSender`; retire with the v1→v2 migration window) | `MigrationIpcHandler` (`IpcApiService` is unavailable before lifecycle bootstrap) |
+| All 17 renderer-to-main `MigrationIpcChannels` handlers (pre-bootstrap; native `ipcMain.handle`; the diagnostic save/reveal pair additionally call `validateSender`; retire the entire group with the v1→v2 migration window) | `MigrationIpcHandler` (`IpcApiService` is unavailable before lifecycle bootstrap) |
 | `shell.openExternal`, `webUtils.getPathForFile` (preload calls Electron directly, not IPC) | `window.electron` |
 | `preference.onChanged`, `dataApi.subscribe` | their own subsystems |
 | `Cache_Sync` "exclude self" (uses numeric `BrowserWindow.id`) | Cache subsystem |

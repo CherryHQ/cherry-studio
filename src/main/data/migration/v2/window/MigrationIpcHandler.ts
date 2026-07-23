@@ -21,6 +21,7 @@ import path from 'path'
 import * as z from 'zod'
 
 import { migrationEngine } from '../core/MigrationEngine'
+import { isValidLocalDate } from '../utils/localDate'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
@@ -48,18 +49,6 @@ let dataLocationNotice: string | null = null
 
 function assertMigrationDiagnosticSender(event: IpcMainInvokeEvent): void {
   if (!validateSender(event)) throw new Error('Unauthorized migration diagnostic IPC sender.')
-}
-
-function isValidLocalDate(value: unknown): boolean {
-  if (typeof value !== 'string') return false
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return false
-  const [, yearText, monthText, dayText] = match
-  const year = Number(yearText)
-  const month = Number(monthText)
-  const day = Number(dayText)
-  const date = new Date(year, month - 1, day)
-  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
 }
 
 const MigrationDiagnosticSavePayloadSchema: z.ZodType<MigrationDiagnosticSavePayload> = z.strictObject({

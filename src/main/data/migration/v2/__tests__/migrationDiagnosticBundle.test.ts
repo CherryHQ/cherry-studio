@@ -245,7 +245,8 @@ describe('saveMigrationDiagnosticBundle', () => {
     await Promise.all([
       writeLog(`app-error.${LOG_DATE}.log`, 'error'),
       writeLog(`app.${LOG_DATE}.log.old`, 'bad suffix'),
-      writeLog('app.2026-02-31.log', 'invalid date')
+      writeLog('app.2026-02-31.log', 'invalid date'),
+      writeLog('app.0099-01-01.log', 'invalid early year')
     ])
     await mkdir(logPath())
 

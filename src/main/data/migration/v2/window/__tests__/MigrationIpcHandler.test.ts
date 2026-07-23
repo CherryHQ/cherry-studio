@@ -54,6 +54,7 @@ import {
   registerMigrationIpcHandlers,
   resetMigrationData,
   setDataLocationNotice,
+  setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from '../MigrationIpcHandler'
 
@@ -284,6 +285,26 @@ describe('MigrationIpcHandler', () => {
       resetMigrationData()
       await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).resolves.toBe(false)
       expect(shell.showItemInFolder).not.toHaveBeenCalled()
+    })
+  })
+
+  it('saves diagnostics from the version-incompatible stage', async () => {
+    unregisterMigrationIpcHandlers()
+    resetMigrationData()
+    vi.mocked(ipcMain.handle).mockClear()
+    setVersionIncompatible('v1_too_old', { currentVersion: '1.9.0', minimumVersion: '1.9.12' })
+    registerMigrationIpcHandlers('/mock/userData')
+    handlers = new Map(vi.mocked(ipcMain.handle).mock.calls.map(([channel, fn]) => [channel, fn as Handler]))
+    choosePath('/chosen/diagnostics.zip')
+
+    await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)).resolves.toEqual({
+      status: 'saved',
+      logs: 'included'
+    })
+    expect(diagnosticMocks.saveBundle).toHaveBeenCalledWith({
+      destination: '/chosen/diagnostics.zip',
+      stage: 'version_incompatible',
+      logDate: '2026-07-23'
     })
   })
 

@@ -118,6 +118,13 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
+vi.mock('@renderer/components/ToastHost', () => {
+  const React = require('react')
+  return {
+    default: () => React.createElement('div', { 'data-testid': 'toast-host' })
+  }
+})
+
 vi.mock('../components', () => {
   const React = require('react')
   return {
@@ -501,6 +508,22 @@ describe('MigrationApp', () => {
     render(<MigrationApp />)
 
     expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
+  })
+
+  it('keeps exactly one window-level toast host mounted across stages', () => {
+    const { rerender } = render(<MigrationApp />)
+
+    expect(screen.getAllByTestId('toast-host')).toHaveLength(1)
+
+    migrationHookMock.progress = {
+      currentMessage: 'Failed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'error'
+    }
+    rerender(<MigrationApp />)
+
+    expect(screen.getAllByTestId('toast-host')).toHaveLength(1)
   })
 
   describe('theme toggle', () => {

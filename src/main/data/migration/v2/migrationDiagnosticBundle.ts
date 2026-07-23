@@ -11,6 +11,8 @@ import type { FilePath } from '@shared/types/file'
 import { ZipArchive } from 'archiver'
 import { app } from 'electron'
 
+import { isValidLocalDate } from './utils/localDate'
+
 const logger = loggerService.withContext('migrationDiagnosticBundle')
 const LOG_NAME = /^app\.(\d{4}-\d{2}-\d{2})\.log(?:\.\d+)?$/
 
@@ -51,22 +53,12 @@ function validateDestination(value: string): FilePath | undefined {
   return value as FilePath
 }
 
-function validLocalDate(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return false
-  const [year, month, day] = match.slice(1).map(Number)
-  const date = new Date(0)
-  date.setHours(0, 0, 0, 0)
-  date.setFullYear(year, month - 1, day)
-  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
-}
-
 async function selectLogFiles(logDate: string): Promise<LogCandidate[]> {
   const entries = await readdir(application.getPath('app.logs'), { withFileTypes: true })
   const eligible = entries.flatMap((entry) => {
     if (!entry.isFile()) return []
     const match = LOG_NAME.exec(entry.name)
-    return match && validLocalDate(match[1]) ? [{ fileName: entry.name, date: match[1] }] : []
+    return match && isValidLocalDate(match[1]) ? [{ fileName: entry.name, date: match[1] }] : []
   })
   const selectedDate = eligible.some(({ date }) => date === logDate)
     ? logDate
@@ -138,7 +130,7 @@ async function writeZip(
   createLogReadStream: (handle: FileHandle, snapshotBytes: number) => Readable
 ): Promise<void> {
   const output = createAtomicWriteStream(destination)
-  const archive = new ZipArchive({ zlib: { level: 1 }, zip64: true })
+  const archive = new ZipArchive({ zlib: { level: 1 } })
   const activeStreams = new Set<Readable>()
   let rejectCompletion: (error: unknown) => void = () => undefined
   const completion = new Promise<void>((resolve, reject) => {

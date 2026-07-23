@@ -13,6 +13,7 @@ src/main/data/migration/v2/
 ├── core/              # MigrationEngine, MigrationContext, MigrationPaths
 ├── migrators/         # Domain-specific migrators
 │   └── mappings/      # Mapping definitions
+├── migrationDiagnosticBundle.ts # Migration diagnostic ZIP builder
 ├── utils/             # ReduxStateReader, DexieFileReader, JSONStreamReader, LegacyHomeConfigReader
 ├── window/            # IPC handlers, window manager
 └── index.ts           # Public exports

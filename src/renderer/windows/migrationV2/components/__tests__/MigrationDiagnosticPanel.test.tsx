@@ -1,7 +1,12 @@
+import type * as CherryUi from '@cherrystudio/ui'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn()
+  },
   saveDiagnostics: vi.fn(),
   showDiagnosticBundleInFolder: vi.fn(),
   toast: {
@@ -33,6 +38,16 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUi>()
+  return {
+    ...actual,
+    error: mocks.toast.error,
+    getToastUtilities: () => mocks.toast,
+    success: mocks.toast.success
+  }
+})
+
 vi.mock('@renderer/components/ToastHost', () => {
   const React = require('react')
   return {
@@ -40,8 +55,10 @@ vi.mock('@renderer/components/ToastHost', () => {
   }
 })
 
-vi.mock('@renderer/services/toast', () => ({
-  toast: mocks.toast
+vi.mock('@renderer/services/LoggerService', () => ({
+  loggerService: {
+    withContext: () => mocks.logger
+  }
 }))
 
 vi.mock('../../hooks/useMigrationProgress', () => ({
@@ -92,7 +109,7 @@ describe('MigrationDiagnosticPanel', () => {
     const section = container.querySelector('section')
     expect(section).toHaveClass('space-y-3', 'rounded-xl', 'border', 'border-border', 'bg-muted/15', 'px-4', 'py-3')
     expect(section).not.toHaveClass('border-warning', 'bg-warning-bg')
-    expect(screen.getByTestId('toast-host')).toBeInTheDocument()
+    expect(screen.queryByTestId('toast-host')).not.toBeInTheDocument()
   })
 
   it('shows a download icon on the save action', () => {
@@ -146,6 +163,19 @@ describe('MigrationDiagnosticPanel', () => {
     expect(screen.getByRole('button', { name: 'Save diagnostic bundle' })).toBeEnabled()
   })
 
+  it('logs a rejected save request before showing failure feedback', async () => {
+    const error = new Error('save failed')
+    mocks.saveDiagnostics.mockRejectedValueOnce(error)
+    render(<MigrationDiagnosticPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save diagnostic bundle' }))
+
+    await waitFor(() =>
+      expect(mocks.logger.error).toHaveBeenCalledWith('Failed to save migration diagnostic bundle', error)
+    )
+    expect(mocks.toast.error).toHaveBeenCalledWith('Could not save diagnostic bundle')
+  })
+
   it('shows only reveal and contact actions after saving with logs', async () => {
     await saveBundle()
 
@@ -188,6 +218,19 @@ describe('MigrationDiagnosticPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open file location' }))
 
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith('Could not open file location'))
+  })
+
+  it('logs a rejected reveal request before showing failure feedback', async () => {
+    const error = new Error('reveal failed')
+    mocks.showDiagnosticBundleInFolder.mockRejectedValueOnce(error)
+    await saveBundle()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open file location' }))
+
+    await waitFor(() =>
+      expect(mocks.logger.error).toHaveBeenCalledWith('Failed to show migration diagnostic bundle in folder', error)
+    )
+    expect(mocks.toast.error).toHaveBeenCalledWith('Could not open file location')
   })
 
   it('copies the feedback address and shows a success toast', async () => {
