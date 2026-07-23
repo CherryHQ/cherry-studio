@@ -1,34 +1,29 @@
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
   Button,
   Combobox,
   type ComboboxOption,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Field,
   FieldError,
   FieldLabel,
-  FieldLegend,
-  FieldSet,
   Input,
   Popover,
   PopoverContent,
   PopoverTrigger,
-  RadioGroup,
-  RadioGroupItem,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
-import { ProviderImageEndpointFields } from '@renderer/pages/settings/ProviderSettings/components/ProviderImageEndpointFields'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { toast } from '@renderer/services/toast'
 import { checkEntityImageSize } from '@renderer/utils/image'
@@ -42,31 +37,51 @@ import { type ChangeEvent, useEffect, useId, useMemo, useRef, useState } from 'r
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
-import type { ProviderImageEndpointDraft } from '../utils/providerImageEndpoints'
 import {
   buildCustomProviderCreationPayload,
   buildCustomProviderEndpointPreview,
-  CUSTOM_PROVIDER_COMPATIBILITY_TYPES,
+  CUSTOM_PROVIDER_ENDPOINTS,
   CUSTOM_PROVIDER_TEXT_ENDPOINTS,
-  type CustomProviderCompatibility,
-  type CustomProviderCompatibilityType,
   type CustomProviderCreationInvalidUrl,
+  type CustomProviderEndpoint,
+  type CustomProviderEndpointUrls,
   type CustomProviderTextEndpoint,
   findInvalidCustomProviderCreationUrl,
-  getCustomProviderPrimaryEndpoint,
-  type OpenAiCompatibilityEndpoint
+  getCustomProviderDefaultChatEndpoint
 } from './customProviderCreation'
 import type { ProviderEditorMode, SubmitProviderEditorParams } from './useProviderEditor'
 
 const logger = loggerService.withContext('ProviderEditorDrawer')
 
-const EMPTY_IMAGE_ENDPOINT_DRAFT: ProviderImageEndpointDraft = {
-  imagesBaseUrl: '',
-  useSeparateImageEditUrl: false,
-  imageEditBaseUrl: ''
-}
-
 type ProviderEditorSubmit = SubmitProviderEditorParams
+
+type CustomProviderEndpointTab = CustomProviderTextEndpoint | 'other'
+
+const CUSTOM_PROVIDER_ENDPOINT_TABS: Array<{
+  value: CustomProviderEndpointTab
+  labelKey: string
+}> = [
+  {
+    value: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    labelKey: 'settings.provider.create_custom.endpoint_tabs.openai_chat'
+  },
+  {
+    value: ENDPOINT_TYPE.OPENAI_RESPONSES,
+    labelKey: 'settings.provider.create_custom.endpoint_tabs.openai_responses'
+  },
+  {
+    value: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    labelKey: 'settings.provider.create_custom.endpoint_tabs.anthropic'
+  },
+  {
+    value: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+    labelKey: 'settings.provider.create_custom.endpoint_tabs.gemini'
+  },
+  {
+    value: 'other',
+    labelKey: 'settings.provider.create_custom.endpoint_tabs.other'
+  }
+]
 
 interface ProviderEditorDrawerProps {
   open: boolean
@@ -147,17 +162,14 @@ export default function ProviderEditorDrawer({
   const [apiKey, setApiKey] = useState('')
   const [secondaryUrls, setSecondaryUrls] = useState<Record<string, string>>({})
   const [moreEndpointsOpen, setMoreEndpointsOpen] = useState(false)
-  const [compatibilityType, setCompatibilityType] = useState<CustomProviderCompatibilityType | null>(null)
-  const [openAiEndpoint, setOpenAiEndpoint] = useState<OpenAiCompatibilityEndpoint>(
+  const [endpointUrls, setEndpointUrls] = useState<CustomProviderEndpointUrls>({})
+  const [preferredChatEndpoint, setPreferredChatEndpoint] = useState<CustomProviderTextEndpoint>(
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   )
-  const [customEndpoint, setCustomEndpoint] = useState<CustomProviderTextEndpoint>(
+  const [activeEndpointTab, setActiveEndpointTab] = useState<CustomProviderEndpointTab>(
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   )
-  const [imageEndpointDraft, setImageEndpointDraft] = useState<ProviderImageEndpointDraft>(EMPTY_IMAGE_ENDPOINT_DRAFT)
-  const [compatibilityTouched, setCompatibilityTouched] = useState(false)
   const [invalidCreationUrl, setInvalidCreationUrl] = useState<CustomProviderCreationInvalidUrl | null>(null)
-  const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false)
   // `logo` is the preview value only (a preset id / url / object URL for a
   // staged upload). When the user uploads, `stagedFile` holds the raw file whose
   // bytes are sent to `provider.set_logo` on save; a preset/clear leaves it null.
@@ -211,13 +223,10 @@ export default function ProviderEditorDrawer({
     setApiKey('')
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
-    setCompatibilityType(null)
-    setOpenAiEndpoint(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-    setCustomEndpoint(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-    setImageEndpointDraft(EMPTY_IMAGE_ENDPOINT_DRAFT)
-    setCompatibilityTouched(false)
+    setEndpointUrls({})
+    setPreferredChatEndpoint(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    setActiveEndpointTab(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     setInvalidCreationUrl(null)
-    setAdvancedSettingsOpen(false)
     setLogoDirty(false)
     setLogoPickerOpen(false)
     revokePreviewObjectUrl()
@@ -241,29 +250,6 @@ export default function ProviderEditorDrawer({
     () => (avatarBackgroundColor ? getForegroundColor(avatarBackgroundColor) : undefined),
     [avatarBackgroundColor]
   )
-  const customCompatibility = useMemo<CustomProviderCompatibility | null>(() => {
-    switch (compatibilityType) {
-      case 'new-api':
-        return { type: 'new-api' }
-      case 'anthropic':
-        return { type: 'anthropic' }
-      case 'gemini':
-        return { type: 'gemini' }
-      case 'openai':
-        return { type: 'openai', endpoint: openAiEndpoint }
-      case 'custom':
-        return { type: 'custom', endpoint: customEndpoint }
-      case null:
-        return null
-    }
-  }, [compatibilityType, customEndpoint, openAiEndpoint])
-
-  const primaryCustomEndpoint = customCompatibility
-    ? getCustomProviderPrimaryEndpoint(customCompatibility)
-    : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-  const customRequestPreview = customCompatibility
-    ? buildCustomProviderEndpointPreview(baseUrl, primaryCustomEndpoint)
-    : ''
 
   const handleUploadChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -289,15 +275,34 @@ export default function ProviderEditorDrawer({
     setLogoDirty(true)
   }
 
+  const handleEndpointUrlChange = (endpointType: CustomProviderEndpoint, value: string) => {
+    const nextEndpointUrls = { ...endpointUrls, [endpointType]: value }
+    setEndpointUrls(nextEndpointUrls)
+    if (CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)) {
+      const textEndpoint = endpointType as CustomProviderTextEndpoint
+      const configuredTextEndpoints = CUSTOM_PROVIDER_TEXT_ENDPOINTS.filter((type) => nextEndpointUrls[type]?.trim())
+      if (configuredTextEndpoints.length === 1 && configuredTextEndpoints[0] === textEndpoint) {
+        setPreferredChatEndpoint(textEndpoint)
+      } else if (!nextEndpointUrls[preferredChatEndpoint]?.trim()) {
+        setPreferredChatEndpoint(configuredTextEndpoints[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      }
+    }
+    setInvalidCreationUrl(null)
+  }
+
   const handleSelectPreset = (source: Provider) => {
     // A preset starts a real provider instance. Preserve the user's identity
-    // and basic connection fields, but do not leak protocol-specific drafts
-    // from Advanced Custom into the duplicate flow.
+    // and the current default text URL, but do not leak endpoint-specific
+    // drafts into the duplicate flow.
+    const defaultEndpoint = getCustomProviderDefaultChatEndpoint(endpointUrls, preferredChatEndpoint)
+    const defaultEndpointUrl = endpointUrls[defaultEndpoint]?.trim()
+    if (defaultEndpointUrl) {
+      setBaseUrl(defaultEndpointUrl)
+    }
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
-    setImageEndpointDraft(EMPTY_IMAGE_ENDPOINT_DRAFT)
+    setEndpointUrls({})
     setInvalidCreationUrl(null)
-    setAdvancedSettingsOpen(false)
     onSelectPreset?.(source)
   }
 
@@ -331,13 +336,9 @@ export default function ProviderEditorDrawer({
       : undefined
 
     if (mode.kind === 'create-custom') {
-      if (!customCompatibility) return null
-
       const creationPayload = buildCustomProviderCreationPayload({
-        compatibility: customCompatibility,
-        baseUrl,
-        extraTextEndpointUrls: secondaryUrls,
-        imageEndpointDraft
+        endpointUrls,
+        preferredChatEndpoint
       })
       return {
         mode: 'create',
@@ -364,7 +365,11 @@ export default function ProviderEditorDrawer({
         const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
         const trimmedBaseUrl = baseUrl.trim()
         if (trimmedBaseUrl) {
-          endpointConfigs[defaultChatEndpoint] = { baseUrl: trimmedBaseUrl }
+          const primaryEndpoints =
+            source.presetProviderId === 'new-api' ? CUSTOM_PROVIDER_TEXT_ENDPOINTS : [defaultChatEndpoint]
+          for (const endpointType of primaryEndpoints) {
+            endpointConfigs[endpointType] = { baseUrl: trimmedBaseUrl }
+          }
         }
         mergeSecondaryEndpoints(endpointConfigs, secondaryUrls, defaultChatEndpoint)
         if (!isEmpty(endpointConfigs)) {
@@ -390,29 +395,25 @@ export default function ProviderEditorDrawer({
 
   const showNameError = nameTouched && !name.trim()
   const showDuplicateBaseUrlError = Boolean(urlForm?.requireBaseUrl) && baseUrlTouched && !baseUrl.trim()
-  const customBaseUrlError =
-    mode?.kind === 'create-custom' && baseUrlTouched && invalidCreationUrl?.field === 'baseUrl'
-      ? t(baseUrl.trim() ? 'settings.provider.base_url.invalid' : 'settings.provider.base_url.required')
-      : undefined
 
   const handleSubmit = async () => {
     setNameTouched(true)
     setBaseUrlTouched(true)
     if (mode?.kind === 'create-custom') {
-      setCompatibilityTouched(true)
-      if (!customCompatibility) {
-        return
-      }
       const invalidUrl = findInvalidCustomProviderCreationUrl({
-        compatibility: customCompatibility,
-        baseUrl,
-        extraTextEndpointUrls: secondaryUrls,
-        imageEndpointDraft
+        endpointUrls,
+        preferredChatEndpoint
       })
       setInvalidCreationUrl(invalidUrl)
       if (invalidUrl) {
-        if (invalidUrl.field !== 'baseUrl') {
-          setAdvancedSettingsOpen(true)
+        if (invalidUrl.field === 'textEndpointRequired') {
+          setActiveEndpointTab(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+        } else {
+          setActiveEndpointTab(
+            CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((endpointType) => endpointType === invalidUrl.endpointType)
+              ? (invalidUrl.endpointType as CustomProviderTextEndpoint)
+              : 'other'
+          )
         }
         return
       }
@@ -449,7 +450,7 @@ export default function ProviderEditorDrawer({
     return t('button.add')
   })()
 
-  const footer = (
+  const footerActions = (
     <div className="flex items-center justify-end gap-2">
       <Button variant="outline" onClick={onClose}>
         {t('common.cancel')}
@@ -460,386 +461,265 @@ export default function ProviderEditorDrawer({
     </div>
   )
 
-  return (
-    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer}>
-      <div className="flex flex-col gap-5">
-        {mode?.kind === 'create-custom' ? (
-          <>
-            <AvatarSection
-              uploadInputRef={uploadInputRef}
-              name={name}
-              logo={logo}
-              initialLogo={initialLogo}
-              logoPickerOpen={logoPickerOpen}
-              editingProviderId={editingProvider?.id}
-              avatarBackgroundColor={avatarBackgroundColor}
-              avatarForegroundColor={avatarForegroundColor}
-              onUpload={(event) => handleUploadChange(event)}
-              onPick={(providerId) => {
-                revokePreviewObjectUrl()
-                setStagedFile(null)
-                setLogo(`icon:${providerId}`)
-                setLogoDirty(true)
-                setLogoPickerOpen(false)
-              }}
-              onReset={() => {
-                revokePreviewObjectUrl()
-                setStagedFile(null)
-                setLogo(null)
-                setLogoDirty(true)
-              }}
-              onLogoPickerOpenChange={setLogoPickerOpen}
-            />
-            <NameField
-              name={name}
-              showError={showNameError}
-              onNameChange={setName}
-              onBlur={() => setNameTouched(true)}
-              onEnter={handleSubmit}
-              disableEnter={isSubmitting}
-            />
-            <CompatibilityFields
-              value={compatibilityType}
-              openAiEndpoint={openAiEndpoint}
-              customEndpoint={customEndpoint}
-              showError={compatibilityTouched && !compatibilityType}
-              onChange={(value) => {
-                setCompatibilityType(value)
-                setInvalidCreationUrl(null)
-              }}
-              onOpenAiEndpointChange={(value) => {
-                setOpenAiEndpoint(value)
-                setInvalidCreationUrl(null)
-              }}
-              onCustomEndpointChange={(value) => {
-                setCustomEndpoint(value)
-                setInvalidCreationUrl(null)
-              }}
-            />
-
-            {compatibilityType === 'custom' && onSelectPreset && presetSources.length > 0 && (
-              <PresetInstancePicker sources={presetSources} onSelect={handleSelectPreset} />
-            )}
-
-            {customCompatibility && (
-              <>
-                <BaseUrlField
-                  label={t('settings.provider.base_url.label')}
-                  placeholder={t('settings.provider.base_url.placeholder')}
-                  value={baseUrl}
-                  onChange={(value) => {
-                    setBaseUrl(value)
-                    setInvalidCreationUrl(null)
-                  }}
-                  required
-                  error={customBaseUrlError}
-                  description={
-                    customRequestPreview
-                      ? t('settings.provider.create_custom.request_preview', { path: customRequestPreview })
-                      : undefined
-                  }
-                  onBlur={() => {
-                    setBaseUrlTouched(true)
-                    const invalidUrl = findInvalidCustomProviderCreationUrl({
-                      compatibility: customCompatibility,
-                      baseUrl,
-                      extraTextEndpointUrls: secondaryUrls,
-                      imageEndpointDraft
-                    })
-                    setInvalidCreationUrl(invalidUrl?.field === 'baseUrl' ? invalidUrl : null)
-                  }}
-                />
-                <ApiKeyField value={apiKey} onChange={setApiKey} />
-
-                <Accordion
-                  type="single"
-                  collapsible
-                  value={advancedSettingsOpen ? 'advanced' : ''}
-                  onValueChange={(value) => setAdvancedSettingsOpen(value === 'advanced')}>
-                  <AccordionItem value="advanced" className="border-border/60">
-                    <AccordionTrigger className="min-h-10 py-2.5">
-                      <span className="flex flex-col gap-0.5">
-                        <span>{t('settings.provider.create_custom.advanced.label')}</span>
-                        <span className="font-normal text-foreground-muted text-xs">
-                          {t('settings.provider.create_custom.advanced.description')}
-                        </span>
-                      </span>
-                    </AccordionTrigger>
-                    <AccordionContent className="flex flex-col gap-5 pt-3">
-                      <div className="flex flex-col gap-1">
-                        <h3 className="font-medium text-[13px] text-foreground">
-                          {t('settings.provider.create_custom.advanced.extra_text_urls')}
-                        </h3>
-                        <p className="text-foreground-muted text-xs">
-                          {t('settings.provider.create_custom.advanced.extra_text_urls_help')}
-                        </p>
-                      </div>
-                      {SECONDARY_ENDPOINT_LABELS.filter(({ type }) => type !== primaryCustomEndpoint).map(
-                        ({ type, labelKey }) => {
-                          const invalidExtraEndpoint =
-                            invalidCreationUrl?.field === 'extraTextEndpointUrl' &&
-                            invalidCreationUrl.endpointType === type
-                          return (
-                            <BaseUrlField
-                              key={type}
-                              label={t(labelKey)}
-                              placeholder={t('settings.provider.base_url.placeholder')}
-                              value={secondaryUrls[type] ?? ''}
-                              error={invalidExtraEndpoint ? t('settings.provider.base_url.invalid') : undefined}
-                              onChange={(value) => {
-                                setSecondaryUrls((previous) => ({ ...previous, [type]: value }))
-                                setInvalidCreationUrl(null)
-                              }}
-                            />
-                          )
-                        }
-                      )}
-                      <ProviderImageEndpointFields
-                        value={imageEndpointDraft}
-                        invalidField={
-                          invalidCreationUrl?.field === 'imagesBaseUrl' ||
-                          invalidCreationUrl?.field === 'imageEditBaseUrl'
-                            ? invalidCreationUrl.field
-                            : undefined
-                        }
-                        onChange={(value) => {
-                          setImageEndpointDraft(value)
-                          setInvalidCreationUrl(null)
-                        }}
-                      />
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <AvatarSection
-              uploadInputRef={uploadInputRef}
-              name={name}
-              logo={logo}
-              initialLogo={initialLogo}
-              logoPickerOpen={logoPickerOpen}
-              editingProviderId={editingProvider?.id}
-              avatarBackgroundColor={avatarBackgroundColor}
-              avatarForegroundColor={avatarForegroundColor}
-              onUpload={(event) => handleUploadChange(event)}
-              onPick={(providerId) => {
-                revokePreviewObjectUrl()
-                setStagedFile(null)
-                setLogo(`icon:${providerId}`)
-                setLogoDirty(true)
-                setLogoPickerOpen(false)
-              }}
-              onReset={() => {
-                revokePreviewObjectUrl()
-                setStagedFile(null)
-                setLogo(null)
-                setLogoDirty(true)
-              }}
-              onLogoPickerOpenChange={setLogoPickerOpen}
-            />
-
-            <NameField
-              name={name}
-              showError={showNameError}
-              onNameChange={setName}
-              onBlur={() => setNameTouched(true)}
-              onEnter={handleSubmit}
-              disableEnter={isSubmitting}
-            />
-
-            {duplicateSource?.presetProviderId && <DuplicateHeader source={duplicateSource} />}
-
-            {urlForm && (
-              <>
-                <BaseUrlField
-                  label={t('settings.provider.base_url.label')}
-                  placeholder={t('settings.provider.base_url.placeholder')}
-                  value={baseUrl}
-                  onChange={setBaseUrl}
-                  required={urlForm.requireBaseUrl}
-                  error={showDuplicateBaseUrlError ? t('settings.provider.base_url.required') : undefined}
-                  onBlur={() => setBaseUrlTouched(true)}
-                />
-                <ApiKeyField value={apiKey} onChange={setApiKey} />
-                <MoreEndpointsDisclosure
-                  open={moreEndpointsOpen}
-                  onToggle={() => setMoreEndpointsOpen((v) => !v)}
-                  primary={urlForm.primary}
-                  values={secondaryUrls}
-                  onChange={(type: EndpointType, value: string) =>
-                    setSecondaryUrls((prev) => ({ ...prev, [type]: value }))
-                  }
-                />
-              </>
-            )}
-          </>
-        )}
-
-        {duplicateSource && !duplicateNeedsBaseUrl(duplicateSource.authType) && (
-          <p className="text-muted-foreground/80 text-xs leading-[1.4]">
-            {t('settings.provider.duplicate.fill_after_create')}
-          </p>
-        )}
-      </div>
-    </ProviderSettingsDrawer>
+  const avatarSection = (
+    <AvatarSection
+      uploadInputRef={uploadInputRef}
+      name={name}
+      logo={logo}
+      initialLogo={initialLogo}
+      logoPickerOpen={logoPickerOpen}
+      editingProviderId={editingProvider?.id}
+      avatarBackgroundColor={avatarBackgroundColor}
+      avatarForegroundColor={avatarForegroundColor}
+      onUpload={(event) => handleUploadChange(event)}
+      onPick={(providerId) => {
+        revokePreviewObjectUrl()
+        setStagedFile(null)
+        setLogo(`icon:${providerId}`)
+        setLogoDirty(true)
+        setLogoPickerOpen(false)
+      }}
+      onReset={() => {
+        revokePreviewObjectUrl()
+        setStagedFile(null)
+        setLogo(null)
+        setLogoDirty(true)
+      }}
+      onLogoPickerOpenChange={setLogoPickerOpen}
+    />
   )
-}
 
-const COMPATIBILITY_LABEL_KEYS: Record<CustomProviderCompatibilityType, { label: string; description: string }> = {
-  'new-api': {
-    label: 'settings.provider.create_custom.compatibility.new_api.label',
-    description: 'settings.provider.create_custom.compatibility.new_api.description'
-  },
-  openai: {
-    label: 'settings.provider.create_custom.compatibility.openai.label',
-    description: 'settings.provider.create_custom.compatibility.openai.description'
-  },
-  anthropic: {
-    label: 'settings.provider.create_custom.compatibility.anthropic.label',
-    description: 'settings.provider.create_custom.compatibility.anthropic.description'
-  },
-  gemini: {
-    label: 'settings.provider.create_custom.compatibility.gemini.label',
-    description: 'settings.provider.create_custom.compatibility.gemini.description'
-  },
-  custom: {
-    label: 'settings.provider.create_custom.compatibility.custom.label',
-    description: 'settings.provider.create_custom.compatibility.custom.description'
-  }
-}
+  const nameField = (
+    <NameField
+      name={name}
+      showError={showNameError}
+      onNameChange={setName}
+      onBlur={() => setNameTouched(true)}
+      onEnter={handleSubmit}
+      disableEnter={isSubmitting}
+    />
+  )
 
-interface CompatibilityFieldsProps {
-  value: CustomProviderCompatibilityType | null
-  openAiEndpoint: OpenAiCompatibilityEndpoint
-  customEndpoint: CustomProviderTextEndpoint
-  showError: boolean
-  onChange: (value: CustomProviderCompatibilityType) => void
-  onOpenAiEndpointChange: (value: OpenAiCompatibilityEndpoint) => void
-  onCustomEndpointChange: (value: CustomProviderTextEndpoint) => void
-}
+  const formContent = (
+    <div className="flex flex-col gap-5">
+      {avatarSection}
+      {nameField}
 
-function CompatibilityFields({
-  value,
-  openAiEndpoint,
-  customEndpoint,
-  showError,
-  onChange,
-  onOpenAiEndpointChange,
-  onCustomEndpointChange
-}: CompatibilityFieldsProps) {
-  const { t } = useTranslation()
-  const uid = useId()
-  const descriptionId = `${uid}-description`
-  const errorId = `${uid}-error`
+      {mode?.kind === 'create-custom' ? (
+        <>
+          {onSelectPreset && presetSources.length > 0 && (
+            <PresetInstancePicker sources={presetSources} onSelect={handleSelectPreset} />
+          )}
+          <ApiKeyField value={apiKey} onChange={setApiKey} />
+          <CustomProviderEndpointTabs
+            value={activeEndpointTab}
+            endpointUrls={endpointUrls}
+            preferredChatEndpoint={preferredChatEndpoint}
+            invalidUrl={invalidCreationUrl}
+            onValueChange={setActiveEndpointTab}
+            onEndpointUrlChange={handleEndpointUrlChange}
+            onPreferredChatEndpointChange={setPreferredChatEndpoint}
+          />
+        </>
+      ) : (
+        <>
+          {duplicateSource?.presetProviderId && <DuplicateHeader source={duplicateSource} />}
 
-  return (
-    <FieldSet className="gap-2">
-      <FieldLegend variant="label" className="mb-0 flex items-center gap-1 text-[13px] text-foreground">
-        {t('settings.provider.create_custom.compatibility.label')}
-        <span aria-hidden className="text-destructive">
-          *
-        </span>
-      </FieldLegend>
-      <p id={descriptionId} className="text-foreground-muted text-xs">
-        {t('settings.provider.create_custom.compatibility.description')}
-      </p>
-      <Select value={value ?? ''} onValueChange={(nextValue) => onChange(nextValue as CustomProviderCompatibilityType)}>
-        <SelectTrigger
-          className="min-h-10 w-full"
-          aria-label={t('settings.provider.create_custom.compatibility.label')}
-          aria-describedby={showError ? `${descriptionId} ${errorId}` : descriptionId}
-          aria-invalid={showError}>
-          <SelectValue placeholder={t('settings.provider.create_custom.compatibility.placeholder')} />
-        </SelectTrigger>
-        <SelectContent align="start">
-          {CUSTOM_PROVIDER_COMPATIBILITY_TYPES.map((type) => (
-            <SelectItem key={type} value={type} className="min-h-10">
-              {t(COMPATIBILITY_LABEL_KEYS[type].label)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {value && <p className="text-foreground-muted text-xs">{t(COMPATIBILITY_LABEL_KEYS[value].description)}</p>}
-      <FieldError
-        id={errorId}
-        className="text-xs"
-        errors={showError ? [{ message: t('settings.provider.create_custom.compatibility.required') }] : undefined}
-      />
-
-      {value === 'openai' && (
-        <ProtocolRadioGroup
-          label={t('settings.provider.create_custom.openai_protocol.label')}
-          value={openAiEndpoint}
-          options={[
-            {
-              value: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-              label: t('settings.provider.create_custom.openai_protocol.chat.label'),
-              description: t('settings.provider.create_custom.openai_protocol.chat.description')
-            },
-            {
-              value: ENDPOINT_TYPE.OPENAI_RESPONSES,
-              label: t('settings.provider.create_custom.openai_protocol.responses.label'),
-              description: t('settings.provider.create_custom.openai_protocol.responses.description')
-            }
-          ]}
-          onChange={(nextValue) => onOpenAiEndpointChange(nextValue as OpenAiCompatibilityEndpoint)}
-        />
+          {urlForm && (
+            <>
+              <BaseUrlField
+                label={t('settings.provider.base_url.label')}
+                placeholder={t('settings.provider.base_url.placeholder')}
+                value={baseUrl}
+                onChange={setBaseUrl}
+                required={urlForm.requireBaseUrl}
+                error={showDuplicateBaseUrlError ? t('settings.provider.base_url.required') : undefined}
+                onBlur={() => setBaseUrlTouched(true)}
+              />
+              <ApiKeyField value={apiKey} onChange={setApiKey} />
+              <MoreEndpointsDisclosure
+                open={moreEndpointsOpen}
+                onToggle={() => setMoreEndpointsOpen((v) => !v)}
+                primary={urlForm.primary}
+                values={secondaryUrls}
+                onChange={(type: EndpointType, value: string) =>
+                  setSecondaryUrls((prev) => ({ ...prev, [type]: value }))
+                }
+              />
+            </>
+          )}
+        </>
       )}
 
-      {value === 'custom' && (
-        <ProtocolRadioGroup
-          label={t('settings.provider.create_custom.custom_protocol.label')}
-          value={customEndpoint}
-          options={CUSTOM_PROVIDER_TEXT_ENDPOINTS.map((type) => ({
-            value: type,
-            label: t(SECONDARY_ENDPOINT_LABELS.find((entry) => entry.type === type)?.labelKey ?? type)
-          }))}
-          onChange={(nextValue) => onCustomEndpointChange(nextValue as CustomProviderTextEndpoint)}
-        />
+      {duplicateSource && !duplicateNeedsBaseUrl(duplicateSource.authType) && (
+        <p className="text-muted-foreground/80 text-xs leading-[1.4]">
+          {t('settings.provider.duplicate.fill_after_create')}
+        </p>
       )}
-    </FieldSet>
-  )
-}
-
-interface ProtocolRadioGroupProps {
-  label: string
-  value: string
-  options: Array<{ value: string; label: string; description?: string }>
-  onChange: (value: string) => void
-}
-
-function ProtocolRadioGroup({ label, value, options, onChange }: ProtocolRadioGroupProps) {
-  const uid = useId()
-  return (
-    <div className="mt-2 flex flex-col gap-2 rounded-lg bg-muted/35 p-3">
-      <span className="font-medium text-foreground text-xs">{label}</span>
-      <RadioGroup value={value} onValueChange={onChange} className="gap-2">
-        {options.map((option) => {
-          const optionId = `${uid}-${option.value}`
-          return (
-            <label
-              key={option.value}
-              htmlFor={optionId}
-              className={cn(
-                'flex min-h-10 cursor-pointer items-start gap-2.5 rounded-md border border-transparent px-2.5 py-2',
-                'transition-[background-color,border-color] duration-150 hover:bg-background/60',
-                value === option.value && 'border-border bg-background/80'
-              )}>
-              <RadioGroupItem id={optionId} value={option.value} size="sm" className="mt-0.5" />
-              <span>
-                <span className="block font-medium text-foreground text-xs">{option.label}</span>
-                {option.description && (
-                  <span className="mt-0.5 block text-[11px] text-foreground-muted">{option.description}</span>
-                )}
-              </span>
-            </label>
-          )
-        })}
-      </RadioGroup>
     </div>
+  )
+
+  if (mode?.kind === 'edit') {
+    return (
+      <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footerActions}>
+        {formContent}
+      </ProviderSettingsDrawer>
+    )
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !isSubmitting) {
+          onClose()
+        }
+      }}>
+      <DialogContent
+        aria-describedby={undefined}
+        closeOnOverlayClick={!isSubmitting}
+        showCloseButton={!isSubmitting}
+        size={mode?.kind === 'create-custom' ? 'xl' : 'default'}
+        data-testid="provider-editor-dialog"
+        className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0">
+        <DialogHeader className="px-6 pt-6 pb-4">
+          <DialogTitle className="text-base leading-5">{title}</DialogTitle>
+        </DialogHeader>
+        <div className="min-h-0 overflow-y-auto px-6 py-2">{formContent}</div>
+        <DialogFooter className="mt-4 border-border border-t px-6 py-4">{footerActions}</DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS: Record<CustomProviderEndpoint, string> = {
+  [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'settings.provider.more_endpoints.openai_chat',
+  [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'settings.provider.more_endpoints.openai_responses',
+  [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'settings.provider.more_endpoints.anthropic',
+  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'settings.provider.more_endpoints.gemini',
+  [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: 'settings.provider.image_endpoints.image_generation_base_url.label',
+  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: 'settings.provider.image_endpoints.image_edit_base_url.label'
+}
+
+interface CustomProviderEndpointTabsProps {
+  value: CustomProviderEndpointTab
+  endpointUrls: CustomProviderEndpointUrls
+  preferredChatEndpoint: CustomProviderTextEndpoint
+  invalidUrl: CustomProviderCreationInvalidUrl | null
+  onValueChange: (value: CustomProviderEndpointTab) => void
+  onEndpointUrlChange: (endpointType: CustomProviderEndpoint, value: string) => void
+  onPreferredChatEndpointChange: (endpointType: CustomProviderTextEndpoint) => void
+}
+
+function CustomProviderEndpointTabs({
+  value,
+  endpointUrls,
+  preferredChatEndpoint,
+  invalidUrl,
+  onValueChange,
+  onEndpointUrlChange,
+  onPreferredChatEndpointChange
+}: CustomProviderEndpointTabsProps) {
+  const { t } = useTranslation()
+  const textEndpointRequired = invalidUrl?.field === 'textEndpointRequired'
+
+  const renderEndpointField = (endpointType: CustomProviderEndpoint) => {
+    const endpointValue = endpointUrls[endpointType] ?? ''
+    const invalidEndpoint = invalidUrl?.field === 'endpointUrl' && invalidUrl.endpointType === endpointType
+    const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType)
+    const emptyValueHelp = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
+      ? t('settings.provider.create_custom.endpoint_tabs.url_help')
+      : t(
+          endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+            ? 'settings.provider.image_endpoints.image_generation_base_url.help'
+            : 'settings.provider.image_endpoints.image_edit_base_url.help'
+        )
+
+    return (
+      <BaseUrlField
+        label={t(CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS[endpointType])}
+        placeholder={t('settings.provider.base_url.placeholder')}
+        value={endpointValue}
+        error={invalidEndpoint ? t('settings.provider.base_url.invalid') : undefined}
+        description={
+          requestPreview
+            ? t('settings.provider.create_custom.request_preview', { path: requestPreview })
+            : emptyValueHelp
+        }
+        onChange={(nextValue) => onEndpointUrlChange(endpointType, nextValue)}
+      />
+    )
+  }
+
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="custom-provider-endpoints-title">
+      <div className="flex flex-col gap-1">
+        <h3 id="custom-provider-endpoints-title" className="font-medium text-[13px] text-foreground">
+          {t('settings.provider.create_custom.endpoint_tabs.label')}
+        </h3>
+        <p className="text-foreground-muted text-xs">
+          {t('settings.provider.create_custom.endpoint_tabs.description')}
+        </p>
+      </div>
+
+      <Tabs value={value} onValueChange={(nextValue) => onValueChange(nextValue as CustomProviderEndpointTab)}>
+        <TabsList className="grid min-h-12 w-full grid-cols-5 rounded-xl p-1">
+          {CUSTOM_PROVIDER_ENDPOINT_TABS.map((tab) => {
+            const configured =
+              tab.value === 'other'
+                ? CUSTOM_PROVIDER_ENDPOINTS.filter(
+                    (endpointType) => !CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
+                  ).some((endpointType) => endpointUrls[endpointType]?.trim())
+                : Boolean(endpointUrls[tab.value]?.trim())
+
+            return (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="min-h-10 min-w-0 gap-1.5 rounded-lg px-2 text-xs">
+                <span className="truncate">{t(tab.labelKey)}</span>
+                {configured && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />}
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
+
+        {CUSTOM_PROVIDER_TEXT_ENDPOINTS.map((endpointType) => (
+          <TabsContent key={endpointType} value={endpointType} className="mt-4 flex flex-col gap-3">
+            {renderEndpointField(endpointType)}
+            {endpointUrls[endpointType]?.trim() &&
+              (preferredChatEndpoint === endpointType ? (
+                <p className="text-foreground-muted text-xs">
+                  {t('settings.provider.create_custom.endpoint_tabs.default_chat')}
+                </p>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-10 self-start px-2"
+                  onClick={() => onPreferredChatEndpointChange(endpointType)}>
+                  {t('settings.provider.create_custom.endpoint_tabs.set_default_chat')}
+                </Button>
+              ))}
+          </TabsContent>
+        ))}
+
+        <TabsContent value="other" className="mt-4 flex flex-col gap-5">
+          {renderEndpointField(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)}
+          {renderEndpointField(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)}
+        </TabsContent>
+      </Tabs>
+
+      <FieldError
+        className="text-xs"
+        errors={
+          textEndpointRequired
+            ? [{ message: t('settings.provider.create_custom.endpoint_tabs.text_endpoint_required') }]
+            : undefined
+        }
+      />
+    </section>
   )
 }
 
@@ -863,7 +743,7 @@ function PresetInstancePicker({ sources, onSelect }: { sources: Provider[]; onSe
   )
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border-muted bg-muted/25 p-3">
+    <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-0.5">
         <span className="font-medium text-[13px] text-foreground">
           {t('settings.provider.create_custom.preset_instance.title')}

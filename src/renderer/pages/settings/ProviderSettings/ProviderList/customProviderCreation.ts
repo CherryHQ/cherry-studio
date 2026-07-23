@@ -3,17 +3,6 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 import { trim } from 'es-toolkit/compat'
 
-import {
-  findInvalidProviderImageEndpointDraft,
-  mergeProviderImageEndpointDraft,
-  type ProviderImageEndpointDraft,
-  type ProviderImageEndpointDraftField
-} from '../utils/providerImageEndpoints'
-
-export const CUSTOM_PROVIDER_COMPATIBILITY_TYPES = ['new-api', 'openai', 'anthropic', 'gemini', 'custom'] as const
-
-export type CustomProviderCompatibilityType = (typeof CUSTOM_PROVIDER_COMPATIBILITY_TYPES)[number]
-
 export const CUSTOM_PROVIDER_TEXT_ENDPOINTS = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ENDPOINT_TYPE.OPENAI_RESPONSES,
@@ -21,94 +10,73 @@ export const CUSTOM_PROVIDER_TEXT_ENDPOINTS = [
   ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
 ] as const
 
-export type CustomProviderTextEndpoint = (typeof CUSTOM_PROVIDER_TEXT_ENDPOINTS)[number]
-export type OpenAiCompatibilityEndpoint =
-  | typeof ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-  | typeof ENDPOINT_TYPE.OPENAI_RESPONSES
+export const CUSTOM_PROVIDER_IMAGE_ENDPOINTS = [
+  ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+] as const
 
-export type CustomProviderCompatibility =
-  | { type: 'new-api' }
-  | { type: 'openai'; endpoint: OpenAiCompatibilityEndpoint }
-  | { type: 'anthropic' }
-  | { type: 'gemini' }
-  | { type: 'custom'; endpoint: CustomProviderTextEndpoint }
+export const CUSTOM_PROVIDER_ENDPOINTS = [
+  ...CUSTOM_PROVIDER_TEXT_ENDPOINTS,
+  ...CUSTOM_PROVIDER_IMAGE_ENDPOINTS
+] as const
+
+export type CustomProviderTextEndpoint = (typeof CUSTOM_PROVIDER_TEXT_ENDPOINTS)[number]
+export type CustomProviderEndpoint = (typeof CUSTOM_PROVIDER_ENDPOINTS)[number]
+export type CustomProviderEndpointUrls = Partial<Record<CustomProviderEndpoint, string>>
 
 export interface CustomProviderCreationInput {
-  compatibility: CustomProviderCompatibility
-  baseUrl: string
-  extraTextEndpointUrls?: Partial<Record<CustomProviderTextEndpoint, string>>
-  imageEndpointDraft?: ProviderImageEndpointDraft
+  endpointUrls: CustomProviderEndpointUrls
+  preferredChatEndpoint?: CustomProviderTextEndpoint
 }
 
 export interface CustomProviderCreationPayload {
-  presetProviderId?: 'new-api'
   defaultChatEndpoint: CustomProviderTextEndpoint
   endpointConfigs: Partial<Record<EndpointType, EndpointConfig>>
 }
 
 export type CustomProviderCreationInvalidUrl =
-  | { field: 'baseUrl' }
-  | { field: 'extraTextEndpointUrl'; endpointType: CustomProviderTextEndpoint }
-  | { field: ProviderImageEndpointDraftField }
+  | { field: 'textEndpointRequired' }
+  | { field: 'endpointUrl'; endpointType: CustomProviderEndpoint }
 
-const ENDPOINT_PATHS: Record<CustomProviderTextEndpoint, string> = {
+const ENDPOINT_PATHS: Record<CustomProviderEndpoint, string> = {
   [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: '/chat/completions',
   [ENDPOINT_TYPE.OPENAI_RESPONSES]: '/responses',
   [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: '/messages',
-  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: '/models/{model}:generateContent'
+  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: '/models/{model}:generateContent',
+  [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: '/images/generations',
+  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: '/images/edits'
 }
 
-export function getCustomProviderPrimaryEndpoint(
-  compatibility: CustomProviderCompatibility
+export function getCustomProviderDefaultChatEndpoint(
+  endpointUrls: CustomProviderEndpointUrls,
+  preferredChatEndpoint?: CustomProviderTextEndpoint
 ): CustomProviderTextEndpoint {
-  switch (compatibility.type) {
-    case 'new-api':
-    case 'openai':
-      return compatibility.type === 'openai' ? compatibility.endpoint : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    case 'anthropic':
-      return ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-    case 'gemini':
-      return ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
-    case 'custom':
-      return compatibility.endpoint
+  if (preferredChatEndpoint && trim(endpointUrls[preferredChatEndpoint])) {
+    return preferredChatEndpoint
   }
+
+  return (
+    CUSTOM_PROVIDER_TEXT_ENDPOINTS.find((endpointType) => trim(endpointUrls[endpointType])) ??
+    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  )
 }
 
 export function buildCustomProviderCreationPayload(input: CustomProviderCreationInput): CustomProviderCreationPayload {
-  const baseUrl = trim(input.baseUrl)
-  const defaultChatEndpoint = getCustomProviderPrimaryEndpoint(input.compatibility)
-  const initialTextEndpoints: readonly CustomProviderTextEndpoint[] =
-    input.compatibility.type === 'new-api' ? CUSTOM_PROVIDER_TEXT_ENDPOINTS : [defaultChatEndpoint]
-  let endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = Object.fromEntries(
-    initialTextEndpoints.map((endpointType) => [endpointType, { baseUrl }])
-  )
-
-  for (const endpointType of CUSTOM_PROVIDER_TEXT_ENDPOINTS) {
-    if (endpointType === defaultChatEndpoint) {
-      continue
+  const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
+  for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
+    const baseUrl = trim(input.endpointUrls[endpointType])
+    if (baseUrl) {
+      endpointConfigs[endpointType] = { baseUrl }
     }
-
-    const overrideUrl = trim(input.extraTextEndpointUrls?.[endpointType])
-    if (overrideUrl) {
-      endpointConfigs[endpointType] = {
-        ...endpointConfigs[endpointType],
-        baseUrl: overrideUrl
-      }
-    }
-  }
-
-  if (input.imageEndpointDraft) {
-    endpointConfigs = mergeProviderImageEndpointDraft(endpointConfigs, input.imageEndpointDraft)
   }
 
   return {
-    ...(input.compatibility.type === 'new-api' ? { presetProviderId: 'new-api' as const } : {}),
-    defaultChatEndpoint,
+    defaultChatEndpoint: getCustomProviderDefaultChatEndpoint(input.endpointUrls, input.preferredChatEndpoint),
     endpointConfigs
   }
 }
 
-export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType: CustomProviderTextEndpoint): string {
+export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType: CustomProviderEndpoint): string {
   const value = trim(baseUrl)
   if (!value || !validateApiHost(value)) {
     return ''
@@ -122,27 +90,14 @@ export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType
 export function findInvalidCustomProviderCreationUrl(
   input: CustomProviderCreationInput
 ): CustomProviderCreationInvalidUrl | null {
-  const baseUrl = trim(input.baseUrl)
-  if (!baseUrl || !validateApiHost(baseUrl)) {
-    return { field: 'baseUrl' }
+  if (!CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((endpointType) => trim(input.endpointUrls[endpointType]))) {
+    return { field: 'textEndpointRequired' }
   }
 
-  const primaryEndpoint = getCustomProviderPrimaryEndpoint(input.compatibility)
-  for (const endpointType of CUSTOM_PROVIDER_TEXT_ENDPOINTS) {
-    if (endpointType === primaryEndpoint) {
-      continue
-    }
-
-    const value = trim(input.extraTextEndpointUrls?.[endpointType])
+  for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
+    const value = trim(input.endpointUrls[endpointType])
     if (value && !validateApiHost(value)) {
-      return { field: 'extraTextEndpointUrl', endpointType }
-    }
-  }
-
-  if (input.imageEndpointDraft) {
-    const invalidImageField = findInvalidProviderImageEndpointDraft(input.imageEndpointDraft)
-    if (invalidImageField) {
-      return { field: invalidImageField }
+      return { field: 'endpointUrl', endpointType }
     }
   }
 

@@ -8,25 +8,11 @@ import {
 } from '../providerImageEndpoints'
 
 describe('provider image endpoint drafts', () => {
-  it('uses one image URL for generation and editing by default', () => {
+  it('stores generation and editing URLs independently', () => {
     expect(
       mergeProviderImageEndpointDraft(undefined, {
-        imagesBaseUrl: ' https://images.example.com ',
-        useSeparateImageEditUrl: false,
-        imageEditBaseUrl: ''
-      })
-    ).toEqual({
-      [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example.com' },
-      [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: { baseUrl: 'https://images.example.com' }
-    })
-  })
-
-  it('allows image editing to use an independent URL', () => {
-    expect(
-      mergeProviderImageEndpointDraft(undefined, {
-        imagesBaseUrl: 'https://generate.example.com',
-        useSeparateImageEditUrl: true,
-        imageEditBaseUrl: 'https://edit.example.com'
+        imageGenerationBaseUrl: ' https://generate.example.com ',
+        imageEditBaseUrl: ' https://edit.example.com '
       })
     ).toEqual({
       [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://generate.example.com' },
@@ -34,21 +20,20 @@ describe('provider image endpoint drafts', () => {
     })
   })
 
-  it('leaves image endpoints unset so generation and editing fall back to the provider Base URL', () => {
+  it('leaves blank image endpoints unset so requests can fall back to the provider Base URL', () => {
     const existing = {
       [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' }
     }
 
     expect(
       mergeProviderImageEndpointDraft(existing, {
-        imagesBaseUrl: '',
-        useSeparateImageEditUrl: false,
+        imageGenerationBaseUrl: '',
         imageEditBaseUrl: ''
       })
     ).toEqual(existing)
   })
 
-  it('preserves an existing generation-only topology when read and merged without changes', () => {
+  it('preserves endpoint metadata when a Base URL is read and merged without changes', () => {
     const existing = {
       [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
         baseUrl: 'https://generate.example.com',
@@ -58,25 +43,38 @@ describe('provider image endpoint drafts', () => {
     const draft = readProviderImageEndpointDraft(existing)
 
     expect(draft).toEqual({
-      imagesBaseUrl: 'https://generate.example.com',
-      useSeparateImageEditUrl: true,
+      imageGenerationBaseUrl: 'https://generate.example.com',
       imageEditBaseUrl: ''
     })
     expect(mergeProviderImageEndpointDraft(existing, draft)).toEqual(existing)
   })
 
+  it('clears only the edited image endpoint while preserving the other endpoint', () => {
+    const existing = {
+      [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://generate.example.com' },
+      [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: { baseUrl: 'https://edit.example.com' }
+    }
+
+    expect(
+      mergeProviderImageEndpointDraft(existing, {
+        imageGenerationBaseUrl: '',
+        imageEditBaseUrl: 'https://edit.example.com'
+      })
+    ).toEqual({
+      [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: { baseUrl: 'https://edit.example.com' }
+    })
+  })
+
   it('reports only non-empty invalid URLs', () => {
     expect(
       findInvalidProviderImageEndpointDraft({
-        imagesBaseUrl: 'not-a-url',
-        useSeparateImageEditUrl: false,
+        imageGenerationBaseUrl: 'not-a-url',
         imageEditBaseUrl: ''
       })
-    ).toBe('imagesBaseUrl')
+    ).toBe('imageGenerationBaseUrl')
     expect(
       findInvalidProviderImageEndpointDraft({
-        imagesBaseUrl: '',
-        useSeparateImageEditUrl: true,
+        imageGenerationBaseUrl: '',
         imageEditBaseUrl: 'ftp://edit.example.com'
       })
     ).toBe('imageEditBaseUrl')

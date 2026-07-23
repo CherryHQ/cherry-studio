@@ -259,9 +259,19 @@ describe('ProviderList', () => {
       presetProviderId: 'openai',
       authType: 'api-key'
     }
+    const canonicalNewApi = {
+      id: 'new-api',
+      name: 'New API',
+      presetProviderId: 'new-api',
+      authType: 'api-key',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://localhost:3000' }
+      }
+    }
     useProvidersMock.mockReturnValue({
       providers: [
         canonicalOpenAI,
+        canonicalNewApi,
         { ...canonicalOpenAI, id: 'openai-work' },
         {
           ...providers[1],
@@ -278,7 +288,7 @@ describe('ProviderList', () => {
 
     expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        presetSources: [canonicalOpenAI],
+        presetSources: [canonicalOpenAI, canonicalNewApi],
         onSelectPreset: expect.any(Function)
       })
     )

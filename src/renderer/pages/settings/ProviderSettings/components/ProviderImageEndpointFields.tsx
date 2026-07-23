@@ -1,4 +1,4 @@
-import { Field, FieldError, FieldLabel, Input, Switch } from '@cherrystudio/ui'
+import { Field, FieldError, FieldLabel, Input } from '@cherrystudio/ui'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,10 +13,9 @@ interface ProviderImageEndpointFieldsProps {
 export function ProviderImageEndpointFields({ value, invalidField, onChange }: ProviderImageEndpointFieldsProps) {
   const { t } = useTranslation()
   const uid = useId()
-  const imagesInputId = `${uid}-images-base-url`
-  const imagesHelpId = `${uid}-images-base-url-help`
-  const imagesErrorId = `${uid}-images-base-url-error`
-  const separateEditId = `${uid}-separate-image-edit-url`
+  const generationInputId = `${uid}-image-generation-base-url`
+  const generationHelpId = `${uid}-image-generation-base-url-help`
+  const generationErrorId = `${uid}-image-generation-base-url-error`
   const editInputId = `${uid}-image-edit-base-url`
   const editHelpId = `${uid}-image-edit-base-url-help`
   const editErrorId = `${uid}-image-edit-base-url-error`
@@ -24,68 +23,54 @@ export function ProviderImageEndpointFields({ value, invalidField, onChange }: P
   return (
     <div className="flex flex-col gap-4">
       <Field className="gap-2">
-        <FieldLabel htmlFor={imagesInputId} className="text-[13px] text-foreground">
-          {t('settings.provider.image_endpoints.images_base_url.label')}
+        <FieldLabel htmlFor={generationInputId} className="text-[13px] text-foreground">
+          {t('settings.provider.image_endpoints.image_generation_base_url.label')}
         </FieldLabel>
         <Input
-          id={imagesInputId}
-          value={value.imagesBaseUrl}
+          id={generationInputId}
+          value={value.imageGenerationBaseUrl}
           placeholder={t('settings.provider.base_url.placeholder')}
-          aria-invalid={invalidField === 'imagesBaseUrl'}
-          aria-describedby={invalidField === 'imagesBaseUrl' ? imagesErrorId : imagesHelpId}
-          onChange={(event) => onChange({ ...value, imagesBaseUrl: event.target.value })}
+          aria-invalid={invalidField === 'imageGenerationBaseUrl'}
+          aria-describedby={invalidField === 'imageGenerationBaseUrl' ? generationErrorId : generationHelpId}
+          onChange={(event) => onChange({ ...value, imageGenerationBaseUrl: event.target.value })}
         />
-        <p id={imagesHelpId} className="text-foreground-muted text-xs leading-tight">
-          {t('settings.provider.image_endpoints.images_base_url.help')}
+        <p id={generationHelpId} className="text-foreground-muted text-xs leading-tight">
+          {t('settings.provider.image_endpoints.image_generation_base_url.help')}
         </p>
         <FieldError
-          id={imagesErrorId}
+          id={generationErrorId}
           className="text-xs"
-          errors={invalidField === 'imagesBaseUrl' ? [{ message: t('settings.provider.base_url.invalid') }] : undefined}
+          errors={
+            invalidField === 'imageGenerationBaseUrl'
+              ? [{ message: t('settings.provider.base_url.invalid') }]
+              : undefined
+          }
         />
       </Field>
 
-      <div className="flex min-h-10 items-center justify-between gap-3">
-        <label htmlFor={separateEditId} className="min-w-0 flex-1 cursor-pointer">
-          <span className="block text-[13px] text-foreground">
-            {t('settings.provider.image_endpoints.separate_edit.label')}
-          </span>
-          <span className="block text-foreground-muted text-xs leading-tight">
-            {t('settings.provider.image_endpoints.separate_edit.help')}
-          </span>
-        </label>
-        <Switch
-          id={separateEditId}
-          checked={value.useSeparateImageEditUrl}
-          onCheckedChange={(checked) => onChange({ ...value, useSeparateImageEditUrl: checked })}
+      <Field className="gap-2">
+        <FieldLabel htmlFor={editInputId} className="text-[13px] text-foreground">
+          {t('settings.provider.image_endpoints.image_edit_base_url.label')}
+        </FieldLabel>
+        <Input
+          id={editInputId}
+          value={value.imageEditBaseUrl}
+          placeholder={t('settings.provider.base_url.placeholder')}
+          aria-invalid={invalidField === 'imageEditBaseUrl'}
+          aria-describedby={invalidField === 'imageEditBaseUrl' ? editErrorId : editHelpId}
+          onChange={(event) => onChange({ ...value, imageEditBaseUrl: event.target.value })}
         />
-      </div>
-
-      {value.useSeparateImageEditUrl && (
-        <Field className="gap-2">
-          <FieldLabel htmlFor={editInputId} className="text-[13px] text-foreground">
-            {t('settings.provider.image_endpoints.image_edit_base_url.label')}
-          </FieldLabel>
-          <Input
-            id={editInputId}
-            value={value.imageEditBaseUrl}
-            placeholder={t('settings.provider.base_url.placeholder')}
-            aria-invalid={invalidField === 'imageEditBaseUrl'}
-            aria-describedby={invalidField === 'imageEditBaseUrl' ? editErrorId : editHelpId}
-            onChange={(event) => onChange({ ...value, imageEditBaseUrl: event.target.value })}
-          />
-          <p id={editHelpId} className="text-foreground-muted text-xs leading-tight">
-            {t('settings.provider.image_endpoints.image_edit_base_url.help')}
-          </p>
-          <FieldError
-            id={editErrorId}
-            className="text-xs"
-            errors={
-              invalidField === 'imageEditBaseUrl' ? [{ message: t('settings.provider.base_url.invalid') }] : undefined
-            }
-          />
-        </Field>
-      )}
+        <p id={editHelpId} className="text-foreground-muted text-xs leading-tight">
+          {t('settings.provider.image_endpoints.image_edit_base_url.help')}
+        </p>
+        <FieldError
+          id={editErrorId}
+          className="text-xs"
+          errors={
+            invalidField === 'imageEditBaseUrl' ? [{ message: t('settings.provider.base_url.invalid') }] : undefined
+          }
+        />
+      </Field>
     </div>
   )
 }

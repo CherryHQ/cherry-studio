@@ -1,7 +1,7 @@
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import { type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -32,7 +32,13 @@ export function isProviderPresetInstanceSource(provider: Provider): boolean {
   }
 
   const endpoint = provider.defaultChatEndpoint
-  return endpoint != null && provider.endpointConfigs?.[endpoint] != null
+  if (endpoint != null) {
+    return provider.endpointConfigs?.[endpoint] != null
+  }
+
+  return (
+    provider.presetProviderId === 'new-api' && provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] != null
+  )
 }
 
 export function getFancyProviderName(provider: Provider): string {

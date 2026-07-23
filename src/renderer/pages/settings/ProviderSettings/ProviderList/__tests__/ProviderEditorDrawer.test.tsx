@@ -19,98 +19,97 @@ vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: (id: string) => id
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, onClick, disabled, loading, ...props }: any) => (
-    <button type="button" onClick={onClick} disabled={disabled || loading} {...props}>
-      {children}
-    </button>
-  ),
-  Input: ({ onChange, onKeyDown, value, placeholder, ...props }: any) => (
-    <input
-      value={value ?? ''}
-      placeholder={placeholder}
-      onChange={onChange}
-      onKeyDown={onKeyDown}
-      aria-label={placeholder}
-      {...props}
-    />
-  ),
-  Field: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  FieldSet: ({ children, ...props }: any) => <fieldset {...props}>{children}</fieldset>,
-  FieldLegend: ({ children, ...props }: any) => <legend {...props}>{children}</legend>,
-  FieldLabel: ({ children, required, ...props }: any) => (
-    <label {...props}>
-      {children}
-      {required ? <span aria-hidden="true">*</span> : null}
-    </label>
-  ),
-  FieldError: ({ errors, children, ...props }: any) => {
-    const content = children ?? errors?.[0]?.message
-    if (!content) return null
-    return (
-      <div role="alert" {...props}>
-        {content}
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await import('react')
+  const TabsContext = React.createContext<{ value: string; onValueChange?: (value: string) => void }>({ value: '' })
+
+  return {
+    Button: ({ children, onClick, disabled, loading, ...props }: any) => (
+      <button type="button" onClick={onClick} disabled={disabled || loading} {...props}>
+        {children}
+      </button>
+    ),
+    Input: ({ onChange, onKeyDown, value, placeholder, ...props }: any) => (
+      <input
+        value={value ?? ''}
+        placeholder={placeholder}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        aria-label={placeholder}
+        {...props}
+      />
+    ),
+    Field: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    FieldLabel: ({ children, required, ...props }: any) => (
+      <label {...props}>
+        {children}
+        {required ? <span aria-hidden="true">*</span> : null}
+      </label>
+    ),
+    FieldError: ({ errors, children, ...props }: any) => {
+      const content = children ?? errors?.[0]?.message
+      if (!content) return null
+      return (
+        <div role="alert" {...props}>
+          {content}
+        </div>
+      )
+    },
+    Combobox: ({ options = [], onChange, placeholder, value }: any) => (
+      <select
+        aria-label={placeholder}
+        value={Array.isArray(value) ? (value[0] ?? '') : (value ?? '')}
+        onChange={(event) => onChange?.(event.target.value)}>
+        <option value="">{placeholder}</option>
+        {options.map((option: any) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    ),
+    Dialog: ({ children, open }: any) => (open ? <div data-testid="dialog-root">{children}</div> : null),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick: _closeOnOverlayClick,
+      showCloseButton: _showCloseButton,
+      ...props
+    }: any) => <div {...props}>{children}</div>,
+    DialogFooter: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    DialogHeader: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
+    Tabs: ({ children, value, onValueChange }: any) => (
+      <TabsContext value={{ value, onValueChange }}>
+        <div>{children}</div>
+      </TabsContext>
+    ),
+    TabsList: ({ children, ...props }: any) => (
+      <div role="tablist" {...props}>
+        {children}
       </div>
-    )
-  },
-  RadioGroup: ({ children, onValueChange, ...props }: any) => (
-    <div
-      role="radiogroup"
-      onChange={(event: any) => {
-        onValueChange?.(event.target.value)
-      }}
-      {...props}>
-      {children}
-    </div>
-  ),
-  RadioGroupItem: ({ value, ...props }: any) => <input type="radio" value={value} {...props} />,
-  Combobox: ({ options = [], onChange, placeholder, value }: any) => (
-    <select
-      aria-label={placeholder}
-      value={Array.isArray(value) ? (value[0] ?? '') : (value ?? '')}
-      onChange={(event) => onChange?.(event.target.value)}>
-      <option value="">{placeholder}</option>
-      {options.map((option: any) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  ),
-  Select: ({ children, onValueChange }: any) => (
-    <div
-      onClick={(event) => {
-        const option = (event.target as HTMLElement).closest<HTMLElement>('[data-select-value]')
-        if (option?.dataset.selectValue) {
-          onValueChange?.(option.dataset.selectValue)
-        }
-      }}>
-      {children}
-    </div>
-  ),
-  SelectTrigger: ({ children, ...props }: any) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: any) => <div>{children}</div>,
-  SelectItem: ({ children, value }: any) => (
-    <button type="button" data-select-value={value} aria-label={children}>
-      {children}
-    </button>
-  ),
-  Accordion: ({ children }: any) => <div>{children}</div>,
-  AccordionItem: ({ children }: any) => <div>{children}</div>,
-  AccordionTrigger: ({ children }: any) => <button type="button">{children}</button>,
-  AccordionContent: () => null,
-  Switch: ({ checked, onCheckedChange, ...props }: any) => (
-    <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange?.(event.target.checked)} {...props} />
-  ),
-  Popover: ({ children }: any) => <div>{children}</div>,
-  PopoverContent: ({ children }: any) => <div>{children}</div>,
-  PopoverTrigger: ({ children }: any) => <div>{children}</div>
-}))
+    ),
+    TabsTrigger: ({ children, value, ...props }: any) => {
+      const context = React.use(TabsContext)
+      return (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={context.value === value}
+          onClick={() => context.onValueChange?.(value)}
+          {...props}>
+          {children}
+        </button>
+      )
+    },
+    TabsContent: ({ children, value, ...props }: any) => {
+      const context = React.use(TabsContext)
+      return context.value === value ? <div {...props}>{children}</div> : null
+    },
+    Popover: ({ children }: any) => <div>{children}</div>,
+    PopoverContent: ({ children }: any) => <div>{children}</div>,
+    PopoverTrigger: ({ children }: any) => <div>{children}</div>
+  }
+})
 
 vi.mock('@renderer/components/ProviderAvatar', () => ({
   ProviderAvatarPrimitive: (props: any) => {
@@ -140,7 +139,7 @@ vi.mock('@renderer/utils/uuid', () => ({
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
   default: ({ children, footer, open, title }: any) =>
     open ? (
-      <div>
+      <div data-testid="provider-editor-drawer">
         <h2>{title}</h2>
         {children}
         {footer}
@@ -152,10 +151,8 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }
 }))
 
-function selectCompatibility(type: 'new_api' | 'openai' | 'anthropic' | 'gemini' | 'custom' = 'openai') {
-  fireEvent.click(
-    screen.getByLabelText(new RegExp(`settings\\.provider\\.create_custom\\.compatibility\\.${type}\\.label`))
-  )
+function selectEndpointTab(name: 'openai_chat' | 'openai_responses' | 'anthropic' | 'gemini' | 'other') {
+  fireEvent.click(screen.getByRole('tab', { name: `settings.provider.create_custom.endpoint_tabs.${name}` }))
 }
 
 describe('ProviderEditorDrawer', () => {
@@ -343,7 +340,43 @@ describe('ProviderEditorDrawer', () => {
     })
   })
 
-  it('submits an OpenAI-compatible payload with Chat Completions as the default endpoint', () => {
+  it('uses a dialog for create and duplicate flows while keeping edit in the drawer', () => {
+    const commonProps = {
+      open: true,
+      initialLogo: undefined,
+      onClose: vi.fn(),
+      onSubmit: vi.fn()
+    }
+
+    const { rerender } = render(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'create-custom' }} />)
+
+    expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
+
+    const source = {
+      id: 'openai',
+      name: 'OpenAI',
+      presetProviderId: 'openai',
+      defaultChatEndpoint: 'openai-chat-completions',
+      authType: 'api-key'
+    } as any
+    rerender(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'duplicate', source }} />)
+    expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
+
+    rerender(
+      <ProviderEditorDrawer
+        {...commonProps}
+        mode={{
+          kind: 'edit',
+          provider: { id: 'custom', name: 'Custom', defaultChatEndpoint: 'openai-chat-completions' } as any
+        }}
+      />
+    )
+    expect(screen.getByTestId('provider-editor-drawer')).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-editor-dialog')).not.toBeInTheDocument()
+  })
+
+  it('submits a Chat Completions endpoint without assigning a preset', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <ProviderEditorDrawer
@@ -356,12 +389,11 @@ describe('ProviderEditorDrawer', () => {
     )
 
     expect(screen.getByText('settings.provider.create_custom.title')).toBeInTheDocument()
-    selectCompatibility()
 
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'My Custom' }
     })
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
       target: { value: 'https://api.example.com' }
     })
 
@@ -379,31 +411,41 @@ describe('ProviderEditorDrawer', () => {
     expect(callArg?.presetProviderId).toBeUndefined()
   })
 
-  it('places provider identity before compatibility and does not show a recommendation badge', () => {
+  it('places identity and the optional preset before endpoint tabs without a compatibility selector', () => {
+    const source = {
+      id: 'anthropic',
+      name: 'Anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } },
+      authType: 'api-key'
+    } as any
     render(
       <ProviderEditorDrawer
         open
         mode={{ kind: 'create-custom' }}
         initialLogo={undefined}
+        presetSources={[source]}
         onClose={vi.fn()}
+        onSelectPreset={vi.fn()}
         onSubmit={vi.fn()}
       />
     )
 
     const avatar = screen.getByTestId('provider-avatar-preview')
     const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
-    const compatibilitySelect = screen.getByRole('button', {
-      name: 'settings.provider.create_custom.compatibility.label'
+    const presetPicker = screen.getByRole('combobox', {
+      name: 'settings.provider.create_custom.preset_instance.placeholder'
     })
+    const tabs = screen.getByRole('tablist')
 
     expect(avatar.compareDocumentPosition(nameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(nameInput.compareDocumentPosition(compatibilitySelect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(
-      screen.queryByText('settings.provider.create_custom.compatibility.new_api.recommended')
-    ).not.toBeInTheDocument()
+    expect(nameInput.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(presetPicker.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText('settings.provider.create_custom.compatibility.label')).not.toBeInTheDocument()
   })
 
-  it('requires an explicit compatibility type before showing connection fields', () => {
+  it('requires at least one text endpoint', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <ProviderEditorDrawer
@@ -415,14 +457,23 @@ describe('ProviderEditorDrawer', () => {
       />
     )
 
-    expect(screen.queryByLabelText('settings.provider.base_url.label')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Images Only' }
+    })
+    selectEndpointTab('other')
+    fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_generation_base_url.label'), {
+      target: { value: 'https://images.example.com' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
 
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(screen.getByText('settings.provider.create_custom.compatibility.required')).toBeInTheDocument()
+    expect(screen.getByText('settings.provider.create_custom.endpoint_tabs.text_endpoint_required')).toBeInTheDocument()
+    expect(
+      screen.getByRole('tab', { name: 'settings.provider.create_custom.endpoint_tabs.openai_chat' })
+    ).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('submits New API with its preset and all canonical text endpoints', () => {
+  it('submits multiple independent text and image endpoints with an explicit default chat endpoint', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <ProviderEditorDrawer
@@ -434,30 +485,42 @@ describe('ProviderEditorDrawer', () => {
       />
     )
 
-    selectCompatibility('new_api')
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
-      target: { value: 'https://new-api.example.com' }
-    })
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
-      target: { value: 'New API' }
+      target: { value: 'Multi Protocol' }
+    })
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
+      target: { value: 'https://chat.example.com' }
+    })
+    selectEndpointTab('anthropic')
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.anthropic'), {
+      target: { value: 'https://anthropic.example.com' }
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'settings.provider.create_custom.endpoint_tabs.set_default_chat' })
+    )
+    selectEndpointTab('other')
+    fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_generation_base_url.label'), {
+      target: { value: 'https://images.example.com' }
+    })
+    fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_edit_base_url.label'), {
+      target: { value: 'https://edits.example.com' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
-        presetProviderId: 'new-api',
-        defaultChatEndpoint: 'openai-chat-completions',
+        defaultChatEndpoint: 'anthropic-messages',
         endpointConfigs: {
-          'openai-chat-completions': { baseUrl: 'https://new-api.example.com' },
-          'openai-responses': { baseUrl: 'https://new-api.example.com' },
-          'anthropic-messages': { baseUrl: 'https://new-api.example.com' },
-          'google-generate-content': { baseUrl: 'https://new-api.example.com' }
+          'openai-chat-completions': { baseUrl: 'https://chat.example.com' },
+          'anthropic-messages': { baseUrl: 'https://anthropic.example.com' },
+          'openai-image-generation': { baseUrl: 'https://images.example.com' },
+          'openai-image-edit': { baseUrl: 'https://edits.example.com' }
         }
       })
     )
   })
 
-  it('preserves connection values while switching compatibility and updates the request preview', () => {
+  it('preserves connection values while switching endpoint tabs and updates request previews', () => {
     render(
       <ProviderEditorDrawer
         open
@@ -468,9 +531,8 @@ describe('ProviderEditorDrawer', () => {
       />
     )
 
-    selectCompatibility('anthropic')
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
-      target: { value: 'https://api.example.com' }
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
+      target: { value: 'https://chat.example.com' }
     })
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), {
       target: { value: 'secret' }
@@ -480,22 +542,29 @@ describe('ProviderEditorDrawer', () => {
     })
 
     expect(
-      screen.getByText('settings.provider.create_custom.request_preview:https://api.example.com/v1/messages')
+      screen.getByText('settings.provider.create_custom.request_preview:https://chat.example.com/v1/chat/completions')
     ).toBeInTheDocument()
 
-    selectCompatibility('gemini')
+    selectEndpointTab('gemini')
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.gemini'), {
+      target: { value: 'https://gemini.example.com' }
+    })
 
-    expect(screen.getByPlaceholderText('settings.provider.base_url.placeholder')).toHaveValue('https://api.example.com')
     expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue('secret')
     expect(screen.getByPlaceholderText('settings.provider.add.name.placeholder')).toHaveValue('Compatible API')
     expect(
       screen.getByText(
-        'settings.provider.create_custom.request_preview:https://api.example.com/v1beta/models/{model}:generateContent'
+        'settings.provider.create_custom.request_preview:https://gemini.example.com/v1beta/models/{model}:generateContent'
       )
     ).toBeInTheDocument()
+
+    selectEndpointTab('openai_chat')
+    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_chat')).toHaveValue(
+      'https://chat.example.com'
+    )
   })
 
-  it('switches Advanced Custom to a preset instance while preserving identity and basic connection fields', () => {
+  it('switches to a preset instance while preserving identity and basic connection fields', () => {
     const onSelectPreset = vi.fn()
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     const source = {
@@ -519,12 +588,11 @@ describe('ProviderEditorDrawer', () => {
 
     const { rerender } = render(<ProviderEditorDrawer {...sharedProps} mode={{ kind: 'create-custom' }} />)
 
-    selectCompatibility('custom')
     fireEvent.click(screen.getByRole('button', { name: 'pick-openai' }))
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'Claude Gateway' }
     })
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
       target: { value: 'https://gateway.example.com' }
     })
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), {
@@ -591,6 +659,54 @@ describe('ProviderEditorDrawer', () => {
     )
 
     expect(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' })).toBeInTheDocument()
+  })
+
+  it('fans one Base URL out to all canonical text endpoints for a New API preset instance', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: {
+            id: 'new-api',
+            name: 'New API',
+            presetProviderId: 'new-api',
+            authType: 'api-key',
+            endpointConfigs: {
+              'openai-chat-completions': { baseUrl: 'http://localhost:3000' },
+              'openai-responses': { baseUrl: 'http://localhost:3000' },
+              'anthropic-messages': { baseUrl: 'http://localhost:3000' },
+              'google-generate-content': { baseUrl: 'http://localhost:3000' }
+            }
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'New API Work' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+      target: { value: 'https://new-api.example.com' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presetProviderId: 'new-api',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://new-api.example.com' },
+          'openai-responses': { baseUrl: 'https://new-api.example.com' },
+          'anthropic-messages': { baseUrl: 'https://new-api.example.com' },
+          'google-generate-content': { baseUrl: 'https://new-api.example.com' }
+        }
+      })
+    )
   })
 
   it('duplicate of an iam-azure source: keeps source defaultChatEndpoint + iam-azure auth, URL-keyed off it', () => {
@@ -752,10 +868,8 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={onSubmit}
       />
     )
-    selectCompatibility()
 
-    // Fill the base URL so the button is enabled, but leave the name empty.
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
       target: { value: 'https://api.example.com' }
     })
     expect(screen.queryByText('settings.provider.add.name.required')).not.toBeInTheDocument()
@@ -776,7 +890,6 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
-    selectCompatibility()
 
     fireEvent.blur(screen.getByPlaceholderText('settings.provider.add.name.placeholder'))
 
@@ -793,7 +906,6 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
-    selectCompatibility()
 
     const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
     fireEvent.blur(nameInput)
@@ -803,7 +915,7 @@ describe('ProviderEditorDrawer', () => {
     expect(screen.queryByText('settings.provider.add.name.required')).not.toBeInTheDocument()
   })
 
-  it('shows a base URL required error and does not submit when the base URL is empty on create-custom', () => {
+  it('shows an invalid URL error for the active endpoint and does not submit', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <ProviderEditorDrawer
@@ -814,21 +926,21 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={onSubmit}
       />
     )
-    selectCompatibility()
 
-    // Fill the name so the only thing missing is the base URL.
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'My Custom' }
     })
-    expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
+    const endpointInput = screen.getByLabelText('settings.provider.more_endpoints.openai_chat')
+    fireEvent.change(endpointInput, { target: { value: 'not-a-url' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
 
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(screen.getByText('settings.provider.base_url.required')).toBeInTheDocument()
+    expect(screen.getByText('settings.provider.base_url.invalid')).toBeInTheDocument()
+    expect(endpointInput).toHaveAttribute('aria-invalid', 'true')
   })
 
-  it('shows the base URL required error after the base URL input is blurred while empty', () => {
+  it('clears an endpoint URL error once a valid URL is entered', () => {
     render(
       <ProviderEditorDrawer
         open
@@ -838,31 +950,17 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
-    selectCompatibility()
 
-    fireEvent.blur(screen.getByPlaceholderText('settings.provider.base_url.placeholder'))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'My Custom' }
+    })
+    const endpointInput = screen.getByLabelText('settings.provider.more_endpoints.openai_chat')
+    fireEvent.change(endpointInput, { target: { value: 'not-a-url' } })
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+    expect(screen.getByText('settings.provider.base_url.invalid')).toBeInTheDocument()
 
-    expect(screen.getByText('settings.provider.base_url.required')).toBeInTheDocument()
-  })
-
-  it('clears the base URL required error once a valid base URL is entered', () => {
-    render(
-      <ProviderEditorDrawer
-        open
-        mode={{ kind: 'create-custom' }}
-        initialLogo={undefined}
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-      />
-    )
-    selectCompatibility()
-
-    const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
-    fireEvent.blur(baseUrlInput)
-    expect(screen.getByText('settings.provider.base_url.required')).toBeInTheDocument()
-
-    fireEvent.change(baseUrlInput, { target: { value: 'https://api.example.com' } })
-    expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
+    fireEvent.change(endpointInput, { target: { value: 'https://api.example.com' } })
+    expect(screen.queryByText('settings.provider.base_url.invalid')).not.toBeInTheDocument()
   })
 
   it('name input: label is bound via htmlFor and aria-describedby links to the error node when error is visible', () => {
@@ -875,7 +973,6 @@ describe('ProviderEditorDrawer', () => {
         onSubmit={vi.fn()}
       />
     )
-    selectCompatibility()
 
     const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
 
@@ -890,33 +987,6 @@ describe('ProviderEditorDrawer', () => {
     const errorNode = document.getElementById(errorId!)
     expect(errorNode).toHaveAttribute('role', 'alert')
     expect(errorNode).toHaveTextContent('settings.provider.add.name.required')
-  })
-
-  it('base URL input: label is bound via htmlFor and aria-describedby links to the error node when error is visible', () => {
-    render(
-      <ProviderEditorDrawer
-        open
-        mode={{ kind: 'create-custom' }}
-        initialLogo={undefined}
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-      />
-    )
-    selectCompatibility()
-
-    const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
-
-    expect(baseUrlInput).not.toHaveAttribute('aria-describedby')
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(document.querySelector(`label[for="${baseUrlInput.id}"]`)).toBeInTheDocument()
-
-    fireEvent.blur(baseUrlInput)
-
-    const errorId = baseUrlInput.getAttribute('aria-describedby')
-    expect(errorId).toBeTruthy()
-    const errorNode = document.getElementById(errorId!)
-    expect(errorNode).toHaveAttribute('role', 'alert')
-    expect(errorNode).toHaveTextContent('settings.provider.base_url.required')
   })
 
   it('does not require the base URL in duplicate mode (optional, no error on blur)', () => {

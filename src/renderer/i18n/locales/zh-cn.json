@@ -7308,58 +7308,25 @@
         "toggle_headers_editor_list": "切换为键值列表"
       },
       "create_custom": {
-        "advanced": {
-          "description": "可选的协议独立地址和图像服务地址",
-          "extra_text_urls": "额外文本协议地址",
-          "extra_text_urls_help": "留空时仅使用上方选择的兼容类型",
-          "label": "高级设置"
-        },
-        "compatibility": {
-          "anthropic": {
-            "description": "使用 Anthropic Messages API",
-            "label": "Anthropic 兼容"
-          },
-          "custom": {
-            "description": "明确选择底层协议，并可配置多个独立地址",
-            "label": "高级自定义"
-          },
-          "description": "选择这个服务支持的 API 类型",
-          "gemini": {
-            "description": "使用 Gemini Generate Content",
-            "label": "Gemini 兼容"
-          },
-          "label": "API 兼容类型",
-          "new_api": {
-            "description": "同一根地址支持 OpenAI、Anthropic、Responses 和 Gemini 路由",
-            "label": "New API / One API"
-          },
-          "openai": {
-            "description": "使用 OpenAI 兼容文本 API",
-            "label": "OpenAI 兼容"
-          },
-          "placeholder": "请选择 API 兼容类型",
-          "required": "请选择 API 兼容类型"
-        },
-        "custom_protocol": {
-          "label": "主协议"
-        },
-        "openai_protocol": {
-          "chat": {
-            "description": "适用于大多数 OpenAI 兼容服务",
-            "label": "Chat Completions"
-          },
-          "label": "OpenAI API",
-          "responses": {
-            "description": "适用于明确支持 Responses API 的服务",
-            "label": "Responses API"
-          }
+        "endpoint_tabs": {
+          "anthropic": "Anthropic",
+          "default_chat": "默认对话端点",
+          "description": "按协议填写 Base URL；至少配置一个文本端点，图像端点可选",
+          "gemini": "Gemini",
+          "label": "端点设置",
+          "openai_chat": "Chat",
+          "openai_responses": "Responses",
+          "other": "其他",
+          "set_default_chat": "设为默认对话端点",
+          "text_endpoint_required": "请至少配置一个文本端点",
+          "url_help": "填写 API 根地址后会显示实际请求路径"
         },
         "preset_instance": {
           "description": "适用于 Coding Plan 接入、多个账号管理或项目隔离；Base URL 和 API Key 可独立配置",
           "empty": "没有匹配的 Provider 预设",
           "placeholder": "从 Provider 预设创建…",
           "search_placeholder": "搜索 Provider 预设",
-          "title": "需要 Provider 专用配置？"
+          "title": "从预设创建（可选）"
         },
         "request_preview": "请求路径：{{path}}",
         "title": "添加自定义提供商"
@@ -7403,16 +7370,12 @@
       },
       "image_endpoints": {
         "image_edit_base_url": {
-          "help": "仅用于图像编辑",
+          "help": "用于 /images/edits；留空时使用默认对话端点的 Base URL",
           "label": "图像编辑 Base URL"
         },
-        "images_base_url": {
-          "help": "同时用于图像生成和编辑；留空时继承主 Base URL",
-          "label": "Images Base URL"
-        },
-        "separate_edit": {
-          "help": "为图像编辑覆盖独立地址",
-          "label": "图像编辑使用不同地址"
+        "image_generation_base_url": {
+          "help": "用于 /images/generations；留空时使用默认对话端点的 Base URL",
+          "label": "图像生成 Base URL"
         }
       },
       "logo_upload_failed": "无法处理所选图片",

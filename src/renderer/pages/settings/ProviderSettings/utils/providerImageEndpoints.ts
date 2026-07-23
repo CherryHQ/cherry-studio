@@ -4,12 +4,11 @@ import type { EndpointConfig } from '@shared/data/types/provider'
 import { isEmpty, trim } from 'es-toolkit/compat'
 
 export interface ProviderImageEndpointDraft {
-  imagesBaseUrl: string
-  useSeparateImageEditUrl: boolean
+  imageGenerationBaseUrl: string
   imageEditBaseUrl: string
 }
 
-export type ProviderImageEndpointDraftField = 'imagesBaseUrl' | 'imageEditBaseUrl'
+export type ProviderImageEndpointDraftField = 'imageGenerationBaseUrl' | 'imageEditBaseUrl'
 
 function setEndpointBaseUrl(
   endpointConfigs: Partial<Record<EndpointType, EndpointConfig>>,
@@ -34,12 +33,11 @@ function setEndpointBaseUrl(
 export function readProviderImageEndpointDraft(
   endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | undefined
 ): ProviderImageEndpointDraft {
-  const imagesBaseUrl = trim(endpointConfigs?.[ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]?.baseUrl ?? '')
+  const imageGenerationBaseUrl = trim(endpointConfigs?.[ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]?.baseUrl ?? '')
   const imageEditBaseUrl = trim(endpointConfigs?.[ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]?.baseUrl ?? '')
 
   return {
-    imagesBaseUrl,
-    useSeparateImageEditUrl: imagesBaseUrl !== imageEditBaseUrl,
+    imageGenerationBaseUrl,
     imageEditBaseUrl
   }
 }
@@ -49,11 +47,9 @@ export function mergeProviderImageEndpointDraft(
   draft: ProviderImageEndpointDraft
 ): Partial<Record<EndpointType, EndpointConfig>> {
   const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = { ...existing }
-  const imagesBaseUrl = trim(draft.imagesBaseUrl)
-  const imageEditBaseUrl = draft.useSeparateImageEditUrl ? trim(draft.imageEditBaseUrl) : imagesBaseUrl
 
-  setEndpointBaseUrl(endpointConfigs, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, imagesBaseUrl)
-  setEndpointBaseUrl(endpointConfigs, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, imageEditBaseUrl)
+  setEndpointBaseUrl(endpointConfigs, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, trim(draft.imageGenerationBaseUrl))
+  setEndpointBaseUrl(endpointConfigs, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, trim(draft.imageEditBaseUrl))
 
   return endpointConfigs
 }
@@ -61,13 +57,13 @@ export function mergeProviderImageEndpointDraft(
 export function findInvalidProviderImageEndpointDraft(
   draft: ProviderImageEndpointDraft
 ): ProviderImageEndpointDraftField | null {
-  const imagesBaseUrl = trim(draft.imagesBaseUrl)
-  if (imagesBaseUrl && !validateApiHost(imagesBaseUrl)) {
-    return 'imagesBaseUrl'
+  const imageGenerationBaseUrl = trim(draft.imageGenerationBaseUrl)
+  if (imageGenerationBaseUrl && !validateApiHost(imageGenerationBaseUrl)) {
+    return 'imageGenerationBaseUrl'
   }
 
   const imageEditBaseUrl = trim(draft.imageEditBaseUrl)
-  if (draft.useSeparateImageEditUrl && imageEditBaseUrl && !validateApiHost(imageEditBaseUrl)) {
+  if (imageEditBaseUrl && !validateApiHost(imageEditBaseUrl)) {
     return 'imageEditBaseUrl'
   }
 
