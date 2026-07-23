@@ -28,6 +28,7 @@ import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agent
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -67,6 +68,7 @@ export interface BeginAgentSessionTurnInput {
   agentId: string
   agentType: string
   modelId: UniqueModelId
+  reasoningEffort?: ReasoningEffortOption
   assistantMessageId: string
   userMessage?: AgentSessionMessageEntity
   headless?: boolean
@@ -104,12 +106,23 @@ type AgentSessionTurn = {
   assistantMessageId: string
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
+  reasoningEffort: ReasoningEffortOption
   admitted: boolean
   abortController: AbortController
   terminalStatus?: AgentSessionRuntimeTerminalStatus
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   activeToolIds: Set<string>
   headless?: boolean
+}
+
+type PendingAgentSessionTurn = {
+  message: AgentSessionMessageEntity
+  reasoningEffort: ReasoningEffortOption
+}
+
+type AgentSessionConnectionTarget = {
+  modelId: UniqueModelId
+  reasoningEffort: ReasoningEffortOption
 }
 
 type AgentSessionRuntimeEntry = {
@@ -123,7 +136,7 @@ type AgentSessionRuntimeEntry = {
   /** Author snapshot (agent + nested model) for assistant rows the runtime opens this session. */
   messageSnapshot?: MessageSnapshot
   status: AgentSessionRuntimeStatus
-  pendingTurns: AgentSessionMessageEntity[]
+  pendingTurns: PendingAgentSessionTurn[]
   connection?: AgentRuntimeConnection
   connectionLoop?: Promise<void>
   /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
@@ -305,6 +318,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId: input.assistantMessageId,
       userMessage,
       modelId: input.modelId,
+      reasoningEffort: input.reasoningEffort ?? 'default',
       admitted: false,
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -468,7 +482,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     let verdict: AgentRuntimeReconcileResult
     try {
-      verdict = await connection.reconcile({ modelId: this.connectionTargetModelId(entry) })
+      verdict = await connection.reconcile(this.connectionTarget(entry))
     } catch (error) {
       logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
       this.closeFailedPolicyUpdateConnection(entry, connection)
@@ -572,7 +586,11 @@ export class AgentSessionRuntimeService extends BaseService {
   enqueueUserMessage(
     sessionId: string,
     message: AgentSessionMessageEntity,
-    opts: { headless?: boolean; messageSnapshot?: MessageSnapshot } = {}
+    opts: {
+      headless?: boolean
+      messageSnapshot?: MessageSnapshot
+      reasoningEffort?: ReasoningEffortOption
+    } = {}
   ): void {
     const entry = this.entries.get(sessionId)
     if (!entry) return
@@ -583,26 +601,27 @@ export class AgentSessionRuntimeService extends BaseService {
     // Store before the redirect check so a native-steer follow-up (redirect → steer-boundary/undelivered)
     // keeps its submit-time snapshot; the continuation and requeue paths both look it up by message id.
     if (opts.messageSnapshot) (entry.pendingSnapshots ??= new Map()).set(message.id, opts.messageSnapshot)
+    const reasoningEffort = opts.reasoningEffort ?? 'default'
 
     const turn = entry.currentTurn
     // Live turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
     // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
     // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.
-    // The gate compares the live turn's captured model against the entry's latest: after a mid-turn
-    // model edit the steer must queue as the NEXT turn (on the new model) instead of folding into a
-    // turn still running on the old one.
-    const canRedirectOnCurrentModel = turn?.modelId === entry.modelId
+    // The gate compares the live turn's frozen model/reasoning config with the incoming message:
+    // a changed model or effort must queue as the NEXT turn instead of being folded into a query
+    // already running with different connection-scoped options.
+    const canRedirectOnCurrentConfig = turn?.modelId === entry.modelId && turn.reasoningEffort === reasoningEffort
     if (
       turn &&
       !turn.terminalStatus &&
-      canRedirectOnCurrentModel &&
+      canRedirectOnCurrentConfig &&
       entry.connection?.redirect?.({ message, systemReminder: true })
     ) {
       return
     }
 
     // No live turn (or backend can't steer) → queue as the next turn, wrapped in a steer system-reminder.
-    entry.pendingTurns.push(message)
+    entry.pendingTurns.push({ message, reasoningEffort })
     ;(entry.steerMessageIds ??= new Set()).add(message.id)
     if (!turn || turn.terminalStatus) this.scheduleNextTurn(entry)
   }
@@ -759,17 +778,24 @@ export class AgentSessionRuntimeService extends BaseService {
    * same SDK query keeps streaming the post-steer response on A1a's captured model — retargeting in
    * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
    * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
-   * the connection follows the agent's latest model.
+   * the connection follows the agent's latest model with the default reasoning selection.
    */
-  private connectionTargetModelId(entry: AgentSessionRuntimeEntry): UniqueModelId {
+  private connectionTarget(entry: AgentSessionRuntimeEntry): AgentSessionConnectionTarget {
     const turn = entry.currentTurn
     const live = turn && (!turn.terminalStatus || entry.rolling === true)
-    return live ? turn.modelId : entry.modelId
+    return live
+      ? { modelId: turn.modelId, reasoningEffort: turn.reasoningEffort }
+      : { modelId: entry.modelId, reasoningEffort: 'default' }
+  }
+
+  private connectionTargetEquals(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): boolean {
+    const current = this.connectionTarget(entry)
+    return current.modelId === target.modelId && current.reasoningEffort === target.reasoningEffort
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
-      const targetModelId = this.connectionTargetModelId(entry)
+      const target = this.connectionTarget(entry)
       const connection = entry.connection
       if (connection) {
         // A connection carrying a live SDK stream is NEVER reconciled here: closing it would drop
@@ -787,7 +813,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // closed like the push path: the suspect connection is replaced by a fresh one.
         let verdict: AgentRuntimeReconcileResult
         try {
-          verdict = await connection.reconcile({ modelId: targetModelId })
+          verdict = await connection.reconcile(target)
         } catch (error) {
           logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
           verdict = 'failed'
@@ -824,7 +850,7 @@ export class AgentSessionRuntimeService extends BaseService {
         continue
       }
 
-      const connecting = this.connect(entry, targetModelId).finally(() => {
+      const connecting = this.connect(entry, target).finally(() => {
         if (entry.connecting === connecting) entry.connecting = undefined
       })
       entry.connecting = connecting
@@ -835,7 +861,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
-  private async connect(entry: AgentSessionRuntimeEntry, modelId: UniqueModelId): Promise<boolean> {
+  private async connect(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
@@ -845,11 +871,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = await driver.connect({
       sessionId: entry.sessionId,
       agentId: entry.agentId,
-      modelId,
+      modelId: target.modelId,
+      reasoningEffort: target.reasoningEffort,
       resumeToken: entry.lastResumeToken,
-      trace: this.sessionTraceContext(entry, modelId)
+      trace: this.sessionTraceContext(entry, target.modelId)
     })
-    if (!this.isCurrentEntry(entry) || this.connectionTargetModelId(entry) !== modelId) {
+    if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       void Promise.resolve(connection.close()).catch((error) =>
         logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
       )
@@ -923,7 +950,10 @@ export class AgentSessionRuntimeService extends BaseService {
         // next turn (with a steer system-reminder). The following `turn-complete` → markTurnTerminal
         // drains pendingTurns via scheduleNextTurn.
         for (const input of event.inputs) {
-          entry.pendingTurns.push(input.message)
+          entry.pendingTurns.push({
+            message: input.message,
+            reasoningEffort: entry.currentTurn?.reasoningEffort ?? 'default'
+          })
           ;(entry.steerMessageIds ??= new Set()).add(input.message.id)
         }
         break
@@ -1144,11 +1174,12 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
-    const nextMessage = entry.pendingTurns.shift()
-    if (!nextMessage) {
+    const pendingTurn = entry.pendingTurns.shift()
+    if (!pendingTurn) {
       this.refreshIdleTimer(entry)
       return
     }
+    const { message: nextMessage, reasoningEffort } = pendingTurn
 
     // A queued follow-up can outlive the agent's model: deleting the model nulls `agent.model` via the FK
     // (`onDelete: 'set null'`) without emitting an agent update, so `applyAgentModelUpdate` never ran and
@@ -1215,6 +1246,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId,
       userMessage: nextMessage,
       modelId: entry.modelId,
+      reasoningEffort,
       admitted: false,
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -1240,6 +1272,7 @@ export class AgentSessionRuntimeService extends BaseService {
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
+        reasoningEffort,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: entry.currentTurn.abortController,
@@ -1275,6 +1308,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     const modelId = entry.currentTurn?.modelId ?? entry.modelId
+    const reasoningEffort = entry.currentTurn?.reasoningEffort ?? 'default'
     const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
     const headless = entry.rollHeadless === true
     entry.rollSteerInputs = undefined
@@ -1315,6 +1349,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId,
       userMessage: steerMessage,
       modelId,
+      reasoningEffort,
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       admitted: true,
       abortController: new AbortController(),
@@ -1341,6 +1376,7 @@ export class AgentSessionRuntimeService extends BaseService {
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
+        reasoningEffort,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: entry.currentTurn.abortController,

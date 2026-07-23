@@ -5,6 +5,7 @@
  * They store inference parameters, tool references, and context source toggles.
  */
 
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
 import { GroupIdSchema } from './group'
@@ -42,9 +43,8 @@ export const AssistantSettingsSchema = z.object({
   enableMaxTokens: z.boolean(),
   /** streaming provides better UX */
   streamOutput: z.boolean(),
-  /** let model decide.
-   *  String (not enum) because providers define custom values (e.g. 'xlow', 'high-reasoning'). */
-  reasoning_effort: z.string(),
+  /** Canonical reasoning selection; endpoint profiles own provider-specific wire values. */
+  reasoning_effort: ReasoningEffortOptionSchema,
   // -- Tool use --
   mcpMode: McpModeSchema,
   maxToolCalls: z.number().int().positive(),

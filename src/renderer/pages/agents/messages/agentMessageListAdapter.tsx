@@ -1,3 +1,5 @@
+import { dataApiService } from '@data/DataApiService'
+import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
 import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
@@ -24,16 +26,20 @@ import type {
   MessageRuntime,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
+import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import {
@@ -43,6 +49,36 @@ import {
 } from './agentSessionImageActionBus'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
+
+function withTerminalErrorFallback(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>,
+  noResponseMessage: string
+): Record<string, CherryMessagePart[]> {
+  let next = partsByMessageId
+
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue
+    const status = message.metadata?.status
+    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+    const needsFallback =
+      (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
+      (status === 'success' && !hasVisiblePart)
+    if (!needsFallback) continue
+
+    if (next === partsByMessageId) next = { ...partsByMessageId }
+    next[message.id] = [
+      ...parts,
+      {
+        type: 'data-error',
+        data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }
+      }
+    ]
+  }
+
+  return next
+}
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
   const runtime = agentMessageListRuntimes.get(topicId)
@@ -114,6 +150,7 @@ export function useAgentMessageListProviderValue({
   workspacePath
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -125,14 +162,30 @@ export function useAgentMessageListProviderValue({
       }
     >()
   )
+  const displayPartsByMessageId = useMemo(
+    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
+    [messages, partsByMessageId, t]
+  )
+  const displayStreamingLayers = useMemo(() => {
+    if (!streamingLayers) return undefined
+
+    const historyPartsByMessageId = withTerminalErrorFallback(
+      messages,
+      streamingLayers.historyPartsByMessageId,
+      t('error.no_response')
+    )
+    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
+
+    return { ...streamingLayers, historyPartsByMessageId }
+  }, [messages, streamingLayers, t])
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
-        const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+        const parts = displayPartsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
         if (parts.length === 0) return true
         return parts.some((part) => !hasPartParentToolCallId(part))
       }),
-    [messages, partsByMessageId]
+    [displayPartsByMessageId, messages]
   )
   const messageItems = useMemo(() => {
     const resolvedAssistantId = assistantId ?? topic.assistantId
@@ -155,19 +208,39 @@ export function useAgentMessageListProviderValue({
     })
   }, [assistantId, visibleMessages, topic.assistantId, topic.id])
 
-  const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
+  const getMessageActivityState = useMessageActivityState(topic.id, displayPartsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
-  const errorActions = useMessageErrorActions()
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
+  const persistDiagnosis = useCallback(
+    async (partId: string, diagnosis: DiagnosisResult) => {
+      const parsed = parseMessagePartId(partId)
+      if (!parsed) return
+
+      const persistedMessage = (await dataApiService.get(
+        `/agent-sessions/${sessionId}/messages/${parsed.messageId}`
+      )) as ResponseForPath<'/agent-sessions/:sessionId/messages/:messageId', 'GET'>
+      const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+      if (!updatedParts) return
+
+      await dataApiService.patch(`/agent-sessions/${sessionId}/messages/${parsed.messageId}`, {
+        body: { data: { parts: updatedParts } }
+      })
+    },
+    [sessionId]
+  )
+  const errorActions = useMessageErrorActions({ persistDiagnosis })
+  const leafCapabilities = useMessageLeafCapabilities({
+    partsByMessageId: displayPartsByMessageId,
+    streamingLayers: displayStreamingLayers
+  })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const selectionController = useMessageSelectionController({
     topicId: topic.id,
     messages: messageItems,
-    partsByMessageId,
+    partsByMessageId: displayPartsByMessageId,
     deleteMessage,
     saveTextFile: exportActions.saveTextFile,
     copyRichContent: leafCapabilities.copyRichContent
@@ -282,8 +355,8 @@ export function useAgentMessageListProviderValue({
     () => ({
       topic,
       messages: messageItems,
-      partsByMessageId,
-      streamingLayers,
+      partsByMessageId: displayPartsByMessageId,
+      streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
@@ -311,11 +384,11 @@ export function useAgentMessageListProviderValue({
       messageNavigation,
       messageItems,
       normalInteractionsEnabled,
-      partsByMessageId,
+      displayPartsByMessageId,
       renderActiveTurnStatus,
       renderConfig,
       selectionController.selection,
-      streamingLayers,
+      displayStreamingLayers,
       topic
     ]
   )

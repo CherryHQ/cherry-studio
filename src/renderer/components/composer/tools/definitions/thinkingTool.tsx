@@ -6,13 +6,13 @@ const thinkingTool = defineTool({
   label: (t) => t('chat.input.thinking.label'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
   composer: {
-    runtime: ({ context: { assistant, model, launcher, session } }) => (
+    runtime: ({ context: { assistant, model, launcher, reasoning } }) => (
       <ThinkingToolRuntime
         launcher={launcher}
         model={model}
-        assistantId={assistant?.id}
-        reasoningEffort={session?.reasoningEffort}
-        onReasoningEffortChange={session?.onReasoningEffortChange}
+        assistant={assistant}
+        reasoningEffort={reasoning?.effort}
+        onReasoningEffortChange={reasoning?.onEffortChange}
       />
     )
   }

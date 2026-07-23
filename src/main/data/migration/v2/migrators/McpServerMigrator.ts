@@ -4,8 +4,8 @@
  * Data sources:
  * - Redux mcp slice (state.mcp.servers) -> mcp_server table
  *
- * Skipped fields (runtime/cache, re-detected when MCP settings are accessed):
- * - isUvInstalled, isBunInstalled -> usePersistCache
+ * Skipped fields (runtime/cache, derived again from live binary availability):
+ * - isUvInstalled, isBunInstalled
  *
  * Not migrated (regenerable cache, re-fetched from provider API):
  * - Dexie mcp:provider:*:servers (handled in separate PR)

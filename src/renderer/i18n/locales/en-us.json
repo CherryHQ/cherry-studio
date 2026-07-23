@@ -1228,6 +1228,8 @@
         "label": "Reasoning effort",
         "low": "Low",
         "low_description": "Low level reasoning",
+        "max": "Max",
+        "max_description": "Maximum reasoning effort",
         "medium": "Medium",
         "medium_description": "Medium level reasoning",
         "minimal": "Minimal",
@@ -1992,6 +1994,7 @@
         "default": "Default",
         "high": "High",
         "low": "Low",
+        "max": "Max",
         "medium": "Medium",
         "minimal": "Minimal",
         "xhigh": "Extra High"
@@ -6203,14 +6206,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Check for updates",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "No custom tools yet. Add one to get started.",
       "description": "Manage binary tools and runtime dependencies required by the app.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Install",
       "installError": "Failed to install tool",
+      "installErrorHint": "The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installSettings": {
+        "description": "Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "githubMirror": {
+          "help": "Proxy prefix for GitHub release downloads (e.g. https://ghfast.top). GitHub API requests remain direct; use a token if rate-limited.",
+          "label": "GitHub mirror",
+          "placeholder": "https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "Hide token",
+          "label": "GitHub token",
+          "placeholder": "ghp_…",
+          "show": "Show token"
+        },
+        "invalidUrl": "Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "npm registry",
+          "placeholder": "Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "pip index URL",
+          "placeholder": "Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "Aliyun (China)",
+          "default": "Default (no mirror)",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs (official)",
+          "npmmirror": "npmmirror (China)",
+          "pypiOfficial": "PyPI (official)",
+          "tsinghua": "Tsinghua (China)"
+        },
+        "presets": "Presets",
+        "title": "Advanced install settings",
+        "verifySignatures": {
+          "help": "Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "Verify tool signatures"
+        }
+      },
       "installing": "Installing...",
+      "installingHint": "The first install may download a runtime and take a few minutes",
       "invalidTool": "Invalid tool name or key",
       "localModels": {
         "cancel": "Cancel",
@@ -6240,12 +6284,21 @@
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmMessage": "Remove \"{{name}}\" from Cherry Studio? Its portable definition will be deleted. Cherry will also clean up an exact mise-managed copy when present. System and bundled executables are never changed.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "Cherry could not safely clean up \"{{name}}\": {{details}} Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "Installed tools depend on it: {{dependents}}.",
+      "removeError": "Failed to remove tool",
+      "removeErrorHint": "The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
+      "removeRuntimeConfirmMessage": "Remove \"{{name}}\" from Cherry Studio? Cherry will clean up only an exact mise-managed copy. System and bundled runtimes are never changed. Installed npm or pip tools may block removal if they depend on this runtime.",
+      "runtimeDependency": "Runtime",
+      "runtimeDependencyHint": "Runtime for npm/pip tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "System"
       },
       "title": "Dependencies",
       "tools": {
@@ -6264,8 +6317,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "Uninstall",
+      "uninstallConfirmMessage": "Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "Uninstall Tool",
+      "uninstallFailed": "Failed to uninstall tool",
+      "uninstallSuccess": "Tool uninstalled",
       "update": "Update to latest version",
-      "updateCheckFailed": "Failed to check for updates"
+      "updateCheckFailed": "Failed to check for updates",
+      "updateCheckSuccess": "Version check complete",
+      "viewErrorDetails": "View details"
     },
     "developer": {
       "enable_developer_mode": "Enable Developer Mode",

@@ -800,9 +800,10 @@ describe('AgentSessionRuntimeService', () => {
     expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: baseTurnInput.modelId }))
     expect(connection.close).not.toHaveBeenCalled()
     // The next turn (idle entry, no live turn) targets the edited model again.
-    expect((service as any).connectionTargetModelId({ ...getEntry(service), currentTurn: undefined })).toBe(
-      switchedModelId
-    )
+    expect((service as any).connectionTarget({ ...getEntry(service), currentTurn: undefined })).toEqual({
+      modelId: switchedModelId,
+      reasoningEffort: 'default'
+    })
 
     await reader.cancel().catch(() => undefined)
   })
@@ -969,7 +970,10 @@ describe('AgentSessionRuntimeService', () => {
     // The host carries no per-field knowledge — the connection re-derives the desired config itself
     // (which is also what makes wholesale `configuration` replaces resync a cleared permission_mode:
     // the derive reads the post-update agent row, not the DTO's key presence).
-    expect(connection.reconcile).toHaveBeenCalledWith({ modelId: baseTurnInput.modelId })
+    expect(connection.reconcile).toHaveBeenCalledWith({
+      modelId: baseTurnInput.modelId,
+      reasoningEffort: 'default'
+    })
     expect(connection.close).not.toHaveBeenCalled()
   })
 
@@ -1015,7 +1019,7 @@ describe('AgentSessionRuntimeService', () => {
     service.enqueueUserMessage('session-1', userMessage('user-2'))
 
     expect(connection.redirect).not.toHaveBeenCalled()
-    expect(entry.pendingTurns).toEqual([userMessage('user-2')])
+    expect(entry.pendingTurns).toEqual([{ message: userMessage('user-2'), reasoningEffort: 'default' }])
     expect(entry.steerMessageIds?.has('user-2')).toBe(true)
   })
 
@@ -1075,7 +1079,7 @@ describe('AgentSessionRuntimeService', () => {
         expect.objectContaining({ message: userMessage('user-1'), systemReminder: false })
       )
     )
-    getEntry(service).pendingTurns.push(userMessage('user-2'))
+    getEntry(service).pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default' })
 
     await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
 
@@ -1211,7 +1215,10 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(secondConnection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-2') }))
       )
-      expect(firstConnection.reconcile).toHaveBeenCalledWith({ modelId: baseTurnInput.modelId })
+      expect(firstConnection.reconcile).toHaveBeenCalledWith({
+        modelId: baseTurnInput.modelId,
+        reasoningEffort: 'default'
+      })
       expect(firstConnection.close).toHaveBeenCalledOnce()
       expect(connect).toHaveBeenCalledTimes(1)
 
@@ -1907,6 +1914,7 @@ describe('AgentSessionRuntimeService', () => {
         sessionId: 'session-1',
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
+        reasoningEffort: 'default',
         resumeToken: undefined,
         trace: {
           topicId: 'agent-session:session-1',
@@ -1959,6 +1967,7 @@ describe('AgentSessionRuntimeService', () => {
         sessionId: 'session-1',
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
+        reasoningEffort: 'default',
         resumeToken: 'resume-db',
         trace: {
           topicId: 'agent-session:session-1',
@@ -2412,7 +2421,7 @@ describe('AgentSessionRuntimeService', () => {
     const entry = getEntry(service)
     entry.lastResumeToken = 'resume-1'
     entry.currentTurn.activeToolIds.add('tool-1')
-    entry.pendingTurns.push(userMessage('user-2'))
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'high' })
 
     await (service as any).startNextTurn(entry)
 
@@ -2437,6 +2446,7 @@ describe('AgentSessionRuntimeService', () => {
           { id: 'user-2', role: 'user', parts: [{ type: 'text', text: 'hello' }] },
           { id: 'generated-message-id', role: 'assistant', parts: [] }
         ],
+        reasoningEffort: 'high',
         runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: expect.any(String) }
       },
       abortController: expect.any(AbortController),
@@ -2456,7 +2466,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
-    entry.pendingTurns.push(userMessage('user-2'))
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default' })
 
     await (service as any).handleAgentUpdated(
       'agent-1',
@@ -2531,7 +2541,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
-    entry.pendingTurns.push(userMessage('user-2'))
+    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default' })
 
     // The model was deleted while user-2 sat queued: its `user_model` row is gone and `agent.model` is
     // FK-nulled, but no agent update fires — the entry still caches the deleted model. The drain must
@@ -2563,7 +2573,7 @@ describe('AgentSessionRuntimeService', () => {
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
     const queued = userMessage('user-2')
-    entry.pendingTurns.push(queued)
+    entry.pendingTurns.push({ message: queued, reasoningEffort: 'default' })
 
     const saveError = new Error('db down')
     mocks.saveMessage.mockImplementationOnce(() => {

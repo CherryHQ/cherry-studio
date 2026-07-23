@@ -7,7 +7,27 @@ export default defineProvider({
   endpointConfigs: {
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://api.lkeap.cloud.tencent.com'
+      baseUrl: 'https://api.lkeap.cloud.tencent.com',
+      reasoningFormat: {
+        type: 'openai-chat',
+        wire: {
+          off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+          auto: {
+            operations: [
+              { target: 'enable_thinking', value: { source: 'literal', value: true } },
+              { target: 'thinking_budget', value: { source: 'budget' } }
+            ],
+            budget: { missing: { type: 'omit-value' } }
+          },
+          effort: {
+            operations: [
+              { target: 'enable_thinking', value: { source: 'literal', value: true } },
+              { target: 'thinking_budget', value: { source: 'budget' } }
+            ],
+            budget: { missing: { type: 'omit-value' } }
+          }
+        }
+      }
     }
   },
   metadata: {
