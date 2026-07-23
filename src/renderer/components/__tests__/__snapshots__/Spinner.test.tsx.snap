@@ -31,9 +31,7 @@ exports[`Spinner > should match snapshot 1`] = `
       r="8"
     />
   </svg>
-  <span
-    data-ui="spinner.element.span"
-  >
+  <span>
     Loading files...
   </span>
 </div>

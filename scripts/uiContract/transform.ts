@@ -470,7 +470,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         !isIntrinsicElement && !SKIPPED_COMPONENTS.has(elementLeaf) && !NON_DOM_COMPONENTS.has(element)
       const childrenHaveBoundaryAncestor =
         element === 'foreignObject' ? false : hasBoundaryAncestor || isIntrinsicElement || isComponentBoundary
-      const childSemanticId = semanticId ?? nearestSemanticId
+      const childSemanticId = element === 'foreignObject' ? undefined : (semanticId ?? nearestSemanticId)
       if (
         options.injectDataUi &&
         !/^[a-z]/.test(element) &&

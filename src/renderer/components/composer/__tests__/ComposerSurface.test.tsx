@@ -271,7 +271,11 @@ vi.mock('@tiptap/react', () => ({
 }))
 
 vi.mock('@renderer/components/SendMessageButton', () => ({
-  default: () => <button type="button">send</button>
+  default: () => (
+    <button type="button" data-ui="chat.composer.action.send">
+      send
+    </button>
+  )
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
@@ -520,10 +524,7 @@ describe('ComposerSurface', () => {
     expect(composer).toHaveAttribute('id', 'inputbar')
     expect(composer?.querySelector('[data-ui~="part:composer-input"]')).not.toBeNull()
     expect(composer?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute(
-      'data-ui',
-      'chat.composer.action.send'
-    )
+    expect(screen.getByRole('button', { name: 'send' })).toHaveAttribute('data-ui', 'chat.composer.action.send')
   })
 
   it('uses the compact single-row presentation when eligible content fits', async () => {

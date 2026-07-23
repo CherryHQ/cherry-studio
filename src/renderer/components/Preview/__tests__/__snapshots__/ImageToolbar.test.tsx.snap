@@ -5,7 +5,7 @@ exports[`ImageToolbar > should match snapshot 1`] = `
   <div
     aria-label="preview.label"
     class="preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1"
-    data-ui="preview.image.toolbar.element.div"
+    data-ui="ui.image-toolbar"
     role="toolbar"
   >
     <div
