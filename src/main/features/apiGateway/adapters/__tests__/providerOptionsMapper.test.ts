@@ -213,6 +213,30 @@ describe('cross-dialect descriptor translation', () => {
     })
   })
 
+  it('normalizes a snake_case effort from an exact NVIDIA Gateway contract', () => {
+    const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const nvidia = {
+      id: 'nvidia',
+      endpointConfigs: { [endpoint]: { adapterFamily: 'openai-compatible' } }
+    } as Provider
+    const gptOss = model('nvidia', 'gpt-oss-120b', endpoint, {
+      selectableEfforts: ['low', 'medium', 'high'],
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }]
+    })
+    mocks.resolveReasoningProfile.mockReturnValueOnce({
+      format: 'openai-chat',
+      wire: {
+        effort: {
+          operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }]
+        }
+      }
+    })
+
+    expect(mapReasoningEffortToProviderOptions(nvidia, gptOss, 'high')).toEqual({
+      nvidia: { reasoningEffort: 'high' }
+    })
+  })
+
   it('returns undefined when the inbound format has no reasoning control', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 

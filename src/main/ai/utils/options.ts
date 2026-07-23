@@ -290,7 +290,9 @@ export function buildResolvedReasoningProviderOptions(context: {
     context.reasoning,
     context.actualProviderId
   )
-  return Object.keys(encoded.options).length > 0 ? { [encoded.providerId]: encoded.options } : {}
+  const options =
+    context.aiSdkProviderId === 'openai-compatible' ? normalizeOpenAICompatibleParams(encoded.options) : encoded.options
+  return Object.keys(options).length > 0 ? { [encoded.providerId]: options } : {}
 }
 
 /**
