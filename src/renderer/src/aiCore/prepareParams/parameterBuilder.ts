@@ -59,6 +59,15 @@ function validateMaxToolCalls(value: number | undefined): number {
   return value
 }
 
+/**
+ * Whether the resolved model talks to the OpenAI Responses API, where the system prompt
+ * must be sent as the top-level `instructions` field rather than only as an input message.
+ * Chat Completions variants (openai-chat / azure / huggingface) must NOT map instructions. (#16008)
+ */
+export function usesOpenAIResponsesApi(aiSdkProviderId: string, endpointType: string | undefined): boolean {
+  return aiSdkProviderId === 'openai' || aiSdkProviderId === 'azure-responses' || endpointType === 'openai-response'
+}
+
 export function getEffectiveMaxToolCalls(settings?: { maxToolCalls?: number; enableMaxToolCalls?: boolean }): number {
   const enableMaxToolCalls = settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
 
@@ -237,6 +246,19 @@ export async function buildStreamTextParams(
 
   if (systemPrompt) {
     params.system = systemPrompt
+
+    // OpenAI Responses API: the system prompt must also be sent as the top-level `instructions`
+    // field. AI SDK only converts `system` into an input message and leaves `instructions` empty,
+    // which lets some relay servers inject their own default system prompt and override the user's.
+    // Mirror it into providerOptions.openai unless the user already set instructions explicitly. (#16008)
+    const openaiOptions = providerOptions.openai
+    if (
+      usesOpenAIResponsesApi(aiSdkProviderId, model.endpoint_type) &&
+      openaiOptions &&
+      openaiOptions.instructions == null
+    ) {
+      openaiOptions.instructions = systemPrompt
+    }
   }
 
   logger.debug('params', params)
