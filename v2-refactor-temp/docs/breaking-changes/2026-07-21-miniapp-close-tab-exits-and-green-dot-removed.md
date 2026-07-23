@@ -2,7 +2,7 @@
 title: 'Mini-app: closing the tab now truly exits the app; the green "running" dot is removed'
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17235"
 date: 2026-07-21
 ---
 
