@@ -834,7 +834,7 @@ describe('classic layout entity resource list actions', () => {
     })
   })
 
-  it('passes skill management entries into the classic agent rail display menu', async () => {
+  it('keeps Skill management out of the classic agent rail display menu', () => {
     const onManageSkills = vi.fn()
 
     render(
@@ -859,10 +859,8 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.skill.manage.title' }))
-
-    // Selection is deferred until after the menu closes (runAfterMenuClose → setTimeout).
-    await waitFor(() => expect(onManageSkills).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('button', { name: 'agent.skill.manage.title' })).not.toBeInTheDocument()
+    expect(onManageSkills).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'agent.manage.title' })).toBeInTheDocument()
   })
 

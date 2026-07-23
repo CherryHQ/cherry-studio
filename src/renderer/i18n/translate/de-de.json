@@ -562,7 +562,7 @@
       },
       "prompt": "Prompt-Einstellungen",
       "skills": {
-        "addMore": "Weitere Skills hinzufügen",
+        "addMore": "Skills verwalten",
         "builtin": "Integriert",
         "noFilterResults": "Keine übereinstimmenden Fähigkeiten",
         "noSkills": "Keine Skills installiert. Installiere Skills über Einstellungen > Skills.",

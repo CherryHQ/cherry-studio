@@ -104,7 +104,6 @@ export function AgentResourceList({
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
-  const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const sessionCountByAgentId = useMemo(
@@ -329,12 +328,9 @@ export function AgentResourceList({
           <SessionListOptionsMenu
             historyRecordsActive={historyRecordsActive}
             manageAgentsActive={manageAgentsMenuItem?.active}
-            manageSkillsActive={manageSkillsMenuItem?.active}
-            manageSkillsIcon={manageSkillsMenuItem?.icon}
             mode={sessionDisplayMode}
             onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
             onManageAgents={manageAgentsMenuItem?.onSelect}
-            onManageSkills={manageSkillsMenuItem?.onSelect}
             onOpenHistoryRecords={onOpenHistoryRecords}
             onSortByChange={(nextSortBy) => void setSessionSortBy(nextSortBy)}
             sortBy={sessionSortBy}

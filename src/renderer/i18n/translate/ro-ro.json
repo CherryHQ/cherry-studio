@@ -562,7 +562,7 @@
       },
       "prompt": "Setări prompt",
       "skills": {
-        "addMore": "Adaugă mai multe abilități",
+        "addMore": "Gestionează abilitățile",
         "builtin": "Încorporat",
         "noFilterResults": "Nicio abilitate potrivită",
         "noSkills": "Nicio abilitate instalată. Instalează abilități din Setări > Abilități.",

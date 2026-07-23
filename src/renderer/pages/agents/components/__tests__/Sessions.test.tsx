@@ -594,7 +594,6 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.list.title': 'Tasks',
         'agent.session.new': 'New task',
-        'agent.skill.manage.title': 'Manage skills',
         'agent.pin.title': 'Pin Agent',
         'agent.session.pin.title': 'Pin task',
         'agent.session.reorder.error.failed': 'Failed to reorder tasks',
@@ -1729,7 +1728,7 @@ describe('Sessions', () => {
     expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
   })
 
-  it('shows the skill resource menu entry with agent management in the display menu', async () => {
+  it('keeps Skill management out of the display menu', () => {
     const onManageAgents = vi.fn()
     const onManageSkills = vi.fn()
     setupSessions({
@@ -1756,9 +1755,8 @@ describe('Sessions', () => {
     expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('List options'))
     expect(screen.getByRole('menuitem', { name: 'Manage Agents' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Manage skills' }))
-
-    await vi.waitFor(() => expect(onManageSkills).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('menuitem', { name: 'Manage skills' })).not.toBeInTheDocument()
+    expect(onManageSkills).not.toHaveBeenCalled()
     expect(onManageAgents).not.toHaveBeenCalled()
   })
 

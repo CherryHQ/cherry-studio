@@ -562,7 +562,7 @@
       },
       "prompt": "Cài đặt lời nhắc",
       "skills": {
-        "addMore": "Thêm Kỹ Năng",
+        "addMore": "Quản lý kỹ năng",
         "builtin": "Tích hợp sẵn",
         "noFilterResults": "Không có kỹ năng phù hợp",
         "noSkills": "Chưa cài đặt kỹ năng nào. Cài đặt kỹ năng từ Cài đặt > Kỹ năng.",

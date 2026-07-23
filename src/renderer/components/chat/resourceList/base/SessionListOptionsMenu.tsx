@@ -11,7 +11,7 @@ import {
 } from '@cherrystudio/ui'
 import type { AgentSessionDisplayMode, TopicSessionSortBy } from '@shared/data/preference/preferenceTypes'
 import { ArrowUpDown, Bot, ChevronsDownUp, ChevronsUpDown, History, LayoutList, ListFilter } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceList } from './ResourceList'
@@ -33,12 +33,9 @@ const ACTIVE_MENU_ITEM_CLASS = 'data-[active=true]:bg-accent data-[active=true]:
 type SessionListOptionsMenuProps = {
   historyRecordsActive?: boolean
   manageAgentsActive?: boolean
-  manageSkillsActive?: boolean
-  manageSkillsIcon?: ReactNode
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
   onManageAgents?: () => void | Promise<void>
-  onManageSkills?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSortByChange: (sortBy: TopicSessionSortBy) => void
   sectionIds?: readonly string[]
@@ -48,12 +45,9 @@ type SessionListOptionsMenuProps = {
 export function SessionListOptionsMenu({
   historyRecordsActive,
   manageAgentsActive,
-  manageSkillsActive,
-  manageSkillsIcon,
   mode,
   onChange,
   onManageAgents,
-  onManageSkills,
   onOpenHistoryRecords,
   onSortByChange,
   sectionIds,
@@ -61,14 +55,10 @@ export function SessionListOptionsMenu({
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const hasManagementItems = !!(onManageAgents || onManageSkills)
   const runAfterMenuClose = (action: () => void) => {
     setOpen(false)
     window.setTimeout(action, 0)
   }
-  const manageSkillsMenuIcon = manageSkillsIcon ? (
-    <span className="inline-flex size-4 items-center justify-center [&_svg]:size-4">{manageSkillsIcon}</span>
-  ) : undefined
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -137,7 +127,7 @@ export function SessionListOptionsMenu({
             <span>{t('history.records.shortTitle')}</span>
           </DropdownMenuItem>
         )}
-        {hasManagementItems && <DropdownMenuSeparator />}
+        {onManageAgents && <DropdownMenuSeparator />}
         {onManageAgents && (
           <DropdownMenuItem
             className={ACTIVE_MENU_ITEM_CLASS}
@@ -145,15 +135,6 @@ export function SessionListOptionsMenu({
             onSelect={() => runAfterMenuClose(() => void onManageAgents())}>
             <Bot size={16} />
             <span>{t('agent.manage.title')}</span>
-          </DropdownMenuItem>
-        )}
-        {onManageSkills && (
-          <DropdownMenuItem
-            className={ACTIVE_MENU_ITEM_CLASS}
-            data-active={manageSkillsActive || undefined}
-            onSelect={() => runAfterMenuClose(() => void onManageSkills())}>
-            {manageSkillsMenuIcon}
-            <span>{t('agent.skill.manage.title')}</span>
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

@@ -31,6 +31,8 @@ export type PreferenceShortcutType = {
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
 
+export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
+
 export enum SelectionTriggerMode {
   Selected = 'selected',
   Ctrlkey = 'ctrlkey',
