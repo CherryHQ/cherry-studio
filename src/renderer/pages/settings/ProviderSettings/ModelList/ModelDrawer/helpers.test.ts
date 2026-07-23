@@ -84,4 +84,26 @@ describe('model drawer classification helpers', () => {
     const reset = getInitialModelClassification(model)
     expect(areModelClassificationsEqual(classification, reset)).toBe(true)
   })
+
+  it('replaces an unsupported audio model type with text after round-trip', () => {
+    const model = makeModel({ capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION] })
+    const classification = getInitialModelClassification(model)
+    classification.primaryType = 'text'
+
+    const capabilities = buildModelCapabilities(model.capabilities, classification)
+
+    expect(capabilities).toEqual([])
+    expect(getInitialModelClassification(makeModel({ capabilities })).primaryType).toBe('text')
+  })
+
+  it('replaces an unsupported audio model type with image after round-trip', () => {
+    const model = makeModel({ capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION] })
+    const classification = getInitialModelClassification(model)
+    classification.primaryType = 'image'
+
+    const capabilities = buildModelCapabilities(model.capabilities, classification)
+
+    expect(capabilities).toEqual([MODEL_CAPABILITY.IMAGE_GENERATION])
+    expect(getInitialModelClassification(makeModel({ capabilities })).primaryType).toBe('image')
+  })
 })

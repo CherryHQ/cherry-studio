@@ -171,6 +171,11 @@ export function buildModelCapabilities(
     ...LEGACY_INPUT_MODALITY_CAPABILITIES,
     ...Object.values(TOGGLE_TO_CAPABILITY)
   ])
+  if (classification.primaryType !== null) {
+    for (const capability of UNEDITABLE_MODEL_TYPE_CAPABILITIES) {
+      managedCapabilities.add(capability)
+    }
+  }
   const next = original.filter((capability) => !managedCapabilities.has(capability))
 
   if (classification.primaryType && classification.primaryType !== 'text') {

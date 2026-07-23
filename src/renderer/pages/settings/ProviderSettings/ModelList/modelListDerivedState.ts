@@ -169,7 +169,7 @@ export const calculateModelListDerivedState = ({
   return {
     filteredModels,
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-    capabilityModelCounts: getCapabilityModelCounts(models),
+    capabilityModelCounts: getCapabilityModelCounts(applyModelFilters(models, searchText, 'all')),
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),
     modelCount: filteredModels.length,
     hasVisibleModels: filteredModels.length > 0,

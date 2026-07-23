@@ -237,6 +237,28 @@ describe('modelListDerivedState', () => {
     expect(derivedState.modelStatusMap.get('openai::reasoning-free')).toEqual(modelStatuses[0])
   })
 
+  it('applies search but not the selected type filter to tab counts', () => {
+    const derivedState = calculateModelListDerivedState({
+      models: models as any,
+      searchText: 'alpha',
+      selectedCapabilityFilter: 'embedding',
+      modelStatuses: []
+    })
+
+    expect(derivedState.filteredModels.map((model) => model.id)).toEqual(['openai::embedding-alpha'])
+    expect(derivedState.capabilityModelCounts).toEqual({
+      all: 3,
+      text: 2,
+      image: 0,
+      embedding: 1,
+      audio: 0,
+      video: 0,
+      rerank: 0,
+      speech: 0,
+      transcription: 0
+    })
+  })
+
   it('derives empty state and wide layout values without visible models', () => {
     const derivedState = calculateModelListDerivedState({
       models: [],
