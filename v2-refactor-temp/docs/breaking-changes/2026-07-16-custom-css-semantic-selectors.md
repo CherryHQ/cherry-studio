@@ -21,8 +21,9 @@ provides a maintained semantic surface for new selectors.
 
 ## What the user should do
 
-No migration is required. Prefer semantic selectors such as `[data-ui~='chat.message']` or
-`[data-ui~='part:dialog-content']` for new themes.
+No migration is required. Prefer semantic selectors such as `[data-ui~='app.sidebar']`,
+`[data-ui~='chat.message']`, or `[data-ui~='settings.content']`, and structural selectors such as
+`[data-ui~='part:message-content']` or `[data-ui~='part:dialog-content']` for new themes.
 
 ## Notes for release manager
 

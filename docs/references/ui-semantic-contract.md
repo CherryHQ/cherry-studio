@@ -18,7 +18,9 @@ the same coordinates instead of introducing another selector protocol.
 | `part:message-content` | Reusable component structure | Maintained public API |
 
 ```html
-<article data-ui="chat.message part:message-content"></article>
+<article data-ui="chat.message">
+  <div data-ui="part:message-content"></div>
+</article>
 ```
 
 Use token matching (`~=`), never substring matching:
@@ -107,6 +109,21 @@ Declare compatibility-sensitive business semantics directly in the owning compon
 Reusable `part:*` tokens are also declared in the owning component's markup, either explicitly or through a static
 `data-slot`. `parseUiTokens` supports inspectors, while `uiSelector` and `uiLocator` compose semantic and structural
 selectors without duplicating the token grammar.
+
+The maintained application shell currently includes:
+
+- `app.sidebar`, `app.tab-bar`, and `app.content`.
+
+The maintained chat surface currently includes:
+
+- `chat.view`, `chat.topic-list`, `chat.topic-list.action.create`, `chat.message-list`, `chat.message`, and
+  `chat.message.group`;
+- `chat.composer`, `chat.composer.action.send`, and `chat.composer.action.pause`;
+- `part:message-content`, `part:composer-input`, and `part:composer-actions`.
+
+The maintained settings surface currently includes:
+
+- `settings.view`, `settings.navigation`, and `settings.content`.
 
 ## Custom CSS across windows
 
