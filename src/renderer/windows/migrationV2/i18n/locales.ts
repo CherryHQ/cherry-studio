@@ -54,7 +54,7 @@ export const zhCN = {
       saving: '正在保存…',
       privacy:
         '应用日志可能包含文件路径、错误堆栈、用户内容或凭据，请勿分享到公开渠道或提供给 Cherry Studio 支持团队之外的人员。',
-      saved_local: '诊断包已保存到本地，请发送至问题反馈邮箱以协助排查。',
+      saved_local: '诊断包已保存到本地且未自动上传，请发送至问题反馈邮箱以协助排查。',
       logs_not_included: '未能加入应用日志，当前诊断包仅包含系统信息。',
       open_folder: '打开文件所在位置',
       contact: '复制问题反馈邮箱',
@@ -199,7 +199,7 @@ export const enUS = {
       privacy:
         'Application logs may contain file paths, error stacks, user content, or credentials. Do not share them publicly or with anyone outside the Cherry Studio support team.',
       saved_local:
-        'The diagnostic bundle was saved locally. Please send it to the feedback email to help us investigate.',
+        'The diagnostic bundle was saved locally and was not uploaded automatically. Please send it to the feedback email to help us investigate.',
       logs_not_included:
         'Application logs could not be included. This diagnostic bundle contains only system information.',
       open_folder: 'Open file location',

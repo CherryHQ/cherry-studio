@@ -23,7 +23,7 @@ const translations: Record<string, string> = {
   'migration.diagnostics.save': 'Save diagnostic bundle',
   'migration.diagnostics.save_failed': 'Could not save diagnostic bundle',
   'migration.diagnostics.saved_local':
-    'The diagnostic bundle was saved locally. Please send it to the feedback email to help us investigate.',
+    'The diagnostic bundle was saved locally and was not uploaded automatically. Please send it to the feedback email to help us investigate.',
   'migration.diagnostics.saving': 'Saving…'
 }
 
@@ -51,6 +51,7 @@ vi.mock('../../hooks/useMigrationProgress', () => ({
   })
 }))
 
+import { enUS, zhCN } from '../../i18n/locales'
 import { MigrationDiagnosticPanel } from '../MigrationDiagnosticPanel'
 
 async function saveBundle(logs: 'included' | 'not_included' = 'included') {
@@ -58,7 +59,7 @@ async function saveBundle(logs: 'included' | 'not_included' = 'included') {
   render(<MigrationDiagnosticPanel />)
   fireEvent.click(screen.getByRole('button', { name: 'Save diagnostic bundle' }))
   await screen.findByText(
-    'The diagnostic bundle was saved locally. Please send it to the feedback email to help us investigate.'
+    'The diagnostic bundle was saved locally and was not uploaded automatically. Please send it to the feedback email to help us investigate.'
   )
 }
 
@@ -159,6 +160,8 @@ describe('MigrationDiagnosticPanel', () => {
   it('states that a metadata-only bundle is local, not uploaded, and contains only system information', async () => {
     await saveBundle('not_included')
 
+    expect(zhCN.migration.diagnostics.saved_local).toContain('未自动上传')
+    expect(enUS.migration.diagnostics.saved_local).toContain('was not uploaded automatically')
     expect(
       screen.getByText(
         'Application logs could not be included. This diagnostic bundle contains only system information.'
