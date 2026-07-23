@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatMarkdown from '../ChatMarkdown'
-import { remarkHtmlArtifact } from '../plugins/remarkHtmlArtifact'
 
 const mocks = vi.hoisted(() => ({
   markdown: vi.fn(),
@@ -10,16 +9,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Markdown: (props: { children: string; remarkPlugins?: unknown[] }) => {
+  Markdown: (props: { children: string }) => {
     mocks.markdown(props)
     return <div data-testid="static-markdown">{props.children}</div>
   },
-  StreamingMarkdown: (props: {
-    animated?: false
-    children: string
-    parseIncompleteMarkdown?: boolean
-    remarkPlugins?: unknown[]
-  }) => {
+  StreamingMarkdown: (props: { animated?: false; children: string; parseIncompleteMarkdown?: boolean }) => {
     mocks.streamingMarkdown(props)
     return (
       <div
@@ -61,16 +55,5 @@ describe('ChatMarkdown', () => {
     expect(streamingNode).toHaveAttribute('data-animated', 'false')
     expect(streamingNode).toHaveAttribute('data-parse-incomplete', 'false')
     expect(mocks.markdown).not.toHaveBeenCalled()
-  })
-
-  it('enables raw HTML artifacts only for inline HTML preview messages', () => {
-    const block = { id: 'message-part', content: 'Before\n\n<div>Preview</div>', status: 'success' as const }
-    const { rerender } = render(<ChatMarkdown block={block} />)
-
-    expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ remarkPlugins: undefined }))
-
-    rerender(<ChatMarkdown block={block} inlineHtmlPreviewMode="ready" />)
-
-    expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ remarkPlugins: [remarkHtmlArtifact] }))
   })
 })
