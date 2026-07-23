@@ -23,7 +23,6 @@ import {
 import { resolveLogoSrc } from '@data/services/utils/logoSrc'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import { getCherryInEndpoints, resolveCherryInHost } from '@shared/config/cherryin'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -38,6 +37,7 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS, EndpointConfigSchema } from '@shared/data/types/provider'
+import { getCherryInEndpoints, resolveCherryInHost } from '@shared/utils/cherryin'
 import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 

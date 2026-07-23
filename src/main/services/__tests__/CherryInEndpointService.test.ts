@@ -1,5 +1,5 @@
 import { BaseService } from '@main/core/lifecycle'
-import { CHERRYIN_HOSTS } from '@shared/config/cherryin'
+import { CHERRYIN_HOSTS } from '@shared/utils/cherryin'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -9,9 +9,12 @@ const mocks = vi.hoisted(() => ({
   updateProvider: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: { get: vi.fn(() => ({ broadcast: mocks.broadcast })) }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    IpcApiService: { broadcast: mocks.broadcast }
+  })
+})
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: mocks.getProvider,
@@ -30,7 +33,8 @@ const provider = {
   settings: {},
   endpointConfigs: {
     openai: { baseUrl: CHERRYIN_HOSTS.china },
-    anthropic: { baseUrl: CHERRYIN_HOSTS.china }
+    anthropic: { adapterFamily: 'cherryin', baseUrl: CHERRYIN_HOSTS.china },
+    gemini: { adapterFamily: 'cherryin', baseUrl: CHERRYIN_HOSTS.china }
   }
 }
 
@@ -82,7 +86,8 @@ describe('CherryInEndpointService', () => {
     expect(mocks.updateProvider).toHaveBeenCalledWith('cherryin', {
       endpointConfigs: {
         openai: { baseUrl: CHERRYIN_HOSTS.global },
-        anthropic: { baseUrl: CHERRYIN_HOSTS.global }
+        anthropic: { adapterFamily: 'cherryin', baseUrl: CHERRYIN_HOSTS.global },
+        gemini: { adapterFamily: 'cherryin', baseUrl: CHERRYIN_HOSTS.global }
       }
     })
     expect(mocks.broadcast).toHaveBeenCalledWith(

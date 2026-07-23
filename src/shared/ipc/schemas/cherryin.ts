@@ -1,4 +1,4 @@
-import { CHERRYIN_HOSTS } from '@shared/config/cherryin'
+import { CHERRYIN_HOSTS } from '@shared/utils/cherryin'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'

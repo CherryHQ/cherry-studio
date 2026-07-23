@@ -1,14 +1,14 @@
 import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import {
   CHERRYIN_HOSTS,
   type CherryInEndpointSelection,
   type CherryInHost,
   type CherryInHostMode,
   isCherryInHostMode
-} from '@shared/config/cherryin'
+} from '@shared/utils/cherryin'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('CherryInEndpointService')
@@ -47,7 +47,6 @@ function median(values: number[]): number {
 
 @Injectable('CherryInEndpointService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['DbService', 'IpcApiService'])
 export class CherryInEndpointService extends BaseService {
   private currentSelection: CherryInEndpointSelection | null = null
   private selectionPromise: Promise<CherryInEndpointSelection> | null = null

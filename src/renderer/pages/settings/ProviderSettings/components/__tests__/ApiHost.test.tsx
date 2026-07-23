@@ -325,6 +325,33 @@ describe('ApiHost', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
+  it('keeps the API host editable for a provider derived from the CherryIN preset', () => {
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, id: 'custom-cherryin', presetProviderId: 'cherryin' }
+    })
+    useProviderMetaMock.mockReturnValue({
+      isConnectionFieldVisible: true,
+      isAzureOpenAI: false,
+      isCherryIN: true
+    })
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: '',
+      anthropicHostPreview: '',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost: vi.fn(),
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="custom-cherryin" />)
+
+    expect(screen.queryByText('cherry-in-settings')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /^API 地址$|^API Host$/ })).toBeInTheDocument()
+  })
+
   it('returns no connection field when the provider hides connection settings', () => {
     useProviderMock.mockReturnValue({
       provider: {

@@ -1,7 +1,7 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -10,7 +10,7 @@ import {
   type CherryInEndpointSelection,
   type CherryInHostMode,
   resolveCherryInHost
-} from '@shared/config/cherryin'
+} from '@shared/utils/cherryin'
 import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -63,6 +63,8 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
       active = false
     }
   }, [])
+
+  useIpcOn('cherryin.endpoint_selected', setSelection)
 
   const handleHostChange = useCallback(
     async (mode: CherryInHostMode) => {
