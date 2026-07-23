@@ -18,7 +18,6 @@ export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
   resourceType: ResourceCatalogViewType
-  skillAgentId?: string
   toolbarLeading?: ReactNode
 }
 
@@ -26,7 +25,6 @@ export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
   resourceType,
-  skillAgentId,
   toolbarLeading
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
@@ -37,7 +35,7 @@ export function ResourceCatalogView({
       (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
       dialogs.skillImportOpen ||
       dialogs.skillMarketplaceOpen ||
-      (skillAgentId && dialogs.systemSkillOpen) ||
+      (resourceType === 'skill' && dialogs.systemSkillOpen) ||
       dialogs.createDialogOpen ||
       dialogs.createDialogKind ||
       dialogs.editDialogOpen ||
@@ -77,7 +75,7 @@ export function ResourceCatalogView({
         ) : (
           <ResourceGrid
             {...gridProps}
-            onOpenSystemSkills={skillAgentId ? gridProps.onOpenSystemSkills : undefined}
+            onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}
             toolbarLeading={toolbarLeading}
           />
         )}
@@ -91,7 +89,6 @@ export function ResourceCatalogView({
             onOpenAssistantChat={onOpenAssistantChat}
             onRefetch={refetch}
             resourceType={resourceType}
-            skillAgentId={skillAgentId}
           />
         </Suspense>
       ) : null}
