@@ -911,6 +911,11 @@ describe('AiStreamManager', () => {
       expect(paused?.status).toBe('streaming')
       expect(paused?.awaitingApprovalAnchors).toHaveLength(1)
 
+      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(true)
+      const approved = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(approved?.status).toBe('streaming')
+      expect(approved?.awaitingApprovalAnchors).toHaveLength(0)
+
       mgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-output-available',
         toolCallId: 'tc-1'

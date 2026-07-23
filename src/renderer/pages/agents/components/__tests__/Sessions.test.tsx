@@ -2264,13 +2264,13 @@ describe('Sessions', () => {
     expect(screen.getByTestId('agent-session-stream-indicator').firstElementChild).toHaveClass('animate-spin')
   })
 
-  it('keeps the running spinner on the selected session row but suppresses the completion dot', () => {
+  it('keeps running and error indicators on the selected session row but suppresses the completion dot', () => {
     // session-a is the selected row in the default fixture.
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { isPending: true } : {})
     )
 
-    const { unmount } = render(<SessionsForTest />)
+    let view = render(<SessionsForTest />)
 
     const selectedRow = screen
       .getAllByTestId('agent-session-row')
@@ -2281,11 +2281,24 @@ describe('Sessions', () => {
       within(selectedRow as HTMLElement).getByTestId('agent-session-stream-indicator').firstElementChild
     ).toHaveClass('animate-spin')
 
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { status: 'error' } : {})
+    )
+    view.unmount()
+    view = render(<SessionsForTest />)
+
+    const erroredSelectedRow = screen
+      .getAllByTestId('agent-session-row')
+      .find((row) => row.getAttribute('data-selected') === 'true')
+    expect(
+      within(erroredSelectedRow as HTMLElement).getByTestId('agent-session-stream-indicator').firstElementChild
+    ).toHaveClass('bg-error-base')
+
     // A completion dot on the same selected row IS suppressed (read-receipt).
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { isFulfilled: true } : {})
     )
-    unmount()
+    view.unmount()
     render(<SessionsForTest />)
 
     const reselectedRow = screen
