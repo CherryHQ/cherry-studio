@@ -1,4 +1,4 @@
-// FtsCentralHelper tests — FTS5 rebuild resync + integrity-check against the production schema.
+// ftsCentral tests — FTS5 rebuild resync + integrity-check against the production schema.
 //
 // setupTestDatabase installs the real message_fts + agent_session_message_fts virtual tables,
 // their trigram tokenizer, and the AFTER-INSERT/DELETE/UPDATE triggers — exactly what the helper
@@ -12,7 +12,7 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { FtsCentralHelper, FtsIntegrityCheckError } from '../FtsCentralHelper'
+import { assertFtsIntegrity, FtsIntegrityCheckError, rebuildFts } from '../ftsCentral'
 
 const dbh = setupTestDatabase()
 
@@ -70,33 +70,33 @@ const withoutDeleteTrigger = (body: () => void): void => {
   }
 }
 
-describe('FtsCentralHelper', () => {
+describe('ftsCentral', () => {
   it('rebuild is idempotent and integrityCheck passes on a trigger-maintained index', () => {
     seedMessage('m1')
     seedMessage('m2')
     // Triggers maintain the FTS index on insert; rebuild is a no-op backstop here, and the
     // index is consistent with content.
-    expect(() => FtsCentralHelper.rebuild(dbh.sqlite)).not.toThrow()
-    expect(() => FtsCentralHelper.integrityCheck(dbh.sqlite)).not.toThrow()
+    expect(() => rebuildFts(dbh.sqlite)).not.toThrow()
+    expect(() => assertFtsIntegrity(dbh.sqlite)).not.toThrow()
   })
 
   it('integrityCheck throws FtsIntegrityCheckError after a shadow content DELETE (orphaned FTS row)', () => {
     seedMessage('m1')
-    FtsCentralHelper.rebuild(dbh.sqlite)
+    rebuildFts(dbh.sqlite)
     withoutDeleteTrigger(() => {
       // With message_ad gone, deleting the content row leaves the FTS row orphaned.
       dbh.sqlite.prepare('DELETE FROM message WHERE id = ?').run('m1')
-      expect(() => FtsCentralHelper.integrityCheck(dbh.sqlite)).toThrow(FtsIntegrityCheckError)
+      expect(() => assertFtsIntegrity(dbh.sqlite)).toThrow(FtsIntegrityCheckError)
     })
   })
 
   it('rebuild resyncs the index after an orphan (trigger bypass + content delete)', () => {
     seedMessage('m1')
-    FtsCentralHelper.rebuild(dbh.sqlite)
+    rebuildFts(dbh.sqlite)
     withoutDeleteTrigger(() => {
       dbh.sqlite.prepare('DELETE FROM message WHERE id = ?').run('m1')
-      FtsCentralHelper.rebuild(dbh.sqlite) // resync FTS to surviving (empty) content
-      expect(() => FtsCentralHelper.integrityCheck(dbh.sqlite)).not.toThrow()
+      rebuildFts(dbh.sqlite) // resync FTS to surviving (empty) content
+      expect(() => assertFtsIntegrity(dbh.sqlite)).not.toThrow()
     })
   })
 })

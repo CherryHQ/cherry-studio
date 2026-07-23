@@ -18,8 +18,8 @@ import StreamZip from 'node-stream-zip'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { contributorManager } from '../../contributors/ContributorManager'
-import { SqliteBackupStripper } from '../../ExcludedDomainStripper'
 import { ExportOrchestrator } from '../../ExportOrchestrator'
+import { SqliteBackupStripper } from '../../SqliteBackupStripper'
 
 async function writeInternalBlob(id: string, ext: string, content: string): Promise<void> {
   const blobPath = application.getPath('feature.files.data', `${id}.${ext}`)

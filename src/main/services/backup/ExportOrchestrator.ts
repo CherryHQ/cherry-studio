@@ -46,11 +46,11 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import { assembleArchive } from './archive'
 import { BackupCancelledError } from './errors'
-import type { BackupStripper } from './ExcludedDomainStripper'
 import { clearExportLiveMarker, writeExportLiveMarker } from './exportTempResidue'
-import { SqliteFileStager } from './FileStager'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from './manifest'
 import { LITE_EXCLUDED, resolvePreset } from './presets'
+import type { BackupStripper } from './SqliteBackupStripper'
+import { SqliteFileStager } from './SqliteFileStager'
 
 /** User-facing export options (renderer passes preset; BackupService fills the rest). */
 export interface ExportBackupOptions {

@@ -24,8 +24,8 @@ import StreamZip from 'node-stream-zip'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { contributorManager } from '../contributors/ContributorManager'
-import { SqliteBackupStripper } from '../ExcludedDomainStripper'
 import { ExportOrchestrator } from '../ExportOrchestrator'
+import { SqliteBackupStripper } from '../SqliteBackupStripper'
 
 /**
  * Minimal registry stub — the orchestrator's first slice only calls `topoSort`.

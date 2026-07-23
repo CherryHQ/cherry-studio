@@ -19,7 +19,7 @@ import { resolvePhysicalPath } from '@main/services/file'
 import { isPathInside } from '@main/utils/file'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 
-const logger = loggerService.withContext('backup/FileStager')
+const logger = loggerService.withContext('backup/SqliteFileStager')
 
 /**
  * Derived per-base vector index (+ WAL sidecars) under `<baseId>/.cherry/`.

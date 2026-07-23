@@ -23,8 +23,8 @@ import StreamZip from 'node-stream-zip'
 import { describe, expect, it } from 'vitest'
 
 import { contributorManager } from '../../contributors/ContributorManager'
-import { SqliteBackupStripper } from '../../ExcludedDomainStripper'
 import { ExportOrchestrator } from '../../ExportOrchestrator'
+import { SqliteBackupStripper } from '../../SqliteBackupStripper'
 
 const ASSISTANT_SETTINGS: AssistantSettings = {
   temperature: 1.0,

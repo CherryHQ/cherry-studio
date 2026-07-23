@@ -28,7 +28,7 @@ import type { DbType } from '@main/data/db/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import Database from 'better-sqlite3'
 
-import { FtsCentralHelper } from './FtsCentralHelper'
+import { assertFtsIntegrity, rebuildFts } from './ftsCentral'
 import { deriveJunctionDescriptors } from './junctionDeriver'
 import { isPlatformSpecificPreferenceKey } from './platformSpecificKeyMatch'
 import {
@@ -327,7 +327,7 @@ export class MergeEngine {
         this.discloseFileIdSoftRefs(workSqlite, ctx, degradedToSkips)
         // FTS rebuild backstop — whole-index resync after the bulk import (single-row triggers
         // can't backstop it; skipped rows / fts_rowid collisions leave stale indexes otherwise).
-        FtsCentralHelper.rebuild(workSqlite)
+        rebuildFts(workSqlite)
         this.runConsistencyCheck(workSqlite, appStateSnapshot)
       })
       run()
@@ -1258,7 +1258,7 @@ export class MergeEngine {
     }
     // FTS5 external-content integrity — throws FtsIntegrityCheckError on a stale/orphaned index
     // (rebuild ran just before this, so a failure here means the rebuild missed an index).
-    FtsCentralHelper.integrityCheck(workSqlite)
+    assertFtsIntegrity(workSqlite)
     // app_state key-set preservation — PREFERENCES may UPDATE values (forward-compat), but a
     // key added/dropped by the merge tx signals corruption (app_state is ALWAYS_STRIP, backup
     // contributes nothing here). undefined snapshot = app_state absent from work → skip.

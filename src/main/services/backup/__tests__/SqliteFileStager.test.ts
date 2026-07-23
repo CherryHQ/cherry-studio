@@ -10,7 +10,7 @@ import { fileEntryTable } from '@main/data/db/schemas/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SqliteFileStager } from '../FileStager'
+import { SqliteFileStager } from '../SqliteFileStager'
 
 let internalFilesRoot: string
 
