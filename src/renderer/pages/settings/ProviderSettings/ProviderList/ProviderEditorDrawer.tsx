@@ -735,7 +735,7 @@ function CustomProviderEndpointFields({
           type="button"
           variant="outline"
           size="sm"
-          className="before:-inset-y-2 relative h-6 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:content-[''] active:scale-[0.96]"
+          className="before:-top-5 relative h-5 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:bottom-0 before:content-[''] active:scale-[0.96]"
           onClick={() => onPreferredChatEndpointChange(endpointType as CustomProviderTextEndpoint)}>
           {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
         </Button>
@@ -1055,7 +1055,7 @@ function BaseUrlField({
   const descriptionId = `${uid}-url-description`
   return (
     <Field className="gap-2">
-      <div className="flex items-center gap-2">
+      <div className="flex min-h-5 items-center gap-2">
         <FieldLabel required={required} htmlFor={inputId} className="text-[13px] text-foreground">
           {label}
         </FieldLabel>

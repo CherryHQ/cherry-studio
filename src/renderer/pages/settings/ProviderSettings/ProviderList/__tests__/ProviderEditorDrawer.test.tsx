@@ -589,7 +589,7 @@ describe('ProviderEditorDrawer', () => {
       name: 'settings.provider.create_custom.endpoint_fields.set_default_chat'
     })
     expect(defaultBadge).toHaveAttribute('data-slot', 'badge')
-    expect(setDefaultButton).toHaveClass('h-6', 'rounded-full', 'active:scale-[0.96]')
+    expect(setDefaultButton).toHaveClass('h-5', 'rounded-full', 'before:-top-5', 'active:scale-[0.96]')
     expect(
       screen.getByLabelText('settings.provider.more_endpoints.openai_chat').previousElementSibling
     ).toContainElement(defaultBadge)
