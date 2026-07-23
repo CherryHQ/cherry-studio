@@ -1690,20 +1690,18 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
 
-      const result = await (service as any).applyDefinition({ name: 'node', tool: 'core:node' }, undefined, [])
+      await expect(
+        (service as any).applyDefinition({ name: 'node', tool: 'core:node' }, undefined, [])
+      ).resolves.toBeUndefined()
 
-      // Runtime live-version claim pins the observed version in the returned definition.
-      expect(result).toEqual({
-        version: '22.23.1',
-        definition: { name: 'node', tool: 'core:node', requestedVersion: '22.23.1' }
-      })
-      // The primitive performs no persistence of its own — the caller owns upsert.
+      // The primitive performs no persistence of its own and adopts the live
+      // runtime without reinstalling.
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
       const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
-      expect(miseArgs).not.toContainEqual(['use', '-g', 'core:node@latest'])
+      expect(miseArgs.some((args: string[]) => args[0] === 'use')).toBe(false)
     })
 
-    it('installs via mise honoring the one-shot target and returns the intent unchanged', async () => {
+    it('installs via mise honoring the one-shot target', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
@@ -1713,9 +1711,8 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
 
-      const result = await (service as any).applyDefinition({ name: 'fd', tool: 'fd' }, '10.0.0', [])
+      await expect((service as any).applyDefinition({ name: 'fd', tool: 'fd' }, '10.0.0', [])).resolves.toBeUndefined()
 
-      expect(result).toEqual({ version: '10.0.0', definition: { name: 'fd', tool: 'fd' } })
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual(['use', '-g', 'fd@10.0.0'])
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })

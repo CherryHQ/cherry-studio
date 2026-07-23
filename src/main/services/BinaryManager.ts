@@ -987,19 +987,18 @@ export class BinaryManager extends BaseService {
   }
 
   /**
-   * Run the mise backend for a definition and return the resolved version plus
-   * the concrete definition to persist. Adopts a ready runtime at its live
-   * version when it satisfies the request (runtime live-version adoption), otherwise
-   * installs via mise honoring the one-shot target, verifies runnability, and
-   * pins a freshly installed unpinned runtime to its resolved version. Pure
-   * backend work: it neither writes Preference nor publishes operation state, so
-   * the caller owns persistence and the concrete pin it hands back.
+   * Run the mise backend for a definition. Adopts a ready runtime at its live
+   * version when it satisfies the request (runtime live-version adoption),
+   * otherwise installs via mise honoring the one-shot target and verifies
+   * runnability. Pure backend work: it neither writes Preference nor publishes
+   * operation state — persisted definitions are never rewritten with a resolved
+   * version, so there is no pin to hand back.
    */
   private async applyDefinition(
     definition: CustomToolDefinition,
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[]
-  ): Promise<{ version: string; definition: CustomToolDefinition }> {
+  ): Promise<void> {
     const isRuntime = isRuntimeDependency(definition.tool)
     const runtimeReady = isRuntime && (await this.isManagedBinaryReady(definition.name))
     const currentRuntimeVersion = runtimeReady ? await this.getInstalledVersion(definition.tool) : undefined
@@ -1011,24 +1010,14 @@ export class BinaryManager extends BaseService {
         (normalizedDesiredRuntimeVersion !== null &&
           semverValid(currentRuntimeVersion) === normalizedDesiredRuntimeVersion))
 
-    if (canAdoptRuntime) {
-      return {
-        version: currentRuntimeVersion,
-        definition: definition.requestedVersion
-          ? definition
-          : { ...definition, requestedVersion: currentRuntimeVersion }
-      }
-    }
+    if (canAdoptRuntime) return
 
-    const version = await this.installWithMise(definition, targetVersion, definitions)
+    // installWithMise resolves the installed version as verification that mise
+    // actually applied the request; the value itself is not consumed.
+    await this.installWithMise(definition, targetVersion, definitions)
     if (!(await this.isManagedBinaryReady(definition.name))) {
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
     }
-    if (isRuntime && !definition.requestedVersion) {
-      if (!version) throw new Error(`Runtime installed but its version could not be determined: ${definition.name}`)
-      return { version, definition: { ...definition, requestedVersion: version } }
-    }
-    return { version, definition }
   }
 
   /**
