@@ -1,8 +1,15 @@
 import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { cleanup, fireEvent, render } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const importMocks = vi.hoisted(() => ({
+  importAssistant: vi.fn(),
+  toastError: vi.fn(),
+  toastSuccess: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -16,11 +23,14 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog/assistantAdapter', () => ({
-  useAssistantMutations: () => ({ createAssistant: vi.fn() })
+  useImportAssistantMutation: () => ({ importAssistant: importMocks.importAssistant })
 }))
 
-vi.mock('@renderer/hooks/useTags', () => ({
-  useEnsureTags: () => ({ ensureTags: vi.fn() })
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    error: importMocks.toastError,
+    success: importMocks.toastSuccess
+  }
 }))
 
 import { ImportAssistantDialog } from '../ImportAssistantDialog'
@@ -44,7 +54,12 @@ beforeAll(() => {
 
 afterEach(cleanup)
 
-describe('ImportAssistantDialog overlay close', () => {
+beforeEach(() => {
+  vi.clearAllMocks()
+  importMocks.importAssistant.mockResolvedValue({})
+})
+
+describe('ImportAssistantDialog', () => {
   it('uses the shared dialog width instead of a narrower override', () => {
     render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
 
@@ -64,5 +79,32 @@ describe('ImportAssistantDialog overlay close', () => {
     fireEvent.click(overlay!)
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('delegates normalized group resolution to each atomic import request', async () => {
+    const user = userEvent.setup()
+    importMocks.importAssistant.mockRejectedValue(new Error('create failed'))
+    render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'library.import_dialog.tab.clipboard' }))
+    fireEvent.change(await screen.findByPlaceholderText('library.import_dialog.clipboard.placeholder'), {
+      target: {
+        value: JSON.stringify([
+          { name: 'First', prompt: 'first prompt', group: [' work '] },
+          { name: 'Second', prompt: 'second prompt', group: ['work'] }
+        ])
+      }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'library.import_dialog.clipboard.button' }))
+
+    await waitFor(() => expect(importMocks.importAssistant).toHaveBeenCalledTimes(2))
+    expect(importMocks.importAssistant).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ name: 'First', groupName: 'work' })
+    )
+    expect(importMocks.importAssistant).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ name: 'Second', groupName: 'work' })
+    )
   })
 })

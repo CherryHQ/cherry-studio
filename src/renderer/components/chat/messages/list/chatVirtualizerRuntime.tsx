@@ -1013,8 +1013,14 @@ export function useChatVirtualizerRuntime<T>({
       }
       const baseEl = anchorNode instanceof Element ? anchorNode : anchorNode.parentElement
       const indexed = baseEl?.closest('[data-message-index]')
-      const idx = indexed ? Number(indexed.getAttribute('data-message-index')) : NaN
-      setSelectionIndex(Number.isFinite(idx) ? idx : null)
+      const scroller = scrollerRef.current
+      const ownerScroller = indexed?.closest('[data-message-virtual-list-scroller]')
+      if (!indexed || !scroller || ownerScroller !== scroller) {
+        setSelectionIndex(null)
+        return
+      }
+      const idx = Number(indexed.getAttribute('data-message-index'))
+      setSelectionIndex(Number.isInteger(idx) ? idx : null)
     }
     document.addEventListener('selectionchange', handler)
     return () => document.removeEventListener('selectionchange', handler)
@@ -1027,7 +1033,7 @@ export function useChatVirtualizerRuntime<T>({
       const index = items.findIndex((item, itemIndex) => getItemKey(item, itemIndex) === key)
       if (index >= 0) indices.add(index)
     }
-    return [...indices]
+    return [...indices].filter((index) => Number.isInteger(index) && index >= 0 && index < items.length)
   }, [getItemKey, items, keepMountedKeys, selectionIndex])
 
   // ---- imperative API -------------------------------------------------

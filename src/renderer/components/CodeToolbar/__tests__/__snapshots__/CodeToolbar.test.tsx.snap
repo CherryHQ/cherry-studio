@@ -3,11 +3,11 @@
 exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 1`] = `
 <div>
   <div
-    class="pointer-events-none absolute top-1 right-2 z-10 h-6"
+    class="pointer-events-none sticky top-7 z-10 h-0"
     data-ui="code.toolbar.element.div id:ui-7c164b464c262eff"
   >
     <div
-      class="code-toolbar pointer-events-auto flex h-6 items-center gap-1"
+      class="code-toolbar pointer-events-auto absolute right-2 bottom-1 flex h-6 items-center gap-1"
       data-ui="code.toolbar.element.div id:ui-c3a2c5a248f6ee67"
     >
       <div
@@ -46,11 +46,11 @@ exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 
 exports[`CodeToolbar > basic rendering > should match snapshot with only core tools 1`] = `
 <div>
   <div
-    class="pointer-events-none absolute top-1 right-2 z-10 h-6"
+    class="pointer-events-none sticky top-7 z-10 h-0"
     data-ui="code.toolbar.element.div id:ui-7c164b464c262eff"
   >
     <div
-      class="code-toolbar pointer-events-auto flex h-6 items-center gap-1"
+      class="code-toolbar pointer-events-auto absolute right-2 bottom-1 flex h-6 items-center gap-1"
       data-ui="code.toolbar.element.div id:ui-c3a2c5a248f6ee67"
     >
       <div

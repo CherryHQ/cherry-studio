@@ -40,11 +40,14 @@ export function PageSidebar({ children, open, width, className, style, onPaneCol
           data-resource-list-pane
           data-resizing={isResizing || undefined}
           className={cn(
-            'group/resource-list-pane relative shrink-0 overflow-hidden data-[resizing=true]:[&_.home-tabs-content]:transition-none data-[resizing=true]:[&_.home-tabs]:transition-none',
+            'group/resource-list-pane relative shrink-0 overflow-visible data-[resizing=true]:[&_.home-tabs-content]:transition-none data-[resizing=true]:[&_.home-tabs]:transition-none',
             className
           )}
           style={style}>
-          <ErrorBoundary>{children}</ErrorBoundary>
+          {/* Keep the list clipped without covering its scrollbar with the resize hit area. */}
+          <div data-resource-list-pane-content className="h-full min-h-0 overflow-hidden">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
           <div
             data-resource-list-pane-resize-handle
             onMouseDown={startResizing}
@@ -55,8 +58,8 @@ export function PageSidebar({ children, open, width, className, style, onPaneCol
               label: t('common.resize_panel'),
               onResize: setPaneWidth
             })}
-            className="group/resource-list-resize-handle absolute top-0 right-0 bottom-0 z-10 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-            <div className="absolute top-0 right-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-primary/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
+            className="group/resource-list-resize-handle absolute top-0 bottom-0 left-full z-10 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-primary/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
           </div>
         </motion.div>
       )}

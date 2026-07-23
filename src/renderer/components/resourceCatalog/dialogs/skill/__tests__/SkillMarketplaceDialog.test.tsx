@@ -271,18 +271,24 @@ describe('SkillMarketplaceDialog', () => {
     }
   })
 
-  it('selects a source with results when the default source has no matches', async () => {
+  it('keeps the selected source active when only another source has results', async () => {
+    const user = userEvent.setup()
     skillSearchState.results = [resultsFixture[1]]
     renderDialog()
 
+    await user.click(screen.getByRole('radio', { name: /clawhub.ai/ }))
     typeSearchQuery('react')
 
-    await waitFor(() => {
-      expect(screen.getByRole('radio', { name: /skills.sh/ })).toHaveAttribute('aria-checked', 'true')
-    })
+    const clawhubTab = screen.getByRole('radio', { name: /clawhub.ai/ })
+    expect(clawhubTab).toHaveAttribute('aria-checked', 'true')
+    expect(clawhubTab).not.toBeDisabled()
+    expect(screen.getByText('library.skill_marketplace.no_results_title')).toBeInTheDocument()
+    expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
+
+    const skillsShTab = screen.getByRole('radio', { name: 'skills.sh 1' })
+    await user.click(skillsShTab)
+
     expect(screen.getByText('React Skill')).toBeInTheDocument()
-    expect(screen.queryByText('library.skill_marketplace.no_results_title')).not.toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /claude-plugins.dev/ })).toBeDisabled()
   })
 
   it('shows a localized marketplace error message when search fails', async () => {
@@ -314,6 +320,7 @@ describe('SkillMarketplaceDialog', () => {
   })
 
   it('keeps other install buttons enabled while one install is in progress', async () => {
+    const user = userEvent.setup()
     skillSearchState.results = [
       resultsFixture[0],
       {
@@ -328,6 +335,7 @@ describe('SkillMarketplaceDialog', () => {
     )
     renderDialog()
 
+    await user.click(screen.getByRole('radio', { name: /claude-plugins.dev/ }))
     typeSearchQuery('code')
 
     expect(screen.getByRole('dialog')).toHaveAttribute('data-close-on-overlay-click', 'true')
@@ -350,6 +358,7 @@ describe('SkillMarketplaceDialog', () => {
     isInstallingMock.mockImplementation((key?: string) => (key ? false : true))
     renderDialog()
 
+    await user.click(screen.getByRole('radio', { name: /claude-plugins.dev/ }))
     typeSearchQuery('code')
     const installButtons = screen.getAllByRole('button', { name: /settings.skills.install/ })
     await user.click(installButtons[0])

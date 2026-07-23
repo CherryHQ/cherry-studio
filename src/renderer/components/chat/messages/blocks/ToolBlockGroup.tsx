@@ -14,6 +14,7 @@ import {
   Mail,
   Sparkles,
   SquareTerminal,
+  ToolCase,
   Wrench
 } from 'lucide-react'
 import React from 'react'
@@ -75,7 +76,7 @@ const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [AgentToolsType.Read]: FileText,
   [AgentToolsType.ReadMcpResource]: FileSearch,
   [AgentToolsType.Search]: FileSearch,
-  [AgentToolsType.Skill]: Sparkles,
+  [AgentToolsType.Skill]: ToolCase,
   [AgentToolsType.Task]: ListChecks,
   [AgentToolsType.TaskCreate]: ListChecks,
   [AgentToolsType.TaskGet]: ListChecks,
