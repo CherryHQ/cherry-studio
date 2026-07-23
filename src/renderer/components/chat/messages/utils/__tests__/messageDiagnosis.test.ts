@@ -21,9 +21,8 @@ describe('withMessagePartDiagnosis', () => {
     const next = withMessagePartDiagnosis(parts, 0, diagnosis)
 
     expect(next).not.toBeNull()
-    expect(
-      (next?.[0] as { providerMetadata?: { cherry?: { diagnosis?: unknown } } }).providerMetadata?.cherry?.diagnosis
-    ).toEqual(diagnosis)
+    const updated = next![0] as { providerMetadata?: { cherry?: { diagnosis?: unknown } } }
+    expect(updated.providerMetadata?.cherry?.diagnosis).toEqual(diagnosis)
     // original untouched
     expect('providerMetadata' in parts[0]).toBe(false)
   })
