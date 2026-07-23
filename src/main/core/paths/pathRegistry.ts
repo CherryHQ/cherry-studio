@@ -117,10 +117,6 @@ export function buildPathRegistry() {
     'feature.ovms.ovms': path.join(CHERRY_HOME, 'ovms', 'ovms'),
     'feature.ovms.patch': path.join(CHERRY_HOME, 'ovms', 'patch'),
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
-    // The OVMS model registry — the one user-authored file inside the
-    // otherwise machine-artifact ovms/ tree. OvmsManager recreates a default
-    // when absent. Under ~/.cherrystudio, so a data reset keeps it.
-    'feature.ovms.model_registry_file': path.join(CHERRY_HOME, 'ovms', 'ovms', 'models', 'config.json'),
 
     // Agents
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)

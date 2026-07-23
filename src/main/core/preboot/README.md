@@ -35,9 +35,6 @@ Code belongs in `core/preboot/` if **all** are true:
    Removable capabilities — even ones whose execution must happen during
    the preboot phase — live in their nature-home (e.g. `services/`) and
    are invoked from `main.ts` at the right point in the preboot sequence.
-   Example: Data Reset (`services/dataReset.ts`) must wipe before any gate
-   reads user data, so `main.ts` calls its `runDataReset()` at the top of
-   `startApp()` — but the capability is owned by `services/`, not here.
 3. It only depends on Electron `app` top-level APIs and synchronously-loaded
    modules (e.g. `BootConfigService`, `loggerService`).
 4. It directly performs side effects on global state (paths, command-line
@@ -107,8 +104,7 @@ preboot/
 │                        isolated locks.
 ├── userDataLocation.ts  resolves userData (dev suffix or BootConfig) and
 │                        exports the shared isUsableDataDir(p) validator
-│                        (isDirectory ∧ R_OK|W_OK|X_OK) that the v1→v2
-│                        migration path selector reuses for one identical bar
+│                        used by v1→v2 migration
 ├── chromiumFlags.ts     Chromium startup flags that must run before
 │                        app.whenReady()
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
