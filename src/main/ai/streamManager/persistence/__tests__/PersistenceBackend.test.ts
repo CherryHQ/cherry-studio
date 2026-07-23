@@ -1,8 +1,8 @@
 /**
- * Unit tests for `finalizeInterruptedParts` — the helper every persistence
- * backend (MessageService / TemporaryChat / AgentSessionMessage) runs over
- * `finalMessage.parts` before writing, so an interrupted or errored turn does
- * not leave a tool part stuck in a non-terminal (in-progress) state.
+ * Unit tests for `finalizeInterruptedParts` — the listener runs this helper
+ * over `finalMessage.parts` before composing stats and calling a backend, so
+ * an interrupted or errored turn does not leave a part stuck in a non-terminal
+ * (in-progress) state.
  *
  * The function is pure, so it is tested directly with no mocks.
  */

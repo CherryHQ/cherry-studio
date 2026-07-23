@@ -1,4 +1,5 @@
 import {
+  Button,
   EditableNumber,
   FormControl,
   FormField,
@@ -20,6 +21,7 @@ import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { permissionModeCards } from '@renderer/utils/agent'
 import {
@@ -37,7 +39,7 @@ import {
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
-import { Wrench } from 'lucide-react'
+import { ToolCase, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -85,6 +87,11 @@ type ToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.skills'
 
 const logger = loggerService.withContext('AgentEditDialog')
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
+const SKILLS_SETTINGS_PATH = '/settings/skills'
+
+function openSkillsSettingsTab() {
+  openSettingsTab(SKILLS_SETTINGS_PATH)
+}
 
 const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
   file: 'library.config.agent.section.tools.category.file',
@@ -761,6 +768,16 @@ function AgentToolsFields({
               : t('library.config.agent.section.tools.skills_require_save')
           }
           portalContainer={portalContainer}
+          trailingItem={
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={openSkillsSettingsTab}
+              className="h-full min-h-11 w-full rounded-lg border border-border-muted border-dashed px-2.5 py-1.5 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:border-border-hover hover:bg-accent/50 hover:text-foreground">
+              <ToolCase size={14} strokeWidth={1.7} />
+              {t('agent.settings.skills.addMore')}
+            </Button>
+          }
         />
       ) : null}
     </div>

@@ -27,6 +27,7 @@ type SkillCatalogPickerProps = {
   emptyLabel: ReactNode
   portalContainer: HTMLElement | null
   disabled?: boolean
+  trailingItem?: ReactNode
 }
 
 /** Shared Skill search, bulk-selection, and installation surface for Agent forms. */
@@ -38,7 +39,8 @@ export function SkillCatalogPicker({
   onSelectedIdsChange,
   emptyLabel,
   portalContainer,
-  disabled = false
+  disabled = false,
+  trailingItem
 }: SkillCatalogPickerProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -96,7 +98,7 @@ export function SkillCatalogPicker({
           placeholder={t('library.config.dialogs.create.capability.search')}
           className="min-w-0 flex-1"
         />
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button type="button" size="sm" className="shrink-0" disabled={disabled}>
               <Plus size={13} />
@@ -142,6 +144,7 @@ export function SkillCatalogPicker({
         onToggle={setSelected}
         emptyLabel={emptyLabel}
         portalContainer={portalContainer}
+        trailingItem={trailingItem}
         variant={mode === 'create' ? 'checkbox' : 'switch'}
       />
 

@@ -3,9 +3,9 @@
  * `PersistenceListener`. Concrete backends live near the storage domain
  * they write to; stream-manager only owns the generic contract.
  *
- * The listener attaches error parts and composes `MessageStats` before
- * calling the backend — backends never synthesise UIMessages or repeat
- * projection logic.
+ * The listener attaches error parts, terminalizes interrupted parts, and
+ * composes `MessageStats` before calling the backend — backends never
+ * synthesise UIMessages or repeat projection logic.
  */
 
 import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
@@ -139,13 +139,11 @@ export interface PersistenceBackend {
 
 /**
  * Token counts come from `finalMessage.metadata` (populated by
- * agentLoop's `messageMetadata` on the `finish` chunk). Durations come
- * from the merged `StatsTimings`, rounded to integer ms.
- *
- * `timeThinkingMs` is deliberately not projected: the
- * `reasoningStartedAt → reasoningEndedAt` wall-clock can include
- * interleaved tool execution. The subtraction path lands with the
- * `TODO(message-stats-redesign)` rework in `src/shared/data/types/message.ts`.
+ * agentLoop's `messageMetadata` on the `finish` chunk). Request durations
+ * come from the merged `StatsTimings`; thinking duration is the sum of the
+ * stabilized per-reasoning-part metadata. We deliberately do not subtract
+ * `reasoningStartedAt` from `reasoningEndedAt`, because that wall-clock can
+ * include interleaved tool execution.
  */
 export function statsFromTerminal(
   finalMessage: CherryUIMessage | undefined,
@@ -162,6 +160,19 @@ export function statsFromTerminal(
     if (typeof meta.noCacheTokens === 'number') stats.noCacheTokens = meta.noCacheTokens
     if (typeof meta.cacheReadTokens === 'number') stats.cacheReadTokens = meta.cacheReadTokens
     if (typeof meta.cacheWriteTokens === 'number') stats.cacheWriteTokens = meta.cacheWriteTokens
+  }
+
+  let thinkingDurationMs = 0
+  let hasThinkingDuration = false
+  for (const part of finalMessage?.parts ?? []) {
+    if (part.type !== 'reasoning') continue
+    const thinkingMs = readCherryMeta(part)?.thinkingMs
+    if (thinkingMs === undefined || !Number.isFinite(thinkingMs) || thinkingMs < 0) continue
+    thinkingDurationMs += thinkingMs
+    hasThinkingDuration = true
+  }
+  if (hasThinkingDuration) {
+    stats.timeThinkingMs = Math.round(thinkingDurationMs)
   }
 
   if (timings) {

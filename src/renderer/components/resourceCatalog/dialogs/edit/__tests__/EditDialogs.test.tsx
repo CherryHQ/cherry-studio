@@ -13,6 +13,7 @@ const {
   agentTools,
   fetchGenerateMock,
   installedSkillsState,
+  ipcRequestMock,
   mcpStatusState,
   openSettingsTabMock,
   settingsNavigateMock,
@@ -64,6 +65,7 @@ const {
       refreshing: false
     }
   },
+  ipcRequestMock: vi.fn(),
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
   settingsNavigateMock: vi.fn(),
@@ -170,11 +172,12 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
     selectedIds: readonly string[]
     disabled?: boolean
     onSelectedIdsChange: (ids: string[]) => void
+    trailingItem?: ReactNode
   }) => {
     skillCatalogPickerMock(props)
 
     return (
-      <div data-testid="skill-catalog-picker" data-mode={props.mode}>
+      <div data-testid="skill-catalog-picker" data-mode={props.mode} className="grid sm:grid-cols-2">
         {props.loading
           ? null
           : props.skills.map((skill) => {
@@ -197,6 +200,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
                 </button>
               )
             })}
+        {props.trailingItem}
       </div>
     )
   }
@@ -242,6 +246,10 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
   useMcpRuntimeStatusMap: () => mcpStatusState.current
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
+}))
+
 vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
     ...installedSkillsState.current,
@@ -274,6 +282,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.settings.tooling.permissionMode.bypassPermissions.title': 'Full Auto Mode',
           'agent.settings.tooling.permissionMode.default.title': 'Normal Mode',
           'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
+          'agent.settings.skills.addMore': 'Manage Skills',
           'common.avatar': 'Avatar',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
@@ -321,7 +330,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.search_placeholder': 'Search tools',
           'library.config.agent.section.tools.skills_require_save': 'Save before skills',
           'library.config.agent.section.tools.tab.mcp': 'MCP',
-          'library.config.agent.section.tools.tab.skills': 'Skills',
+          'library.config.agent.section.tools.tab.skills': '技能',
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
           'library.config.agent.model_config': 'Model configuration',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
@@ -1014,15 +1023,33 @@ describe('edit dialogs', () => {
     selectTab('MCP')
     expect(screen.getByText('MCP One')).toBeInTheDocument()
 
-    selectTab('Skills')
+    selectTab('技能')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
   })
 
   it('opens the agent edit dialog directly on the requested initial tab', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
 
-    expect(screen.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '技能' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('opens Skill settings in an app tab without closing the agent edit dialog', () => {
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    selectTab('技能')
+
+    const manageSkillsButton = screen.getByRole('button', { name: 'Manage Skills' })
+    expect(manageSkillsButton).toHaveClass('min-h-11', 'w-full', 'border-dashed')
+    expect(manageSkillsButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
+    expect(manageSkillsButton.parentElement).toHaveClass('sm:grid-cols-2')
+
+    fireEvent.click(manageSkillsButton)
+
+    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/skills')
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('tab.detach', expect.anything())
+    expect(onOpenChange).not.toHaveBeenCalled()
   })
 
   it('reuses the shared skill catalog in the agent edit dialog', async () => {
@@ -1093,7 +1120,7 @@ describe('edit dialogs', () => {
   it('auto-saves agent skill toggles after a debounce', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    selectTab('Skills')
+    selectTab('技能')
 
     fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
     // Not persisted synchronously — the debounce is still pending.

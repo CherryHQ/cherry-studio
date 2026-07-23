@@ -33,7 +33,6 @@ import React, { useMemo } from 'react'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
-import type { InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
@@ -177,7 +176,6 @@ function getVideoFilePath(part: CherryMessagePart): string | undefined {
 type GroupedEntry = PartEntry | PartEntry[]
 
 interface RenderGroupedEntryOptions {
-  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
   expandedTextPartIds?: ReadonlySet<string>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
@@ -468,10 +466,6 @@ function renderPart(
 ): React.ReactNode {
   const partType = part.type
   if ((partType as string) === 'data-citation') return null
-  const inlineHtmlPreviewMode =
-    message.role === 'assistant'
-      ? (options?.inlineHtmlPreviewMode ?? (message.status === 'success' ? 'ready' : undefined))
-      : undefined
 
   switch (partType) {
     case 'reasoning': {
@@ -535,7 +529,6 @@ function renderPart(
           isStreaming={isStreaming}
           citations={citations}
           citationReferences={citationReferences}
-          inlineHtmlPreviewMode={inlineHtmlPreviewMode}
           role={message.role}
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
@@ -553,14 +546,7 @@ function renderPart(
       const codeData = (part as { data: { content: string; language?: string } }).data
       const codeContent = `\`\`\`${codeData.language ?? ''}\n${codeData.content}\n\`\`\``
       return (
-        <MainTextBlock
-          key={partId}
-          id={partId}
-          content={codeContent}
-          inlineHtmlPreviewMode={inlineHtmlPreviewMode}
-          isStreaming={isStreaming}
-          role={message.role}
-        />
+        <MainTextBlock key={partId} id={partId} content={codeContent} isStreaming={isStreaming} role={message.role} />
       )
     }
 
@@ -1111,10 +1097,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     () => ({ ...renderOptions, settleActiveTools: true, settleStreamingReasoning: true }),
     [renderOptions]
   )
-  const activeResultRenderOptions = useMemo<RenderGroupedEntryOptions>(
-    () => ({ ...renderOptions, inlineHtmlPreviewMode: 'generating' }),
-    [renderOptions]
-  )
 
   if (isActive) {
     const resultContent = liveResultItems.map((item) => {
@@ -1128,7 +1110,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
           isStreaming={openTextTailIndex === item.entry.index}
           isTranslationOverlayActive={isTranslationOverlayActive}
           message={message}
-          renderOptions={activeResultRenderOptions}
+          renderOptions={renderOptions}
         />
       )
     })
