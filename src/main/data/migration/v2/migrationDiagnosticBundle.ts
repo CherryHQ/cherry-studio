@@ -46,7 +46,7 @@ class LogReadFailure extends Error {
 
 function validateDestination(value: string): FilePath | undefined {
   if (typeof value !== 'string' || !path.isAbsolute(value)) return undefined
-  const terminal = value.split(/[\\/]/).at(-1)
+  const terminal = value.split(process.platform === 'win32' ? /[\\/]/ : '/').at(-1)
   if (!terminal || terminal === '.' || terminal === '..') return undefined
   const normalized = path.normalize(value)
   if (normalized === path.parse(normalized).root) return undefined

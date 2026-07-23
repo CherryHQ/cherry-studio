@@ -265,19 +265,25 @@ describe('saveMigrationDiagnosticBundle', () => {
 
   it('rejects a relative, root, or basename-less destination', async () => {
     const clock = vi.fn(() => new Date(GENERATED_AT))
-    for (const target of [
+    const invalidTargets = [
       'diagnostics.zip',
       '',
       path.parse(workDir).root,
+      `${workDir}/`,
       `${workDir}/.`,
-      `${workDir}/..`,
-      `${workDir}/child\\.`,
-      `${workDir}/child\\..`
-    ]) {
+      `${workDir}/..`
+    ]
+    if (process.platform === 'win32') invalidTargets.push(`${workDir}/child/.`, `${workDir}/child/..`)
+    for (const target of invalidTargets) {
       expect(await save(target, { clock })).toBe(false)
     }
     expect(clock).not.toHaveBeenCalled()
     expect(application.getPath).not.toHaveBeenCalled()
+    if (process.platform !== 'win32') {
+      const validBackslashName = `${workDir}/child\\.`
+      expect(await save(validBackslashName)).toBe('not_included')
+      await expectMetadataOnly(validBackslashName)
+    }
   })
 
   it('refuses to overwrite a selected source log', async () => {
