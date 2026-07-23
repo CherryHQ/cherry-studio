@@ -305,7 +305,11 @@ export class Application {
 
   /**
    * Handle boot config load error by showing a dialog before any services start.
-   * For parse errors: offer reset (delete corrupted file) + restart.
+   * For parse errors (unparseable JSON, nothing salvageable): offer reset
+   * (delete corrupted file) + restart.
+   * For validation errors (valid JSON, some values rejected): offer repair
+   * (persist valid keys + defaults for invalid ones) + restart — a full reset
+   * would erase the valid keys the per-key validation deliberately kept.
    * For read errors: offer restart (file may be temporarily inaccessible).
    */
   private async handleBootConfigError(): Promise<void> {
@@ -314,25 +318,52 @@ export class Application {
 
     await app.whenReady()
 
+    const isReadError = loadError.type === 'read_error'
+    const isValidationError = loadError.type === 'validation_error'
     const isParseError = loadError.type === 'parse_error'
+
+    const message = isReadError
+      ? 'The configuration file (boot-config.json) could not be read.'
+      : isValidationError
+        ? 'The configuration file (boot-config.json) contains invalid values.'
+        : 'The configuration file (boot-config.json) contains invalid data.'
+    const continueHint = isValidationError
+      ? 'The application can continue — valid settings are kept and the invalid entries fall back to defaults — or you can repair the file and restart.'
+      : isParseError
+        ? 'The application can continue with default settings, or you can reset the file and restart.'
+        : 'The application can continue with default settings, or you can restart to try again.'
+    const fileHint = isValidationError
+      ? `"Repair and Restart" rewrites the file, keeping the valid entries and resetting the invalid ones. Other options preserve it for manual inspection at:\n${loadError.filePath}`
+      : isParseError
+        ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}`
+        : `The file will be preserved for manual inspection at:\n${loadError.filePath}`
 
     const result = await dialog.showMessageBox({
       type: 'warning',
-      title: isParseError ? 'Configuration File Corrupted' : 'Configuration File Read Error',
-      message: isParseError
-        ? 'The configuration file (boot-config.json) contains invalid data.'
-        : 'The configuration file (boot-config.json) could not be read.',
-      detail: `Error: ${loadError.message}\n\nThe application can continue with default settings, or you can ${isParseError ? 'reset the file and restart' : 'restart to try again'}.\n\n${isParseError ? `"Reset and Restart" will delete the corrupted file. Other options preserve it for manual inspection at:\n${loadError.filePath}` : `The file will be preserved for manual inspection at:\n${loadError.filePath}`}`,
-      buttons: ['Continue with Defaults', isParseError ? 'Reset and Restart' : 'Restart', 'Exit'],
+      title: isReadError
+        ? 'Configuration File Read Error'
+        : isValidationError
+          ? 'Configuration File Invalid'
+          : 'Configuration File Corrupted',
+      message,
+      detail: `Error: ${loadError.message}\n\n${continueHint}\n\n${fileHint}`,
+      buttons: [
+        isValidationError ? 'Continue' : 'Continue with Defaults',
+        isValidationError ? 'Repair and Restart' : isParseError ? 'Reset and Restart' : 'Restart',
+        'Exit'
+      ],
       defaultId: 0,
       cancelId: 2
     })
 
     if (result.response === 1) {
-      if (isParseError) {
+      if (isValidationError) {
+        bootConfigService.repair()
+      } else if (isParseError) {
         bootConfigService.reset()
       }
-      logger.info(`User chose to ${isParseError ? 'reset and restart' : 'restart'} after boot config error`)
+      const action = isValidationError ? 'repair and restart' : isParseError ? 'reset and restart' : 'restart'
+      logger.info(`User chose to ${action} after boot config error`)
       this.relaunch()
       return
     }
