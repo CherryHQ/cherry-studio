@@ -104,6 +104,14 @@ const PROTECTED_COMPOUND_PREFIXES = ['non', 'no', 'pre', 'anti', 'post']
 
 const PARAMETER_SIZE_PATTERN = /-(\d+(?:\.\d+)?b)(?=-|$)/i
 
+// Matches a registry-tag (OCI/Docker-style) COLON size/quant tag payload — `<size>[-<variant>][-<quant>]`
+// (`20b`, `8x7b`, `30b-a3b-q4_K_M`) or a bare quant (`q4_K_M`, `fp16`). Local runners spell a variant this
+// way (`gpt-oss:20b`, `qwen2.5:7b`), but the rule is provider-agnostic. Used to REALIGN the tag to the
+// catalog's hyphen spelling (see colonVariantTagToHyphen) so the size stays part of the id instead of
+// being dropped; a size-agnostic word tag (`:free`) or a Bedrock revision (`:0`) is intentionally
+// excluded. Tested against the suffix WITHOUT its leading colon.
+const COLON_VARIANT_TAG_PATTERN = /^(?:\d+(?:[.x]\d+)*b(?:$|[-.])|q\d|iq\d|fp16|bf16|f16)/i
+
 // Quantization markers denote the same logical model at a different precision
 // (e.g. `glm-4-5-fp8` is `glm-4-5`). Stripping them lets the resolver collapse
 // the redundant spellings a provider might return.
@@ -283,10 +291,30 @@ export function stripParameterSize(modelId: string): string {
 }
 
 /**
+ * Realign a registry-tag colon size/quant tag to the catalog's hyphen spelling: `gpt-oss:20b` →
+ * `gpt-oss-20b`, `qwen2.5:7b` → `qwen2.5-7b`. Only a size/quant LEADER is realigned (see
+ * COLON_VARIANT_TAG_PATTERN), so a word tag (`:free`) or a Bedrock revision (`:0`) is returned unchanged.
+ * This keeps the SIZE inside the id so a size-preserving match can tell a `:20b` pull apart from its
+ * `120b` sibling, instead of both collapsing to the bare family name.
+ */
+export function colonVariantTagToHyphen(modelId: string): string {
+  const colonIdx = modelId.lastIndexOf(':')
+  if (colonIdx > 0 && COLON_VARIANT_TAG_PATTERN.test(modelId.slice(colonIdx + 1))) {
+    return `${modelId.slice(0, colonIdx)}-${modelId.slice(colonIdx + 1)}`
+  }
+  return modelId
+}
+
+/**
  * Normalize a model ID to its canonical form.
  * This is the single source of truth for model ID normalization.
+ *
+ * `keepParameterSize` produces the SIZE-PRESERVING key: the parameter size is realigned from any colon
+ * tag and kept (not stripped), so `qwen2.5:7b` → `qwen2-5-7b` and `gpt-oss-20b`/`gpt-oss-120b` stay
+ * distinct. The registry loader indexes on this to resolve a registry-tagged id to its exact-size row
+ * before the default (size-agnostic) key would collapse it onto a same-family sibling.
  */
-export function normalizeModelId(modelId: string): string {
+export function normalizeModelId(modelId: string, options: { keepParameterSize?: boolean } = {}): string {
   const parts = modelId.split('/')
   let baseName = parts[parts.length - 1].toLowerCase()
   baseName = stripAggregatorPrefixes(baseName)
@@ -295,10 +323,16 @@ export function normalizeModelId(modelId: string): string {
   baseName = stripBedrockVendorPrefix(baseName)
   baseName = stripBedrockRevision(baseName)
   baseName = expandKnownPrefixes(baseName)
+  if (options.keepParameterSize) {
+    // Realign `:20b` → `-20b` so the size is a normal hyphen token the loop below leaves intact
+    // (stripParameterSize is skipped in this mode).
+    baseName = colonVariantTagToHyphen(baseName)
+  }
   // Parameter size joins the fixpoint loop too: stripping `-30b` can expose a variant suffix and
   // vice versa, so iterate the whole strip stage until stable.
   for (;;) {
-    const next = stripParameterSize(stripVariantQuantDateSuffixes(baseName))
+    const stripped = stripVariantQuantDateSuffixes(baseName)
+    const next = options.keepParameterSize ? stripped : stripParameterSize(stripped)
     if (next === baseName) break
     baseName = next
   }
