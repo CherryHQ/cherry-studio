@@ -10,21 +10,17 @@ function findLast(tokens: string[], predicate: (token: string) => boolean): stri
 }
 
 /**
- * Compose caller-owned semantic/scope tokens with implementation-owned structural
- * semantics. The most specific caller semantic wins.
+ * Compose caller-owned semantics with implementation-owned structural parts.
+ * The most specific caller semantic wins.
  */
 export function mergeDataUi(contract: string, ...forwardedValues: unknown[]): string {
   const contractTokens = tokens(contract)
   const forwardedTokens = forwardedValues.flatMap(tokens)
   const semantic =
     findLast(forwardedTokens, (token) => !token.includes(':')) ?? contractTokens.find((token) => !token.includes(':'))
-  const namespaced = [...contractTokens, ...forwardedTokens].filter(
-    (token) => token.includes(':') && !token.startsWith('id:')
-  )
-  const parts = namespaced.filter((token) => token.startsWith('part:'))
-  const remaining = namespaced.filter((token) => !token.startsWith('part:'))
+  const parts = [...contractTokens, ...forwardedTokens].filter((token) => token.startsWith('part:'))
 
-  return [...new Set([semantic, ...parts, ...remaining].filter((token): token is string => Boolean(token)))].join(' ')
+  return [...new Set([semantic, ...parts].filter((token): token is string => Boolean(token)))].join(' ')
 }
 
 /** Preserve normal JSX spread behavior while composing a spread-owned data-ui value. */

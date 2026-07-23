@@ -10,15 +10,15 @@ the same coordinates instead of introducing another selector protocol.
 
 ## Token protocol
 
-`data-ui` is an unordered set of whitespace-separated tokens with two responsibilities:
+`data-ui` is an unordered set of whitespace-separated static semantic tokens:
 
 | Tokens | Use | Stability |
 | --- | --- | --- |
-| `chat.message`, `part:message-content` | Static business and component-structure semantics | Explicit roles and parts are stable; inferred roles are best-effort |
-| `scope:message:m_817`, `scope:window:main` | Optional runtime business-instance or window identity | Stable for that entity or window type |
+| `chat.message` | Business or component role | Explicit roles are stable; inferred roles are best-effort |
+| `part:message-content` | Reusable component structure | Maintained public API |
 
 ```html
-<article data-ui="chat.message part:message-content scope:message:m_817 scope:topic:t_42"></article>
+<article data-ui="chat.message part:message-content"></article>
 ```
 
 Use token matching (`~=`), never substring matching:
@@ -27,11 +27,6 @@ Use token matching (`~=`), never substring matching:
 /* Every chat message */
 [data-ui~='chat.message'] {
   display: grid;
-}
-
-/* One message instance */
-[data-ui~='chat.message'][data-ui~='scope:message:m_817'] {
-  outline: 1px solid hotpink;
 }
 
 /* One reusable component part */
@@ -76,7 +71,7 @@ remains intact, so existing component styles, tests, and custom CSS continue to 
 
 Semantic inference uses, in order:
 
-1. an explicit semantic role passed to `uiTokens` or written as a static `data-ui` value;
+1. an explicit semantic role written as a static `data-ui` value;
 2. `part:*`, `data-testid`, stable `id`/`name`/`role`/`type`, and event-handler names;
 3. source domain, component name, and HTML element role.
 
@@ -101,34 +96,24 @@ pnpm ui:contract:query chat.message
 The command scans current source and returns matching semantic roles, element/component names, and source locations.
 There is no persistent node registry or generated exact-node ID.
 
-## Runtime API
+## Selector helpers
 
-Use the curated runtime helpers for entity scopes. Do not concatenate free-form strings:
+Declare compatibility-sensitive business semantics directly in the owning component's markup:
 
 ```tsx
-import { uiTokens } from '@renderer/utils/uiContract'
-
-<div
-  data-ui={uiTokens('chat.message', {
-    scopes: [`message:${message.id}`, `topic:${message.topicId}`]
-  })}
-/>
+<div data-ui="chat.message" />
 ```
 
-`uiTokens` writes an explicit semantic role and optional runtime `scope:*` tokens. Reusable `part:*` tokens are static
-structural semantics and must be declared in the owning component's markup rather than selected dynamically at runtime.
-`uiTokens` validates the token grammar, removes duplicates, and serializes deterministically. `parseUiTokens` supports
-inspectors, while `uiSelector` and `uiLocator` create selectors across semantic and instance tokens.
-
-Runtime scopes may contain durable business IDs already present in the renderer. Do not place secrets, prompt content,
-credentials, or user-visible text in a token.
+Reusable `part:*` tokens are also declared in the owning component's markup, either explicitly or through a static
+`data-slot`. `parseUiTokens` supports inspectors, while `uiSelector` and `uiLocator` compose semantic and structural
+selectors without duplicating the token grammar.
 
 ## Custom CSS across windows
 
-Each window body exposes its identity:
+Each window body exposes the same semantic root:
 
 ```html
-<body data-ui="app.window scope:window:main">
+<body data-ui="app.window">
 ```
 
 Custom CSS is inserted verbatim and unlayered after application styles, so it can use the full CSS surface—including
@@ -139,10 +124,6 @@ renderer window subscribes to the same `ui.custom_css` preference and injects th
 ```css
 :root {
   --color-primary: hotpink;
-}
-
-[data-ui~='scope:window:selection-toolbar'] {
-  --color-primary: lime;
 }
 ```
 
@@ -157,4 +138,5 @@ made public.
   a breaking-change entry.
 - Inferred roles are deterministic but best-effort and may change when files, components, or DOM responsibilities move.
 - Internal descendant selectors are supported CSS but are not promised to survive structural refactors.
-- Tests and automation should start from semantic/scope tokens, then use accessible roles for the intended interaction.
+- Tests and automation should start from semantic or `part:*` tokens, then use accessible roles for the intended
+  interaction.

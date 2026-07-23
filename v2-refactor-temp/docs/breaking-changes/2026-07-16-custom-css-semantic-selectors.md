@@ -11,8 +11,7 @@ date: 2026-07-16
 Meaningful app-owned DOM boundaries now gain semantic selectors for advanced themes, tests, and automation. Nested
 layout-only `div` and `span` wrappers remain internal. Custom CSS is injected verbatim into every regular renderer
 window, including the selection toolbar. Existing static `data-slot="dialog-content"` structure markers remain
-unchanged and contribute `part:dialog-content` to the unified `data-ui` semantic layer. Optional runtime `scope:*`
-tokens distinguish business instances.
+unchanged and contribute `part:dialog-content` to the unified `data-ui` semantic layer.
 
 ## Why this matters to the user
 
@@ -23,8 +22,7 @@ provides a maintained semantic surface for new selectors.
 ## What the user should do
 
 No migration is required. Prefer semantic selectors such as `[data-ui~='chat.message']` or
-`[data-ui~='part:dialog-content']` for new themes. Use `[data-ui~='scope:window:main']` only when a rule should target one
-window type.
+`[data-ui~='part:dialog-content']` for new themes.
 
 ## Notes for release manager
 
