@@ -59,32 +59,12 @@ export abstract class LocalModelDownloadService {
     }
   }
 
-  /**
-   * Cheap synchronous probe of the files on disk. About to act on `ready`
-   * (insert a row referencing the model, start an inference)? Use
-   * {@link checkStatus} instead — `ready` here only promises the files exist,
-   * while DB state a subclass derives from them may lag the disk.
-   */
   getStatus(): LocalModelStatus {
     // Unconditional on Intel Mac — the cards hide instead of offering a
     // download that would fail once it reaches the inference worker.
     if (isDarwinX64) return 'unsupported'
     if (this.downloading) return 'downloading'
     return this.isReady() ? 'ready' : 'not_downloaded'
-  }
-
-  /**
-   * Status probe for consumers about to act on `ready` (the
-   * `local_model.get_status` route). Subclasses that derive extra state from
-   * the weights repair it here before reporting `ready` — the DB can be reset
-   * underneath the files (a data reset keeps the model artifacts, a
-   * restored backup may predate the download), so `ready` must not promise
-   * more than the disk alone can. A repair failure rejects rather than
-   * reporting an unusable `ready`; callers already treat the probe as
-   * best-effort. Base implementation: the plain {@link getStatus} probe.
-   */
-  async checkStatus(): Promise<LocalModelStatus> {
-    return this.getStatus()
   }
 
   async download(): Promise<void> {

@@ -103,36 +103,6 @@ describe('LocalEmbeddingDownloadService', () => {
     })
   })
 
-  describe('checkStatus (registration self-heal)', () => {
-    it('re-registers the provider/model rows before reporting ready', async () => {
-      readdirSync.mockReturnValue([fileEntry(READY_FILE)])
-
-      // The DB can be reset underneath the weights (a data reset keeps the
-      // model artifacts; a restored backup may predate the download) — a
-      // consumer acting on `ready` must always find the user_model row.
-      await expect(localEmbeddingDownloadService.checkStatus()).resolves.toBe('ready')
-      expect(registerLocalEmbeddingModel).toHaveBeenCalledOnce()
-    })
-
-    it('does not touch the DB when the weights are absent', async () => {
-      readdirSync.mockImplementation(() => {
-        throw new Error('ENOENT')
-      })
-
-      await expect(localEmbeddingDownloadService.checkStatus()).resolves.toBe('not_downloaded')
-      expect(registerLocalEmbeddingModel).not.toHaveBeenCalled()
-    })
-
-    it('rejects instead of reporting an unusable ready when the repair fails', async () => {
-      readdirSync.mockReturnValue([fileEntry(READY_FILE)])
-      registerLocalEmbeddingModel.mockRejectedValue(new Error('db locked'))
-
-      // Callers treat the probe as best-effort (KB creation falls back to
-      // BM25-only) — an unregistered `ready` would trip the embeddingModelId FK.
-      await expect(localEmbeddingDownloadService.checkStatus()).rejects.toThrow('db locked')
-    })
-  })
-
   it('drives the progress bar off the .onnx weights only, then registers and reports ready', async () => {
     loadEmbedding.mockImplementation(async (_source, _repo, _dtype, onProgress) => {
       // The tiny sidecar files each sweep 0→100 before the weights start — they must
@@ -211,53 +181,6 @@ describe('LocalEmbeddingDownloadService', () => {
       expect(rm).toHaveBeenCalledWith(MODELS_ROOT, { recursive: true, force: true })
       // The worker holds the weights open — release it first or the unlink fails on Windows.
       expect(terminate.mock.invocationCallOrder[0]).toBeLessThan(rm.mock.invocationCallOrder[0])
-    })
-
-    it('suppresses the checkStatus self-heal while the weights are being deleted', async () => {
-      unregisterMock.mockResolvedValue({ removed: true })
-      readdirSync.mockReturnValue([fileEntry(READY_FILE)]) // weights still on disk mid-removal
-      let releaseRm!: () => void
-      rm.mockImplementation(() => new Promise<void>((resolve) => (releaseRm = resolve)))
-
-      const removal = localEmbeddingDownloadService.remove()
-      await vi.waitFor(() => expect(rm).toHaveBeenCalled())
-
-      // The row is already unregistered; a concurrent probe re-creating it here
-      // would leave it pointing at weights that vanish when the rm completes.
-      await expect(localEmbeddingDownloadService.checkStatus()).resolves.toBe('not_downloaded')
-      expect(registerLocalEmbeddingModel).not.toHaveBeenCalled()
-
-      releaseRm()
-      await expect(removal).resolves.toEqual({ removed: true })
-
-      // Window closed — the self-heal works again (the mock keeps the weights
-      // "on disk", standing in for a later re-download).
-      await expect(localEmbeddingDownloadService.checkStatus()).resolves.toBe('ready')
-      expect(registerLocalEmbeddingModel).toHaveBeenCalledTimes(1)
-    })
-
-    it('coalesces concurrent removes onto the in-flight one', async () => {
-      unregisterMock.mockResolvedValue({ removed: true })
-      let releaseRm!: () => void
-      rm.mockImplementation(() => new Promise<void>((resolve) => (releaseRm = resolve)))
-
-      const first = localEmbeddingDownloadService.remove()
-      await vi.waitFor(() => expect(rm).toHaveBeenCalled())
-      // A second remove mid-teardown must join the first, not start another
-      // unregister/rm pass (whose finally would also end the checkStatus
-      // suppression window while the first delete is still running).
-      const second = localEmbeddingDownloadService.remove()
-
-      releaseRm()
-      await expect(first).resolves.toEqual({ removed: true })
-      await expect(second).resolves.toEqual({ removed: true })
-      expect(unregisterMock).toHaveBeenCalledTimes(1)
-      expect(rm).toHaveBeenCalledTimes(1)
-
-      // The coalescing window closes with the removal: a later remove runs its own pass.
-      unregisterMock.mockResolvedValue({ removed: false })
-      await expect(localEmbeddingDownloadService.remove()).resolves.toEqual({ removed: false })
-      expect(unregisterMock).toHaveBeenCalledTimes(2)
     })
 
     it('re-registers the model when deleting the weights fails, so files and DB stay consistent', async () => {

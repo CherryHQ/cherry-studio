@@ -28,7 +28,7 @@ function siblingFor(model: LocalModelKind) {
  * the download. `download` resolves only when the download finishes.
  */
 export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas> = {
-  'local_model.get_status': async ({ model }) => ({ status: await serviceFor(model).checkStatus() }),
+  'local_model.get_status': async ({ model }) => ({ status: serviceFor(model).getStatus() }),
   'local_model.download': async ({ model }) => {
     try {
       await serviceFor(model).download()

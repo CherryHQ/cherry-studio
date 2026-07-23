@@ -24,8 +24,9 @@ Deliberately kept:
 - the custom data directory **location** (if one was configured) — the reset
   wipes the data at that location, not the choice of location;
 - downloaded machine artifacts: tool binaries (uv, bun, …), local model
-  weights (embedding / OCR, which re-register themselves on next use), and
-  the OCR language data;
+  weights (embedding / OCR), and the OCR language data. This PR only preserves
+  those files; it deliberately does not reconcile or repair local-model state
+  after the database reset;
 - log files and crash dumps (diagnostics, not user content);
 - everything under `~/.cherrystudio` (see below).
 

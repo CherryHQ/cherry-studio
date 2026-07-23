@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@main/services/localModel/LocalEmbeddingDownloadService', () => ({
   localEmbeddingDownloadService: {
     getStatus: vi.fn(),
-    checkStatus: vi.fn(),
     download: vi.fn(),
     cancel: vi.fn(),
     remove: vi.fn()
@@ -13,7 +12,6 @@ vi.mock('@main/services/localModel/LocalEmbeddingDownloadService', () => ({
 vi.mock('@main/services/localModel/LocalOcrDownloadService', () => ({
   localOcrDownloadService: {
     getStatus: vi.fn(),
-    checkStatus: vi.fn(),
     download: vi.fn(),
     cancel: vi.fn(),
     remove: vi.fn()
@@ -37,15 +35,13 @@ describe('localModelHandlers', () => {
   })
 
   it('get_status/download/cancel dispatch to the owning service', async () => {
-    // get_status goes through the async checkStatus (registration self-heal),
-    // not the plain disk probe.
-    vi.mocked(localEmbeddingDownloadService.checkStatus).mockResolvedValue('ready')
+    vi.mocked(localEmbeddingDownloadService.getStatus).mockReturnValue('ready')
 
     await localModelHandlers['local_model.get_status']({ model: 'embedding' }, ctx)
     await localModelHandlers['local_model.download']({ model: 'ocr' }, ctx)
     await localModelHandlers['local_model.cancel']({ model: 'embedding' }, ctx)
 
-    expect(localEmbeddingDownloadService.checkStatus).toHaveBeenCalled()
+    expect(localEmbeddingDownloadService.getStatus).toHaveBeenCalled()
     expect(localOcrDownloadService.download).toHaveBeenCalled()
     expect(localEmbeddingDownloadService.cancel).toHaveBeenCalled()
   })
