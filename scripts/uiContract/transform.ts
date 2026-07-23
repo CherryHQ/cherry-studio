@@ -57,10 +57,11 @@ interface AttributeInfo {
 
 interface OpeningElementInfo {
   attributes: Map<string, AttributeInfo>
-  dataSlotPart?: string
+  authoredDataUi?: string
   element: string
   handler?: string
   parts: string[]
+  requiresDataUiInjection: boolean
   signature: string
   spreads: SpreadElement[]
 }
@@ -68,7 +69,7 @@ interface OpeningElementInfo {
 function hasSvgContractOptIn(info: OpeningElementInfo): boolean {
   return (
     info.attributes.has('data-ui') ||
-    info.dataSlotPart !== undefined ||
+    info.parts.length > 0 ||
     SVG_OPT_IN_ATTRIBUTES.some((name) => info.attributes.has(name)) ||
     [...info.attributes.keys()].some((name) => /^on[A-Z]/.test(name))
   )
@@ -157,6 +158,8 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
   const parts = [...new Set([...namespaceTokenValues(attributes.get('data-ui')?.value, 'part'), dataSlotPart])].filter(
     (part): part is string => Boolean(part)
   )
+  const staticDataUi = attributes.get('data-ui')?.dynamic ? undefined : attributes.get('data-ui')?.value
+  const authoredDataUi = mergePartsDataUi(staticDataUi, parts)
   const semanticSignature = [...attributes.entries()]
     .filter(([name, info]) => SEMANTIC_ATTRIBUTES.has(name) && !info.dynamic)
     .map(([name, info]) => `${name}=${info.value}`)
@@ -165,10 +168,11 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
 
   return {
     attributes,
-    dataSlotPart,
+    authoredDataUi,
     element,
     handler,
     parts,
+    requiresDataUiInjection: authoredDataUi !== staticDataUi,
     signature: [...semanticSignature, ...parts.map(stablePartSignature)].sort().concat(handlerNames).join('|'),
     spreads
   }
@@ -262,11 +266,14 @@ function mergeDataUi(existing: string | undefined, semanticId: string, id: strin
   return [...new Set([semanticId, ...semanticTokens, ...partTokens, `id:${id}`, ...remainingTokens])].join(' ')
 }
 
-function mergePartDataUi(existing: string | undefined, part: string | undefined): string | undefined {
-  if (!part) return existing
+function mergePartsDataUi(existing: string | undefined, parts: string[]): string | undefined {
+  if (parts.length === 0) return existing
   const existingTokens = (existing ?? '').split(/\s+/).filter(Boolean)
   const semanticTokens = existingTokens.filter((token) => !token.includes(':'))
-  const partTokens = [...existingTokens.filter((token) => token.startsWith('part:')), `part:${part}`]
+  const partTokens = [
+    ...existingTokens.filter((token) => token.startsWith('part:')),
+    ...parts.map((part) => `part:${part}`)
+  ]
   const exactIdTokens = existingTokens.filter((token) => token.startsWith('id:'))
   const remainingTokens = existingTokens.filter(
     (token) => token.includes(':') && !token.startsWith('id:') && !token.startsWith('part:')
@@ -364,15 +371,12 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     const existingDataUi = info.attributes.get('data-ui')
     const isIntrinsicElement = /^[a-z]/.test(info.element)
     if (!isIntrinsicElement) {
-      const staticDataUi = existingDataUi?.dynamic ? undefined : existingDataUi?.value
-      const forwardedDataUi = mergePartDataUi(staticDataUi, info.dataSlotPart)
       if (
         options.contractForDescriptor &&
-        forwardedDataUi &&
-        (info.dataSlotPart !== undefined ||
-          (existingDataUi?.value && !existingDataUi.dynamic && info.spreads.length > 0))
+        info.authoredDataUi &&
+        (info.requiresDataUiInjection || (existingDataUi?.value && !existingDataUi.dynamic && info.spreads.length > 0))
       ) {
-        injectDataUi(opening, existingDataUi, forwardedDataUi)
+        injectDataUi(opening, existingDataUi, info.authoredDataUi)
       }
       return parentSemanticId
     }
@@ -420,9 +424,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 
     const contract = options.contractForDescriptor?.(descriptor)
     if (!contract) return semanticId
-    const staticDataUi = existingDataUi?.dynamic ? undefined : existingDataUi?.value
-    const authoredDataUi = mergePartDataUi(staticDataUi, info.dataSlotPart)
-    injectDataUi(opening, existingDataUi, mergeDataUi(authoredDataUi, contract.semanticId, contract.id))
+    injectDataUi(opening, existingDataUi, mergeDataUi(info.authoredDataUi, contract.semanticId, contract.id))
     return semanticId
   }
 
@@ -614,6 +616,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
     const parts = [...new Set([...namespaceTokenValues(existing, 'part'), dataSlotPart])].filter(
       (part): part is string => Boolean(part)
     )
+    const authoredDataUi = mergePartsDataUi(existing, parts)
     const explicitId = existing?.split(/\s+/).find((token) => token && !token.includes(':') && !token.startsWith('id:'))
     const semanticId =
       explicitId ??
@@ -665,7 +668,6 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
     const contract = options.contractForDescriptor?.(descriptor)
     if (!contract) continue
     const rootTokens = tag.name === 'body' ? ` scope:window:${identifierWords(options.windowName).join('-')}` : ''
-    const authoredDataUi = mergePartDataUi(existing, dataSlotPart)
     const value = `${mergeDataUi(authoredDataUi, contract.semanticId, contract.id)}${rootTokens}`
     if (existing !== undefined) {
       const attribute = tag.source.match(/\sdata-ui\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i)

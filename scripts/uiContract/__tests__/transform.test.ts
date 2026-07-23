@@ -236,7 +236,7 @@ const Message = () => {
     expect(result.code).toContain('<div data-ui=')
   })
 
-  it('mirrors an existing data-slot into data-ui while preserving the marker', () => {
+  it('derives a structural part from data-slot while preserving the marker', () => {
     const result = transformJsx('const Button = (props) => <button data-slot="button" {...props} />', {
       contractForDescriptor: () => ({ id: 'ui-2222222222222222', semanticId: 'ui.button' }),
       sourceFile: 'src/renderer/components/Button.tsx'
@@ -247,6 +247,17 @@ const Message = () => {
     expect(result.code).toContain('data-slot="button"')
     expect(result.code).toContain('__cherryUiContractMergeUiProps(props')
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+  })
+
+  it('normalizes data-slot and authored part tokens into the same structural identity', () => {
+    const dataSlot = transformJsx('const Panel = () => <section data-slot="panel" />', options)
+    const authoredPart = transformJsx('const Panel = () => <section data-ui="part:panel" />', options)
+
+    expect(dataSlot.descriptors[0]).toMatchObject({
+      anchorHash: authoredPart.descriptors[0].anchorHash,
+      fingerprintHash: authoredPart.descriptors[0].fingerprintHash,
+      semanticId: authoredPart.descriptors[0].semanticId
+    })
   })
 
   it('forwards an existing data-slot through a component boundary as a part token', () => {
@@ -292,7 +303,7 @@ const Message = () => {
     expect(result.code).toContain('const sample = "<span>"')
   })
 
-  it('mirrors an HTML data-slot into data-ui while preserving the marker', () => {
+  it('derives an HTML structural part from data-slot while preserving the marker', () => {
     const result = transformHtml('<body><div data-slot="app-root"></div></body>', {
       ...options,
       contractForDescriptor: uiContractForDescriptor,
