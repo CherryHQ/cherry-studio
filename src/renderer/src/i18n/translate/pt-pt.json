@@ -5408,10 +5408,9 @@
       "check_multiple_keys": "Verificar várias chaves API",
       "cherryin_route": {
         "auto": "Seleção automática",
-        "china": "Otimizado para a China (.net)",
-        "current": "Host atual: {{host}}",
+        "china": "Rota acelerada",
         "error": "Não foi possível alterar a rota CherryIN",
-        "global": "Global (.ai)",
+        "global": "Rota internacional",
         "title": "Rota de acesso"
       },
       "copilot": {

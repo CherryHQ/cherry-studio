@@ -5408,10 +5408,9 @@
       "check_multiple_keys": "複数のAPIキーをチェック",
       "cherryin_route": {
         "auto": "自動選択",
-        "china": "中国最適化（.net）",
-        "current": "現在のホスト：{{host}}",
+        "china": "高速回線",
         "error": "CherryINのアクセス経路を切り替えられませんでした",
-        "global": "グローバル（.ai）",
+        "global": "国際回線",
         "title": "アクセス経路"
       },
       "copilot": {

@@ -6,7 +6,7 @@ import CherryINSettings from '../CherryINSettings'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: { host?: string }) => (values?.host ? `${key}: ${values.host}` : key)
+    t: (key: string, values?: { url?: string }) => (values?.url ? `${key}: ${values.url}` : key)
   })
 }))
 
@@ -30,13 +30,14 @@ describe('CherryINSettings', () => {
 
   it('loads and displays the process-wide endpoint selection', async () => {
     const setApiHost = vi.fn()
+    const previewUrl = `${CHERRYIN_HOSTS.china}/v1/chat/completions`
 
-    render(<CherryINSettings apiHost={CHERRYIN_HOSTS.global} setApiHost={setApiHost} />)
+    render(<CherryINSettings previewUrl={previewUrl} setApiHost={setApiHost} />)
 
     await waitFor(() => {
       expect(setApiHost).toHaveBeenCalledWith(CHERRYIN_HOSTS.china)
     })
-    expect(screen.getByText(`settings.provider.cherryin_route.current: ${CHERRYIN_HOSTS.china}`)).toBeInTheDocument()
+    expect(screen.getByText(`settings.provider.api_host_preview: ${previewUrl}`)).toBeInTheDocument()
     expect(screen.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false')
   })
 })

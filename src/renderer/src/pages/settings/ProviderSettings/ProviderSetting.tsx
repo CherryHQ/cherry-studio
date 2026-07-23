@@ -483,7 +483,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       {isCherryIN && (
         <>
           <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.cherryin_route.title')}</SettingSubtitle>
-          <CherryINSettings apiHost={apiHost} setApiHost={setApiHost} />
+          <CherryINSettings previewUrl={hostPreview()} setApiHost={setApiHost} />
         </>
       )}
       {provider.id === 'openai' && <OpenAIAlert />}
@@ -558,7 +558,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
               </SettingHelpTextRow>
             </>
           )}
-          {!isDmxapi && (
+          {!isDmxapi && !isCherryIN && (
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div className="flex items-center gap-1">

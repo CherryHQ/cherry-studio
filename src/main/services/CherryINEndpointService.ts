@@ -17,8 +17,6 @@ const HOST_MODE_CONFIG_KEY = 'cherryIn.hostMode'
 const PROBE_PATH = '/livez'
 const PROBE_ROUNDS = 2
 const PROBE_TIMEOUT_MS = 1500
-const CLOSE_LATENCY_THRESHOLD_MS = 100
-const CLOSE_LATENCY_THRESHOLD_RATIO = 0.2
 const PROVIDER_SYNC_MAX_ATTEMPTS = 3
 const PROVIDER_SYNC_RETRY_DELAY_MS = 3000
 
@@ -45,15 +43,9 @@ export function choosePreferredCherryInHost(
 
   const chinaLatency = median(china.latencies)
   const globalLatency = median(global.latencies)
-  const latencyDifference = Math.abs(chinaLatency - globalLatency)
-  const latencyRatio = latencyDifference / Math.max(chinaLatency, globalLatency)
-
-  if (latencyDifference <= CLOSE_LATENCY_THRESHOLD_MS || latencyRatio <= CLOSE_LATENCY_THRESHOLD_RATIO) {
-    return { host: CHERRYIN_HOSTS.china, source: 'probe' }
-  }
 
   return {
-    host: chinaLatency < globalLatency ? china.host : global.host,
+    host: chinaLatency <= globalLatency ? china.host : global.host,
     source: 'probe'
   }
 }

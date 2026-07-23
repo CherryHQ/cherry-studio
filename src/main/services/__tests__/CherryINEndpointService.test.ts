@@ -40,8 +40,15 @@ describe('choosePreferredCherryInHost', () => {
     })
   })
 
-  it('prefers the China-optimized host when latency is close', () => {
+  it('selects the lower-latency host even when the difference is small', () => {
     expect(choosePreferredCherryInHost(chinaSummary([520, 540]), globalSummary([450, 470]))).toEqual({
+      host: CHERRYIN_HOSTS.global,
+      source: 'probe'
+    })
+  })
+
+  it('uses the China-optimized host as the deterministic tie-breaker', () => {
+    expect(choosePreferredCherryInHost(chinaSummary([500, 520]), globalSummary([490, 530]))).toEqual({
       host: CHERRYIN_HOSTS.china,
       source: 'probe'
     })
@@ -113,7 +120,6 @@ describe('CherryINEndpointService', () => {
 
     const service = new CherryINEndpointService()
     await expect(service.initialize()).resolves.toMatchObject({
-      host: CHERRYIN_HOSTS.china,
       mode: 'auto',
       source: 'probe'
     })

@@ -9,11 +9,11 @@ import styled from 'styled-components'
 const logger = loggerService.withContext('CherryINSettings')
 
 interface CherryINSettingsProps {
-  apiHost: string
+  previewUrl: string
   setApiHost: (host: string) => void
 }
 
-const CherryINSettings: FC<CherryINSettingsProps> = ({ apiHost, setApiHost }) => {
+const CherryINSettings: FC<CherryINSettingsProps> = ({ previewUrl, setApiHost }) => {
   const { t } = useTranslation()
   const [selection, setSelection] = useState<CherryInEndpointSelection | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -72,7 +72,7 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ apiHost, setApiHost }) =>
         options={options}
         style={{ width: '100%' }}
       />
-      <CurrentHost>{t('settings.provider.cherryin_route.current', { host: selection?.host ?? apiHost })}</CurrentHost>
+      <ApiHostPreview>{t('settings.provider.api_host_preview', { url: previewUrl })}</ApiHostPreview>
     </Container>
   )
 }
@@ -85,7 +85,7 @@ const Container = styled.div`
   margin: 5px 0 10px;
 `
 
-const CurrentHost = styled.div`
+const ApiHostPreview = styled.div`
   min-height: 18px;
   padding-left: 6px;
   color: var(--color-text-3);

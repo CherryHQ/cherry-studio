@@ -5408,10 +5408,9 @@
       "check_multiple_keys": "Verifică chei API multiple",
       "cherryin_route": {
         "auto": "Selectare automată",
-        "china": "Optimizat pentru China (.net)",
-        "current": "Gazdă curentă: {{host}}",
+        "china": "Rută accelerată",
         "error": "Ruta CherryIN nu a putut fi schimbată",
-        "global": "Global (.ai)",
+        "global": "Rută internațională",
         "title": "Rută de acces"
       },
       "copilot": {

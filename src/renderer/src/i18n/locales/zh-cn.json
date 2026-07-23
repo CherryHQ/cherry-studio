@@ -5409,10 +5409,9 @@
       "check_multiple_keys": "检测多个 API 密钥",
       "cherryin_route": {
         "auto": "自动优选",
-        "china": "中国优化（.net）",
-        "current": "当前使用：{{host}}",
+        "china": "加速线路",
         "error": "CherryIN 访问线路切换失败",
-        "global": "国际线路（.ai）",
+        "global": "国际线路",
         "title": "访问线路"
       },
       "copilot": {

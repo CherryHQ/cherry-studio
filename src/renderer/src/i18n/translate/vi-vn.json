@@ -5408,10 +5408,9 @@
       "check_multiple_keys": "Kiểm tra nhiều khóa API",
       "cherryin_route": {
         "auto": "Tự động chọn",
-        "china": "Tối ưu cho Trung Quốc (.net)",
-        "current": "Máy chủ hiện tại: {{host}}",
+        "china": "Tuyến tăng tốc",
         "error": "Không thể chuyển tuyến CherryIN",
-        "global": "Toàn cầu (.ai)",
+        "global": "Tuyến quốc tế",
         "title": "Tuyến truy cập"
       },
       "copilot": {
