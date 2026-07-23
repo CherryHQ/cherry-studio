@@ -2003,6 +2003,30 @@ describe('Topics', () => {
     expect(topicRow.querySelector('[aria-label="Pin Conversation"]')).toBeInTheDocument()
   })
 
+  it('keeps running and error indicators on the active topic but suppresses its completion dot', () => {
+    const activeTopic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
+
+    setTopicStreamCacheStatus('topic-a', 'pending')
+    let view = renderTopicList({ activeTopic })
+
+    let topicRow = getTopicRow('Alpha topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"] .animate-spin')).toBeInTheDocument()
+
+    act(() => setTopicStreamCacheStatus('topic-a', 'error'))
+    view.unmount()
+    view = renderTopicList({ activeTopic })
+
+    topicRow = getTopicRow('Alpha topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"] span')).toHaveClass('bg-(--color-error-base)')
+
+    act(() => setTopicStreamCacheStatus('topic-a', 'done'))
+    view.unmount()
+    renderTopicList({ activeTopic })
+
+    topicRow = getTopicRow('Alpha topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+  })
+
   it('positions inactive topic stream indicators at the far right in the classic layout and hides them on hover', () => {
     setTopicStreamCacheStatus('topic-c', 'pending')
     renderTopicList({

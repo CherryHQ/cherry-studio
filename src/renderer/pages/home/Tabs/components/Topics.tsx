@@ -1472,10 +1472,7 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<
-  TopicListBodyProps,
-  'activeTopic' | 'isRightPanel' | 'listRef' | 'variant'
->
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'isRightPanel' | 'listRef' | 'variant'>
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
