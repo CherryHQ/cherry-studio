@@ -166,6 +166,13 @@ const dataResetMarkerSchema = z.object({
 })
 type DataResetMarker = z.infer<typeof dataResetMarkerSchema>
 
+/** A marker rename landed, but its parent-directory fsync did not complete. */
+class MarkerCommitError extends Error {
+  constructor(error: unknown) {
+    super(`Data reset marker may have committed: ${String(error)}`)
+  }
+}
+
 /** Absolute path of the pending-marker file (parent dir auto-ensured). */
 function markerPath(): string {
   return application.getPath('feature.data_reset.marker_file')
@@ -219,6 +226,7 @@ function readMarker(): DataResetMarker | null {
 function renameMarkerAside(file: string): void {
   try {
     fs.renameSync(file, path.join(path.dirname(file), 'data-reset.pending.invalid'))
+    syncParentDirectory(file)
   } catch (error) {
     logger.error('Could not rename the corrupt data reset marker aside — leaving it in place', {
       error: String(error)
@@ -228,13 +236,14 @@ function renameMarkerAside(file: string): void {
 
 /**
  * Durable atomic write: a unique temp file in the marker's directory,
- * fsync'd through its descriptor, then rename'd over the marker. Throws on
- * any failure — the rename is the commit point, so a partial write never
- * becomes a live marker.
+ * fsync'd through its descriptor, then rename'd over the marker and its
+ * parent directory. A failure after rename is reported distinctly because
+ * callers must not continue writable over a possibly committed marker.
  */
 function writeMarker(marker: DataResetMarker): void {
   const file = markerPath()
   const tmp = `${file}.tmp-${process.pid}-${randomUUID()}`
+  let renamed = false
   try {
     const fd = fs.openSync(tmp, 'w')
     try {
@@ -244,15 +253,29 @@ function writeMarker(marker: DataResetMarker): void {
       fs.closeSync(fd)
     }
     fs.renameSync(tmp, file)
+    renamed = true
+    syncParentDirectory(file)
   } catch (error) {
-    // Best-effort cleanup so a failed write does not litter userData with an
-    // orphan temp file; the original error is what the caller must see.
+    // Best-effort cleanup so a failed pre-commit write does not litter
+    // userData with an orphan temp file.
     try {
       fs.unlinkSync(tmp)
     } catch {
       // ignore — the temp file may never have been created
     }
+    if (renamed) throw new MarkerCommitError(error)
     throw error
+  }
+}
+
+/** Fsync a marker's parent directory so a rename or unlink survives power loss; Windows skips it. */
+function syncParentDirectory(file: string): void {
+  if (process.platform === 'win32') return
+  const fd = fs.openSync(path.dirname(file), 'r')
+  try {
+    fs.fsyncSync(fd)
+  } finally {
+    fs.closeSync(fd)
   }
 }
 
@@ -265,12 +288,15 @@ function writeMarker(marker: DataResetMarker): void {
  * re-abandoned next boot).
  */
 function deleteMarker(): void {
+  const file = markerPath()
   try {
-    fs.unlinkSync(markerPath())
+    fs.unlinkSync(file)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-    throw error
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
+  // Also sync an already-absent marker: a prior unflushed unlink may be the
+  // reason it is absent from the live directory view.
+  syncParentDirectory(file)
 }
 
 /**
@@ -301,14 +327,25 @@ export async function requestDataReset(): Promise<void> {
 
   const userDataPath = application.getPath('app.userdata')
   // Pin the physical directory the user confirmed: the wipe refuses a pass
-  // whose realpath resolution has changed since this moment. A write failure
-  // throws out of here and rejects the request — the atomic write is
-  // all-or-nothing, so there is nothing partial to roll back.
-  writeMarker({
-    status: 'pending',
-    requestedAt: new Date().toISOString(),
-    canonicalPath: canonicalize(userDataPath)
-  })
+  // whose realpath resolution has changed since this moment. A pre-commit
+  // write failure rejects; a post-rename failure relaunches immediately so a
+  // possibly committed marker never coexists with a writable app.
+  try {
+    writeMarker({
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+      canonicalPath: canonicalize(userDataPath)
+    })
+  } catch (error) {
+    if (!(error instanceof MarkerCommitError)) throw error
+    // The marker is visible after rename even though its crash durability
+    // could not be confirmed. Treat it as committed and continue through the
+    // same guarded clear + graceful shutdown path; a bare relaunch would leave
+    // lifecycle-owned child processes holding files the wipe must remove.
+    logger.error('Data reset marker committed without durable directory metadata — relaunching safely', {
+      error: String(error)
+    })
+  }
 
   // Semantic Chromium clear while the sessions are alive — the layer the
   // preboot pass cannot provide (it can only rm the storage directories it
@@ -369,11 +406,13 @@ export async function requestDataReset(): Promise<void> {
  *   straight back into preboot to retry. At the cap it gives up: marker
  *   removed, failure surfaced in a dialog, boot continues over whatever
  *   remains.
- * - After a clean pass the marker file is removed LAST (quit on failure —
- *   never boot writable over a marker that provably survived), then it
- *   relaunches: the reset session must not keep running in the process that
- *   wiped it (stale Chromium flags, cached ensured paths); the next boot
- *   starts fresh with no marker.
+ * - After a clean pass the reset BootConfig defaults are synchronously
+ *   persisted, then the marker file is removed LAST. Either failure quits
+ *   without reporting success; a persistence failure first clears the marker
+ *   so it cannot arm a future writable profile.
+ * - It then relaunches: the reset session must not keep running in the
+ *   process that wiped it (stale Chromium flags, cached ensured paths); the
+ *   next boot starts fresh with no marker.
  * Anything unexpected is logged and boot continues — a half-wiped state is
  * acceptable for a reset; refusing to start over it is not.
  */
@@ -475,13 +514,34 @@ export function runDataReset(): void {
       return
     }
 
-    // Reset BootConfig's other keys to defaults — best-effort (the marker no
-    // longer lives in BootConfig, so this write's durability is not
-    // critical). Deliberately keeps `app.user_data_path`: the custom
+    // Reset BootConfig's other keys to defaults and persist them before
+    // clearing the marker. Deliberately keeps `app.user_data_path`: the custom
     // data-directory *location* is machine configuration — the reset wipes
     // the data at that location, not the choice of location.
-    resetBootConfigToDefaults()
-    bootConfigService.flush()
+    try {
+      resetBootConfigToDefaults()
+      bootConfigService.persist()
+    } catch (error) {
+      logger.error('Data reset wiped successfully but could not persist reset BootConfig defaults', {
+        error: String(error)
+      })
+      try {
+        // Do not leave a stale pending marker to wipe a later fresh profile.
+        deleteMarker()
+      } catch (markerError) {
+        logger.error('Data reset could not durably clear its marker after a BootConfig persistence failure', {
+          error: String(markerError)
+        })
+      }
+      dialog.showErrorBox(
+        'Data Reset Incomplete',
+        'Cherry Studio erased its data but could not save the reset settings. ' +
+          'The app will quit instead of reporting the reset as successful.\n\n' +
+          'Please check disk space and file permissions before starting Cherry Studio again.'
+      )
+      app.exit(1)
+      return
+    }
 
     // Remove the marker LAST. If it cannot be removed the marker provably
     // still exists: booting on would let the user rebuild data that the next

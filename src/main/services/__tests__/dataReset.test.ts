@@ -61,6 +61,10 @@ type FsControl = {
   failWrite: boolean
   /** When set, unlinkSync(MARKER_FILE) throws a non-ENOENT error. */
   failDelete: boolean
+  /** When set, fsyncing the marker parent directory throws. */
+  failDirectorySync: boolean
+  /** Filesystem operation order for marker durability assertions. */
+  operations: string[]
 }
 let fsCtl: FsControl
 
@@ -205,7 +209,16 @@ function stubBootConfig() {
 }
 
 function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
-  fsCtl = { files: new Map(), fds: new Map(), nextFd: 3, commits: [], failWrite: false, failDelete: false }
+  fsCtl = {
+    files: new Map(),
+    fds: new Map(),
+    nextFd: 3,
+    commits: [],
+    failWrite: false,
+    failDelete: false,
+    failDirectorySync: false,
+    operations: []
+  }
 
   readdirSyncMock.mockImplementation((dir: string) => {
     if (dir !== USER_DATA) {
@@ -229,13 +242,13 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
     }
     return fsCtl.files.get(p)
   })
-  openSyncMock.mockImplementation((p: string) => {
-    if (fsCtl.failWrite) {
+  openSyncMock.mockImplementation((p: string, flags: string) => {
+    if (flags !== 'r' && fsCtl.failWrite) {
       const error = new Error('EROFS: read-only file system') as NodeJS.ErrnoException
       error.code = 'EROFS'
       throw error
     }
-    fsCtl.files.set(p, '')
+    if (flags !== 'r') fsCtl.files.set(p, '')
     const fd = fsCtl.nextFd++
     fsCtl.fds.set(fd, p)
     return fd
@@ -245,11 +258,18 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
     if (p === undefined) throw new Error('bad fd')
     fsCtl.files.set(p, String(data))
   })
-  fsyncSyncMock.mockImplementation(() => undefined)
+  fsyncSyncMock.mockImplementation((fd: number) => {
+    const p = fsCtl.fds.get(fd)
+    if (p) fsCtl.operations.push(`fsync:${p}`)
+    if (p === USER_DATA && fsCtl.failDirectorySync) {
+      throw new Error('EIO: failed to sync marker directory')
+    }
+  })
   closeSyncMock.mockImplementation((fd: number) => {
     fsCtl.fds.delete(fd)
   })
   renameSyncMock.mockImplementation((from: string, to: string) => {
+    fsCtl.operations.push(`rename:${to}`)
     if (!fsCtl.files.has(from)) {
       const error = new Error(`ENOENT: no such file or directory, rename '${from}'`) as NodeJS.ErrnoException
       error.code = 'ENOENT'
@@ -278,6 +298,7 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
       throw error
     }
     fsCtl.files.delete(p)
+    fsCtl.operations.push(`unlink:${p}`)
   })
 
   const realpathSync = Object.assign(vi.fn(), { native: realpathNativeMock })
@@ -395,12 +416,28 @@ describe('runDataReset', () => {
     // file and is removed LAST.
     expect(store['app.disable_hardware_acceleration']).toBe(false)
     expect(store['app.user_data_path']).toEqual({ '/mock/exe': USER_DATA })
-    expect(bootConfigFlushMock).toHaveBeenCalled()
+    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
+    expect(bootConfigFlushMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
 
     // Post-wipe relaunch into a clean process (#17138 suggestion).
     expect(appRelaunchMock).toHaveBeenCalledTimes(1)
     expect(appExitMock).toHaveBeenCalledWith(0)
+  })
+
+  it('fsyncs the marker parent directory after each marker rename and unlink on POSIX', async () => {
+    if (process.platform === 'win32') return
+    stubAll(pendingMarker())
+    await runReset()
+
+    const armRename = fsCtl.operations.indexOf(`rename:${MARKER_FILE}`)
+    const firstDirectorySync = fsCtl.operations.indexOf(`fsync:${USER_DATA}`)
+    const markerUnlink = fsCtl.operations.indexOf(`unlink:${MARKER_FILE}`)
+    const finalDirectorySync = fsCtl.operations.lastIndexOf(`fsync:${USER_DATA}`)
+    expect(armRename).toBeGreaterThanOrEqual(0)
+    expect(firstDirectorySync).toBeGreaterThan(armRename)
+    expect(markerUnlink).toBeGreaterThan(firstDirectorySync)
+    expect(finalDirectorySync).toBeGreaterThan(markerUnlink)
   })
 
   it('leaves the pending marker file in place during the wipe pass', async () => {
@@ -523,6 +560,23 @@ describe('runDataReset', () => {
     expect(appExitMock).toHaveBeenCalledWith(0)
   })
 
+  it('clears the marker and exits incomplete when persisting reset defaults fails after the wipe', async () => {
+    const store = stubAll(pendingMarker())
+    bootConfigPersistMock.mockImplementation(() => {
+      throw new Error('ENOSPC: no space left on device')
+    })
+    await runReset()
+
+    expect(store['app.disable_hardware_acceleration']).toBe(false)
+    expect(store['app.user_data_path']).toEqual({ '/mock/exe': USER_DATA })
+    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
+    expect(bootConfigFlushMock).not.toHaveBeenCalled()
+    expect(markerExists()).toBe(false)
+    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(appExitMock).toHaveBeenCalledWith(1)
+    expect(appRelaunchMock).not.toHaveBeenCalled()
+  })
+
   it('quits after a clean wipe whose marker cannot be removed', async () => {
     stubAll(pendingMarker())
     fsCtl.failDelete = true
@@ -626,6 +680,22 @@ describe('requestDataReset', () => {
       applicationRelaunchMock.mock.invocationCallOrder[0]
     )
     expect(appRelaunchMock).not.toHaveBeenCalled()
+  })
+
+  it('uses the guarded graceful relaunch when the marker rename commits but its directory fsync fails', async () => {
+    if (process.platform === 'win32') return
+    stubAll(null)
+    fsCtl.failDirectorySync = true
+
+    await expect(requestReset()).resolves.toBeUndefined()
+
+    expect(fsCtl.commits).toHaveLength(1)
+    expect(markerExists()).toBe(true)
+    expect(defaultSession.clearStorageData).toHaveBeenCalledTimes(1)
+    expect(applicationShutdownMock).toHaveBeenCalledTimes(1)
+    expect(applicationRelaunchMock).toHaveBeenCalledTimes(1)
+    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(appExitMock).not.toHaveBeenCalled()
   })
 
   it('clears Chromium storage of both Cherry sessions after the marker is durable', async () => {

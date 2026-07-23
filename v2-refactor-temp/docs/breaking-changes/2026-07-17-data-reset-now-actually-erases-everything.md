@@ -28,7 +28,8 @@ Deliberately kept:
   those files; it deliberately does not reconcile or repair local-model state
   after the database reset;
 - log files and crash dumps (diagnostics, not user content);
-- everything under `~/.cherrystudio` (see below).
+- credentials and machine artifacts under `~/.cherrystudio` (see below).
+  `boot-config.json` remains there, but most of its values reset to defaults.
 
 ## Why this matters to the user
 
@@ -38,10 +39,12 @@ Deliberately kept:
 - The app restarts twice: once to perform the wipe (which runs before the app
   boots, so no files are in use), and once more into the fresh state.
 - `~/.cherrystudio` is deliberately NOT touched (maintainer decision:
-  safety over thoroughness). It is machine-level domain — tool binaries,
-  model runtimes, MCP OAuth state, GitHub Copilot credentials, and the
-  `boot-config.json` boot settings. Users who want those credentials gone
-  must remove `~/.cherrystudio` manually after the reset.
+  safety over thoroughness). Its machine-level credentials and artifacts —
+  including tool binaries, model runtimes, MCP OAuth state, and GitHub Copilot
+  credentials — remain. Its `boot-config.json` is updated: the custom data
+  directory location is retained, while every other BootConfig key resets to
+  its default. Users who want those credentials gone must remove
+  `~/.cherrystudio` manually after the reset.
 
 ## What the user should do
 
