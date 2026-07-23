@@ -22,13 +22,11 @@ import {
   isGenerateImageModel,
   isGrokModel,
   isOpenAIModel,
-  isOpenRouterBuiltInWebSearchModel,
   isPureGenerateImageModel,
   isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  isWebSearchModel
+  isSupportedThinkingTokenModel
 } from '@shared/utils/model'
-import { isAIGatewayProvider, isSupportUrlContextProvider } from '@shared/utils/provider'
+import { isAIGatewayProvider, isBuiltinWebSearchAvailable, isSupportUrlContextProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { getAiSdkProviderId } from '../../../provider/factory'
@@ -70,19 +68,20 @@ export function resolveCapabilities(
   const enableReasoning =
     isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model)
 
+  // Built-in web search follows the provider registry's model scope. Most hosts
+  // are model-dependent; provider-wide hosts such as OpenRouter can serve every
+  // chat model. Non-supporting pairs fall back to the app's own web-search tool.
   const hasExternalSearch = !!options.webSearchProviderId
   const enableWebSearch =
-    !hasExternalSearch &&
-    ((!!assistant.settings?.enableWebSearch && isWebSearchModel(model)) ||
-      isOpenRouterBuiltInWebSearchModel(model) ||
-      model.id.includes('sonar'))
+    !hasExternalSearch && !!assistant.settings?.enableWebSearch && isBuiltinWebSearchAvailable(model, provider)
 
-  // `assistant.enableUrlContext` is not yet on the shared `Assistant` schema, so it stays guarded.
+  // Provider-native URL context: the provider must serve it (`serverTools`), the
+  // model must be a Gemini/Anthropic-family SKU, and the user must enable it.
   const urlContextSupported =
     isSupportUrlContextProvider(provider) &&
     !isPureGenerateImageModel(model) &&
     (isGeminiModel(model) || isAnthropicModel(model))
-  const enableUrlContext = urlContextSupported && false
+  const enableUrlContext = urlContextSupported && !!assistant.settings?.enableUrlContext
 
   // Native chat-model image output (Gemini `responseModalities`) stays disabled intentionally:
   // image generation is delivered via the `generate_image` tool (gated on `settings.enableGenerateImage`),

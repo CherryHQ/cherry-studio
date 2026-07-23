@@ -11,9 +11,11 @@
  * Zod schemas are the single source of truth — all types derived via z.infer<>
  */
 
-import type { EndpointType } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
+import type { EndpointType, ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, objectValues, ServerToolConfigSchema } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
+
+export type { ServerTool, ServerToolConfig }
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
 
@@ -275,6 +277,13 @@ export const ProviderSchema = z.object({
    * the registry; absent/`'api'` for normal providers.
    */
   modelListSource: z.enum(['api', 'registry']).optional(),
+  /**
+   * Provider-native (server-executed) built-in tools this host serves itself —
+   * Carried from the registry (resolved live in `rowToRuntimeProvider`). Each
+   * entry states whether it applies to every chat model or needs model-specific
+   * eligibility. Absent ⇒ `[]`.
+   */
+  serverTools: z.array(ServerToolConfigSchema).optional(),
   /**
    * Which credential kinds this provider accepts (`'api-key'` / `'oauth'` /
    * `'external-cli'`) — a set, since a provider can offer more than one (CherryIN

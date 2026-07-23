@@ -3,6 +3,7 @@ import { useIcon } from '@cherrystudio/ui/icons'
 import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { Bolt, Minus } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,13 +16,22 @@ import { getModelOperationErrorMessage } from './errorMessage'
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
   model: Model
+  provider?: Provider
   disabled?: boolean
   isDefaultModel?: boolean
   onEdit: (model: Model) => void
   onDelete: (model: Model) => Promise<void>
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isDefaultModel, onEdit, onDelete }) => {
+const ModelListItem: React.FC<ModelListItemProps> = ({
+  ref,
+  model,
+  provider,
+  disabled,
+  isDefaultModel,
+  onEdit,
+  onDelete
+}) => {
   const { t } = useTranslation()
   const Icon = useIcon(getModelLogoRef(model))
   const deleteTooltip = isDefaultModel
@@ -70,7 +80,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isD
         <div className={modelListClasses.rowActionsCluster}>
           <div className={modelListClasses.rowCapabilityStrip}>
             <div className={modelListClasses.rowCapabilityTagCluster}>
-              <ModelTagsWithLabel model={model} size={12} style={{ flexWrap: 'nowrap' }} />
+              <ModelTagsWithLabel model={model} provider={provider} size={12} style={{ flexWrap: 'nowrap' }} />
             </div>
             <FreeTrialModelTag modelId={model.id} providerId={model.providerId} />
           </div>

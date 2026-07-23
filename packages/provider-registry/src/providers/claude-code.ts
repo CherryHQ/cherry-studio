@@ -15,6 +15,7 @@ export default defineProvider({
   endpointConfigs: {
     'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
   },
+  serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }],
   metadata: {
     website: {
       official: 'https://www.anthropic.com/claude-code',

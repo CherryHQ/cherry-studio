@@ -10,6 +10,7 @@ export default defineProvider({
       baseUrl: 'https://api.openai.com'
     }
   },
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
   apiFeatures: {
     serviceTier: true
   },

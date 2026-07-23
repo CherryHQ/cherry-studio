@@ -26,7 +26,7 @@ export { readDefaultModel, readQuickModel, readTranslateModel } from './resolve'
 export { getSearchMatchScore } from './search'
 export { isFunctionCallingModel } from './tooluse'
 export { isGenerateImageModel, isVisionModel } from './vision'
-export { isOpenAIWebSearchModel, isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'
+export { isOpenAIWebSearchModel, isWebSearchModel } from './websearch'
 export {
   getModelSupportedReasoningEffortOptions,
   isFixedReasoningModel,

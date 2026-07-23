@@ -29,7 +29,17 @@
           "official": "https://open.cherryin.ai"
         }
       },
-      "name": "CherryIN"
+      "name": "CherryIN",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -310,7 +320,13 @@
           "official": "https://www.aiionly.com"
         }
       },
-      "name": "AIOnly"
+      "name": "AIOnly",
+      "serverTools": [
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -531,7 +547,13 @@
           "official": "https://openrouter.ai/"
         }
       },
-      "name": "OpenRouter"
+      "name": "OpenRouter",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "all-chat-models"
+        }
+      ]
     },
     {
       "authOptional": true,
@@ -587,7 +609,13 @@
           "official": "https://docs.newapi.pro/"
         }
       },
-      "name": "New API"
+      "name": "New API",
+      "serverTools": [
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "authOptional": true,
@@ -633,7 +661,17 @@
           "official": "https://anthropic.com/"
         }
       },
-      "name": "Anthropic"
+      "name": "Anthropic",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "authMethods": ["external-cli"],
@@ -653,7 +691,13 @@
         }
       },
       "modelListSource": "registry",
-      "name": "Claude Code"
+      "name": "Claude Code",
+      "serverTools": [
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "apiFeatures": {
@@ -719,7 +763,13 @@
           "official": "https://openai.com/"
         }
       },
-      "name": "OpenAI"
+      "name": "OpenAI",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -774,7 +824,17 @@
           "official": "https://azure.microsoft.com/en-us/products/ai-services/openai-service"
         }
       },
-      "name": "Azure OpenAI"
+      "name": "Azure OpenAI",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "google-generate-content",
@@ -794,7 +854,17 @@
           "official": "https://gemini.google.com/"
         }
       },
-      "name": "Gemini"
+      "name": "Gemini",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "google-generate-content",
@@ -816,7 +886,17 @@
           "official": "https://cloud.google.com/vertex-ai"
         }
       },
-      "name": "VertexAI"
+      "name": "VertexAI",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -992,7 +1072,13 @@
           "official": "https://www.aliyun.com/product/bailian"
         }
       },
-      "name": "Bailian"
+      "name": "Bailian",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1360,7 +1446,13 @@
           "official": "https://x.ai/"
         }
       },
-      "name": "Grok"
+      "name": "Grok",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1443,7 +1535,13 @@
           "official": "https://perplexity.ai/"
         }
       },
-      "name": "Perplexity"
+      "name": "Perplexity",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1570,7 +1668,13 @@
           "official": "https://cloud.tencent.com/product/hunyuan"
         }
       },
-      "name": "hunyuan"
+      "name": "hunyuan",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1768,7 +1872,13 @@
         }
       },
       "modelListSource": "registry",
-      "name": "AWS Bedrock"
+      "name": "AWS Bedrock",
+      "serverTools": [
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "apiFeatures": {
@@ -1802,7 +1912,13 @@
           "official": "https://poe.com/"
         }
       },
-      "name": "Poe"
+      "name": "Poe",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1943,7 +2059,13 @@
           "official": "https://vercel.com/ai-gateway"
         }
       },
-      "name": "Vercel AI Gateway"
+      "name": "Vercel AI Gateway",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2069,5 +2191,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "0098e5789b9ccc42"
+  "version": "096a609b76f393d6"
 }

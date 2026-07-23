@@ -6,7 +6,7 @@
 import * as z from 'zod'
 
 import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
-import { ENDPOINT_TYPE, type EndpointType, objectValues } from './enums'
+import { ENDPOINT_TYPE, type EndpointType, objectValues, SERVER_TOOL, SERVER_TOOL_MODEL_SCOPE } from './enums'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
@@ -34,6 +34,14 @@ export const ApiFeaturesSchema = z.object({
   /** Whether the provider supports verbosity settings (OpenAI-specific) */
   verbosity: z.boolean().default(false)
 })
+
+/** A provider-native tool plus the scope of models on which the host serves it. */
+export const ServerToolConfigSchema = z.object({
+  id: z.enum(objectValues(SERVER_TOOL)),
+  modelScope: z.enum(objectValues(SERVER_TOOL_MODEL_SCOPE)).default(SERVER_TOOL_MODEL_SCOPE.MODEL_DEPENDENT)
+})
+
+export type ServerToolConfig = z.infer<typeof ServerToolConfigSchema>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider Reasoning Format
@@ -158,6 +166,13 @@ export const ProviderConfigSchema = z
      * local provider still needs its baseUrl input. Defaults false.
      */
     authOptional: z.boolean().default(false),
+    /**
+     * Provider-native (server-executed) built-in tools this host serves itself.
+     * `modelScope` distinguishes provider-wide tools (OpenRouter web search) from
+     * tools that still require tool-specific model eligibility. Absent ⇒ `[]`
+     * (the app falls back to its own agentic tools). See {@link SERVER_TOOL}.
+     */
+    serverTools: z.array(ServerToolConfigSchema).default([]),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
     /** Additional metadata including website URLs */

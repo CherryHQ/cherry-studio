@@ -12,6 +12,10 @@ export default defineProvider({
       adapterFamily: 'google-vertex'
     }
   },
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent' },
+    { id: 'url-context', modelScope: 'model-dependent' }
+  ],
   metadata: {
     website: {
       apiKey: 'https://console.cloud.google.com/apis/credentials',

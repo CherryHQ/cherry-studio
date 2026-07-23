@@ -30,6 +30,7 @@ export default defineProvider({
       }
     }
   },
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
   metadata: {
     website: {
       apiKey: 'https://console.cloud.tencent.com/hunyuan/api-key',

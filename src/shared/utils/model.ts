@@ -311,13 +311,6 @@ export const isSupportedThinkingTokenQwenModel = (model: Model): boolean => {
   return isSupportedThinkingTokenModel(model)
 }
 
-/** Check if model supports OpenRouter built-in web search */
-export const isOpenRouterBuiltInWebSearchModel = (model: Model): boolean => {
-  if (model.providerId !== 'openrouter') return false
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return isOpenAIWebSearchChatCompletionOnlyModel(model) || id.includes('sonar')
-}
-
 /** Check if model is a pure image generation model (no tool use) */
 export const isPureGenerateImageModel = (model: Model): boolean => {
   if (!isGenerateImageModel(model) && !isTextToImageModel(model)) return false

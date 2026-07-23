@@ -40,6 +40,10 @@ export default defineProvider({
       baseUrl: 'https://api.anthropic.com'
     }
   },
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent' },
+    { id: 'url-context', modelScope: 'model-dependent' }
+  ],
   metadata: {
     website: {
       apiKey: 'https://console.anthropic.com/settings/keys',
