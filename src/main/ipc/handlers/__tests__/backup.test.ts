@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
+
 import { backupHandlers } from '../backup'
 
 const backupService = {
@@ -58,5 +60,29 @@ describe('backupHandlers', () => {
     backupService.cancel.mockReturnValue({ cancelled: false })
     const result = await backupHandlers['backup.cancel']({ backupId: 'other' }, ctx)
     expect(result).toEqual({ cancelled: false })
+  })
+
+  it('start_backup rejects when senderId is null', async () => {
+    await expect(
+      backupHandlers['backup.start_backup'](
+        { preset: 'lite', outputPath: '/out/lite.cherrybackup' },
+        { senderId: null }
+      )
+    ).rejects.toMatchObject({ code: backupErrorCodes.INVALID_SENDER })
+    expect(backupService.startBackup).not.toHaveBeenCalled()
+  })
+
+  it('cancel rejects when senderId is null', async () => {
+    await expect(backupHandlers['backup.cancel']({ backupId: 'b1' }, { senderId: null })).rejects.toMatchObject({
+      code: backupErrorCodes.INVALID_SENDER
+    })
+    expect(backupService.cancel).not.toHaveBeenCalled()
+  })
+
+  it('start_restore rejects when senderId is null', async () => {
+    await expect(
+      backupHandlers['backup.start_restore']({ archivePath: '/backups/lite.cherrybackup' }, { senderId: null })
+    ).rejects.toMatchObject({ code: backupErrorCodes.INVALID_SENDER })
+    expect(backupService.startRestore).not.toHaveBeenCalled()
   })
 })
