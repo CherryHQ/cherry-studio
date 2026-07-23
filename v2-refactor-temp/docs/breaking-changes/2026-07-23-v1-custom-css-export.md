@@ -2,7 +2,7 @@
 title: V1 custom CSS requires review before use in v2
 category: data-migration
 severity: breaking
-introduced_in_pr: TBD
+introduced_in_pr: "#17300"
 date: 2026-07-23
 ---
 

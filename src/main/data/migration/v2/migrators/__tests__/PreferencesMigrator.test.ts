@@ -96,6 +96,19 @@ describe('PreferencesMigrator', () => {
       expect(rows[0].value).toBe('zh-CN')
     })
 
+    it('migrates v1 custom CSS only to the legacy preference', async () => {
+      const legacyCustomCss = 'body { color: tomato; }'
+      const ctx = createTestContext({ redux: { settings: { customCss: legacyCustomCss } } }, dbh.db)
+      const result = await migrator.prepare(ctx)
+      expect(result.success).toBe(true)
+
+      await migrator.execute(ctx)
+      const legacyRows = await selectByKey(dbh.db, 'ui.custom_css_v1')
+      expect(legacyRows).toHaveLength(1)
+      expect(legacyRows[0].value).toBe(legacyCustomCss)
+      expect(await selectByKey(dbh.db, 'ui.custom_css')).toHaveLength(0)
+    })
+
     it('reads ElectronStore mappings (ZoomFactor → app.zoom_factor)', async () => {
       const ctx = createTestContext({ electronStore: { ZoomFactor: 1.25 } }, dbh.db)
       await migrator.prepare(ctx)
