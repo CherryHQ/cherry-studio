@@ -13,6 +13,13 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.onboarding.provider_setup.status",
+      "type": "PreferenceTypes.OnboardingProviderSetupStatus",
+      "defaultValue": "pending",
+      "status": "classified",
+      "description": "Status of the main-window first-run provider setup onboarding flow"
+    },
+    {
       "targetKey": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,
@@ -81,6 +88,20 @@
       "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliConfigs",
       "status": "classified",
       "description": "Fresh v2 key (no migration): per-tool CLI configs with per-provider modelId, config blob, and sortIndex. v1 codeTools is throwaway."
+    },
+    {
+      "targetKey": "chat.input.toolbar.pinned_tools",
+      "type": "string[]",
+      "defaultValue": ["thinking", "web-search"],
+      "status": "classified",
+      "description": "Ordered tool ids pinned on the chat composer toolbar (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "agent.input.toolbar.pinned_tools",
+      "type": "string[]",
+      "defaultValue": ["thinking", "skills"],
+      "status": "classified",
+      "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "chat.web_search.exclude_domains",

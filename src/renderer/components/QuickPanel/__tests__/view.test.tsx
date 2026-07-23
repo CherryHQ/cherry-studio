@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React, { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -939,6 +939,58 @@ describe('QuickPanelView', () => {
     )
   })
 
+  it('anchors bottom-fixed items outside the virtual list and keeps them last in keyboard navigation', async () => {
+    const customizeAction = vi.fn()
+    const captureDispatch = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'first', label: 'First action', icon: '1', action: vi.fn() },
+      { id: 'second', label: 'Second action', icon: '2', action: vi.fn() },
+      {
+        id: 'customize',
+        label: 'Customize toolbar',
+        icon: 'settings',
+        fixedToBottom: true,
+        action: customizeAction
+      }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={items} />
+      </QuickPanelProvider>
+    )
+
+    const fixedBottom = await screen.findByTestId('quick-panel-fixed-bottom')
+    const virtualList = screen.getByTestId('quick-panel-virtual-list')
+    expect(fixedBottom).toHaveClass('absolute', 'bottom-0')
+    expect(within(fixedBottom).getByText('Customize toolbar')).toBeInTheDocument()
+    expect(within(virtualList).queryByText('Customize toolbar')).not.toBeInTheDocument()
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    virtualListMocks.scrollToIndex.mockClear()
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('ArrowUp').event)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Customize toolbar').closest('[data-id="customize"]')).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+    })
+    expect(virtualListMocks.scrollToIndex).not.toHaveBeenCalled()
+
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Tab').event)
+    })
+    expect(customizeAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'enter',
+        item: expect.objectContaining({ id: 'customize' })
+      })
+    )
+  })
+
   it('uses either mouse hover or keyboard active state, not both', async () => {
     const captureDispatch = vi.fn()
     const items: QuickPanelListItem[] = [
@@ -1030,6 +1082,34 @@ describe('QuickPanelView', () => {
 
     expect(handled).toBe(true)
     expect(action).not.toHaveBeenCalled()
+  })
+
+  it('keeps a bottom-fixed action visible when filtering has no results', async () => {
+    const action = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 8,
+      getText: () => '/missing',
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [
+      { id: 'regular', label: 'Regular action', icon: 'r' },
+      { id: 'customize', label: 'Customize toolbar', icon: 'settings', fixedToBottom: true, action }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} inputAdapter={inputAdapter} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('No results')
+    expect(screen.queryByTestId('quick-panel-virtual-list')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('quick-panel-fixed-bottom')).getByText('Customize toolbar')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Customize toolbar'))
+    expect(action).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the exit layout stable when closing', async () => {

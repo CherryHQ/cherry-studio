@@ -10,10 +10,14 @@
  * at its last version, so no Dexie upgrade hooks need to run before export.
  */
 
-import { Dexie } from 'dexie'
+import { type MigrationExportFileWriteMode, MigrationIpcChannels } from '@shared/data/migration/v2/types'
+import { clampSurrogateBoundary } from '@shared/utils/text'
+import { Dexie, type IndexableType } from 'dexie'
 
 /** Legacy v1 IndexedDB database name. */
 const DEXIE_DB_NAME = 'CherryStudio'
+const DEXIE_EXPORT_PAGE_SIZE = 100
+const DEXIE_EXPORT_CHUNK_CHAR_LIMIT = 1024 * 1024
 
 // Required tables that must exist
 const REQUIRED_TABLES = [
@@ -37,6 +41,97 @@ export class DexieExporter {
 
   constructor(exportPath: string) {
     this.exportPath = exportPath
+  }
+
+  private async writeExportText(
+    tableName: string,
+    jsonText: string,
+    writeMode: MigrationExportFileWriteMode
+  ): Promise<void> {
+    let offset = 0
+    let nextWriteMode = writeMode
+
+    while (offset < jsonText.length) {
+      const requestedEnd = Math.min(offset + DEXIE_EXPORT_CHUNK_CHAR_LIMIT, jsonText.length)
+      const end = clampSurrogateBoundary(jsonText, requestedEnd)
+      await window.electron.ipcRenderer.invoke(
+        MigrationIpcChannels.WriteExportFile,
+        this.exportPath,
+        tableName,
+        jsonText.slice(offset, end),
+        nextWriteMode
+      )
+      offset = end
+      nextWriteMode = 'append'
+    }
+  }
+
+  private createRecordExportError(tableName: string, primaryKey: IndexableType, cause: unknown): Error {
+    const causeMessage = cause instanceof Error ? cause.message : String(cause)
+    return new Error(
+      `Failed to export Dexie table "${tableName}" at primary key "${String(primaryKey)}": ${causeMessage}`,
+      { cause }
+    )
+  }
+
+  private async exportTable(db: Dexie, tableName: string): Promise<void> {
+    const table = db.table<Record<string, unknown>, IndexableType>(tableName)
+    let lastPrimaryKey: IndexableType | undefined
+    let pendingChunk = ''
+    let hasRecords = false
+
+    await this.writeExportText(tableName, '[', 'overwrite')
+
+    while (true) {
+      const collection = lastPrimaryKey === undefined ? table.orderBy(':id') : table.where(':id').above(lastPrimaryKey)
+      const primaryKeys = await collection.limit(DEXIE_EXPORT_PAGE_SIZE).primaryKeys()
+
+      if (primaryKeys.length === 0) {
+        break
+      }
+
+      const records = await table.bulkGet(primaryKeys)
+
+      for (let index = 0; index < primaryKeys.length; index++) {
+        const primaryKey = primaryKeys[index]
+        const record = records[index]
+
+        if (record === undefined) {
+          throw this.createRecordExportError(tableName, primaryKey, new Error('Record missing from IndexedDB page'))
+        }
+
+        let serializedRecord: string | undefined
+        try {
+          serializedRecord = JSON.stringify(record)
+        } catch (error) {
+          throw this.createRecordExportError(tableName, primaryKey, error)
+        }
+
+        if (serializedRecord === undefined) {
+          throw this.createRecordExportError(tableName, primaryKey, new Error('Record is not JSON serializable'))
+        }
+
+        const entry = `${hasRecords ? ',' : ''}${serializedRecord}`
+        if (pendingChunk && pendingChunk.length + entry.length > DEXIE_EXPORT_CHUNK_CHAR_LIMIT) {
+          await this.writeExportText(tableName, pendingChunk, 'append')
+          pendingChunk = ''
+        }
+
+        if (entry.length > DEXIE_EXPORT_CHUNK_CHAR_LIMIT) {
+          await this.writeExportText(tableName, entry, 'append')
+        } else {
+          pendingChunk += entry
+        }
+        hasRecords = true
+      }
+
+      lastPrimaryKey = primaryKeys[primaryKeys.length - 1]
+    }
+
+    if (pendingChunk) {
+      await this.writeExportText(tableName, pendingChunk, 'append')
+    }
+    await this.writeExportText(tableName, ']', 'append')
   }
 
   /**
@@ -81,16 +176,7 @@ export class DexieExporter {
           total: tablesToExport.length
         })
 
-        const data = await db.table(tableName).toArray()
-
-        // Send data to Main process for writing
-        // Uses IPC invoke with migration channel
-        await window.electron.ipcRenderer.invoke(
-          'migration:write-export-file',
-          this.exportPath,
-          tableName,
-          JSON.stringify(data)
-        )
+        await this.exportTable(db, tableName)
 
         onProgress?.({
           table: tableName,

@@ -173,6 +173,26 @@ describe('PreferenceService BootConfig routing', () => {
 
       expect(mockBootConfigSet).not.toHaveBeenCalled()
     })
+
+    it('rejects the batch and skips the preference transaction when bootConfigService.set throws', async () => {
+      // Value validation is owned by bootConfigService.set() (throws before any
+      // state change). The bootConfig loop runs before the preference DB
+      // transaction, so a schema-invalid value rejects the batch with the
+      // preference part unwritten.
+      mockBootConfigGet.mockReturnValue(false)
+      mockBootConfigSet.mockImplementationOnce(() => {
+        throw new Error('Invalid boot config value for "app.disable_hardware_acceleration"')
+      })
+
+      await expect(
+        service.setMultiple({
+          [BOOT_CONFIG_KEY]: true,
+          [PREFERENCE_KEY]: 'en-US'
+        })
+      ).rejects.toThrow(/Invalid boot config value/)
+
+      expect(mockWithWriteTx).not.toHaveBeenCalled()
+    })
   })
 
   describe('getAll()', () => {

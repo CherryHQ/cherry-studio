@@ -1,7 +1,9 @@
+import { useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
@@ -23,7 +25,7 @@ interface AgentComposerSlotProps {
   composerContext: ComposerContextValue
 }
 
-export default function AgentComposerSlot({
+function AgentComposerSlot({
   agentId,
   isMultiSelectMode,
   session,
@@ -40,6 +42,10 @@ export default function AgentComposerSlot({
   canChangeModel,
   composerContext
 }: AgentComposerSlotProps) {
+  const rightPanelState = useOptionalRightPanelState()
+  const compactWhenSingleLine = Boolean(
+    rightPanelState?.presentationMaximized && rightPanelState.activePanelId === 'files'
+  )
   const fallback =
     agentId && !isMultiSelectMode ? (
       <AgentComposer
@@ -56,8 +62,11 @@ export default function AgentComposerSlot({
         onWorkspaceChange={onWorkspaceChange}
         workspaceChanging={workspaceChanging}
         canChangeModel={canChangeModel}
+        compactWhenSingleLine={compactWhenSingleLine}
       />
     ) : undefined
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }
+
+export default memo(AgentComposerSlot)

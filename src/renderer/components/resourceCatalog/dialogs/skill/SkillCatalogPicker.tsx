@@ -1,7 +1,14 @@
-import { Button, Switch } from '@cherrystudio/ui'
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Switch
+} from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import { Download, Search, Sparkles } from 'lucide-react'
+import { ChevronDown, Download, FolderSearch, Plus, Search, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
 import { ImportSkillDialog } from './ImportSkillDialog'
 import { SkillMarketplaceDialog } from './SkillMarketplaceDialog'
+import { SystemSkillDialog } from './SystemSkillDialog'
 
 type SkillCatalogPickerProps = {
   mode: 'create' | 'edit'
@@ -19,6 +27,7 @@ type SkillCatalogPickerProps = {
   emptyLabel: ReactNode
   portalContainer: HTMLElement | null
   disabled?: boolean
+  trailingItem?: ReactNode
 }
 
 /** Shared Skill search, bulk-selection, and installation surface for Agent forms. */
@@ -30,12 +39,14 @@ export function SkillCatalogPicker({
   onSelectedIdsChange,
   emptyLabel,
   portalContainer,
-  disabled = false
+  disabled = false,
+  trailingItem
 }: SkillCatalogPickerProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [systemSkillOpen, setSystemSkillOpen] = useState(false)
 
   const builtinIds = useMemo(
     () => (mode === 'create' ? skills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id) : []),
@@ -87,14 +98,29 @@ export function SkillCatalogPicker({
           placeholder={t('library.config.dialogs.create.capability.search')}
           className="min-w-0 flex-1"
         />
-        <Button type="button" size="sm" className="shrink-0" onClick={() => setMarketplaceOpen(true)}>
-          <Search size={13} />
-          {t('library.skill_add.online_search')}
-        </Button>
-        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setImportOpen(true)}>
-          <Download size={13} />
-          {t('library.config.dialogs.create.capability.import')}
-        </Button>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" size="sm" className="shrink-0" disabled={disabled}>
+              <Plus size={13} />
+              {t('library.skill_add.add')}
+              <ChevronDown size={13} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44" portalContainer={portalContainer}>
+            <DropdownMenuItem onSelect={() => setMarketplaceOpen(true)}>
+              <Search />
+              {t('library.skill_add.online_search')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+              <Download />
+              {t('library.skill_add.local_import')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setSystemSkillOpen(true)}>
+              <FolderSearch />
+              {t('library.skill_add.system_search')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="flex items-center justify-between gap-3">
@@ -118,11 +144,19 @@ export function SkillCatalogPicker({
         onToggle={setSelected}
         emptyLabel={emptyLabel}
         portalContainer={portalContainer}
+        trailingItem={trailingItem}
         variant={mode === 'create' ? 'checkbox' : 'switch'}
       />
 
       <SkillMarketplaceDialog open={marketplaceOpen} onOpenChange={setMarketplaceOpen} />
       <ImportSkillDialog open={importOpen} onOpenChange={setImportOpen} />
+      <SystemSkillDialog
+        mode="agent-create"
+        open={systemSkillOpen}
+        onOpenChange={setSystemSkillOpen}
+        selectedSkillIds={selectedIds}
+        onEnabled={(skillId) => onSelectedIdsChange(Array.from(new Set([...selectedIds, skillId])))}
+      />
     </div>
   )
 }

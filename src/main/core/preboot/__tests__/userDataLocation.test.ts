@@ -39,11 +39,13 @@ interface FsStubOptions {
 type BootConfigStore = {
   'app.user_data_path'?: Record<string, string>
   'temp.user_data_relocation'?:
-    | { status: 'pending'; from: string; to: string }
+    | { status: 'pending'; taskId: string; from: string; to: string; copy: boolean }
     | {
         status: 'failed'
+        taskId: string
         from: string
         to: string
+        copy: boolean
         error: string
         failedAt: string
       }
@@ -54,7 +56,8 @@ const setPathMock = vi.fn()
 const cpSyncMock = vi.fn()
 const bootConfigGetMock = vi.fn()
 const bootConfigSetMock = vi.fn()
-const bootConfigFlushMock = vi.fn()
+const bootConfigPersistMock = vi.fn()
+const TASK_ID = '11111111-1111-4111-8111-111111111111'
 
 function stubElectron(opts: ElectronStubOptions = {}) {
   const { isPackaged = true, exePath = '/mock/exe', userData = '/mock/userData' } = opts
@@ -92,14 +95,14 @@ function stubBootConfig(store: BootConfigStore = {}) {
   bootConfigSetMock.mockImplementation((key: string, value: unknown) => {
     ;(internal as Record<string, unknown>)[key] = value
   })
-  bootConfigFlushMock.mockImplementation(() => {
+  bootConfigPersistMock.mockImplementation(() => {
     /* no-op for tests */
   })
   vi.doMock('@main/data/bootConfig', () => ({
     bootConfigService: {
       get: bootConfigGetMock,
       set: bootConfigSetMock,
-      flush: bootConfigFlushMock
+      persist: bootConfigPersistMock
     }
   }))
   return internal
@@ -142,7 +145,7 @@ beforeEach(() => {
   cpSyncMock.mockReset()
   bootConfigGetMock.mockReset()
   bootConfigSetMock.mockReset()
-  bootConfigFlushMock.mockReset()
+  bootConfigPersistMock.mockReset()
 })
 
 afterEach(() => {
@@ -427,219 +430,35 @@ describe('resolveUserDataLocation', () => {
     })
   })
 
-  describe('pending relocation', () => {
-    it('pending relocation success: cpSync called, user_data_path updated, temp cleared, setPath to new', async () => {
-      stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      const store = stubBootConfig({
-        'app.user_data_path': {},
-        'temp.user_data_relocation': { status: 'pending', from: '/old/data', to: '/new/data' }
-      })
-      stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })
-
-      const { resolveUserDataLocation } = await loadModule()
-      resolveUserDataLocation()
-
-      // cpSync was called with from → to + the v2 option set (no errorOnExist).
-      expect(cpSyncMock).toHaveBeenCalledWith('/old/data', '/new/data', {
-        recursive: true,
-        force: true,
-        verbatimSymlinks: true
-      })
-      // After commit, user_data_path has the new mapping.
-      expect(store['app.user_data_path']).toEqual({ '/mock/exe': '/new/data' })
-      // temp cleared to null.
-      expect(store['temp.user_data_relocation']).toBe(null)
-      // flush was called at least once after commit.
-      expect(bootConfigFlushMock).toHaveBeenCalled()
-      // setPath called with the new path (Step 2 re-reads the now-updated map).
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/new/data')
-    })
-
-    it('pending relocation: from === to → pre-flight fails, no cpSync, marked as failed', async () => {
-      stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      const store = stubBootConfig({
-        'app.user_data_path': { '/mock/exe': '/custom/data' },
-        'temp.user_data_relocation': { status: 'pending', from: '/same/path', to: '/same/path' }
-      })
-      stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })
-
-      const { resolveUserDataLocation } = await loadModule()
-      resolveUserDataLocation()
-
-      // cpSync NOT called — pre-flight rejected the request.
-      expect(cpSyncMock).not.toHaveBeenCalled()
-      // Marked as failed with a descriptive error.
-      const recorded = store['temp.user_data_relocation']
-      expect(recorded).toMatchObject({
-        status: 'failed',
-        from: '/same/path',
-        to: '/same/path'
-      })
-      expect(recorded && 'error' in recorded && recorded.error).toMatch(/same path/i)
-      // user_data_path unchanged.
-      expect(store['app.user_data_path']).toEqual({ '/mock/exe': '/custom/data' })
-      // Step 2 fell through to the previous path.
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/custom/data')
-    })
-
-    it('pending relocation: to is inside from → pre-flight fails, no cpSync, marked as failed', async () => {
-      stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      const store = stubBootConfig({
-        'app.user_data_path': { '/mock/exe': '/old' },
-        'temp.user_data_relocation': { status: 'pending', from: '/old', to: '/old/subdir' }
-      })
-      stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })
-
-      const { resolveUserDataLocation } = await loadModule()
-      resolveUserDataLocation()
-
-      expect(cpSyncMock).not.toHaveBeenCalled()
-      const recorded = store['temp.user_data_relocation']
-      expect(recorded).toMatchObject({ status: 'failed' })
-      expect(recorded && 'error' in recorded && recorded.error).toMatch(/inside source|recurse/i)
-    })
-
-    it('pending relocation: sibling prefix (e.g. /a vs /ab) is NOT rejected by inside-source check', async () => {
-      // Regression guard: naive startsWith('/a') would false-positive on '/ab'.
-      // The path.sep guard must prevent this.
-      stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      stubBootConfig({
-        'app.user_data_path': {},
-        'temp.user_data_relocation': { status: 'pending', from: '/a', to: '/ab' }
-      })
-      stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })
-
-      const { resolveUserDataLocation } = await loadModule()
-      resolveUserDataLocation()
-
-      // cpSync WAS called — /ab is a sibling, not a child of /a.
-      expect(cpSyncMock).toHaveBeenCalledWith('/a', '/ab', {
-        recursive: true,
-        force: true,
-        verbatimSymlinks: true
-      })
-    })
-
-    it('pending relocation: source does not exist → pre-flight fails, no cpSync, marked as failed', async () => {
-      stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      const store = stubBootConfig({
-        'app.user_data_path': { '/mock/exe': '/existing/data' },
-        'temp.user_data_relocation': {
-          status: 'pending',
-          from: '/missing/source',
-          to: '/new/target'
-        }
-      })
-      stubFs({
-        // `from` doesn't exist; anything else (like `to` parent) does.
-        existsSyncImpl: (p: string) => p !== '/missing/source',
-        accessSyncImpl: () => undefined
-      })
-
-      const { resolveUserDataLocation } = await loadModule()
-      resolveUserDataLocation()
-
-      expect(cpSyncMock).not.toHaveBeenCalled()
-      const recorded = store['temp.user_data_relocation']
-      expect(recorded).toMatchObject({ status: 'failed', from: '/missing/source' })
-      expect(recorded && 'error' in recorded && recorded.error).toMatch(/source does not exist/i)
-      // Fell through to the existing old path.
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/existing/data')
-    })
-
-    it('pending relocation: target parent does not exist → pre-flight fails, no cpSync, marked as failed', async () => {
-      stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      const store = stubBootConfig({
-        'app.user_data_path': {},
-        'temp.user_data_relocation': {
-          status: 'pending',
-          from: '/old/data',
-          to: '/nonexistent/parent/newdata'
-        }
-      })
-      stubFs({
-        // `from` exists; target parent `/nonexistent/parent` does NOT.
-        existsSyncImpl: (p: string) => p === '/old/data',
-        accessSyncImpl: () => undefined
-      })
-
-      const { resolveUserDataLocation } = await loadModule()
-      resolveUserDataLocation()
-
-      expect(cpSyncMock).not.toHaveBeenCalled()
-      const recorded = store['temp.user_data_relocation']
-      expect(recorded).toMatchObject({ status: 'failed' })
-      expect(recorded && 'error' in recorded && recorded.error).toMatch(/target parent.*does not exist/i)
-    })
-
-    it('pending relocation: target parent not writable → pre-flight fails, no cpSync, marked as failed', async () => {
-      stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      const store = stubBootConfig({
-        'app.user_data_path': {},
-        'temp.user_data_relocation': {
-          status: 'pending',
-          from: '/old/data',
-          to: '/readonly/newdata'
-        }
-      })
-      stubFs({
-        existsSyncImpl: () => true,
-        accessSyncImpl: (p: string) => {
-          if (p === '/readonly') throw new Error('EACCES: permission denied')
-        }
-      })
-
-      const { resolveUserDataLocation } = await loadModule()
-      resolveUserDataLocation()
-
-      expect(cpSyncMock).not.toHaveBeenCalled()
-      const recorded = store['temp.user_data_relocation']
-      expect(recorded).toMatchObject({ status: 'failed' })
-      expect(recorded && 'error' in recorded && recorded.error).toMatch(/EACCES/)
-    })
-
-    it('pending relocation failure (cpSync throws): failed state recorded, user_data_path unchanged, fall through to old location', async () => {
+  // The BootConfig commit itself moved to services/userDataRelocation and is
+  // covered there (execution.test.ts) through the full relocation flow.
+  describe('relocation state handling', () => {
+    it('resolveUserDataLocation does not execute a pending relocation', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })
       const store = stubBootConfig({
         'app.user_data_path': { '/mock/exe': '/old/data' },
-        'temp.user_data_relocation': { status: 'pending', from: '/old/data', to: '/new/data' }
-      })
-      stubFs({
-        existsSyncImpl: () => true,
-        accessSyncImpl: () => undefined,
-        cpSyncImpl: () => {
-          throw new Error('ENOSPC')
+        'temp.user_data_relocation': {
+          status: 'pending',
+          taskId: TASK_ID,
+          from: '/old/data',
+          to: '/new/data',
+          copy: true
         }
       })
+      stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })
 
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
 
-      // cpSync was attempted.
-      expect(cpSyncMock).toHaveBeenCalled()
-      // user_data_path NOT updated to new — still the old value.
-      expect(store['app.user_data_path']).toEqual({ '/mock/exe': '/old/data' })
-      // temp was marked as failed (not null, not still pending).
-      const recorded = store['temp.user_data_relocation']
-      expect(recorded).toMatchObject({
-        status: 'failed',
+      expect(cpSyncMock).not.toHaveBeenCalled()
+      expect(store['temp.user_data_relocation']).toEqual({
+        status: 'pending',
+        taskId: TASK_ID,
         from: '/old/data',
         to: '/new/data',
-        error: 'ENOSPC'
+        copy: true
       })
-      // failedAt is an ISO timestamp.
-      expect(recorded && 'failedAt' in recorded && typeof recorded.failedAt === 'string').toBe(true)
-      // flush was called after marking failed.
-      expect(bootConfigFlushMock).toHaveBeenCalled()
-      // Step 2 fell through to the existing user_data_path (old location).
       expect(setPathMock).toHaveBeenCalledWith('userData', '/old/data')
     })
 
@@ -666,8 +485,10 @@ describe('resolveUserDataLocation', () => {
         'app.user_data_path': { '/mock/exe': '/old/data' },
         'temp.user_data_relocation': {
           status: 'failed',
+          taskId: TASK_ID,
           from: '/old/data',
           to: '/new/data',
+          copy: true,
           error: 'EACCES',
           failedAt: '2026-04-07T00:00:00.000Z'
         }
@@ -688,7 +509,13 @@ describe('resolveUserDataLocation', () => {
       stubElectron({ isPackaged: false, userData: '/mock/userData' })
       stubBootConfig({
         'app.user_data_path': {},
-        'temp.user_data_relocation': { status: 'pending', from: '/old/data', to: '/new/data' }
+        'temp.user_data_relocation': {
+          status: 'pending',
+          taskId: TASK_ID,
+          from: '/old/data',
+          to: '/new/data',
+          copy: true
+        }
       })
       stubFs({ existsSyncImpl: () => true })
 

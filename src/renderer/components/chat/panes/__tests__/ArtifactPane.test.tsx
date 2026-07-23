@@ -10,13 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ArtifactPane, { ArtifactPaneView, resolveArtifactPaneFileSelection } from '../ArtifactPane'
 import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
-/**
- * Mimics the agent right-pane: a parent that owns the lifted tree model and
- * renders `ArtifactPaneView` into one of two mutually-exclusive slots (the
- * docked `Shell.Host` vs the `Shell.MaximizedOverlay`). Toggling `maximized`
- * remounts the view across slots while the model-owning parent survives.
- */
-function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
+/** Mimics the agent pane's single Viewport while its docked/maximized layout changes. */
+function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: string }) {
   const [maximized, setMaximized] = useState(false)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -32,6 +27,9 @@ function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
   })
   const view = (
     <ArtifactPaneView
+      headerVariant="pane"
+      paneTitle="Files"
+      paneActions={<button type="button">Panel action</button>}
       workspacePath={workspacePath}
       enableFileSearch
       model={model}
@@ -46,8 +44,7 @@ function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
       <button type="button" data-testid="toggle-max" onClick={() => setMaximized((value) => !value)}>
         toggle
       </button>
-      {!maximized && <div data-testid="host-slot">{view}</div>}
-      {maximized && <div data-testid="overlay-slot">{view}</div>}
+      <div data-testid={maximized ? 'maximized-layout' : 'docked-layout'}>{view}</div>
     </div>
   )
 }
@@ -621,30 +618,57 @@ describe('ArtifactPane', () => {
     )
   })
 
-  it('keeps a single workspace tree across a Host↔Overlay maximize swap', async () => {
+  it('keeps a single workspace tree across Viewport layout changes', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
-    render(<MaximizeSwapHarness workspacePath="/tmp/workspace" />)
+    render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
 
     await waitFor(() => expect(mocks.treeCreate).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId('host-slot')).toBeInTheDocument()
+    expect(screen.getByTestId('docked-layout')).toBeInTheDocument()
 
-    // Maximize: the view unmounts from the host slot and remounts in the
-    // overlay slot. The model lives in the surviving parent, so the tree is
-    // neither recreated nor disposed (this is the freeze the fix removes).
+    // Layout changes around the stable Viewport; the artifact subtree keeps
+    // its identity and its directory-tree subscription.
     await act(async () => {
       fireEvent.click(screen.getByTestId('toggle-max'))
     })
-    await waitFor(() => expect(screen.getByTestId('overlay-slot')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('maximized-layout')).toBeInTheDocument())
 
     // Minimize back to the docked slot.
     await act(async () => {
       fireEvent.click(screen.getByTestId('toggle-max'))
     })
-    await waitFor(() => expect(screen.getByTestId('host-slot')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('docked-layout')).toBeInTheDocument())
 
     expect(mocks.treeCreate).toHaveBeenCalledTimes(1)
     expect(mocks.treeDispose).not.toHaveBeenCalled()
+  })
+
+  it('uses one pane header for the file tree and selected-file preview', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Header')
+
+    render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.close' })).toBeNull()
+    expect(screen.queryByTestId('file-tree-search-toolbar')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+    expect(overlay.firstElementChild).not.toHaveClass('h-10')
+    expect(
+      within(screen.getByTestId('artifact-pane-header')).getByRole('button', { name: 'Open in Finder' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
   })
 
   it('loads deeper directory children when folders are expanded', async () => {
@@ -694,7 +718,7 @@ describe('ArtifactPane', () => {
       })
     )
 
-    const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    const { rerender } = render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
@@ -705,7 +729,7 @@ describe('ArtifactPane', () => {
       )
     )
 
-    rerender(<ArtifactPane workspacePath="/tmp/other-workspace" />)
+    rerender(<PersistentArtifactPaneHarness workspacePath="/tmp/other-workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-src/other.ts')).toBeInTheDocument())
 
     await act(async () => {
@@ -713,6 +737,33 @@ describe('ArtifactPane', () => {
     })
 
     expect(screen.queryByTestId('tree-node-src/stale.ts')).not.toBeInTheDocument()
+  })
+
+  it('clears loaded lazy directory children after the workspace changes', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace/src', [])
+    mockWorkspaceTree('/tmp/other-workspace', ['src/other.ts'])
+    mockWorkspaceTree('/tmp/other-workspace/src', [])
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+      .mockResolvedValueOnce([{ path: '/tmp/other-workspace/src/fresh.md', isDirectory: false }])
+
+    const { rerender } = render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+
+    rerender(<PersistentArtifactPaneHarness workspacePath="/tmp/other-workspace" />)
+
+    await waitFor(() =>
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
+        '/tmp/other-workspace/src',
+        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
+      )
+    )
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/fresh.md')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
   it('reloads lazy directory children when the file tree is refreshed', async () => {

@@ -29,6 +29,7 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
+import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
@@ -69,21 +70,6 @@ type MenuPresentationModeChangeOptions = {
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('AppearanceSettings')
-
-const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
-  { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
-  { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
-  { value: 'en-US', label: 'English', flag: '🇺🇸' },
-  { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
-  { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-  { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
-  { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
-  { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
-  { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-  { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
-  { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
-  { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
-]
 
 export async function confirmMenuPresentationModeChange({
   currentMode,
@@ -142,18 +128,12 @@ const AppearanceSettings: FC = () => {
   const [fontList, setFontList] = useState<string[]>([])
   const isDefaultZoom = Math.abs(currentZoom - DEFAULT_ZOOM_FACTOR) < 0.001
 
-  const displayLanguage = useMemo(() => {
-    if (language && languagesOptions.some((opt) => opt.value === language)) {
-      return language
-    }
-
-    const resolved = i18n.resolvedLanguage ?? i18n.language
-    if (resolved && languagesOptions.some((opt) => opt.value === resolved)) {
-      return resolved as LanguageVarious
-    }
-
-    return defaultLanguage
-  }, [language, i18n.resolvedLanguage, i18n.language])
+  const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
+  const displayLanguage = isAppLanguage(language)
+    ? language
+    : isAppLanguage(resolvedLanguage)
+      ? resolvedLanguage
+      : defaultLanguage
 
   const themeOptions = useMemo(
     () => [
@@ -369,7 +349,7 @@ const AppearanceSettings: FC = () => {
               style={{ width: '100%' }}
               value={displayLanguage}
               onChange={onSelectLanguage}
-              options={languagesOptions.map((lang) => ({
+              options={appLanguageOptions.map((lang) => ({
                 label: (
                   <Flex className="items-center gap-2">
                     <span role="img" aria-label={lang.flag}>
@@ -480,7 +460,7 @@ const AppearanceSettings: FC = () => {
                 renderOption={renderFontOption}
                 searchPlacement="trigger"
                 triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] overflow-y-auto"
+                popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
               />
             </div>
           </SelectRow>
@@ -504,7 +484,7 @@ const AppearanceSettings: FC = () => {
                 renderOption={renderFontOption}
                 searchPlacement="trigger"
                 triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] overflow-y-auto"
+                popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
               />
             </div>
           </SelectRow>

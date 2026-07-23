@@ -18,6 +18,7 @@ export function useRemoveCliToolDialog({
 }): RemoveCliToolDialogController {
   const { t } = useTranslation()
   const [removeTarget, setRemoveTarget] = useState<CodeCli | null>(null)
+  const [isRemoving, setIsRemoving] = useState(false)
 
   return {
     removeDialogProps: {
@@ -26,8 +27,16 @@ export function useRemoveCliToolDialog({
       title: t('settings.dependencies.removeConfirmTitle'),
       description: t('settings.dependencies.removeConfirmMessage', { name: toolName }),
       destructive: true,
+      confirmLoading: isRemoving,
       onConfirm: async () => {
-        if (removeTarget) await remove(removeTarget)
+        if (!removeTarget) return
+
+        setIsRemoving(true)
+        try {
+          await remove(removeTarget)
+        } finally {
+          setIsRemoving(false)
+        }
       }
     },
     requestRemove: setRemoveTarget

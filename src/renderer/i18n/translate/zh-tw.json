@@ -566,7 +566,7 @@
       },
       "prompt": "提示設定",
       "skills": {
-        "addMore": "添加更多技能",
+        "addMore": "管理技能",
         "builtin": "內建",
         "noFilterResults": "沒有符合的技能",
         "noSkills": "未安裝任何技能。請前往「設定」>「技能」安裝技能。",
@@ -1469,6 +1469,18 @@
         },
         "unsupported_model": "目前模型不支援可調整的推理"
       },
+      "toolbar": {
+        "customize": "自訂工具列",
+        "drag": {
+          "cancelled": "已取消對 {{name}} 的重新排序。",
+          "dropped": "已放下 {{name}}。",
+          "instructions": "重新排序：按空白鍵或 Enter 拿起工具，用方向鍵移動，再按空白鍵或 Enter 放下，按 Esc 取消。",
+          "over": "{{name}} 移動到 {{over}} 上方。",
+          "picked_up": "已拿起 {{name}}。"
+        },
+        "drag_handle": "拖曳以重新排序 {{name}}",
+        "restore_default": "還原預設"
+      },
       "tools": {
         "collapse": "折疊",
         "collapse_in": "加入折疊",
@@ -1743,6 +1755,7 @@
     "thinking_tokens": "約 {{tokens}} tokens",
     "topics": {
       "auto_rename": "自動重新命名對話",
+      "auto_rename_failed": "自動產生對話名稱失敗",
       "clear": {
         "title": "清空訊息"
       },
@@ -2440,6 +2453,80 @@
       "reasoning_truncated": "思維鏈無法分塊，已截斷"
     },
     "user": "使用者"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "此 HTML 檔案沒有內容。",
+        "title": "空檔案"
+      },
+      "mode": {
+        "label": "HTML 檢視模式",
+        "preview": "預覽",
+        "source": "來源"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "超過 {{limit}} MiB 的 HTML 檔案無法預覽。",
+        "title": "檔案太大"
+      }
+    },
+    "invalid_path": {
+      "description": "檔案預覽需要有效的絕對本機路徑。",
+      "title": "無法預覽此檔案"
+    },
+    "load_error": {
+      "description": "無法載入預覽內容。",
+      "title": "預覽失敗"
+    },
+    "loading": "載入預覽中...",
+    "markdown": {
+      "empty": {
+        "description": "這個 Markdown 檔案沒有內容。",
+        "title": "空檔案"
+      },
+      "mode": {
+        "label": "Markdown 檢視模式",
+        "preview": "預覽",
+        "source": "來源"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "Markdown 檔案大小超過 {{limit}} MiB 時無法預覽。",
+        "title": "檔案太大"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "使用預設應用程式開啟",
+        "description": "超過 {{limit}} MiB 的 PDF 檔案無法預覽。",
+        "open_error": "無法開啟此檔案",
+        "title": "檔案太大"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "此文字檔案沒有內容。",
+        "title": "空檔案"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "超過 {{limit}} MiB 的文字檔案無法預覽。",
+        "title": "檔案太大"
+      }
+    },
+    "unsupported": {
+      "action": "使用預設應用程式開啟",
+      "description": "此檔案類型尚無法預覽。",
+      "open_error": "無法開啟此檔案",
+      "title": "無法預覽"
+    }
   },
   "files": {
     "actions": "操作",
@@ -3484,8 +3571,10 @@
       "title": "圖書館"
     },
     "skill_add": {
+      "add": "新增 Skill",
       "local_import": "本機匯入",
-      "online_search": "線上搜尋"
+      "online_search": "線上搜尋",
+      "system_search": "系統搜尋"
     },
     "skill_detail": {
       "created_at": "建立時間",
@@ -3513,6 +3602,19 @@
       "updated": "依更新時間"
     },
     "subtitle": "管理你的助手、智能體與技能",
+    "system_skill": {
+      "conflict": "名稱衝突",
+      "description": "匯入系統中已安裝的 Skill。",
+      "empty_description": "未在這台裝置的其他程式開發工具中找到可匯入的 Skill。",
+      "empty_title": "沒有可匯入的 Skill",
+      "enable_success": "已啟用 {{name}}",
+      "enabled": "已啟用",
+      "import": "匯入",
+      "import_success": "已匯入 {{name}}",
+      "imported": "已匯入",
+      "search_placeholder": "搜尋系統 Skill...",
+      "title": "系統 Skill"
+    },
     "tag_picker": {
       "no_tags": "尚無標籤",
       "placeholder": "新標籤名稱..."
@@ -4330,14 +4432,22 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "provider_setup": {
+      "missing_model": "請先啟用該服務商下的至少一個模型",
+      "missing_provider": "請先啟用一個服務商",
+      "next": "下一步",
+      "subtitle": "新增 API Key 或登入 CherryIN，然後啟用一個服務商。",
+      "title": "選擇服務商"
+    },
     "select_model": {
       "change_later": "您可以隨時在設定中更改此項目",
       "start": "開始使用",
       "subtitle": "為每個情境選擇預設模型",
-      "title": "選擇您的預設模型"
+      "title": "選擇預設模型"
     },
     "skip": "跳過",
     "toast": {
+      "complete_failed": "無法完成引導，請重試",
       "connected": "成功連接到 CherryIN"
     },
     "welcome": {
@@ -4686,6 +4796,7 @@
     "req_error_text": "伺服器繁忙或提示詞中出現「版權詞」或「敏感詞」，請重試。",
     "req_error_token": "請檢查權杖的有效性",
     "required_field": "必填欄位",
+    "revealing": "正在呈現產生的圖片",
     "safety_tolerance": "安全容忍度",
     "safety_tolerance_tip": "數值越高 = 篩選條件越寬鬆；0 為最嚴格，6 為最寬鬆",
     "seed": "隨機種子",
@@ -5343,7 +5454,7 @@
         "icon": {
           "error": "無效的圖示名稱，請檢查輸入",
           "label": "圖示",
-          "placeholder": "輸入 Lucide 圖示名稱",
+          "placeholder": "圖示名稱",
           "random": "隨機圖示",
           "tooltip": "Lucide 圖示名稱為小寫，如 arrow-right",
           "view_all": "檢視所有圖示"
@@ -5526,14 +5637,15 @@
         "select": "變更目錄",
         "select_error": "變更資料目錄失敗",
         "select_error_in_app_path": "新路徑與應用安裝路徑相同，請選擇其他路徑",
+        "select_error_protected_path": "所選路徑受作業系統或 Cherry Studio 保護，請選擇其他資料夾",
         "select_error_root_path": "新路徑不能是根路徑",
         "select_error_same_path": "新路徑與舊路徑相同，請選擇其他路徑",
         "select_error_write_permission": "新路徑沒有寫入權限",
         "select_not_empty_dir": "新路徑不為空",
-        "select_not_empty_dir_content": "新路徑不為空，若選擇複製將覆寫新路徑中的資料，可能導致資料遺失或複製失敗。是否繼續？",
         "select_success": "資料目錄已變更，應用程式將重新啟動以套用變更",
         "select_title": "變更應用程式資料目錄",
-        "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉"
+        "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉",
+        "switch_existing_notice": "將直接使用這個非空目錄，不會覆寫其中的現有檔案。"
       },
       "app_logs": {
         "button": "開啟日誌",
@@ -6088,7 +6200,8 @@
           "downloading": "下載中…",
           "ready": "已就緒"
         },
-        "title": "本機模型"
+        "title": "本機模型",
+        "unsupported": "目前平台不支援本機模型。"
       },
       "notInstalled": "未安裝",
       "openBinariesDir": "開啟二進位檔案目錄",
@@ -6562,10 +6675,10 @@
       "user": "使用者"
     },
     "menuGroups": {
-      "automation": "自動化",
-      "capabilities": "能力與工具",
+      "automation": "效率",
+      "capabilities": "工具",
       "models": "模型",
-      "personal": "個人",
+      "personal": "偏好",
       "quickAccess": "快捷入口",
       "system": "系統"
     },
@@ -7722,6 +7835,8 @@
   },
   "tab": {
     "close": "關閉分頁",
+    "close_others": "關閉其他標籤頁",
+    "close_to_right": "關閉右側標籤頁",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
     "open_in_new_window": "在新視窗中開啟",
