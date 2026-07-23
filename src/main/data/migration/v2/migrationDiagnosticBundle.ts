@@ -44,9 +44,15 @@ interface LogSnapshot {
   readonly snapshotBytes: number
 }
 
+interface PresentFileIdentity {
+  readonly dev: number
+  readonly ino: number
+}
+
 type FileIdentity =
-  | { readonly status: 'present'; readonly dev: number; readonly ino: number }
-  | { readonly status: 'missing' | 'unverifiable' }
+  | ({ readonly status: 'present' } & PresentFileIdentity)
+  | { readonly status: 'missing' }
+  | { readonly status: 'unverifiable' }
 
 class LogReadFailure extends Error {
   constructor(cause: unknown) {
@@ -102,6 +108,7 @@ async function probeFileIdentity(filePath: FilePath): Promise<FileIdentity> {
 async function createSnapshots(
   candidates: LogCandidate[],
   handles: FileHandle[],
+  sourceIdentities: PresentFileIdentity[],
   openLogFile: (filePath: FilePath) => Promise<FileHandle>
 ): Promise<LogSnapshot[]> {
   const snapshots: LogSnapshot[] = []
@@ -111,12 +118,30 @@ async function createSnapshots(
     const handle = await openLogFile(filePath)
     handles.push(handle)
     const handleStat = await handle.stat()
+    sourceIdentities.push({ dev: handleStat.dev, ino: handleStat.ino })
     if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
       throw new Error('Selected log changed before it could be opened')
     }
     snapshots.push({ fileName, handle, snapshotBytes: handleStat.size })
   }
   return snapshots
+}
+
+function hasSameIdentity(a: PresentFileIdentity, b: PresentFileIdentity): boolean {
+  return a.dev === b.dev && a.ino === b.ino
+}
+
+async function canWriteDestination(
+  destination: FilePath,
+  initialIdentity: FileIdentity,
+  sourceIdentities: readonly PresentFileIdentity[]
+): Promise<boolean> {
+  const currentIdentity = await probeFileIdentity(destination)
+  if (currentIdentity.status === 'unverifiable' || currentIdentity.status !== initialIdentity.status) return false
+  if (currentIdentity.status === 'missing') return true
+  if (initialIdentity.status !== 'present') return false
+  if (!hasSameIdentity(currentIdentity, initialIdentity)) return false
+  return !sourceIdentities.some((sourceIdentity) => hasSameIdentity(currentIdentity, sourceIdentity))
 }
 
 function exactLengthStream(expectedBytes: number, onFailure: (error: Error) => void): Transform {
@@ -219,6 +244,7 @@ export async function saveMigrationDiagnosticBundle(
     migration: { stage: input.stage }
   })
   const handles: FileHandle[] = []
+  const sourceIdentities: PresentFileIdentity[] = []
 
   try {
     const destinationIdentity = await probeFileIdentity(destination)
@@ -236,35 +262,32 @@ export async function saveMigrationDiagnosticBundle(
         return false
       }
       logger.warn('Application logs could not be discovered; saving metadata only', error as Error)
+      if (!(await canWriteDestination(destination, destinationIdentity, sourceIdentities))) return false
       await writeZip(destination, metadata, [], createLogReadStream)
       return 'not_included'
     }
 
-    if (destinationIdentity.status === 'present') {
-      for (const candidate of candidates) {
-        const sourceIdentity = await probeFileIdentity(candidate.filePath)
-        if (sourceIdentity.status !== 'present') return false
-        if (sourceIdentity.dev === destinationIdentity.dev && sourceIdentity.ino === destinationIdentity.ino) {
-          return false
-        }
-      }
-    }
+    const normalizedDestination = path.normalize(destination)
+    if (candidates.some((candidate) => path.normalize(candidate.filePath) === normalizedDestination)) return false
 
     let snapshots: LogSnapshot[] = []
     try {
-      snapshots = await createSnapshots(candidates, handles, openLogFile)
+      snapshots = await createSnapshots(candidates, handles, sourceIdentities, openLogFile)
     } catch (error) {
       logger.warn('Application logs could not be snapshotted; saving metadata only', error as Error)
     }
     if (snapshots.length === 0) {
+      if (!(await canWriteDestination(destination, destinationIdentity, sourceIdentities))) return false
       await writeZip(destination, metadata, [], createLogReadStream)
       return 'not_included'
     }
     try {
+      if (!(await canWriteDestination(destination, destinationIdentity, sourceIdentities))) return false
       await writeZip(destination, metadata, snapshots, createLogReadStream)
       return 'included'
     } catch (error) {
       if (!(error instanceof LogReadFailure)) throw error
+      if (!(await canWriteDestination(destination, destinationIdentity, sourceIdentities))) return false
       await writeZip(destination, metadata, [], createLogReadStream)
       return 'not_included'
     }

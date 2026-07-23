@@ -286,6 +286,52 @@ describe('saveMigrationDiagnosticBundle', () => {
     await expectNoAtomicResidue()
   })
 
+  it('refuses a destination that appears as an eligible log during discovery', async () => {
+    const target = logPath()
+
+    expect(
+      await save(target, {
+        readLogDirectory: async (logsPath) => {
+          await writeFile(target, 'must survive')
+          return readdir(logsPath, { withFileTypes: true })
+        }
+      })
+    ).toBe(false)
+    expect(await readFile(target, 'utf8')).toBe('must survive')
+    await expectNoAtomicResidue()
+  })
+
+  it('refuses a destination that becomes a hardlink to an opened log during discovery', async () => {
+    await writeFile(logPath(), 'must survive')
+    const target = destination()
+
+    expect(
+      await save(target, {
+        readLogDirectory: async (logsPath) => {
+          await link(logPath(), target)
+          return readdir(logsPath, { withFileTypes: true })
+        }
+      })
+    ).toBe(false)
+    expect(await readFile(logPath(), 'utf8')).toBe('must survive')
+    expect(await readFile(target, 'utf8')).toBe('must survive')
+    await expectNoAtomicResidue()
+  })
+
+  it('refuses metadata fallback when a mismatched opened handle is the destination', async () => {
+    await writeFile(logPath(), 'selected source')
+    const target = destination()
+    await writeFile(target, 'must survive')
+
+    expect(
+      await save(target, {
+        openLogFile: () => open(target, 'r')
+      })
+    ).toBe(false)
+    expect(await readFile(target, 'utf8')).toBe('must survive')
+    await expectNoAtomicResidue()
+  })
+
   it('refuses an existing destination when log discovery cannot establish source identities', async () => {
     await writeFile(logPath(), 'must survive')
     const target = destination()

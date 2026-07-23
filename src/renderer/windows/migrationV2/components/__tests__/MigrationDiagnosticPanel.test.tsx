@@ -187,6 +187,35 @@ describe('MigrationDiagnosticPanel', () => {
     expect(document.querySelector('a[href^="mailto:"]')).toBeNull()
   })
 
+  it('announces a successful local save from a mounted polite status region', async () => {
+    mocks.saveDiagnostics.mockResolvedValue({ status: 'saved', logs: 'included' })
+    render(<MigrationDiagnosticPanel />)
+    const status = screen.getByRole('status')
+
+    expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveAttribute('aria-atomic', 'true')
+    expect(status).toBeEmptyDOMElement()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save diagnostic bundle' }))
+
+    await waitFor(() =>
+      expect(status).toHaveTextContent(
+        'The diagnostic bundle was saved locally and was not uploaded automatically. Please send it to the feedback email to help us investigate.'
+      )
+    )
+  })
+
+  it('moves focus to the reveal action after a successful save replaces the focused button', async () => {
+    mocks.saveDiagnostics.mockResolvedValue({ status: 'saved', logs: 'included' })
+    render(<MigrationDiagnosticPanel />)
+    const saveButton = screen.getByRole('button', { name: 'Save diagnostic bundle' })
+    saveButton.focus()
+
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Open file location' })).toHaveFocus())
+  })
+
   it('states that a metadata-only bundle is local, not uploaded, and contains only system information', async () => {
     await saveBundle('not_included')
 

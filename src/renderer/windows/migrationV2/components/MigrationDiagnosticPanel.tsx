@@ -1,7 +1,7 @@
 import { Button, error as showErrorToast, success as showSuccessToast } from '@cherrystudio/ui'
 import { loggerService } from '@renderer/services/LoggerService'
 import { Download } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMigrationActions } from '../hooks/useMigrationProgress'
@@ -23,7 +23,12 @@ export function MigrationDiagnosticPanel() {
   const { saveDiagnostics, showDiagnosticBundleInFolder } = useMigrationActions()
   const [diagnosticStatus, setDiagnosticStatus] = useState<DiagnosticStatus>('idle')
   const [logDate] = useState(() => formatLocalDate(new Date()))
+  const revealButtonRef = useRef<HTMLButtonElement>(null)
   const saved = diagnosticStatus === 'saved_with_logs' || diagnosticStatus === 'saved_without_logs'
+
+  useEffect(() => {
+    if (saved) revealButtonRef.current?.focus()
+  }, [saved])
 
   const handleSave = async () => {
     setDiagnosticStatus('saving')
@@ -67,23 +72,30 @@ export function MigrationDiagnosticPanel() {
   return (
     <section className="space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3">
       <p className="text-foreground-secondary text-xs leading-relaxed">{t('migration.diagnostics.privacy')}</p>
-      {saved ? (
-        <>
-          <div className="space-y-1 text-xs leading-relaxed">
+      <div role="status" aria-live="polite" aria-atomic="true" className="space-y-1 text-xs leading-relaxed">
+        {saved && (
+          <>
             <p className="font-medium text-foreground">{t('migration.diagnostics.saved_local')}</p>
             {diagnosticStatus === 'saved_without_logs' && (
               <p className="text-foreground-secondary">{t('migration.diagnostics.logs_not_included')}</p>
             )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => void handleReveal()}>
-              {t('migration.diagnostics.open_folder')}
-            </Button>
-            <Button type="button" variant="default" className="flex-1" onClick={() => void handleContact()}>
-              {t('migration.diagnostics.contact')}
-            </Button>
-          </div>
-        </>
+          </>
+        )}
+      </div>
+      {saved ? (
+        <div className="flex items-center gap-2">
+          <Button
+            ref={revealButtonRef}
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={() => void handleReveal()}>
+            {t('migration.diagnostics.open_folder')}
+          </Button>
+          <Button type="button" variant="default" className="flex-1" onClick={() => void handleContact()}>
+            {t('migration.diagnostics.contact')}
+          </Button>
+        </div>
       ) : (
         <Button
           type="button"
