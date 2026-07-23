@@ -12,7 +12,7 @@ import { ZipArchive } from 'archiver'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('migrationDiagnosticBundle')
-const LOG_NAME = /^app\.(\d{4}-\d{2}-\d{2})\.log(?:\.(\d+))?$/
+const LOG_NAME = /^app\.(\d{4}-\d{2}-\d{2})\.log(?:\.\d+)?$/
 
 interface SaveMigrationDiagnosticBundleInput {
   destination: string
@@ -21,7 +21,6 @@ interface SaveMigrationDiagnosticBundleInput {
 }
 
 interface MigrationDiagnosticBundleDependencies {
-  readonly clock?: () => Date
   readonly openLogFile?: (filePath: FilePath) => Promise<FileHandle>
   readonly createLogReadStream?: (handle: FileHandle, snapshotBytes: number) => Readable
 }
@@ -33,7 +32,6 @@ interface LogCandidate {
 
 interface LogSnapshot {
   readonly fileName: string
-  readonly filePath: FilePath
   readonly handle: FileHandle
   readonly snapshotBytes: number
 }
@@ -102,7 +100,7 @@ async function createSnapshots(
     if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
       throw new Error('Selected log changed before it could be opened')
     }
-    snapshots.push({ fileName, filePath, handle, snapshotBytes: handleStat.size })
+    snapshots.push({ fileName, handle, snapshotBytes: handleStat.size })
   }
   return snapshots
 }
@@ -196,14 +194,11 @@ export async function saveMigrationDiagnosticBundle(
   const destination = validateDestination(input.destination)
   if (!destination) return false
 
-  const clock = dependencies.clock ?? (() => new Date())
   const openLogFile = dependencies.openLogFile ?? ((filePath) => open(filePath, 'r'))
   const createLogReadStream =
     dependencies.createLogReadStream ??
     ((handle, snapshotBytes) => handle.createReadStream({ start: 0, end: snapshotBytes - 1, autoClose: false }))
   const metadata = JSON.stringify({
-    formatVersion: 1,
-    generatedAt: clock().toISOString(),
     application: { version: app.getVersion() },
     system: { platform: process.platform, arch: process.arch, release: release() },
     migration: { stage: input.stage }

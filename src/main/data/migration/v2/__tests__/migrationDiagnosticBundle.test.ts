@@ -26,7 +26,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveMigrationDiagnosticBundle } from '../migrationDiagnosticBundle'
 
 const LOG_DATE = '2026-07-22'
-const GENERATED_AT = '2026-07-23T04:05:06.000Z'
 
 type Dependencies = Parameters<typeof saveMigrationDiagnosticBundle>[1]
 
@@ -54,10 +53,7 @@ describe('saveMigrationDiagnosticBundle', () => {
   const destination = (fileName = 'diagnostics.zip') => path.join(workDir, fileName)
   const writeLog = (fileName: string, content: string) => writeFile(logPath(fileName), content)
   const save = (target: string, dependencies: Dependencies = {}, logDate = LOG_DATE) =>
-    saveMigrationDiagnosticBundle(
-      { destination: target, stage: 'error', logDate },
-      { clock: () => new Date(GENERATED_AT), ...dependencies }
-    )
+    saveMigrationDiagnosticBundle({ destination: target, stage: 'error', logDate }, dependencies)
 
   async function readZip(zipPath: string) {
     const zip = new StreamZip.async({ file: zipPath })
@@ -94,13 +90,11 @@ describe('saveMigrationDiagnosticBundle', () => {
     const zip = await readZip(destination())
     expect(zip.entries).toEqual([`logs/app.${LOG_DATE}.log`, 'migration-diagnostics.json'])
     const metadata = JSON.parse(zip.contents['migration-diagnostics.json'].toString())
-    expect(Object.keys(metadata)).toEqual(['formatVersion', 'generatedAt', 'application', 'system', 'migration'])
+    expect(Object.keys(metadata)).toEqual(['application', 'system', 'migration'])
     expect(Object.keys(metadata.application)).toEqual(['version'])
     expect(Object.keys(metadata.system)).toEqual(['platform', 'arch', 'release'])
     expect(Object.keys(metadata.migration)).toEqual(['stage'])
     expect(metadata).toEqual({
-      formatVersion: 1,
-      generatedAt: GENERATED_AT,
       application: { version: '2.7.0-test' },
       system: { platform: process.platform, arch: process.arch, release: release() },
       migration: { stage: 'error' }
@@ -221,13 +215,11 @@ describe('saveMigrationDiagnosticBundle', () => {
       await mkdir(logsDir)
       await Promise.all([writeLog(`app.${LOG_DATE}.log`, 'first'), writeLog(`app.${LOG_DATE}.log.1`, 'second')])
       const handles: FileHandle[] = []
-      const clock = vi.fn(() => new Date(GENERATED_AT))
       let streamIndex = 0
       const target = destination(`${failure}.zip`)
 
       expect(
         await save(target, {
-          clock,
           openLogFile: async (filePath) => {
             const handle = await open(filePath, 'r')
             handles.push(handle)
@@ -243,9 +235,7 @@ describe('saveMigrationDiagnosticBundle', () => {
           }
         })
       ).toBe('not_included')
-      const metadata = await expectMetadataOnly(target)
-      expect(metadata.generatedAt).toBe(GENERATED_AT)
-      expect(clock).toHaveBeenCalledTimes(1)
+      await expectMetadataOnly(target)
       await expectClosed(handles)
       await expectNoAtomicResidue()
     }
@@ -264,7 +254,6 @@ describe('saveMigrationDiagnosticBundle', () => {
   })
 
   it('rejects a relative, root, or basename-less destination', async () => {
-    const clock = vi.fn(() => new Date(GENERATED_AT))
     const invalidTargets = [
       'diagnostics.zip',
       '',
@@ -275,9 +264,8 @@ describe('saveMigrationDiagnosticBundle', () => {
     ]
     if (process.platform === 'win32') invalidTargets.push(`${workDir}/child/.`, `${workDir}/child/..`)
     for (const target of invalidTargets) {
-      expect(await save(target, { clock })).toBe(false)
+      expect(await save(target)).toBe(false)
     }
-    expect(clock).not.toHaveBeenCalled()
     expect(application.getPath).not.toHaveBeenCalled()
     if (process.platform !== 'win32') {
       const validBackslashName = `${workDir}/child\\.`
