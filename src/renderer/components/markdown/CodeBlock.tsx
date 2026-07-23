@@ -34,7 +34,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStre
         ? 'svg'
         : detectedLanguage
   }, [children, detectedLanguage])
-  const { codeFancyBlock, saveCodeBlock, readonly, renderInlineFilePath } = useMarkdownHost()
+  const { codeFancyBlock, saveCodeBlock, readonly, renderInlineFilePath, renderHtmlArtifact } = useMarkdownHost()
   const isIncomplete = useIsCodeFenceIncomplete()
 
   // 代码块 id
@@ -75,13 +75,21 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStre
   if (language !== null) {
     // Fancy code block
     if (codeFancyBlock) {
-      if (language === 'html') {
+      if (language.toLowerCase() === 'html') {
+        const isHtmlArtifactStreaming = isStreaming || isIncomplete
+
+        // The host may render HTML fences as an inline immersive preview (chat); otherwise
+        // fall back to the default artifact card. Keeps this shared block chat-agnostic.
+        if (renderHtmlArtifact) {
+          return renderHtmlArtifact(children, { isStreaming: isHtmlArtifactStreaming })
+        }
+
         return (
           <HtmlArtifactsCard
             html={children}
             onSave={handleSave}
             editable={canSaveCodeBlock}
-            isStreaming={isIncomplete}
+            isStreaming={isHtmlArtifactStreaming}
           />
         )
       }

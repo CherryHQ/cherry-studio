@@ -29,6 +29,12 @@ const mocks = vi.hoisted(() => {
           Save HTML
         </button>
       </div>
+    )),
+    MessageHtmlArtifact: vi.fn(({ html, isStreaming }) => (
+      <div data-testid="message-html-artifact">
+        <span>{html}</span>
+        <span data-testid="html-streaming-state">{String(isStreaming)}</span>
+      </div>
     ))
   }
 })
@@ -276,6 +282,19 @@ describe('CodeBlock', () => {
         undefined
       )
     })
+
+    it('lets the host render completed HTML inline instead of the legacy card', () => {
+      mocks.markdownHost.renderHtmlArtifact = (html: string, { isStreaming }: { isStreaming: boolean }) => (
+        <mocks.MessageHtmlArtifact html={html} isStreaming={isStreaming} />
+      )
+      render(<CodeBlock {...defaultProps} className="language-html" children="<h1>Hello</h1>" />)
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<h1>Hello</h1>', isStreaming: false }),
+        undefined
+      )
+    })
   })
 
   describe('save', () => {
@@ -331,6 +350,24 @@ describe('CodeBlock', () => {
       render(<CodeBlock {...htmlProps} />)
 
       expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
+    })
+
+    it('routes streaming HTML to the host artifact renderer without rendering the legacy card', () => {
+      mocks.markdownHost.renderHtmlArtifact = (html: string, { isStreaming }: { isStreaming: boolean }) => (
+        <mocks.MessageHtmlArtifact html={html} isStreaming={isStreaming} />
+      )
+      render(
+        <CodeBlock {...defaultProps} className="language-html" isStreaming>
+          {'<h1>Hello</h1>'}
+        </CodeBlock>
+      )
+
+      expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<h1>Hello</h1>', isStreaming: true }),
+        undefined
+      )
     })
   })
 })

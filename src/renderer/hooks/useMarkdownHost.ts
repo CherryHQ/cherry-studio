@@ -33,6 +33,9 @@ export interface MarkdownHost {
   openFilePath?: (path: string) => void | Promise<void>
   /** Render an inline file path as an interactive element (host-specific). */
   renderInlineFilePath?: (path: string) => ReactNode
+  /** Render an HTML code fence as an inline artifact preview (chat immersive HTML).
+   *  When absent, HTML fences fall back to the default `HtmlArtifactsCard`. */
+  renderHtmlArtifact?: (html: string, options: { isStreaming: boolean }) => ReactNode
 }
 
 export const MarkdownHostContext = createContext<MarkdownHost | null>(null)

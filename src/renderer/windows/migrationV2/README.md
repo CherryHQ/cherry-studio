@@ -25,11 +25,11 @@ src/renderer/windows/migrationV2/
    - `useMigrationActions` wraps IPC invokes for start, retry, cancel, restart, and skip.
 4. Exporters:
    - `ReduxExporter` pulls Redux Persist payload from `localStorage` (`persist:cherry-studio`), parses slices, and returns clean JS objects for main.
-   - `DexieExporter` snapshots Dexie tables from IndexedDB to JSON via IPC (`migration:write-export-file`), so main can read from disk without direct browser access.
+   - `DexieExporter` reads Dexie tables in primary-key pages and sends bounded JSON-array chunks via IPC (`migration:write-export-file`), so main can assemble the files on disk without direct browser access or whole-table renderer strings.
 5. Components render the per-migrator list (`MigratorProgressList`), skip/close dialogs, window controls, and completion confetti used by the wizard.
 
 ## Implementation Notes
 
-- The renderer never writes directly to disk; it sends Redux data in-memory and streams Dexie exports to main via IPC. Main drives the actual migration.
+- The renderer never writes directly to disk; it sends Redux data in-memory and streams Dexie exports to main via IPC. Main overwrites each table file at the start, appends chunks in order, and leaves the same JSON array format for downstream readers. Retrying therefore truncates any partial export before rebuilding it.
 - Progress stages mirror shared types in `@shared/data/migration/v2/types` and must stay in sync with `MigrationIpcHandler` expectations.
 - If you introduce new UI elements, keep the existing layout minimal and ensure they respond to the staged state machine rather than introducing new ad-hoc flags.

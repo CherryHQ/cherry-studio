@@ -1,9 +1,11 @@
+import type * as childProcessModule from 'child_process'
 import { execFileSync, spawn } from 'child_process'
 import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as bundledGitModule from '../bundledGit'
 import {
   autoDiscoverGitBash,
   findCommandInShellEnv,
@@ -17,6 +19,16 @@ import {
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
+// findExecutableInEnv deps — inert defaults for the other suites (which pass
+// env explicitly and never hit the bundled-git fallback); the ordering suite
+// at the bottom re-imports and configures them per test.
+vi.mock('../shellEnv', () => ({
+  getShellEnv: vi.fn(async () => ({ Path: 'C:\\Windows;C:\\mise\\shims;C:\\Cherry\\git\\cmd' }))
+}))
+vi.mock('../bundledGit', () => ({
+  getBundledGitPath: vi.fn(() => null),
+  getBundledGitDir: vi.fn(() => null)
+}))
 
 // These tests only run on Windows since the functions have platform guards
 describe.skipIf(process.platform !== 'win32')('process utilities', () => {
@@ -1139,5 +1151,128 @@ describe('findCommandInShellEnv', () => {
       const result = await resultPromise
       expect(result).toBeNull()
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// findExecutableInEnv — bundled MinGit resolver ordering
+// ---------------------------------------------------------------------------
+// The suites above bind to the host platform (and skip off-Windows), but this
+// ordering chain must be covered on every CI host. Each test therefore resets
+// the module registry, forces `isWin`, and re-imports the module graph fresh.
+describe('findExecutableInEnv – bundled MinGit resolver ordering', () => {
+  const BUNDLED_GIT = 'C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd\\git.exe'
+  const MISE_SHIM = 'C:\\mise\\shims\\git.cmd'
+  const SYSTEM_GIT = 'C:\\Git\\cmd\\git.exe'
+
+  let findExecutableInEnvFresh: (name: string) => Promise<string | null>
+  let cp: typeof childProcessModule
+  let fsFresh: { default: typeof fs }
+  let bundledGitFresh: typeof bundledGitModule
+
+  /** Mock the `where <name>` spawn used by findCommandInShellEnv to emit `lines`. */
+  function mockWhereSpawn(lines: string[]) {
+    vi.mocked(cp.spawn).mockImplementation(() => {
+      const mockChild = createMockChildProcess()
+      setImmediate(() => {
+        if (lines.length > 0) {
+          mockChild.stdout.emit('data', lines.join('\r\n') + '\r\n')
+          mockChild.emit('close', 0)
+        } else {
+          mockChild.emit('close', 1)
+        }
+      })
+      return mockChild as never
+    })
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.doMock('@main/core/platform', () => ({
+      isWin: true,
+      isMac: false,
+      isLinux: false,
+      isDev: false,
+      isPortable: false
+    }))
+
+    // Re-imports resolve to fresh mock instances — configure those, not the
+    // stale top-level bindings.
+    cp = await import('child_process')
+    fsFresh = await import('fs')
+    const pathFresh = await import('path')
+    bundledGitFresh = await import('../bundledGit')
+
+    vi.mocked(pathFresh.default.join).mockImplementation((...args) => args.join('\\'))
+    vi.mocked(pathFresh.default.resolve).mockImplementation((...args) => args.join('\\'))
+    vi.mocked(pathFresh.default.dirname).mockImplementation((p) => p.split('\\').slice(0, -1).join('\\'))
+    vi.mocked(pathFresh.default.isAbsolute).mockImplementation((p) => /^[A-Z]:/i.test(p))
+    Object.defineProperty(pathFresh.default, 'sep', { value: '\\', writable: true })
+    vi.spyOn(process, 'cwd').mockReturnValue('C:\\cwd')
+
+    // No git at the common install roots and no `where.exe` hits by default.
+    vi.mocked(fsFresh.default.existsSync).mockReturnValue(false)
+    vi.mocked(cp.execFileSync).mockImplementation(() => {
+      throw new Error('not found')
+    })
+    vi.mocked(bundledGitFresh.getBundledGitPath).mockReturnValue(BUNDLED_GIT)
+
+    const resolver = await import('../commandResolver')
+    findExecutableInEnvFresh = resolver.findExecutableInEnv
+  })
+
+  afterEach(() => {
+    vi.doUnmock('@main/core/platform')
+    vi.resetModules()
+  })
+
+  it('resolves the mise .cmd shim ahead of the bundled git when `where` returns both', async () => {
+    // Regression (PR #16402 review A1): with the bundled dir on the PATH tail,
+    // `where git` yields the shim first and the bundled .exe last; the .exe-only
+    // filter used to grab the bundled path and short-circuit mise resolution.
+    mockWhereSpawn([MISE_SHIM, BUNDLED_GIT])
+    vi.mocked(cp.execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'where.exe' && (args as string[])[0] === 'git') {
+        return Buffer.from(`${MISE_SHIM}\r\n${BUNDLED_GIT}\r\n`)
+      }
+      throw new Error('not found')
+    })
+
+    await expect(findExecutableInEnvFresh('git')).resolves.toBe(MISE_SHIM)
+  })
+
+  it('prefers system git on PATH over the bundled git', async () => {
+    mockWhereSpawn([SYSTEM_GIT, BUNDLED_GIT])
+
+    await expect(findExecutableInEnvFresh('git')).resolves.toBe(SYSTEM_GIT)
+  })
+
+  it('prefers git at a common install root over the bundled git', async () => {
+    // PATH only surfaces the bundled .exe, but Program Files has a real git.
+    mockWhereSpawn([BUNDLED_GIT])
+    process.env.ProgramFiles = 'C:\\Program Files'
+    const commonGit = 'C:\\Program Files\\Git\\cmd\\git.exe'
+    vi.mocked(fsFresh.default.existsSync).mockImplementation((p) => p === commonGit)
+
+    await expect(findExecutableInEnvFresh('git')).resolves.toBe(commonGit)
+  })
+
+  it('falls back to the bundled git only when every other lookup misses', async () => {
+    mockWhereSpawn([BUNDLED_GIT])
+    vi.mocked(cp.execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'where.exe' && (args as string[])[0] === 'git') {
+        return Buffer.from(`${BUNDLED_GIT}\r\n`)
+      }
+      throw new Error('not found') // no mise either
+    })
+
+    await expect(findExecutableInEnvFresh('git')).resolves.toBe(BUNDLED_GIT)
+  })
+
+  it('returns null for git when nothing is found and no bundle is present', async () => {
+    vi.mocked(bundledGitFresh.getBundledGitPath).mockReturnValue(null)
+    mockWhereSpawn([])
+
+    await expect(findExecutableInEnvFresh('git')).resolves.toBeNull()
   })
 })

@@ -1,6 +1,7 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui'
+import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
 import {
   useMessageRenderConfig,
   useOptionalMessageListActions,
@@ -16,9 +17,15 @@ import { isEmpty } from 'es-toolkit/compat'
 import { type FC, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
+import type { Pluggable } from 'unified'
+
+import { remarkHtmlArtifact } from './plugins/remarkHtmlArtifact'
+
+export type InlineHtmlPreviewMode = 'generating' | 'ready'
 
 interface Props {
   block: MarkdownSource
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   /** Pre-process the markdown content (e.g. citation tag injection). */
   postProcess?: (text: string) => string
   className?: string
@@ -26,8 +33,9 @@ interface Props {
 }
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
+const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
 
-const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) => {
+const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, className, components }) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar, codeFancyBlock } = useMessageRenderConfig()
   const actions = useOptionalMessageListActions()
@@ -55,6 +63,7 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
   )
 
   const footnoteLabel = t('common.footnotes')
+  const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
 
   // Bridge the chat message list's actions/config into the domain-neutral
   // MarkdownHost the shared markdown components read from.
@@ -75,9 +84,16 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
           isDirectory: actions?.isDirectory,
           onError: () => actions?.notifyError?.(t('chat.input.tools.open_file_error', { path }))
         }),
-      renderInlineFilePath: (path: string) => <ClickableFilePath path={path} />
+      renderInlineFilePath: (path: string) => <ClickableFilePath path={path} />,
+      // Chat renders assistant HTML fences as an immersive inline preview; the shared
+      // CodeBlock stays chat-agnostic and asks the host to draw it.
+      renderHtmlArtifact: inlineHtmlPreviewMode
+        ? (html, { isStreaming: htmlStreaming }) => (
+            <MessageHtmlArtifact html={html} isStreaming={htmlStreaming || inlineHtmlPreviewMode === 'generating'} />
+          )
+        : undefined
     }),
-    [actions, ui?.readonly, codeFancyBlock, t]
+    [actions, ui?.readonly, codeFancyBlock, t, inlineHtmlPreviewMode]
   )
 
   // Keep the renderer type stable when an active text tail is sealed by a
@@ -88,6 +104,7 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
         <StreamingMarkdown
           id={block.id}
           plugins={plugins}
+          remarkPlugins={remarkPlugins}
           components={mergedComponents}
           footnoteLabel={footnoteLabel}
           animated={isStreaming ? undefined : false}
@@ -103,6 +120,7 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
       <Markdown
         id={block.id}
         plugins={plugins}
+        remarkPlugins={remarkPlugins}
         components={mergedComponents}
         className={className}
         footnoteLabel={footnoteLabel}

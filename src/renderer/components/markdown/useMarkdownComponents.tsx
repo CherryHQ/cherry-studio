@@ -12,7 +12,7 @@
  *   - `<svg>` → MarkdownSvgRenderer (adaptive sizing + context menu)
  *   - `<style>` → MarkdownShadowDomRenderer (shadow DOM isolation)
  *
- * The returned map identity is memoized per `(blockId, hasStyleElement)`, so
+ * The returned map identity is memoized per render option, so
  * the generic `<Markdown>` / `<StreamingMarkdown>` upstream gets a stable
  * `components` prop reference across re-renders.
  */

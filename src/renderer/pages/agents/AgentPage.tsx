@@ -50,7 +50,7 @@ import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useSearch } from '@tanstack/react-router'
-import { Bot, ToolCase } from 'lucide-react'
+import { Bot } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -63,7 +63,7 @@ import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
 
 const logger = loggerService.withContext('AgentPage')
-type AgentConversationResourceKind = 'agent' | 'skill'
+type AgentConversationResourceKind = 'agent'
 const MAX_REUSABLE_EMPTY_MESSAGE_CHECKS = 8
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
@@ -263,12 +263,6 @@ const AgentPage = () => {
         id: 'agent-resource-view',
         kind: 'agent',
         label: t('chat.resource_view.menu.agent')
-      },
-      {
-        icon: <ToolCase />,
-        id: 'skill-resource-view',
-        kind: 'skill',
-        label: t('chat.resource_view.menu.skill')
       }
     ],
     [t]
@@ -612,12 +606,12 @@ const AgentPage = () => {
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentCreateOpen(false)
       try {
-        // Reuse the agent's latest empty placeholder regardless of workspace — the picker resolves a
-        // fresh workspace below only when it has to create one.
+        // A newly created agent starts without a user workspace. Reuse only a matching system
+        // placeholder; otherwise create a fresh system-backed session below.
         const reuseCandidates = getSessionReuseCandidates()
         const reusableSessions = await findReusableEmptySessions(
           reuseCandidates,
-          (candidate) => candidate.agentId === agentId
+          (candidate) => candidate.agentId === agentId && isSystemWorkspaceSession(candidate)
         )
         const reusableSession = reusableSessions[0]
         const duplicateEmptySystemSessionIds =
@@ -630,7 +624,7 @@ const AgentPage = () => {
 
         let session = reusableSession
         if (!session) {
-          const workspaceSource = await resolveCreateWorkspaceSource({ agentId })
+          const workspaceSource = await resolveCreateWorkspaceSource({ agentId, workspaceMode: 'system' })
           session = await dataApiService.post('/agent-sessions', {
             body: {
               agentId,
@@ -963,7 +957,6 @@ const AgentPage = () => {
             content: (
               <ConversationResourceView
                 kind={activeResourceKind}
-                skillAgentId={activeResourceAgentId ?? undefined}
                 toolbarLeading={
                   !isMessageOnlyView && !isWindowFrame ? (
                     <ConversationSidebarToggleButton
@@ -977,14 +970,7 @@ const AgentPage = () => {
             )
           }
         : null,
-    [
-      activeResourceAgentId,
-      activeResourceKind,
-      effectiveShowSidebar,
-      isMessageOnlyView,
-      isWindowFrame,
-      toggleResourceListOpen
-    ]
+    [activeResourceKind, effectiveShowSidebar, isMessageOnlyView, isWindowFrame, toggleResourceListOpen]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
