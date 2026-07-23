@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { RUNTIME_CONTEXT_PROMPT_PRESET } from '@shared/ai/prompts'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -759,7 +760,7 @@ describe('edit dialogs', () => {
     )
 
     const promptEditor = screen.getByRole('textbox', { name: 'Runtime context prompt' })
-    expect(promptEditor).toHaveValue(expect.stringContaining('## Runtime Context'))
+    expect(promptEditor).toHaveValue(RUNTIME_CONTEXT_PROMPT_PRESET)
     fireEvent.change(promptEditor, { target: { value: 'Agent runtime: {{datetime}}' } })
 
     await waitFor(() =>
@@ -931,7 +932,7 @@ describe('edit dialogs', () => {
     )
 
     const promptEditor = screen.getByRole('textbox', { name: 'Runtime context prompt' })
-    expect(promptEditor).toHaveValue(expect.stringContaining('## Runtime Context'))
+    expect(promptEditor).toHaveValue(RUNTIME_CONTEXT_PROMPT_PRESET)
     fireEvent.change(promptEditor, { target: { value: 'Assistant runtime: {{datetime}}' } })
 
     await waitFor(() =>

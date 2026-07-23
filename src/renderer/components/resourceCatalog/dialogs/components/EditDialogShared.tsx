@@ -305,7 +305,7 @@ export function PromptRuntimeContextToggle({
                 rows={9}
                 aria-label={t('library.config.prompt.runtime_context.prompt_label')}
                 onValueChange={onPromptChange}
-                className="min-h-48 font-mono text-xs leading-relaxed"
+                className="min-h-48 pr-12 font-mono text-xs leading-relaxed"
               />
             </div>
           </div>

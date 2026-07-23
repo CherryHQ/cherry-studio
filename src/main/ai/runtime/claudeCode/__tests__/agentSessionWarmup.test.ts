@@ -207,6 +207,28 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
   })
 
+  it('signs the same runtime-context model name at connect and reconcile time', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { runtime_context_enabled: true }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      name: 'Claude Sonnet'
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
   it('captures the channel binding that materializes the request and rebuilds after a later binding', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -740,6 +762,41 @@ describe('deriveConnectionConfig', () => {
     })
     const mcpDefinitionChanged = await deriveSignature()
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+  })
+
+  it('rebuilds for model display-name changes only when runtime context is enabled', async () => {
+    let modelName = 'Claude Sonnet'
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      name: modelName
+    }))
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { runtime_context_enabled: true }
+    })
+
+    const enabledBeforeRename = await deriveSignature()
+    modelName = 'Renamed Claude Sonnet'
+    const enabledAfterRename = await deriveSignature()
+
+    expect(enabledAfterRename.rebuildSignature).not.toBe(enabledBeforeRename.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    const disabledAfterRename = await deriveSignature()
+    modelName = 'Renamed Again'
+    const disabledAfterSecondRename = await deriveSignature()
+
+    expect(disabledAfterSecondRename.rebuildSignature).toBe(disabledAfterRename.rebuildSignature)
   })
 
   it('keeps permission mode live-only while disabled tools also require a rebuild', async () => {
