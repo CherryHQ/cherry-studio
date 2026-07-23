@@ -74,9 +74,7 @@ describe('apply_setting', () => {
   })
 
   it('rejects values outside the setting whitelist', async () => {
-    await expect(applySetting({ setting: 'launch_on_boot', value: 'yes' })).rejects.toThrow(
-      "Value 'yes' is not valid"
-    )
+    await expect(applySetting({ setting: 'launch_on_boot', value: 'yes' })).rejects.toThrow("Value 'yes' is not valid")
     expect(mocks.setLaunchOnBoot).not.toHaveBeenCalled()
   })
 })

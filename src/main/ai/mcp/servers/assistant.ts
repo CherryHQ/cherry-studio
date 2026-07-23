@@ -13,7 +13,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { parseUniqueModelId, UniqueModelIdSchema, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('McpServer:Assistant')
@@ -361,10 +361,7 @@ class AssistantServer {
 
     const parsedModel = UniqueModelIdSchema.safeParse(model)
     if (!parsedModel.success) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        `'model' must be in the form "providerId::modelId" (got "${model}")`
-      )
+      throw new McpError(ErrorCode.InvalidParams, `'model' must be in the form "providerId::modelId" (got "${model}")`)
     }
 
     try {

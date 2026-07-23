@@ -1,5 +1,5 @@
 {
-  "comment": "Maps SystemProviderIds (from src/renderer/src/types/provider.ts) to category bucket + bilingual display names used by the Cherry Assistant knowledge base. New IDs added to SystemProviderIds but missing here will fall into 'other' with the raw ID as their display name (loud rather than silent). Keep in sync with SystemProviderIds.",
+  "comment": "Maps SystemProviderIds (from src/shared/utils/systemProviderId.ts) to category bucket + bilingual display names used by the Cherry Assistant knowledge base. New IDs added to SystemProviderIds but missing here will fall into 'other' with the raw ID as their display name (loud rather than silent). Keep in sync with SystemProviderIds.",
   "categories": {
     "international": {
       "label": { "zh-CN": "国际", "en-US": "International" },
@@ -26,6 +26,7 @@
         { "id": "302ai", "name": { "zh-CN": "302.AI", "en-US": "302.AI" } },
         { "id": "new-api", "name": { "zh-CN": "New API", "en-US": "New API" } },
         { "id": "gateway", "name": { "zh-CN": "Vercel AI Gateway", "en-US": "Vercel AI Gateway" } },
+        { "id": "opencode", "name": { "zh-CN": "OpenCode Go", "en-US": "OpenCode Go" } },
         { "id": "dmxapi", "name": { "zh-CN": "DMXAPI", "en-US": "DMXAPI" } },
         { "id": "aionly", "name": { "zh-CN": "AIOnly", "en-US": "AIOnly" } },
         { "id": "burncloud", "name": { "zh-CN": "BurnCloud", "en-US": "BurnCloud" } },
@@ -48,6 +49,7 @@
         { "id": "hunyuan", "name": { "zh-CN": "混元", "en-US": "Hunyuan" } },
         { "id": "baidu-cloud", "name": { "zh-CN": "百度智能云", "en-US": "Baidu Cloud" } },
         { "id": "tencent-cloud-ti", "name": { "zh-CN": "腾讯云 TI", "en-US": "Tencent Cloud TI" } },
+        { "id": "tokenhub", "name": { "zh-CN": "TokenHub", "en-US": "TokenHub" } },
         { "id": "modelscope", "name": { "zh-CN": "魔搭", "en-US": "ModelScope" } },
         { "id": "yi", "name": { "zh-CN": "零一万物 Yi", "en-US": "Yi" } },
         { "id": "mimo", "name": { "zh-CN": "小米 MiMo", "en-US": "Xiaomi MiMo" } },
