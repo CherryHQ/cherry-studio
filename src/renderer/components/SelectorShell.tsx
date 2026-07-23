@@ -532,7 +532,7 @@ export function SelectorShell({
                           'size-6 shrink-0 rounded-md bg-transparent p-0 shadow-none',
                           multiSelect.checked
                             ? 'bg-accent text-foreground'
-                            : 'text-icon hover:bg-accent/60 hover:text-foreground'
+                            : 'text-foreground-secondary hover:bg-accent/60 hover:text-foreground'
                         )}
                         onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
                         <AtSign className="size-3.5" aria-hidden="true" />

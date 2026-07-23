@@ -8,6 +8,7 @@ import {
   captureScrollableAsDataUrl,
   checkEntityImageSize,
   convertToBase64,
+  getImageBlobFromSource,
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes
@@ -200,6 +201,23 @@ describe('utils/image', () => {
       expect(result).toBe(finalCanvas)
     })
 
+    it('should exclude HTML artifacts from image capture', async () => {
+      const div = document.createElement('div')
+      const content = document.createElement('div')
+      const htmlArtifact = document.createElement('div')
+      htmlArtifact.setAttribute('data-html-artifact', '')
+      div.append(content, htmlArtifact)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await captureScrollable(ref)
+
+      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
+      expect(captureOptions?.filter?.(htmlArtifact)).toBe(false)
+      expect(captureOptions?.filter?.(content)).toBe(true)
+    })
+
     it('should restore styles when html-to-image capture fails', async () => {
       vi.mocked(htmlToImage.toCanvas).mockRejectedValueOnce(new Error('capture failed'))
 
@@ -349,6 +367,60 @@ describe('utils/image', () => {
       const result = makeSvgSizeAdaptive(divElement)
 
       expect(result.outerHTML).toBe(originalOuterHTML)
+    })
+  })
+
+  describe('getImageBlobFromSource', () => {
+    const fetchMock = vi.fn()
+    const fsRead = vi.fn()
+
+    beforeEach(() => {
+      fetchMock.mockReset().mockResolvedValue({
+        blob: async () => new Blob(['remote'], { type: 'image/webp' })
+      })
+      fsRead.mockReset().mockResolvedValue(new Uint8Array([1, 2, 3]))
+      vi.stubGlobal('fetch', fetchMock)
+      Object.assign(window, { api: { fs: { read: fsRead } } })
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('reads image blobs from base64 data URLs', async () => {
+      const blob = await getImageBlobFromSource('data:image/png;base64,aGVsbG8=')
+
+      expect(blob.type).toBe('image/png')
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(fsRead).not.toHaveBeenCalled()
+    })
+
+    it('decodes non-base64 inline data URLs without fetching', async () => {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100%"><text>hello</text></svg>'
+
+      const blob = await getImageBlobFromSource(`data:image/svg+xml,${svg}`)
+
+      expect(blob.type).toBe('image/svg+xml')
+      expect(blob.size).toBe(new TextEncoder().encode(svg).length)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('reads image blobs from file URLs', async () => {
+      const blob = await getImageBlobFromSource('file:///tmp/example.png')
+
+      expect(fsRead).toHaveBeenCalledWith('file:///tmp/example.png')
+      expect(blob.type).toBe('image/png')
+    })
+
+    it('reads image blobs from remote URLs', async () => {
+      const blob = await getImageBlobFromSource('https://example.com/image.webp')
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/image.webp')
+      expect(blob.type).toBe('image/webp')
+    })
+
+    it('throws on a data URL with no media type', async () => {
+      await expect(getImageBlobFromSource('data:;base64,aGVsbG8=')).rejects.toThrow('Invalid image data URL')
     })
   })
 })

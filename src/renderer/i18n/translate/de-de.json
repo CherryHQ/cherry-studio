@@ -566,7 +566,7 @@
       },
       "prompt": "Prompt-Einstellungen",
       "skills": {
-        "addMore": "Weitere Skills hinzufügen",
+        "addMore": "Skills verwalten",
         "builtin": "Integriert",
         "noFilterResults": "Keine übereinstimmenden Fähigkeiten",
         "noSkills": "Keine Skills installiert. Installiere Skills über Einstellungen > Skills.",
@@ -1470,16 +1470,16 @@
         "unsupported_model": "Das aktuelle Modell unterstützt kein einstellbares Denken."
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Symbolleiste anpassen",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Die Neuanordnung für {{name}} wurde abgebrochen.",
+          "dropped": "{{name}} wurde fallen gelassen.",
+          "instructions": "Um ein Element neu anzuordnen, drücken Sie die Leertaste oder Eingabetaste, um ein Werkzeug aufzuheben, verwenden Sie die Pfeiltasten, um es zu verschieben, und drücken Sie dann die Leertaste oder Eingabetaste, um es abzulegen, oder Escape, um abzubrechen.",
+          "over": "{{name}} zog über {{over}}.",
+          "picked_up": "{{name}} aufgenommen."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Zum Neuanordnen {{name}} ziehen",
+        "restore_default": "Standard wiederherstellen"
       },
       "tools": {
         "collapse": "Falten",
@@ -1755,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} Tokens",
     "topics": {
       "auto_rename": "Themenname generieren",
+      "auto_rename_failed": "Fehler beim automatischen Generieren des Gesprächsnamens",
       "clear": {
         "title": "Nachrichten leeren"
       },
@@ -2452,6 +2453,80 @@
       "reasoning_truncated": "Gedankenkette kann nicht aufgeteilt werden, wurde abgeschnitten"
     },
     "user": "Benutzer"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Diese HTML-Datei hat keinen Inhalt.",
+        "title": "Leere Datei"
+      },
+      "mode": {
+        "label": "HTML-Ansichtsmodus",
+        "preview": "Vorschau",
+        "source": "Quelle"
+      },
+      "read_error": {
+        "title": "Konnte diese Datei nicht lesen"
+      },
+      "too_large": {
+        "description": "HTML-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
+        "title": "Datei ist zu groß"
+      }
+    },
+    "invalid_path": {
+      "description": "Die Dateivorschau erfordert einen gültigen absoluten lokalen Pfad.",
+      "title": "Diese Datei kann nicht in der Vorschau angezeigt werden"
+    },
+    "load_error": {
+      "description": "Der Vorschauinhalt konnte nicht geladen werden.",
+      "title": "Vorschau fehlgeschlagen"
+    },
+    "loading": "Vorschau wird geladen...",
+    "markdown": {
+      "empty": {
+        "description": "Diese Markdown-Datei hat keinen Inhalt.",
+        "title": "Leere Datei"
+      },
+      "mode": {
+        "label": "Markdown-Ansichtsmodus",
+        "preview": "Vorschau",
+        "source": "Quelle"
+      },
+      "read_error": {
+        "title": "Konnte diese Datei nicht lesen"
+      },
+      "too_large": {
+        "description": "Markdown-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
+        "title": "Datei ist zu groß"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Mit Standard-App öffnen",
+        "description": "PDF-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
+        "open_error": "Konnte diese Datei nicht öffnen",
+        "title": "Die Datei ist zu groß"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Diese Textdatei hat keinen Inhalt.",
+        "title": "Leere Datei"
+      },
+      "read_error": {
+        "title": "Konnte diese Datei nicht lesen"
+      },
+      "too_large": {
+        "description": "Textdateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
+        "title": "Datei ist zu groß"
+      }
+    },
+    "unsupported": {
+      "action": "Mit Standard-App öffnen",
+      "description": "Dieser Dateityp kann noch nicht in der Vorschau angezeigt werden.",
+      "open_error": "Konnte diese Datei nicht öffnen",
+      "title": "Vorschau nicht verfügbar"
+    }
   },
   "files": {
     "actions": "Aktionen",
@@ -3496,8 +3571,10 @@
       "title": "Bibliothek"
     },
     "skill_add": {
+      "add": "Fähigkeit hinzufügen",
       "local_import": "Lokaler Import",
-      "online_search": "Online-Suche"
+      "online_search": "Online-Suche",
+      "system_search": "System-Suche"
     },
     "skill_detail": {
       "created_at": "Erstellt",
@@ -3525,6 +3602,19 @@
       "updated": "Nach Aktualisierung sortieren"
     },
     "subtitle": "Verwalten Sie Ihre Assistenten, Agenten und Fähigkeiten",
+    "system_skill": {
+      "conflict": "Namenskonflikt",
+      "description": "Auf diesem System bereits installierte Skills importieren.",
+      "empty_description": "Es wurden keine importierbaren Fähigkeiten in anderen Coding-Tools auf diesem Gerät gefunden.",
+      "empty_title": "Keine Fähigkeiten zum Importieren verfügbar",
+      "enable_success": "Aktiviert {{name}}",
+      "enabled": "Aktiviert",
+      "import": "Import",
+      "import_success": "Importierte {{name}}",
+      "imported": "Importiert",
+      "search_placeholder": "Systemfähigkeiten durchsuchen...",
+      "title": "Systemfähigkeiten"
+    },
     "tag_picker": {
       "no_tags": "Noch keine Tags",
       "placeholder": "Neuer Tag-Name..."
@@ -4698,6 +4788,7 @@
     "req_error_text": "Server ausgelastet oder Prompt enthält \"urheberrechtlich geschützte\" oder \"sensible Wörter\". Bitte erneut versuchen.",
     "req_error_token": "Bitte Token-Gültigkeit überprüfen",
     "required_field": "Pflichtfeld",
+    "revealing": "Enthüllung des generierten Bildes",
     "safety_tolerance": "Sicherheitstoleranz",
     "safety_tolerance_tip": "Höher = permissiverer Filter; 0 ist am strengsten, 6 ist am permissivsten",
     "seed": "Seed",
@@ -5355,7 +5446,7 @@
         "icon": {
           "error": "Ungültiger Symbolname, bitte Eingabe prüfen",
           "label": "Symbol",
-          "placeholder": "Lucide-Symbolnamen eingeben",
+          "placeholder": "Symbolname",
           "random": "Zufälliges Symbol",
           "tooltip": "Lucide-Symbolnamen sind kleingeschrieben, z. B. arrow-right",
           "view_all": "Alle Symbole anzeigen"
@@ -6100,7 +6191,8 @@
           "downloading": "Herunterladen…",
           "ready": "Bereit"
         },
-        "title": "Lokale Modelle"
+        "title": "Lokale Modelle",
+        "unsupported": "Lokale Modelle werden auf dieser Plattform nicht unterstützt."
       },
       "notInstalled": "Nicht installiert",
       "openBinariesDir": "Open binaries directory",
@@ -6574,10 +6666,10 @@
       "user": "Benutzer"
     },
     "menuGroups": {
-      "automation": "Automatisierung",
-      "capabilities": "Fähigkeiten & Tools",
+      "automation": "Effizienz",
+      "capabilities": "Tools",
       "models": "Modelle",
-      "personal": "Persönlich",
+      "personal": "Präferenzen",
       "quickAccess": "Schneller Zugriff",
       "system": "System"
     },
@@ -7734,6 +7826,8 @@
   },
   "tab": {
     "close": "Tab schließen",
+    "close_others": "Andere Tabs schließen",
+    "close_to_right": "Tabs rechts schließen",
     "move_to_first": "Zum Anfang verschieben",
     "new": "Neuer Tab",
     "open_in_new_window": "In neuem Fenster öffnen",

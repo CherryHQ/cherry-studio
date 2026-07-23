@@ -107,6 +107,20 @@ describe('useChatWithHistory', () => {
     vi.clearAllMocks()
   })
 
+  it('creates a fresh Chat instance when the stable owner switches topics', () => {
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result, rerender } = renderHook(
+      ({ topicId }: { topicId: string }) => useChatWithHistory(topicId, [], refresh),
+      { initialProps: { topicId: 'topic-1' } }
+    )
+    const firstChat = result.current.chat
+
+    rerender({ topicId: 'topic-2' })
+
+    expect(result.current.chat.id).toBe('topic-2')
+    expect(result.current.chat).not.toBe(firstChat)
+  })
+
   it('refreshes history before resuming the matching topic when another window starts streaming', async () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
 

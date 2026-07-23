@@ -738,6 +738,36 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'doc.pdf')
     })
 
+    it('renders a composer file token when it is the only user message content', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:license', kind: 'file', label: 'LICENSE', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/LICENSE',
+            mediaType: 'text/plain',
+            filename: 'LICENSE',
+            providerMetadata: { cherry: { fileTokenSourceId: 'license' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('LICENSE')
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
     it('hides a duplicate attachment when its composer file token is visible', () => {
       renderParts(
         [
@@ -1299,7 +1329,7 @@ describe('MessagePartsRenderer', () => {
       expect(html.lastIndexOf('mock-tool-group-content')).toBeLessThan(html.indexOf('Main final answer'))
     })
 
-    it('keeps tools adjacent while filtering reasoning from completed child groups', () => {
+    it('keeps reasoning between tools inside the completed child group', () => {
       renderParts([
         toolPart('read'),
         { type: 'reasoning', text: 'Reasoning between tools', state: 'done' },
@@ -1311,13 +1341,10 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.getAllByTestId('child-tool-group')).toHaveLength(1)
       expect(screen.queryByText('Reasoning between tools')).toBeNull()
-      expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
 
       expandCollapsedChildToolGroups()
 
-      expect(screen.queryByText('Reasoning between tools')).toBeNull()
-      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
-      expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(1)
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Reasoning between tools')
       expect(screen.getByText('Main final answer')).toBeInTheDocument()
     })
 
@@ -1383,7 +1410,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'cancelled')
     })
 
-    it('shows completed summaries for tools and hides pure reasoning groups', () => {
+    it('shows completed summaries for tools and pure reasoning groups', () => {
       const tools = renderParts([toolPart('read')] as unknown as CherryMessagePart[])
       expect(screen.getByTestId('completed-process-trigger')).toHaveAccessibleName('Processed')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
@@ -1391,8 +1418,27 @@ describe('MessagePartsRenderer', () => {
       tools.unmount()
 
       renderParts([{ type: 'reasoning', text: 'Only thought', state: 'done' }] as unknown as CherryMessagePart[])
-      expect(screen.queryByTestId('completed-process-trigger')).toBeNull()
+      const reasoningTrigger = screen.getByTestId('completed-process-trigger')
+      expect(reasoningTrigger).toHaveAccessibleName('Processed')
       expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+
+      fireEvent.click(reasoningTrigger)
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Only thought')
+    })
+
+    it('reveals completed thinking behind the process summary for a reasoning-and-answer message', () => {
+      renderParts([
+        { type: 'reasoning', text: 'Deep thought', state: 'done' },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByText('final answer')).toBeInTheDocument()
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+
+      fireEvent.click(historyTrigger)
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Deep thought')
+      expect(screen.getByTestId('mock-thinking-block')).toHaveAttribute('data-streaming', 'false')
     })
 
     it('shows processed status and elapsed time in a completed tool summary', () => {
@@ -1427,7 +1473,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByRole('button', { name: 'Error' })).toBeInTheDocument()
     })
 
-    it('filters terminal reasoning while keeping the process error', () => {
+    it('keeps terminal reasoning alongside the process error', () => {
       renderParts([
         { type: 'text', text: 'partial answer' },
         { type: 'reasoning', text: 'Investigating', state: 'done' },
@@ -1440,8 +1486,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('partial answer')).toBeInTheDocument()
 
       fireEvent.click(historyTrigger)
-      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
-      expect(screen.queryByTestId('mock-thinking-content')).toBeNull()
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Investigating')
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'failed after reasoning')
     })
 
@@ -1529,7 +1574,7 @@ describe('MessagePartsRenderer', () => {
       expect(html.indexOf('final answer')).toBeLessThan(html.indexOf('report.md'))
     })
 
-    it('filters adjacent reasoning blocks from the completed tool group', () => {
+    it('keeps adjacent reasoning blocks inside the completed tool group', () => {
       renderParts([
         toolPart('read'),
         ...Array.from({ length: 4 }, (_, index) => ({
@@ -1543,9 +1588,8 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
 
-      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
-      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
-      expect(screen.queryByTestId('mock-thinking-content')).toBeNull()
+      expect(screen.getAllByTestId('mock-thinking-block')).toHaveLength(4)
+      expect(screen.getByText('thought 4')).toBeInTheDocument()
       expect(screen.getByText('final answer')).toBeInTheDocument()
     })
 
@@ -1559,8 +1603,8 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
 
-      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
-      expect(screen.queryByTestId('mock-thinking-content')).toBeNull()
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Interrupted thought')
+      expect(screen.getByTestId('mock-thinking-block')).toHaveAttribute('data-streaming', 'false')
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'cancelled')
     })
 

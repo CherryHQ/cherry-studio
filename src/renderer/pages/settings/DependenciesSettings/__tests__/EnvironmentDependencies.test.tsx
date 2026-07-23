@@ -32,8 +32,6 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.removeTool(input)
         case 'binary.get_tool_dir':
           return ipcMocks.getToolDir(input)
-        case 'local_model.get_status':
-          return Promise.resolve({ status: 'unsupported' })
         case 'binary.get_latest_versions':
           return ipcMocks.latestVersions(input)
         default:

@@ -14,7 +14,7 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string>>() }))
+const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string | null>>() }))
 vi.mock('@main/ai/messages/attachmentTextExtraction', () => ({
   extractDocumentText: extractMock,
   noExtractableTextNote: (name: string) => `No text in ${name}`
@@ -44,6 +44,24 @@ describe('readFile — text-only', () => {
     expect(await readFile(input({ filename: 'a.docx' }), ctx([att('a.docx')]))).toEqual({
       text: 'word body',
       totalChars: 9
+    })
+  })
+
+  it('extracts an extensionless text file', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    extractMock.mockResolvedValueOnce('license body')
+    expect(await readFile(input({ filename: 'LICENSE' }), ctx([att('LICENSE')]))).toEqual({
+      text: 'license body',
+      totalChars: 12
+    })
+  })
+
+  it('returns an unsupported note for an extensionless binary file', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    extractMock.mockResolvedValueOnce(null)
+    expect(await readFile(input({ filename: 'payload' }), ctx([att('payload')]))).toEqual({
+      text: 'Cannot read the attached file "payload" as text (unsupported file type).',
+      totalChars: 72
     })
   })
 

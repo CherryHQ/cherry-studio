@@ -21,11 +21,9 @@ import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
-import { toast } from '@renderer/services/toast'
-import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { getRandomTagColor, MCP_MODE_OPTIONS } from '@renderer/utils/resourceCatalog'
+import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
   diffAssistantSaveIntent,
@@ -33,7 +31,7 @@ import {
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { Loader2, Sparkles, Trash2, Undo2 } from 'lucide-react'
+import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -54,8 +52,9 @@ import {
   TextInputField,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
+import { GroupSelector } from '../components/GroupSelector'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
-import { TagSelector } from '../components/TagSelector'
+import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
 
@@ -68,7 +67,7 @@ type AssistantEditFormValues = {
   name: string
   description: string
   modelId: UniqueModelId | null
-  tagName: string | null
+  groupId: string | null
   prompt: string
   temperature: number
   enableTemperature: boolean
@@ -104,7 +103,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     name: form.name,
     description: form.description,
     modelId: form.modelId ?? null,
-    tagName: form.tagName,
+    groupId: form.groupId,
     prompt: form.prompt,
     temperature: form.temperature,
     enableTemperature: form.enableTemperature,
@@ -137,7 +136,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     name: values.name,
     description: values.description,
     modelId: values.modelId,
-    tagName: values.tagName,
+    groupId: values.groupId,
     prompt: values.prompt,
     temperature: values.temperature,
     enableTemperature: values.enableTemperature,
@@ -155,7 +154,14 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
   }
 }
 
-export function AssistantEditDialog({ resource, open, onOpenChange, onSaved, modelFilter }: AssistantEditDialogProps) {
+export function AssistantEditDialog({
+  resource,
+  open,
+  onOpenChange,
+  onSaved,
+  modelFilter,
+  initialTab
+}: AssistantEditDialogProps) {
   if (!resource) return null
 
   return (
@@ -165,6 +171,7 @@ export function AssistantEditDialog({ resource, open, onOpenChange, onSaved, mod
       onOpenChange={onOpenChange}
       onSaved={onSaved}
       modelFilter={modelFilter}
+      initialTab={initialTab}
     />
   )
 }
@@ -174,19 +181,18 @@ function AssistantEditDialogContent({
   open,
   onOpenChange,
   onSaved,
-  modelFilter
+  modelFilter,
+  initialTab
 }: EditDialogBaseProps<AssistantEditDialogResource> & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('basic')
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
-  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
-  const tagList = useTagList()
-  const allTagNames = useMemo(() => tagList.tags.map((tag) => tag.name), [tagList.tags])
+  const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
     const baseline = initialAssistantFormState(resource)
@@ -217,10 +223,10 @@ function AssistantEditDialogContent({
 
     form.reset(defaultValues)
     form.clearErrors()
-    setActiveTab('basic')
+    setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
-  }, [defaultValues, form, open, resource])
+  }, [defaultValues, form, initialTab, open, resource])
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
@@ -237,10 +243,7 @@ function AssistantEditDialogContent({
 
     let updated: Awaited<ReturnType<typeof updateAssistant>>
     try {
-      updated = await updateAssistant({
-        ...pending.payload,
-        ...(pending.tagsChanged ? { tagIds: (await ensureTags(pending.tagNames)).map((tag) => tag.id) } : {})
-      })
+      updated = await updateAssistant(pending.payload)
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
@@ -302,7 +305,9 @@ function AssistantEditDialogContent({
             portalContainer={dialogContentElement}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
-            allTagNames={allTagNames}
+            groups={groups}
+            groupsLoading={isGroupsLoading}
+            groupsError={groupsError}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
             onSettingsNavigate={closeBeforeAction}
@@ -345,7 +350,9 @@ function AssistantBasicFields({
   portalContainer,
   modelLabels,
   setModelLabels,
-  allTagNames,
+  groups,
+  groupsLoading,
+  groupsError,
   emojiPickerOpen,
   setEmojiPickerOpen,
   onSettingsNavigate
@@ -355,7 +362,9 @@ function AssistantBasicFields({
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
-  allTagNames: string[]
+  groups: ReturnType<typeof useGroups>['groups']
+  groupsLoading: ReturnType<typeof useGroups>['isLoading']
+  groupsError: ReturnType<typeof useGroups>['error']
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
@@ -408,14 +417,16 @@ function AssistantBasicFields({
         </div>
         <FormField
           control={form.control}
-          name="tagName"
+          name="groupId"
           render={({ field }) => (
             <FormItem className="min-w-0">
-              <FormLabel className="font-normal">{t('library.config.basic.tags')}</FormLabel>
-              <TagSelector
+              <FormLabel className="font-normal">{t('library.config.basic.group')}</FormLabel>
+              <GroupSelector
                 value={field.value}
                 onChange={field.onChange}
-                allTagNames={allTagNames}
+                groups={groups}
+                isLoading={groupsLoading}
+                error={groupsError}
                 portalContainer={portalContainer}
               />
               <FormMessage />
@@ -445,99 +456,31 @@ function AssistantPromptField({
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
-  const [generating, setGenerating] = useState(false)
-  const [showUndoButton, setShowUndoButton] = useState(false)
-  const [originalPrompt, setOriginalPrompt] = useState('')
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
-  const generateRequestIdRef = useRef(0)
   const prompt = form.watch('prompt')
   const name = form.watch('name')
-  const generateSource = prompt.trim() || name.trim()
   const processedPrompt = usePromptProcessor({
     prompt,
     modelName: modelName ?? resource.modelName ?? undefined
   })
-  const promptGenerationFailedToast = {
-    title: t('library.config.prompt.generate_failed_title'),
-    description: t('library.config.prompt.generate_failed_description')
-  }
 
   const handlePromptChange = (nextPrompt: string) => {
-    setShowUndoButton(false)
     form.setValue('prompt', nextPrompt, { shouldDirty: true, shouldTouch: true })
   }
 
-  useEffect(() => {
-    return () => {
-      generateRequestIdRef.current += 1
-    }
-  }, [])
-
-  const handleGeneratePrompt = async () => {
-    if (!generateSource || generating) return
-
-    const requestId = generateRequestIdRef.current + 1
-    generateRequestIdRef.current = requestId
-    setGenerating(true)
-    setShowUndoButton(false)
-
-    try {
-      const generatedPrompt = await fetchGenerate({
-        prompt: AGENT_PROMPT,
-        content: generateSource,
-        throwOnError: true
-      })
-
-      if (generateRequestIdRef.current !== requestId) return
-      if (!generatedPrompt) {
-        toast.error(promptGenerationFailedToast)
-        return
-      }
-
-      setOriginalPrompt(prompt)
-      form.setValue('prompt', generatedPrompt, { shouldDirty: true, shouldTouch: true })
-      setShowUndoButton(true)
-      setResetPreviewKey((key) => key + 1)
-    } catch (error) {
-      logger.error('Failed to generate assistant prompt from edit dialog', error as Error, {
-        assistantId: resource.id
-      })
-      toast.error(promptGenerationFailedToast)
-    } finally {
-      if (generateRequestIdRef.current === requestId) {
-        setGenerating(false)
-      }
-    }
-  }
-
-  const handleUndoGeneratedPrompt = () => {
-    form.setValue('prompt', originalPrompt, { shouldDirty: true, shouldTouch: true })
-    setShowUndoButton(false)
+  const handlePromptActionChange = (nextPrompt: string) => {
+    handlePromptChange(nextPrompt)
     setResetPreviewKey((key) => key + 1)
   }
 
   const promptActions = (
-    <>
-      {showUndoButton ? (
-        <Button
-          type="button"
-          variant="outline"
-          aria-label={t('common.undo')}
-          onClick={handleUndoGeneratedPrompt}
-          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0">
-          <Undo2 size={10} />
-        </Button>
-      ) : null}
-      <Button
-        type="button"
-        variant="outline"
-        aria-label={t('library.config.prompt.generate')}
-        onClick={handleGeneratePrompt}
-        disabled={!generateSource || generating}
-        className="flex h-6 min-h-0 w-6 items-center justify-center rounded-full p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-        {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-      </Button>
-    </>
+    <PromptPolishActions
+      value={prompt}
+      fallbackSource={name}
+      emptyValueSystemPrompt={AGENT_PROMPT}
+      existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+      onChange={handlePromptActionChange}
+    />
   )
 
   return (

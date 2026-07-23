@@ -72,6 +72,8 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 └───────────────────────────────────────────────────────────────┘
 ```
 
+Both channels are sender-gated by `validateSender` (untrusted `Cache_Sync` messages are dropped, `Cache_GetAllShared` rejects) — see [IpcApi Overview §Security](../ipc/ipc-overview.md#security--two-gates).
+
 ## Process Responsibilities
 
 | Concern                         | Main                                             | Renderer                                             |
@@ -94,7 +96,7 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 | `getCasual` / `setCasual` / `hasCasual` / `deleteCasual` / `hasTTLCasual` | Memory | Dynamic only (schema keys blocked) |
 | `useSharedCache` / `getShared` / `setShared` / `hasShared` / `deleteShared` / `hasSharedTTL` | Shared | Fixed + Template |
 | `useSharedCacheValue` — read-only observer for main-owned keys: no default write-back, no pin, no setter; `undefined` on physical miss | Shared | Fixed + Template |
-| `getSharedSnapshot` — pure physical read for external-store snapshots (no TTL check, no eviction, no notify) | Shared | Fixed + Template |
+| `useSharedCacheSelector` — multi-key read-only aggregate observer: values tuple → selector → selection-level bail-out | Shared | Fixed + Template |
 | `usePersistCache` / `getPersist` / `setPersist` / `hasPersist` / `deletePersist` | Persist | Fixed only |
 | `isSharedCacheReady` / `onSharedCacheReady`          | Shared  | —                       |
 | `getStats(includeDetails?: boolean)`                 | All     | —                       |

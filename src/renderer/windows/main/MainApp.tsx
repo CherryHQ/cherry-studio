@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
@@ -13,6 +14,8 @@ import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
+import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
+import OnboardingPage from './onboarding/OnboardingPage'
 
 const logger = loggerService.withContext('MainApp')
 
@@ -21,9 +24,10 @@ const logger = loggerService.withContext('MainApp')
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
 // torn down when a background tab hides.
 //
-// useAppUpdateHandler / useStorageMonitorNotification are intentionally main-only
-// (update events only reach the main window; the storage warning must not duplicate
-// across windows) and intentionally React hooks: they depend on React-visible
+// useAppUpdateHandler / useStorageMonitorNotification / useTopicNamingErrorNotification are
+// intentionally main-only (update events only reach the main window; the storage warning and
+// topic-naming-failed toast must not duplicate across windows) and intentionally React hooks:
+// they depend on React-visible
 // cache/toast state and manage their own effect cleanup, and the renderer has no
 // service lifecycle container, so a service would only add manual start/stop.
 //
@@ -45,8 +49,33 @@ function MainWindowRuntime(): null {
 
   useAppUpdateHandler()
   useStorageMonitorNotification()
+  useTopicNamingErrorNotification()
 
   return null
+}
+
+export function MainWindowContent(): React.ReactElement {
+  const [providerSetupStatus, setProviderSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+
+  if (providerSetupStatus === 'pending') {
+    return (
+      <>
+        <OnboardingPage onComplete={setProviderSetupStatus} />
+        <MainWindowRuntime />
+        <PopupHost />
+        <ToastHost />
+      </>
+    )
+  }
+
+  return (
+    <TabsProvider>
+      <AppShell />
+      <MainWindowRuntime />
+      <PopupHost />
+      <ToastHost />
+    </TabsProvider>
+  )
 }
 
 function MainApp(): React.ReactElement {
@@ -60,12 +89,7 @@ function MainApp(): React.ReactElement {
         <CodeStyleProvider>
           <CommandContextKeyProvider>
             <CommandProvider>
-              <TabsProvider>
-                <AppShell />
-                <MainWindowRuntime />
-                <PopupHost />
-                <ToastHost />
-              </TabsProvider>
+              <MainWindowContent />
             </CommandProvider>
           </CommandContextKeyProvider>
         </CodeStyleProvider>

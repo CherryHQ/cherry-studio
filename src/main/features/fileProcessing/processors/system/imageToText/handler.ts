@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
-import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
+import type * as SystemOcrModule from '@napi-rs/system-ocr'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
 
@@ -9,6 +9,22 @@ import type { PreparedSystemOcrContext } from '../types'
 import { SystemOcrOptionsSchema } from '../types'
 
 const logger = loggerService.withContext('FileProcessing:SystemImageToTextHandler')
+
+// Load the native OCR binding lazily so a missing or broken binding only fails this
+// feature when it's actually used, instead of throwing at module load and crashing the
+// whole main process at startup (some builds, e.g. macOS x64, may ship without a working
+// @napi-rs/system-ocr native binding).
+let systemOcrModulePromise: Promise<typeof SystemOcrModule> | undefined
+
+function loadSystemOcr() {
+  if (!systemOcrModulePromise) {
+    systemOcrModulePromise = import('@napi-rs/system-ocr').catch((error) => {
+      systemOcrModulePromise = undefined
+      throw error
+    })
+  }
+  return systemOcrModulePromise
+}
 
 export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
   mode: 'background',
@@ -23,6 +39,8 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
           filePath: context.file.path,
           langs: context.langs
         })
+
+        const { OcrAccuracy, recognize } = await loadSystemOcr()
 
         const result = await recognize(
           context.file.path,

@@ -8,20 +8,26 @@ import { isEmpty } from 'es-toolkit/compat'
 import { type FC, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
+import type { Pluggable } from 'unified'
 
+import { remarkHtmlArtifact } from './plugins/remarkHtmlArtifact'
 import { useChatMarkdownComponents } from './useChatMarkdownComponents'
 
 interface Props {
   block: MarkdownSource
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   /** Pre-process the markdown content (e.g. citation tag injection). */
   postProcess?: (text: string) => string
   className?: string
   components?: Partial<Components>
 }
 
-const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
+export type InlineHtmlPreviewMode = 'generating' | 'ready'
 
-const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) => {
+const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
+const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
+
+const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, className, components }) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
   const isStreaming = block.status === 'streaming'
@@ -40,13 +46,19 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
   }, [block.status, block.content, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
-  const chatComponents = useChatMarkdownComponents({ blockId: block.id, hasStyleElement, isStreaming })
+  const chatComponents = useChatMarkdownComponents({
+    blockId: block.id,
+    inlineHtmlPreviewMode,
+    hasStyleElement,
+    isStreaming
+  })
   const mergedComponents = useMemo(
     () => (components ? { ...chatComponents, ...components } : chatComponents),
     [chatComponents, components]
   )
 
   const footnoteLabel = t('common.footnotes')
+  const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
 
   // Keep the renderer type stable when an active text tail is sealed by a
   // later process part. Historical markdown still mounts the static renderer.
@@ -55,6 +67,7 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
       <StreamingMarkdown
         id={block.id}
         plugins={plugins}
+        remarkPlugins={remarkPlugins}
         components={mergedComponents}
         footnoteLabel={footnoteLabel}
         animated={isStreaming ? undefined : false}
@@ -67,6 +80,7 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
     <Markdown
       id={block.id}
       plugins={plugins}
+      remarkPlugins={remarkPlugins}
       components={mergedComponents}
       className={className}
       footnoteLabel={footnoteLabel}>
