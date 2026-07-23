@@ -662,8 +662,11 @@ function CustomProviderEndpointTabs({
         </p>
       </div>
 
-      <Tabs value={value} onValueChange={(nextValue) => onValueChange(nextValue as CustomProviderEndpointTab)}>
-        <TabsList className="grid min-h-12 w-full grid-cols-5 rounded-xl p-1">
+      <Tabs
+        variant="underline"
+        value={value}
+        onValueChange={(nextValue) => onValueChange(nextValue as CustomProviderEndpointTab)}>
+        <TabsList className="grid h-10 w-full grid-cols-5 border-border border-b">
           {CUSTOM_PROVIDER_ENDPOINT_TABS.map((tab) => {
             const configured =
               tab.value === 'other'
@@ -676,7 +679,7 @@ function CustomProviderEndpointTabs({
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="min-h-10 min-w-0 gap-1.5 rounded-lg px-2 text-xs">
+                className="h-10 min-w-0 cursor-pointer gap-1.5 px-2 text-xs transition-[color,background-color,transform] duration-150 active:scale-[0.96] disabled:cursor-not-allowed">
                 <span className="truncate">{t(tab.labelKey)}</span>
                 {configured && <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />}
               </TabsTrigger>

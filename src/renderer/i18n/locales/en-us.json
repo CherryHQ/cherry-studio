@@ -7311,7 +7311,7 @@
         "endpoint_tabs": {
           "anthropic": "Anthropic",
           "default_chat": "Default chat endpoint",
-          "description": "Enter Base URLs by protocol; configure at least one text endpoint, with optional image endpoints",
+          "description": "Switch tabs to configure each protocol; the first text endpoint you fill becomes the default",
           "gemini": "Gemini",
           "label": "Endpoint settings",
           "openai_chat": "Chat",

@@ -7311,7 +7311,7 @@
         "endpoint_tabs": {
           "anthropic": "Anthropic",
           "default_chat": "默认对话端点",
-          "description": "按协议填写 Base URL；至少配置一个文本端点，图像端点可选",
+          "description": "切换标签配置对应协议；首个填写的文本端点将作为默认对话端点",
           "gemini": "Gemini",
           "label": "端点设置",
           "openai_chat": "Chat",

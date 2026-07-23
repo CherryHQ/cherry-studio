@@ -411,6 +411,43 @@ describe('ProviderEditorDrawer', () => {
     expect(callArg?.presetProviderId).toBeUndefined()
   })
 
+  it('treats the initial Chat tab as navigation rather than a configured default endpoint', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    const endpointTabs = screen.getAllByRole('tab')
+    expect(endpointTabs).toHaveLength(5)
+    for (const tab of endpointTabs) {
+      expect(tab).toHaveClass('h-10', 'cursor-pointer')
+    }
+
+    selectEndpointTab('anthropic')
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Anthropic Gateway' }
+    })
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.anthropic'), {
+      target: { value: 'https://anthropic.example.com' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultChatEndpoint: 'anthropic-messages',
+        endpointConfigs: {
+          'anthropic-messages': { baseUrl: 'https://anthropic.example.com' }
+        }
+      })
+    )
+  })
+
   it('places identity and the optional preset before endpoint tabs without a compatibility selector', () => {
     const source = {
       id: 'anthropic',
