@@ -20,7 +20,7 @@ export function TopicResourceList<T extends ResourceListItemBase>({
 
   return (
     <Provider {...props} variant="topic">
-      <Frame className={className} data-testid="resource-list-topic">
+      <Frame data-ui="chat.topic-list" className={className} data-testid="resource-list-topic">
         {children}
       </Frame>
     </Provider>

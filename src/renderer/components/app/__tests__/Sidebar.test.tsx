@@ -312,8 +312,9 @@ afterEach(() => {
 
 describe('app Sidebar', () => {
   it('uses the user avatar as the header logo and moves footer actions out of the tab bar', () => {
-    render(<Sidebar />)
+    const { container } = render(<Sidebar />)
 
+    expect(container.querySelector('#app-sidebar')).toHaveAttribute('data-ui', 'app.sidebar')
     expect(screen.getByTestId('sidebar-logo')).toContainElement(screen.getByTestId('sidebar-user-avatar'))
     expect(screen.getByTestId('sidebar-title')).toHaveTextContent('JD')
     expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('none')

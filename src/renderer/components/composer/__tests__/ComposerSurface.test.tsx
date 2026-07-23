@@ -512,6 +512,20 @@ describe('ComposerSurface', () => {
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
   })
 
+  it('exposes stable UI contract anchors', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const composer = document.querySelector('[data-ui~="chat.composer"]')
+
+    expect(composer).toHaveAttribute('id', 'inputbar')
+    expect(composer?.querySelector('[data-ui~="part:composer-input"]')).not.toBeNull()
+    expect(composer?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute(
+      'data-ui',
+      'chat.composer.action.send'
+    )
+  })
+
   it('uses the compact single-row presentation when eligible content fits', async () => {
     render(
       <ComposerSurface
@@ -527,6 +541,7 @@ describe('ComposerSurface', () => {
 
     expect(inputbar?.querySelector('[data-composer-compact-row]')).not.toBeNull()
     expect(inputbar?.querySelector('[data-composer-toolbar]')).toBeNull()
+    expect(inputbar?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'pinned tool' })).toBeInTheDocument()
     expect(screen.getByTestId('editor-content').parentElement).toHaveStyle({ minHeight: '26px' })
     const editorContent = screen.getByTestId('editor-content')

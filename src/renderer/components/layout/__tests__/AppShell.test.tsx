@@ -129,6 +129,7 @@ describe('AppShell', () => {
     expect(contentColumn.parentElement).toBe(root)
     expect(contentColumn).toContainElement(tabBar)
     expect(contentColumn).toContainElement(tabRouter)
+    expect(contentColumn.querySelector('main')).toHaveAttribute('data-ui', 'app.content')
     expect(Array.from(root.children)).toEqual([sidebar, contentColumn])
     expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
   })

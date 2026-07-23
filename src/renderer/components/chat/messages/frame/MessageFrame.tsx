@@ -194,6 +194,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
 
   const plainMessageContent = (
     <Scrollbar
+      data-ui="part:message-content"
       className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
       style={{
         fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
@@ -350,6 +351,7 @@ const UserBubbleMessage = ({
       <div className="flex max-w-full items-start justify-end gap-2.5">
         <div className="flex min-w-0 flex-1 flex-col items-end">
           <Scrollbar
+            data-ui="part:message-content"
             className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',

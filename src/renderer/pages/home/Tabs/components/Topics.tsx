@@ -975,6 +975,7 @@ export function Topics({
           {payload && (
             <Tooltip title={t('chat.conversation.new')} delay={500}>
               <ResourceList.GroupHeaderActionButton
+                data-ui="chat.topic-list.action.create"
                 type="button"
                 aria-label={t('chat.conversation.new')}
                 onClick={(event) => {
@@ -1314,31 +1315,46 @@ export function Topics({
               placeholder={t('chat.topics.search.placeholder')}
               wrapperClassName="pt-1"
             />
+          ) : showHeaderCreateItem && isAssistantDisplayMode ? (
+            <ResourceList.HeaderItem
+              type="button"
+              aria-label={headerCreateLabel}
+              disabled={!onAddAssistant}
+              icon={<Plus />}
+              label={headerCreateLabel}
+              onClick={handleHeaderCreate}
+              actions={
+                <TopicListOptionsMenu
+                  historyRecordsActive={historyRecordsActive}
+                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  mode={displayMode}
+                  onChange={handleTopicDisplayModeChange}
+                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onOpenHistoryRecords={onOpenHistoryRecords}
+                  sectionIds={topicAssistantSectionIds}
+                />
+              }
+            />
           ) : showHeaderCreateItem ? (
-            <>
-              <ResourceList.HeaderItem
-                type="button"
-                command={isAssistantDisplayMode ? undefined : 'topic.create'}
-                aria-label={headerCreateLabel}
-                disabled={isAssistantDisplayMode && !onAddAssistant}
-                icon={isAssistantDisplayMode ? <Plus /> : <SquarePen />}
-                label={headerCreateLabel}
-                onClick={handleHeaderCreate}
-                actions={
-                  <>
-                    <TopicListOptionsMenu
-                      historyRecordsActive={historyRecordsActive}
-                      manageAssistantsActive={manageAssistantsMenuItem?.active}
-                      mode={displayMode}
-                      onChange={handleTopicDisplayModeChange}
-                      onManageAssistants={manageAssistantsMenuItem?.onSelect}
-                      onOpenHistoryRecords={onOpenHistoryRecords}
-                      sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
-                    />
-                  </>
-                }
-              />
-            </>
+            <ResourceList.HeaderItem
+              data-ui="chat.topic-list.action.create"
+              type="button"
+              command="topic.create"
+              aria-label={headerCreateLabel}
+              icon={<SquarePen />}
+              label={headerCreateLabel}
+              onClick={handleHeaderCreate}
+              actions={
+                <TopicListOptionsMenu
+                  historyRecordsActive={historyRecordsActive}
+                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  mode={displayMode}
+                  onChange={handleTopicDisplayModeChange}
+                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onOpenHistoryRecords={onOpenHistoryRecords}
+                />
+              }
+            />
           ) : (
             <TopicListOptionsMenu
               historyRecordsActive={historyRecordsActive}

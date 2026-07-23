@@ -65,6 +65,7 @@ export default function ConversationShell({
   return (
     <div
       id={id}
+      data-ui="chat.view"
       className={cn(
         'relative flex flex-1 overflow-hidden bg-background',
         isWindow ? 'h-full' : 'h-[calc(100vh-var(--navbar-height)-6px)] rounded-tl-[10px] rounded-bl-[10px]',
