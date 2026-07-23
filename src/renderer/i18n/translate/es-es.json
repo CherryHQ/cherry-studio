@@ -654,7 +654,7 @@
       },
       "prompt": "Configuración de indicaciones",
       "skills": {
-        "addMore": "Añadir más habilidades",
+        "addMore": "Gestionar habilidades",
         "builtin": "Incorporado",
         "noFilterResults": "Sin habilidades coincidentes",
         "noSkills": "No hay habilidades instaladas. Instala habilidades desde Ajustes > Habilidades.",
@@ -974,6 +974,10 @@
         "CherryCron": {
           "description": "Gestiona el programador dentro de la aplicación",
           "label": "Planificador"
+        },
+        "CherryGenerateImage": {
+          "description": "Genera una imagen a partir de un texto descriptivo utilizando tu modelo de pintura configurado",
+          "label": "Generar Imagen"
         },
         "CherryKbManage": {
           "description": "Agrega, elimina o actualiza documentos en tus bases de conocimiento",
@@ -1485,7 +1489,7 @@
         "title": "En cola ({{count}})"
       },
       "generate_image": "Generar imagen",
-      "generate_image_not_supported": "El modelo no soporta la generación de imágenes",
+      "generate_image_no_model": "Configura un modelo de pintura en Configuración › Modelo predeterminado",
       "knowledge_base": "Base de conocimientos",
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
       "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas o habilita el uso de herramientas en el prompt.",
@@ -1553,12 +1557,29 @@
         },
         "unsupported_model": "El modelo actual no admite razonamiento ajustable"
       },
+      "toolbar": {
+        "customize": "Personalizar barra de herramientas",
+        "drag": {
+          "cancelled": "Reorden cancelado para {{name}}.",
+          "dropped": "{{name}} se ha caído.",
+          "instructions": "Para reordenar, presiona Espacio o Intro para recoger una herramienta, usa las teclas de flecha para moverla, luego Espacio o Intro para soltarla, o Escape para cancelar.",
+          "over": "{{name}} se movió por encima de {{over}}.",
+          "picked_up": "Recogí a {{name}}."
+        },
+        "drag_handle": "Arrastrar para reordenar {{name}}",
+        "restore_default": "Restaurar valores predeterminados"
+      },
       "tools": {
         "collapse": "Contraer",
         "collapse_in": "Agregar a la contracción",
         "collapse_out": "Eliminar de la contracción",
         "expand": "Expandir",
         "file_not_found": "Archivo no encontrado: {{path}}",
+        "generate_image": {
+          "failed": "La generación de la imagen falló",
+          "generating": "Generando imagen…",
+          "title": "Imagen generada"
+        },
         "open_file": "Abrir archivo",
         "open_file_error": "Error al abrir el archivo: {{path}}",
         "reveal_in_finder": "Mostrar en el Finder"
@@ -1822,6 +1843,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Generar nombre de tema",
+      "auto_rename_failed": "No se pudo generar automáticamente el nombre de la conversación",
       "clear": {
         "title": "Limpiar mensajes"
       },
@@ -2533,6 +2555,80 @@
     },
     "user": "Usuario"
   },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Este archivo HTML no tiene contenido.",
+        "title": "Archivo vacío"
+      },
+      "mode": {
+        "label": "Modo de vista HTML",
+        "preview": "Vista previa",
+        "source": "Fuente"
+      },
+      "read_error": {
+        "title": "No se pudo leer este archivo"
+      },
+      "too_large": {
+        "description": "Los archivos HTML de más de {{limit}} MiB no se pueden previsualizar.",
+        "title": "El archivo es demasiado grande"
+      }
+    },
+    "invalid_path": {
+      "description": "La vista previa del archivo requiere una ruta local absoluta válida.",
+      "title": "No se puede previsualizar este archivo"
+    },
+    "load_error": {
+      "description": "No se pudo cargar el contenido de vista previa.",
+      "title": "Vista previa fallida"
+    },
+    "loading": "Cargando vista previa...",
+    "markdown": {
+      "empty": {
+        "description": "Este archivo Markdown no tiene contenido.",
+        "title": "Archivo vacío"
+      },
+      "mode": {
+        "label": "Modo de vista Markdown",
+        "preview": "Vista previa",
+        "source": "Fuente"
+      },
+      "read_error": {
+        "title": "No se pudo leer este archivo"
+      },
+      "too_large": {
+        "description": "Los archivos Markdown de más de {{limit}} MiB no se pueden previsualizar.",
+        "title": "El archivo es demasiado grande"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Abrir con la aplicación predeterminada",
+        "description": "Los archivos PDF de más de {{limit}} MiB no se pueden previsualizar.",
+        "open_error": "No se pudo abrir este archivo",
+        "title": "El archivo es demasiado grande"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Este archivo de texto no tiene contenido.",
+        "title": "Archivo vacío"
+      },
+      "read_error": {
+        "title": "No se pudo leer este archivo"
+      },
+      "too_large": {
+        "description": "Los archivos de texto mayores de {{limit}} MiB no se pueden previsualizar.",
+        "title": "El archivo es demasiado grande"
+      }
+    },
+    "unsupported": {
+      "action": "Abrir con la aplicación predeterminada",
+      "description": "Este tipo de archivo aún no se puede previsualizar.",
+      "open_error": "No se pudo abrir este archivo",
+      "title": "Vista previa no disponible"
+    }
+  },
   "files": {
     "actions": "Acciones",
     "all": "Todos los archivos",
@@ -2886,7 +2982,7 @@
           "title": "Importar una sola página web"
         }
       },
-      "back_to_parent": "[to be translated]:Back",
+      "back_to_parent": "Atrás",
       "bulk": {
         "cancel": "[to be translated]:Cancel",
         "delete": "Eliminar",
@@ -2915,7 +3011,7 @@
         "title": "Carga tu primera fuente de datos"
       },
       "empty_description": "Aún no hay fuentes de datos",
-      "empty_folder": "[to be translated]:This folder is empty",
+      "empty_folder": "Esta carpeta está vacía",
       "filters": {
         "all": "Todo",
         "directory": "Carpetas",
@@ -2949,7 +3045,7 @@
           "type": "Tipo",
           "updated_at": "Actualizado"
         },
-        "open_row": "[to be translated]:Open {{title}}",
+        "open_row": "Abrir {{title}}",
         "select_all": "Seleccionar todo",
         "select_row": "Seleccionar fila"
       },
@@ -2965,8 +3061,8 @@
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
-    "empty_action": "[to be translated]:Create Knowledge Base",
-    "empty_description": "[to be translated]:You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
+    "empty_action": "Crear Base de Conocimientos",
+    "empty_description": "Aún no tienes ninguna base de conocimientos. Crea una para empezar a organizar y buscar tus documentos.",
     "error": {
       "directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
       "failed_base_unknown": "Esta base de conocimientos falló durante la migración. Reconstrúyela y elige un nuevo modelo de incrustación.",
@@ -3588,8 +3684,10 @@
       "title": "Biblioteca"
     },
     "skill_add": {
+      "add": "Añadir habilidad",
       "local_import": "Importación local",
-      "online_search": "Búsqueda en línea"
+      "online_search": "Búsqueda en línea",
+      "system_search": "Búsqueda del sistema"
     },
     "skill_detail": {
       "created_at": "Creado",
@@ -3617,6 +3715,19 @@
       "updated": "Ordenar por actualización"
     },
     "subtitle": "Gestiona tus asistentes, agentes y habilidades",
+    "system_skill": {
+      "conflict": "Conflicto de nombres",
+      "description": "Importar habilidades ya instaladas en este sistema.",
+      "empty_description": "No se encontraron habilidades importables en otras herramientas de codificación en este dispositivo.",
+      "empty_title": "No hay habilidades disponibles para importar",
+      "enable_success": "Habilitado {{name}}",
+      "enabled": "Habilitado",
+      "import": "Importar",
+      "import_success": "Importado {{name}}",
+      "imported": "Importado",
+      "search_placeholder": "Buscar habilidades del sistema...",
+      "title": "Habilidades del sistema"
+    },
     "tag_picker": {
       "no_tags": "Aún sin etiquetas",
       "placeholder": "Nuevo nombre de etiqueta..."
@@ -4882,6 +4993,7 @@
     "req_error_text": "El servidor está ocupado o la indicación contiene palabras con derechos de autor o palabras sensibles. Por favor, inténtelo de nuevo.",
     "req_error_token": "Por favor, verifique la validez del token",
     "required_field": "Campo obligatorio",
+    "revealing": "Revelando imagen generada",
     "safety_tolerance": "Tolerancia de seguridad",
     "safety_tolerance_tip": "Más alto = filtro más permisivo; 0 es el más estricto, 6 es el más permisivo",
     "seed": "Semilla aleatoria",
@@ -5539,7 +5651,7 @@
         "icon": {
           "error": "Nombre de icono no válido, por favor verifique la entrada",
           "label": "Icono",
-          "placeholder": "Ingrese el nombre del icono Lucide",
+          "placeholder": "Nombre del icono",
           "random": "Icono aleatorio",
           "tooltip": "El nombre del icono Lucide debe estar en minúsculas, por ejemplo arrow-right",
           "view_all": "Ver todos los iconos"
@@ -6364,14 +6476,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Buscar actualizaciones",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
       "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Instalar",
       "installError": "Failed to install tool",
+      "installErrorHint": "[to be translated]:The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installSettings": {
+        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "githubMirror": {
+          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "[to be translated]:GitHub mirror",
+          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "[to be translated]:Hide token",
+          "label": "[to be translated]:GitHub token",
+          "placeholder": "[to be translated]:ghp_…",
+          "show": "[to be translated]:Show token"
+        },
+        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:npm registry",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:pip index URL",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "[to be translated]:Aliyun (China)",
+          "default": "[to be translated]:Default (no mirror)",
+          "ghfast": "[to be translated]:ghfast.top",
+          "ghproxy": "[to be translated]:ghproxy.net",
+          "npmOfficial": "[to be translated]:npmjs (official)",
+          "npmmirror": "[to be translated]:npmmirror (China)",
+          "pypiOfficial": "[to be translated]:PyPI (official)",
+          "tsinghua": "[to be translated]:Tsinghua (China)"
+        },
+        "presets": "[to be translated]:Presets",
+        "title": "[to be translated]:Advanced install settings",
+        "verifySignatures": {
+          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "[to be translated]:Verify tool signatures"
+        }
+      },
       "installing": "Instalando...",
+      "installingHint": "[to be translated]:The first install may download a runtime and take a few minutes",
       "invalidTool": "Nombre de herramienta o clave inválida",
       "localModels": {
         "cancel": "Cancelar",
@@ -6395,17 +6548,24 @@
           "downloading": "Descargando…",
           "ready": "Listo"
         },
-        "title": "Modelos Locales"
+        "title": "Modelos Locales",
+        "unsupported": "Los modelos locales no son compatibles con esta plataforma."
       },
       "notInstalled": "No instalado",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
+      "runtimeDependency": "[to be translated]:Runtime",
+      "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "[to be translated]:System"
       },
       "title": "Dependencias del entorno",
       "tools": {
@@ -6424,8 +6584,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
+      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
+      "uninstallSuccess": "[to be translated]:Tool uninstalled",
       "update": "Update to latest version",
-      "updateCheckFailed": "Error al buscar actualizaciones"
+      "updateCheckFailed": "Error al buscar actualizaciones",
+      "updateCheckSuccess": "[to be translated]:Version check complete",
+      "viewErrorDetails": "[to be translated]:View details"
     },
     "developer": {
       "enable_developer_mode": "Habilitar modo de desarrollador",
@@ -6869,10 +7036,10 @@
       "user": "Usuario"
     },
     "menuGroups": {
-      "automation": "Automatización",
-      "capabilities": "Capacidades y Herramientas",
+      "automation": "Eficiencia",
+      "capabilities": "Herramientas",
       "models": "Modelos",
-      "personal": "Personal",
+      "personal": "Preferencias",
       "quickAccess": "Acceso rápido",
       "system": "Sistema"
     },
@@ -7224,6 +7391,8 @@
       },
       "more_actions": "Más acciones de la lista de modelos",
       "not_enabled_models": "Deshabilitados",
+      "painting_model": "Modelo de pintura",
+      "painting_model_description": "Modelo utilizado para la generación de imágenes",
       "provider_id": "ID del proveedor",
       "provider_key_add_confirm": "¿Desea agregar una clave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Error al agregar la clave API del proveedor: los datos están vacíos",
@@ -8270,6 +8439,8 @@
   },
   "tab": {
     "close": "Cerrar pestaña",
+    "close_others": "Cerrar otras pestañas",
+    "close_to_right": "Cerrar pestañas a la derecha",
     "move_to_first": "Mover al primero",
     "new": "Nueva pestaña",
     "open_in_new_window": "Abrir en ventana nueva",

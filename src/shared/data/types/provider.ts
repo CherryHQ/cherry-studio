@@ -218,25 +218,11 @@ export const ProviderSettingsSchema = z.object({
 
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
 
-export const REASONING_FORMAT_TYPES = [
-  'openai-chat',
-  'openai-responses',
-  'anthropic',
-  'gemini',
-  'openrouter',
-  'enable-thinking',
-  'thinking-type',
-  'dashscope',
-  'self-hosted'
-] as const
-
-export const ReasoningFormatTypeSchema = z.enum(REASONING_FORMAT_TYPES)
-export type ReasoningFormatType = z.infer<typeof ReasoningFormatTypeSchema>
-
 /** URLs for fetching available models, separated by model category */
 export const ModelsApiUrlsSchema = z.object({
   default: z.string().optional(),
   embedding: z.string().optional(),
+  image: z.string().optional(),
   reranker: z.string().optional()
 })
 
@@ -246,8 +232,6 @@ export type ModelsApiUrls = z.infer<typeof ModelsApiUrlsSchema>
 export const EndpointConfigSchema = z.object({
   /** Base URL for this endpoint type's API */
   baseUrl: z.string().optional(),
-  /** How this endpoint type expects reasoning parameters */
-  reasoningFormatType: ReasoningFormatTypeSchema.optional(),
   /** URLs for fetching available models via this endpoint type */
   modelsApiUrls: ModelsApiUrlsSchema.optional(),
   /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
@@ -280,7 +264,7 @@ export const ProviderSchema = z.object({
   description: z.string().optional(),
   /** Preset provider website links */
   websites: ProviderWebsitesSchema.optional(),
-  /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
+  /** Per-endpoint-type connection configuration */
   endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
     z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>
   >,

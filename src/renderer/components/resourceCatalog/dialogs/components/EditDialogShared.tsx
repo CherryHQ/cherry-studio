@@ -57,6 +57,8 @@ export type EditDialogBaseProps<TResource> = {
   onOpenChange: (open: boolean) => void
   onSaved: (resource: TResource) => Promise<void> | void
   modelFilter?: (model: Model) => boolean
+  /** Leaf tab id to open on first render (e.g. `tools.mcp`, `tools.skills`); falls back to `basic`. */
+  initialTab?: string
 }
 
 export type EditDialogTab = {

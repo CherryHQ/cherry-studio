@@ -1,8 +1,8 @@
 /**
- * Unit tests for `finalizeInterruptedParts` — the helper every persistence
- * backend (MessageService / TemporaryChat / AgentSessionMessage) runs over
- * `finalMessage.parts` before writing, so an interrupted or errored turn does
- * not leave a tool part stuck in a non-terminal (in-progress) state.
+ * Unit tests for `finalizeInterruptedParts` — the listener runs this helper
+ * over `finalMessage.parts` before composing stats and calling a backend, so
+ * an interrupted or errored turn does not leave a part stuck in a non-terminal
+ * (in-progress) state.
  *
  * The function is pure, so it is tested directly with no mocks.
  */
@@ -170,6 +170,47 @@ describe('finalizeInterruptedParts', () => {
     expect(result[1]).toBe(reasoning)
     // only the tool part is rewritten
     expect(result[2]).toMatchObject({ state: 'output-error', errorText: 'Stream errored before tool completed' })
+  })
+
+  it('terminalizes an in-progress Agent task event when the stream errors', () => {
+    const taskEvent = {
+      type: 'data-agent-task-event',
+      data: {
+        event: 'progress',
+        taskId: 'task-7',
+        status: 'in_progress',
+        title: 'Implementing TTS adapters'
+      }
+    } as unknown as CherryMessagePart
+
+    const result = finalizeInterruptedParts([taskEvent], 'error')
+
+    expect(result[0]).toMatchObject({
+      type: 'data-agent-task-event',
+      data: {
+        event: 'progress',
+        taskId: 'task-7',
+        status: 'error',
+        error: 'Stream errored before task completed'
+      }
+    })
+    expect(result[0]).not.toBe(taskEvent)
+  })
+
+  it('keeps completed and pending Agent task events unchanged', () => {
+    const completed = {
+      type: 'data-agent-task-event',
+      data: { event: 'notification', taskId: 'task-1', status: 'completed' }
+    } as unknown as CherryMessagePart
+    const pending = {
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: 'task-2', status: 'pending' }
+    } as unknown as CherryMessagePart
+
+    const result = finalizeInterruptedParts([completed, pending], 'error')
+
+    expect(result[0]).toBe(completed)
+    expect(result[1]).toBe(pending)
   })
 
   it('rewrites a streaming reasoning part to done and calculates thinkingMs if startedAt is provided', () => {

@@ -44,6 +44,39 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it('materializes the distinct runtime resume tokens still referenced by messages', async () => {
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d020',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'success',
+        runtimeResumeToken: 'token-live'
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d021',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'success',
+        runtimeResumeToken: 'token-live'
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d022',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [] },
+        status: 'success',
+        runtimeResumeToken: null
+      }
+    ])
+
+    const tokens = agentSessionMessageService.getReferencedRuntimeResumeTokens()
+    expect(tokens).toEqual(new Set(['token-live']))
+    expect(tokens.has('token-gone')).toBe(false)
+  })
+
   describe('findPendingAssistantMessageIds + markMessagesError (boot reconcile)', () => {
     it('finds only pending assistant rows and resolves them to error', async () => {
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
@@ -127,6 +160,42 @@ describe('AgentSessionMessageService', () => {
     expect(session.updatedAt).toBe(1_700_000_000_500)
     expect(updated.createdAt).toBe(created.createdAt)
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
+  })
+
+  it('reads and updates message data within the owning Agent session', async () => {
+    const otherSessionId = 'session-other-update'
+    await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'error',
+        data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] }
+      }
+    })
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
+    expect(() => agentSessionMessageService.getSessionMessage(otherSessionId, ASSISTANT_MESSAGE_ID)).toThrow(
+      "Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found"
+    )
+
+    const data = {
+      parts: [
+        {
+          type: 'data-error' as const,
+          data: { message: 'failed' },
+          providerMetadata: { cherry: { diagnosis: { summary: 'Check the provider' } } }
+        }
+      ]
+    }
+    const updated = agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, { data })
+
+    expect(updated.data).toEqual(data)
+    expect(updated.status).toBe('error')
+    expect(() =>
+      agentSessionMessageService.updateSessionMessage(otherSessionId, ASSISTANT_MESSAGE_ID, { data })
+    ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
   })
 
   it('uses one timestamp for a batch of newly saved messages', async () => {

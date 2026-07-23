@@ -13,6 +13,13 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.onboarding.provider_setup.status",
+      "type": "PreferenceTypes.OnboardingProviderSetupStatus",
+      "defaultValue": "pending",
+      "status": "classified",
+      "description": "Status of the main-window first-run provider setup onboarding flow"
+    },
+    {
       "targetKey": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,
@@ -81,6 +88,20 @@
       "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliConfigs",
       "status": "classified",
       "description": "Fresh v2 key (no migration): per-tool CLI configs with per-provider modelId, config blob, and sortIndex. v1 codeTools is throwaway."
+    },
+    {
+      "targetKey": "chat.input.toolbar.pinned_tools",
+      "type": "string[]",
+      "defaultValue": ["thinking", "web-search"],
+      "status": "classified",
+      "description": "Ordered tool ids pinned on the chat composer toolbar (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "agent.input.toolbar.pinned_tools",
+      "type": "string[]",
+      "defaultValue": ["thinking", "skills"],
+      "status": "classified",
+      "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "chat.web_search.exclude_domains",
@@ -180,6 +201,13 @@
       "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
+      "targetKey": "feature.paintings.default_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Paintings default image-generation model UniqueModelId (provider::modelId)"
+    },
+    {
       "targetKey": "feature.openclaw.gateway_port",
       "type": "number",
       "defaultValue": 18790,
@@ -239,11 +267,24 @@
       "description": "Translate page target language (from complex migration)"
     },
     {
-      "targetKey": "feature.binary.tools",
-      "type": "PreferenceTypes.ManagedBinary[]",
-      "defaultValue": "VALUE: [] as PreferenceTypes.ManagedBinary[]",
+      "targetKey": "feature.binary.install_settings",
+      "type": "PreferenceTypes.BinaryInstallSettings",
+      "defaultValue": {
+        "githubMirror": "",
+        "githubToken": "",
+        "npmRegistry": "",
+        "pipIndexUrl": "",
+        "verifySignatures": true
+      },
       "status": "classified",
-      "description": "List of tools to install via BinaryManager"
+      "description": "BinaryManager's isolated mise install settings"
+    },
+    {
+      "targetKey": "feature.binary.tools",
+      "type": "PreferenceTypes.CustomToolDefinition[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.CustomToolDefinition[]",
+      "status": "classified",
+      "description": "BinaryManager custom tool registry: each entry is a user-added custom tool definition; requestedVersion is an optional version pin"
     },
     {
       "targetKey": "shortcut.app.fullscreen.exit",

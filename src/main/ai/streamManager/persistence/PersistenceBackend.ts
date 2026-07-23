@@ -3,14 +3,19 @@
  * `PersistenceListener`. Concrete backends live near the storage domain
  * they write to; stream-manager only owns the generic contract.
  *
- * The listener attaches error parts and composes `MessageStats` before
- * calling the backend — backends never synthesise UIMessages or repeat
- * projection logic.
+ * The listener attaches error parts, terminalizes interrupted parts, and
+ * composes `MessageStats` before calling the backend — backends never
+ * synthesise UIMessages or repeat projection logic.
  */
 
 import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
+import {
+  type AgentTaskEventPartData,
+  type CherryReasoningMeta,
+  readCherryMeta,
+  withCherryMeta
+} from '@shared/data/types/uiParts'
 
 import type { SemanticTimings, TransportTimings } from '../types'
 
@@ -26,7 +31,9 @@ export function finalizeInterruptedParts(
   status: 'success' | 'paused' | 'error'
 ): CherryMessagePart[] {
   if (status === 'success') return parts
-  const reason = status === 'paused' ? 'Interrupted by user' : 'Stream errored before tool completed'
+  const interruptionReason = status === 'paused' ? 'Interrupted by user' : 'Stream errored'
+  const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
+  const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
     if (part.type === 'reasoning') {
       if (part.state === 'streaming') {
@@ -54,10 +61,27 @@ export function finalizeInterruptedParts(
       return part
     }
 
+    if (part.type === 'data-agent-task-event') {
+      const taskPart = part as CherryMessagePart & { data: AgentTaskEventPartData }
+      if (taskPart.data.status !== 'in_progress') return part
+      return {
+        ...taskPart,
+        data: {
+          ...taskPart.data,
+          status: 'error',
+          error: taskPart.data.error ?? taskError
+        }
+      } as CherryMessagePart
+    }
+
     if (!isToolPart(part)) return part
     const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
     if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part
-    return { ...toolPart, state: 'output-error', errorText: toolPart.errorText ?? reason } as CherryMessagePart
+    return {
+      ...toolPart,
+      state: 'output-error',
+      errorText: toolPart.errorText ?? toolError
+    } as CherryMessagePart
   })
 }
 
@@ -116,14 +140,12 @@ export interface PersistenceBackend {
 /**
  * Token counts come from the nested `finalMessage.metadata.stats` snapshot
  * (populated by the usage writers' `message-metadata` chunks — the single
- * carrier; there are no flat metadata mirrors). Durations come from the
- * merged `StatsTimings`, rounded to integer ms. Cost is NOT set here — it
- * requires a DB pricing read and is added in the async
- * `MessageServiceBackend.enrichStatsWithCost`.
- *
- * `timeThinkingMs` is deliberately not projected: the
- * `reasoningStartedAt → reasoningEndedAt` wall-clock can include interleaved
- * tool execution.
+ * carrier; there are no flat metadata mirrors). Request durations
+ * come from the merged `StatsTimings`; thinking duration is the sum of the
+ * stabilized per-reasoning-part metadata. We deliberately do not subtract
+ * `reasoningStartedAt` from `reasoningEndedAt`, because that wall-clock can
+ * include interleaved tool execution. Cost is added later by the async
+ * `MessageServiceBackend` because it requires a DB pricing read.
  */
 export function statsFromTerminal(
   finalMessage: CherryUIMessage | undefined,
@@ -131,6 +153,19 @@ export function statsFromTerminal(
 ): MessageStats | undefined {
   const metaStats = finalMessage?.metadata?.stats
   const stats: MessageStats = metaStats ? structuredClone(metaStats) : {}
+
+  let thinkingDurationMs = 0
+  let hasThinkingDuration = false
+  for (const part of finalMessage?.parts ?? []) {
+    if (part.type !== 'reasoning') continue
+    const thinkingMs = readCherryMeta(part)?.thinkingMs
+    if (thinkingMs === undefined || !Number.isFinite(thinkingMs) || thinkingMs < 0) continue
+    thinkingDurationMs += thinkingMs
+    hasThinkingDuration = true
+  }
+  if (hasThinkingDuration) {
+    stats.timeThinkingMs = Math.round(thinkingDurationMs)
+  }
 
   if (timings) {
     if (timings.firstTextAt != null) {

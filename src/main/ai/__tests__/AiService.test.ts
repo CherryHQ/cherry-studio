@@ -183,6 +183,70 @@ describe('AiService', () => {
     expect(mockApplicationGet).not.toHaveBeenCalled()
   })
 
+  it('flushes accumulated token analytics once when an agent run errors', async () => {
+    const service = createService()
+    const trackTokenUsage = vi.fn()
+    mockApplicationGet.mockReturnValue({ trackTokenUsage })
+    const hooks = (service as any).analyticsHookPart({
+      id: 'test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-api-model'
+    })
+
+    await hooks.onStepFinish({
+      usage: {
+        inputTokens: 3,
+        outputTokens: 5,
+        totalTokens: 8,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
+      }
+    })
+    await hooks.onError({ error: new Error('terminal tool failure') })
+    await hooks.onFinish()
+
+    expect(mockApplicationGet).toHaveBeenCalledWith('AnalyticsService')
+    expect(trackTokenUsage).toHaveBeenCalledOnce()
+    expect(trackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-api-model',
+      input_tokens: 3,
+      output_tokens: 5
+    })
+  })
+
+  it('flushes accumulated token analytics when a completed step is followed by cancellation', async () => {
+    const service = createService()
+    const trackTokenUsage = vi.fn()
+    mockApplicationGet.mockReturnValue({ trackTokenUsage })
+    const hooks = (service as any).analyticsHookPart({
+      id: 'test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-api-model'
+    })
+
+    await hooks.onStepFinish({
+      usage: {
+        inputTokens: 3,
+        outputTokens: 5,
+        totalTokens: 8,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
+      }
+    })
+    await hooks.onAbort()
+    await hooks.onFinish()
+
+    expect(mockApplicationGet).toHaveBeenCalledWith('AnalyticsService')
+    expect(trackTokenUsage).toHaveBeenCalledOnce()
+    expect(trackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-api-model',
+      input_tokens: 3,
+      output_tokens: 5
+    })
+  })
+
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
@@ -228,6 +292,7 @@ describe('AiService', () => {
       paramValues: {
         numImages: 2,
         size: '1024x1024',
+        aspectRatio: '9:19.5',
         negativePrompt: 'blurry',
         seed: 7,
         quality: 'high',
@@ -246,6 +311,7 @@ describe('AiService', () => {
         prompt: 'draw a cat',
         n: 2,
         size: '1024x1024',
+        aspectRatio: '9:19.5',
         seed: 7,
         providerOptions: {
           'test-provider': {

@@ -29,7 +29,7 @@ describe('exportExcel lazy boundary', () => {
         }
       }
     })
-    await exportTableToExcel('| a |\n|---|\n| b |')
+    await exportTableToExcel([['a'], ['b']])
 
     expect(loaded).toHaveBeenCalledTimes(1)
   })

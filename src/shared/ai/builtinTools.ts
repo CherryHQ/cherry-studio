@@ -461,6 +461,15 @@ export const REPORT_ARTIFACTS_DESCRIPTION =
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
+// ── generate_image ───────────────────────────────────────────────
+
+export type { GenerateImageOutput, GenerateImageOutputItem } from './generateImageTool'
+export {
+  GENERATE_IMAGE_TOOL_NAME,
+  generateImageOutputItemSchema,
+  generateImageOutputSchema
+} from './generateImageTool'
+
 // ── agent autonomy tools (cron / notify / config) ────────────────
 // Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their input schemas
 // are plain JSON Schema `Tool` definitions in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`;

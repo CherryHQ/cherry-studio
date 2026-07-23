@@ -252,7 +252,7 @@ export function TabsProvider({
   )
 
   const closeTabs = useCallback(
-    (ids: readonly string[]) => {
+    (ids: readonly string[], activateId?: string) => {
       const closingIdSet = new Set(ids)
       if (closingIdSet.size === 0) return
 
@@ -266,21 +266,43 @@ export function TabsProvider({
       if (fallbackTab) {
         newActiveId = fallbackTab.id
       } else if (closingIdSet.has(activeTabId)) {
-        const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
-        const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
-        const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
-        newActiveId = (leftTab ?? rightTab)?.id ?? ''
+        // Prefer the caller-designated survivor (e.g. the tab whose menu ran
+        // "close others"); otherwise fall back to the nearest neighbor.
+        const preferredTab = activateId ? remainingTabs.find((tab) => tab.id === activateId) : undefined
+        if (preferredTab) {
+          newActiveId = preferredTab.id
+        } else {
+          const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
+          const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
+          const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
+          newActiveId = (leftTab ?? rightTab)?.id ?? ''
+        }
       }
 
       const pinnedIds = new Set(closingTabs.filter(storesPinned).map((tab) => tab.id))
       const normalIds = new Set(closingTabs.filter((tab) => !storesPinned(tab)).map((tab) => tab.id))
 
-      if (pinnedIds.size > 0) {
-        setPinnedTabs((prev) => prev.filter((tab) => !pinnedIds.has(tab.id)))
+      // Activating a tab must also wake it — a dormant tab is not rendered, so
+      // only switching activeTabId would leave the content area blank.
+      const reselectedTab =
+        newActiveId !== activeTabId ? remainingTabs.find((tab) => tab.id === newActiveId) : undefined
+      const wakeInPinned = !!reselectedTab?.isDormant && storesPinned(reselectedTab)
+      const wakeInNormal = !!reselectedTab?.isDormant && !storesPinned(reselectedTab)
+      const wake = (tab: Tab) =>
+        tab.id === newActiveId ? { ...tab, isDormant: false, lastAccessTime: Date.now() } : tab
+
+      if (pinnedIds.size > 0 || wakeInPinned) {
+        setPinnedTabs((prev) => {
+          // The persist-cache updater receives a readonly view and must return
+          // a fresh mutable array, so the no-filter branch copies.
+          const next = pinnedIds.size > 0 ? prev.filter((tab) => !pinnedIds.has(tab.id)) : [...prev]
+          return wakeInPinned ? next.map(wake) : next
+        })
       }
-      if (normalIds.size > 0 || fallbackTab) {
+      if (normalIds.size > 0 || fallbackTab || wakeInNormal) {
         setNormalTabs((prev) => {
-          const next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          let next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          if (wakeInNormal) next = next.map(wake)
           return fallbackTab ? [fallbackTab] : next
         })
       }

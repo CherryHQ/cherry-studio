@@ -9,6 +9,7 @@
 import { loggerService } from '@logger'
 import type { FeishuDomain } from '@shared/data/types/channel'
 import { net } from 'electron'
+import { delay } from 'es-toolkit'
 
 const logger = loggerService.withContext('FeishuAppRegistration')
 
@@ -95,17 +96,7 @@ export async function registrationPoll(
       throw new Error('Registration polling aborted')
     }
 
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(resolve, interval)
-      options.signal?.addEventListener(
-        'abort',
-        () => {
-          clearTimeout(timer)
-          reject(new Error('Registration polling aborted'))
-        },
-        { once: true }
-      )
-    })
+    await delay(interval, { signal: options.signal })
 
     const res = await postRegistration(baseUrl, {
       action: 'poll',

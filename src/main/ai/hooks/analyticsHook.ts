@@ -15,10 +15,22 @@ export type TrackUsage = (model: Model, usage: { inputTokens?: number; outputTok
  */
 export function createAnalyticsHook(model: Model, trackUsage: TrackUsage): Partial<AgentLoopHooks> {
   let total: LanguageModelUsage = ZERO_USAGE
+  let flushed = false
+  const flush = () => {
+    if (flushed) return
+    flushed = true
+    trackUsage(model, total)
+  }
+
   return {
     onStepFinish: (step) => {
       if (step.usage) total = mergeUsage(total, step.usage)
     },
-    onFinish: () => trackUsage(model, total)
+    onFinish: flush,
+    onAbort: flush,
+    onError: () => {
+      flush()
+      return 'abort'
+    }
   }
 }

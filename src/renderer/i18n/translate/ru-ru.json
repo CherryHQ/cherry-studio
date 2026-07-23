@@ -654,7 +654,7 @@
       },
       "prompt": "Настройки подсказки",
       "skills": {
-        "addMore": "Добавить навыки",
+        "addMore": "Управление навыками",
         "builtin": "Встроенный",
         "noFilterResults": "Нет подходящих навыков",
         "noSkills": "Навыки не установлены. Установите навыки в разделе Настройки > Навыки.",
@@ -974,6 +974,10 @@
         "CherryCron": {
           "description": "Управляет встроенным планировщиком",
           "label": "Планировщик"
+        },
+        "CherryGenerateImage": {
+          "description": "Генерирует изображение из текстового запроса с использованием настроенной модели рисования",
+          "label": "Сгенерировать изображение"
         },
         "CherryKbManage": {
           "description": "Добавляет, удаляет или обновляет документы в ваших базах знаний",
@@ -1485,7 +1489,7 @@
         "title": "В очереди ({{count}})"
       },
       "generate_image": "Сгенерировать изображение",
-      "generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
+      "generate_image_no_model": "Настройте модель для рисования в разделе Настройки › Модель по умолчанию",
       "knowledge_base": "База знаний",
       "knowledge_base_disabled_by_files": "Удалите прикреплённые файлы, чтобы использовать базу знаний",
       "knowledge_base_unavailable": "Выберите модель с поддержкой инструментов или включите использование инструментов в запросе",
@@ -1553,12 +1557,29 @@
         },
         "unsupported_model": "Текущая модель не поддерживает регулируемое рассуждение"
       },
+      "toolbar": {
+        "customize": "Настроить панель инструментов",
+        "drag": {
+          "cancelled": "Отменена перестановка для {{name}}.",
+          "dropped": "{{name}} отключён.",
+          "instructions": "Чтобы изменить порядок, нажмите Пробел или Enter, чтобы поднять инструмент, используйте клавиши со стрелками для перемещения, затем Пробел или Enter, чтобы опустить, или Escape для отмены.",
+          "over": "{{name}} переместился через {{over}}.",
+          "picked_up": "Подобран(а) {{name}}."
+        },
+        "drag_handle": "Перетащите для изменения порядка {{name}}",
+        "restore_default": "Восстановить по умолчанию"
+      },
       "tools": {
         "collapse": "Свернуть",
         "collapse_in": "Свернуть",
         "collapse_out": "Развернуть",
         "expand": "Развернуть",
         "file_not_found": "Файл не найден: {{path}}",
+        "generate_image": {
+          "failed": "Ошибка генерации изображения",
+          "generating": "Генерация изображения…",
+          "title": "Сгенерированное изображение"
+        },
         "open_file": "Открыть файл",
         "open_file_error": "Не удалось открыть файл: {{path}}",
         "reveal_in_finder": "Показать в Finder"
@@ -1822,6 +1843,7 @@
     "thinking_tokens": "~{{tokens}} токенов",
     "topics": {
       "auto_rename": "Автопереименование",
+      "auto_rename_failed": "Не удалось автоматически сгенерировать название беседы",
       "clear": {
         "title": "Очистить сообщения"
       },
@@ -2533,6 +2555,80 @@
     },
     "user": "Пользователь"
   },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Этот HTML-файл не содержит контента.",
+        "title": "Пустой файл"
+      },
+      "mode": {
+        "label": "Режим просмотра HTML",
+        "preview": "Предпросмотр",
+        "source": "Источник"
+      },
+      "read_error": {
+        "title": "Не удалось прочитать этот файл"
+      },
+      "too_large": {
+        "description": "HTML-файлы размером более {{limit}} МиБ не могут быть предпросмотрены.",
+        "title": "Файл слишком большой"
+      }
+    },
+    "invalid_path": {
+      "description": "Предварительный просмотр файла требует действительный абсолютный локальный путь.",
+      "title": "Не удается просмотреть этот файл"
+    },
+    "load_error": {
+      "description": "Не удалось загрузить содержимое предпросмотра.",
+      "title": "Предпросмотр не удался"
+    },
+    "loading": "Загрузка предварительного просмотра...",
+    "markdown": {
+      "empty": {
+        "description": "Этот файл Markdown не содержит контента.",
+        "title": "Пустой файл"
+      },
+      "mode": {
+        "label": "Режим просмотра Markdown",
+        "preview": "Предпросмотр",
+        "source": "Источник"
+      },
+      "read_error": {
+        "title": "Не удалось прочитать этот файл"
+      },
+      "too_large": {
+        "description": "Файлы Markdown размером более {{limit}} МиБ не могут быть предпросмотрены.",
+        "title": "Файл слишком большой"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Открыть с помощью приложения по умолчанию",
+        "description": "PDF-файлы размером более {{limit}} МиБ нельзя предварительно просмотреть.",
+        "open_error": "Не удалось открыть этот файл",
+        "title": "Файл слишком большой"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Этот текстовый файл не содержит содержимого.",
+        "title": "Пустой файл"
+      },
+      "read_error": {
+        "title": "Не удалось прочитать этот файл"
+      },
+      "too_large": {
+        "description": "Файлы размером более {{limit}} МиБ нельзя предварительно просмотреть.",
+        "title": "Файл слишком большой"
+      }
+    },
+    "unsupported": {
+      "action": "Открыть с помощью приложения по умолчанию",
+      "description": "Этот тип файла пока нельзя просмотреть.",
+      "open_error": "Не удалось открыть этот файл",
+      "title": "Предварительный просмотр недоступен"
+    }
+  },
   "files": {
     "actions": "Действия",
     "all": "Все файлы",
@@ -2886,7 +2982,7 @@
           "title": "Импортировать одну веб-страницу"
         }
       },
-      "back_to_parent": "[to be translated]:Back",
+      "back_to_parent": "Назад",
       "bulk": {
         "cancel": "[to be translated]:Cancel",
         "delete": "Удалить",
@@ -2915,7 +3011,7 @@
         "title": "Загрузите свой первый источник данных"
       },
       "empty_description": "Источников данных пока нет",
-      "empty_folder": "[to be translated]:This folder is empty",
+      "empty_folder": "Эта папка пуста",
       "filters": {
         "all": "Все",
         "directory": "Папки",
@@ -2949,7 +3045,7 @@
           "type": "Тип",
           "updated_at": "Обновлено"
         },
-        "open_row": "[to be translated]:Open {{title}}",
+        "open_row": "Открыть {{title}}",
         "select_all": "Выбрать все",
         "select_row": "Выбрать строку"
       },
@@ -2965,8 +3061,8 @@
     "embedding_model": "Модель встраивания",
     "embedding_model_required": "Требуется модель встраивания базы знаний",
     "empty": "Нет баз знаний",
-    "empty_action": "[to be translated]:Create Knowledge Base",
-    "empty_description": "[to be translated]:You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
+    "empty_action": "Создать базу знаний",
+    "empty_description": "У вас пока нет баз знаний. Создайте одну, чтобы начать организовывать и искать ваши документы.",
     "error": {
       "directory_not_migrated": "Не удалось перенести папку. Пожалуйста, удалите её и загрузите заново.",
       "failed_base_unknown": "Эта база знаний не удалась при миграции. Пересоберите её и выберите новую модель встраивания.",
@@ -3588,8 +3684,10 @@
       "title": "Библиотека"
     },
     "skill_add": {
+      "add": "Добавить навык",
       "local_import": "Локальный импорт",
-      "online_search": "Онлайн-поиск"
+      "online_search": "Онлайн-поиск",
+      "system_search": "Поиск системы"
     },
     "skill_detail": {
       "created_at": "Создано",
@@ -3617,6 +3715,19 @@
       "updated": "Сортировать по обновлению"
     },
     "subtitle": "Управляйте своими ассистентами, агентами и навыками",
+    "system_skill": {
+      "conflict": "Конфликт имён",
+      "description": "Импортировать навыки, уже установленные в этой системе.",
+      "empty_description": "На этом устройстве в других инструментах для кодирования не найдено импортируемых навыков.",
+      "empty_title": "Нет доступных навыков для импорта",
+      "enable_success": "Включено {{name}}",
+      "enabled": "Включено",
+      "import": "Импорт",
+      "import_success": "Импортировано {{name}}",
+      "imported": "Импортировано",
+      "search_placeholder": "Поиск системных навыков...",
+      "title": "Системные навыки"
+    },
     "tag_picker": {
       "no_tags": "Пока нет меток",
       "placeholder": "Новое имя тега..."
@@ -4882,6 +4993,7 @@
     "req_error_text": "Сервер перегружен или в запросе обнаружены «авторские» либо «чувствительные» слова. Пожалуйста, повторите попытку.",
     "req_error_token": "Пожалуйста, проверьте действительность токена",
     "required_field": "Обязательное поле",
+    "revealing": "Показ сгенерированного изображения",
     "safety_tolerance": "Допустимый предел безопасности",
     "safety_tolerance_tip": "Выше = более мягкий фильтр; 0 — самый строгий, 6 — самый мягкий",
     "seed": "Ключ генерации",
@@ -5539,7 +5651,7 @@
         "icon": {
           "error": "Некорректное название",
           "label": "Иконка",
-          "placeholder": "Название иконки Lucide",
+          "placeholder": "Название иконки",
           "random": "Случайная",
           "tooltip": "Названия в lowercase, например arrow-right",
           "view_all": "Все иконки"
@@ -6364,14 +6476,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Проверить обновления",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
       "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Установить",
       "installError": "Failed to install tool",
+      "installErrorHint": "[to be translated]:The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installSettings": {
+        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "githubMirror": {
+          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "[to be translated]:GitHub mirror",
+          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "[to be translated]:Hide token",
+          "label": "[to be translated]:GitHub token",
+          "placeholder": "[to be translated]:ghp_…",
+          "show": "[to be translated]:Show token"
+        },
+        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:npm registry",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:pip index URL",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "[to be translated]:Aliyun (China)",
+          "default": "[to be translated]:Default (no mirror)",
+          "ghfast": "[to be translated]:ghfast.top",
+          "ghproxy": "[to be translated]:ghproxy.net",
+          "npmOfficial": "[to be translated]:npmjs (official)",
+          "npmmirror": "[to be translated]:npmmirror (China)",
+          "pypiOfficial": "[to be translated]:PyPI (official)",
+          "tsinghua": "[to be translated]:Tsinghua (China)"
+        },
+        "presets": "[to be translated]:Presets",
+        "title": "[to be translated]:Advanced install settings",
+        "verifySignatures": {
+          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "[to be translated]:Verify tool signatures"
+        }
+      },
       "installing": "Установка...",
+      "installingHint": "[to be translated]:The first install may download a runtime and take a few minutes",
       "invalidTool": "Неверное имя или ключ инструмента",
       "localModels": {
         "cancel": "Отмена",
@@ -6395,17 +6548,24 @@
           "downloading": "Загрузка…",
           "ready": "Готов"
         },
-        "title": "Локальные модели"
+        "title": "Локальные модели",
+        "unsupported": "Локальные модели не поддерживаются на этой платформе."
       },
       "notInstalled": "Не установлено",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
+      "runtimeDependency": "[to be translated]:Runtime",
+      "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "[to be translated]:System"
       },
       "title": "Зависимости окружения",
       "tools": {
@@ -6424,8 +6584,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
+      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
+      "uninstallSuccess": "[to be translated]:Tool uninstalled",
       "update": "Update to latest version",
-      "updateCheckFailed": "Не удалось проверить наличие обновлений"
+      "updateCheckFailed": "Не удалось проверить наличие обновлений",
+      "updateCheckSuccess": "[to be translated]:Version check complete",
+      "viewErrorDetails": "[to be translated]:View details"
     },
     "developer": {
       "enable_developer_mode": "Включить разработчик",
@@ -6869,10 +7036,10 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "automation": "Автоматизация",
-      "capabilities": "Возможности и инструменты",
+      "automation": "Эффективность",
+      "capabilities": "Инструменты",
       "models": "Модели",
-      "personal": "Личный",
+      "personal": "Предпочтения",
       "quickAccess": "Быстрый доступ",
       "system": "Система"
     },
@@ -7224,6 +7391,8 @@
       },
       "more_actions": "Дополнительные действия со списком моделей",
       "not_enabled_models": "Отключены",
+      "painting_model": "Модель живописи",
+      "painting_model_description": "Модель, используемая для генерации изображений",
       "provider_id": "ID провайдера",
       "provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Не удалось добавить API ключ для {{provider}}, данные пусты",
@@ -8270,6 +8439,8 @@
   },
   "tab": {
     "close": "Закрыть вкладку",
+    "close_others": "Закрыть другие вкладки",
+    "close_to_right": "Закрыть вкладки справа",
     "move_to_first": "Перейти к первому",
     "new": "Новая вкладка",
     "open_in_new_window": "Открыть в новом окне",

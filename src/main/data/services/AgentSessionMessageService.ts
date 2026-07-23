@@ -7,6 +7,7 @@ import {
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
@@ -14,12 +15,13 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   AgentSessionMessageEntity,
   CreateAgentSessionMessageDto,
-  CreateAgentSessionMessagesDto
-} from '@shared/data/api/schemas/agentSessions'
+  CreateAgentSessionMessagesDto,
+  UpdateAgentSessionMessageDto
+} from '@shared/data/api/schemas/agentSessionMessages'
 import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
   AGENT_SESSION_MESSAGES_MAX_LIMIT
-} from '@shared/data/api/schemas/agentSessions'
+} from '@shared/data/api/schemas/agentSessionMessages'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
@@ -219,6 +221,34 @@ export class AgentSessionMessageService {
     }
   }
 
+  getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
+    const database = application.get('DbService').getDb()
+    const row = this.findExistingMessageRow(database, sessionId, messageId)
+    if (!row) throw DataApiErrorFactory.notFound('Message', messageId)
+    return this.rowToEntity(row)
+  }
+
+  updateSessionMessage(
+    sessionId: string,
+    messageId: string,
+    dto: UpdateAgentSessionMessageDto
+  ): AgentSessionMessageEntity {
+    return application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
+
+      const updatedAt = Date.now()
+      const [updated] = tx
+        .update(sessionMessagesTable)
+        .set({ data: dto.data, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .returning()
+        .all()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return this.rowToEntity(updated)
+    })
+  }
+
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
     const result = tx
       .delete(sessionMessagesTable)
@@ -289,6 +319,25 @@ export class AgentSessionMessageService {
       })
       throw error
     }
+  }
+
+  /**
+   * Every external runtime session id (resume token) still referenced by a message row, as one
+   * set. The sweeper materializes this once per pass and probes it in memory rather than issuing an
+   * unindexed lookup per on-disk token (`runtime_resume_token` is not indexed).
+   */
+  getReferencedRuntimeResumeTokens(): Set<string> {
+    const database = application.get('DbService').getDb()
+    const rows = database
+      .selectDistinct({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
+      .from(sessionMessagesTable)
+      .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
+      .all()
+    const tokens = new Set<string>()
+    for (const row of rows) {
+      if (row.runtimeResumeToken) tokens.add(row.runtimeResumeToken)
+    }
+    return tokens
   }
 
   // ── Persistence methods ──────────────────────────────────────────
@@ -382,17 +431,13 @@ export class AgentSessionMessageService {
     return this.rowToEntity(saved)
   }
 
-  private touchSessionUpdatedAt(db: DbOrTx, sessionId: string, timestampMs: number): void {
-    db.update(sessionTable).set({ updatedAt: timestampMs }).where(eq(sessionTable.id, sessionId)).run()
-  }
-
   private saveMessageTx(
     db: DbOrTx,
     params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
     timestampMs = Date.now()
   ): AgentSessionMessageEntity {
     const saved = this.upsertMessage(db, params, timestampMs)
-    this.touchSessionUpdatedAt(db, params.sessionId, timestampMs)
+    agentSessionService.touchUpdatedAtTx(db, params.sessionId, timestampMs)
     return saved
   }
 
@@ -418,7 +463,7 @@ export class AgentSessionMessageService {
       for (const message of messages) {
         result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
       }
-      this.touchSessionUpdatedAt(tx, sessionId, timestampMs)
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
       return result
     })
     for (const entity of saved) this.recordUsageLedger(entity)

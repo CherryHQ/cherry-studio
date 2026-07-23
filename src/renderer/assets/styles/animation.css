@@ -17,43 +17,6 @@
   animation: animation-pulse 1.5s infinite;
 }
 
-/* Modal动画 */
-@keyframes animation-move-down-in {
-  0% {
-    transform: translate3d(0, 100%, 0);
-    transform-origin: 0 0;
-    opacity: 0;
-  }
-  100% {
-    transform: translate3d(0, 0, 0);
-    transform-origin: 0 0;
-    opacity: 1;
-  }
-}
-@keyframes animation-move-down-out {
-  0% {
-    transform: translate3d(0, 0, 0);
-    transform-origin: 0 0;
-    opacity: 1;
-  }
-  100% {
-    transform: translate3d(0, 100%, 0);
-    transform-origin: 0 0;
-    opacity: 0;
-  }
-}
-.animation-move-down-enter,
-.animation-move-down-appear {
-  animation-name: animation-move-down-in;
-  animation-fill-mode: both;
-  animation-duration: 0.25s;
-}
-.animation-move-down-leave {
-  animation-name: animation-move-down-out;
-  animation-fill-mode: both;
-  animation-duration: 0.25s;
-}
-
 /* 旋转动画 */
 @keyframes animation-rotate {
   from {
@@ -315,8 +278,8 @@
 }
 
 .animation-shimmer {
-  --color-shimmer-mid: var(--color-text-1);
-  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
+  --color-shimmer-mid: var(--color-foreground);
+  --color-shimmer-end: color-mix(in srgb, var(--color-foreground) 25%, transparent);
   background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
   background-size: 200% 100%;
   background-clip: text;
@@ -340,33 +303,6 @@
   display: block;
   white-space: nowrap;
   animation: animation-reveal 0.5s linear both;
-}
-
-@keyframes animation-animated-reveal-text {
-  0% {
-    clip-path: inset(0 100% 0 0);
-  }
-  99% {
-    clip-path: inset(0 0 0 0);
-  }
-  100% {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
-.animated-reveal-text {
-  color: color-mix(in srgb, var(--color-foreground-muted) 45%, var(--color-foreground));
-  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--color-foreground-muted) 10%, transparent));
-  clip-path: inset(0 100% 0 0);
-  animation: animation-animated-reveal-text 0.9s ease-out 0.12s both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animated-reveal-text {
-    filter: none;
-    clip-path: inset(0 0 0 0);
-    animation: none;
-  }
 }
 
 @keyframes animation-migration-confetti-burst {

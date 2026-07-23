@@ -2,9 +2,9 @@
 
 import { messageService } from '@main/data/services/MessageService'
 import { enrichStatsWithCost } from '@main/data/services/utils/costEnrichment'
-import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageStats } from '@shared/data/types/message'
 
-import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
+import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
 
 export interface MessageServiceBackendOptions {
   assistantMessageId: string
@@ -24,11 +24,10 @@ export class MessageServiceBackend implements PersistenceBackend {
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status, stats, modelId } = input
-    const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
     const baseStats = this.opts.stats ?? stats
     const enrichedStats = await enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
     messageService.update(this.opts.assistantMessageId, {
-      data: { parts },
+      data: { parts: finalMessage?.parts ?? [] },
       status,
       stats: enrichedStats
     })

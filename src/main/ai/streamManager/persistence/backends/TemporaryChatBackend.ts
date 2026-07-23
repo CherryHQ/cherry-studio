@@ -8,9 +8,9 @@
  */
 
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import type { CherryMessagePart, MessageSnapshot, MessageStats } from '@shared/data/types/message'
+import type { MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
-import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
+import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
 
 export interface TemporaryChatBackendOptions {
   topicId: string
@@ -28,12 +28,11 @@ export class TemporaryChatBackend implements PersistenceBackend {
 
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, stats } = input
-    const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
     temporaryChatService.appendMessage(
       this.opts.topicId,
       {
         role: 'assistant',
-        data: { parts },
+        data: { parts: finalMessage?.parts ?? [] },
         status,
         modelId: this.opts.modelId,
         messageSnapshot: this.opts.messageSnapshot,

@@ -10,6 +10,7 @@ import type {
 import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
@@ -129,7 +130,8 @@ export const aiRequestSchemas = {
         z.object({
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
-          userMessageParts: z.array(z.custom<CherryMessagePart>())
+          userMessageParts: z.array(z.custom<CherryMessagePart>()),
+          reasoningEffort: ReasoningEffortOptionSchema.optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
@@ -195,4 +197,8 @@ export type AiEventSchemas = {
   // window showing it should invalidate its cache.
   'ai.topic_auto_renamed': { topicId: string }
   'ai.agent_session_auto_renamed': { sessionId: string }
+  // Auto-rename failure (broadcastToType Main): a background naming job's summarization call
+  // failed (e.g. the naming model returned an auth error). Delivered to the main window only
+  // — the job has no origin window — which surfaces it as a toast so the failure isn't silent.
+  'ai.topic_naming_failed': { message: string }
 }

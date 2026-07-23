@@ -19,8 +19,7 @@ const activeAgentMock = vi.hoisted(() => ({
 const agentRightPanePropsMock = vi.hoisted(() => ({
   last: undefined as any,
   openAgentToolFlow: vi.fn(),
-  openArtifactFile: vi.fn(),
-  openTrace: vi.fn()
+  openArtifactFile: vi.fn()
 }))
 const agentComposerPropsMock = vi.hoisted(() => ({
   last: undefined as any
@@ -82,33 +81,12 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
     <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
       {open ? children : null}
     </div>
+  ),
+  PersistentRightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
+      {children}
+    </div>
   )
-}))
-
-vi.mock('@renderer/components/chat/panes/Shell/Shell', () => ({
-  useShellActions: () => ({
-    close: vi.fn()
-  }),
-  useOptionalShellState: () => ({
-    activeTab: 'files',
-    maximized: false,
-    open: false,
-    pdfLayoutPending: false,
-    pdfLayoutRefreshKey: 0
-  })
-}))
-
-vi.mock('@renderer/components/chat/panes/Shell', () => ({
-  useShellActions: () => ({
-    close: vi.fn()
-  }),
-  useOptionalShellState: () => ({
-    activeTab: 'files',
-    maximized: false,
-    open: false,
-    pdfLayoutPending: false,
-    pdfLayoutRefreshKey: 0
-  })
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -116,22 +94,11 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 }))
 
 vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
-  default: ({
-    placement,
-    main,
-    composer,
-    homeWelcomeText
-  }: {
-    placement: string
-    main: ReactNode
-    composer: ReactNode
-    homeWelcomeText?: string
-  }) => (
+  default: ({ placement, main, composer }: { placement: string; main: ReactNode; composer: ReactNode }) => (
     <div
       data-testid="composer-dock-frame"
       data-placement={placement}
       data-main-visible={String(placement === 'docked')}>
-      <div data-testid="composer-dock-home-header">{placement === 'home' ? homeWelcomeText : null}</div>
       {main}
       {composer}
     </div>
@@ -214,33 +181,23 @@ vi.mock('../components/AgentChatNavbar', () => ({
 }))
 
 vi.mock('../components/AgentRightPane', () => {
-  const MockAgentRightPane = Object.assign(
-    ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => {
-      agentRightPanePropsMock.last = props
-      return <div data-testid="agent-right-pane">{children}</div>
-    },
-    {
-      Host: () => <div data-testid="agent-right-pane-host" />,
-      MaximizedOverlay: () => <div data-testid="agent-right-pane-overlay" />,
-      FilesToggle: ({ disabled }: { disabled?: boolean }) => (
-        <button type="button" disabled={disabled}>
-          Files
-        </button>
-      ),
-      Shortcuts: ({ disabled }: { disabled?: boolean }) => (
-        <button type="button" disabled={disabled}>
-          Shortcuts
-        </button>
-      )
-    }
-  )
+  const MockAgentRightPaneScope = ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => {
+    agentRightPanePropsMock.last = props
+    return <div data-testid="agent-right-pane">{children}</div>
+  }
 
   return {
-    AgentRightPane: MockAgentRightPane,
+    AgentRightPane: {
+      Scope: MockAgentRightPaneScope,
+      Shell: ({ children }: PropsWithChildren) => <>{children}</>,
+      Viewport: () => <div data-testid="agent-right-pane-viewport" />,
+      Shortcuts: () => <button type="button">Shortcuts</button>
+    },
     useAgentRightPaneActions: () => ({
+      canOpenAgentToolFlow: true,
+      canOpenArtifactFile: true,
       openAgentToolFlow: agentRightPanePropsMock.openAgentToolFlow,
-      openArtifactFile: agentRightPanePropsMock.openArtifactFile,
-      openTrace: agentRightPanePropsMock.openTrace
+      openArtifactFile: agentRightPanePropsMock.openArtifactFile
     })
   }
 })
@@ -305,7 +262,6 @@ describe('AgentChat settings panel', () => {
     conversationShellPropsMock.last = undefined
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
-    agentRightPanePropsMock.openTrace.mockReset()
     toolApprovalRespondMock.mockReset()
     toolApprovalRespondMock.mockResolvedValue({ ok: true })
     agentSessionRefreshMock.mockReset()
@@ -334,6 +290,18 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByRole('button', { name: 'Shortcuts' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
     expect(conversationShellPropsMock.last?.showTopRightToolWhenPaneOpen).toBe(true)
+  })
+
+  it('passes the session runtime directly to the right-pane scope', () => {
+    const part = { type: 'text', text: 'runtime message' }
+    partsByMessageIdMock.value = { 'message-1': [part] }
+
+    renderAgentChat()
+
+    expect(agentRightPanePropsMock.last?.messages).toEqual([
+      expect.objectContaining({ id: 'message-1', parts: [part] })
+    ])
+    expect(agentRightPanePropsMock.last?.partsByMessageId).toEqual({ 'message-1': [part] })
   })
 
   it('normalizes blank agent avatars before passing them to the right pane', () => {
@@ -369,6 +337,32 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change composer workspace' }))
 
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
+  })
+
+  it('shows the empty-session greeting when the loaded session has no messages', () => {
+    renderAgentChat()
+
+    expect(screen.getByTestId('conversation-greeting')).toBeInTheDocument()
+  })
+
+  it('hides the empty-session greeting once the session has messages', () => {
+    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' } as any] }
+
+    renderAgentChat()
+
+    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
+  })
+
+  it('keeps the greeting hidden while session messages are disabled during the locked/active switch window', () => {
+    // hasLockedSession makes the locked session the snapshot; the active session
+    // pointing elsewhere means sessionMessagesEnabled=false — the transition
+    // window where messages are force-empty but the conversation is not empty.
+    renderAgentChat({
+      lockedSession: { id: 'session-locked', agentId: 'agent-1', accessiblePaths: [] } as any,
+      activeSession: { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
+    })
+
+    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
   })
 
   it('does not allow switching the workspace while the empty session is pending', () => {

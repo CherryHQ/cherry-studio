@@ -43,7 +43,7 @@ import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './prov
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
-import type { RequestFeature } from './runtime/aiSdk'
+import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
 import { Agent, buildAgentParams } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager'
@@ -415,15 +415,15 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      hookParts: [
-        createAnalyticsHook(model, (m, usage) => this.trackUsage(m, usage)),
-        createBillingHook(model, request.messageId),
-        ...hookParts
-      ],
+      hookParts: [this.analyticsHookPart(model), createBillingHook(model, request.messageId), ...hookParts],
       mediaCapabilities: resolveMediaCapabilities(model)
     })
 
     return agent.stream(preparedMessages, signal)
+  }
+
+  private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
+    return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage))
   }
 
   // ── Non-streaming text generation (agent.generate) ──
@@ -451,7 +451,7 @@ export class AiService extends BaseService {
       system: request.system ?? system,
       options,
       hookParts: [
-        createAnalyticsHook(model, (m, usage) => this.trackUsage(m, usage)),
+        this.analyticsHookPart(model),
         ...(usageOptions.recordUsage === false ? [] : [createBillingHook(model)]),
         ...hookParts
       ]

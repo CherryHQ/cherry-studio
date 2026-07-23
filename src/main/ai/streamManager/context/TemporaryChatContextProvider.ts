@@ -116,7 +116,8 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       assistantId,
       uniqueModelId: model.id,
       messageId,
-      messages: history
+      messages: history,
+      reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined
     }
 
     return {

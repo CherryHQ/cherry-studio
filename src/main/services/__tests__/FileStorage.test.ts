@@ -1,5 +1,6 @@
 import { dialog, shell } from 'electron'
 import * as fs from 'fs'
+import iconv from 'iconv-lite'
 import * as os from 'os'
 import * as path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -61,6 +62,30 @@ describe('FileStorage', () => {
     it('writes the given content', async () => {
       await fileStorage.writeFile(event, tmpFile, 'content')
       expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('content')
+    })
+  })
+
+  describe('isTextFile', () => {
+    let tmpFile: string
+
+    beforeEach(() => {
+      tmpFile = path.join(os.tmpdir(), `filestorage-text-test-${uniqueId()}`)
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpFile, { force: true })
+    })
+
+    it('accepts an extensionless GBK text file', async () => {
+      fs.writeFileSync(tmpFile, iconv.encode('这是一个没有扩展名的 GBK 文本文件，用于验证文件选择。', 'gbk'))
+
+      await expect(fileStorage.isTextFile(event, tmpFile)).resolves.toBe(true)
+    })
+
+    it('rejects an extensionless binary file', async () => {
+      fs.writeFileSync(tmpFile, Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj'))
+
+      await expect(fileStorage.isTextFile(event, tmpFile)).resolves.toBe(false)
     })
   })
 

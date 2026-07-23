@@ -33,7 +33,8 @@ import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsa
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -45,6 +46,7 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
+  AgentSessionLiveIndex,
   AgentSessionRuntimeDriver
 } from '../types'
 import {
@@ -53,6 +55,7 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
+import { sweepClaudeSessionFiles } from './sessionFileSweep'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -173,7 +176,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
-      this.input.modelId
+      this.input.modelId,
+      this.input.reasoningEffort ?? 'default'
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -252,7 +256,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
-  async reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: {
+    modelId: UniqueModelId
+    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+  }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
     // gate and the subprocess on different policies.
@@ -264,9 +271,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  private async reconcileOnce(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+  private async reconcileOnce(input: {
+    modelId: UniqueModelId
+    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+  }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
-    const derived = await deriveConnectionConfig(this.input.sessionId, input.modelId)
+    const derived = await deriveConnectionConfig(
+      this.input.sessionId,
+      input.modelId,
+      input.reasoningEffort ?? 'default'
+    )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
     // A connection without its materialized baseline cannot prove what the subprocess serves.
@@ -742,5 +756,16 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     // `prewarmAgentSession` already no-ops in trace mode (it closes any warm
     // queries and returns), so no driver-side trace guard is needed here.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
+  }
+
+  async sweepSessionFiles(live: AgentSessionLiveIndex): Promise<void> {
+    // A deleted session's prewarmed query can outlive its DB row within the warm TTL, still
+    // holding the workspace cwd and appending its transcript — the whole-directory removals
+    // below (and the host's workspace-dir sweep that follows) are only safe once it is closed.
+    const warmManager = application.get('ClaudeCodeWarmQueryManager')
+    for (const sessionId of warmManager.getWarmAgentSessionIds()) {
+      if (!live.isSessionLive(sessionId)) warmManager.closeAgentSessionWarm(sessionId)
+    }
+    await sweepClaudeSessionFiles(live)
   }
 }

@@ -4,6 +4,7 @@ import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   setSelectedKnowledgeBases: vi.fn(),
   setIsExpanded: vi.fn(),
   updateAssistant: vi.fn(),
+  updateAssistantSettings: vi.fn(),
   focusComposer: vi.fn(),
   insertToken: vi.fn(),
   replaceDraft: vi.fn(),
@@ -52,12 +54,21 @@ const mocks = vi.hoisted(() => ({
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
+  pinnedToolIds: ['thinking', 'web-search'] as string[],
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
   files: undefined as any[] | undefined,
   topicLayout: undefined as string | undefined,
-  inputAdapterFocus: vi.fn()
+  inputAdapterFocus: vi.fn(),
+  runtimeHostProps: undefined as
+    | {
+        reasoning?: {
+          effort: string
+          onEffortChange: (effort: string) => void
+        }
+      }
+    | undefined
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -108,13 +119,6 @@ const modelBWithFunctionCall = {
   ...modelB,
   capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
 } satisfies Model
-
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    getCasual: vi.fn(() => ''),
-    setCasual: vi.fn()
-  }
-}))
 
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
@@ -209,9 +213,13 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     mocks.derivedToolState = { couldAddImageFile, extensions }
     return <>{children}</>
   },
-  ComposerToolRuntimeHost: () => null,
+  ComposerToolRuntimeHost: (props: { reasoning?: { effort: string; onEffortChange: (effort: string) => void } }) => {
+    mocks.runtimeHostProps = props
+    return null
+  },
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
+  ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
   useComposerTokenReconcile: () => mocks.reconcileTokens,
   useComposerToolState: () => ({
     files: mocks.files ?? [],
@@ -371,7 +379,9 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
         close edit dialog
       </button>
     </div>
-  )
+  ),
+  ResourceEditDialogEventHost: () => null,
+  openResourceEditDialog: vi.fn()
 }))
 
 vi.mock('@renderer/utils/model', () => ({
@@ -380,7 +390,11 @@ vi.mock('@renderer/utils/model', () => ({
   // The first two predicates are stubbed to false here, so it reduces to the function-call check.
   canModelUseAssistantWebSearch: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  getThinkModelType: () => 'default',
+  resolveReasoningEffortForModel: (currentModel: Model, currentEffort?: string) => {
+    const supported = ['default', ...(currentModel.reasoning?.selectableEfforts ?? [])]
+    if (supported.length === 1) return undefined
+    return currentEffort && supported.includes(currentEffort) ? currentEffort : supported[0]
+  },
   isAudioModel: () => false,
   isAudioModels: () => false,
   isEmbeddingModel: () => false,
@@ -396,9 +410,7 @@ vi.mock('@renderer/utils/model', () => ({
   isVideoModels: () => false,
   isVisionModel: () => false,
   isVisionModels: () => false,
-  isWebSearchModel: () => false,
-  MODEL_SUPPORTED_OPTIONS: { default: ['none'] },
-  MODEL_SUPPORTED_REASONING_EFFORT: { default: ['none'] }
+  isWebSearchModel: () => false
 }))
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
@@ -417,6 +429,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
+      'chat.input.toolbar.pinned_tools': mocks.pinnedToolIds,
       'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
     }
     return [values[key]]
@@ -435,7 +448,8 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isModelPending: mocks.modelPending,
     isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
     setModel: mocks.setModel,
-    updateAssistant: mocks.updateAssistant
+    updateAssistant: mocks.updateAssistant,
+    updateAssistantSettings: mocks.updateAssistantSettings
   })
 }))
 
@@ -554,6 +568,7 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
       const instance: ResizeObserverMockInstance = {
@@ -584,6 +599,7 @@ describe('ChatComposer', () => {
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
+    mocks.setModel.mockResolvedValue(undefined)
     mocks.setDefaultModel.mockReset()
     mocks.setFiles.mockReset()
     mocks.setFiles.mockImplementation((value) => {
@@ -602,6 +618,8 @@ describe('ChatComposer', () => {
     )
     mocks.setIsExpanded.mockReset()
     mocks.updateAssistant.mockReset()
+    mocks.updateAssistantSettings.mockReset()
+    mocks.updateAssistantSettings.mockResolvedValue(undefined)
     mocks.focusComposer.mockReset()
     mocks.insertToken.mockReset()
     mocks.replaceDraft.mockReset()
@@ -668,10 +686,12 @@ describe('ChatComposer', () => {
     mocks.dispatchLauncher.mockReset()
     mocks.unifiedPanelOpen.mockReset()
     mocks.unifiedPanelAvailable = true
+    mocks.pinnedToolIds = ['thinking', 'web-search']
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
     mocks.topicLayout = undefined
+    mocks.runtimeHostProps = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
@@ -715,6 +735,53 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('snapshots a newly selected reasoning effort before its assistant PATCH finishes', async () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+    const onSend = vi.fn()
+    let finishPatch: (() => void) | undefined
+    mocks.updateAssistantSettings.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishPatch = resolve
+      })
+    )
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+    })
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'high' })
+    expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
+
+    await act(async () => finishPatch?.())
+  })
+
+  it('rolls back a local reasoning selection when its assistant PATCH fails', async () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+    mocks.updateAssistantSettings.mockRejectedValue(new Error('write failed'))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    await waitFor(() => expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('default'))
   })
 
   it('keeps reasoning and web search shortcuts in the assistant composer toolbar', () => {
@@ -766,6 +833,18 @@ describe('ChatComposer', () => {
         inputAdapter: expect.objectContaining({ focus: mocks.inputAdapterFocus })
       })
     )
+  })
+
+  it('exposes MCP as a customizable chat toolbar shortcut', () => {
+    mocks.pinnedToolIds = ['mcp-status']
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const mcpButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })
+    expect(mcpButton.querySelector('.lucide-cable')).toBeInTheDocument()
+
+    fireEvent.click(mcpButton)
+    expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
   })
 
   it('keeps the home composer narrow even when chat wide layout is enabled', () => {
@@ -3177,7 +3256,7 @@ describe('ChatComposer', () => {
     expect(resend).not.toHaveBeenCalled()
   })
 
-  it('forks and resends the edited message when Composer sends in edit mode', async () => {
+  it('forks and resends the edited message without boundary blank lines', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
@@ -3198,12 +3277,224 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
-    await mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })
+    await mocks.surfaceProps?.onSendDraft({ text: '\n  new text  \n\n', tokens: [] })
 
-    expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'new text' }])
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: '  new text  ' }])
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
+  it('prevents concurrent saves of the same edited message', async () => {
+    let resolveSave: () => void = () => undefined
+    const pendingSave = new Promise<void>((resolve) => {
+      resolveSave = resolve
+    })
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockReturnValue(pendingSave)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    let firstSubmission: void | Promise<void> = undefined
+    act(() => {
+      firstSubmission = mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })
+    })
+    await waitFor(() => {
+      expect(forkAndResend).toHaveBeenCalledTimes(1)
+      expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    })
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'new text', tokens: [] })
+    })
+    expect(forkAndResend).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveSave()
+      await firstSubmission
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
+  it('does not let an earlier edit save close a later editing session', async () => {
+    let resolveFirstSave: () => void = () => undefined
+    const firstSave = new Promise<void>((resolve) => {
+      resolveFirstSave = resolve
+    })
+    const forkAndResend = vi.fn().mockReturnValue(firstSave)
+    mocks.chatWrite = {
+      pause: vi.fn(),
+      editMessage: vi.fn().mockResolvedValue(undefined),
+      resend: vi.fn().mockResolvedValue(undefined),
+      forkAndResend
+    }
+    const firstMessage = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const secondMessage = {
+      ...firstMessage,
+      id: 'message-2'
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={firstMessage as any} parts={[{ type: 'text', text: 'first' }] as any} />
+        <StartEditingButton message={secondMessage as any} parts={[{ type: 'text', text: 'second' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(firstMessage.id))
+
+    let firstSubmission: void | Promise<void> = undefined
+    act(() => {
+      firstSubmission = mocks.surfaceProps?.onSendDraft({ text: 'first edited', tokens: [] })
+    })
+    await waitFor(() => {
+      expect(forkAndResend).toHaveBeenCalledTimes(1)
+      expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    })
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.editingState?.messageId).toBe(secondMessage.id)
+      expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    })
+
+    await act(async () => {
+      resolveFirstSave()
+      await firstSubmission
+    })
+
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(secondMessage.id)
+    expect(mocks.surfaceProps?.text).toBe('second')
+  })
+
+  it('saves an edited assistant reply without forking and removes derived translation parts', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'assistant-message-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const originalParts = [
+      { type: 'reasoning', text: 'reasoning' },
+      { type: 'text', text: 'old reply' },
+      { type: 'data-translation', data: { content: 'translated reply' } }
+    ] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={originalParts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await mocks.surfaceProps?.onSendDraft({ text: 'new reply', tokens: [] })
+
+    expect(editMessage).toHaveBeenCalledWith(message.id, [originalParts[0], { type: 'text', text: 'new reply' }])
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
+  it('does not save an assistant reply whose editable parts are separated by a tool call', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'assistant-message-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const originalParts = [
+      { type: 'text', text: 'before tool' },
+      { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+      { type: 'text', text: 'after tool' }
+    ] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={originalParts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
+
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('does not save an assistant reply whose text has provider metadata Composer cannot round-trip', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'assistant-message-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const originalParts = [
+      {
+        type: 'text',
+        text: 'signed reply',
+        providerMetadata: { google: { thoughtSignature: 'signature-1' } }
+      }
+    ] as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={originalParts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
+
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('does not fork and resend an edited file-only draft before the file token is reflected in the editor', async () => {
@@ -3437,7 +3728,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.tokens).toEqual([])
   })
 
-  it('clears selected knowledge bases after sending a draft', async () => {
+  it('keeps selected knowledge bases after sending a draft', async () => {
     const knowledgeBase = {
       id: 'kb-1',
       name: 'Knowledge One',
@@ -3469,7 +3760,7 @@ describe('ChatComposer', () => {
         userMessageParts: [expect.objectContaining({ type: 'text', text: 'hello' })]
       })
     )
-    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
   })
 
   it('does not render stale knowledge tokens during same-topic assistant switches', () => {

@@ -2,7 +2,10 @@
  * Hook for subscribing to migration progress updates
  */
 
+import { loggerService } from '@logger'
 import {
+  type MigrationDiagnosticSavePayload,
+  type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationStage,
@@ -13,6 +16,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Re-export types for convenience
 export type { MigrationProgress, MigrationStage, MigratorStatus }
+
+const logger = loggerService.withContext('useMigrationProgress')
 
 const initialProgress: MigrationProgress = {
   stage: 'introduction',
@@ -75,7 +80,9 @@ export function useMigrationProgress() {
           setProgress(applyMigrationStageTiming(initialProgress))
         }
       })
-      .catch(console.error)
+      .catch((error) => {
+        logger.error('Failed to get initial migration progress', error)
+      })
 
     // Check for last error
     window.electron.ipcRenderer
@@ -85,7 +92,9 @@ export function useMigrationProgress() {
           setLastError(error)
         }
       })
-      .catch(console.error)
+      .catch((error) => {
+        logger.error('Failed to get last migration error', error)
+      })
 
     return () => {
       window.electron.ipcRenderer.removeAllListeners(MigrationIpcChannels.Progress)
@@ -122,11 +131,28 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SkipMigration)
   }, [])
 
+  const saveDiagnostics = useCallback(
+    (dialogTitle: string, logDate: string): Promise<MigrationDiagnosticSaveResult> => {
+      const payload: MigrationDiagnosticSavePayload = {
+        dialogTitle,
+        logDate
+      }
+      return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle, payload)
+    },
+    []
+  )
+
+  const showDiagnosticBundleInFolder = useCallback((): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+  }, [])
+
   return {
     startMigration,
     retry,
     cancel,
     restart,
-    skipMigration
+    skipMigration,
+    saveDiagnostics,
+    showDiagnosticBundleInFolder
   }
 }

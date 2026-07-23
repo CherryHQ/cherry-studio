@@ -48,30 +48,29 @@ export function lookupRegistryProvider(providers: ProviderConfig[], providerId: 
   return providers.find((p) => p.id === providerId) ?? null
 }
 
-export interface RuntimeEndpointConfig {
+export interface PersistedEndpointConfig {
   baseUrl?: string
-  modelsApiUrls?: { default?: string; embedding?: string; reranker?: string }
-  reasoningFormatType?: string
+  modelsApiUrls?: { default?: string; embedding?: string; image?: string; reranker?: string }
   adapterFamily?: string
 }
 
 /**
- * Convert registry endpointConfigs (with reasoningFormat discriminated union)
- * to runtime endpointConfigs (with reasoningFormatType string).
+ * Project registry endpoint configs onto the connection facts persisted in
+ * user_provider. Main-only reasoning profiles deliberately stay in registry
+ * memory and never cross this boundary.
  */
-export function buildRuntimeEndpointConfigs(
+export function buildPersistedEndpointConfigs(
   registryConfigs: Record<string, RegistryEndpointConfig> | undefined
-): Record<string, RuntimeEndpointConfig> | null {
+): Record<string, PersistedEndpointConfig> | null {
   if (!registryConfigs || Object.keys(registryConfigs).length === 0) return null
 
-  const configs: Record<string, RuntimeEndpointConfig> = {}
+  const configs: Record<string, PersistedEndpointConfig> = {}
 
   for (const [k, regConfig] of Object.entries(registryConfigs)) {
-    const config: RuntimeEndpointConfig = {}
+    const config: PersistedEndpointConfig = {}
 
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
-    if (regConfig.reasoningFormat?.type) config.reasoningFormatType = regConfig.reasoningFormat.type
     if (regConfig.adapterFamily) config.adapterFamily = regConfig.adapterFamily
 
     if (Object.keys(config).length > 0) configs[k] = config
@@ -109,7 +108,7 @@ const ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY: Partial<Record<EndpointType, stri
  */
 export function inferAdapterFamily(
   endpointType: EndpointType,
-  catalogConfig?: Pick<RegistryEndpointConfig, 'adapterFamily'> | Pick<RuntimeEndpointConfig, 'adapterFamily'> | null
+  catalogConfig?: Pick<RegistryEndpointConfig, 'adapterFamily'> | Pick<PersistedEndpointConfig, 'adapterFamily'> | null
 ): string {
   if (catalogConfig?.adapterFamily) return catalogConfig.adapterFamily
   return ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY[endpointType] ?? 'openai-compatible'
