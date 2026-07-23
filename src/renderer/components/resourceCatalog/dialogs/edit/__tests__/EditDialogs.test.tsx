@@ -1138,7 +1138,7 @@ describe('edit dialogs', () => {
   it('re-saves after reverting an agent skill to its original state', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    selectTab('Skills')
+    selectTab('技能')
 
     fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
@@ -1167,7 +1167,7 @@ describe('edit dialogs', () => {
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
-    selectTab('Skills')
+    selectTab('技能')
     const skillSwitch = screen.getByRole('switch', { name: 'Skill One' })
     fireEvent.click(skillSwitch)
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
