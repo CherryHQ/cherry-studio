@@ -10,6 +10,7 @@ export default defineProvider({
       baseUrl: 'https://ai-gateway.vercel.sh/v1/ai'
     }
   },
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
   metadata: {
     website: {
       apiKey: 'https://vercel.com/',

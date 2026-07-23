@@ -1,6 +1,7 @@
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import {
   isEmbeddingModel,
   isFreeModel,
@@ -10,6 +11,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@shared/utils/model'
+import { isBuiltinWebSearchAvailable } from '@shared/utils/provider'
 import { sortBy, toPairs } from 'es-toolkit/compat'
 
 import { normalizeModelGroupName } from './grouping'
@@ -49,6 +51,7 @@ export const MODEL_COUNT_THRESHOLD = 10
 
 type CalculateModelListDerivedStateInput = {
   models: Model[]
+  provider?: Provider
   searchText: string
   selectedCapabilityFilter: ModelListCapabilityFilter
   modelStatuses: ModelWithStatus[]
@@ -91,14 +94,18 @@ export const groupModels = (
   }, {} as ModelGroups)
 }
 
-export const matchesCapabilityFilter = (model: Model, selectedCapabilityFilter: ModelListCapabilityFilter): boolean => {
+export const matchesCapabilityFilter = (
+  model: Model,
+  selectedCapabilityFilter: ModelListCapabilityFilter,
+  provider?: Provider
+): boolean => {
   switch (selectedCapabilityFilter) {
     case 'reasoning':
       return isReasoningModel(model)
     case 'vision':
       return isVisionModel(model)
     case 'websearch':
-      return isWebSearchModel(model)
+      return provider ? isBuiltinWebSearchAvailable(model, provider) : isWebSearchModel(model)
     case 'free':
       return isFreeModel(model)
     case 'embedding':
@@ -115,21 +122,22 @@ export const matchesCapabilityFilter = (model: Model, selectedCapabilityFilter: 
 export const applyModelFilters = (
   models: Model[],
   searchText: string,
-  selectedCapabilityFilter: ModelListCapabilityFilter
+  selectedCapabilityFilter: ModelListCapabilityFilter,
+  provider?: Provider
 ): Model[] => {
   const searchedModels = searchText ? filterProviderSettingModelsByKeywords(searchText, models) : models
   if (selectedCapabilityFilter === 'all') {
     return searchedModels
   }
 
-  return searchedModels.filter((model) => matchesCapabilityFilter(model, selectedCapabilityFilter))
+  return searchedModels.filter((model) => matchesCapabilityFilter(model, selectedCapabilityFilter, provider))
 }
 
 export const countModelsInGroups = (groups: ModelGroups): number => {
   return Object.values(groups).reduce((acc, group) => acc + group.length, 0)
 }
 
-export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCounts => {
+export const getCapabilityModelCounts = (models: Model[], provider?: Provider): ModelListCapabilityCounts => {
   const counts = Object.fromEntries(
     MODEL_LIST_CAPABILITY_FILTERS.map((filter) => [filter, 0])
   ) as ModelListCapabilityCounts
@@ -142,7 +150,7 @@ export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCo
     if (isVisionModel(model)) {
       counts.vision += 1
     }
-    if (isWebSearchModel(model)) {
+    if (provider ? isBuiltinWebSearchAvailable(model, provider) : isWebSearchModel(model)) {
       counts.websearch += 1
     }
     if (isFreeModel(model)) {
@@ -164,16 +172,17 @@ export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCo
 
 export const calculateModelListDerivedState = ({
   models,
+  provider,
   searchText,
   selectedCapabilityFilter,
   modelStatuses
 }: CalculateModelListDerivedStateInput): ModelListDerivedState => {
-  const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
+  const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter, provider)
 
   return {
     filteredModels,
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-    capabilityModelCounts: getCapabilityModelCounts(models),
+    capabilityModelCounts: getCapabilityModelCounts(models, provider),
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),
     modelCount: filteredModels.length,
     hasVisibleModels: filteredModels.length > 0,

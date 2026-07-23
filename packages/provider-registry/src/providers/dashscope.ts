@@ -158,6 +158,7 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }],
   metadata: {
     website: {
       apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',

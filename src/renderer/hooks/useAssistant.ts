@@ -20,6 +20,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
@@ -186,12 +187,15 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const [defaultModelId] = usePreference('chat.default_model_id')
   const shouldLoadDefaultModel = options.loadDefaultModel ?? true
+  const { providers } = useProviders()
   const idRef = useRef(id)
   const assistantRef = useRef(assistant)
   const patchAssistantRef = useRef(patchAssistant)
+  const providersRef = useRef(providers)
   idRef.current = id
   assistantRef.current = assistant
   patchAssistantRef.current = patchAssistant
+  providersRef.current = providers
 
   const modelId =
     assistant?.modelId ?? (!id && shouldLoadDefaultModel ? (defaultModelId as UniqueModelId | null) : undefined)
@@ -212,7 +216,8 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     if (!currentId || !currentAssistant) return
     // reconcile* are v2-native; next.id is the UniqueModelId.
     const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort)
-    const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings)
+    const nextProvider = providersRef.current.find((provider) => provider.id === next.providerId)
+    const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings, nextProvider)
     const settingsPatch =
       extraSettings || reasoning || webSearch
         ? { ...currentAssistant.settings, ...reasoning, ...webSearch, ...extraSettings }

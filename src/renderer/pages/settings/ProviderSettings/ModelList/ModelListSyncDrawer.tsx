@@ -81,11 +81,11 @@ export default function ModelListSyncDrawer({
   )
   const filteredModels = useMemo(() => {
     if (actualFilter === 'stale') {
-      return applyModelFilters(allModels, searchText, 'all').filter((model) => staleModelIdSet.has(model.id))
+      return applyModelFilters(allModels, searchText, 'all', provider).filter((model) => staleModelIdSet.has(model.id))
     }
 
-    return applyModelFilters(allModels, searchText, actualFilter)
-  }, [actualFilter, allModels, searchText, staleModelIdSet])
+    return applyModelFilters(allModels, searchText, actualFilter, provider)
+  }, [actualFilter, allModels, provider, searchText, staleModelIdSet])
   const filteredGroups = useMemo(
     () => groupModels(filteredModels, Boolean(searchText.trim())),
     [filteredModels, searchText]
@@ -238,6 +238,7 @@ export default function ModelListSyncDrawer({
       </div>
 
       <ModelSyncPreviewPanel
+        provider={provider}
         modelGroups={filteredGroups}
         localModelIds={localModelIds}
         removableModelIds={removableModelIdSet}

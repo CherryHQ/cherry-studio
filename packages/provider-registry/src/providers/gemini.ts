@@ -45,6 +45,10 @@ export default defineProvider({
       baseUrl: 'https://generativelanguage.googleapis.com'
     }
   },
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent' },
+    { id: 'url-context', modelScope: 'model-dependent' }
+  ],
   metadata: {
     website: {
       apiKey: 'https://aistudio.google.com/app/apikey',

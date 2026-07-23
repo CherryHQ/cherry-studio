@@ -1,7 +1,9 @@
+import { SERVER_TOOL, SERVER_TOOL_MODEL_SCOPE, type ServerTool } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { isNonChatModel, isWebSearchModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
 
 // Azure/Vertex/Bedrock reuse other vendors' endpoint protocols, so authType
@@ -153,13 +155,7 @@ export function isAnthropicSupportedProvider(provider: Provider): boolean {
 }
 
 export function isSupportUrlContextProvider(provider: Provider): boolean {
-  return (
-    isGeminiProvider(provider) ||
-    isVertexProvider(provider) ||
-    isAnthropicProvider(provider) ||
-    isAzureOpenAIProvider(provider) ||
-    isNewApiProvider(provider)
-  )
+  return provider.serverTools?.some((tool) => tool.id === SERVER_TOOL.URL_CONTEXT) ?? false
 }
 
 export function isSupportServiceTierProvider(provider: Provider): boolean {
@@ -180,6 +176,22 @@ export function isSupportDeveloperRoleProvider(provider: Provider): boolean {
 
 export function isSupportStreamOptionsProvider(provider: Provider): boolean {
   return provider.apiFeatures?.streamOptions ?? false
+}
+
+function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
+  return provider.serverTools?.find((tool) => tool.id === id)
+}
+
+/** Effective built-in web-search availability for one provider-model pair. */
+export function isBuiltinWebSearchAvailable(model: Model, provider: Pick<Provider, 'serverTools'>): boolean {
+  const tool = getServerTool(provider, SERVER_TOOL.WEB_SEARCH)
+  if (!tool) return false
+
+  if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
+    return !isNonChatModel(model)
+  }
+
+  return isWebSearchModel(model)
 }
 
 const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDERS = ['ollama', 'lmstudio', 'nvidia', 'gpustack'] as const

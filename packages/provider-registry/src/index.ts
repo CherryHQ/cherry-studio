@@ -12,7 +12,9 @@ export {
   MODEL_CAPABILITY,
   objectValues,
   REASONING_EFFORT,
-  REASONING_EFFORT_ORDER
+  REASONING_EFFORT_ORDER,
+  SERVER_TOOL,
+  SERVER_TOOL_MODEL_SCOPE
 } from './schemas/enums'
 
 // Runtime schemas (zod) — needed by shared types that compose them
@@ -34,7 +36,9 @@ export type {
   EndpointType,
   Modality,
   ModelCapability,
-  ReasoningEffort
+  ReasoningEffort,
+  ServerTool,
+  ServerToolModelScope
 } from './schemas/enums'
 
 // Schema-inferred types (replaces proto types)
@@ -59,9 +63,10 @@ export type {
   ProviderConfig,
   ProviderReasoningFormat,
   ReasoningFormatType,
-  RegistryEndpointConfig
+  RegistryEndpointConfig,
+  ServerToolConfig
 } from './schemas/provider'
-export { REASONING_FORMAT_TYPES } from './schemas/provider'
+export { REASONING_FORMAT_TYPES, ServerToolConfigSchema } from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride,

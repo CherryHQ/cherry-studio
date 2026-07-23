@@ -35,8 +35,8 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { defaultSearchKeywordsProvider } = useWebSearchProviders()
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
-  const hasBuiltinWebSearch = model ? hasModelBuiltinWebSearch(model) : false
-  const canUseWebSearch = assistant && model ? canModelUseAssistantWebSearch(model) : false
+  const hasBuiltinWebSearch = model ? hasModelBuiltinWebSearch(model, modelProvider) : false
+  const canUseWebSearch = assistant && model ? canModelUseAssistantWebSearch(model, modelProvider) : false
 
   const activeProviderId = useMemo(() => {
     const p = defaultSearchKeywordsProvider

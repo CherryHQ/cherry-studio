@@ -39,6 +39,10 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-chat' }
     }
   },
+  serverTools: [
+    { id: 'web-search', modelScope: 'model-dependent' },
+    { id: 'url-context', modelScope: 'model-dependent' }
+  ],
   metadata: {
     website: {
       apiKey: 'https://open.cherryin.ai/console/token',

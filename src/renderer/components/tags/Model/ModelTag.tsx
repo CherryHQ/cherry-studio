@@ -1,5 +1,7 @@
 import { type Model, MODEL_CAPABILITY, type ModelCapability, type ModelTag } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { isFreeModel } from '@shared/utils/model'
+import { isBuiltinWebSearchAvailable } from '@shared/utils/provider'
 import type { ComponentType } from 'react'
 
 import type { CustomTagProps } from '../CustomTag'
@@ -52,16 +54,30 @@ export function isModelTagVisible(
   return true
 }
 
-export function modelMatchesDisplayTag(model: ModelDisplayTagSource, tag: ModelDisplayTag) {
+export function modelMatchesDisplayTag(
+  model: ModelDisplayTagSource,
+  tag: ModelDisplayTag,
+  provider?: Pick<Provider, 'serverTools'>
+) {
   if (tag === 'free') {
     return isFreeModel(model)
+  }
+
+  if (tag === MODEL_CAPABILITY.WEB_SEARCH && provider) {
+    return isBuiltinWebSearchAvailable(model as Model, provider)
   }
 
   return model.capabilities.includes(tag)
 }
 
-export function getModelDisplayTags(model: ModelDisplayTagSource, options?: ModelTagVisibilityOptions) {
-  return MODEL_DISPLAY_TAGS.filter((tag) => isModelTagVisible(tag, options) && modelMatchesDisplayTag(model, tag))
+export function getModelDisplayTags(
+  model: ModelDisplayTagSource,
+  options?: ModelTagVisibilityOptions,
+  provider?: Pick<Provider, 'serverTools'>
+) {
+  return MODEL_DISPLAY_TAGS.filter(
+    (tag) => isModelTagVisible(tag, options) && modelMatchesDisplayTag(model, tag, provider)
+  )
 }
 
 export type ModelTagProps = {

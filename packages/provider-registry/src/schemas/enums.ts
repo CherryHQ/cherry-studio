@@ -57,6 +57,30 @@ export const MODEL_CAPABILITY = {
 export type ModelCapability = (typeof MODEL_CAPABILITY)[keyof typeof MODEL_CAPABILITY]
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ServerTool
+//
+// Provider-native (server-executed) built-in tools a host runs itself — the app
+// only flips them on, the provider does the work. A provider declares which it
+// serves via `ProviderConfig.serverTools`; each entry declares whether support
+// is provider-wide or still model-dependent. Distinct from the app's own
+// agentic tools (e.g. external web search via Tavily/Exa).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const SERVER_TOOL = {
+  WEB_SEARCH: 'web-search',
+  URL_CONTEXT: 'url-context'
+} as const
+export type ServerTool = (typeof SERVER_TOOL)[keyof typeof SERVER_TOOL]
+
+export const SERVER_TOOL_MODEL_SCOPE = {
+  /** The provider supplies the tool for every chat model it serves. */
+  ALL_CHAT_MODELS: 'all-chat-models',
+  /** Tool-specific model eligibility must also pass. */
+  MODEL_DEPENDENT: 'model-dependent'
+} as const
+export type ServerToolModelScope = (typeof SERVER_TOOL_MODEL_SCOPE)[keyof typeof SERVER_TOOL_MODEL_SCOPE]
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CanonicalParamKey
 // ─────────────────────────────────────────────────────────────────────────────
 
