@@ -4,7 +4,6 @@ import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
 import { providerBills, providerCharge } from '@renderer/services/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
@@ -28,12 +27,8 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
 
   if (!provider) return null
 
-  let providerWebsite =
-    PROVIDER_URLS[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
-  if (provider.id === 'ppio') {
-    providerWebsite = 'ppio.com'
-  }
   const officialWebsite = provider.websites?.official
+  const providerWebsite = officialWebsite?.replace(/^https?:\/\//, '').replace(/\/.*$/, '') || provider.name
 
   const serviceDescription = (
     <Trans

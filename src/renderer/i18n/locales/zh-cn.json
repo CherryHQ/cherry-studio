@@ -1389,6 +1389,7 @@
       },
       "generate_image": "生成图片",
       "generate_image_no_model": "请在 设置 › 默认模型 中配置画图模型",
+      "image_preview_failed": "图片预览失败",
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
