@@ -1,3 +1,4 @@
+import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
@@ -5,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
+import { withMessagePartDiagnosis } from '../../utils/messageDiagnosis'
 import { PartsProvider } from '../MessagePartsContext'
 
 const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
@@ -191,7 +193,13 @@ vi.mock('../../frame/MessageVideo', () => ({
 
 vi.mock('../ErrorBlock', () => ({
   __esModule: true,
-  default: ({ error }: any) => <div data-testid="mock-error-block" data-error-message={error?.message ?? ''} />
+  default: ({ error, cachedDiagnosis }: any) => (
+    <div
+      data-testid="mock-error-block"
+      data-error-message={error?.message ?? ''}
+      data-cached-diagnosis={cachedDiagnosis ? JSON.stringify(cachedDiagnosis) : ''}
+    />
+  )
 }))
 
 vi.mock('../ThinkingBlock', () => ({
@@ -791,6 +799,30 @@ describe('MessagePartsRenderer', () => {
       expect(videos[0]).toHaveAttribute('data-file-path', '/tmp/v.mp4')
       expect(videos[1]).toHaveAttribute('data-url', 'https://v.test/v.mp4')
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'boom')
+    })
+
+    it('rehydrates a persisted diagnosis onto the error block after an API round-trip', () => {
+      const diagnosis = {
+        summary: 'OpenAI API key is invalid',
+        category: 'auth',
+        explanation: 'The server rejected the request because the key is invalid.',
+        steps: [{ text: 'Open provider settings and check the key' }]
+      }
+      const initialParts = [
+        { type: 'data-error', data: { name: 'AuthError', message: 'Unauthorized' } }
+      ] as unknown as CherryMessagePart[]
+
+      // Persist the diagnosis, then push the whole message data through the PATCH
+      // body validator the DataApi runs before writing `data.parts` to SQLite.
+      const withDiagnosis = withMessagePartDiagnosis(initialParts, 0, diagnosis)
+      expect(withDiagnosis).not.toBeNull()
+      const parsed = UpdateAgentSessionMessageSchema.parse({ data: { parts: withDiagnosis } })
+
+      renderParts(parsed.data.parts as CherryMessagePart[])
+
+      const block = screen.getByTestId('mock-error-block')
+      expect(block).toHaveAttribute('data-error-message', 'Unauthorized')
+      expect(JSON.parse(block.getAttribute('data-cached-diagnosis') || 'null')).toEqual(diagnosis)
     })
 
     it('does not move non-consecutive updates for the same video ahead of intervening content', () => {

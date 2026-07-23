@@ -25,7 +25,8 @@ import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageToken, ErrorPartData } from '@shared/data/types/uiParts'
+import type { CherryProviderMetadata, ComposerMessageToken } from '@shared/data/types/uiParts'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -421,23 +422,24 @@ function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefi
 }
 
 /**
- * Memoized adapter from `ErrorPartData` (with optional name/message/stack) to
- * the normalized `SerializedError` shape `ErrorBlock` consumes. Lives here —
- * not inline in the switch — so the normalized object's identity is tied to
- * `rawData`, not to whichever render of the parent triggered it. Keeping
- * identity stable lets `React.memo(ErrorBlock)` and the downstream `useMemo`s
- * actually do their job; an inline spread would mint a fresh object every
- * render and silently break memoization.
+ * Memoized adapter from a `data-error` part to the normalized `SerializedError`
+ * shape `ErrorBlock` consumes, plus the persisted AI diagnosis it rehydrates.
+ * Takes the whole `part` — not pre-extracted props — so both the normalized
+ * error and the parsed `cachedDiagnosis` derive their identity from the part,
+ * not from whichever render of the parent triggered it. Keeping identity stable
+ * lets `React.memo(ErrorBlock)` and the downstream `useMemo`s actually do their
+ * job; passing a freshly-parsed object every render would break memoization.
  */
 const ErrorPartView = React.memo(function ErrorPartView({
   partId,
-  rawData,
+  part,
   message
 }: {
   partId: string
-  rawData: ErrorPartData
+  part: Extract<CherryMessagePart, { type: 'data-error' }>
   message: MessageListItem
 }) {
+  const rawData = part.data
   const error = useMemo(
     () => ({
       ...rawData,
@@ -447,7 +449,8 @@ const ErrorPartView = React.memo(function ErrorPartView({
     }),
     [rawData]
   )
-  return <ErrorBlock partId={partId} error={error} message={message} />
+  const cachedDiagnosis = useMemo(() => readCherryMeta(part)?.diagnosis, [part])
+  return <ErrorBlock partId={partId} error={error} message={message} cachedDiagnosis={cachedDiagnosis} />
 })
 
 /**
@@ -562,9 +565,9 @@ function renderPart(
     }
 
     case 'data-error': {
-      const rawData = 'data' in part ? part.data : undefined
-      if (!rawData) return null
-      return <ErrorPartView key={partId} partId={partId} rawData={rawData} message={message} />
+      const errorPart = part as Extract<CherryMessagePart, { type: 'data-error' }>
+      if (!errorPart.data) return null
+      return <ErrorPartView key={partId} partId={partId} part={errorPart} message={message} />
     }
 
     case 'data-video': {
