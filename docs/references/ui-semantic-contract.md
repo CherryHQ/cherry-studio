@@ -9,7 +9,7 @@ nodes without coupling persistent themes to implementation classes. Structured t
 surface for common theming; `data-ui` is the node-level escape hatch for rules that variables cannot express. Tests and
 automation can reuse the same coordinates instead of introducing a second selector protocol.
 
-## Token protocol
+## Three-layer selector model
 
 `data-ui` is an unordered set of whitespace-separated tokens. The compiler writes tokens in this canonical order:
 
@@ -19,13 +19,17 @@ automation can reuse the same coordinates instead of introducing a second select
 ></article>
 ```
 
-| Token | Meaning | Stability |
-| --- | --- | --- |
-| `chat.message` | Human-readable semantic role | Stable public grouping selector |
-| `part:message-content` | Reusable component structure role | Stable public part selector |
-| `id:ui-3976699e5846d12a` | Registered exact source node | Stable across builds and unambiguous DOM-preserving moves |
-| `scope:message:m_817` | Runtime instance identity | Stable for that business entity |
-| `scope:window:main` | Renderer window identity | Stable for that window type |
+The tokens form three selector layers:
+
+| Layer | Tokens | Use | Stability |
+| --- | --- | --- | --- |
+| Semantic | `chat.message`, `part:message-content` | Normal selectors for a business role or reusable component structure | Explicit roles and parts are stable; inferred roles are best-effort |
+| Exact | `id:ui-3976699e5846d12a` | Advanced fallback for one registered source node | Stable across builds and unambiguous DOM-preserving moves |
+| Instance | `scope:message:m_817`, `scope:window:main` | Optional narrowing to a runtime business entity or window | Stable for that entity or window type |
+
+Start with the semantic layer. Add an exact token only when no maintained semantic selector expresses the target, and
+add a scope only when repeated renders of the same source node must be distinguished. `part:*` is not a separate
+identity system: it is the structural form of the semantic layer.
 
 Use token matching (`~=`), never substring matching:
 
@@ -45,7 +49,7 @@ Use token matching (`~=`), never substring matching:
   border-radius: 8px;
 }
 
-/* One exact source node */
+/* Advanced fallback: one exact source node */
 [data-ui~='id:ui-7b21d4a8062c6f81'] {
   display: none;
 }
@@ -59,10 +63,11 @@ represented by `part:*` tokens in the same attribute. Window HTML is annotated b
 belong only to intrinsic DOM source nodes. A semantic `data-ui` value passed through a component is merged with the
 intrinsic node's part and exact ID, including across JSX prop spreads and Radix `asChild` slots.
 
-Existing static `data-slot` markers remain unchanged throughout the project. The plugin mirrors each marker into the
-public contract (`data-slot="dialog-content"` → `part:dialog-content`) while leaving the original attribute intact, so
-current component styles, tests, and custom CSS selectors keep working. `data-ui` is the maintained semantic selector
-surface for new themes, tests, and automation; preserving `data-slot` does not require existing project code to migrate.
+Existing static `data-slot` markers remain unchanged throughout the project. The generator treats their values as
+authored structural parts (`data-slot="dialog-content"` contributes `part:dialog-content`) and normalizes them together
+with explicit `data-ui` `part:*` tokens. The original attribute remains intact, so current component styles, tests, and
+custom CSS selectors keep working. `data-ui` is the maintained semantic selector surface for new themes, tests, and
+automation; preserving `data-slot` does not require existing project code to migrate.
 
 SVG drawing internals such as `path`, `g`, `defs`, gradients, masks, filters, and shapes are implementation details by
 default. They enter the public contract only when they carry `data-ui`, `data-slot`, `data-testid`, `role`, or an event
@@ -139,11 +144,11 @@ import { uiTokens } from '@renderer/utils/uiContract'
 />
 ```
 
-`uiTokens` writes only the explicit semantic ID and runtime `scope:*` tokens. Exact `id:*` tokens are compiler-owned;
-application code must not author them. Reusable `part:*` tokens describe static component structure and must be declared
-in the owning component's markup rather than selected dynamically at runtime. `uiTokens` validates the token grammar,
-removes duplicates, and serializes deterministically. `parseUiTokens` supports inspectors. `uiSelector` creates exact
-CSS selectors across semantic, part, exact-ID, and scope tokens. Playwright code can use
+`uiTokens` writes the runtime-owned portion of the model: an explicit semantic ID and optional `scope:*` tokens. Exact
+`id:*` tokens are compiler-owned; application code must not author them. Reusable `part:*` tokens are static structural
+semantics and must be declared in the owning component's markup rather than selected dynamically at runtime. `uiTokens`
+validates the token grammar, removes duplicates, and serializes deterministically. `parseUiTokens` supports inspectors.
+`uiSelector` creates selectors across the semantic, exact, and instance layers. Playwright code can use
 `uiLocator(page, 'chat.message', options)` from `tests/e2e/utils`.
 
 Runtime scopes may contain durable business IDs already present in the renderer. Do not place secrets, prompt content,

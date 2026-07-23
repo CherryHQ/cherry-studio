@@ -2,6 +2,10 @@
 
 This directory owns Cherry Studio's build-time `data-ui` protocol.
 
+The public selector model has three layers: semantic selectors (a readable role plus optional `part:*` structural
+semantics), an advanced compiler-owned `id:*` fallback for an exact source node, and optional runtime `scope:*` tokens
+for a business instance. Consumers should prefer the semantic layer and add exact or instance tokens only when needed.
+
 - `sync.ts` scans source and updates the committed minimal identity registry.
 - `vitePlugin.ts` injects readable semantic tokens and registered exact ID tokens before React compilation.
 - `transform.ts` performs source-mapped AST/HTML transformations without using display text or line numbers as identity.
@@ -12,9 +16,10 @@ This directory owns Cherry Studio's build-time `data-ui` protocol.
 Intrinsic HTML elements and `svg` roots are covered automatically. SVG drawing internals are skipped unless they opt in
 with `data-ui`, `data-testid`, `role`, an event handler, or a static `data-slot`; HTML inside `foreignObject` is covered
 normally. Reusable component structure is expressed as `part:*` tokens inside `data-ui`. Existing static `data-slot`
-markers remain unchanged in source and output; the compiler mirrors them to `part:*` tokens in the public contract.
-Exact `id:*` tokens belong only to intrinsic DOM nodes. Semantic/scope tokens passed through component props are merged
-with the intrinsic node's parts and exact ID, including through JSX spreads and Radix `asChild` slots.
+markers remain unchanged in source and output and enter the same semantic-layer normalization rule as authored
+`data-ui` `part:*` tokens. Exact `id:*` tokens belong only to intrinsic DOM nodes. Semantic/scope tokens passed through
+component props are merged with the intrinsic node's structural semantics and exact ID, including through JSX spreads
+and Radix `asChild` slots.
 
 New exact IDs are `ui-` plus the first 16 hexadecimal characters of the node's SHA-256 source-anchor hash. The committed
 `ui-contract.registry.json` stores only `[anchorHash, fingerprintHash, id]`; semantic roles and deleted-ID history are

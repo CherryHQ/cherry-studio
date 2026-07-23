@@ -10,9 +10,9 @@ function findLast(tokens: string[], predicate: (token: string) => boolean): stri
 }
 
 /**
- * Compose the caller-owned semantic/scope tokens with the implementation-owned
- * part and exact-ID tokens. The implementation exact ID wins because it names
- * the real intrinsic DOM node; the most specific caller semantic wins.
+ * Compose the caller-owned semantic/instance layers with the implementation-owned
+ * structural semantics and exact layer. The implementation exact ID wins because
+ * it names the real intrinsic DOM node; the most specific caller semantic wins.
  */
 export function mergeDataUi(contract: string, ...forwardedValues: unknown[]): string {
   const contractTokens = tokens(contract)

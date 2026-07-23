@@ -20,7 +20,7 @@ describe('data-ui tokens', () => {
     })
   })
 
-  it('parses compiler-owned exact IDs and statically authored parts', () => {
+  it('parses the semantic, exact, and instance selector layers', () => {
     expect(parseUiTokens('chat.message part:message-content id:ui-abcdef0123456789 scope:message:m_817')).toEqual({
       exactId: 'ui-abcdef0123456789',
       parts: ['message-content'],
