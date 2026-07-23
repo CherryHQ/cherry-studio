@@ -332,8 +332,8 @@ describe('AppearanceSettings selectors', () => {
     const customCssV2 = 'body { color: rebeccapurple; }'
     const save = vi.fn().mockResolvedValue('/tmp/cherry-studio-v1-custom.css')
     window.api.file.save = save
-    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', legacyCustomCss)
-    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css_v2', customCssV2)
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css_v1', legacyCustomCss)
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', customCssV2)
 
     render(<AppearanceSettings />)
 
@@ -351,7 +351,7 @@ describe('AppearanceSettings selectors', () => {
   })
 
   it('hides the legacy custom CSS export when no migrated value exists', () => {
-    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', '   ')
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css_v1', '   ')
 
     render(<AppearanceSettings />)
 

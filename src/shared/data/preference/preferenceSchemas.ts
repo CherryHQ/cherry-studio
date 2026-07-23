@@ -486,8 +486,10 @@ export interface PreferenceSchemas {
     'topic.tab.position': PreferenceTypes.TopicTabPosition
     // redux/settings/showTopics
     'topic.tab.show': boolean
-    // redux/settings/customCss
+    // target-key-definitions/complex/complex
     'ui.custom_css': string
+    // redux/settings/customCss
+    'ui.custom_css_v1': string
     // target-key-definitions/complex/complex
     'ui.launchpad.app_order': PreferenceTypes.SidebarFavorite[]
     // redux/settings/navbarPosition
@@ -769,6 +771,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'topic.tab.position': 'left',
     'topic.tab.show': true,
     'ui.custom_css': '',
+    'ui.custom_css_v1': '',
     'ui.launchpad.app_order': [],
     'ui.navbar.position': 'top',
     'ui.sidebar.favorites': [

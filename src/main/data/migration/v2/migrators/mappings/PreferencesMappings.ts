@@ -316,7 +316,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'customCss',
-      targetKey: 'ui.custom_css'
+      targetKey: 'ui.custom_css_v1'
     },
     {
       originalKey: 'topicNamingPrompt',

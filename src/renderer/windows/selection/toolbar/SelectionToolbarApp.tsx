@@ -13,7 +13,7 @@ import { stripBackgroundCss } from './stripBackgroundCss'
 // (the chromeless toolbar's own transparency must win — its custom-CSS variant). No
 // dayjs sync — light window (dayjs lives in useWindowRuntime, main/sub only).
 function SelectionToolbarRuntime(): null {
-  const [customCss] = usePreference('ui.custom_css_v2')
+  const [customCss] = usePreference('ui.custom_css')
   useLanguageSync()
   useCustomCssInjection(stripBackgroundCss(customCss))
   return null

@@ -1545,7 +1545,7 @@
           "defaultValue": "",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "ui.custom_css"
+          "targetKey": "ui.custom_css_v1"
         },
         {
           "originalKey": "topicNamingPrompt",

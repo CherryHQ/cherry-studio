@@ -115,8 +115,8 @@ const AppearanceSettings: FC = () => {
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
   const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
-  const [legacyCustomCss] = usePreference('ui.custom_css')
-  const [customCss, setCustomCss] = usePreference('ui.custom_css_v2')
+  const [legacyCustomCss] = usePreference('ui.custom_css_v1')
+  const [customCss, setCustomCss] = usePreference('ui.custom_css')
   const [fontSize] = usePreference('chat.message.font_size')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [codeExecution, setCodeExecution] = useMultiplePreferences({
