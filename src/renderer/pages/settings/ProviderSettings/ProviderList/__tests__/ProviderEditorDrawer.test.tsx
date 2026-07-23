@@ -69,11 +69,15 @@ vi.mock('@cherrystudio/ui', async () => {
       </select>
     ),
     Dialog: ({ children, open }: any) => (open ? <div data-testid="dialog-root">{children}</div> : null),
-    DialogContent: ({ children, ...props }: any) => {
+    DialogContent: ({ children, size, ...props }: any) => {
       const domProps = { ...props }
       delete domProps.closeOnOverlayClick
       delete domProps.showCloseButton
-      return <div {...domProps}>{children}</div>
+      return (
+        <div data-size={size} {...domProps}>
+          {children}
+        </div>
+      )
     },
     DialogFooter: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     DialogHeader: ({ children, ...props }: any) => <div {...props}>{children}</div>,
@@ -351,6 +355,7 @@ describe('ProviderEditorDrawer', () => {
     const { rerender } = render(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'create-custom' }} />)
 
     expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'xl')
     expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
 
     const source = {
@@ -362,6 +367,13 @@ describe('ProviderEditorDrawer', () => {
     } as any
     rerender(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'duplicate', source }} />)
     expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'xl')
+    const moreEndpointsToggle = screen.getByRole('button', { name: 'settings.provider.more_endpoints.toggle' })
+    expect(moreEndpointsToggle).toHaveClass('px-0')
+    fireEvent.click(moreEndpointsToggle)
+    expect(
+      screen.getByLabelText('settings.provider.more_endpoints.anthropic').parentElement?.parentElement
+    ).toHaveClass('pl-0')
 
     rerender(
       <ProviderEditorDrawer

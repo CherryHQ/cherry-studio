@@ -579,7 +579,7 @@ export default function ProviderEditorDrawer({
         aria-describedby={undefined}
         closeOnOverlayClick={!isSubmitting}
         showCloseButton={!isSubmitting}
-        size={mode?.kind === 'create-custom' ? 'xl' : 'default'}
+        size="xl"
         data-testid="provider-editor-dialog"
         className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
@@ -931,14 +931,14 @@ function MoreEndpointsDisclosure({ open, onToggle, primary, values, onChange }: 
         aria-expanded={open}
         aria-controls={contentId}
         onClick={onToggle}
-        className={providerListClasses.disclosureToggle}>
+        className={cn(providerListClasses.disclosureToggle, 'px-0')}>
         <ChevronRight
           className={cn(providerListClasses.disclosureChevron, open && providerListClasses.disclosureChevronOpen)}
         />
         <span>{t('settings.provider.more_endpoints.toggle')}</span>
       </button>
       {open && (
-        <div id={contentId} className={providerListClasses.disclosureBody}>
+        <div id={contentId} className={cn(providerListClasses.disclosureBody, 'pl-0')}>
           {entries.map(({ type, labelKey }) => (
             <BaseUrlField
               key={type}
