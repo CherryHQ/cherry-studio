@@ -70,11 +70,14 @@ describe('getTemperature', () => {
     expect(getTemperature(a, model)).toBeUndefined()
   })
 
-  it('disables temperature for Claude Opus 4.7 models', () => {
-    const a = makeAssistant({ temperature: 0.8 })
-    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
-    expect(getTemperature(a, model)).toBeUndefined()
-  })
+  it.each(['claude-opus-4-7-20260101', 'claude-opus-4-8-20260201'])(
+    'disables temperature for Claude Opus 4.7+ model %s',
+    (modelId) => {
+      const a = makeAssistant({ temperature: 0.8 })
+      const model = makeModel({ id: `anthropic::${modelId}`, providerId: 'anthropic' })
+      expect(getTemperature(a, model)).toBeUndefined()
+    }
+  )
 })
 
 describe('getTopP', () => {
@@ -108,11 +111,14 @@ describe('getTopP', () => {
     expect(getTopP(a, model)).toBeUndefined()
   })
 
-  it('disables topP for Claude Opus 4.7 models', () => {
-    const a = makeAssistant({ enableTopP: true, topP: 0.8 })
-    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
-    expect(getTopP(a, model)).toBeUndefined()
-  })
+  it.each(['claude-opus-4-7-20260101', 'claude-opus-4-8-20260201'])(
+    'disables topP for Claude Opus 4.7+ model %s',
+    (modelId) => {
+      const a = makeAssistant({ enableTopP: true, topP: 0.8 })
+      const model = makeModel({ id: `anthropic::${modelId}`, providerId: 'anthropic' })
+      expect(getTopP(a, model)).toBeUndefined()
+    }
+  )
 })
 
 describe('filterStandardParams', () => {
@@ -121,10 +127,13 @@ describe('filterStandardParams', () => {
     expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, model)).toEqual({ frequencyPenalty: 0.1 })
   })
 
-  it('drops topK for Claude Opus 4.7 models', () => {
-    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
-    expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, model)).toEqual({ frequencyPenalty: 0.1 })
-  })
+  it.each(['claude-opus-4-7-20260101', 'claude-opus-4-8-20260201'])(
+    'drops topK for Claude Opus 4.7+ model %s',
+    (modelId) => {
+      const model = makeModel({ id: `anthropic::${modelId}`, providerId: 'anthropic' })
+      expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, model)).toEqual({ frequencyPenalty: 0.1 })
+    }
+  )
 
   it('keeps topK for other models', () => {
     const input = { topK: 40 }
@@ -150,10 +159,13 @@ describe('getMaxTokens', () => {
     expect(getMaxTokens(a, model, provider)).toBe(8000)
   })
 
-  it('skips budget subtraction on Claude Opus 4.7 series (adaptive thinking)', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
-    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
-    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
-    expect(getMaxTokens(a, model, provider)).toBe(8000)
-  })
+  it.each(['claude-opus-4-7-20260101', 'claude-opus-4-8-20260201'])(
+    'skips budget subtraction on Claude Opus 4.7+ model %s',
+    (modelId) => {
+      const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
+      const model = makeModel({ id: `anthropic::${modelId}`, providerId: 'anthropic' })
+      const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
+      expect(getMaxTokens(a, model, provider)).toBe(8000)
+    }
+  )
 })

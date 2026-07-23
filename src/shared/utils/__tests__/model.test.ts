@@ -1,6 +1,7 @@
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
+  findTokenLimit,
   inferEmbeddingFromModelId,
   inferFunctionCallingFromModelId,
   inferImageGenerationFromModelId,
@@ -9,6 +10,7 @@ import {
   inferVisionFromModelId,
   inferWebSearchFromModelId,
   isAudioModel,
+  isClaude47SeriesModel,
   isEmbeddingModel,
   isFunctionCallingModel,
   isGatewayRoutableModel,
@@ -253,6 +255,27 @@ describe('shared model capability helpers', () => {
     'infers image-generation capability for %s',
     (modelId) => {
       expect(inferImageGenerationFromModelId(modelId)).toBe(true)
+    }
+  )
+
+  it.each(['claude-opus-4-7', 'claude-opus-4.8', 'claude-opus-4-10', 'anthropic.claude-opus-4-8-v1'])(
+    'detects Claude Opus 4.7+ sampling-restricted models for %s',
+    (modelId) => {
+      expect(isClaude47SeriesModel({ ...createModel(), apiModelId: modelId, id: `anthropic::${modelId}` })).toBe(true)
+    }
+  )
+
+  it.each(['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-20250514', 'claude-sonnet-4-8'])(
+    'does not treat %s as Claude Opus 4.7+',
+    (modelId) => {
+      expect(isClaude47SeriesModel({ ...createModel(), apiModelId: modelId, id: `anthropic::${modelId}` })).toBe(false)
+    }
+  )
+
+  it.each(['claude-opus-4-7', 'claude-opus-4.8', 'anthropic.claude-opus-4-8-v1', 'claude-opus-4-10@20261201'])(
+    'uses 128K thinking-token limits for Claude Opus 4.7+ id %s',
+    (modelId) => {
+      expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 128_000 })
     }
   )
 })
