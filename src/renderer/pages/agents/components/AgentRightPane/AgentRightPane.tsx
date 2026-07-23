@@ -15,6 +15,7 @@ import {
   RightPanel,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  RightPanelHeaderControls,
   RightPanelProvider,
   type RightPanelReadiness,
   RightPanelShortcut,
@@ -435,7 +436,7 @@ function AgentResourceRightPanel({ scope }: RightPanelComponentProps<AgentRightP
   return scope.resourcePane?.node ?? null
 }
 
-function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRightPanelScope>) {
+function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const state = useAgentRightPaneFileState()
   const actions = useAgentRightPaneActions()
   const meta = useAgentRightPaneMeta()
@@ -478,6 +479,9 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
 
   return (
     <ArtifactPaneView
+      headerVariant="pane"
+      paneTitle={scope.filesTitle}
+      paneActions={<RightPanelHeaderControls canMaximize />}
       workspacePath={meta.workspacePath}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
@@ -713,6 +717,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       instanceKey: `workspace:${scope.meta.workspaceId ?? ''}\0${scope.meta.workspacePath ?? ''}`,
       title: scope.filesTitle,
       readiness: resolveAgentFilesReadiness(scope),
+      headerMode: 'content',
       canMaximize: true
     })
   },
