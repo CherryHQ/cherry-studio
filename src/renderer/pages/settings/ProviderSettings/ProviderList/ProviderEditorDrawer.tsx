@@ -202,6 +202,13 @@ export default function ProviderEditorDrawer({
   )
   const duplicateDefaultTextEndpoint =
     urlForm && isCustomProviderTextEndpoint(urlForm.primary) ? urlForm.primary : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  const duplicatePrimaryEndpoints = [
+    duplicateDefaultTextEndpoint,
+    ...COMMON_CUSTOM_PROVIDER_ENDPOINTS.filter((endpointType) => endpointType !== duplicateDefaultTextEndpoint)
+  ].slice(0, 2)
+  const duplicateAdditionalEndpoints = CUSTOM_PROVIDER_ENDPOINTS.filter(
+    (endpointType) => !duplicatePrimaryEndpoints.some((primaryEndpoint) => primaryEndpoint === endpointType)
+  )
   const duplicateEndpointUrls = useMemo<CustomProviderEndpointUrls>(() => {
     if (!duplicateUsesEndpointFields || !urlForm) {
       return {}
@@ -447,7 +454,7 @@ export default function ProviderEditorDrawer({
         }
         if (
           invalidUrl.field === 'endpointUrl' &&
-          ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.some((endpointType) => endpointType === invalidUrl.endpointType)
+          duplicateAdditionalEndpoints.some((endpointType) => endpointType === invalidUrl.endpointType)
         ) {
           setMoreEndpointsOpen(true)
         }
@@ -550,8 +557,8 @@ export default function ProviderEditorDrawer({
   const customAdditionalConfiguredCount = ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.filter((endpointType) =>
     endpointUrls[endpointType]?.trim()
   ).length
-  const duplicateAdditionalConfiguredCount = ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.filter((endpointType) =>
-    endpointType === urlForm?.primary ? baseUrl.trim() : secondaryUrls[endpointType]?.trim()
+  const duplicateAdditionalConfiguredCount = duplicateAdditionalEndpoints.filter((endpointType) =>
+    secondaryUrls[endpointType]?.trim()
   ).length
   const presetPicker =
     onSelectPreset && presetSources.length > 0 ? (
@@ -594,6 +601,9 @@ export default function ProviderEditorDrawer({
                   moreOpen={moreEndpointsOpen}
                   additionalConfiguredCount={duplicateAdditionalConfiguredCount}
                   additionalContent={presetPicker}
+                  primaryEndpoints={duplicatePrimaryEndpoints}
+                  additionalEndpoints={duplicateAdditionalEndpoints}
+                  showPreferredEndpointAsDefault
                   onMoreOpenChange={setMoreEndpointsOpen}
                   onEndpointUrlChange={(endpointType, value) => {
                     if (endpointType === urlForm.primary) {
@@ -690,6 +700,9 @@ interface CustomProviderEndpointFieldsProps {
   moreOpen: boolean
   additionalConfiguredCount: number
   additionalContent?: ReactNode
+  primaryEndpoints?: readonly CustomProviderEndpoint[]
+  additionalEndpoints?: readonly CustomProviderEndpoint[]
+  showPreferredEndpointAsDefault?: boolean
   firstTextEndpointRef?: Ref<HTMLInputElement>
   onMoreOpenChange: (open: boolean) => void
   onEndpointUrlChange: (endpointType: CustomProviderEndpoint, value: string) => void
@@ -703,6 +716,9 @@ function CustomProviderEndpointFields({
   moreOpen,
   additionalConfiguredCount,
   additionalContent,
+  primaryEndpoints = COMMON_CUSTOM_PROVIDER_ENDPOINTS,
+  additionalEndpoints = ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS,
+  showPreferredEndpointAsDefault = false,
   firstTextEndpointRef,
   onMoreOpenChange,
   onEndpointUrlChange,
@@ -749,14 +765,15 @@ function CustomProviderEndpointFields({
   }
 
   const renderEndpointControl = (endpointType: CustomProviderEndpoint) => {
-    const isConfiguredTextEndpoint =
-      CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType) && endpointUrls[endpointType]?.trim()
-    const labelAccessory = isConfiguredTextEndpoint ? (
-      preferredChatEndpoint === endpointType ? (
+    const isTextEndpoint = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
+    const isConfiguredTextEndpoint = Boolean(isTextEndpoint && endpointUrls[endpointType]?.trim())
+    const isPreferredEndpoint = preferredChatEndpoint === endpointType
+    const labelAccessory =
+      isTextEndpoint && isPreferredEndpoint && (isConfiguredTextEndpoint || showPreferredEndpointAsDefault) ? (
         <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 font-normal text-foreground-muted text-xs">
           {t('settings.provider.create_custom.endpoint_fields.default_chat')}
         </Badge>
-      ) : onPreferredChatEndpointChange ? (
+      ) : isConfiguredTextEndpoint && onPreferredChatEndpointChange ? (
         <Button
           type="button"
           variant="outline"
@@ -766,7 +783,6 @@ function CustomProviderEndpointFields({
           {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
         </Button>
       ) : null
-    ) : null
 
     return <div key={endpointType}>{renderEndpointField(endpointType, labelAccessory)}</div>
   }
@@ -777,7 +793,7 @@ function CustomProviderEndpointFields({
         {t('settings.provider.create_custom.endpoint_fields.label')}
       </h3>
 
-      <div className="flex flex-col gap-5">{COMMON_CUSTOM_PROVIDER_ENDPOINTS.map(renderEndpointControl)}</div>
+      <div className="flex flex-col gap-5">{primaryEndpoints.map(renderEndpointControl)}</div>
 
       <Accordion
         type="single"
@@ -798,7 +814,7 @@ function CustomProviderEndpointFields({
             </span>
           </AccordionTrigger>
           <AccordionContent className="flex flex-col gap-5 pt-3 pb-0 text-foreground">
-            {ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.map(renderEndpointControl)}
+            {additionalEndpoints.map(renderEndpointControl)}
             {additionalContent && (
               <>
                 <Separator className="bg-border-muted" />

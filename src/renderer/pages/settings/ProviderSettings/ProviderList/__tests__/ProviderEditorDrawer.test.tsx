@@ -827,6 +827,70 @@ describe('ProviderEditorDrawer', () => {
     expect(screen.getByText('openai')).toBeInTheDocument()
   })
 
+  it.each([
+    {
+      name: 'OpenAI Responses',
+      presetProviderId: 'openai',
+      defaultChatEndpoint: 'openai-responses',
+      label: 'settings.provider.more_endpoints.openai_responses',
+      baseUrl: 'https://responses.example.com'
+    },
+    {
+      name: 'Gemini',
+      presetProviderId: 'gemini',
+      defaultChatEndpoint: 'google-generate-content',
+      label: 'settings.provider.more_endpoints.gemini',
+      baseUrl: 'https://gemini.example.com'
+    }
+  ] as const)(
+    'puts the $name preset default endpoint first and submits its URL as the primary route',
+    ({ name, presetProviderId, defaultChatEndpoint, label, baseUrl }) => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined)
+      render(
+        <ProviderEditorDrawer
+          open
+          mode={{
+            kind: 'duplicate',
+            source: {
+              id: presetProviderId,
+              name,
+              presetProviderId,
+              defaultChatEndpoint,
+              authType: 'api-key'
+            } as any
+          }}
+          initialLogo={undefined}
+          onClose={vi.fn()}
+          onSubmit={onSubmit}
+        />
+      )
+
+      const primaryInput = screen.getByLabelText(label)
+      const chatInput = screen.getByLabelText('settings.provider.more_endpoints.openai_chat')
+      const defaultBadge = screen.getByText('settings.provider.create_custom.endpoint_fields.default_chat')
+      expect(primaryInput.compareDocumentPosition(chatInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(primaryInput.previousElementSibling).toContainElement(defaultBadge)
+
+      fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+        target: { value: `${name} Instance` }
+      })
+      fireEvent.change(primaryInput, { target: { value: baseUrl } })
+      toggleMoreSettings()
+      expect(screen.getAllByLabelText(label)).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
+
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          defaultChatEndpoint,
+          presetProviderId,
+          endpointConfigs: {
+            [defaultChatEndpoint]: { baseUrl }
+          }
+        })
+      )
+    }
+  )
+
   it('fans one Base URL out to all canonical text endpoints for a New API preset instance', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
