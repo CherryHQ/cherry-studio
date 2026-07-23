@@ -132,7 +132,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     })
   })
 
-  it('projects transport+semantic timings onto timeFirstTokenMs / timeCompletionMs', async () => {
+  it('projects transport timings and stabilized reasoning-part duration into stats', async () => {
     const listener = makeListener()
 
     // Semantic timings (firstTextAt / reasoning-*) are OWNED by the
@@ -150,7 +150,21 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const finalMessage = {
       id: 'msg-z',
       role: 'assistant',
-      parts: [{ type: 'text', text: 'hi' }]
+      parts: [
+        {
+          type: 'reasoning',
+          text: 'first thought',
+          state: 'done',
+          providerMetadata: { cherry: { thinkingMs: 75 } }
+        },
+        {
+          type: 'reasoning',
+          text: 'second thought',
+          state: 'done',
+          providerMetadata: { cherry: { thinkingMs: 100 } }
+        },
+        { type: 'text', text: 'hi' }
+      ]
     } as unknown as CherryUIMessage
 
     // Transport timings come from the manager's execution loop and only
@@ -163,15 +177,13 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     const payload = appendMessageMock.mock.calls[0][1]
     expect(payload.stats).toEqual({
+      // Per-part timing is stable and does not use the semantic reasoning wall-clock.
+      timeThinkingMs: 175,
       // Math.round: 1250.4 - 1000 = 250.4 → 250
       timeFirstTokenMs: 250,
       // Math.round: 2500.9 - 1000 = 1500.9 → 1501
       timeCompletionMs: 1501
     })
-    // `timeThinkingMs` is intentionally not projected: wall-clock reasoning
-    // may include interleaved tool execution. See the TODO(message-stats-redesign)
-    // rework in src/shared/data/types/message.ts.
-    expect(payload.stats).not.toHaveProperty('timeThinkingMs')
   })
 
   it('merges token metadata and timings into one stats record', async () => {

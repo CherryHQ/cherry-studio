@@ -397,7 +397,7 @@ Projected `MessageStats` fields:
 | `totalTokens / promptTokens / completionTokens / thoughtsTokens` | `finalMessage.metadata.*` |
 | `timeFirstTokenMs` | `round(firstTextAt - startedAt)` |
 | `timeCompletionMs` | `round(completedAt - startedAt)` |
-| `timeThinkingMs` | **not projected** — wall-clock `reasoningEndedAt - reasoningStartedAt` can include interleaved tool exec; see the `TODO(message-stats-redesign)` note in `PersistenceBackend.ts` |
+| `timeThinkingMs` | Sum of stabilized `providerMetadata.cherry.thinkingMs` values from persisted reasoning parts; does not use the reasoning wall-clock, which can include interleaved tool execution |
 
 Backends never derive stats themselves; they just write `input.stats`.
 One projection path, four backends, no duplication.
