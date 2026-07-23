@@ -19,7 +19,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { constants, createWriteStream } from 'node:fs'
-import { copyFile, link, open as fsOpen, rename, stat, unlink } from 'node:fs/promises'
+import { chmod, copyFile, link, open as fsOpen, rename, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { finished } from 'node:stream/promises'
 
@@ -108,7 +108,7 @@ export async function assembleArchive(
   // cross-filesystem tmp would EXDEV on rename). Hidden name so a crashed run
   // doesn't leave a visible partial .cherrybackup.
   const tmpPath = join(dirname(outPath), `.${basename(outPath)}.${randomBytes(6).toString('hex')}.tmp`)
-  const output = createWriteStream(tmpPath)
+  const output = createWriteStream(tmpPath, { mode: 0o600 })
 
   try {
     await new Promise<void>((resolve, reject) => {
@@ -195,10 +195,13 @@ export async function assembleArchive(
         }
       }
     }
-    // copyFile creates a new inode — fsync it too (hard-link/rename share the already-
-    // fsynced tmp inode). Then fsync the parent dir so the new directory entry
-    // itself is durable on POSIX.
-    if (publishedViaCopy) await archiveDurability.fsyncPath(outPath)
+    // copyFile creates a new inode with default umask permissions — chmod to 0600
+    // (hard-link/rename preserve the tmp inode mode). Then fsync the new inode and
+    // parent dir so the directory entry is durable on POSIX.
+    if (publishedViaCopy) {
+      await chmod(outPath, 0o600)
+      await archiveDurability.fsyncPath(outPath)
+    }
     await archiveDurability.fsyncParentDir(outPath)
     // Commit point reached (link/copy/rename succeeded) — outPath holds the archive. tmp
     // cleanup is best-effort (rename already consumed tmp; unlink is a no-op then): a

@@ -5689,11 +5689,11 @@
             "lite": "精简备份（聊天与设置，不含知识库/文件）"
           },
           "restore": {
-            "confirm_content": "恢复将替换当前数据并重启应用，是否继续？",
+            "confirm_content": "恢复将把备份数据合并到当前数据中（本地非空数据会保留），并重启应用，是否继续？",
             "failure": "恢复失败。",
             "full_button": "完整恢复",
             "full_unavailable": "完整恢复暂时不可用：资源暂存（文件、知识库、笔记、技能）尚未落地。请使用「恢复」处理仅数据库（LITE）备份。",
-            "pick_prompt": "请选择要恢复的 .cbu 备份文件。",
+            "pick_prompt": "请选择要恢复的 .cherrybackup 备份文件。",
             "relaunching": "恢复已暂存，应用正在重启…",
             "selected": "已选择的备份：",
             "skip_only": "当前仅支持跳过（SKIP）合并策略，覆盖与重命名尚未支持。"
