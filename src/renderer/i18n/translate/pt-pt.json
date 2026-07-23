@@ -4432,6 +4432,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Aceitar e continuar",
+      "accept_policy": "Aceitar a Política de Privacidade",
+      "notice": "Li e concordo com a",
+      "period": ".",
+      "policy": "Política de Privacidade",
+      "update_failed": "Não foi possível guardar a sua aceitação da política de privacidade. Tente novamente."
+    },
     "select_model": {
       "change_later": "Você pode alterar isso a qualquer momento nas configurações",
       "start": "Comece",
@@ -4448,7 +4456,7 @@
       "other_provider": "Escolher Outros Provedores",
       "select_other_provider": "Selecionar Outro Provedor",
       "setup_hint": "Por favor, configure pelo menos um provedor para a melhor experiência",
-      "subtitle": "Desfrute de serviços de IA de alto nível com CherryIN",
+      "subtitle": "Ligue um fornecedor para ativar a sua estação de trabalho de IA tudo-em-um",
       "title": "Bem-vindo ao Cherry Studio"
     }
   },

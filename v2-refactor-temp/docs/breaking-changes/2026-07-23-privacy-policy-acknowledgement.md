@@ -12,9 +12,8 @@ New users review the privacy policy as part of onboarding. Existing users whose
 stored acknowledgement is missing or older than `20260531` must acknowledge the
 updated policy before continuing to use the app.
 
-Acknowledging the update resets anonymous data collection to enabled. Users who
-previously disabled it can turn it off again under **Settings > Data Settings >
-Privacy Settings**.
+Acknowledging the update preserves the user's existing anonymous data collection
+choice. New installations still default anonymous data collection to enabled.
 
 ## Why this matters to the user
 
@@ -24,8 +23,8 @@ policy acknowledgement together with the user's current data collection choice.
 
 ## What the user should do
 
-Review and acknowledge the policy when prompted. After acknowledgement, revisit
-Privacy Settings if anonymous data collection should remain disabled.
+Review and acknowledge the policy when prompted. Existing anonymous data
+collection choices require no further action.
 
 ## Notes for release manager
 

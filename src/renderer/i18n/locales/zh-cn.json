@@ -4442,11 +4442,11 @@
   "onboarding": {
     "privacy": {
       "accept_and_continue": "同意并继续",
-      "data_collection": "共享匿名使用数据",
-      "notice": "继续即表示你已阅读并同意",
-      "period": "。",
+      "accept_policy": "同意隐私协议",
+      "notice": "我已阅读并同意",
+      "period": "",
       "policy": "隐私协议",
-      "update_failed": "无法更新隐私设置，请重试"
+      "update_failed": "无法保存隐私协议同意状态，请重试"
     },
     "provider_setup": {
       "missing_model": "请先启用该服务商下的至少一个模型",
@@ -4472,7 +4472,7 @@
       "other_provider": "配置其他服务商",
       "select_other_provider": "选择其他服务商",
       "setup_hint": "您可以随时在设置中更换服务商",
-      "subtitle": "连接服务商，开启您的 AI 工作空间",
+      "subtitle": "连接服务商，开启您的全能 AI 工作站",
       "title": "欢迎使用 Cherry Studio"
     }
   },

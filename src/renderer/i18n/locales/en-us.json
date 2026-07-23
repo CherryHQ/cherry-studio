@@ -4442,11 +4442,11 @@
   "onboarding": {
     "privacy": {
       "accept_and_continue": "Accept and Continue",
-      "data_collection": "Share anonymous usage data",
-      "notice": "By continuing, you confirm that you have read and agree to the",
+      "accept_policy": "Agree to the Privacy Policy",
+      "notice": "I have read and agree to the",
       "period": ".",
       "policy": "Privacy Policy",
-      "update_failed": "Unable to update the privacy setting. Please try again."
+      "update_failed": "Unable to save your privacy agreement. Please try again."
     },
     "provider_setup": {
       "missing_model": "Enable at least one model from the enabled provider",
@@ -4472,7 +4472,7 @@
       "other_provider": "Set up another provider",
       "select_other_provider": "Select Other Provider",
       "setup_hint": "You can change providers anytime in Settings",
-      "subtitle": "Connect a provider to power your AI workspace",
+      "subtitle": "Connect a provider to unlock your All-in-One AI Workstation",
       "title": "Welcome to Cherry Studio"
     }
   },

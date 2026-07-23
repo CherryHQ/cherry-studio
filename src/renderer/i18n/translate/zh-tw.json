@@ -2177,12 +2177,12 @@
     "copy_failed": "複製失敗",
     "create_success": "已成功建立",
     "current": "目前",
+    "decline": "不同意",
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
     "delete_failed": "刪除失敗",
     "delete_success": "刪除成功",
-    "decline": "不同意",
     "description": "描述",
     "detail": "詳細資訊",
     "disabled": "已停用",
@@ -4435,11 +4435,11 @@
   "onboarding": {
     "privacy": {
       "accept_and_continue": "同意並繼續",
-      "data_collection": "分享匿名使用資料",
-      "notice": "繼續即表示你已閱讀並同意",
-      "period": "。",
+      "accept_policy": "同意隱私協議",
+      "notice": "我已閱讀並同意",
+      "period": "",
       "policy": "隱私協議",
-      "update_failed": "無法更新隱私設定，請重試"
+      "update_failed": "無法儲存隱私協議同意狀態，請重試"
     },
     "provider_setup": {
       "missing_model": "請先啟用該服務商下的至少一個模型",
@@ -4465,7 +4465,7 @@
       "other_provider": "選擇其他供應商",
       "select_other_provider": "選擇其他供應商",
       "setup_hint": "請至少設定一個提供者以獲得最佳體驗",
-      "subtitle": "享受頂尖 AI 服務，盡在 CherryIN",
+      "subtitle": "連接服務商，開啟您的全能 AI 工作站",
       "title": "歡迎來到 Cherry Studio"
     }
   },

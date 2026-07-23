@@ -6,6 +6,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
@@ -106,6 +107,23 @@ describe('PreferencesMigrator', () => {
       expect(rows[0].value).toBe(1.25)
     })
 
+    it('migrates the v1 clientId from userData/config.json', async () => {
+      const legacyClientId = uuidv7()
+      const ctx = createTestContext(
+        {
+          electronStore: { clientId: legacyClientId },
+          redux: { settings: { userId: uuidv7() } }
+        },
+        dbh.db
+      )
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const rows = await selectByKey(dbh.db, 'app.user.id')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].value).toBe(legacyClientId)
+    })
+
     it('reads Dexie-settings mappings (translate:scroll:sync → feature.translate.page.scroll_sync)', async () => {
       const ctx = createTestContext({ dexieSettings: [{ id: 'translate:scroll:sync', value: true }] }, dbh.db)
       await migrator.prepare(ctx)
@@ -132,6 +150,8 @@ describe('PreferencesMigrator', () => {
       expect(policyVersion[0]?.value).toBe('')
       const dataCollection = await selectByKey(dbh.db, 'app.privacy.data_collection.enabled')
       expect(dataCollection[0]?.value).toBe(true)
+      const clientId = await selectByKey(dbh.db, 'app.user.id')
+      expect(clientId[0]?.value).toBe('')
     })
 
     it.each(['20260531', '20240101'])(

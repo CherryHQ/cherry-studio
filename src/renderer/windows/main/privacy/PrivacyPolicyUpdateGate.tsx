@@ -7,32 +7,33 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PrivacyPolicyDialog } from './PrivacyPolicyDialog'
 
-interface PrivacyPolicyUpdateGateProps {
-  open: boolean
-  onAcknowledge: () => Promise<void>
-}
+const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
 
-export function PrivacyPolicyUpdateGate({ open, onAcknowledge }: PrivacyPolicyUpdateGateProps) {
+export function PrivacyPolicyUpdateGate() {
   const { t } = useTranslation()
+  const [policyVersion, setPolicyVersion] = usePreference('app.privacy.policy_version', PESSIMISTIC_PREFERENCE_OPTIONS)
   const [showPolicy, setShowPolicy] = useState(false)
   const [isAcknowledging, setIsAcknowledging] = useState(false)
+  const open = policyVersion !== LATEST_PRIVACY_POLICY_VERSION
 
   const acknowledge = useCallback(async () => {
     setIsAcknowledging(true)
     try {
-      await onAcknowledge()
+      await setPolicyVersion(LATEST_PRIVACY_POLICY_VERSION)
     } catch {
       toast.error(t('privacy_policy_update.acknowledge_failed'))
     } finally {
       setIsAcknowledging(false)
     }
-  }, [onAcknowledge, t])
+  }, [setPolicyVersion, t])
 
   return (
     <>
